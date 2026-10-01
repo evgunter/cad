@@ -431,7 +431,7 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .order()
         .iter()
         .map(|id| DocEdit::InsertNode {
-            node: doc.node(*id).expect("an ordered node").clone(),
+            node: crate::fixture::as_authored(doc.node(*id).expect("an ordered node")),
         })
         .collect();
     edits.push(DocEdit::SetMembers {
@@ -526,12 +526,14 @@ fn two_placements_of_one_prototype_are_two_members() {
     let place = |doc, dx: f64| {
         insert(
             doc,
-            Node::Transform {
-                input: base,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-                rotation_angle: fixture::ang(0.0),
-            },
+            Node::transform(
+                base,
+                editor_core::Step::Rigid {
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                    angle: fixture::ang(0.0),
+                },
+            ),
         )
     };
     let (doc, left) = place(doc, 0.0);
@@ -843,7 +845,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
 }
 
 /// How many names a blend node's selection carries.
-fn selection_len(doc: &ProfileDoc, blend: RecipeNodeId) -> usize {
+fn selection_len(doc: &editor_core::ProfileDoc, blend: RecipeNodeId) -> usize {
     match doc.node(blend) {
         Some(Node::Fillet { selection, .. }) => selection.len(),
         other => panic!("expected a fillet, got {other:?}"),
@@ -862,12 +864,14 @@ fn a_union_is_one_body_at_an_operand_seat() {
     let (doc, _, u) = three_boxes([0, 1, 2]);
     let (doc, downstream) = insert(
         doc,
-        Node::Transform {
-            input: u,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            u,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let ev = run(&doc);
     assert!(
@@ -969,10 +973,16 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     );
     let ev = run(&doc);
     let pf = failure(&ev, pair).expect("the pair spelling refuses the undeclared contact");
-    assert!(pf.contains("UndeclaredContact"), "{pf}");
+    let class = |id| ev.node_error(id).map(|e| e.kind.class());
+    assert_eq!(
+        class(pair),
+        Some(editor_core::NodeErrorClass::UndeclaredContact),
+        "{pf}"
+    );
     let uf = failure(&ev, u).expect("the fold refuses the undeclared contact at step 2");
-    assert!(
-        uf.contains("UndeclaredContact"),
+    assert_eq!(
+        class(u),
+        class(pair),
         "the fold's refusal is the pair's, not a new class: {uf}"
     );
     // The whole point: no fold row survives into the refusal.

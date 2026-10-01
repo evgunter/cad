@@ -7,9 +7,9 @@ use crate::common;
 use common::{
     arc_kisses_line, bowtie, chain, circle_h, near_tangent_hole, profile, rect, tangent_hole, tol,
 };
-use geom_core::MarginDiag;
 use geom_core::Point2;
 use geom_core::Tol;
+use geom_core::{ErrorTextReading, MarginDiag};
 
 use profile::{
     ArcSweep, Center, ContactKind, EscalationSite, FILLET_ENCLOSING_RECOURSE, Open, PathError,
@@ -304,8 +304,8 @@ fn near_tangent_hole_escalates_on_the_internal_clearance() {
         ProfileError::Escalated { site, source } => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
             assert_eq!(source.predicate, Some("carrier_circles_internal"));
-            match source.margin {
-                MarginDiag::Value(m) => {
+            match source.margin.diagnostic_f64_for_error_text() {
+                ErrorTextReading::Value(m) => {
                     // The clearance is −5ε (up to the cancellation ulp).
                     let eps = tol().eps();
                     assert!(
@@ -361,7 +361,7 @@ fn nan_coordinates_poison_to_a_typed_error() {
     ])]);
     match err(&p) {
         ProfileError::Escalated { source, .. } => {
-            assert_eq!(source.margin, MarginDiag::Invalid);
+            assert_eq!(source.margin, MarginDiag::INVALID);
         }
         other => panic!("expected poison escalation, got {other:?}"),
     }
@@ -377,7 +377,7 @@ fn nan_bulge_poisons_to_a_typed_error() {
     match err(&p) {
         ProfileError::Escalated { site, source } => {
             assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
-            assert_eq!(source.margin, MarginDiag::Invalid);
+            assert_eq!(source.margin, MarginDiag::INVALID);
             assert_eq!(source.predicate, Some("segment_straightness"));
         }
         other => panic!("expected poison escalation, got {other:?}"),
@@ -443,7 +443,10 @@ fn error_display_is_actionable() {
 
     let e = err(&near_tangent_hole(tol().eps()));
     let msg = e.to_string();
-    assert!(msg.contains("carrier_circles_internal"), "{msg}");
+    assert!(
+        format!("{e:?}").contains("carrier_circles_internal"),
+        "{e:?}"
+    );
     assert!(msg.contains("ambiguity band"), "{msg}");
     assert_eq!(
         msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),

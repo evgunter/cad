@@ -22,6 +22,7 @@ use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin, skin_parameters};
+use sweep::test_support::bulge_arc;
 
 /// Ring tolerance: the acceptance scale for a claim that is exact in
 /// ℝ and therefore limited only by float rounding. Scaled from the
@@ -42,11 +43,7 @@ fn sections() -> Vec<Vec<NurbsCurve3<f64>>> {
                 a: p(0.0, 0.0),
                 b: p(2.0, 0.0),
             },
-            SketchSegment::Arc {
-                a: p(2.0, 0.0),
-                b: p(2.0, 1.0),
-                bulge: 0.25,
-            },
+            bulge_arc(p(2.0, 0.0), p(2.0, 1.0), 0.25),
             SketchSegment::Line {
                 a: p(2.0, 1.0),
                 b: p(0.0, 1.0),
@@ -76,11 +73,11 @@ fn strip(j: usize) -> Vec<NurbsCurve3<f64>> {
 #[test]
 fn an_arc_segment_converts_to_its_exact_carrier_circle() {
     let place = Affine3::identity();
-    let seg = SketchSegment::Arc {
-        a: Point2::new(1.0, 0.0),
-        b: Point2::new(0.0, 1.0),
-        bulge: (core::f64::consts::PI / 8.0).tan(), // a quarter turn
-    };
+    let seg = bulge_arc(
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+        (core::f64::consts::PI / 8.0).tan(),
+    );
     let c = segment_curve(0, seg, place).expect("converts");
     assert_eq!(c.degree(), 2);
     // Every sample lies on the unit circle — the rational quadratic is
@@ -105,11 +102,7 @@ fn an_arc_segment_converts_to_its_exact_carrier_circle() {
 fn a_half_turn_arc_splits_into_sub_arcs_and_stays_exact() {
     // bulge = tan(θ/4) with θ = 3π/2 — three quarter-turn sub-arcs.
     let bulge = (3.0 * core::f64::consts::PI / 8.0).tan();
-    let seg = SketchSegment::Arc {
-        a: Point2::new(1.0, 0.0),
-        b: Point2::new(0.0, -1.0),
-        bulge,
-    };
+    let seg = bulge_arc(Point2::new(1.0, 0.0), Point2::new(0.0, -1.0), bulge);
     let c = segment_curve(0, seg, Affine3::identity()).expect("converts");
     assert!(
         c.control().len() >= 7,
@@ -274,11 +267,7 @@ fn incompatible_sections_refuse_at_the_skin_door() {
     .expect("line");
     let arc = segment_curve(
         1,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 1.0),
-            b: Point2::new(1.0, 1.0),
-            bulge: 0.3,
-        },
+        bulge_arc(Point2::new(0.0, 1.0), Point2::new(1.0, 1.0), 0.3),
         Affine3::identity(),
     )
     .expect("arc");

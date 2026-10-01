@@ -1,5 +1,5 @@
 //! The blend battery's definite refusals at the CERTIFIED scalar
-//! (feature `interval`): what the margin payload says when the margin
+//!: what the margin payload says when the margin
 //! is an enclosure.
 //!
 //! At `f64` a margin is one number and a refusal can report it as one
@@ -16,16 +16,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the blend refusals' margin payload",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use crate::common::approx::band;
-    use geom_core::{Interval, MarginDiag, Real, Sign};
+    use geom_core::{ErrorTextReading, Interval, MarginDiag, Real, Sign};
     use sweep::blend::BlendError;
     use sweep::blend::battery::spine_regularity;
     use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
@@ -53,14 +46,11 @@ mod certified {
                 assert_eq!(margin.sign, Sign::Negative);
                 assert_eq!(
                     margin.reading,
-                    MarginDiag::Enclosure {
-                        lo: -0.05,
-                        hi: -0.05
-                    },
+                    MarginDiag::enclosure(-0.05, -0.05),
                     "the interval scalar spells a point bracket as a thin enclosure"
                 );
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     None,
                     "and the accessor answers for the shape, not for the width"
                 );
@@ -83,14 +73,11 @@ mod certified {
                 assert_eq!(margin.sign, Sign::Negative);
                 assert_eq!(
                     margin.reading,
-                    MarginDiag::Enclosure {
-                        lo: -0.2,
-                        hi: -0.05
-                    },
+                    MarginDiag::enclosure(-0.2, -0.05),
                     "the payload is the enclosure the classifier judged"
                 );
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     None,
                     "no single number is this reading, and the accessor says so"
                 );
@@ -119,11 +106,14 @@ mod certified {
                 assert_eq!(margin.predicate, "fillet3_spine_regularity");
                 assert_eq!(margin.sign, Sign::Negative);
                 assert!(
-                    matches!(margin.reading, MarginDiag::Enclosure { .. }),
+                    matches!(
+                        margin.reading.diagnostic_f64_for_error_text(),
+                        ErrorTextReading::Enclosure { .. }
+                    ),
                     "a levered enclosure stays one: {:?}",
                     margin.reading
                 );
-                assert_eq!(margin.value(), None);
+                assert_eq!(margin.reading.diagnostic_f64_for_error_text().value(), None);
                 // The companion lever arm is exact here, so the row
                 // says nothing about the radius field's own projection.
                 assert!((radius - 0.5).abs() < 1e-15);

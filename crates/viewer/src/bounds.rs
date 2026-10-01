@@ -112,8 +112,8 @@
 //! Nothing in `crates/viewer` asks for one on a user's behalf yet —
 //! the affordance is
 //! `work/offer/certify-affordance-on-the-bounds-panel.md`, and
-//! `crates/viewer/tests/docm9_range_vs_probe.rs` (the `interval`
-//! feature) is where the two answers are measured against each other.
+//! `crates/viewer/tests/docm9_range_vs_probe.rs` is where the two
+//! answers are measured against each other.
 //!
 //! What lets that arrive without disturbing anything here:
 //! [`BoundsProbe`] evaluates nothing itself, so the oracle is
@@ -171,7 +171,10 @@ impl Verdict {
         Self(
             eval.nodes
                 .iter()
-                .filter(|(_, result)| matches!(result, NodeResult::Failed(_)))
+                .filter(|(_, result)| match result {
+                    NodeResult::Failed(_) => true,
+                    NodeResult::Ok(_) | NodeResult::Poisoned { .. } => false,
+                })
                 .map(|(id, _)| *id)
                 .collect(),
         )

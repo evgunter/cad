@@ -31,30 +31,31 @@
 //! The shape is the injected plane × NURBS lane's ([`crate::NurbsLane`]),
 //! for the same reason and with the same discipline: a caller that can
 //! derive hands the door in, a caller that cannot hands `None` and gets
-//! the typed refusal its pass already had. Under `work/scalar/H5.md`
-//! §RATIFIED ruling 3 the door is the parameter a mixed pass takes;
+//! the typed refusal its pass already had. Under H5's ratified ruling 3
+//! (PR 2701) the door is the parameter a mixed pass takes;
 //! the scalar seam that produces it is the per-scalar policy that cut
 //! leaves standing, folded into `topo::AtRestPolicy` rather than
 //! carried on a trait of its own.
 //!
 //! # This file is on the shell's offset chain
 //!
-//! [`OffsetFitLane::remap`] and its `f64` body take a
-//! `tolerance: f64`, and the SHELL-TOLERANCE-CHAIN census
+//! All three doors take the run's ε as the [`Tol`] witness and no
+//! `f64` epsilon — nor a band beside it: the band the fit's meters
+//! read is derived from the same witness, inside the door — and the
+//! SHELL-TOLERANCE-CHAIN census
 //! (`crates/topo/tests/shell_tolerance_chain.rs`) carries this file
-//! with those two parameters declared: they are the surface's own
-//! stored claim, the datum the mapped surface must be shown to honour,
-//! and never the run's ε — which travels as [`Tol`] through the other
-//! two doors. A THIRD such parameter, or an `.eps()` read here, reds
-//! that census and has to be said what it is for.
+//! with none declared: an `f64` tolerance parameter or an `.eps()`
+//! read here reds that census and has to be said what it is for.
 
-use geom::surfaces::{NurbsSurface, Surface};
-use geom_core::{Band, Real, Tol};
+use geom::surfaces::NurbsSurface;
+use geom_core::{Real, Tol};
 
 use crate::OffsetFitError;
 
 /// **The offset-fit door**: the three offset-fit operations the
-/// certification passes reach, in one value.
+/// certification passes reach, in one value — over two bodies, because
+/// [`OffsetFitLane::recertify`] and [`OffsetFitLane::remap`] are one
+/// certifier reached from a surface and from an unpacked triple.
 ///
 /// Its one constructor is [`OffsetFitLane::fit`], at `f64`, so holding
 /// a value of this type IS the statement that the fit is derivable at
@@ -63,19 +64,50 @@ use crate::OffsetFitError;
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct OffsetFitLane<T: Real> {
-    /// [`OffsetFitLane::recertify`]'s body.
-    recertify:
-        fn(&geom::ApproxSurface<T>, Tol, Band) -> Result<geom::OffsetCertificate, OffsetFitError>,
     /// [`OffsetFitLane::mint`]'s body.
-    mint: fn(std::sync::Arc<NurbsSurface<T>>, T, Tol, Band) -> Result<Surface<T>, OffsetFitError>,
-    /// [`OffsetFitLane::remap`]'s body.
-    remap: fn(
+    mint: fn(
+        std::sync::Arc<NurbsSurface<T>>,
+        T,
+        Tol,
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError>,
+    /// The certifier over a `(description, fit, window)` triple:
+    /// [`OffsetFitLane::remap`]'s body, and [`OffsetFitLane::recertify`]'s
+    /// on a surface's own triple.
+    certify: fn(
         &geom::SurfaceDescription<T>,
         &NurbsSurface<T>,
         geom::ApproxWindow,
-        f64,
-        Band,
+        Tol,
     ) -> Result<geom::OffsetCertificate, OffsetFitError>,
+}
+
+/// The scalars that hold an [`OffsetFitLane`], by their
+/// [`Real::NAME`]s — the replay list the offset-fit refusals render.
+/// Membership is the policy's answer, which this crate cannot read, so
+/// topo pins it against `AtRestPolicy::offset_fit_lane` at every scalar
+/// (`lane0_r2_probes.rs`).
+pub const OFFSET_FIT_DOOR_HOLDERS: &[&str] = &[<f64 as Real>::NAME];
+
+/// A list of scalar names rendered as one noun phrase — `the f64
+/// scalar`, `the f64, interval or symbolic scalar` — for a refusal
+/// that says where a door is held.
+#[derive(Clone, Copy, Debug)]
+pub struct ScalarList(pub &'static [&'static str]);
+
+impl core::fmt::Display for ScalarList {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("the ")?;
+        let n = self.0.len();
+        for (i, name) in self.0.iter().enumerate() {
+            let sep = match (i, n - i) {
+                (0, _) => "",
+                (_, 1) => " or ",
+                _ => ", ",
+            };
+            write!(f, "{sep}{name}")?;
+        }
+        f.write_str(" scalar")
+    }
 }
 
 impl OffsetFitLane<f64> {
@@ -84,9 +116,8 @@ impl OffsetFitLane<f64> {
     #[must_use]
     pub const fn fit() -> Self {
         Self {
-            recertify: crate::offset_fit::recertify_approx,
             mint: crate::offset_fit::approx_offset_surface,
-            remap: remap_offset_certificate,
+            certify: crate::offset_fit::certify_offset_over,
         }
     }
 }
@@ -97,15 +128,15 @@ impl<T: Real> OffsetFitLane<T> {
     /// tier-3 never-trust posture (O5), one dimension up from
     /// `EdgeCurve::recertify`.
     ///
-    /// **The tolerance is the RUN's, not the surface's.** The edge
-    /// machinery re-certifies every carrier against the run's band and
-    /// never against a stored bound, and the surface claim is the same
-    /// shape: O3 ratifies `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so
-    /// verifying it means measuring against the ε this validation call
-    /// runs at. A surface minted at a loose tolerance validating
-    /// forever afterwards would be the stored bound quietly replacing
-    /// the ratified one. The stored tolerance stays what it always was:
-    /// the MINT's parameter, and the fit door's own gate.
+    /// **The tolerance is the RUN's.** The edge machinery re-certifies
+    /// every carrier against the run's band and never against a stored
+    /// bound, and the surface claim is the same shape: O3 ratifies
+    /// `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so verifying it means
+    /// measuring against the ε this validation call runs at. The
+    /// surface stores no tolerance, so there is no per-surface bound
+    /// that could stand in for the ratified one. The band the door
+    /// meters read is derived from the same witness inside the door, so
+    /// there is no second argument that could name a different ε.
     ///
     /// # Errors
     ///
@@ -114,9 +145,8 @@ impl<T: Real> OffsetFitLane<T> {
         self,
         approx: &geom::ApproxSurface<T>,
         tol: Tol,
-        band: Band,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        (self.recertify)(approx, tol, band)
+        (self.certify)(approx.description(), approx.fit(), approx.window(), tol)
     }
 
     /// Mints the certified approximating surface for a NURBS operand's
@@ -138,9 +168,8 @@ impl<T: Real> OffsetFitLane<T> {
         base: std::sync::Arc<NurbsSurface<T>>,
         d: T,
         tol: Tol,
-        band: Band,
-    ) -> Result<Surface<T>, OffsetFitError> {
-        (self.mint)(base, d, tol, band)
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError> {
+        (self.mint)(base, d, tol)
     }
 
     /// **The certificate of an offset description's fit, re-derived on
@@ -155,9 +184,9 @@ impl<T: Real> OffsetFitLane<T> {
     /// other way round — from a surface that already exists, for the
     /// validator that re-derives its claim.)
     ///
-    /// **The classification tolerance is the CALLER's** and so is the
-    /// band: `tolerance` is what the mapped surface will store and
-    /// therefore what it must be shown to honour.
+    /// The classification tolerance is the run's ε and arrives as the
+    /// witness, for [`OffsetFitLane::recertify`]'s reason: the map and
+    /// the validator classify a given surface against the same number.
     ///
     /// # Errors
     ///
@@ -169,102 +198,52 @@ impl<T: Real> OffsetFitLane<T> {
         description: &geom::SurfaceDescription<T>,
         fit: &NurbsSurface<T>,
         window: geom::ApproxWindow,
-        tolerance: f64,
-        band: Band,
+        tol: Tol,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        (self.remap)(description, fit, window, tolerance, band)
+        (self.certify)(description, fit, window, tol)
     }
 }
 
-/// The remap door's `f64` body.
-///
-/// The window rule and the derivation behind it live in one place, so
-/// this door, the storage mint and the validator's re-derivation cannot
-/// disagree about the same surface. The `_at` form, deliberately: this
-/// door classifies against the tolerance the SURFACE's claim was made
-/// at — a stored datum, not the run's ε — which is what keeps the map
-/// and the validator agreeing about a given surface (`topo::transform`'s
-/// `map_approx` argues it). It is the one production caller of a
-/// numeric-target routine, named at that routine's own door.
-fn remap_offset_certificate(
-    description: &geom::SurfaceDescription<f64>,
-    fit: &NurbsSurface<f64>,
-    window: geom::ApproxWindow,
-    tolerance: f64,
-    band: Band,
-) -> Result<geom::OffsetCertificate, OffsetFitError> {
-    let geom::SurfaceDescription::Offset { base, d } = description;
-    crate::offset_fit::certify_offset_over_at(base, fit, *d, window, tolerance, band)
-}
-
-/// **The door's WIRING, field by field** — the rows that say which
+/// **The door's WIRING, field by field** — the row that says which
 /// free function each limb of [`OffsetFitLane::fit`] is, rather than
 /// what that function answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// routine that agrees on the fixture in front of it — the neighbouring
-/// `_at` instrument at the fixture's own tolerance agrees exactly, and
-/// a same-signature closure can agree by construction. These rows
-/// compare the stored function pointer instead, so a re-point is a
-/// failure no matter what it computes.
+/// Why a wiring row compares pointers rather than outputs:
+/// `crates/topo/tests/certified_enclosure_impl_census.rs`'s module doc.
 ///
-/// Function-pointer identity is what `std::ptr::fn_addr_eq` compares
-/// and is not a language guarantee (identical function bodies may be
-/// merged), which costs nothing here: the three bodies differ, and a
-/// false PASS from a merge would need the re-pointed routine to be
-/// instruction-identical to the one it replaced.
+/// The door is formed at `f64` alone — its one constructor is concrete
+/// — so its helper is not generic and its roster is one row.
+/// `topo`'s `certified_enclosure_impl_census` counts the door values
+/// in the tree against its roster of helpers, this one included.
 #[cfg(test)]
 mod wiring_rows {
-    use super::{OffsetFitLane, remap_offset_certificate};
+    use super::OffsetFitLane;
 
-    #[test]
-    fn recertify_is_the_free_recertify() {
+    /// `Ok(())` when every limb holds its routine; otherwise the name
+    /// of the first field that does not.
+    fn holds_the_offset_fit() -> Result<(), &'static str> {
         let lane = OffsetFitLane::fit();
-        assert!(
-            std::ptr::fn_addr_eq(
-                lane.recertify,
-                crate::offset_fit::recertify_approx
-                    as fn(
-                        &geom::ApproxSurface<f64>,
-                        geom_core::Tol,
-                        geom_core::Band,
-                    )
-                        -> Result<geom::OffsetCertificate, crate::OffsetFitError>
-            ),
-            "the recertify limb is wired to something other than `offset_fit::recertify_approx` \
-             — a `_at` instrument at a fixed target answers the same limbs on any one surface, \
-             so only the pointer says which routine ran"
-        );
+        if !std::ptr::fn_addr_eq(
+            lane.mint,
+            crate::offset_fit::approx_offset_surface as fn(_, _, _) -> _,
+        ) {
+            return Err("mint is not `offset_fit::approx_offset_surface`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.certify,
+            crate::offset_fit::certify_offset_over as fn(_, _, _, _) -> _,
+        ) {
+            return Err("certify is not `offset_fit::certify_offset_over`");
+        }
+        Ok(())
     }
 
     #[test]
-    fn mint_is_the_free_mint() {
-        let lane = OffsetFitLane::fit();
-        assert!(
-            std::ptr::fn_addr_eq(
-                lane.mint,
-                crate::offset_fit::approx_offset_surface
-                    as fn(
-                        std::sync::Arc<geom::surfaces::NurbsSurface<f64>>,
-                        f64,
-                        geom_core::Tol,
-                        geom_core::Band,
-                    )
-                        -> Result<geom::surfaces::Surface<f64>, crate::OffsetFitError>
-            ),
-            "the mint limb is wired to something other than `offset_fit::approx_offset_surface`"
-        );
-    }
-
-    #[test]
-    fn remap_is_the_window_rule_body() {
-        let lane = OffsetFitLane::fit();
-        assert!(
-            std::ptr::fn_addr_eq(
-                lane.remap,
-                remap_offset_certificate as fn(_, _, _, _, _) -> _
-            ),
-            "the remap limb is wired to something other than this module's window-rule body"
+    fn f64_is_wired_to_the_offset_fit() {
+        assert_eq!(
+            holds_the_offset_fit(),
+            Ok(()),
+            "`OffsetFitLane::<f64>::fit()` holds something other than its two routines"
         );
     }
 }

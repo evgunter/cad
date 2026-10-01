@@ -53,9 +53,6 @@ use geom_brep::{EdgeCurveSpec, SurfaceKind};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{Body, FaceSurface, MefSite, MevSite};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
 fn z_axis() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)
 }
@@ -65,7 +62,7 @@ fn x_axis() -> Vec3<f64> {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
         axis: z_axis(),
         u_ref: x_axis(),
@@ -76,7 +73,7 @@ fn unit_sphere() -> Surface<f64> {
 /// `eval(t) = (sin t, 0, cos t)`.
 fn meridian_from_the_pole() -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 1.0, 0.0),
         radius: 1.0,
         u_ref: z_axis(),
@@ -86,7 +83,7 @@ fn meridian_from_the_pole() -> Curve3<f64> {
 /// The same great circle by latitude: `eval(t) = (cos t, 0, sin t)`.
 fn meridian_by_latitude() -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, -1.0, 0.0),
         radius: 1.0,
         u_ref: x_axis(),
@@ -98,9 +95,15 @@ fn one_seam_sphere() -> Body<f64> {
     let tol = Tol::witness();
     let seam = meridian_from_the_pole();
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(seam.eval(0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let start = body.mvfs(seam.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,
@@ -120,9 +123,15 @@ fn sphere_slit_on_two_coincident_edges() -> Body<f64> {
     let tol = Tol::witness();
     let seam = meridian_from_the_pole();
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(seam.eval(0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let start = body.mvfs(seam.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let m = body
         .mev(
             MevSite::Lone {
@@ -149,14 +158,14 @@ fn sphere_slit_on_two_coincident_edges() -> Body<f64> {
 /// **The torus face bounded by one meridian circle**, and its complement.
 fn torus_on_one_meridian_circle() -> Body<f64> {
     let torus = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis: z_axis(),
         major_radius: 2.0,
         minor_radius: 0.5,
         u_ref: x_axis(),
     };
     let minor = Curve3::Circle {
-        center: p3(2.0, 0.0, 0.0),
+        center: Point3::new(2.0, 0.0, 0.0),
         axis: Vec3::new(0.0, -1.0, 0.0),
         radius: 0.5,
         u_ref: x_axis(),
@@ -174,21 +183,27 @@ fn sphere_on_one_great_circle() -> Body<f64> {
 fn one_seam_cylinder() -> Body<f64> {
     let tol = Tol::witness();
     let cyl = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         axis: z_axis(),
         radius: 1.0,
         u_ref: x_axis(),
     };
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(p3(1.0, 0.0, 0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(cyl))
-        .unwrap();
+    let start = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: cyl,
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,
         },
-        p3(1.0, 0.0, 1.0),
-        EdgeCurveSpec::line_between(p3(1.0, 0.0, 0.0), p3(1.0, 0.0, 1.0)),
+        Point3::new(1.0, 0.0, 1.0),
+        EdgeCurveSpec::line_between(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)),
         tol,
     )
     .unwrap();
@@ -199,21 +214,27 @@ fn one_seam_cylinder() -> Body<f64> {
 fn one_seam_cone() -> Body<f64> {
     let tol = Tol::witness();
     let cone = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
+        apex: Point3::new(0.0, 0.0, 0.0),
         axis: z_axis(),
         half_angle: core::f64::consts::FRAC_PI_4,
         u_ref: x_axis(),
     };
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(p3(0.0, 0.0, 0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(cone))
-        .unwrap();
+    let start = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: cone,
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,
         },
-        p3(1.0, 0.0, 1.0),
-        EdgeCurveSpec::line_between(p3(0.0, 0.0, 0.0), p3(1.0, 0.0, 1.0)),
+        Point3::new(1.0, 0.0, 1.0),
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)),
         tol,
     )
     .unwrap();

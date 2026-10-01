@@ -2,11 +2,12 @@
 id: the-sentences-pr-3052-adds-to-create-rs-are-not-yet-messages
 kind: issue
 title: viewer: the sentences AUTHOR's #3052 adds to pane/create.rs are drawn by the layout's rule, not widgets::message
-status: open
+status: closed
 opened: 2026-09-24
 priority: P2
 cost: E
 refs: [messages-in-the-creation-and-properties-panes-still-draw-past-their-row]
+closed: 2026-09-24
 ---
 
 
@@ -37,3 +38,13 @@ today, so it needs a `&Theme` parameter, as `frame_picker` gained one.
 
 Whichever lands second does the conversion: PR 3052 itself if it
 rebases onto PR 3139, or a CHROME pass once 3052 is on `main`.
+
+## Closed (2026-09-24, AUTH-4 — PR 3052 landed second)
+
+PR 3052 merged `main` (with PR 3139) into `author/part-and-duplicate`
+and did the conversion itself, as this row assigns: every sentence it
+lists now goes through `crate::widgets::message` (the two tool
+prompts) or `message_toned(…, Tone::Advisory)` (the two seat lines,
+`duplicate_note()`, and the three sentences in `part_selector_rows`,
+which now takes a `&Theme` as `frame_picker` does). The remaining
+`ui.weak` sites in `pane/create.rs` are not 3052's.

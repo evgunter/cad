@@ -18,15 +18,86 @@ use crate::node::{Node, RecipeNodeId};
 use geom_core::Tol;
 
 /// A document-level parameter name (spec D4's "parameter refs").
+///
+/// **Admissible by construction.** A parameter exists to be referenced
+/// from an expression, so a name is one the expression parser reads
+/// back as a reference to that same parameter — exactly one
+/// identifier token covering the whole text
+/// ([`crate::parse::ParamNameFault`] says how a text fails that). The
+/// field is private and [`Self::new`] is the one door, so neither an
+/// edit nor a file can hold a parameter no expression could name: the
+/// edit door never sees an inadmissible name because none can be
+/// spelled, and the load door refuses one at the token, through
+/// `Deserialize`, which is this same constructor
+/// (`try_from = "String"`) — the same shape `UnitSym` refuses an
+/// off-table symbol in. That is why `write_doc_param` runs no name
+/// check and `persist::check` has no name walk: there is one
+/// decision, at the type, and no second door can restate it.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct ParamName(pub String);
+#[serde(try_from = "String")]
+pub struct ParamName(String);
 
 impl ParamName {
-    /// Convenience constructor.
-    pub fn new(name: impl Into<String>) -> Self {
-        Self(name.into())
+    /// The one door: the text, or why the expression parser does not
+    /// read it back as a reference to itself.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::parse::ParamNameFault`], carrying the offered text and
+    /// the lexer's finding.
+    pub fn new(name: impl Into<String>) -> Result<Self, crate::parse::ParamNameFault> {
+        let offered = name.into();
+        match crate::parse::param_name_fault(&offered) {
+            None => Ok(Self(offered)),
+            Some(reason) => Err(crate::parse::ParamNameFault { offered, reason }),
+        }
+    }
+
+    /// A name written in source text — a test fixture, a demo, a
+    /// guide example — which is admissible or the program is wrong.
+    /// The `&'static str` bound states that intent; it does not keep
+    /// runtime text out (a leaked `String` is `'static` too), so the
+    /// guard is the panic. A name that arrives at runtime goes through
+    /// [`Self::new`] and is refused typed.
+    ///
+    /// # Panics
+    ///
+    /// On an inadmissible name, with the fault's own sentence: the
+    /// program's text is wrong, and that is a bug to fix rather than a
+    /// refusal to carry.
+    #[track_caller]
+    #[allow(clippy::panic)]
+    pub fn from_static(name: &'static str) -> Self {
+        match Self::new(name) {
+            Ok(name) => name,
+            Err(fault) => panic!("{fault}"),
+        }
+    }
+
+    /// The name's text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for ParamName {
+    type Error = crate::parse::ParamNameFault;
+
+    fn try_from(name: String) -> Result<Self, Self::Error> {
+        Self::new(name)
+    }
+}
+
+/// A name is keyed by its text, so a table of names answers a lookup
+/// by the `&str` the lexer produced without a name being minted for
+/// the question (`parse::Parser::primary`). Sound because the derived
+/// `Hash`, `Eq` and `Ord` over a single `String` field are `str`'s
+/// own.
+impl core::borrow::Borrow<str> for ParamName {
+    fn borrow(&self) -> &str {
+        &self.0
     }
 }
 
@@ -716,6 +787,13 @@ pub struct Doc<P> {
     /// The monotone id counter: the next [`RecipeNodeId`] to mint.
     /// Never decremented — deletion does not free ids (spec D3).
     pub(crate) next_id: u64,
+    /// The step mint: the chain an authored profile step's
+    /// [`crate::StepId`] is minted from and the log of every id minted
+    /// (`names/README.md`, "N1, the profile pieces"). A step a
+    /// `SetProgram` drops keeps its log entry, so its id is never
+    /// minted again. Apart from the node counter, so an authored step
+    /// moves no node id.
+    pub(crate) step_mint: crate::StepMint,
     /// The nodes, by stable id.
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
@@ -863,6 +941,7 @@ impl<P> Doc<P> {
         Self {
             id,
             next_id: 0,
+            step_mint: crate::StepMint::empty(),
             nodes: BTreeMap::new(),
             order: Vec::new(),
             roots: Vec::new(),
@@ -885,6 +964,13 @@ impl<P> Doc<P> {
     /// The document's stable identity.
     pub fn id(&self) -> DocumentId {
         self.id
+    }
+
+    /// The document's step mint: its chain, and the log of every
+    /// [`crate::StepId`] it has minted.
+    #[must_use]
+    pub fn step_mint(&self) -> &crate::StepMint {
+        &self.step_mint
     }
 
     /// The same document under a different identity: `id` replaces
@@ -1183,6 +1269,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
             && self.next_id == other.next_id
+            && self.step_mint == other.step_mint
             && self.order == other.order
             && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
@@ -1242,19 +1329,14 @@ pub(crate) enum PlacementFault {
     /// The key names no live [`Node::InstantiatePart`]. A11 puts the
     /// frame on an instance's cluster, so nothing else has one.
     NotAnInstance,
-    /// The frame carries a non-finite coordinate: no predicate can
-    /// decide anything about where it puts the material.
-    NonFiniteFrame,
-    /// The frame is IMPROPER — determinant ≤ 0, i.e. a mirror (A6).
-    /// Admitting one is gated on the equivariance audit R4 owns.
-    ImproperFrame {
-        /// The linear part's determinant.
-        determinant: f64,
-    },
+    /// The frame is one the frame rule refuses
+    /// ([`crate::placement::Frame::admission_fault`]).
+    Frame(crate::placement::FrameFault),
 }
 
 /// **A11's admission rule for one placement row, stated once**: the
-/// key instantiates a part, and the frame is finite and proper.
+/// key instantiates a part, and the frame is one the frame rule admits
+/// at `tol`.
 ///
 /// One predicate with one home, asked by every door that admits a row
 /// — [`crate::DocEdit::SetPlacement`] and the load door's walk over the
@@ -1274,20 +1356,15 @@ pub(crate) fn placement_fault<P>(
     doc: &Doc<P>,
     node: RecipeNodeId,
     frame: &crate::placement::Frame,
+    tol: geom_core::Tol,
 ) -> Option<PlacementFault> {
     if !matches!(doc.nodes.get(&node), Some(Node::InstantiatePart { .. })) {
         return Some(PlacementFault::NotAnInstance);
     }
-    // The frame half is the frame's own rule
-    // ([`crate::placement::Frame::admission_fault`]), so a cluster
-    // frame and a placement rule's listed frames are held to one
-    // standard rather than to two spellings of one.
-    Some(match frame.admission_fault()? {
-        crate::placement::FrameFault::NonFinite => PlacementFault::NonFiniteFrame,
-        crate::placement::FrameFault::Improper { determinant } => {
-            PlacementFault::ImproperFrame { determinant }
-        }
-    })
+    // The frame half is the frame's own rule, so a cluster frame, a
+    // placement rule's listed frames and a transform's literal steps
+    // are held to one standard rather than to spellings of one.
+    frame.admission_fault(tol).map(PlacementFault::Frame)
 }
 
 /// What makes a witness row's KEY inadmissible ([`witness_site_fault`])
@@ -1367,7 +1444,8 @@ mod tests {
         }
     }
 
-    /// **A carrier [`Carrier::ALL`] does not name never walks.**
+    /// **A carrier [`Carrier::ALL`] does not name never walks**:
+    /// [`Doc::name_carriers`] is driven by the array.
     ///
     /// One half of the weld is the compiler's: a variant added to
     /// [`Carrier`] does not compile until `Doc::names_in` places it.

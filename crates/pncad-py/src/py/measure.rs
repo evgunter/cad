@@ -53,7 +53,7 @@
 //! a typed ABSENCE and not a failure, which is why an assertion over
 //! such a measure reports `Unevaluated` rather than being poisoned.
 //!
-//! The engine's own refusal (`MinClearanceRefusal`) is therefore not
+//! The engine's own refusal (`ClearanceRefusal`) is therefore not
 //! reachable from Python at all: the only lane that computes a bracket
 //! is the interval one, and the binding does not evaluate there. It
 //! would arrive as `EvaluationError` with
@@ -336,6 +336,11 @@ const fn _binds_every_kernel_direction(kernel: d::AssertionDir) -> AssertionDir 
 /// an ill-dimensioned tree is unrepresentable, so `dimension` is
 /// trustworthy by construction.
 ///
+/// **It nests at most 128 levels**, the bound it shares with `Expr`, a
+/// value leaf counting as the expression it holds: a constructor that
+/// would nest deeper refuses `nested_too_deep`, so a flat chain of more
+/// than 128 terms refuses.
+///
 /// **No `__hash__`**, for `Expr`'s reason: equality is the kernel's
 /// own `PartialEq`, an IEEE comparison of the literals inside, so
 /// `0.0` and `-0.0` are equal trees whose bit patterns are not, and
@@ -382,10 +387,12 @@ impl MeasureExpr {
             .map_err(|err| measure_dimension_err(py, &err))
     }
 
-    /// Negation — any dimension, and total.
+    /// Negation — any dimension; only the nesting bound refuses it.
     #[staticmethod]
-    fn neg(a: &Self) -> Self {
-        Self(d::MeasureExpr::neg(a.0.clone()))
+    fn neg(py: Python<'_>, a: &Self) -> PyResult<Self> {
+        d::MeasureExpr::neg(a.0.clone())
+            .map(Self)
+            .map_err(|err| measure_dimension_err(py, &err))
     }
 
     /// Product; the F1 rule, at least one operand dimensionless.

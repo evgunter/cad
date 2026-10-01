@@ -1,23 +1,19 @@
-//! Interval-lane revolve (feature `interval`): the acceptance shapes
+//! Interval-lane revolve: the acceptance shapes
 //! REQUIRED to build tier-valid at the certified scalar (the lane is
 //! fully live post-B1 — refusals here are defects, not honesty).
 //! Trigonometry (rotation matrices, full-period rim samples) runs in
 //! enclosures throughout; the full-period-is-identity convention keeps
 //! the seam coincidences exact at Interval too.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::{p2, v2};
 use geom_core::Tol;
-use geom_core::{Interval, Point2, Real, Vec2};
+use geom_core::{Interval, Real};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{validate, validate_closed, validate_geometric};
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-}
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::<Interval>::xy(), loops)
@@ -28,7 +24,7 @@ fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
 fn axis_y() -> RevolveAxis<Interval> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
+        dir: v2(0.0, 1.0),
     }
 }
 
@@ -56,9 +52,9 @@ fn interval_washer_builds_tier_valid() {
 
 #[test]
 fn interval_ball_builds_tier_valid() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
-        ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
+    let lp = bulge_loop(vec![
+        (p2(0.0, -1.0), Interval::from_f64(1.0)),
+        (p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
     let t = revolve(
         &validated(vec![lp]),

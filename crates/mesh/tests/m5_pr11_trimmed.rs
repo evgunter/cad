@@ -6,13 +6,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use profile::RawLoop;
 use std::collections::HashMap;
 
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPart, SplitPlane, split};
@@ -23,9 +22,9 @@ const PHI: f64 = 0.3;
 const DELTAS: [f64; 3] = [0.1, 0.01, 0.001];
 
 fn disc() -> ValidatedProfile<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-R, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(R, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-R, 0.0), 1.0),
+        (Point2::new(R, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

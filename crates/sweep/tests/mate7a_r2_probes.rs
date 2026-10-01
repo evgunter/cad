@@ -101,7 +101,7 @@ fn r2_an_in_band_rim_identification_escalates_rather_than_reading_as_no_rim() {
     let e_pert = topo::union_with(&a, &perturbed, &d_pert, Tol::witness()).expect_err("refuses");
     println!("[r2] in-band-perturbed kiss: {e_pert:?}");
     match e_pert {
-        BooleanError::Escalated { diag } => assert_eq!(
+        BooleanError::Escalated { diag, .. } => assert_eq!(
             diag.predicate,
             Some("rim_circle_radius"),
             "the escalation must name the datum that landed in the band"

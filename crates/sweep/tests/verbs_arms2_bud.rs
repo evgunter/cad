@@ -40,7 +40,6 @@
 use crate::common::approx::band;
 use geom::{Curve3, Surface};
 use geom_core::{Point2, Tol, Vec3};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -61,17 +60,17 @@ fn tol() -> Tol {
 /// The numbers are chosen so every crossing is exact in binary: the
 /// mouth sits at `(0.8, 0.6)` on the unit circle (a 3-4-5 point), and the
 /// pucker's apex at `0.6 + 0.8/3`.
-fn bud_profile() -> Vec<ProfileVertex<f64>> {
+fn bud_profile() -> Vec<(Point2<f64>, f64)> {
     // The sphere zone spans `asin(0.6)` of arc; a profile arc's bulge is
     // the tangent of a QUARTER of its sweep (the dome fixture's own
     // convention).
     let bulge = (0.6f64.asin() / 4.0).tan();
     vec![
-        ProfileVertex::new(Point2::new(0.2, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(1.0, 0.0), bulge),
-        ProfileVertex::new(Point2::new(0.8, 0.6), 0.0),
-        ProfileVertex::new(Point2::new(0.35, 0.75), 0.0),
-        ProfileVertex::new(Point2::new(0.2, 0.75), 0.0),
+        (Point2::new(0.2, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), bulge),
+        (Point2::new(0.8, 0.6), 0.0),
+        (Point2::new(0.35, 0.75), 0.0),
+        (Point2::new(0.2, 0.75), 0.0),
     ]
 }
 
@@ -348,14 +347,17 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
         .expect("the bud carries one cone wall");
     let tilt = 0.05f64;
     source
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             cone_face,
-            FaceSurface::New(Surface::Cone {
-                apex,
-                axis: Vec3::new(tilt.sin(), tilt.cos(), 0.0),
-                half_angle,
-                u_ref: Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Cone {
+                    apex,
+                    axis: Vec3::new(tilt.sin(), tilt.cos(), 0.0),
+                    half_angle,
+                    u_ref: Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("planting a surface certifies nothing");
 

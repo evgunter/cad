@@ -14,7 +14,7 @@
 //! [`Curve3::Circle`]'s locus **identically in ℝ**. The residual is
 //! therefore exactly zero in exact arithmetic, and the bound this
 //! machinery produces measures nothing but the `f64` representation of
-//! the control data plus the ring's own conservatism. If hull bounds
+//! the control data plus interval arithmetic's own conservatism. If hull bounds
 //! were too coarse to certify an exact case, they would be useless for
 //! the near-exact ones M5 PR 4 certifies — so the observed magnitude
 //! is the number this test exists to publish.
@@ -23,8 +23,8 @@
 //!
 //! The two curves do not share a parameter: the NURBS parameter `t` maps
 //! to the angle by `θ(t) = 2·atan(…)`. A coordinate-wise difference
-//! would therefore need a transcendental parameter map, which the C9
-//! ring deliberately cannot express — and whose own error would swamp
+//! would therefore need a transcendental parameter map, which C9's
+//! certification arithmetic deliberately does not take — and whose own error would swamp
 //! the number being measured. The implicit residual has no such problem
 //! and *is* the C2.2 certificate's limb-1 quantity ("max over the
 //! schedule of |f₁(C(t))|, |f₂(C(t))|"). Both of the circle's implicit
@@ -45,8 +45,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom::{Curve3, NurbsCurve3};
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
-use geom_core::{Point3, RingInterval, Vec3};
+use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
+use geom_core::{Interval, Point3, Vec3};
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
 const RADIUS: f64 = 2.5;
@@ -134,8 +136,8 @@ struct ArcBound {
 fn arc_bounds(curve: &NurbsCurve3<f64>) -> Vec<ArcBound> {
     let c = center();
     let n = axis();
-    let coords = curve.ring_coords();
-    let data = CurveRingData::new(curve.knots(), curve.weights(), &coords).unwrap();
+    let coords = curve.certified_coords();
+    let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
 
     let sphere = compose::implicit_composite(
         &data,
@@ -156,7 +158,7 @@ fn arc_bounds(curve: &NurbsCurve3<f64>) -> Vec<ArcBound> {
 
     let sphere_bounds = sphere.span_bounds();
     let plane_bounds = plane.span_bounds();
-    let w2_hulls: Vec<RingInterval> = sphere.den.span_hulls();
+    let w2_hulls: Vec<Interval> = sphere.den.span_hulls();
     (0..sphere_bounds.len())
         .map(|arc| ArcBound {
             sphere: sphere_bounds[arc].mag(),
@@ -184,10 +186,7 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
     let (mut worst_sphere, mut worst_plane) = (0.0f64, 0.0f64);
     let (mut max_sampled_sphere, mut max_sampled_plane) = (0.0f64, 0.0f64);
     for (arc, b) in bounds.iter().enumerate() {
-        assert!(
-            b.sphere.is_finite() && b.plane.is_finite(),
-            "poisoned bound"
-        );
+        assert!(b.sphere.is_finite() && b.plane.is_finite(), "refused bound");
         worst_sphere = worst_sphere.max(b.sphere);
         worst_plane = worst_plane.max(b.plane);
         // Soundness by falsification: dense sampling inside the arc.
@@ -262,8 +261,8 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
         "plane bound {worst_plane:e} is far above the fp scale"
     );
     // The pipeline pin: same lifts, same association orders, same
-    // hull folds. **Re-captured when the C9 ring became a newtype over
-    // the backend** — the ring padded one representable step outward
+    // hull folds. **Re-captured when certification arithmetic became a newtype over
+    // the backend** — interval arithmetic padded one representable step outward
     // on every operation and the backend pads only where the operation
     // was inexact, so both bounds moved TIGHTER on a residual that is
     // exactly zero in ℝ.

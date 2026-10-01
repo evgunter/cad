@@ -4,7 +4,6 @@
 //! (Containment legitimacy for pure ring arithmetic: the note at the
 //! top of `tests/curves/nurbs_interval.rs`.)
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::needless_range_loop)]
 

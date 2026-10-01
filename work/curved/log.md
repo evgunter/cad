@@ -413,3 +413,39 @@ list and the S-BOOL fence are in this plan's history. **Protocol v7**
 cut: the dual runs on triaged-in units only from here; the
 equator-seam unit is E–M and runs opus/opus outside it unless its
 spec finds a decision.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/offset_axial.rs`. `offset_axial.rs` states each re-charted face's own bit (the door kept it before). (TOPO implementer)
+
+## Resumed after the protocol changes (2026-09-30)
+
+Ev, in-chat: the usage limit has reset and main has changed a lot,
+including the protocols. Read on resume: the A/B protocol is SUSPENDED
+(2026-09-23; everything on Opus, a unit that would have entered it
+gets two independent Opus reviewers under `docs/DUAL-REVIEW-PROTOCOL.md`);
+review tiers are the orchestrator's call per unit
+(`memories/orchestration-model.md`); a design fork is weighed by an
+Opus and a Fable designer before its `[ev]` PR
+(`docs/DESIGN-FORK-PROTOCOL.md`); cost is effort (E/M/H) with
+`design: true` for an open question; the Monitor tool is not armed
+while its harness issue stands (check by hand at wake points).
+
+The spiric PR-1b fix pass (killed by the session limit on 2026-09-20,
+one uncommitted file in its lane) is resumed; it finishes UNDER the
+A/B protocol it started in (ordinal 2205, CURVED-B2 slot 2, the row at
+merge — the suspension entry's "a unit still finishing under the
+protocol" clause). Tracker moves: `topo-mints-indeterminates-outside-the-funnel`
+to REACH (its sites are `boolean/contact_verify.rs`, `census.rs`,
+`contain.rs`, REACH's since the cut). `c5a2-ledger-sample-143-collides-with-seatfw`
+closed: C5A2 renumbered to #246.
+
+**Dispatches this sitting, with their tiers**:
+- `equator-seam-reauthor-refuses-the-hollowed-elbow` (H) — Opus
+  implementer, **single FULL review** (a correctness change in
+  `reauthor`'s declared-rotation arm: believing it takes more than
+  reading it, but it is one arm, not a broad or hard-to-reverse
+  decision). Rider: `curved-escalations-offer-a-declaration-the-door-cannot-take`
+  (E, `geom/curves.rs`'s ellipse escalation text).
+- `torus-meters-blocker-is-the-arithmetic-or-c9s-root-rule` (design)
+  — the Opus/Fable designer pair, then an `[ev]` PR; this is the C9
+  ring `sqrt` question the exit shape names ("(A) then (B)", Ev on
+  #1858), restated for the tree after RING-3.

@@ -26,9 +26,10 @@
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::Bounds;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{MarginDiag, RingInterval};
+use geom_core::{ErrorTextReading, Interval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
 use crate::shared::ring::p3 as p;
@@ -107,18 +108,6 @@ const SPHERE_OCTANT_FLOOR: f64 = 9.683e-7;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).
 const HUGE_CYLINDER_FLOOR: f64 = 1.533_469_017_207e-4;
-/// The determinism carrier: single-span quarter cylinder, r = 1 m,
-/// h = 2 m, driven at a millionfold-tighter target.
-///
-/// This one is pinned to thirteen digits against a 1e-3 relative
-/// tolerance, so it is the row that notices a flux-side change at all:
-/// it moved from `1.535_131_804_305_385e-7` when the cells became
-/// knot-aligned (an outward-rounded cell width in place of a rounded
-/// float, on a carrier with no interior knots to align to) and again
-/// in its seventh digit when the hull blocks did. Neither is the area
-/// rule — this carrier's enclosure is flux-dominated.
-const QUARTER_CYLINDER_FLOOR: f64 = 1.533_466_684_469_612e-7;
-
 /// The outcomes a probe is allowed to have on the run's ε — three
 /// honest postures plus the degenerate-face refusal, which is sound
 /// but is a capability gap and so is pinned per carrier.
@@ -339,12 +328,7 @@ impl Patch {
 }
 
 /// Build the oracle patch from the same data handed to the kernel.
-fn patch(
-    ku: &KnotVector,
-    kv: &KnotVector,
-    control: &[[RingInterval; 3]],
-    weights: &[f64],
-) -> Patch {
+fn patch(ku: &KnotVector, kv: &KnotVector, control: &[[Interval; 3]], weights: &[f64]) -> Patch {
     let nu = ku.control_count();
     let nv = kv.control_count();
     let cp = control
@@ -372,7 +356,7 @@ fn probe(
     name: &str,
     ku: &KnotVector,
     kv: &KnotVector,
-    control: &[[RingInterval; 3]],
+    control: &[[Interval; 3]],
     weights: &[f64],
     perimeter: f64,
     closed_flux: Option<f64>,
@@ -528,7 +512,7 @@ fn probe(
                          {cause:?}"
                     );
                     assert!(
-                        matches!(cause.margin, MarginDiag::Value(m) if m.is_finite()),
+                        matches!(cause.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if m.is_finite()),
                         "{name}: the escalation must carry a finite in-band margin: \
                          {cause:?}"
                     );
@@ -899,134 +883,6 @@ fn probe_c0_kink_area() {
     pin_floor("c0-kink-wall", posture, C0_KINK_FLOOR);
 }
 
-/// D9 determinism: the same rational flux computed twice must be
-/// BIT-identical (also printed for the debug/release cross-check).
-#[test]
-fn probe_determinism_bits() {
-    let ku = KnotVector::unit_segment(const { NonZeroUsize::new(2).unwrap() });
-    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
-    let h = 2.0;
-    let net = [
-        p(1.0, 0.0, 0.0),
-        p(1.0, 0.0, h),
-        p(1.0, 1.0, 0.0),
-        p(1.0, 1.0, h),
-        p(0.0, 1.0, 0.0),
-        p(0.0, 1.0, h),
-    ];
-    let weights = [1.0, 1.0, W2, W2, 1.0, 1.0];
-    let run = || {
-        nurbs_patch_face::<f64>(
-            &ku,
-            &kv,
-            &net,
-            &weights,
-            (0.0, 1.0, 0.0, 1.0),
-            4.0 + PI,
-            0.0,
-            Tol::witness().get().eps,
-            band(),
-        )
-    };
-    // Determinism is the claim, and it holds on EVERY ε row: below the
-    // corpus ε the fixed schedule cannot meet the ε-coupled target and
-    // the honest outcome is a typed refusal, which must ITSELF be
-    // reproduced identically. Only a changed outcome class, or an
-    // untyped error, is a failure.
-    match (run(), run()) {
-        (Ok(a), Ok(b)) => {
-            println!(
-                "DETBITS flux {:016x} {:016x} area {:016x} {:016x}",
-                a.flux.lo().to_bits(),
-                a.flux.hi().to_bits(),
-                a.area.lo().to_bits(),
-                a.area.hi().to_bits()
-            );
-            assert_eq!(a.flux.lo().to_bits(), b.flux.lo().to_bits());
-            assert_eq!(a.flux.hi().to_bits(), b.flux.hi().to_bits());
-            assert_eq!(a.area.lo().to_bits(), b.area.lo().to_bits());
-            assert_eq!(a.area.hi().to_bits(), b.area.hi().to_bits());
-            // the meter, as claimed: width(flux)/(3*area_mid)
-            let meter = a.flux.width() / (3.0 * (a.area.lo() + a.area.hi()) * 0.5);
-            println!(
-                "METER quarter-cylinder {:.6e} target {:.6e}",
-                meter,
-                1024.0 * Tol::witness().get().eps
-            );
-        }
-        (Err(a), Err(b)) => {
-            println!(
-                "DETBITS refusal @ eps={:e}: {a:?}",
-                Tol::witness().get().eps
-            );
-            assert!(
-                matches!(
-                    a,
-                    PropsError::QuadratureBudget { .. } | PropsError::Escalated { .. }
-                ),
-                "an ε row must refuse TYPED, not otherwise: {a:?}"
-            );
-            assert_eq!(
-                format!("{a:?}"),
-                format!("{b:?}"),
-                "the refusal is not reproduced identically"
-            );
-        }
-        (x, y) => panic!("a same-process re-run changed outcome class: {x:?} vs {y:?}"),
-    }
-    // budget-defeat check lives in probe_budget_refusal below
-    let refused = nurbs_patch_face::<f64>(
-        &ku,
-        &kv,
-        &net,
-        &weights,
-        (0.0, 1.0, 0.0, 1.0),
-        4.0 + PI,
-        0.0,
-        Tol::witness().get().eps * 1e-6,
-        band(),
-    );
-    // A million-fold-tighter target must REFUSE, never answer — but
-    // which typed refusal is ε-dependent, because the funnel band is
-    // built from the run's AMBIENT ε while the target came from the
-    // scaled one. When the shortfall is outside `Band{ε, Kε}` the
-    // schedule runs out and the budget refuses; when the ambient band
-    // is coarse enough to swallow it (measured: ambient 1e-6 gives
-    // margin −9.8e-6 inside `Band{1e-6, 1e-5}`), `props_quad_converged`
-    // escalates first. Both are honest and both are pinned; `Ok` is
-    // the only outcome ruled out.
-    match refused {
-        Err(PropsError::QuadratureBudget {
-            width_len,
-            target_len,
-            ..
-        }) => {
-            println!("BUDGET width_len {width_len:.15e} target {target_len:.6e}");
-            assert!(width_len.is_finite() && width_len > target_len);
-            // The schedule is fixed (D9), so this carrier bottoms out
-            // at the same displacement whatever the target is. The
-            // payload is the last round's lower bound (the loop refuses
-            // after round 0 once it has proved the schedule cannot
-            // certify): 2.0e-5 relative under the pinned measurement,
-            // which the window below covers without a digit moving.
-            assert!(
-                (width_len - QUARTER_CYLINDER_FLOOR).abs() <= 1e-3 * QUARTER_CYLINDER_FLOOR,
-                "the quarter cylinder's refusal floor MOVED: {width_len:e} against \
-                 the pinned {QUARTER_CYLINDER_FLOOR:e}"
-            );
-        }
-        Err(PropsError::Escalated { cause }) => {
-            println!("ESCALATED {cause:?}");
-            assert_eq!(
-                cause.predicate,
-                Some("props_quad_converged"),
-                "only the convergence predicate may escalate here: {cause:?}"
-            );
-        }
-        other => panic!("a 1e-6-scaled eps must refuse typed, got {other:?}"),
-    }
-}
-
 /// DIAGNOSIS: is certified knot refinement exact on the two-span
 /// half-circle? Refine the HOMOGENEOUS 1-D net with the kernel's own
 /// refine_plan chain (weights-1 plans, plain lerp — exactly what
@@ -1034,7 +890,7 @@ fn probe_determinism_bits() {
 /// with the independent evaluator.
 #[test]
 fn diag_refine_half_circle() {
-    use geom_core::spline::algebra::refine_plan;
+    use geom_core::spline::algebra::{GridSkip, domain_grid_points, refine_plan_homogeneous};
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let pts = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (-1.0, 1.0), (-1.0, 0.0)];
     let ws = [1.0, W2, 1.0, W2, 1.0];
@@ -1044,11 +900,8 @@ fn diag_refine_half_circle() {
         .zip(&ws)
         .map(|((x, y), w)| [x * w, y * w, *w])
         .collect();
-    let add: Vec<f64> = (1..16)
-        .map(|k| k as f64 / 16.0)
-        .filter(|t| !kv.knots().contains(t))
-        .collect();
-    let plans = refine_plan(&kv, &vec![1.0; 5], &add).unwrap();
+    let add = domain_grid_points(&kv, 16, GridSkip::BitEqual);
+    let plans = refine_plan_homogeneous(&kv, &add).unwrap();
     let mut cur_kv = kv.clone();
     for plan in &plans {
         hom = plan.apply_points(&hom, [f64::NAN; 3], |x, y, l| {
@@ -1189,9 +1042,8 @@ fn diag_uniform_weight_twins() {
 
 /// Genericity spot check: the rational lane driven by the certified
 /// Interval decision scalar must agree with the f64 lane bit-for-bit
-/// on the returned enclosure (the RingInterval arithmetic is shared;
+/// on the returned enclosure (the Interval arithmetic is shared;
 /// only decisions route through T).
-#[cfg(feature = "interval")]
 #[test]
 fn probe_interval_scalar_agrees() {
     use geom_core::Interval;

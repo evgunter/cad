@@ -31,7 +31,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     eval_after(doc, None)
 }
 
-fn eval_after(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn eval_after(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -88,12 +88,14 @@ fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> RecipeNodeId {
 }
 
 fn lift(r: &mut Recorder, input: RecipeNodeId, dz: f64) -> RecipeNodeId {
-    r.insert(Node::Transform {
+    r.insert(Node::transform(
         input,
-        translation: [len(0.0), len(0.0), len(dz)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    })
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), len(dz)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ))
 }
 
 /// The `Body` value of a node — a Part's, a transform's — as the Arc it

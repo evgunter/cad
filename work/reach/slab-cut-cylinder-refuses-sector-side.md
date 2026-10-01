@@ -31,3 +31,14 @@ The story suite works around it with a square crown, so the workaround is record
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Evidence (2026-09-30, the `Borders` build)
+
+The union form reaches it too. A round boss
+`circle_split(1.5, 1.0, 0.6, 3, 0.0)` extruded 1.8 from z = 0.44 on the
+plate `[0,3] × [0,2] × [0,1]`, crossed by a slab x∈(1.4,1.6),
+y∈(−1,3), z∈(0.5,2.0), refuses `CurvedSectorSideUnsupported` in all six
+member orders. Found by the obstacle-mechanism measurement (branch
+`emit/borders-mechanism-probe`, `crates/editor-core/tests/borders_probe.rs`,
+fixture `round_boss_slab`); it keeps the naming layer's curved dividers
+untested.

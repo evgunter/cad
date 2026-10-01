@@ -25,8 +25,8 @@ use test_utils::source::{code_only, repo_root};
 /// The file the disclosure is about, and the reads it discloses.
 const SUBJECT: &str = "crates/topo/src/validate.rs";
 
-/// The disclosure's number: check 1's torus tube-radius
-/// representability read, `geom_core::Bounds::lo` of a stored datum
+/// The disclosure's number: check 1's representability read,
+/// `geom_core::Bounds::lo` of a stored datum's convention margin
 /// compared with zero, and nothing else.
 const DISCLOSED_READS: usize = 1;
 

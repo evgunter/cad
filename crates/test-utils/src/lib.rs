@@ -18,7 +18,9 @@
 //!   capture: the panic MESSAGE an assertion produced, taken from a
 //!   panic hook rather than by downcasting the unwind payload, and the
 //!   same thing for a subject that has to run on a thread of its own
-//!   because a panic leaves process- or thread-state behind it.
+//!   because a panic leaves process- or thread-state behind it;
+//!   [`mod@own_thread`] also names the wasm32 build's stack, the
+//!   smallest a door runs on, and runs a subject on it.
 //! - [`mod@roster`], the weld between a file's `//!` roster of its own
 //!   `#[test]` rows and the rows libtest says the binary holds — one
 //!   ident per row, so a retired name is a compile error.
@@ -46,7 +48,7 @@
 //!
 //! Being a LEAF with ZERO dependencies is the other half of the point.
 //! `interval-transcendentals/` is its own workspace root and is
-//! path-depended on by `geom-core` (the `interval` feature's backend),
+//! path-depended on by `geom-core` (the interval scalar's backend),
 //! so its tests could never have used a harness living in `geom-core`
 //! without inverting the layering. Below everything, there is no cycle
 //! to create.

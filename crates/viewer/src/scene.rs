@@ -206,8 +206,9 @@ pub enum SceneError {
         /// The offending value, in world units.
         delta: f64,
     },
-    /// The document's roots did not gather into a product body: a
-    /// failed or poisoned root, or a document denoting no body.
+    /// The document's roots did not gather into a product body, for
+    /// any of the gather's reasons (`ProductErrorKind::means_no_body`
+    /// says which of them is an absence rather than a fault).
     NoProduct(ProductError),
     /// The body did not tessellate at this δ.
     NotTessellated(TessellateError),
@@ -437,8 +438,10 @@ impl SceneMesh {
     /// draws. Zero triangles, legally — an honest blank viewport, not
     /// an error — with `bounds` carried from the geometry that exists
     /// but is not drawn, so a camera still has something real to frame
-    /// against. Distinct from [`SceneError::EmptyMesh`], which remains
-    /// the refusal for a document that has nothing to draw at all.
+    /// against. Distinct from [`SceneMesh::nothing`], the picture of a
+    /// document with no geometry to carry a box from, and from
+    /// [`SceneError::EmptyMesh`], the refusal for parts that exist and
+    /// tessellated to nothing.
     pub fn empty(bounds: Aabb, delta: DisplayTolerance) -> Self {
         Self {
             positions: Vec::new(),
@@ -457,7 +460,7 @@ impl SceneMesh {
     }
 
     /// **The picture of a document that denotes no geometry at all**
-    /// — an empty recipe, or one holding only datums and profiles.
+    /// (which documents those are is `ProductErrorKind::means_no_body`'s).
     ///
     /// [`SceneMesh::empty`]'s sibling, and the distinction between
     /// them is where the extent comes from: that one is drawn from
@@ -527,9 +530,9 @@ impl SceneMesh {
     /// `focus` with [`SceneMesh::FLAG_FOCUS`].
     ///
     /// **Why the marking is a per-corner attribute and not a shader
-    /// uniform**, which is how the selected and hovered patches are
-    /// marked: those are one patch each, so an id fits in a uniform
-    /// slot; a focus is a SET, of no bounded size, and the only place a
+    /// uniform**, which is how the selected, hovered and held patches
+    /// are marked: those are a few patches of a fixed count, so their
+    /// ids fit uniform slots; a focus is a SET, of no bounded size, and the only place a
     /// set of that shape can be tested per fragment without new GPU
     /// plumbing is the vertex data the picture is already carrying.
     ///
@@ -812,6 +815,7 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
     let profile = ProfileProgram {
         plane: frame,
         loops: vec![outline, hole],
+        ids: Vec::new(),
     };
     let (doc, profile_node) = insert(doc, Node::Profile(profile), tol)?;
     let (doc, extrude) = insert(

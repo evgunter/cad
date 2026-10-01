@@ -9,32 +9,37 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::eval;
-use crate::fixture::{Recorder, frame, len, scl};
+use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
 
-use editor_core::{BooleanOp, Datum, LoopProgram, Node, NodeResult, ProfileProgram, TubeWindow};
+use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
 
-/// A ring torus (R = 2, r = 0.5, about z) unioned with a block that
-/// straddles its tube at +x: a torus face against the block's plane
-/// faces, the shape of two dumbbell halves joined at a torus bell.
-fn torus_block_union_refusal() -> String {
+/// A cone frustum (a full revolve about `y`) unioned with a block that
+/// straddles its slanted wall: a cone face against the block's plane
+/// faces. The cone is the curved kind the operand gate still has no
+/// arm for, so this is the pair refusal the sentence below is about.
+fn cone_block_union_refusal() -> String {
     let mut r = Recorder::new();
-    let spine = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
-    let ring = r.insert(Node::Tube {
-        spine,
-        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
-        major_radius: len(2.0),
-        window: TubeWindow::Full,
-        minor_radius: len(0.5),
-    });
-    let plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let block_p = r.insert(Node::Profile(ProfileProgram {
+    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let cone_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
-            LoopProgram::polygon([(1.75, -0.25), (3.0, -0.25), (3.0, 0.25), (1.75, 0.25)]).unwrap(),
+            LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
+        ids: Vec::new(),
+    }));
+    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let cone = r.insert(Node::Revolve {
+        profile: cone_p,
+        axis,
+        angle: ang(std::f64::consts::TAU),
+    });
+    let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let block_p = r.insert(Node::Profile(ProfileProgram {
+        plane: block_plane,
+        loops: vec![
+            LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
+        ],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: block_p,
@@ -42,29 +47,29 @@ fn torus_block_union_refusal() -> String {
     });
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: ring,
+        a: cone,
         b: block,
         declare: None,
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {
         Some(NodeResult::Failed(e)) => e.to_string(),
-        other => panic!("the torus × block union must refuse; got {other:?}"),
+        other => panic!("the cone × block union must refuse; got {other:?}"),
     }
 }
 
-/// **The worked example**: two solids joined where a torus face meets a
+/// **The worked example**: two solids joined where a cone face meets a
 /// plane face, built through the public document doors. The sentence
 /// names the pair in the user's terms, keeps the box test's MAY ("may
 /// meet"), and ends on the recourse. The length claim is not pinned
 /// here but by [`every_rewritten_boolean_refusal_renders_within_the_budget`],
 /// over every arm.
 #[test]
-fn the_torus_plane_union_refusal_names_the_pair_and_ends_on_its_recourse() {
-    let msg = torus_block_union_refusal();
+fn the_cone_plane_union_refusal_names_the_pair_and_ends_on_its_recourse() {
+    let msg = cone_block_union_refusal();
     assert!(
         msg.contains(
-            "the Boolean op refused: the first operand's torus face may meet the second \
+            "the Boolean op refused: the first operand's cone face may meet the second \
              operand's plane face"
         ),
         "the refusal names the pair by operand, as a may: {msg}"
@@ -72,14 +77,14 @@ fn the_torus_plane_union_refusal_names_the_pair_and_ends_on_its_recourse() {
     assert!(
         msg.ends_with(
             "Recourse: reshape the parts so they meet only where a plane face meets a \
-             plane, cylinder or sphere face, or move them so the torus face stays clear \
+             plane, cylinder or sphere face, or move them so the cone face stays clear \
              of the other solid"
         ),
         "the refusal ends on its recourse: {msg}"
     );
     assert!(
         !msg.contains("coincidence"),
-        "a torus × plane pair is not a coincidence refusal, and the wrapper must not \
+        "a cone × plane pair is not a coincidence refusal, and the wrapper must not \
          point the reader at that recourse: {msg}"
     );
     assert!(!msg.contains("FaceKey("), "no arena key dump: {msg}");
@@ -130,9 +135,10 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
 
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let diag = Indeterminate {
-        margin: MarginDiag::Value(3.0e-10),
+        margin: MarginDiag::value(3.0e-10),
         band,
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
     };
     let face = FaceKey::default();
     let edge = EdgeKey::default();
@@ -146,6 +152,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "CurvedPairUnsupported",
             BooleanError::CurvedPairUnsupported {
                 op: Some(BooleanOp::Subtract),
+                site: topo::PairRefusalSite::RevertRoster,
                 operand: Operand::A,
                 face,
                 kind: SurfaceKind::Nurbs,
@@ -154,11 +161,35 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "CurvedPairUnsupported (interior-loop guard)",
+            BooleanError::CurvedPairUnsupported {
+                op: Some(BooleanOp::Intersect),
+                site: topo::PairRefusalSite::InteriorLoopGuard,
+                operand: Operand::A,
+                face,
+                kind: SurfaceKind::Torus,
+                other_face: face,
+                other_kind: SurfaceKind::Plane,
+            },
+        ),
+        (
             "CurvedBooleanUnsupported",
             BooleanError::CurvedBooleanUnsupported {
                 operand: Operand::B,
                 face,
                 kind: SurfaceKind::Approx,
+            },
+        ),
+        (
+            "DegenerateTorus",
+            BooleanError::DegenerateTorus {
+                operand: Operand::B,
+                face,
+                convention: topo::TorusConvention::Ring,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(5.0e-10),
+                    band,
+                }),
             },
         ),
         (
@@ -257,7 +288,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 face,
             },
         ),
-        ("Escalated", BooleanError::Escalated { diag }),
+        (
+            "Escalated",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence,
+                diag,
+            },
+        ),
         (
             "UndeclaredCoincidence",
             BooleanError::UndeclaredCoincidence {
@@ -316,14 +353,18 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             PointInSolidError::PartialTorusFace { face },
         ),
         (
+            "Containment(EdgeCarrierUnsupported)",
+            PointInSolidError::EdgeCarrierUnsupported { face },
+        ),
+        (
+            "Containment(WallOutlineUnsupported)",
+            PointInSolidError::WallOutlineUnsupported { face },
+        ),
+        (
             "Containment(NoSuchSolid)",
             PointInSolidError::NoSuchSolid {
                 solid: SolidKey::default(),
             },
-        ),
-        (
-            "Containment(SurfaceSharedOutsideSolid)",
-            PointInSolidError::SurfaceSharedOutsideSolid { face, other: face },
         ),
     ];
     boolean

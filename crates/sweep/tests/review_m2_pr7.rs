@@ -13,15 +13,15 @@ use crate::revolve_common;
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate, validate_closed, validate_geometric};
 
-use geom_core::Tol;
-use revolve_common::{axis_y, p2, validated};
+use geom_core::{Point2, Tol};
+use revolve_common::{axis_y, validated};
 
-fn v(x: f64, y: f64, b: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(p2(x, y), b)
+fn v(x: f64, y: f64, b: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), b)
 }
 
 fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
@@ -57,7 +57,11 @@ fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
 ///   = (5 + 3√2)π.
 #[test]
 fn frustum_with_bore_matches_independent_closed_forms() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -82,12 +86,12 @@ fn frustum_with_bore_matches_independent_closed_forms() {
 #[test]
 fn cup_inner_walls_match_independent_closed_forms() {
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 2.0),
-        p2(1.5, 2.0),
-        p2(1.5, 0.5),
-        p2(0.0, 0.5),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(1.5, 2.0),
+        Point2::new(1.5, 0.5),
+        Point2::new(0.0, 0.5),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -106,7 +110,7 @@ fn cup_inner_walls_match_independent_closed_forms() {
 /// A = (θ/2π)·4π²Rr + 2·πr² = π² + π/2.
 #[test]
 fn quarter_donut_wedge_matches_independent_closed_forms() {
-    let lp = ProfileLoop::new(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
+    let lp = bulge_loop(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -125,7 +129,7 @@ fn quarter_donut_wedge_matches_independent_closed_forms() {
 #[test]
 fn dome_wedge_matches_independent_closed_forms() {
     let b = (PI / 8.0).tan(); // quarter arc (1,0) → (0,1) about origin
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, 1.0, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, 1.0, 0.0)]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -149,7 +153,7 @@ fn dome_wedge_matches_independent_closed_forms() {
 #[test]
 fn major_arc_prism_matches_independent_closed_forms() {
     let b = (3.0 * PI / 8.0).tan();
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(1.0),
@@ -165,9 +169,19 @@ fn major_arc_prism_matches_independent_closed_forms() {
 /// A = 2(32 − π) + 24 + 2π + 8 = 96.
 #[test]
 fn two_hole_plate_matches_independent_closed_forms() {
-    let outer = ProfileLoop::polygon([p2(-3.0, -3.0), p2(3.0, -3.0), p2(3.0, 3.0), p2(-3.0, 3.0)]);
-    let round = ProfileLoop::new(vec![v(-0.5, 0.0, 1.0), v(-2.5, 0.0, 1.0)]);
-    let square = ProfileLoop::polygon([p2(0.5, -1.0), p2(2.5, -1.0), p2(2.5, 1.0), p2(0.5, 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(-3.0, -3.0),
+        Point2::new(3.0, -3.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(-3.0, 3.0),
+    ]);
+    let round = bulge_loop(vec![v(-0.5, 0.0, 1.0), v(-2.5, 0.0, 1.0)]);
+    let square = ProfileLoop::polygon([
+        Point2::new(0.5, -1.0),
+        Point2::new(2.5, -1.0),
+        Point2::new(2.5, 1.0),
+        Point2::new(0.5, 1.0),
+    ]);
     let t = extrude(
         &validated(vec![outer, round, square]),
         Extrusion::Distance(1.0),
@@ -182,7 +196,12 @@ fn two_hole_plate_matches_independent_closed_forms() {
 /// shell).
 #[test]
 fn negative_extrusion_distance_is_positively_oriented() {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(-1.5),
@@ -197,7 +216,12 @@ fn negative_extrusion_distance_is_positively_oriented() {
 /// with the θ-scaled closed forms.
 #[test]
 fn negative_revolve_angle_is_positively_oriented() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -219,7 +243,12 @@ fn negative_revolve_angle_is_positively_oriented() {
 #[test]
 fn megascale_washer_matches_and_validates() {
     let s = (geom_core::Tol::witness().get().eps * 1e14).max(1.0);
-    let lp = ProfileLoop::polygon([p2(s, 0.0), p2(2.0 * s, 0.0), p2(2.0 * s, s), p2(s, s)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(s, 0.0),
+        Point2::new(2.0 * s, 0.0),
+        Point2::new(2.0 * s, s),
+        Point2::new(s, s),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -254,13 +283,21 @@ fn megascale_washer_matches_and_validates() {
 /// therefore stays at the scaffolding door, which U2's transience
 /// fence names at check 2.
 ///
-/// So the defect this row plants is now caught EARLIER and by name —
-/// three reports, all on entities the row itself minted: the fence on
-/// the chord, and check 8 (the pcurve-cache pass, deliberately UNGATED
-/// on the volume check) once per half-edge, both bounding a cylinder
-/// face whose chart mints caches. That is a strictly sharper statement
-/// than the single `VolumeUncomputable` it replaces: the old report
-/// named a face's volume, these name the chord.
+/// So the defect this row plants is now caught EARLIER and by name, on
+/// an entity the row itself minted: the fence on the chord. That is a
+/// strictly sharper statement than the single `VolumeUncomputable` it
+/// replaces: the old report named a face's volume, this one names the
+/// chord.
+///
+/// **Check 8 (the pcurve pass) no longer reads the chord.** It used to,
+/// once per half-edge, because `mef` left both pieces of the minted wall
+/// half-minted. `mef` now mints the row of each half it adds to a
+/// complete face, and a secant has no chart image that certifies, so
+/// neither piece has a closed-form row set: the operator leaves both
+/// storing nothing, the state the minting pass gives a face its lane
+/// does not cover. The pass says nothing about a face with no row, and
+/// the loud reading moves to where the pass RUNS — `mint_pcurves` over
+/// this body refuses, pinned below.
 ///
 /// The closed form's typed refusal — the actual subject — is untouched
 /// and still read directly from `mass_properties`. The tier-3
@@ -271,7 +308,12 @@ fn megascale_washer_matches_and_validates() {
 #[test]
 fn diagonal_chord_split_refuses_typed_not_silent() {
     use topo::{FaceSurface, LoopBoundary, MassPropsError, MefSite, ValidationError};
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -313,22 +355,16 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert_eq!(
         errs,
-        vec![
-            ValidationError::ScaffoldAtRest { edge: split.edge },
-            ValidationError::Pcurve {
-                finding: topo::PcurveMintError::MissingCache {
-                    half_edge: split.he_plus,
-                },
-            },
-            ValidationError::Pcurve {
-                finding: topo::PcurveMintError::MissingCache {
-                    half_edge: split.he_minus,
-                },
-            },
-        ],
-        "tier 3 must name the planted chord — once for having no at-rest \
-         description, and once per half for bounding a minting chart \
-         with no cache — and nothing else; got {errs:?}"
+        vec![ValidationError::ScaffoldAtRest { edge: split.edge }],
+        "tier 3 must name the planted chord for having no at-rest description, \
+         and nothing else; got {errs:?}"
+    );
+    for he in [split.he_plus, split.he_minus] {
+        assert!(body.pcurve(he).is_none(), "{he:?} carries a row");
+    }
+    assert!(
+        topo::mint_pcurves(&mut body, Tol::witness()).is_err(),
+        "the minting pass refuses a wall a secant bounds"
     );
 }
 
@@ -358,7 +394,7 @@ fn grooved_and_bumped_washer_torus_both_interior_sides_match() {
         ]
     };
     let groove = revolve(
-        &validated(vec![ProfileLoop::new(profile(-1.0))]),
+        &validated(vec![bulge_loop(profile(-1.0))]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
@@ -371,7 +407,7 @@ fn grooved_and_bumped_washer_torus_both_interior_sides_match() {
         25.0 * PI + 3.0 * PI * PI,
     );
     let bump = revolve(
-        &validated(vec![ProfileLoop::new(profile(1.0))]),
+        &validated(vec![bulge_loop(profile(1.0))]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
@@ -392,9 +428,9 @@ fn pappus_cross_checks_review_revolves() {
     use revolve_common::full_pappus_y;
     let frustum = revolve(
         &validated(vec![ProfileLoop::polygon([
-            p2(1.0, 0.0),
-            p2(2.0, 0.0),
-            p2(1.0, 1.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(1.0, 1.0),
         ])]),
         axis_y(),
         Revolution::Full,

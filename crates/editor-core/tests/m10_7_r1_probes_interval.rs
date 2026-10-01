@@ -2,9 +2,8 @@
 //! claims 1, 5, 6, 8 and the required end-to-end exercise, through the
 //! public doors only.
 //!
-//! Sweep shape ([[test-suite-cost]]): static fixtures, no seed. Rows
+//! Sweep shape (implementer-discipline §8): static fixtures, no seed. Rows
 //! marked EVIDENCE-ONLY print and gate nothing.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -15,30 +14,29 @@ use editor_core::drive::{DriveConfig, RefusalReason, SymbolicDials, assertion_at
 use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr, GeomPred,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr, GeomPred,
     LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ParamName, ProfileDoc,
     ProfileLift, ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     evaluate, select_where,
 };
-use fixture::Recorder;
+use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
 
 use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn param(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
 /// what refuses.
-fn failures(doc: &ProfileDoc, box_: ParamBox, dials: SymbolicDials, tol: Tol) -> Vec<String> {
+fn failures(
+    doc: &editor_core::ProfileDoc,
+    box_: ParamBox,
+    dials: SymbolicDials,
+    tol: Tol,
+) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_)),
         profile_lift: ProfileLift::Guided,
@@ -48,7 +46,9 @@ fn failures(doc: &ProfileDoc, box_: ParamBox, dials: SymbolicDials, tol: Tol) ->
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -74,7 +74,9 @@ fn failures(doc: &ProfileDoc, box_: ParamBox, dials: SymbolicDials, tol: Tol) ->
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect()
@@ -231,49 +233,6 @@ fn r1_tier_off_dump() {
     std::fs::write(path, s).unwrap();
 }
 
-// -------------------------------------------------------- claim 5: D9
-
-/// Bit-identity across repeats and the rayon schedule with the tier ON,
-/// on a drive with certified leaves, refusals and splits.
-#[test]
-fn r1_d9_tier_on_repeats_and_schedules() {
-    let tol = Tol::witness();
-    let e = tol.eps();
-    let docs = vec![
-        ("planted_flip", slab(20.0 * e, 40.0 * e), 512usize),
-        ("plate", plate(5.0e-5 * 1e-6, 1.0e-5 * 1e-6, tol).0, 64),
-        ("macro", slab(1.0, 0.75), 64),
-    ];
-    for (name, doc, leaves) in docs {
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let run = |parallel: bool| {
-            let v = drive(
-                &doc,
-                &analyzed,
-                &DriveConfig {
-                    max_leaves: leaves,
-                    parallel,
-                    ..DriveConfig::default()
-                },
-                tol,
-            )
-            .unwrap();
-            (v.serialize(), v.content_key(), v.decisions())
-        };
-        let a = run(false);
-        assert!(a.2.symbolic_zero > 0, "{name}: the tier is live: {:?}", a.2);
-        for i in 0..3 {
-            let b = run(i % 2 == 1);
-            assert_eq!(a.0, b.0, "{name}: serialization differs on repeat {i}");
-            assert_eq!(a.1, b.1, "{name}: key differs on repeat {i}");
-            assert_eq!(a.2, b.2, "{name}: decisions differ on repeat {i}");
-        }
-        let p = run(true);
-        assert_eq!(a.0, p.0, "{name}: parallel schedule differs");
-        assert_eq!(a.2, p.2, "{name}: parallel decisions differ");
-    }
-}
-
 // ------------------------------------------------- D10's third row: budget 0
 
 /// EVIDENCE-ONLY. With the tier ON, does `max_leaves: 0` still starve the
@@ -357,10 +316,9 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
 /// parameter) at `±w / 4`, extruded by `w / 10`; the web between the
 /// holes is measured and asserted. Arcs (the hole rims), a division, a
 /// macroscopic box.
-// Read only by `m10_7_r1_census_probe`, which is gated on `probe` as
-// well as `interval`; in an interval-only build the fixture is dead and
-// saying so is cheaper than gating the function to match a sibling
-// module's cfg.
+// Read only by `m10_7_r1_census_probe`, which is gated on `probe`; in a
+// build without it the fixture is dead and saying so is cheaper than
+// gating the function to match a sibling module's cfg.
 #[cfg_attr(not(feature = "probe"), allow(dead_code))]
 pub(crate) fn bracket_pub(
     half_width: f64,
@@ -383,7 +341,7 @@ fn bracket_with(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
+        name: ParamName::from_static("w"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 20.0e-3,
@@ -396,11 +354,7 @@ fn bracket_with(
     });
     let w = || param("w");
     let div = |a: Expr, k: f64| Expr::div(a, scl(k)).unwrap();
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let half = |k: f64| div(w(), k);
     // The plate: (−w/2, −w/4) .. (w/2, w/4), parametric corners.
     let plate_loop = if literal_plate {
@@ -413,17 +367,20 @@ fn bracket_with(
         .unwrap()
     } else {
         LoopProgram::Chain(vec![
-            editor_core::ProgramStep::At([Expr::neg(half(2.0)), Expr::neg(half(4.0))]),
+            editor_core::ProgramStep::At([
+                Expr::neg(half(2.0)).expect("a shallow negation"),
+                Expr::neg(half(4.0)).expect("a shallow negation"),
+            ]),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
                 half(2.0),
-                Expr::neg(half(4.0)),
+                Expr::neg(half(4.0)).expect("a shallow negation"),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
                 half(2.0),
                 half(4.0),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
-                Expr::neg(half(2.0)),
+                Expr::neg(half(2.0)).expect("a shallow negation"),
                 half(4.0),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
@@ -432,6 +389,7 @@ fn bracket_with(
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![plate_loop],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
@@ -444,13 +402,14 @@ fn bracket_with(
                 centre: [cx, len(0.0)],
                 radius: div(w(), 16.0),
             }],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile,
             distance: div(w(), 10.0),
         })
     };
-    let hole_a = hole(&mut r, Expr::neg(half(4.0)));
+    let hole_a = hole(&mut r, Expr::neg(half(4.0)).expect("a shallow negation"));
     let hole_b = hole(&mut r, half(4.0));
     let refs = {
         let ev: editor_core::Evaluation<f64> = evaluate(

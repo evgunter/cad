@@ -45,7 +45,7 @@
 
 use geom_core::Decide;
 
-use crate::expr::{Dimension, DimensionError, Expr};
+use crate::expr::{Dimension, DimensionError, Expr, MAX_NESTING};
 
 /// Which closed-form measurement a leaf computes, and over which of
 /// the node's references.
@@ -80,7 +80,7 @@ pub enum MeasurePrimitive {
     /// primitive does, and each one's ENTITY KIND is the selection's
     /// face scope: a reference to a BODY selects all of that body's
     /// faces, a reference to a FACE selects that one. Those are the two
-    /// scopes M10-5's [`crate::clearance::FaceScope`] carries; a
+    /// scopes M10-5's `clearance::FaceScope` carries; a
     /// several-named-faces scope has no spelling here, because a
     /// primitive's arity is fixed at two references and the general
     /// selection vocabulary is the clearance door's own. A reference to
@@ -94,7 +94,7 @@ pub enum MeasurePrimitive {
     /// minimum and not the minimum, and reporting one as the measured
     /// value is the degradation E7 forbids by name. At `Interval` over
     /// a leaf the value IS
-    /// [`crate::clearance::min_separation`]'s bracket.
+    /// `clearance::min_separation`'s bracket.
     MinClearance {
         /// Index into the node's `refs` of the first selection.
         a: u32,
@@ -160,10 +160,29 @@ impl MeasurePrimitive {
 /// Private fields and fallible constructors, exactly as [`Expr`]: an
 /// ill-dimensioned tree is unrepresentable, so the cached
 /// [`Self::dim`] is trustworthy by construction.
+///
+/// **A measurement nests at most 128 levels**, the bound it shares with
+/// [`Expr`], a value leaf counting as the expression it holds: a
+/// constructor that would pass it refuses with
+/// [`DimensionError::NestedTooDeep`], so a flat chain of more than 128
+/// terms refuses.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MeasureExpr {
     dim: Dimension,
+    /// How many levels the tree nests, a value leaf counting as the
+    /// expression it holds; never above [`MAX_NESTING`], the bound it
+    /// shares with [`Expr`].
+    nesting: u8,
     kind: MeasureKind,
+}
+
+impl Drop for MeasureExpr {
+    /// Frees the tree from a heap stack, as [`Expr`]'s drop does.
+    fn drop(&mut self) {
+        if !matches!(self.kind, MeasureKind::Primitive(_) | MeasureKind::Value(_)) {
+            crate::tree::free(self, |e, out| e.kind.detach_children(out));
+        }
+    }
 }
 
 /// The measurement AST. Crate-private so trees are only built through
@@ -189,6 +208,40 @@ pub(crate) enum MeasureKind {
     Min(Box<MeasureExpr>, Box<MeasureExpr>),
     /// Same-dimension lattice maximum.
     Max(Box<MeasureExpr>, Box<MeasureExpr>),
+}
+
+impl MeasureKind {
+    /// Moves this node's children onto `out`, leaving a leaf behind.
+    fn detach_children(&mut self, out: &mut Vec<MeasureExpr>) {
+        let leaf = MeasureKind::Primitive(MeasurePrimitive::Distance { a: 0, b: 0 });
+        match core::mem::replace(self, leaf) {
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => {
+                out.push(*a);
+                out.push(*b);
+            }
+            MeasureKind::Neg(a) => out.push(*a),
+            MeasureKind::Primitive(_) | MeasureKind::Value(_) => {}
+        }
+    }
+
+    /// How many levels the node's children nest, the deeper one's.
+    fn below(&self) -> u8 {
+        match self {
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => a.nesting.max(b.nesting),
+            MeasureKind::Neg(a) => a.nesting,
+            MeasureKind::Primitive(_) | MeasureKind::Value(_) => 0,
+        }
+    }
 }
 
 /// The binary operations this language shares with [`Expr`]. Naming
@@ -261,6 +314,7 @@ impl MeasureExpr {
     pub fn primitive(p: MeasurePrimitive) -> Self {
         Self {
             dim: p.dim(),
+            nesting: 1,
             kind: MeasureKind::Primitive(p),
         }
     }
@@ -268,10 +322,28 @@ impl MeasureExpr {
     /// An ordinary document expression as a leaf — a literal bound, a
     /// parameter, a whole arithmetic subtree of them.
     pub fn value(e: Expr) -> Self {
+        let Ok(nesting) = u8::try_from(e.nesting()) else {
+            unreachable!(
+                "an expression nests {} levels, past the bound of {MAX_NESTING} its every \
+                 constructor holds it to",
+                e.nesting()
+            )
+        };
         Self {
             dim: e.dim(),
+            nesting,
             kind: MeasureKind::Value(e),
         }
+    }
+
+    /// An operator node over the children `kind` holds, refused when it
+    /// would nest past [`MAX_NESTING`].
+    fn over(dim: Dimension, kind: MeasureKind) -> Result<Self, DimensionError> {
+        Ok(Self {
+            dim,
+            nesting: crate::expr::nesting_over(kind.below())?,
+            kind,
+        })
     }
 
     fn binary(
@@ -281,10 +353,7 @@ impl MeasureExpr {
         make: fn(Box<MeasureExpr>, Box<MeasureExpr>) -> MeasureKind,
     ) -> Result<Self, DimensionError> {
         let dim = lattice(op, a.dim, b.dim)?;
-        Ok(Self {
-            dim,
-            kind: make(Box::new(a), Box::new(b)),
-        })
+        Self::over(dim, make(Box::new(a), Box::new(b)))
     }
 
     /// Same-dimension addition.
@@ -298,11 +367,12 @@ impl MeasureExpr {
     }
 
     /// Negation — any dimension.
-    pub fn neg(a: MeasureExpr) -> Self {
-        Self {
-            dim: a.dim,
-            kind: MeasureKind::Neg(Box::new(a)),
-        }
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NestedTooDeep`] alone, as [`Expr::neg`].
+    pub fn neg(a: MeasureExpr) -> Result<Self, DimensionError> {
+        Self::over(a.dim, MeasureKind::Neg(Box::new(a)))
     }
 
     /// Product; at least one operand `Scalar` (F1).
@@ -469,7 +539,7 @@ pub enum MeasureUnavailableAt {
         /// Which primitive.
         verb: &'static str,
         /// The scalar this build ran at, in its own name
-        /// ([`crate::lane::Lane::NAME`]).
+        /// ([`geom_core::Real::NAME`]).
         scalar: &'static str,
         /// The door that answers it, named so the recourse is in the
         /// refusal rather than in a reader's memory.
@@ -492,11 +562,12 @@ impl core::fmt::Display for MeasureUnavailableAt {
         match self {
             Self::NeedsEnclosure { verb, scalar, door } => write!(
                 f,
-                "`{verb}` answers with a certified enclosure, and a {scalar} build has no \
-                 channel for one — a point-scalar search finds a pair, and a pair that was \
-                 found is an upper bound on the minimum rather than the minimum. Evaluate \
-                 the document at the interval scalar over a parameter box, where `{door}` \
-                 computes the bracket"
+                "`{verb}` answers with a certified enclosure, which only the {interval} \
+                 scalar's engine computes, so a {scalar} build has no answer to give: a pair a \
+                 point search finds is an upper bound on the minimum rather than the minimum. \
+                 Evaluate the document at the {interval} scalar over a parameter box, where \
+                 `{door}` computes the bracket",
+                interval = <geom_core::Interval as geom_core::Real>::NAME,
             ),
         }
     }
@@ -513,20 +584,19 @@ impl core::fmt::Display for MeasureUnavailableAt {
 /// call site rather than a quietly degraded answer.
 ///
 /// The engine that computes it is the interval lane's
-/// ([`crate::clearance::min_separation`]) and so is the only `Some`.
-pub trait MinClearanceLane: crate::lane::Lane {
+/// (`clearance::min_separation`) and so is the only `Some`.
+pub trait MinClearanceLane: geom_core::Real {
     /// The minimum separation between two resolved selections, or
     /// `None` when this scalar cannot carry an enclosure.
     ///
     /// # Errors
     ///
-    /// The engine's own typed refusal, carried by class name and
-    /// payload ([`MinClearanceRefusal`]) rather than by its own type,
-    /// which lives behind the `interval` feature this door does not.
+    /// The engine's own typed refusal
+    /// ([`crate::clearance::ClearanceRefusal`]), carried unaltered.
     fn min_separation(
         a: &MinClearanceOperand<'_, Self>,
         b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, MinClearanceRefusal>>;
+    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>>;
 }
 
 /// One side of a [`MeasurePrimitive::MinClearance`], resolved: the body
@@ -548,42 +618,13 @@ pub struct MinClearanceOperand<'b, T: geom_core::Real> {
     pub faces: Vec<topo::entity::FaceKey>,
 }
 
-/// The clearance engine's refusal, carried across the feature boundary
-/// by class name and payload.
-///
-/// The engine's own `ClearanceRefusal` lives behind the `interval`
-/// feature and this door does not, so the two halves it renders — the
-/// stable class name and the evidence — travel instead of the enum.
-/// They are the same two halves the goldening form prints, through the
-/// engine's own `name()` and `payload()`, so a refusal reads the same
-/// here as it does in a clearance report.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MinClearanceRefusal {
-    /// The refusal's stable class name.
-    pub class: &'static str,
-    /// Its evidence, rendered.
-    pub payload: String,
-}
-
-impl core::fmt::Display for MinClearanceRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "the clearance engine refused `{}`", self.class)?;
-        if !self.payload.is_empty() {
-            write!(f, " ({})", self.payload)?;
-        }
-        Ok(())
-    }
-}
-
-impl core::error::Error for MinClearanceRefusal {}
-
 /// A point scalar has no enclosure to answer with. The whole content of
 /// the trait, at the lane where it bites.
 impl MinClearanceLane for f64 {
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, MinClearanceRefusal>> {
+    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
         None
     }
 }
@@ -595,7 +636,7 @@ impl MinClearanceLane for geom_core::Probe {
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, MinClearanceRefusal>> {
+    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
         None
     }
 }
@@ -606,26 +647,25 @@ impl MinClearanceLane for geom_core::Probe {
 /// and D1 keep out of the certifying lanes — so the whole family
 /// answers `None`, and a document measured for sensitivities reports
 /// the same typed absence a plain f64 build does.
-impl<T: geom_core::Real> MinClearanceLane for geom_core::Dual<T>
+impl<T> MinClearanceLane for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: crate::lane::Lane,
+    geom_core::Dual<T>: geom_core::Real,
 {
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, MinClearanceRefusal>> {
+    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
         None
     }
 }
 
 /// The interval lane, and the only one that answers: the engine's own
 /// bracket, at the shipped dials.
-#[cfg(feature = "interval")]
 impl MinClearanceLane for geom_core::Interval {
     fn min_separation(
         a: &MinClearanceOperand<'_, Self>,
         b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, MinClearanceRefusal>> {
+    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
         fn side<'b>(
             o: &MinClearanceOperand<'b, geom_core::Interval>,
         ) -> crate::clearance::MinSepSelection<'b> {
@@ -642,11 +682,7 @@ impl MinClearanceLane for geom_core::Interval {
                 &side(b),
                 crate::clearance::MinSeparationConfig::default(),
             )
-            .map(|m| m.enclosure())
-            .map_err(|r| MinClearanceRefusal {
-                class: r.name(),
-                payload: r.payload(),
-            }),
+            .map(|m| m.enclosure()),
         )
     }
 }
@@ -656,7 +692,7 @@ impl MinClearanceLane for geom_core::Interval {
 /// deviation D3; issue `symbolic-tier-and-clearance-engine`).
 ///
 /// Every other lane the tier composes with is scalar-generic and runs
-/// at `Sym<T>` unaltered. This one is not: [`crate::clearance`]'s engine
+/// at `Sym<T>` unaltered. This one is not: `clearance`'s engine
 /// is written at [`geom_core::Interval`] concretely — its selection type
 /// borrows a `&Body<Interval>` and its inner subdivision is spelled in
 /// that type — so the door cannot be handed a `Body<Sym<Interval>>`, and
@@ -671,12 +707,12 @@ impl MinClearanceLane for geom_core::Interval {
 /// silently degrades.
 impl<T: MinClearanceLane> MinClearanceLane for geom_core::Sym<T>
 where
-    geom_core::Sym<T>: crate::lane::Lane,
+    geom_core::Sym<T>: geom_core::Real,
 {
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, MinClearanceRefusal>> {
+    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
         None
     }
 }
@@ -1007,3 +1043,14 @@ pub(crate) fn decide_assertion<T: Decide>(
 /// The funnel site name of the assertion comparison. A roster carrier
 /// (`docs/K-REPORT.md`) rather than a literal at the decide site.
 pub const ASSERT_BOUND: &str = "assert_bound";
+
+/// A negation over `e`, built past the constructors, which refuse it
+/// past the bound.
+#[cfg(test)]
+pub(crate) fn raw_neg(e: MeasureExpr) -> MeasureExpr {
+    MeasureExpr {
+        dim: e.dim,
+        nesting: u8::MAX,
+        kind: MeasureKind::Neg(Box::new(e)),
+    }
+}

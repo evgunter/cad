@@ -27,6 +27,7 @@
 )]
 
 use crate::common;
+use geom_core::Arc2;
 
 use common::{lift, profile, tol};
 use geom_core::k_stats::{self, Probe};
@@ -49,26 +50,14 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
         let fb: Vec<(u64, u64, u64)> = f
             .loops()
             .iter()
-            .flat_map(|l| l.vertices().iter())
-            .map(|v| {
-                (
-                    v.pos().x.to_bits(),
-                    v.pos().y.to_bits(),
-                    v.bulge().to_bits(),
-                )
-            })
+            .flat_map(|l| l.vertices().iter().zip(l.segments()))
+            .map(|(v, s)| (v.x.to_bits(), v.y.to_bits(), s.bulge.to_bits()))
             .collect();
         let qb: Vec<(u64, u64, u64)> = q
             .loops()
             .iter()
-            .flat_map(|l| l.vertices().iter())
-            .map(|v| {
-                (
-                    v.pos().x.0.to_bits(),
-                    v.pos().y.0.to_bits(),
-                    v.bulge().0.to_bits(),
-                )
-            })
+            .flat_map(|l| l.vertices().iter().zip(l.segments()))
+            .map(|(v, s)| (v.x.0.to_bits(), v.y.0.to_bits(), s.bulge.0.to_bits()))
             .collect();
         assert_eq!(fb, qb);
         // And identical arc geometry down to carrier bits.
@@ -77,13 +66,21 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
                 match (&sf.kind, &sq.kind) {
                     (
                         SegmentKind::Arc {
-                            center: cf,
-                            radius: rf,
+                            arc:
+                                Arc2 {
+                                    centre: cf,
+                                    radius: rf,
+                                    sweep: wf,
+                                },
                             turn: tf,
                         },
                         SegmentKind::Arc {
-                            center: cq,
-                            radius: rq,
+                            arc:
+                                Arc2 {
+                                    centre: cq,
+                                    radius: rq,
+                                    sweep: wq,
+                                },
                             turn: tq,
                         },
                     ) => {
@@ -91,6 +88,7 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
                         assert_eq!(cf.y.to_bits(), cq.y.0.to_bits());
                         assert_eq!(rf.to_bits(), rq.0.to_bits());
                         assert_eq!(tf, tq);
+                        assert_eq!(wf.to_bits(), wq.0.to_bits());
                     }
                     (SegmentKind::Line, SegmentKind::Line) => {}
                     other => panic!("kind divergence: {other:?}"),

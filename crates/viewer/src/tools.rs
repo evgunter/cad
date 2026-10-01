@@ -1,8 +1,10 @@
 //! **The modal tools, and the rule that only one of them is open.**
 //!
 //! Every modal tool here holds picks in tool state and commits exactly
-//! one `DocEdit` (G1's preview-vs-commit rule; the mate tool set the
-//! shape and the creation tools took it). They all consume the SAME
+//! one ACTION — one history state, one undo (G1's preview-vs-commit
+//! rule; the mate tool set the shape and the creation tools took it).
+//! For most tools that action is one `DocEdit`; the duplicate tool's
+//! is three and a declaring boolean's two, each recorded as one. They all consume the SAME
 //! selection stream, which is what makes the one-at-a-time rule a rule
 //! rather than a preference: with two open, one click fills a seat in
 //! each, and the picks a user believes they are making are not the
@@ -14,18 +16,16 @@
 //! written down. A tool added to the set cannot be forgotten by an
 //! exclusivity rule that no longer exists.
 //!
-//! **The four per-tool rules here dispatch through an exhaustive
-//! match** — the pick routing, the survival step, the cursor
-//! narrowing, the close-on-commit edit — for the same reason: an
-//! eighth tool must not be able to compile while three of its four
-//! obligations are silently unmet. The READ door is not one of them:
-//! each typed accessor on [`Tools`] matches its own variant and
-//! answers `None` to every other, so an eighth tool that never gets
-//! an accessor compiles clean. [`ToolKind::ALL`] is not a list a
-//! compiler has to be asked to force either: it is projected from the
-//! enum's own declaration by the crate's `vocabulary!` macro, so an
-//! eighth kind reaches it by construction. Nothing outside the test
-//! suites reads it.
+//! **The four per-tool rules here are policy and name every tool** —
+//! the pick routing, the survival step, the cursor narrowing, the
+//! close-on-commit edit. The READ door is not one of them: each typed
+//! accessor on [`Tools`] matches its own variant and answers `None` to
+//! every other, which is identity rather than policy, so a new
+//! tool that never gets an accessor compiles clean. [`ToolKind::ALL`]
+//! is not a list a compiler has to be asked to force either: it is
+//! projected from the enum's own declaration by the crate's
+//! `vocabulary!` macro, so a new kind reaches it by construction.
+//! Nothing outside the test suites reads it.
 //!
 //! The value is renderer-free on purpose: the pick routing, the
 //! survival step and the exclusivity are all properties a headless row
@@ -38,7 +38,7 @@
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 
 use crate::blend::{BlendEvent, BlendTool};
-use crate::combine::{BooleanTool, PatternTool, SplitTool, TransformTool};
+use crate::combine::{BooleanTool, DuplicateTool, PartTool, PatternTool, SplitTool, TransformTool};
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickindex::PickKinds;
 use crate::revolvetool::RevolveTool;
@@ -51,7 +51,7 @@ vocabulary! {
     /// notice are addressed in.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ToolKind {
-        /// The mate tool (GUI-4): two face picks.
+        /// The mate tool: two face picks.
         Mate,
         /// The revolve tool: a profile and an axis.
         Revolve,
@@ -65,6 +65,11 @@ vocabulary! {
         Pattern,
         /// The blend tool: one body and a SET of its edges.
         Blend,
+        /// The projection tool (it authors a `Node::Part`): one split or
+        /// one pattern, and which body of it.
+        Part,
+        /// The duplicate tool: one body.
+        Duplicate,
     }
 
     /// Every kind, for the test suites that sweep them — which are
@@ -81,16 +86,21 @@ vocabulary! {
 }
 
 impl ToolKind {
-    /// The tool's name, for sentences and buttons.
+    /// **The tool's name, and its one home**: the bare noun its
+    /// sentences ([`Self::says`]), its activation button
+    /// ([`Self::button`]) and its commit button ([`Self::commit`]) are
+    /// composed from.
     pub fn label(self) -> &'static str {
         match self {
-            Self::Mate => "mate tool",
-            Self::Revolve => "revolve tool",
-            Self::Boolean => "boolean tool",
-            Self::Split => "split tool",
-            Self::Transform => "transform tool",
-            Self::Pattern => "pattern tool",
-            Self::Blend => "blend tool",
+            Self::Mate => "mate",
+            Self::Revolve => "revolve",
+            Self::Boolean => "boolean",
+            Self::Split => "split",
+            Self::Transform => "transform",
+            Self::Pattern => "pattern",
+            Self::Blend => "blend",
+            Self::Part => "projection",
+            Self::Duplicate => "duplicate",
         }
     }
 
@@ -99,7 +109,21 @@ impl ToolKind {
     /// said it (a refusal at a commit button) or the frame did (a lost
     /// pick). Two spellings of this prefix is how the two drift.
     pub fn says(self, what: &impl core::fmt::Display) -> String {
-        format!("{}: {what}", self.label())
+        format!("{} tool: {what}", self.label())
+    }
+
+    /// **The words on the button that opens this tool**: its name,
+    /// capitalised, as a tool, with the ellipsis of a button that opens
+    /// a panel rather than acting.
+    pub fn button(self) -> String {
+        let name = self.label();
+        let (first, rest) = name.split_at(name.chars().next().map_or(0, char::len_utf8));
+        format!("{}{rest} tool…", first.to_uppercase())
+    }
+
+    /// The words on the button that commits this tool's edit.
+    pub fn commit(self) -> String {
+        format!("Commit {}", self.label())
     }
 
     /// **What the cursor may pick while this tool is open** — an open
@@ -113,46 +137,100 @@ impl ToolKind {
     /// no edge wins answers NOTHING rather than re-selecting the wall
     /// behind the edge the user was aiming at. Every other tool holds
     /// NODE picks, which a face and an edge answer equally well
-    /// (`Selection::node` reaches the feature either way), so none of
-    /// them narrows anything.
+    /// ([`Selection::seat_node`] reaches the drawn body either way), so
+    /// none of them narrows anything.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
             Self::Mate => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
-            Self::Revolve | Self::Boolean | Self::Split | Self::Transform | Self::Pattern => {
-                PickKinds::Any
-            }
+            Self::Revolve
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Part
+            | Self::Duplicate => PickKinds::Any,
         }
     }
 
     /// **Whether this operation is this tool's one committed edit** —
     /// the rule that closes the tool that authored it, once the edit
-    /// has actually landed.
-    ///
-    /// The mate tool answers `false` for every op deliberately: it
-    /// closes at its own click, before the op is performed, which is
-    /// the shipped GUI-4 behaviour and not this rule's to change.
+    /// has actually landed. Which op belongs to which tool is
+    /// `committed_by`'s; whether a tool closes on its op at all is
+    /// this match's.
     pub fn commits(self, op: &SessionOp) -> bool {
         match self {
+            // The mate tool closes at its own click, before the op is
+            // performed: the mate panel's rule, not this one's.
             Self::Mate => false,
-            Self::Revolve => matches!(op, SessionOp::AddRevolve { .. }),
-            Self::Boolean => matches!(op, SessionOp::AddBoolean { .. }),
-            Self::Split => matches!(op, SessionOp::AddSplit { .. }),
-            Self::Transform => matches!(op, SessionOp::AddTransform { .. }),
-            // Two ops, one tool, for the blend tool's reason: the
-            // output choice picks the door, and either one landing is
-            // this tool's edit committed.
-            Self::Pattern => matches!(
-                op,
-                SessionOp::AddPattern { .. } | SessionOp::AddPlacedUnion { .. }
-            ),
-            // Two ops, one tool: the kind choice picks the door, and
-            // either one landing is this tool's edit committed.
-            Self::Blend => matches!(
-                op,
-                SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. }
-            ),
+            Self::Revolve
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Blend
+            | Self::Part
+            | Self::Duplicate => committed_by(op) == Some(self),
         }
+    }
+}
+
+/// **Which tool an operation is the committed edit of**, or `None` for
+/// an operation no tool closes on. `AddMate` is nobody's: the mate
+/// tool does not close on it ([`ToolKind::commits`]).
+fn committed_by(op: &SessionOp) -> Option<ToolKind> {
+    match op {
+        SessionOp::AddRevolve { .. } => Some(ToolKind::Revolve),
+        SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
+        SessionOp::AddSplit { .. } => Some(ToolKind::Split),
+        SessionOp::AddTransform { .. } => Some(ToolKind::Transform),
+        // Two ops, one tool: the output choice picks the door, and
+        // either one landing is this tool's edit committed. The blend
+        // tool's kind choice does the same.
+        SessionOp::AddPattern { .. } | SessionOp::AddPlacedUnion { .. } => Some(ToolKind::Pattern),
+        SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. } => Some(ToolKind::Blend),
+        // ONE op for both selectors: the two doors mint the same op with
+        // different payloads, so a landed `AddPart` is this tool's edit
+        // whichever selector authored it.
+        SessionOp::AddPart { .. } => Some(ToolKind::Part),
+        SessionOp::Duplicate { .. } => Some(ToolKind::Duplicate),
+        SessionOp::AddMate { .. }
+        | SessionOp::Select(_)
+        | SessionOp::Hover(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::CancelGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Open(_)
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove { .. }
+        | SessionOp::CancelFreeMove
+        | SessionOp::NewDocument { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => None,
     }
 }
 
@@ -190,8 +268,8 @@ impl core::fmt::Display for ToolNotice {
 }
 
 /// **Which tool is open, and its state** — one variant per kind, so
-/// the open tool is a single value rather than seven optional ones and
-/// "two tools open" has no spelling.
+/// the open tool is a single value rather than one optional value per
+/// tool, and "two tools open" has no spelling.
 #[derive(Debug)]
 pub enum OpenTool {
     /// The mate tool.
@@ -208,6 +286,10 @@ pub enum OpenTool {
     Pattern(PatternTool),
     /// The blend tool.
     Blend(BlendTool),
+    /// The part tool.
+    Part(PartTool),
+    /// The duplicate tool.
+    Duplicate(DuplicateTool),
 }
 
 impl OpenTool {
@@ -222,18 +304,25 @@ impl OpenTool {
             Self::Transform(_) => ToolKind::Transform,
             Self::Pattern(_) => ToolKind::Pattern,
             Self::Blend(_) => ToolKind::Blend,
+            Self::Part(_) => ToolKind::Part,
+            Self::Duplicate(_) => ToolKind::Duplicate,
         }
     }
 }
 
 /// **The one guard every seated tool's pick shares.** A seated tool
-/// takes `Selection::node` and nothing else — a tree click directly, a
-/// face or edge pick through the one viewport→tree inversion — so a
-/// selection carrying no node is a click that tool does not see. The
-/// arms of [`Tools::feed`] that hold seats name the tool and share
-/// this; none of them re-spells it.
+/// takes [`Selection::seat_node`] and nothing else — a tree click
+/// directly, a face or edge pick as the node whose DRAWN body the ray
+/// met — so a selection carrying no node is a click that tool does not
+/// see. The arms of [`Tools::feed`] that hold seats name the tool and
+/// share this; none of them re-spells it.
+///
+/// **Not [`Selection::node`]**, which is the feature tree's question —
+/// the feature that MADE the face. On a moved copy or a filleted body
+/// that is a node upstream of what was clicked, and a seat fed it
+/// authors against geometry the user did not pick.
 fn on_node_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId)) {
-    if let Some(node) = selection.node() {
+    if let Some(node) = selection.seat_node() {
         pick(node);
     }
 }
@@ -275,6 +364,8 @@ impl Tools {
             ToolKind::Transform => OpenTool::Transform(TransformTool::new()),
             ToolKind::Pattern => OpenTool::Pattern(PatternTool::new()),
             ToolKind::Blend => OpenTool::Blend(BlendTool::new()),
+            ToolKind::Part => OpenTool::Part(PartTool::new()),
+            ToolKind::Duplicate => OpenTool::Duplicate(DuplicateTool::new()),
         });
     }
 
@@ -338,6 +429,22 @@ impl Tools {
         }
     }
 
+    /// The open part tool.
+    pub fn part(&self) -> Option<PartTool> {
+        match &self.open {
+            Some(OpenTool::Part(tool)) => Some(*tool),
+            _ => None,
+        }
+    }
+
+    /// The open duplicate tool.
+    pub fn duplicate(&self) -> Option<DuplicateTool> {
+        match &self.open {
+            Some(OpenTool::Duplicate(tool)) => Some(*tool),
+            _ => None,
+        }
+    }
+
     /// The open blend tool, by reference (the read-door rule on
     /// [`Tools`]).
     pub fn blend(&self) -> Option<&BlendTool> {
@@ -381,9 +488,9 @@ impl Tools {
     /// face geometry, so an edge pick is not one of its picks), the
     /// blend tool takes the EDGE (it blends edges, and its target is
     /// the drawn body the edge was picked on rather than the feature
-    /// that minted it), and every seated tool takes `Selection::node`
-    /// — a tree click directly, a face or edge pick through the one
-    /// viewport→tree inversion.
+    /// that minted it), and every seated tool takes
+    /// [`Selection::seat_node`] — a tree click directly, a face or edge
+    /// pick as the node whose drawn body the ray met.
     ///
     /// **Feeding answers**, because a pick can be DECLINED: the blend
     /// tool refuses an edge on a second body rather than taking it or
@@ -434,6 +541,12 @@ impl Tools {
                 Some(OpenTool::Pattern(tool)) => {
                     on_node_pick(selection, |node| tool.pick(doc, node));
                 }
+                Some(OpenTool::Part(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
+                Some(OpenTool::Duplicate(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
             }
         }
         notices
@@ -480,6 +593,8 @@ impl Tools {
             OpenTool::Split(tool) => tool.reconcile(doc),
             OpenTool::Transform(tool) => tool.reconcile(doc),
             OpenTool::Pattern(tool) => tool.reconcile(doc),
+            OpenTool::Part(tool) => tool.reconcile(doc),
+            OpenTool::Duplicate(tool) => tool.reconcile(doc),
             OpenTool::Blend(tool) => {
                 return tool
                     .reconcile(doc, landed)

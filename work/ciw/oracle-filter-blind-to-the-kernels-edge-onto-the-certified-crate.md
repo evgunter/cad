@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-21
 priority: P3
 cost: E
-refs: [ring-1-interval-type-ungated]
 ---
 
 
@@ -49,6 +48,6 @@ declare the edge (`crates/geom-core/Cargo.toml`, root
 ## Where
 
 - `scripts/ci-filter.py`, `ORACLE_PATHS` and `_touches_oracle`
-- `.github/workflows/ci.yml`, the `interval oracle (certify vs
+- `.github/workflows/interval.yml`, the `interval oracle (certify vs
   inari+MPFR)` job
 - found by RING-1's review (R2 NOTE-6)

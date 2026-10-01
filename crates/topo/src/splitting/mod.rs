@@ -56,7 +56,8 @@
 
 mod classify;
 pub mod containment;
-pub(crate) use classify::conic_plane_crossing_roots;
+pub(crate) use classify::{ConicPlaneMeet, conic_plane_crossing_roots};
+pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
@@ -204,14 +205,13 @@ pub enum SplitReduceError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A conic edge's plane-crossing root landed in the ambiguity band
-    /// of the edge's far end (the crossing grazes a vertex): the
+    /// A rung of a conic edge's plane-crossing root lane escalated: the
     /// operand/plane pair is ill-conditioned at this ε (F6).
     CrossingEscalated {
         /// The crossing edge.
         edge: EdgeKey,
-        /// The escalation diagnostics.
-        diag: Indeterminate,
+        /// Which rung escalated, with its diagnostics.
+        fault: ConicRootFault,
     },
     /// The split plane is tangent to a curved face at an ON vertex
     /// (the local normal is plane-parallel) AND the second-order
@@ -375,12 +375,23 @@ impl core::fmt::Display for SplitReduceError {
                 "the body has an edge on a spline (NURBS) or spiric curve, which the split \
                  cannot take yet. There is no way through yet"
             ),
-            Self::CrossingEscalated { diag, .. } => write!(
-                f,
-                "the split plane grazes the end of a curved edge ({}). Recourse: \
-                 {SPLIT_COINCIDENCE_RECOURSE}",
-                diag.payload()
-            ),
+            // The fault's routing is the Boolean's too: a crossing
+            // decision ends as that decision does, and a coincidence
+            // between the plane and the conic takes the split's levers,
+            // since a split takes no declaration.
+            Self::CrossingEscalated { fault, .. } => {
+                let diag = fault.diag();
+                let ending = fault.decision().map_or_else(
+                    || format!("Recourse: {SPLIT_COINCIDENCE_RECOURSE}"),
+                    |decision| decision.ending_of(&diag),
+                );
+                write!(
+                    f,
+                    "{} is undecided: {}. {ending}",
+                    fault.subject(),
+                    diag.payload()
+                )
+            }
             Self::TangencyUnsupported { .. } => write!(
                 f,
                 "the split plane is tangent to a curved face at a vertex, and a tangent \
@@ -603,6 +614,23 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
     Ok((red, completed, fragments))
 }
 
+/// **The direct split run through its join**: the scratch body as the
+/// join leaves it, every null edge killed, before the finish and the
+/// closing mint. Test vocabulary (`topo::test_support`), for the rows
+/// that read the rows a face carries at that point.
+///
+/// # Errors
+///
+/// The reduction's or the join's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn through_the_join<T: geom_core::Decide>(
+    operand: &Body<T>,
+    plane: &SplitPlane<T>,
+    tol: Tol,
+) -> Result<Body<T>, SplitError> {
+    Ok(split_scratch(operand, plane, tol)?.0.body)
+}
+
 /// **`split`** — plane-splitting of a solid (ch. 14 end to end):
 /// reduce ([`split_reduce`]) → join (`splitconnect`) → finish
 /// (`splitfinish`), composed functionally. The operand is never
@@ -636,7 +664,8 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// fans ARE the above runs and receive their distinct copies — and
 /// swaps the sides back. Success is therefore
 /// orientation-INDEPENDENT for the single-sided pinch class. A run
-/// whose mirror also refuses surfaces the original typed refusal —
+/// whose mirror also refuses surfaces the direct run's typed refusal
+/// (one exception, below) —
 /// and this is a KNOWN COMPLETENESS FRONTIER, not a proof of
 /// impossibility: a body pinched on BOTH sides of the plane
 /// (`review_m3_pr6::r1_both_sided_pinch` is the pinned witness) has
@@ -651,6 +680,22 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// refusal — loud and typed, but attributed to the direct run (the
 /// mirror's distinct failure is not reported), at the cost of up to
 /// three pipeline runs.
+///
+/// **The rerun also receives one-sided tangencies.** A plane touching
+/// the solid along an edge from the run's above side closes a zero-area
+/// polygon too, and the refusal cannot say which of the two it is, so
+/// the mirrored run is tried for both. A tangency alone refuses again
+/// there. A tangency whose contact meets a real section elsewhere
+/// would, in the mirrored run, join that contact into the real
+/// section's loop as a zero-width spur of positive net area — a
+/// success with a slit in both halves — and the join refuses it
+/// ([`SplitJoinError::SectionSpur`]), so the direct run's
+/// `DegenerateSection` surfaces. A tangency whose mirrored run
+/// completes the join and then refuses
+/// [`SplitFinishError::SectionCusp`] surfaces THAT refusal:
+/// the mirror resolved the direct run's degenerate polygon, so the
+/// knife edge is why the cut cannot be made. A both-sided pinch never
+/// takes this path — it refuses at the join in both directions.
 /// The result's section-face normals still follow THIS
 /// call's plane convention (above face m = −n, below face m = +n)
 /// because the mirrored run's roles are the swap of ours.
@@ -659,8 +704,9 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
-/// (no degenerate body is ever emitted).
-pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+/// (no degenerate body is ever emitted), and
+/// [`SplitFinishError::SectionCusp`] from either run.
+pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -671,7 +717,8 @@ pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
     }
     // D7: the pinch lane — rerun mirrored (the below fans become
     // above runs and mint their copies), swap the sides back. A
-    // double degenerate refusal surfaces the DIRECT run's error.
+    // mirror that also refuses surfaces the DIRECT run's error, save a
+    // `SectionCusp` (the docs above).
     let mirrored = SplitPlane {
         origin: plane.origin,
         normal: -plane.normal,
@@ -708,6 +755,9 @@ pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
                 vertex_pairs: naming.vertex_pairs,
             },
         }),
+        // Reached only past the mirror's join, so the direct run's
+        // degenerate polygon was resolved and the knife edge is why.
+        Err(cusp @ SplitError::Finish(SplitFinishError::SectionCusp { .. })) => Err(cusp),
         Err(_) => split_direct(operand, plane, tol),
     }
 }
@@ -720,7 +770,7 @@ pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
 /// certified (spec §1). Planar sides pick up nothing — planar faces
 /// keep M2's derive-on-demand status — so an all-planar split is
 /// bit-identical to before this pass existed.
-fn split_direct<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

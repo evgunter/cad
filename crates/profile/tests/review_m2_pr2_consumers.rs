@@ -17,7 +17,7 @@ use crate::common;
 
 use common::{frame_of, profile, rounded_rect, tol};
 use geom::Curve3;
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{Arc2, Point2, Point3, Vec3};
 use profile::{LoopRole, Profile, SegmentKind, SketchPlane};
 
 fn close3(p: Point3<f64>, q: Point3<f64>, tol: f64) -> bool {
@@ -59,9 +59,14 @@ fn pr4_dry_run_rounded_rect_arc_frames_on_a_tilted_plane() {
     let mut arcs_seen = 0;
     for seg in vp.loops()[0].segments() {
         let SegmentKind::Arc {
-            center,
-            radius,
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    ..
+                },
             turn,
+            ..
         } = seg.kind
         else {
             continue;
@@ -123,9 +128,14 @@ fn pr4_dry_run_hole_arcs_flip_axis() {
     assert_eq!(hole.role(), LoopRole::Hole);
     for seg in hole.segments() {
         let SegmentKind::Arc {
-            center,
-            radius,
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    ..
+                },
             turn,
+            ..
         } = seg.kind
         else {
             panic!("hole is all arcs");

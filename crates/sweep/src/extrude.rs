@@ -23,8 +23,8 @@
 //!    then one side-quad `mef` per segment (the new edge is the **top
 //!    rim**, `PlacedSegment` at the translated placement; the new face
 //!    is the side wall, plane or cylinder — a CONCAVE arc's wall is
-//!    attached `sense: false`, M5 S11: its material lies outside the
-//!    carrier, against the chart normal), the last `mef` closing
+//!    minted `sense: false`: its material lies outside the carrier,
+//!    against the chart normal), the last `mef` closing
 //!    against the first top rim. The original loop survives
 //!    translated by `w` — the swept face becomes the top cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
@@ -35,7 +35,9 @@
 //!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
 //!    the certification schedule's interior stations, in its one home:
 //!    jet-determinate ⇒ `TangentIntersection`, under-determined ⇒ an
-//!    image in the previous wall's chart, in-band ⇒ the typed sliver),
+//!    image in the previous wall's chart, in-band ⇒ the typed sliver,
+//!    a transverse station ⇒ the typed
+//!    [`ExtrudeError::SmoothJoinRefuted`]),
 //!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
@@ -54,6 +56,13 @@
 //!    join's under-determined case — the arm in `upgrade_rim` says
 //!    why the second-order rule has nothing to add there);
 //!    Indeterminate ⇒ the typed [`ExtrudeError::SliverRim`].
+//! 7. **Declared cusps.** Every declared cusp joint
+//!    ([`profile::ValidatedLoop::cusp_joints`]) sweeps a strut at
+//!    material wedge 0 (2π on a hole loop). The profile's `.cusp()` is
+//!    where that tangency's intent is declared; at rest the strut is
+//!    legal because its tangency is jet-determinate — derived from the
+//!    body exactly as a π seam is — so the result carries no record
+//!    for it.
 //!
 //! Everything runs in a fixed, documented order (D9): loops outer
 //! first then holes in canonical order; per loop, struts in traversal
@@ -70,7 +79,8 @@ use geom_brep::{
     newell_plane,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Arc2, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol,
+    Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
@@ -80,7 +90,7 @@ use topo::{
 
 use crate::swept;
 use crate::swept::{
-    CosurfaceNames, SweptChord, SweptKind, cap_points, cosurface, decide, face_surface_key,
+    CosurfaceNames, SweptChord, cap_points, cosurface, decide, face_surface_key,
     placed_segment_spec, turn_axis,
 };
 
@@ -119,17 +129,12 @@ pub struct Extruded<T: Real> {
     /// The built body — a closed solid, tiers 1–2 by construction.
     ///
     /// **Tier 3 holds for every body whose joints and cap rims classify
-    /// definitely transverse, and these two shapes are the whole of
-    /// what it does not cover** — both minted here and refused by
-    /// `topo::validate_geometric`:
+    /// definitely transverse or jet-determinately tangent** — a
+    /// declared cusp joint (`.cusp()`) included: its strut subtends
+    /// material wedge 0 (2π on a hole loop), which tier 3 holds legal
+    /// because the tangency is jet-determinate. The one shape minted
+    /// here that it does not cover:
     ///
-    /// - a DECLARED cusp joint (`.cusp()`) gives a rim edge subtending
-    ///   material wedge 0, refused undeclared
-    ///   (`topo::ValidationError::UndeclaredCusp`) — correctly, because
-    ///   this builder emits no contact record for the profile's
-    ///   declaration. Validate such a body through
-    ///   `topo::validate_geometric_declared`, passing the caller's own
-    ///   declaration;
     /// - a cap rim the dihedral lever reads definitely SMOOTH keeps the
     ///   conventional description (`upgrade_rim`'s smooth arm) and is
     ///   refused as `topo::ValidationError::SliverDihedral` under
@@ -239,6 +244,21 @@ pub enum ExtrudeError {
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
+    /// The must-carry rule read a station of a strut definitely
+    /// transverse ([`geom_brep::MustCarryVerdict::Transverse`]) after
+    /// the join's witness classified definitely smooth: the geometry
+    /// refuted the premise the smooth arm was entered on.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
+    /// along the strut, so their normals are constant along it and
+    /// every station reads what the witness read. Reaching this means
+    /// the inputs carried something a validated profile cannot, and it
+    /// is surfaced rather than stored under a description neither
+    /// reading chose.
+    SmoothJoinRefuted {
+        /// The strut edge whose station refuted the smooth premise.
+        edge: EdgeKey,
+    },
     /// A cap plane failed Newell certification (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
     /// surfaced rather than trusted).
@@ -316,6 +336,12 @@ impl fmt::Display for ExtrudeError {
                 "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
                  is neither a definite corner nor definitely smooth: {source}"
             ),
+            Self::SmoothJoinRefuted { edge } => write!(
+                f,
+                "the wall join along {edge:?} classified definitely smooth at its witness \
+                 but definitely a corner at a certification station, so the construction \
+                 refuses rather than choose a description for it"
+            ),
             Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::SidePlane {
                 loop_index,
@@ -348,7 +374,7 @@ impl From<EulerOpError> for ExtrudeError {
 /// reaching any of them.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct WallSeg<T: Real> {
-    /// The swept traversal record: endpoints, bulge, carrier class and
+    /// The swept traversal record: endpoints, carrier class and
     /// canonical indices, all in swept traversal order.
     pub(crate) chord: swept::SweptSeg<T>,
     /// The wall face's orientation sense (M5 S11): `false` iff the
@@ -408,10 +434,7 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     fn b(&self) -> Point2<T> {
         self.chord.b
     }
-    fn bulge(&self) -> T {
-        self.chord.bulge
-    }
-    fn kind(&self) -> SweptKind<T> {
+    fn kind(&self) -> SegmentKind<T> {
         self.chord.kind
     }
 }
@@ -479,10 +502,10 @@ struct LoopBase {
 /// the door runs its operators under one surgery scope
 /// (`topo::surgery`), so tier 1 is not re-derived per operator and the
 /// tier-2 debug assertion on the finished body, which subsumes it, is
-/// what this door pays — and passes tier 3 (`validate_geometric`)
-/// except in the two
-/// cases [`Extruded::body`] names. The caller re-validates at rest per
-/// the workspace convention.
+/// what this door pays — and passes tier 3
+/// (`topo::validate_geometric`) except at the smooth cap rim
+/// [`Extruded::body`] names. The caller re-validates at rest per the
+/// workspace convention.
 ///
 /// # Errors
 ///
@@ -557,7 +580,7 @@ pub fn extrude<T: Decide>(
     // check below is what the door pays, and it subsumes tier 1.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0])?;
+    let seed = body.mvfs(qs[0], true)?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
         MevSite::Lone {
@@ -602,7 +625,12 @@ pub fn extrude<T: Decide>(
             he2: first.he_plus,
         },
         placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
-        FaceSurface::New(bottom_plane),
+        // Newell over the loop the cap runs: its normal is the cap's
+        // outward normal, so the material agrees with the chart.
+        FaceSurface::New {
+            surface: bottom_plane,
+            sense: true,
+        },
         tol,
     )?;
     hes.push(close.he_plus);
@@ -654,13 +682,17 @@ pub fn extrude<T: Decide>(
         }
         // Close the hole cycle: the ring keeps the forward chain; the
         // new face is the transient disc, on the bottom cap's plane.
+        // `kfmrh` kills it at once, and nothing reads its bit.
         let close = body.mef(
             MefSite::Chords {
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
             placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
-            FaceSurface::Shared(bottom_surface),
+            FaceSurface::Shared {
+                key: bottom_surface,
+                sense: false,
+            },
             tol,
         )?;
         hole_hes.push(close.he_plus);
@@ -694,7 +726,13 @@ pub fn extrude<T: Decide>(
         .collect();
     let top_plane =
         newell_plane(&far_loop, band).map_err(|source| ExtrudeError::CapPlane { source })?;
-    let top_surface = body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+    let top_surface = body.set_face_surface(
+        top_face,
+        FaceSurface::New {
+            surface: top_plane,
+            sense: true,
+        },
+    )?;
 
     // ---- Phase 6: rim upgrades (module docs — the ratified rim
     // decision). Both cap planes now exist, so every cap–wall rim edge
@@ -853,17 +891,6 @@ fn sweep_loop<T: Decide>(
         if j == 0 {
             first_top = Some(mef.he_plus);
         }
-        // The honest orientation bit (M5 S11): a concave arc's wall
-        // has its material OUTSIDE the carrier cylinder, so the chart
-        // normal (unconditionally the outward radial) points into the
-        // solid and the face's sense is `false`. Decided at
-        // classification time from the profile's stored winding
-        // ([`WallSeg::wall_sense`]); attached here because `mef`
-        // cannot know the material side (it sees chords, not the
-        // profile).
-        if !segs[j].wall_sense {
-            body.set_face_sense(mef.face, false)?;
-        }
         faces.push(mef.face);
         top_rims.push(mef.edge);
     }
@@ -942,7 +969,7 @@ fn sweep_loop<T: Decide>(
                 // `Intersection`. Under-determined keeps the
                 // conventional description BY THE PREDICATE; in-band
                 // escalates as the same typed sliver (F6). The gate,
-                // the stations and the three-way policy are the
+                // the stations and the verdict policy are the
                 // rule's, not this arm's
                 // ([`geom_brep::must_carry_over_edge`]).
                 let carrier = strut_carrier(qs[j], w);
@@ -1026,6 +1053,15 @@ fn sweep_loop<T: Decide>(
                             source,
                         });
                     }
+                    // A station reads the join a corner where the
+                    // midpoint read it smooth: this arm's premise is
+                    // refuted, and the strut refuses rather than
+                    // store a description neither reading chose.
+                    geom_brep::MustCarryVerdict::Transverse => {
+                        return Err(ExtrudeError::SmoothJoinRefuted {
+                            edge: struts[j].edge,
+                        });
+                    }
                 }
             }
             Err(source) => {
@@ -1064,7 +1100,10 @@ struct LoopSwept {
 /// `u_ref` comes from segment 0, the run's first segment in sweep
 /// order; otherwise a freshly built plane (Newell over the quad corners
 /// in loop order — outward by the orientation contract) or cylinder
-/// (turn-signed axis, crate docs).
+/// (turn-signed axis, crate docs). Every arm states the segment's
+/// [`WallSeg::wall_sense`]: a concave arc's wall has its material
+/// outside the carrier cylinder, against the outward-radial chart
+/// normal.
 #[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
 fn side_surface<T: Decide>(
     body: &Body<T>,
@@ -1081,11 +1120,12 @@ fn side_surface<T: Decide>(
     tol: Tol,
 ) -> Result<FaceSurface<T>, ExtrudeError> {
     let n = segs.len();
+    let sense = segs[j].wall_sense;
     if j > 0 {
         // The prev join: segment j continues segment j − 1's carrier.
         if pair[j] {
             let key = face_surface_key(body, faces[j - 1])?;
-            return Ok(FaceSurface::Shared(key));
+            return Ok(FaceSurface::Shared { key, sense });
         }
         // The wrap run: segments j, j+1, …, n−1 chain onto segment 0
         // through the wrap join (`pair[0]`), so segment j belongs to
@@ -1094,11 +1134,11 @@ fn side_surface<T: Decide>(
         // the plain wrap join.)
         if pair[0] && ((j + 1)..n).all(|k| pair[k]) {
             let key = face_surface_key(body, faces[0])?;
-            return Ok(FaceSurface::Shared(key));
+            return Ok(FaceSurface::Shared { key, sense });
         }
     }
     match segs[j].chord.kind {
-        SweptKind::Line => {
+        SegmentKind::Line => {
             // Quad corners in the side loop's next order starting at
             // the swept start vertex: v_j′, v_j, v_{j+1}, v_{j+1}′.
             let corners = [qs[j] + w, qs[j], qs[(j + 1) % n], qs[(j + 1) % n] + w];
@@ -1107,11 +1147,18 @@ fn side_surface<T: Decide>(
                 segment_index: segs[j].chord.canonical_segment,
                 source,
             })?;
-            Ok(FaceSurface::New(plane))
+            Ok(FaceSurface::New {
+                surface: plane,
+                sense,
+            })
         }
-        SweptKind::Arc {
-            center,
-            radius,
+        SegmentKind::Arc {
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    ..
+                },
             turn,
         } => {
             // The carrier axis line is the arc's center extruded:
@@ -1130,12 +1177,15 @@ fn side_surface<T: Decide>(
             // wall's `u_ref` is built from the same lamina vertex and
             // the same extruded center (`swept::register_rim_identity`).
             crate::swept::register_rim_identity(rim, radius, tol);
-            Ok(FaceSurface::New(Surface::Cylinder {
-                origin: c_world,
-                axis: turn_axis(turn, normal),
-                radius,
-                u_ref: rim.normalize(),
-            }))
+            Ok(FaceSurface::New {
+                surface: Surface::Cylinder {
+                    origin: c_world,
+                    axis: turn_axis(turn, normal),
+                    radius,
+                    u_ref: rim.normalize(),
+                },
+                sense,
+            })
         }
     }
 }
@@ -1144,7 +1194,7 @@ fn side_surface<T: Decide>(
 /// witness }` (module docs, step 6 — the ratified rim decision). The
 /// witness is minted as the **carrier's mid-parameter point** — the S2
 /// witness contract (`WitnessMidpoint`): for arc rims the chord
-/// midpoint lies off the carrier by the bulge height, so `carrier(mid)`
+/// midpoint lies off the carrier by the sagitta, so `carrier(mid)`
 /// is the only honest mint (for line rims it coincides with the chord
 /// midpoint to rounding). The certified carrier and parameter interval
 /// are kept verbatim; the re-description goes through `topo`'s
@@ -1262,9 +1312,10 @@ mod tests {
 
         let msg = ExtrudeError::ExtrusionEscalated {
             source: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("extrusion_normal_component"),
+                terminal_sliver: false,
             },
         }
         .to_string();

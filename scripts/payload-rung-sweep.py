@@ -41,9 +41,9 @@ resolver, so a census over five lists and a sweep over four would be the same
 "no two runs agree on a number" defect one layer up. Adding a file is not the
 whole fix, because the lists are not one surface — `profile.rs` is the profile
 layer's whole presented root, the prelude is the glob surface, and
-`analysis.rs` splits into one ungated `pub use` and five behind
-`#[cfg(feature = "interval")]` that this reader cannot see as gated at all
-(blind spot (j) below) — so this script reports which list each side of a row
+`analysis.rs` splits into one scalar-free `pub use` and five for the certified
+half, and a `#[cfg]`-gated `pub use` is one this reader cannot see as gated at
+all (blind spot (j) below) — so this script reports which list each side of a row
 is on, and separates two states that a three-list run flattened into one:
 
   UNCURATED  the payload is on no list at all
@@ -144,6 +144,14 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
+    # decision types. The row also holds the two types nested one rung
+    # further down (`SectorRung`, `CrossingDecision`), which this sweep
+    # does not reach.
+    "BooleanDecision": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
+    "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                      "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
                         "declaration under the alias `PlaneRelation` "
                         "(crates/topo/src/boolean/plane_eq.rs)"),
@@ -166,6 +174,11 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # argument and its falsifier are written once, at the carry
     # decision the pointer names, and this row does not restate them.
     "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `CensusUnsupportedCause`'s shape: the argument sits beside the
+    # declaration, and the carry is the façade crate's row.
+    "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
+                   "in crates/topo/src/validate.rs; the carry is "
+                   "work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md"),
 }
 
 # The same table for the CROSS-LIST set — a payload that IS curated, on no list
@@ -196,6 +209,13 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
                                        "spelled once; the general rule is at the "
                                        "payload-rule header of "
                                        "crates/pncad/src/document.rs"),
+    # A node's standing is the evaluation's own vocabulary — the refusal of
+    # `Evaluation::usable`, carried beside `Evaluation` on `document` — and the
+    # select-list refusals (hit test, pick, name lookup, name read, resolution,
+    # query) carry it as their payload. The same rule as the rows above.
+    "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
+                               "once, beside `Evaluation`; the general rule is at the "
+                               "payload-rule header of crates/pncad/src/document.rs"),
 }
 
 
@@ -521,7 +541,7 @@ def declarations(root: Path, crates: dict[str, Path]) -> dict[str, list[Decl]]:
 
     `src/` only: a type declared in a crate's `tests/` or `benches/` is not on
     anything a consumer can name. Sources are read as written, `#[cfg]`-gated
-    items included — a payload behind `#[cfg(feature = "interval")]` is a real
+    items included — a payload behind `#[cfg(feature = "probe")]` is a real
     payload in the lane that builds it, and dropping gated code would make the
     sweep's answer depend on a feature selection it does not take.
     """
@@ -861,7 +881,7 @@ _FIXTURE = {
     # unconditionally. A rung reachable only in one feature unification
     # therefore looks exactly like any other, which is why the disposition
     # tables carry that reading by hand.
-    "crates/pncad/src/analysis.rs": '#[cfg(feature = "interval")]\n'
+    "crates/pncad/src/analysis.rs": '#[cfg(feature = "probe")]\n'
                                     "pub use alpha::GatedCarrier;\n",
     "crates/alpha/Cargo.toml": '[package]\nname = "alpha"\n\n[dependencies]\nabeta = { path = "../abeta" }\n',
     "crates/alpha/src/lib.rs": _FIXTURE_ALPHA,

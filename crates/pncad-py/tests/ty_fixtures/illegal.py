@@ -57,6 +57,7 @@ from pncad import (
     SketchPlane,
     SplitHalf,
     Start,
+    Piece,
     SurfaceKind,
     TubeWindow,
     Sweep,
@@ -744,18 +745,19 @@ for _placed in _import.instances:
     _frame: Frame = _placed.placement  # ty: error
 
 
-# A role-name door mints a name from a NODE, a profile LOOP index and
-# an index into that loop's canonical chain. A name is not a node, an
-# index is not a length, the loop is not optional, and the end
-# vocabulary is closed: `MeridianEnd` names a revolve's ends and a
-# `CapEnd` is an extrude's.
+# A role-name door mints a name from a NODE and a profile `Piece`. A
+# name is not a node, a piece is not an index nor its text, the piece
+# is not optional, and the end vocabulary is closed: `MeridianEnd` names a
+# revolve's ends and a `CapEnd` is an extrude's.
 _names_doc = Doc()
 _names_node: NodeId = _names_doc.sketch_frame()
-_minted: str = band(_names_node, 0, 0)
-_from_a_name: str = band(_minted, 0, 0)  # ty: error
-_from_a_length: str = band(_names_node, 0, 1 * m)  # ty: error
-_a_loop_is_not_a_length: str = band(_names_node, 1 * m, 0)  # ty: error
-_the_loop_is_not_optional: str = band(_names_node, 0)  # ty: error
-_wrong_vocabulary: str = meridian_vertex(CapEnd.End, _names_node, 0, 0)  # ty: error
+_piece: Piece = _names_doc.pieces(_names_node)[0][0]
+_text: str = str(_piece)
+_from_text: str = band(_names_node, _text)  # ty: error
+_minted: str = band(_names_node, _piece)
+_from_a_name: str = band(_minted, _piece)  # ty: error
+_from_an_index: str = band(_names_node, 0)  # ty: error
+_the_piece_is_not_optional: str = band(_names_node)  # ty: error
+_wrong_vocabulary: str = meridian_vertex(CapEnd.End, _names_node, _piece)  # ty: error
 _a_node_is_not_a_name: str = carried(_names_node, _names_node)  # ty: error
 _a_name_is_not_a_node: str = carried(_minted, _minted)  # ty: error

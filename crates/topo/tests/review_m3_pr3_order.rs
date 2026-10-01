@@ -56,7 +56,6 @@ fn tilted_plane_f64_and_replay() {
 /// the SAME census as f64 (lane agreement) or it refuses typed (the
 /// documented posture for enclosure-order escalation). Silent
 /// divergence is the only failure.
-#[cfg(feature = "interval")]
 #[test]
 fn tilted_plane_interval_agrees_or_refuses_typed() {
     use geom_core::Interval;

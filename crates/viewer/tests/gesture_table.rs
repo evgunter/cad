@@ -15,12 +15,9 @@
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
-//! agreeing with itself. Its match is exhaustive: a forty-third
-//! `SessionOp` does not compile until someone writes down whether a
-//! drag refuses it, which is the property the table exists to buy.
-//! Its index half, checked against `OP_COUNT`, is what makes a MISSING
-//! sample fail too — an unasserted variant is the same silence in a
-//! different place.
+//! agreeing with itself. Its index half, checked against `OP_COUNT`,
+//! is what makes a MISSING sample fail too — an unasserted variant is
+//! the same silence in a different place.
 //!
 //! **This is the only row here that can catch a WRONG table entry**,
 //! and it catches one by disagreeing with a second hand-written copy,
@@ -106,7 +103,7 @@ use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
     BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
-    PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
+    PartSelectSpec, PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -115,7 +112,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 44;
+const OP_COUNT: usize = 47;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -168,7 +165,7 @@ fn alignment() -> Alignment {
 /// never reaches its own validation, and a permitted one is asserted
 /// on WHICH refusal it gives, not on succeeding.
 fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
-    let param = ParamName::new("thickness");
+    let param = ParamName::from_static("thickness");
     vec![
         SessionOp::Select(Selection::Node(node)),
         SessionOp::Hover(Some(Hovered::Face(FaceSelection {
@@ -282,6 +279,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             op: BooleanOp::Union,
             a: node,
             b: node,
+            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: node,
@@ -319,7 +317,15 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             distance: len(0.001),
             selection: vec![face(node)],
         },
+        SessionOp::AddPart {
+            of: node,
+            select: PartSelectSpec::Instance(1),
+        },
+        SessionOp::Duplicate { input: node },
         SessionOp::AddInstance {
+            id: DocumentId::derive("view1b-no-such-part"),
+        },
+        SessionOp::AcceptPartVersion {
             id: DocumentId::derive("view1b-no-such-part"),
         },
         SessionOp::EditProfile {
@@ -327,17 +333,15 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             base: pncad::document::ProfileProgram {
                 plane: node,
                 loops: vec![],
+                ids: Vec::new(),
             },
             loops: vec![],
+            ids: vec![],
         },
     ]
 }
 
 /// The answers, restated by hand: `(index, permitted mid-drag)`.
-///
-/// **Exhaustive on purpose.** A new `SessionOp` fails to compile here
-/// until its row is written, which is the whole reason the policy is a
-/// table rather than a scattering of guards.
 fn expected(op: &SessionOp) -> (usize, bool) {
     match op {
         // Layer-3 moves: neither the document nor the history is
@@ -409,6 +413,14 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // and both fenced for `SetParam`'s reason.
         SessionOp::SetParamUnit { .. } => (42, false),
         SessionOp::SetParamText { .. } => (43, false),
+        // Two more insert doors, fenced with every other one: both
+        // commit to the history, which is what a drag has to be
+        // protected from.
+        SessionOp::AddPart { .. } => (44, false),
+        SessionOp::Duplicate { .. } => (45, false),
+        // It commits an action to the history (every reference to the
+        // part moves), which is what a drag has to be protected from.
+        SessionOp::AcceptPartVersion { .. } => (46, false),
     }
 }
 
@@ -511,7 +523,7 @@ fn every_op_behaves_as_the_table_says() {
 fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
-    let undeclared = ParamName::new("no-such-parameter");
+    let undeclared = ParamName::from_static("no_such_parameter");
 
     // The second extrude's distance becomes a computed slot, which is
     // what `begin_gesture`'s own check refuses.
@@ -520,7 +532,7 @@ fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
             .perform(SessionOp::SetSlotExpression {
                 node: second,
                 slot: SlotId::Distance,
-                text: param.0.clone(),
+                text: param.as_str().to_owned(),
             })
             .refusal
             .is_none(),
@@ -646,7 +658,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     // A pattern over the probed instance: the slots a value gesture can
     // open on in an assembly of bare instances, and the reason the
     // instance's display state has a root to propagate to.
-    let pattern = perform(
+    let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: post,
@@ -657,12 +669,6 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             },
         },
     );
-    assert_eq!(pattern.committed.len(), 1);
-    let pattern = *session
-        .doc()
-        .order()
-        .last()
-        .expect("the pattern is the last node inserted");
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
         Ok(std::iter::once(pattern).collect()),
@@ -808,9 +814,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
 
 // --- the cancel doors -----------------------------------------------
 
-/// **Which operations cancel a GESTURE**, written down exhaustively so
-/// that a forty-third operation cannot join the enum without answering
-/// whether the chrome owes it a door.
+/// **Which operations cancel a GESTURE.**
 ///
 /// The rule ranges over what an operation cancels, NOT over what it is
 /// called. [`SessionOp::CancelEvaluation`] is spelled `Cancel` and
@@ -864,7 +868,10 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddPlacedUnion { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
-        | SessionOp::AddInstance { .. } => false,
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => false,
     }
 }
 
@@ -937,8 +944,8 @@ fn sample_names() -> Vec<GestureName> {
             node: RecipeNodeId(4),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
-        GestureName::Value(ValueGestureName::Param(ParamName("w".into()))),
+        GestureName::Value(ValueGestureName::Param(ParamName::from_static("h"))),
+        GestureName::Value(ValueGestureName::Param(ParamName::from_static("w"))),
         GestureName::FreeMove(FreeMoveName {
             instance: RecipeNodeId(3),
         }),
@@ -1101,7 +1108,7 @@ fn a_names_cancel_is_its_own_drags() {
             node: RecipeNodeId(3),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+        GestureName::Value(ValueGestureName::Param(ParamName::from_static("h"))),
     ] {
         assert!(
             matches!(name.cancel(), SessionOp::CancelGesture),
@@ -1406,10 +1413,10 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// rather than as a second copy of its rows.**
 ///
 /// `expected` above is a hand-written copy of
-/// `permitted_during_value_gesture` because that table has 25 refusals
-/// with no shorter description than the list itself — 24 of them move
-/// the document, the history or the file a drag previews against, and
-/// `ProbeBounds` is the twenty-fifth and reads rather than moves. The
+/// `permitted_during_value_gesture` because that table's refusals have
+/// no shorter description than the list itself — all but one move the
+/// document, the history or the file a drag previews against, and
+/// `ProbeBounds` reads rather than moves. The
 /// free-move table has two, and they have a name: an operation that REPLACES the
 /// document the session is about — as against one that moves it, which
 /// a prune answers for by reporting. So this says the name, and
@@ -1417,10 +1424,6 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// the table against it. A row that disagrees is either a table entry
 /// that is wrong or a property that has stopped being the reason, and
 /// both are things to find out.
-///
-/// **Exhaustive on purpose**, like `expected`: a forty-third `SessionOp`
-/// does not compile until someone says whether it replaces the
-/// document.
 fn replaces_the_document(op: &SessionOp) -> bool {
     match op {
         // The two doors that put a different document under the
@@ -1468,13 +1471,15 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddPlacedUnion { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
-        | SessionOp::AddInstance { .. } => false,
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => false,
     }
 }
 
 /// The free-move table is exactly the replacement doors, on the same
-/// sample roster the value table is checked on — so a forty-third
-/// operation is answered for both drags or does not compile.
+/// sample roster the value table is checked on.
 #[test]
 fn the_free_move_table_refuses_exactly_the_replacement_doors() {
     let tol = Tol::witness();
@@ -1606,7 +1611,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
-    let param = ParamName::new("thickness");
+    let param = ParamName::from_static("thickness");
     assert!(
         session
             .perform(SessionOp::CreateParam {
@@ -2058,7 +2063,7 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
 fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
     let tol = Tol::witness();
     let (mut session, extrude) = fixture(tol);
-    let param = ParamName::new("thickness");
+    let param = ParamName::from_static("thickness");
     assert!(
         session
             .perform(SessionOp::CreateParam {

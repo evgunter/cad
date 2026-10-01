@@ -22,14 +22,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::charts::{charts, moves_by};
 use geom_core::{Band, Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 const T: f64 = 1.0 / 128.0;
 
@@ -38,13 +35,13 @@ const T: f64 = 1.0 / 128.0;
 /// that cylinder's axis nor sit normal to it. `is_axial` must say no,
 /// and the body must keep the per-chart door's own typed refusal.
 fn bulged_box() -> Body<f64> {
-    let lp = RawLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
         // The bulge on the (w,0)->(w,d) edge: sweep < pi, transversal
         // at both junctions.
-        ProfileVertex::new(p2(0.05, 0.0), 0.5),
-        ProfileVertex::new(p2(0.05, 0.04), 0.0),
-        ProfileVertex::new(p2(0.0, 0.04), 0.0),
+        (Point2::new(0.05, 0.0), 0.5),
+        (Point2::new(0.05, 0.04), 0.0),
+        (Point2::new(0.0, 0.04), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -58,11 +55,11 @@ fn bulged_box() -> Body<f64> {
 fn wedge_of(angle: f64, r: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ])],
     )
     .validate(Tol::witness())
@@ -70,7 +67,7 @@ fn wedge_of(angle: f64, r: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Partial(angle),
@@ -95,20 +92,7 @@ fn r1p1_a_bulged_box_is_not_axial_and_refuses_typed() {
         Err(e) => println!("[r1p1] bulged box refuses: {e:?}"),
     }
     // And the door itself, asked directly, must name the shape.
-    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    let moves: Vec<topo::ChartMove<f64>> = charts
-        .into_iter()
-        .map(|(_, faces)| topo::ChartMove {
-            faces,
-            distance: -T,
-        })
-        .collect();
+    let moves = moves_by(charts(&body), -T);
     let mut work = body.clone();
     let e = topo::offset_charts_together(&mut work, &moves, band(), tol)
         .expect_err("the axial door must refuse a non-axial body");
@@ -183,9 +167,9 @@ fn r1p2_a_sliver_wedge_with_no_cavity_must_refuse() {
 fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
     let tol = Tol::witness();
     let r: f64 = 3.0 / 64.0;
-    let lp: ProfileLoop<f64> = RawLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 1.0),
-        ProfileVertex::new(p2(0.0, 2.0 * r), 0.0),
+    let lp: ProfileLoop<f64> = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 1.0),
+        (Point2::new(0.0, 2.0 * r), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -193,7 +177,7 @@ fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
     let ball = revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -309,11 +293,11 @@ fn r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps() {
     let meridian = || {
         Profile::new(
             SketchPlane::xy(),
-            vec![ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(r, 0.0), 0.0),
-                ProfileVertex::new(p2(r, h), 0.0),
-                ProfileVertex::new(p2(0.0, h), 0.0),
+            vec![bulge_loop(vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(r, 0.0), 0.0),
+                (Point2::new(r, h), 0.0),
+                (Point2::new(0.0, h), 0.0),
             ])],
         )
         .validate(tol)
@@ -322,7 +306,7 @@ fn r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps() {
     let wedge = revolve(
         &meridian(),
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
@@ -359,7 +343,7 @@ fn r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps() {
             revolve(
                 &meridian(),
                 RevolveAxis {
-                    origin: p2(0.0, 0.0),
+                    origin: Point2::new(0.0, 0.0),
                     dir: ax,
                 },
                 Revolution::Partial(core::f64::consts::FRAC_PI_2),

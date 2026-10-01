@@ -596,7 +596,6 @@ fn a_line_that_misses_the_apex_is_not_read_as_a_generator() {
 /// and indeterminate ADMITS here — so the refusing rows are placed
 /// decisively past the floor (ten escalation widths), where the
 /// enclosure is one-signed and the refusal must survive the widening.
-#[cfg(feature = "interval")]
 #[test]
 fn the_branch_door_decides_at_the_interval_scalar() {
     use geom_core::Interval;

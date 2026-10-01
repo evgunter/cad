@@ -284,16 +284,21 @@ class TestTheRefusalsShape(unittest.TestCase):
         first, second = self.refusal(), self.refusal()
         self.assertEqual(first.failure_count, second.failure_count)
         self.assertEqual(str(first), str(second))
-        # Every finding is joined into the message, so the count and
-        # the separators agree: n findings, n-1 joins.
+        # Every finding is joined into the message, and every finding
+        # states exactly one recourse, so the count and the recourses
+        # agree: n findings, n recourses.
+        message = str(first)
         self.assertEqual(
-            str(first).count("tier-3′ census:"), first.failure_count
+            message.count("Recourse:") + message.count("There is no way through"),
+            first.failure_count,
         )
 
     def test_the_message_is_the_kernel_s_own_diagnosis(self):
         message = str(self.refusal())
-        self.assertIn("undeclared contact", message)
-        self.assertIn("never blessed from discovery", message)
+        self.assertIn("is an undeclared contact", message)
+        self.assertIn(
+            "Recourse: declare the named contact class, or move the geometry", message
+        )
 
     def test_the_census_findings_arrive_as_prose(self):
         """The tier-3′ arms are the ones that reach a caller through a
@@ -447,7 +452,7 @@ class TestTheRefusalsShape(unittest.TestCase):
     def test_the_arms_this_suite_cannot_reach_are_named(self):
         """WHAT PYTHON CANNOT PRODUCE, said rather than left implied.
 
-        `ValidationError` has seventy-one arms and Python reaches them
+        Python reaches `ValidationError`'s arms
         through five `Body` methods — the four rungs and
         `validate_geometric_measured`, whose gate half is the third
         rung. The structural and geometric arms
@@ -456,8 +461,9 @@ class TestTheRefusalsShape(unittest.TestCase):
         script can mint one. `census_unsupported` and
         `census_lane_unsupported` — the two arms that carry the
         `subject_kind` / `entity_kind` half of a finding — want a
-        carrier outside the certifiable inventory or a scalar with no
-        certified chart-overlap lane, and neither is reachable through
+        carrier outside the certifiable inventory or a door that holds
+        no certified chart-overlap lane (the `_structural` ones, which
+        the binding does not expose), and neither is reachable through
         the doors this suite has: extruded boxes, cylinders and lofts
         all certify.
 
@@ -679,9 +685,9 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         volume number at this eps. The door refuses there with the
         reporting door's own class and `reason`, so a caller already
         catching `mass_properties()` catches this unchanged; what is
-        new is the sign-level bracket the gate DID certify, which is
-        the whole of what the certified quadrature is entitled to say
-        about such a body.
+        new is the bracket the certificate or its continuation held,
+        which is the whole of what the certified quadrature is entitled
+        to say about such a body.
 
         ONE certified quadrature is run here and that is deliberate:
         this row is the suite's most expensive and the reporting
@@ -709,7 +715,7 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertFalse(hasattr(gated.exception, "door"))
         lo, hi = gated.exception.volume_lo, gated.exception.volume_hi
         self.assertLess(lo, hi)
-        self.assertGreater(lo, 0.0, "the sign check 7 certified is in the bracket")
+        self.assertGreater(lo, 0.0, "the bracket is definitely positive")
         self.assertGreater(gated.exception.surface_area, 0.0)
         # The bracket is THIS body's and not a placeholder: a tapered
         # tube of radii 23.4 m and 11.7 m over a 125 m spine encloses

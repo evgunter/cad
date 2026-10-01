@@ -81,6 +81,7 @@ fn every_quartic_outcome_is_reached_by_a_real_pose() {
             Ok(TorusRoots::Certified { count, .. }) => {
                 panic!("a certified count is 2 or 4, never {count}")
             }
+            Ok(TorusRoots::CountDisagrees) => panic!("the constructed roots disagree"),
             Err(_) => uncertain += 1,
         }
     }
@@ -179,7 +180,7 @@ fn the_period_guards_zero_arm_is_what_serves_a_wrapping_face() {
     assert_eq!(count, 4, "a diameter of the ring crosses four walls");
 }
 
-/// **`bool_ray_torus_count` is not reached by anything**, and this row
+/// **`TorusRoots::CountDisagrees` is not reached by anything**, and this row
 /// is the record of that rather than an exercise of it.
 ///
 /// Rung 5 compares the CONSTRUCTED root count against the CERTIFIED one.
@@ -248,4 +249,88 @@ fn the_four_versus_none_split_is_exercised_both_ways() {
             _ => 0,
         })
     );
+}
+
+/// **The trim door reads the ring from the convention's one home.** A
+/// spindle (`R < r`) reaching the torus trim is refused at entry under
+/// `ring_torus_convention`, before either window is levered by a radial
+/// that can vanish — even for a query point well clear of the axis,
+/// where the frame's own `ρ` guard would pass. A ring torus with the
+/// same windows and point answers.
+#[test]
+fn the_torus_trim_refuses_a_spindle_under_the_ring_convention() {
+    let windows = (Some((0.1, 1.0)), Some((0.1, 1.0)));
+    let p = Point3::new(0.8, 0.1, 0.0);
+    let ask = |major: f64, minor: f64| {
+        point_on_torus_in_face(
+            FaceKey::default(),
+            centre(),
+            axis(),
+            major,
+            minor,
+            Vec3::new(1.0, 0.0, 0.0),
+            windows.0,
+            windows.1,
+            p,
+            band(),
+        )
+    };
+    match ask(0.2, 0.3) {
+        Err(PointInSolidError::Escalated { diag, .. }) => {
+            assert_eq!(diag.predicate, Some("ring_torus_convention"));
+        }
+        other => panic!("a spindle must refuse at the ring check: {other:?}"),
+    }
+    assert!(ask(R_MAJOR, R_MINOR).is_ok(), "a ring torus answers");
+}
+
+/// **The trim door asks the tube before the ring.** `r = −0.3` against
+/// `R = 0.75` has a definite ring margin (`R − r = 1.05`) and a minor
+/// window levered by a tube that is not a length; the door refuses it
+/// under `torus_tube_positive`, the funnel's own escalation.
+#[test]
+fn the_torus_trim_refuses_a_nonpositive_tube_before_the_ring() {
+    let err = point_on_torus_in_face(
+        FaceKey::default(),
+        centre(),
+        axis(),
+        0.75,
+        -0.3,
+        Vec3::new(1.0, 0.0, 0.0),
+        Some((0.1, 1.0)),
+        Some((0.1, 1.0)),
+        Point3::new(1.05, 0.0, 0.0),
+        band(),
+    );
+    match err {
+        Err(PointInSolidError::Escalated { diag, .. }) => {
+            assert_eq!(diag.predicate, Some("torus_tube_positive"));
+        }
+        other => panic!("a nonpositive tube must refuse at the tube check: {other:?}"),
+    }
+}
+
+/// **A query on the axis takes the frame's escalation, not a poison
+/// direction, through the MAJOR window alone** (no minor window to have
+/// guarded it): `ρ = 0` is decided before either window divides by it.
+#[test]
+fn a_query_on_the_axis_refuses_through_the_major_window_alone() {
+    let got = point_on_torus_in_face(
+        FaceKey::default(),
+        centre(),
+        axis(),
+        R_MAJOR,
+        R_MINOR,
+        Vec3::new(1.0, 0.0, 0.0),
+        Some((0.1, 1.0)),
+        None,
+        Point3::new(0.0, 0.2, 0.0),
+        band(),
+    );
+    match got {
+        Err(PointInSolidError::Escalated { diag, .. }) => {
+            assert_eq!(diag.predicate, Some("bool_torus_frame_radius"));
+        }
+        other => panic!("an on-axis query must refuse at the frame radius: {other:?}"),
+    }
 }

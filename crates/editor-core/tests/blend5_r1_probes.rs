@@ -90,8 +90,8 @@ fn the_recorded_band_trim_counts_are_executable() {
     );
     assert_eq!(
         got.len() - nonzero.len(),
-        26,
-        "twenty-six registered documents carry no band trimline at all: {got:?}"
+        27,
+        "twenty-seven registered documents carry no band trimline at all: {got:?}"
     );
 }
 
@@ -167,7 +167,7 @@ fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
 /// The mouth rim filleted, and the fillet node's id.
 fn filleted(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = lantern(mouth, top);
-    let rim = editor_core::band_rim(revolve, 0, 3);
+    let rim = editor_core::band_rim(revolve, fixture::vpiece(&doc, revolve, 0, 3));
     insert(
         doc,
         Node::Fillet {

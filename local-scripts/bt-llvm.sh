@@ -16,12 +16,5 @@ for c in $CRATES; do
   echo
 done
 
-for c in geom-brep topo; do
-  echo "=== llvm-lines -p $c --lib --release --features interval ==="
-  cargo llvm-lines -p "$c" --lib --release --features interval > "$OUT/$c.rel.interval.txt" 2> "$OUT/$c.rel.interval.err"
-  head -1 "$OUT/$c.rel.interval.txt"; sed -n '2,12p' "$OUT/$c.rel.interval.txt"
-  echo
-done
-
 echo "=== TOTAL rows ==="
 grep -H "(TOTAL)" $OUT/*.txt

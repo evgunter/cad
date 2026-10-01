@@ -63,10 +63,12 @@ fn probe_near_polar_half_cap_twins_certify() {
                     .err()
                     .unwrap_or_else(|| {
                         panic!("{f}: expected the adoption escalation at ambient 1e-6")
-                    })
-                    .to_string();
+                    });
+            // The predicate's name is routing the sentence leaves out;
+            // the typed refusal carries it.
+            let err = format!("{err:?}");
             assert!(
-                err.contains("predicate 'dihedral_wedge' indeterminate"),
+                err.contains("predicate: Some(\"dihedral_wedge\")"),
                 "{f}: the coarse-band refusal must be the wedge adoption escalation, got: {err}"
             );
         }

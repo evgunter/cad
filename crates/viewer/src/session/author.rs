@@ -11,6 +11,7 @@
 use pncad::document::{Datum, Dimension, DimensionError, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
+use pncad::select::SplitHalf;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
 /// in canonical units. The SESSION mints the `Expr` literals and
@@ -113,8 +114,8 @@ pub enum DatumSpec {
 /// so there is no pick to be wrong and nothing to gate. A second
 /// [`super::SessionOp`] would have re-declared `loops` and the whole
 /// insert-door refusal contract beside the one that has it, and would
-/// have had to answer the three exhaustive matches over the op
-/// vocabulary twice.
+/// have had to answer every exhaustive match over the op vocabulary
+/// twice.
 ///
 /// **What [`Self::NewXy`] must not become is an implicit frame.** It
 /// inserts an ordinary [`pncad::document::Datum::Frame`] node — visible
@@ -238,6 +239,33 @@ pub enum PatternRuleSpec {
         /// Angular step between instances (`Angle`).
         step: Expr,
     },
+}
+
+/// **Which body of a multi-body value one part form selects** — the
+/// authoring counterpart of [`pncad::document::PartSelect`], beside
+/// [`PatternRuleSpec`] for its reason: it names what a form authors,
+/// in the numbers a form holds.
+///
+/// **The index is an `i64`, not an `Expr`**, which is the whole
+/// difference from the node's own enum and the reason this type
+/// exists. `SlotId::Instance` is Count-typed and STRUCTURAL (spec D3),
+/// exactly as `SlotId::Count` is: it is edited afterwards through
+/// `SetStructuralParam` and never through the continuous door, so an
+/// authoring door that carried an `Expr` would be the one place a
+/// structural slot could be written continuously. The session mints
+/// the `Expr::count` literal ([`crate::combine::part_node`]), which is
+/// the same division of labour [`super::SessionOp::AddPattern`]'s
+/// count already takes.
+///
+/// One shape for BOTH selections rather than two ops, because the two
+/// arms differ in what is selected and in nothing else — the pick, the
+/// door and the node are one apiece.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PartSelectSpec {
+    /// The named half of a `Node::Split` value.
+    SplitHalf(SplitHalf),
+    /// The `i`-th instance of a `Node::Pattern` value.
+    Instance(i64),
 }
 
 /// Lower one datum spec to its node.

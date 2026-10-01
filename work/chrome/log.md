@@ -2232,3 +2232,248 @@ lane is only polling CI, and to size reviews to run one after another
 in a single clone. Both are now how this program runs.
 
 Signed (CHROME orchestrator).
+
+## Seam note from AUTHOR (AUTH-4 fix pass, PR 3052, 2026-09-24)
+
+**What a seated tool takes from a viewport pick changed, on this
+program's ground** (`crates/viewer/src/tools.rs`,
+`crates/viewer/src/session/select.rs`).
+
+`tools::on_node_pick` — the one route every seated tool's pick takes —
+now reads a new accessor, `Selection::seat_node`: the tree's node for a
+tree click, and for a viewport pick the node whose DRAWN body the ray
+met (`FaceSelection::node` / `EdgeSelection::node`). It used to read
+`Selection::node`, which answers the feature that MINTED the face.
+**`Selection::node` is unchanged** and still serves the feature tree's
+highlight, the property panel's rows and the extrude form — it is the
+right answer there.
+
+Tools whose behaviour changes, all for the better and all held by
+`combine_ops::a_viewport_pick_seats_the_drawn_body_in_every_body_seat`:
+the **boolean, split, transform and pattern** tools (a face on a moved
+copy or a filleted body now seats that body, not the upstream extrude),
+and the two new ones, **projection** and **duplicate**. Unchanged: the
+**revolve** tool (its seats are a profile and an in-sketch axis, which
+no ray meets), and the **mate** and **blend** tools, which never took
+this route — they read the face and the edge whole.
+
+## 2026-09-27 — seam note from S-DUP (#3304)
+
+#3304 rewrote the rustdoc of `crates/viewer/src/camera.rs`'s `CameraError::UnusableBounds` arm. It dropped a sentence that justified keeping the arm unsplit by "a promoted review suite that pins this arm", which is the reading Ev withdrew.
+
+- **The arm doc.** It is now a per-door list of what a caller can infer from the arm. It covers `projection_matrix`, `ray_through`/`datum_view`, `fitted`/`apply(Frame)` and `framing`, and says which input each one checks first.
+- **The first line and `Display`.** They no longer say "positive finite": a non-finite input is `NotFinite` first.
+- **Unchanged.** The API is the same, and the arm stays unsplit. Whether to split it is still this ground's call.
+
+Signed (S-DUP orchestrator).
+
+- 2026-09-28 — Received `culling-is-load-bearing-with-no-pixel-test` from BLIND, which left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`). Id unchanged. (tracker sweep)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+- 2026-09-29 — Seam note from AUTH-6 (`author/profile-reshape`). `pane/profile.rs` no longer draws the lock: `SHAPE_LOCKED`'s advisory above the edit door and its line under each step control's disabled hover are gone, and every step control is live on a committed profile. The edit door's body is the free function `edit_door_ui`, which a headless row drives. When a program drops a step names are on, its Apply reads `Apply, stranding N name(s)`, and the hover lists each carrier and name (`apply_and_revert`, fed by `DocSession::edit_profile_report`). The Apply/Revert disabled hovers say "the steps and numbers are the committed profile's". `Refusal::ProfileRestructure`, `ProfileEditOrder` and `ProfileEditOrderCapped` are removed from `session/refuse.rs`, and `ProfileEditStale` says "the editor's program was not written". `pane.rs`'s headless harness gains `painted_after_clicking_nth`. (AUTH-6 implementer)
+## 2026-09-29 — Wave 5 landed after a five-day stall; three PRs, one README clause Ev signed off
+
+**Ev said on 2026-09-24** that CHROME may edit files open PRs touch
+when the conflicts are not semantic, especially the paused VNEWS
+orchestrator's. Wave 5 was dispatched on the ground those PRs had held
+for four waves.
+
+- **`chrome/create-messages`, PR 3139** — the create.rs half of the P0
+  overflow row, which closes it. It converted 25 sentences and moved
+  two in-row sentences to their own lines. The "Add part" window's
+  width is re-applied on every open (min and max width, each frame),
+  because egui persists a window's size and only lets it grow. The part
+  id is drawn as a name that truncates, with the full id on hover. The
+  review caught the reopen defect and the id being wrapped mid-string.
+- **`chrome/empty-doc-badge`, PR 3135** — a body-less assembly takes no
+  at-rest badge (`means_no_body`), and six restatements now cite their
+  home. The review confirmed every `ProductErrorKind` still draws a
+  loud mark somewhere, and found the kept `Refused` arm unpinned; it is
+  pinned now.
+- **`chrome/subset-policy`, PR 3140** — every viewer policy over an
+  enum is an exhaustive match, and the argument lives once in
+  `crates/viewer/README.md`, "A policy over an enum names every
+  variant". **Ev signed the clause off in chat on 2026-09-29**: *"sure,
+  it's a bit long but fine for a crate README"*. The review caught the
+  fix minting the defect it closes: `ToolKind::commits` no longer went
+  red on a new tool. Both enums red again now.
+
+**The stall, and what it cost.** Both 3135 and 3140 were green on
+09-24 and sat for five days: 3140 waiting on Ev's answer, 3135 on
+phantom conflicts. In that time #3052, #2960, #2961, #2934 and #2927
+landed.
+- 3140 then needed a real semantic merge. Every new variant got the
+  answer main's code already gave it, and `frame_status` was checked
+  arm by arm against main.
+- 3135 needed a one-line import that main had dropped and its new rows
+  used.
+
+**GitHub reported a merge conflict on 3135 three times when git found
+none.** The branch had merged main repeatedly, which leaves criss-cross
+merge bases, and GitHub's merge engine resolves those differently from
+local `ort`. What got it through each time was merging the current
+main in and merging the PR as soon as its run went green. A branch
+that has merged main more than once should be merged promptly once
+green.
+
+**Rows priced on arrival** (filed here by ENCL from its concision
+work): `indeterminate-payload-shows-the-viewer-a-predicate-name-and-band-numbers`
+P1, `escalations-forwarded-whole-are-untriaged-for-a-declarations-object`
+P2, `transform-certify-refusal-names-the-edge-by-arena-key` P2, and
+`refusal-checker-stays-green-when-a-message-loses-its-recourse` P3.
+The slate stands at 30 points against 30, at the ceiling under the
+2026-09-27 E/M/H scale (`work/README.md`, cost). Wave 6 is sized to
+take roughly half of it.
+
+Signed (CHROME orchestrator).
+
+## 2026-09-29 — Wave 6 landed: three PRs, and the P0 concision row closed
+
+**Wave 6 was three units, and all three landed after review.**
+- **`chrome/status-line`, PR 3447.**
+  - The toolbar's status line now wraps within the panel.
+  - The phone-width toolbar residue is filed as
+    `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`
+    (P3 M, design).
+  - The hover-diff flake is filed as
+    `a-hover-diff-counts-the-index-builds-progress-label`.
+- **`chrome/create-residue`, PR 3450.** It closes the create pane's
+  residue rows, including the FrameDirection repair link. The arms
+  whose repair could be either of two nodes are filed as
+  `failed-row-repair-links-for-arms-with-two-candidate-repairs`
+  (design).
+- **`chrome/refusal-residue`, PR 3457.** It closes
+  `error-and-check-text-overflows-its-region` (P0),
+  `indeterminate-payload-shows-the-viewer-a-predicate-name-and-band-numbers`,
+  `transform-certify-refusal-names-the-edge-by-arena-key` and
+  `refusal-checker-stays-green-when-a-message-loses-its-recourse`.
+  - The P0 closes against its written condition: wording and length.
+    Whether each refusal offers a next step was split off as P2 rows
+    on the owners' slates (`<program>-refusals-short-of-the-shape-guard`,
+    eight programs). Ev was told in chat.
+
+**PR 3457 took three review rounds, and every round found a claim the
+screen made that the kernel does not.** Removing the developer's
+predicate name was right. It also removed the only subject many
+wrappers had, so the first cut rendered "margin … lies inside the
+ambiguity band" with nothing to say what was ambiguous.
+- **Round 2 found false subjects the fix pass had just written.**
+  - `path_junction_side` was said to decide a side; it decides carry-on
+    against cusp.
+  - The roster's reviewer prose went on screen, jargon and all.
+  - NotRigid named a definite verdict ("it mirrors") when the margin
+    was only in-band.
+  - A blend subject table duplicated the recourse table.
+- **Round 3 found one more:** `arc_span` said "bulges clear of its
+  chord", when it decides whether a point falls in the arc's span.
+  The orchestrator fixed it and merged.
+
+**The guard now makes a subjectless refusal red.** Every door falls
+back to one phrase, `geom_core::UNNAMED_DECISION`, and the guard reads
+that phrase as no subject. `every_decided_name_has_a_subject_or_a_sentence`
+enumerates the names profile actually decides, from the source census.
+**Lesson, the same as wave 4's but sharper:** a pass that rewrites
+claims gets a correctness arm on every round, not only the first. The
+defects it found were in words each fix pass had just written.
+
+**EDIT's #3444 landed on the same guard mid-pass.** The lane folded
+EDIT's span admissions into the must-fire machinery, and the review
+confirmed nothing was lost.
+
+**Filed onward:**
+- `restfront/ring-and-scaffold-refusals-read-three-ways`
+- the eight shape-guard rows above
+- notes on pcert's, msolve's and paths' rows
+
+**Disk:** a single lane's target reached 20G in one fix pass, taking
+the box to 6.8G free. The lane was told to rely on CI, and nothing
+broke. A long fix pass should `cargo clean -p` between crates.
+
+Signed (CHROME orchestrator).
+
+- 2026-09-29 — Seam note from EMIT: `demos/tour`'s `chaintol` rows read the predicate key out of a refusal's rendered sentence; 4dc6695b62 (and the passes before it) took keys out of the sentences, so `the_certified_table_says_what_the_header_says` and `the_wall_is_the_wedge_not_the_arm` went red on main (the PR gate skips `demos` unless a diff touches it). Fixed in PR (emit/chaintol-predicate-from-payload): the rows read the payload's `Debug`, which carries the key. Any other reader that greps a sentence for a predicate key is the same class. (EMIT orchestrator)
+
+## 2026-09-29 — Wave 7 landed: three PRs, and the P1/P2 slate is empty
+
+- **`chrome/escalation-triage`, PR 3475** (docs only).
+  - It classified all 88 sites that forward `Indeterminate` whole: 11 take a declaration that can name the decision, 27 cannot, 26 never reach a user, and 24 were already done.
+  - The (b) sites are filed per owner: CARVE, SHELL, WIRE, PATHS, TOPO, TRIM, CURVED, LINALG, LIB, and the unowned-files row.
+  - Two review corrections changed the answer:
+    - The premise "only Boolean and Union take a declaration" was false. A mate carries a contact declaration, and Rust STEP import takes `declared_contacts`.
+    - `CensusEscalated` depends on the door: its Python doors take no declaration.
+  - The lane also overturned my brief on `DeclarationContradicted`, with evidence: its diag is a definite verdict built with `MarginDiag::INVALID`, so rendering `payload()` would still print a false "margin is invalid".
+- **`chrome/poisoned-panels`, PR 3477.**
+  - Every viewer surface now names the row the tree names for a node a mate cluster refused (`tree::standing_as_drawn` and its wrappers, all read off `cause_row`).
+  - A source census makes a new standing door that skips the re-read go red.
+  - The review caught the fix putting a false word on screen: the at-rest badge read "failed ancestor <mate>". It now draws the tree's own pointer.
+  - The kernel question (should `NodeStanding` carry cross-placement blame, and in what words) is on WIRE as a design row.
+- **`chrome/slot-width`, PR 3478.**
+  - A driven slot's field shows `= <value> <unit>`, and the source moves to a wrapping note under the row. The edit still opens on the source.
+  - Three review rounds on the commit path found silent writes, which are now fixed and pinned:
+    - a field that reverted a change made elsewhere (already on main);
+    - a stale buffer restored on reopen, introduced by the fix pass itself;
+    - a deliberate revert that was dropped, including through IME;
+    - Escape committing its buffer (already on main).
+  - One `OpenEdit` per focus now carries all edit state, and nothing outlives a focus.
+
+**Lesson.** On a commit path, the fix pass is where the new silent write came from: the stale-buffer restore came from the pass that fixed the stale seed. A commit-path pass gets a probing delta review every round, as a claim-rewriting pass does.
+
+**Filed onward:**
+- `a-computed-slots-value-reads-in-metres-and-radians` (design)
+- `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text` (design)
+- `pick-index-tooltip-says-tessellation-for-a-root-with-no-value`
+- `wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`
+- `topo/declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu`
+- the triage rows above
+
+Signed (CHROME orchestrator).
+
+## 2026-09-29 — Wave 8 landed: two PRs, and the dispatchable slate is down to the design forks
+
+- **`chrome/pixel-test`, PR 3486.** This is the first test in the repo that reads a rendered pixel.
+  - It renders a kernel-built cube through the real scene and id passes on the software adapter, from two opposite eyes.
+  - At each face that faces the eye, it asserts the id pass returns that face's id, and that the drawn depth is that face's own plane depth under the pixel (1e-4 relative; measured agreement 3e-7).
+  - It goes red on a flipped `FrontFace` in either pass, on an inward-wound patch, on a y-flipped readback, and on a fixed sample pixel.
+  - The review caught that the first cut's depth check could not tell which face it sampled.
+- **`chrome/viewer-small`, PR 3487.** Three P3 rows:
+  - `PickIndexError::standing()` is now the one reading of "this node has no value" at the build and name doors, and the tooltip no longer claims tessellation.
+  - The display instance check is ruled identity. It is now listed as an example in the README's Identity bullet, and the code is unchanged.
+  - The hover-diff flake is fixed in the harness: `Driven::quiet` settles, bounded, and fails loud.
+  - The review caught that the first repro could not go red on the fix it defended.
+
+**Process lapse.** The pixel-test lane pushed an empty commit (3b8ed2f) to start CI after marking a draft ready, which the repo's rules forbid. It stays in history; the PR body records it. Lane briefs should say it outright: never push an empty commit to start CI, re-request CI through a real change, or ask.
+
+**Slate.** Every dispatchable row CHROME holds is done. What is left:
+- two rows waiting on Ev;
+- seven design forks (see `plan.md`), which need the designer pass before any dispatch;
+- the deferred Band row.
+
+Signed (CHROME orchestrator).
+
+
+- 2026-09-30 — Seam note from AUTH-7 (`author/measure-value`, PR 3528). `pane/features.rs`: the feature row's layout (indent, label, instance toggle, badge, lines under) moved out of `ViewerBehavior::feature_row` into the free function `feature_row_ui`, which a headless row drives. It answers `RowClicks` and the method only pushes the ops. A measure row that has a value draws it where a badge goes (`tree::Measured::Value`, spelled by `props::computed_text`). A measure with no value at `f64` draws the kernel's `MeasureUnavailableAt` sentence under the row, advisory. The note line, the failure words and the carried lines now share one `advisory_line`, and the pointer and repair links share one `link_line`. `TreeRow` gains `measured`. (AUTH-7 implementer)
+
+- 2026-09-30 — Seam note from AUTH-8 (`author/assertion-verdict`). `pane/features.rs`: an `Assertion` row draws its verdict where a badge goes (`tree::Measured::Asserted`): the kernel's `AssertionVerdict::label` at `Asserted::tone` (a `Violated` row is `Tone::Actionable`, loud as a `FAILED` badge is; `TreeRow::tone` is now the row's one loudness answer, which the pane reads for badge and verdict alike), then `measured <symbol> bound`, both numbers through `props::computed_text` in the measure's dimension and the relation through `AssertionDir::symbol`. `lines_under` draws an `Indeterminate` or `WindowSuperset` reason in the kernel's `Display`, and for `MeasureUnavailable` a link to the measure's row, which already draws that sentence; the link selects the measure. `tree::repair_wording` is renamed `link_wording`, and every link to a node goes through `link_to(ui, depth, to)`, which draws that wording and answers that target. The measure fixture now holds assertions over its clearance and failed measures, so those two rows are no longer roots; its first distance stays unconsumed and a root. `has_faults` is unchanged: a violated assertion does not stop a document building. (AUTH-8 implementer)
+
+- 2026-09-30 — Seam note from AUTH-9 (`author/declared-union`). `session.rs`: `commit_run` is now `stage_run` (apply the edits, record nothing) then `record_run`; every caller is unchanged. `add_boolean` stages its run, judges the staged boolean through `probe::evaluate_with` (now `pub(crate)`) and, on an undeclared contact of the boolean's own, refuses `Refusal::UndeclaredContact` (new arm, `session/refuse.rs`, with `Refusal::declare_offer`) instead of recording. `SessionOp::AddBoolean` gains `declare: Vec<FlushFinding>`, and a non-empty list commits a `Node::Declare` and the boolean as one run. `combine.rs` gains `UndeclaredContact` and `DeclareOffer`; `pane/create.rs` draws the offer under the boolean tool's commit row (`declare_offer_rows`), and `drafts.declare_offer` holds it with the history state it was refused on. 31 test sites that build `AddBoolean` gained `declare: Vec::new()`. (AUTH-9 implementer)
+
+- 2026-09-30 — Seam note from AUTH-9's fix pass (`author/declared-union`, PR #3543). The names in AUTH-9's note above moved at its fix pass (PR #3543): the refusal is `Refusal::Contact(RefusedBoolean)`, and it and `DeclareOffer` live in `session/refuse.rs`, not `combine.rs`, with their wording as `Refusal::declare_question`/`declare_pair_wording` beside `offer_wording`. The reader is `frame::declare_offer`, beside `creation_offer`. `drafts.declare_offer` holds an offer keyed to the session `Generation` it was refused at. `tree::own_error` (new, beside `cause_row`) is the tree's reading of a node's own failure. `test_support` gains the boss-on-a-face scene (`boss_on_block`), `evaluated_insert` and `evaluated_volume`, and `tests/common`'s `body_volume` now calls the last. The README's `session::refuse`, `frame` and wording-shape entries are updated. (AUTH-9 implementer)
+
+- 2026-09-30 — Seam note from AUTH-10 (`author/held-face-mark`, PR 3556). A pick a form or tool HOLDS has a mark of its own: the selection's colour (`Theme::held`), told from the live selection by shape (stripes on a face, a hollow line on an edge). `marks.rs`: `Held` (the held picks, a slot per held face) with `HeldEdges` (a held edge set: body and names, walked by `HeldEdges::segments`), `HELD_FACES`, `drawn_patch` (the one "is this pick in the picture" answer: own (node, body), on a root the display does not hide), `compose` (selection, hover and held picks into `(Highlight, EdgeOverlay)`), `Highlight::held`, `EdgeOverlay::held`/`held_probed` and `EdgeLane::Held` (between `Preview` and `Hovered`); the precedence (selected over hovered over held) is stated once, on `Held`. `gpu.rs`: `ViewportCallback` takes one `Composed` (minted only by `pane::viewport::frame_marks`) in place of `highlight` and `edges`; `Uniforms` gains `held_ids` and a `held` mark lane read by both shader sites; `Uniforms::edge` is renamed `screen` (its `z` is a held face's stripe width); `LaneStyle` gains `hollow`; the edge shader's `across` varying takes default interpolation, since GLSL ES has no `noperspective`, and `every_entry_point_translates_to_glsl_es_300` translates every entry point through wgpu's naga; `EdgePass.held` is renamed `uploaded`, as is the scene-buffer closure in `ensure_geometry`. `theme.rs`: `Theme::held()`, the held mark's colour (the selection's own); not a field and not in `Theme::marks`, so no palette and no safety pair moves. `scene.rs`: one doc sentence on `scene_focused` now names the held patches among the uniform-marked ones. `matetool.rs`: `MateToolState::picks`, which `line` now reads. `blend.rs`: `BlendTool::mark_segments` is gone; `BlendTool::held_edges` hands the set to `marks::HeldEdges::segments`, which holds the one-pass walk. `pane/viewport.rs`: `frame_marks` (in a sealed `composed` module) gathers every holder — `Drafts::held_face`, the mate tool, the blend tool — and is the only door that mints `Composed`; `drawn_index` is `pub(crate)` for the gate. `pane/create.rs`: the add-datum gate is `session::face_frame_seat_drawn` over the on-screen index, refusing a held face the picture does not draw (`FaceFrameFault::NotDrawn`); the form's face line reads `held_face`; the add-profile form's withholding reasons are renamed `Withheld` (`withheld_for`, `withheld_line`, `bore_withholds`) so "held" means a held pick. `session/refuse.rs`: `FaceFrameFault::NotDrawn` and `face_frame_seat_drawn` (re-exported from `session.rs`). `app.rs`: a committed `Open` or `NewDocument` drops the add-datum form's face latch (`Drafts::document_replaced`); `properties_pane_tests` gains `cap_of` and `clicked` (the mate panel row and `painted_with_tool` now use them) and rows for the held face, the consumed-body refusal, the document replacement, the mate picks and the blend lane; `held_reason_said` is `withheld_reason_said`. `crates/viewer/README.md`: the GQ7 row's `marks.rs` list names `compose`, `Held` and `drawn_patch`. Tests: `review_gui2_r2.rs` gains the twin-placement and undrawn-body held rows, and `right_top_face` (the old highlight row now calls it and keeps its `hit.node == right` check); `assembly_display.rs` gains `a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against`; `blend_authoring.rs`'s held-set row reads `held_edges`. (AUTH-10 implementer)
+
+- 2026-09-30 — Seam note from AUTH-11 (`author/binder-prefix`, PR 3563). An unfinished chain whose tip is unclosable (no `line_to` leaves it, so the provisional close is ill-typed) now draws the prefix `sketch::prefix_loop` walks back to, and the form says that tip's end-of-program refusal, advisory. `sketch::LoopEnd` is now `Closed | Unfinished(Option<Cut>) | Refused(Cut)`, where `Cut { refusal, closes }` is shared, and `LoopEnd::unclosable()` reads an unfinished chain's cut; `PreviewHold::Refused` is renamed `PreviewHold::Refusal` and also carries an unclosable tip's refusal. `crates/viewer/tests/path_authoring.rs`: `an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written` now pins its tip, `TipState::DirectedPlain` (`at, angle` binds a position and a direction; the doc had called it a direction with no position), and says why it still refuses: no prefix of a lone `at` draws. The open-chain row spells `LoopEnd::Unfinished(None)`. `crates/viewer/src/test_support.rs` gains `unclosable_tips()` (`#[cfg(test)]`), read over `profile::test_support::every_state`; the viewer's rows take their ways in from `profile::test_support::way_in`. (AUTH-11 implementer)
+
+- 2026-09-30 — Seam note from AUTH-12 (`author/tool-census`, PR 3573). The nine tool activation buttons in `pane/create.rs` take their words from `ToolKind::button()` (`tools.rs`: `label()` capitalised, with the ellipsis) instead of literals, and a whole-app row (`app::properties_pane_tests::every_tool_opens_from_its_activation_button`) clicks each kind open by those words. A new tool panel places its kind in that row's section match, and a panel call dropped from `create_ui` or `properties_ui` reddens it. `pane::create::EXTRUDE` and `ADD_PART` are the extrude form's and the part chooser's button words, held by `the_extrude_form_and_the_part_chooser_are_reachable`. Painted text is unchanged.
+
+- 2026-09-30 — Seam note from AUTH-12's fix pass (`author/tool-census`, PR 3573). `ToolKind::label()` (`tools.rs`) now returns the BARE noun ("mate", …, "projection"). `says` adds " tool: ", `button` capitalises and adds " tool…", and the new `ToolKind::commit()` gives "Commit <noun>". A new reader of `label()` gets the noun, not "<noun> tool". `tool_commit_row` lost its `label` parameter and reads `kind.commit()`; the mate and blend commit buttons read `ToolKind::{Mate,Blend}.commit()`. Painted text is unchanged. `pane/create.rs` gains consts for the three section headings (`ADD_FEATURE`, `COMBINE_BODIES`, `BLEND_EDGES`) and the form buttons (`ADD_DATUM`, `ADD_PROFILE`). `pane.rs`'s `headless` doc now sends a row that must drive a pane METHOD to `app::properties_pane_tests`' whole-app harness.
+
+- 2026-09-30 — Seam note from AUTH-13 (`author/geometry-close`, PR 3579). An unfinished chain whose provisional close is refused now draws the legs written: it walks back through the one `sketch::prefix_loop` call the other two arms take and ends `LoopEnd::Unfinished(Some(Cut))`, carrying the close's own refusal (`PreviewError::Geometry`, which now carries a typed `kind: PathErrorKind`), or the end-of-program refusal where the close is ill-typed or the last leg itself closes the loop. `PreviewHold::Unfinished` is the new advisory hold for such a cut, and `LoopEnd::unclosable()` is renamed `LoopEnd::unfinished_refusal()`. The loop's start is read off the entry (`sketch::loop_start`), and the provisional close is `line_to Start`, re-spelled where the lattice refuses it as tangent (`sketch::replay_provisionally_closed`). `sketch.rs` as above; `pane/profile.rs` and `pane/viewport.rs`: one new test row each; `test_support.rs`: test-only fixtures for the census of refused closes, tangent closes and a fused entry, plus `line_to` and `ill_typed`. `tests/path_authoring.rs`: `continue_to_and_the_declared_arrival_author_through_the_door` re-baselined; the leg before a refused undeclared seam is now drawn, since the preview spells that close declared. (AUTH-13 implementer)
+- 2026-09-30 — Seam note from EMIT (node-id digest unit 1, PR #3569). Tests stop assuming node ids are small and sequential. Hard-coded `RecipeNodeId(n)`s now come from `fixture::insert`, the new `fixture::newest`, or `doc.order()[i]`. A not-yet-minted id comes from the new `fixture::next_mint` (an insert on a copy). Saved-JSON surgery finds nodes by kind, and refusal texts are built from the id. Rows that leaned on insertion order now state the kernel's id-order rule. Unit 2 will mint node ids from a digest chain; write new tests the same way. The display of ids is [ev] #3565. (EMIT orchestrator)
+
+- 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`). The index's loud edge-name arms now reach the author. `pickindex.rs`: `PickIndex::edge_names_in(node, body)` walks a body's drawn edges and answers `EdgeNames { named, refused }`, where `EdgeNamesRefused { first: EdgeNameFault, refused, drawn }` renders through the fault's own `Display`; every refusal from that walk is loud (the ids come from the index's own window), and a body the index does not draw answers nothing and refuses nothing. `EdgeNameFault` gains `Eq`. Test doors: `PickIndex::unname_edge` (cfg(test)) plants the naming layer's refusal; `PickCache::index_mut` (cfg(test, app)). `blend.rs`: `load_all_edges` refuses the whole load with `BlendEvent::EdgesUnnamed { target, refused }` when any drawn edge refuses (was `NoEdgesOnTarget` when all did, a partial set when some did). `marks.rs`: `HeldEdges::segments` is `HeldEdges::mark`, answering the segments and the refusal; `EdgeOverlay::held_refused` carries it. `pane/viewport.rs` writes it per frame into `ViewerBehavior::held_edges_refused`; `app.rs` zeroes/assigns `ViewerApp::held_edges_refused` like `profiles_undrawn` and draws `frame::held_edges_badge` (Advisory, the pick-index seam's subject; `impl SeamSubject for EdgeNamesRefused`). `frame.rs`: `tool_notice` answers `EdgesUnnamed` `Retold::Again`. `gpu.rs`: one test literal gains the field. `test_support.rs`: `plate_indexed(tol)` (the fixture `marks.rs`'s tests held privately). README: the badge population is eleven. Tests: `frame_policy.rs` (badge count 11, the new retold row), `error_display.rs` (`edge_names_refused_forwards_its_first_refusal`), `blend_authoring.rs` (the held-set row reads `mark`). (AUTH-14 implementer)
+
+- 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), review fixes; supersedes the shapes in the note above. `pickindex.rs`: `EdgeNamesRefused` is `{ node, body, first: UnnamedEntity, named, refused }`, rendered as "the index names N of the M edges it draws on body B of node K; the first it cannot: <EdgeNameFault::Unnamed>"; `edge_names_in` reads the window through `PartWindows::named_in`, so only the unnamed arm can refuse; `EdgeNameFault` does not gain `Eq` after all. `blend.rs`: `BlendEvent::EdgesUnnamed { refused }` (no separate `target`). `frame.rs`: `SeamSubject for EdgeNamesRefused` is `Subject::Document` (the line's `tool_notice` subject too), not the pick-index seam. `test_support.rs`: `unnamed_edge(node, body)`. Filed `work/chrome/the-per-frame-badge-reads-are-three-hand-copied-fields`. (AUTH-14 implementer)
+
+- 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), third pass. `pickindex.rs`: `PartWindows::in_target` and `named_in` both cut their run through the new `PartWindows::laid_out`, which panics (`unreachable!`, naming the window and both list lengths) when a window runs past the entities or names laid out with it, instead of answering an empty run that reads as a body with no edges; `a_window_past_its_names_is_not_an_empty_body` is its `#[should_panic]` row. (AUTH-14 implementer)
+
+- 2026-09-30 — Seam note from AUTH-15 (`author/accept-part-version`, PR #3591). A new `SessionOp::AcceptPartVersion { id }` commits `pncad::workspace::update_to_store`'s edits (one `DocEdit::UpdateReference` per site whose pin moves) as one action. The store is read through a new `DocSession::read_store`, which `add_instance` and `part_catalogue` now share; `parts::catalogue` takes the scanned `&Workspace` and is infallible. `frame::version_offer(kind, files)` sits beside `declare_offer` and reads a `session::VersionOffer` off an instance's own `PartFault::Unresolved { fault: PinMismatch }`. `tree::TreeRow` gains `version_offer: Option<VersionOffer>` (every `TreeRow` literal needs the field). `DocSession::tree_rows` withholds every offer while `busy()`. `pane::features::feature_row_ui` draws `Refusal::version_question` and a `VersionOffer::LABEL` button under the row (`RowClicks::accept`). `DeclareOffer::ACCEPT_LABEL` and `DECLINE_LABEL` replace `pane::create`'s "Declare"/"Decline" literals. Every exhaustive `SessionOp` table gains the arm (`tools.rs`, `frame::acts`, the three in `session/op.rs`, and `tests/gesture_table.rs`, whose `OP_COUNT` is 47). `test_support::{PART_FILE, part_refused}` are new fixtures. Rows: `tests/instance_authoring.rs` (accept, one undo, the store's refusals, the committed-document read), `frame`'s `PartFault` census, the label-versus-recourse row in `session::refuse`, and a `pane::features` unit test.

@@ -52,11 +52,13 @@
 //! polyline meeting at a vertex shares its mesh vertex id; interior
 //! points are `carrier(t₀ + (t₁−t₀)·i/n)` in `he_plus`-forward order.
 
+use geom_core::Bounds;
 use std::collections::HashMap;
 
 use geom::Curve3;
 use geom_brep::Pcurve;
-use geom_core::ring_interval::RingInterval;
+use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::{KnotVector, SplineCoeffs};
 use topo::{Body, EdgeKey};
 
@@ -249,13 +251,13 @@ fn nurbs_chord_count(
     let m_bound = if rational {
         rational_carrier_m_bound(n, ek)?
     } else {
-        let mut sum_sq = RingInterval::zero();
+        let mut sum_sq = Interval::zero();
         for comp in 0..3 {
-            let coeffs: Vec<RingInterval> = n
+            let coeffs: Vec<Interval> = n
                 .control()
                 .iter()
                 .map(|pt| {
-                    RingInterval::point(match comp {
+                    Interval::point(match comp {
                         0 => pt.x,
                         1 => pt.y,
                         _ => pt.z,
@@ -276,18 +278,18 @@ fn nurbs_chord_count(
             // second difference is the first difference of `q1`
             // against the derivative vector `kv1`, which is exactly
             // what `derivative_domain_hull` answers. A length the
-            // mint refuses arrives as poison, as `difference_coeffs`
+            // mint refuses arrives refused, as `difference_coeffs`
             // would have delivered it.
             let hull = kv1
                 .with_coeffs(&q1)
-                .map_or_else(RingInterval::poison, SplineCoeffs::derivative_domain_hull);
+                .map_or_else(Interval::refused, SplineCoeffs::derivative_domain_hull);
             sum_sq = sum_sq + hull.sqr();
         }
         // A refused hull has no bound to report: `NaN` is what the
-        // `is_finite` test below reads as "unbounded/poisoned", and
-        // the refusal is asked by name because the ring carries it in
+        // `is_finite` test below reads as "unbounded/refused", and
+        // the refusal is asked by name because interval arithmetic carries it in
         // the decoration rather than in the endpoints.
-        if sum_sq.is_poison() {
+        if !sum_sq.is_certified() {
             f64::NAN
         } else {
             sum_sq.hi().sqrt().next_up()
@@ -296,7 +298,7 @@ fn nurbs_chord_count(
     if !m_bound.is_finite() {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
-            note: "B-spline carrier second-derivative hull is unbounded/poisoned — \
+            note: "B-spline carrier second-derivative hull is unbounded/refused — \
                    outside the certified chord inventory",
         });
     }
@@ -326,11 +328,11 @@ fn nurbs_chord_count(
 /// weight range: for a SUP bound with a nonnegative numerator the
 /// conservative division is by `w_min` (the mirror image of the speed
 /// meter's lower-bound `w_max` choice — the interval division by
-/// `[w_lo, w_hi]` computes exactly that, outward-rounded, and poisons
+/// `[w_lo, w_hi]` computes exactly that, outward-rounded, and refuses
 /// if positivity was never proven). Recentring at the span's control
 /// centroid keeps the cross terms span-sized. The domain bound is the
 /// max over spans (hull of the squared enclosures), `next_up` after
-/// the final square root — poison flows to the caller's finite check.
+/// the final square root — a refusal flows to the caller's finite check.
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
@@ -367,21 +369,21 @@ fn rational_carrier_m_bound(
         });
     };
     // Homogeneous coefficient nets and their derivative enclosures.
-    let w_pts: Vec<RingInterval> = refined
+    let w_pts: Vec<Interval> = refined
         .weights()
         .iter()
-        .map(|w| RingInterval::point(*w))
+        .map(|w| Interval::point(*w))
         .collect();
     let dw = kv.difference_coeffs(&w_pts);
     let ddw = kv1.difference_coeffs(&dw);
-    let comp = |c: usize| -> Vec<RingInterval> {
+    let comp = |c: usize| -> Vec<Interval> {
         refined
             .control()
             .iter()
             .zip(refined.weights())
             .map(|(pt, w)| {
-                RingInterval::point(*w)
-                    * RingInterval::point(match c {
+                Interval::point(*w)
+                    * Interval::point(match c {
                         0 => pt.x,
                         1 => pt.y,
                         _ => pt.z,
@@ -389,7 +391,7 @@ fn rational_carrier_m_bound(
             })
             .collect()
     };
-    let a_nets: Vec<(Vec<RingInterval>, Vec<RingInterval>)> = (0..3)
+    let a_nets: Vec<(Vec<Interval>, Vec<Interval>)> = (0..3)
         .map(|c| {
             let a = comp(c);
             let da = kv.difference_coeffs(&a);
@@ -398,28 +400,28 @@ fn rational_carrier_m_bound(
         })
         .collect();
     // The signed hull of `net[i] − c·wnet[i]` over `[i0, i1]`
-    // (out-of-range poisons; recentring commutes with differencing).
-    let window = |net: &[RingInterval],
-                  wnet: &[RingInterval],
-                  c: RingInterval,
+    // (out-of-range is refused; recentring commutes with differencing).
+    let window = |net: &[Interval],
+                  wnet: &[Interval],
+                  c: Interval,
                   active: core::ops::RangeInclusive<usize>|
-     -> RingInterval {
-        let mut acc: Option<RingInterval> = None;
+     -> Interval {
+        let mut acc: Option<Interval> = None;
         for i in active {
             let e = match (net.get(i), wnet.get(i)) {
                 (Some(&a), Some(&w)) => a - c * w,
-                _ => RingInterval::poison(),
+                _ => Interval::refused(),
             };
             acc = Some(match acc {
                 None => e,
-                Some(h) => RingInterval::hull(h, e),
+                Some(h) => Interval::hull(h, e),
             });
         }
-        acc.unwrap_or_else(RingInterval::poison)
+        acc.unwrap_or_else(Interval::refused)
     };
-    let mag = |h: RingInterval| RingInterval::from_bounds(0.0, h.mag());
-    let two = RingInterval::point(2.0);
-    let mut sq_acc: Option<RingInterval> = None;
+    let mag = |h: Interval| Interval::from_bounds(0.0, h.mag());
+    let two = Interval::point(2.0);
+    let mut sq_acc: Option<Interval> = None;
     for s in kv.first_span()..=kv.last_span() {
         // Emptiness check and window validation in one step: `span`
         // yields `None` exactly for the empty spans this loop skipped,
@@ -442,28 +444,28 @@ fn rational_carrier_m_bound(
         }
         let cen = [csum[0] / count, csum[1] / count, csum[2] / count];
         // The span's weight range — the divisor (doc comment).
-        let mut w_span: Option<RingInterval> = None;
+        let mut w_span: Option<Interval> = None;
         for w in &w_pts[span.window()] {
             w_span = Some(match w_span {
                 None => *w,
-                Some(h) => RingInterval::hull(h, *w),
+                Some(h) => Interval::hull(h, *w),
             });
         }
-        let w_span = w_span.unwrap_or_else(RingInterval::poison);
-        let zero = RingInterval::zero();
+        let w_span = w_span.unwrap_or_else(Interval::refused);
+        let zero = Interval::zero();
         // Active windows: value [s−p, s]; each differencing drops the
         // top index, which is what `derived_window` names — so `s − 1`
         // and `s − 2` are not subtractions at the use site either. The
         // caller's degree gate makes p ≥ 2, so the order-2 window is
         // always `Some`; if that ever stopped holding the bound
-        // POISONS (and the caller's finite check refuses) rather than
+        // is REFUSED (and the caller's finite check reads it) rather than
         // underflowing.
         // `p ≥ 2` (the caller's degree gate), so the order-2 window is
         // `Some` on every reachable path. It is asserted rather than
         // merely commented: `debug_assert` is the tree's fail-loud form
         // for a state that cannot occur — the panic family is denied in
         // kernel code (workspace lints), so the release build still
-        // takes the total route below and POISONS, which refuses the
+        // takes the total route below and REFUSES the
         // bound instead of quietly under-reporting it.
         let d2 = span.derived_window(2);
         debug_assert!(
@@ -473,39 +475,39 @@ fn rational_carrier_m_bound(
         let w1 = mag(window(&dw, &dw, zero, span.first_derived_window()));
         let w2 = mag(d2
             .clone()
-            .map_or_else(RingInterval::poison, |a| window(&ddw, &ddw, zero, a)));
-        let mut sq = RingInterval::zero();
+            .map_or_else(Interval::refused, |a| window(&ddw, &ddw, zero, a)));
+        let mut sq = Interval::zero();
         for (c, (da, dda)) in a_nets.iter().enumerate() {
-            let cc = RingInterval::point(cen[c]);
-            let mut v0h: Option<RingInterval> = None;
+            let cc = Interval::point(cen[c]);
+            let mut v0h: Option<Interval> = None;
             for pt in &refined.control()[span.window()] {
-                let e = RingInterval::point(match c {
+                let e = Interval::point(match c {
                     0 => pt.x,
                     1 => pt.y,
                     _ => pt.z,
                 }) - cc;
                 v0h = Some(match v0h {
                     None => e,
-                    Some(h) => RingInterval::hull(h, e),
+                    Some(h) => Interval::hull(h, e),
                 });
             }
-            let v0 = mag(v0h.unwrap_or_else(RingInterval::poison));
+            let v0 = mag(v0h.unwrap_or_else(Interval::refused));
             let a1 = mag(window(da, &dw, cc, span.first_derived_window()));
             let a2 = mag(d2
                 .clone()
-                .map_or_else(RingInterval::poison, |a| window(dda, &ddw, cc, a)));
+                .map_or_else(Interval::refused, |a| window(dda, &ddw, cc, a)));
             let s1 = (a1 + v0 * w1) / w_span;
             let s2 = (a2 + two * s1 * w1 + v0 * w2) / w_span;
             sq = sq + s2.sqr();
         }
         sq_acc = Some(match sq_acc {
             None => sq,
-            Some(h) => RingInterval::hull(h, sq),
+            Some(h) => Interval::hull(h, sq),
         });
     }
     // Same contract, same reason: a refused hull answers `NaN`.
     Ok(sq_acc.map_or(f64::NAN, |s| {
-        if s.is_poison() {
+        if !s.is_certified() {
             f64::NAN
         } else {
             s.hi().sqrt().next_up()
@@ -700,17 +702,17 @@ fn general_uv_speeds(
     }
     let mut speeds = [f64::NAN; 2];
     for (axis, s) in speeds.iter_mut().enumerate() {
-        let coeffs: Vec<RingInterval> = image
+        let coeffs: Vec<Interval> = image
             .control()
             .iter()
-            .map(|pt| RingInterval::point(if axis == 0 { pt.x } else { pt.y }))
+            .map(|pt| Interval::point(if axis == 0 { pt.x } else { pt.y }))
             .collect();
-        // `mag` is NaN on poison — a coefficient array the mint
-        // refuses arrives as poison and leaves as the refusal below,
+        // `mag` is NaN on a refusal — a coefficient array the mint
+        // refuses arrives refused and leaves as the refusal below,
         // never as a finite bound.
         *s = kv
             .with_coeffs(&coeffs)
-            .map_or_else(RingInterval::poison, SplineCoeffs::derivative_domain_hull)
+            .map_or_else(Interval::refused, SplineCoeffs::derivative_domain_hull)
             .mag()
             .next_up();
     }
@@ -719,7 +721,7 @@ fn general_uv_speeds(
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "general curve-in-UV pcurve whose derivative control hull is \
-                   unbounded/poisoned — outside the certified chord inventory",
+                   unbounded/refused — outside the certified chord inventory",
         });
     }
     Ok((su, sv))
@@ -972,7 +974,7 @@ mod tests {
                 // Where the winning coefficient's basis function
                 // reaches 1, the hull max IS the sup and the two sides
                 // may differ only by each side's outward rounding —
-                // the ring's difference quotient and its `next_up` on
+                // interval arithmetic's difference quotient and its `next_up` on
                 // one side, the evaluator's basis pass on the other.
                 // `1e-14` relative is ~45 ulps at these magnitudes,
                 // measured at ~6e-16; a rewrite that pads the bound by
@@ -1291,7 +1293,7 @@ mod tests {
         }
     }
 
-    /// The POISON row the flip keeps: an ILLEGAL rational carrier
+    /// The refusal row the flip keeps: an ILLEGAL rational carrier
     /// (non-positive weight) cannot even be described —
     /// `NurbsCurve3::new` refuses at the door, so
     /// [`nurbs_chord_count`]'s own licence check is a defensive

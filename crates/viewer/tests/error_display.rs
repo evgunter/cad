@@ -26,13 +26,18 @@
 //! `an_illegal_walk_refuses_at_the_preview_and_at_the_door`).
 
 use bvh::Aabb;
-use editor_core::{HitTestError, InterrogateError, MateSide, NodePickError};
+use editor_core::{
+    HitTestError, InterrogateError, MateSide, NameLookupError, NodePickError, NodeStanding,
+    UnnamedEntity,
+};
 use pncad::document::{EditError, RecipeNodeId};
 use pncad::mesh::TessellateError;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
 use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
-use viewer::pickindex::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
+use viewer::pickindex::{
+    EdgeNameFault, EdgeNamesRefused, IdMapError, PatchId, PickError, PickIndexError,
+};
 use viewer::scene::{SceneDocError, SceneError};
 
 /// Whether a rendering looks like a derived `Debug` rather than prose:
@@ -254,19 +259,56 @@ fn pick_index_error_forwards_its_id_arm() {
 }
 
 /// The indexing arm carries `editor-core`'s own refusal, and the root
-/// it names is this layer's contribution — both reach the reader.
+/// it names is this layer's contribution. The arm claims only that the
+/// root was not indexed, which is true of every payload: why — no
+/// value, no body, a tessellation refusal — is the payload's to say.
 #[test]
-fn pick_index_error_forwards_its_node_arm() {
+fn pick_index_error_says_only_that_its_root_was_not_indexed() {
     let node = RecipeNodeId(7);
-    let inner = NodePickError::NotABody { node };
-    let outer = PickIndexError::Node {
-        node,
-        error: inner.clone(),
+    let not_a_body = NodePickError::NotABody { node };
+    let standing = NodeStanding::Failed { node };
+    for inner in [not_a_body, NodePickError::Standing(standing)] {
+        let outer = PickIndexError::Node {
+            node,
+            error: inner.clone(),
+        }
+        .to_string();
+        assert_eq!(outer, format!("root 7 could not be indexed: {inner}"));
     }
-    .to_string();
-    assert!(outer.contains(&inner.to_string()), "{outer}");
-    assert!(outer.contains('7'), "{outer}");
-    prose(&outer, "NotABody");
+}
+
+/// A node with no value is the one fact a pick-index refusal shares
+/// with the tree, at the build and at the name doors alike; every
+/// other refusal is the index's own.
+#[test]
+fn pick_index_error_reads_a_standing_at_the_build_and_at_the_name_doors() {
+    let node = RecipeNodeId(7);
+    let standing = NodeStanding::Failed { node };
+    let build = PickIndexError::Node {
+        node,
+        error: NodePickError::Standing(standing),
+    };
+    let names = PickIndexError::Names(NameLookupError::Standing(standing));
+    let not_a_body = PickIndexError::Node {
+        node,
+        error: NodePickError::NotABody { node },
+    };
+    assert_eq!(
+        (build.standing(), names.standing(), not_a_body.standing()),
+        (Some(standing), Some(standing), None)
+    );
+    let poisoned = NodeStanding::Poisoned {
+        node,
+        through: RecipeNodeId(3),
+    };
+    assert_eq!(
+        names.restated(|_| poisoned),
+        Some((
+            standing,
+            PickIndexError::Names(NameLookupError::Standing(poisoned))
+        )),
+        "the standing is re-read in its own seat"
+    );
 }
 
 /// The layout arm is this layer's OWN finding — no payload to forward
@@ -296,27 +338,65 @@ fn pick_error_forwards_its_camera_arm() {
 /// composing a sentence about somebody else's refusal.
 #[test]
 fn pick_error_forwards_its_hit_test_arm() {
-    let inner = HitTestError::NodeFailed {
+    let inner = HitTestError::Standing(NodeStanding::Failed {
         node: RecipeNodeId(4),
-    };
+    });
     let outer = PickError::HitTest(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "NodeFailed");
 }
 
-/// A drawn edge with no name carries the naming layer's own report.
+/// A drawn edge with no name carries the naming layer's own report —
+/// a lookup's, whole, and the sentence says no hit test ran, because
+/// the index was built by a table read and the status line that
+/// forwards this refusal must not name an event that did not happen.
 #[test]
 fn edge_name_fault_forwards_its_unnamed_arm() {
-    let inner = HitTestError::NodeFailed {
+    let inner = UnnamedEntity {
         node: RecipeNodeId(4),
+        entity: editor_core::EntityRef {
+            body: 0,
+            key: editor_core::EntityKey::Edge(pncad::topo::EdgeKey::default()),
+        },
     };
-    let outer = EdgeNameFault::Unnamed(inner.clone()).to_string();
+    let outer = EdgeNameFault::Unnamed(inner).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(!outer.contains("hit test"), "{outer}");
     prose(&outer, "Unnamed");
+    let picked = PickError::EdgeName(EdgeNameFault::Unnamed(inner)).to_string();
+    assert!(picked.contains(&inner.to_string()), "{picked}");
+    assert!(!picked.contains("hit test"), "{picked}");
 }
 
+/// A body's edge-name refusal names the body and its counts, and
+/// forwards its refusal through [`EdgeNameFault::Unnamed`]'s own words
+/// rather than saying "no name" again in its own.
 #[test]
-fn replay_error_names_the_log_position_and_forwards_the_refusal() {
+fn edge_names_refused_forwards_its_first_refusal() {
+    let first = crate::common::unnamed_edge(RecipeNodeId(4), 1);
+    let said = EdgeNamesRefused {
+        node: RecipeNodeId(4),
+        body: 1,
+        first,
+        named: 11,
+        refused: 1,
+    }
+    .to_string();
+    let fault = EdgeNameFault::Unnamed(first).to_string();
+    assert_eq!(
+        said,
+        format!(
+            "the index names 11 of the 12 edges it draws on body 1 of node 4; the first it cannot: {fault}"
+        )
+    );
+    prose(&said, "EdgeNamesRefused");
+}
+
+/// The replay forwards the refusal's problem and ends as a damaged
+/// file or a defect does: nobody is making the logged edit, so the edit
+/// door's recourse is not the reader's.
+#[test]
+fn replay_error_names_the_log_position_and_forwards_the_problem() {
     let inner = EditError::UnknownNode {
         id: RecipeNodeId(4),
     };
@@ -326,7 +406,11 @@ fn replay_error_names_the_log_position_and_forwards_the_refusal() {
     }
     .to_string();
     assert!(outer.contains('3'), "{outer}");
-    assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(outer.contains(&inner.problem().to_string()), "{outer}");
+    assert!(
+        outer.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING) && !outer.contains("Recourse:"),
+        "{outer}"
+    );
     prose(&outer, "Refused");
 }
 
@@ -338,13 +422,16 @@ fn indeterminate_wording_forwards_the_causes_own_words() {
     use editor_core::ResolveIndeterminate;
     use viewer::app::indeterminate_wording;
 
-    let cause = ResolveIndeterminate::TargetFailed {
-        node: RecipeNodeId(6),
+    let cause = ResolveIndeterminate {
+        standing: NodeStanding::Failed {
+            node: RecipeNodeId(6),
+        },
     };
     let shown = indeterminate_wording("face", &cause);
     assert!(shown.contains("face"), "{shown}");
     assert!(shown.contains(&cause.to_string()), "{shown}");
-    prose(&shown, "TargetFailed");
+    prose(&shown, "ResolveIndeterminate");
+    prose(&shown, "Failed");
 }
 
 test_utils::loud_skip_marker!(

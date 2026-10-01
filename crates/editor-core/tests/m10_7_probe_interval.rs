@@ -10,7 +10,6 @@
 //! `SymbolicDials` and in the unit's deviations, with this file named,
 //! so a reader who doubts them re-runs it. Its ungated tests DO run on
 //! every merge.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

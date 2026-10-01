@@ -82,7 +82,12 @@ lives rather than restated at the holder.
 *Record: the rule is ratified; the build is VIEW's and is not in the
 tree — `layer3-recipenodeid-aliases-across-rewinds`, open since
 `Doc::has_minted` gave the walk its reading, and no holder checks
-descent today.*
+descent today. The same class had a second instance one level in, on
+a held profile locator rather than a node id — a value edit through a
+`Zero` fit changed how many segments a loop draws and so what a
+positional locator denoted — which profile pieces named by minted step
+ids closed (`names/README.md`, "N1, the profile pieces"; Ev, #3193):
+`edit_set_program::a_slot_edit_through_a_zero_fit_keeps_a_live_name_and_reports_nothing`.*
 
 ## DI2 — The memo is a pure function of the document; the store is the session's
 

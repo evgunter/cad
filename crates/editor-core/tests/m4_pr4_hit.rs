@@ -8,11 +8,12 @@
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
 
+use editor_core::NodeStanding;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
     EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
-    RoleSeg, RunCtx, SplitSide, StableName, ValuePayload, body_name, entity_name, evaluate,
-    resolve,
+    RoleSeg, RunCtx, SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name,
+    evaluate, resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -65,7 +66,7 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
 /// Ok node inverts to a name, and the name round-trips through
 /// resolution to the same entity. Returns the number of entities
 /// checked (counted, not vibes).
-fn assert_total(doc: &ProfileDoc, ev: &Evaluation<f64>) -> usize {
+fn assert_total(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> usize {
     let ctx = RunCtx { doc, eval: ev };
     let mut checked = 0usize;
     for &node in &ev.order {
@@ -268,20 +269,20 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     let ev = run(&doc);
     assert_eq!(
         body_name(&ev, ext, 0),
-        Err(HitTestError::NodeFailed { node: ext })
+        Err(HitTestError::Standing(NodeStanding::Failed { node: ext }))
     );
     assert_eq!(
         body_name(&ev, u, 0),
-        Err(HitTestError::NodePoisoned {
+        Err(HitTestError::Standing(NodeStanding::Poisoned {
             node: u,
             through: ext
-        })
+        }))
     );
     assert_eq!(
         body_name(&ev, RecipeNodeId(9999), 0),
-        Err(HitTestError::NodeNotEvaluated {
+        Err(HitTestError::Standing(NodeStanding::NotInDocument {
             node: RecipeNodeId(9999)
-        })
+        }))
     );
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
@@ -300,10 +301,10 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         .unwrap();
     assert_eq!(
         entity_name(&ev2, decl, some_face),
-        Err(HitTestError::Unnamed {
+        Err(HitTestError::Unnamed(UnnamedEntity {
             node: decl,
             entity: some_face
-        })
+        }))
     );
 }
 
@@ -314,9 +315,7 @@ test_utils::f6_variants! {
     /// it does NOT weld are documented on
     /// [`test_utils::f6::assert_f6_every_variant`].
     const HIT_TEST_ERROR: HitTestError = [
-        NodeNotEvaluated,
-        NodeFailed,
-        NodePoisoned,
+        Standing,
         EvaluationOfAnotherDocument,
         Ambiguous,
         Unnamed,
@@ -363,12 +362,15 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
     };
     let cases = [
         (
-            HitTestError::NodeNotEvaluated { node },
+            HitTestError::Standing(NodeStanding::NotEvaluated { node }),
             vec!["node 7", "no result"],
         ),
-        (HitTestError::NodeFailed { node }, vec!["node 7", "failed"]),
         (
-            HitTestError::NodePoisoned { node, through },
+            HitTestError::Standing(NodeStanding::Failed { node }),
+            vec!["node 7", "failed"],
+        ),
+        (
+            HitTestError::Standing(NodeStanding::Poisoned { node, through }),
             vec!["node 7", "node 3", "poisoned"],
         ),
         (
@@ -393,16 +395,24 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             vec!["tied between 2 faces", "(1) face", "(2) face", "node 7"],
         ),
         (
-            HitTestError::Unnamed {
+            HitTestError::Unnamed(UnnamedEntity {
                 node,
                 entity: EntityRef {
                     body: 2,
                     key: EntityKey::Face(FaceKey::default()),
                 },
-            },
-            // The entity renders by KIND and body index — an arena key
-            // is editor-core-private and says nothing to a person.
-            vec!["node 7", "face", "body 2", "kernel bug"],
+            }),
+            // The lookup's own sentence under this door's prefix: the
+            // entity by KIND and body index — an arena key is
+            // editor-core-private and says nothing to a person.
+            vec![
+                "hit test:",
+                "name lookup:",
+                "node 7",
+                "face",
+                "body 2",
+                "kernel bug",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &HIT_TEST_ERROR, &[]);

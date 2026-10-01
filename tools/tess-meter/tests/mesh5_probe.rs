@@ -42,7 +42,7 @@ use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use mesh::budget::{self, Mode};
 use mesh::validate::check_mesh;
-use profile::{Profile, ProfileLoop, RawLoop as _, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop as _, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use tess_meter::face_rows;
 use topo::Body;
@@ -184,9 +184,9 @@ fn curved_report(body: &Body<f64>, mesh: &mesh::Mesh) -> (usize, f64) {
 #[test]
 fn mesh5_sibling_cases() {
     // Sphere wedge theta = 0.3 (nu = 1 at delta in {0.1, 0.05}).
-    let half = ProfileLoop::new(vec![
-        profile::ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
-        profile::ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+    let half = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let sphere = revolve(
         &Profile::new(SketchPlane::xy(), vec![half])
@@ -202,9 +202,9 @@ fn mesh5_sibling_cases() {
     .unwrap()
     .body;
     // Torus wedge theta = 0.05 (nu = 1 at delta = 0.1).
-    let arc = ProfileLoop::new(vec![
-        profile::ProfileVertex::new(Point2::new(2.0, -0.5), 1.0),
-        profile::ProfileVertex::new(Point2::new(2.0, 0.5), 1.0),
+    let arc = bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
     ]);
     let torus = revolve(
         &Profile::new(SketchPlane::xy(), vec![arc])

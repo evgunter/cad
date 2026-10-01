@@ -173,7 +173,10 @@ pub enum Revolution<T: Real> {
 /// fixed point; full: pole/apex).
 #[derive(Debug)]
 pub struct Revolved<T: Real> {
-    /// The built body — a closed solid passing tiers 1–3.
+    /// The built body — a closed solid passing tiers 1–3. A declared
+    /// cusp joint (`.cusp()`) sweeps a latitude rim at material wedge 0
+    /// (2π on a hole loop), which tier 3 holds legal because its
+    /// tangency is jet-determinate.
     pub body: Body<T>,
     /// The solid.
     pub solid: SolidKey,
@@ -509,6 +512,22 @@ pub enum RevolveError {
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
+    /// The must-carry rule read a station of a latitude join or cap
+    /// rim definitely transverse
+    /// ([`geom_brep::MustCarryVerdict::Transverse`]) after the join's
+    /// witness classified definitely smooth: the geometry refuted the
+    /// premise the smooth arm was entered on.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): the join's circle is
+    /// carried by a symmetry flow of both surfaces, so every station
+    /// reads what the witness read. Reaching this means the inputs
+    /// carried something a validated profile cannot, and it is
+    /// surfaced rather than stored under a description neither reading
+    /// chose.
+    SmoothJoinRefuted {
+        /// The edge whose station refuted the smooth premise.
+        edge: EdgeKey,
+    },
     /// A cap plane failed Newell certification (unreachable for
     /// validated profiles — surfaced rather than trusted).
     CapPlane {
@@ -670,6 +689,12 @@ impl fmt::Display for RevolveError {
                 "the cap rim at loop {loop_index} segment {segment_index} is neither a \
                  definite corner nor definitely smooth: {source}"
             ),
+            Self::SmoothJoinRefuted { edge } => write!(
+                f,
+                "the join along {edge:?} classified definitely smooth at its witness but \
+                 definitely a corner at a certification station, so the construction \
+                 refuses rather than choose a description for it"
+            ),
             Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
             Self::Pcurve(source) => write!(f, "{source}"),
@@ -708,7 +733,7 @@ pub(super) use crate::swept::{SweptSeg, swept_segments};
 /// angle, half-plane violations, sliver radii, unsupported toroids,
 /// non-manifold axis contact, sliver dihedrals, Newell failures, and
 /// every operator/certification refusal.
-pub fn revolve<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn revolve<T: Decide + topo::AtRestPolicy>(
     profile: &ValidatedProfile<T>,
     axis: RevolveAxis<T>,
     revolution: Revolution<T>,
@@ -789,9 +814,10 @@ mod tests {
     #[test]
     fn revolve_pairs_carry_the_shared_recourse() {
         let diag = |name| Indeterminate {
-            margin: geom_core::MarginDiag::Value(5e-9),
+            margin: geom_core::MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
             predicate: Some(name),
+            terminal_sliver: false,
         };
         let errors = [
             RevolveError::DegenerateAxis,

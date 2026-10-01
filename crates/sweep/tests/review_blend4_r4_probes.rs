@@ -25,7 +25,6 @@
 
 use geom::Curve3;
 use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::test_support::{arcs_at, dome, one_edge_rim_at, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey};
@@ -34,8 +33,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 /// The bulge of a CCW arc about `c` from `a` to `b`: `tan(θ/4)`.

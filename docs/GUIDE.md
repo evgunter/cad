@@ -138,7 +138,7 @@ assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
 ```
 
 Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
-mm + 90 * deg` is a `DimensionError`, not a number.
+mm + 90 * deg` is a `QuantityOpMismatch`, not a number.
 
 A dimensioned slot takes an `Expr`, and `Expr.length_in(8, mm)` is how
 an authored number reaches one: the value and the unit it was written
@@ -1569,21 +1569,28 @@ is a name you would have to hand-write — the serialized form, field by
 field, with no compiler and no door checking any of it.
 
 So a revolve's roles have MINTING doors, the same five `pncad::select`
-gives Rust: `band(node, loop_index, seg)` and `band_pi(node,
-loop_index, seg)` are the two halves of the face swept from meridian
-segment `seg`, `band_rim(node, loop_index, vertex)` is the latitude
-rim standing at a meridian vertex, `meridian_vertex(end, node,
-loop_index, vertex)` is that vertex itself, and `carried(node, inner)`
-is the name a survivor of `node` wears one op later. Each answers the
+gives Rust: `band(node, piece)` and `band_pi(node, piece)` are the two
+halves of the face swept from a meridian piece, `band_rim(node, piece)`
+is the latitude rim standing at the vertex the piece starts at,
+`meridian_vertex(end, node, piece)` is that vertex itself, and
+`carried(node, inner)` is the name a survivor of `node` wears one op
+later. Each answers the
 SAME opaque text a materializer answers for that entity, so a
 selection authored this way and one selected off an evaluation are the
 same bytes.
 
-`loop_index` names the profile loop — 0 the outer one, then the holes
-in the order the profile describes them — and `seg` and `vertex` index
-that loop's canonical chain, so a hole's band is spelled exactly like
-the outer one at its own loop. And the text is still never read or
-assembled — you name a ROLE, and the door does the rest.
+A piece is the part of the profile one authored step drew: the step,
+by the id the document minted for it when the profile was inserted, and
+its role in that step. Every authoring call hands back its step's
+handle as `.step`, and `doc.piece(profile, loop, h.leg)` spells the
+piece that step drew in the loop you state — 0 the outer one, then the
+holes in the order the profile describes them — so a hole's band is
+spelled exactly like the outer one. A handle's role accessors are its
+verb's roles: `.leg` on a leg, `.run_in`, `.arc` and `.run_out` on a
+fillet, `.piece(k)` on a `circle` or `circle_split`. A piece stays the
+name of what its step draws whatever later moves the segment, which is
+why the doors take it rather than a position. And the text is still
+never read or assembled — you name a ROLE, and the door does the rest.
 
 ```python
 import math
@@ -1611,16 +1618,14 @@ RI, RO, H, T = 1.0, 2.0, 1.0, 0.125
 
 doc = Doc()
 frame = doc.sketch_frame()
-section = (
-    Open.at((RI * m, 0 * m))
-    .line_to((RO * m, 0 * m))
-    .line_to((RO * m, H * m))
-    .line_to((RI * m, H * m))
-    .line_to(Start)
-)
+bottom = Open.at((RI * m, 0 * m)).line_to((RO * m, 0 * m))
+outer = bottom.line_to((RO * m, H * m))
+top = outer.line_to((RI * m, H * m))
+section = top.line_to(Start)
+profile = doc.insert(Node.profile(section, plane=frame))
 ring = doc.insert(
     Node.revolve(
-        doc.insert(Node.profile(section, plane=frame)),
+        profile,
         doc.insert(Node.datum_axis_in_plane(frame, (
             Expr.length_in(0, m),
             Expr.length_in(0, m),
@@ -1632,11 +1637,16 @@ ring = doc.insert(
     )
 )
 
-# Segment 2 is the top annulus and vertex 2 the rim standing on it —
-# read off the profile as written, with nothing evaluated yet. The
-# section has one loop, so every name below is on loop 0.
-cup = doc.insert(Node.shell(ring, Expr.length_in(T, m), [band(ring, 0, 2)]))
-rolled = doc.insert(Node.fillet(ring, Expr.length_in(T, m), [band_rim(ring, 0, 2), band_rim(ring, 0, 3)]))
+# The top leg sweeps the top annulus, and its rim stands where the leg
+# starts — spelled from the handles the legs returned, with nothing
+# evaluated yet. The section has one loop, loop 0.
+def piece(leg):
+    return doc.piece(profile, 0, leg.step.leg)
+
+cup = doc.insert(Node.shell(ring, Expr.length_in(T, m), [band(ring, piece(top))]))
+rolled = doc.insert(
+    Node.fillet(ring, Expr.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
+)
 
 ev = evaluate(doc)
 ev.value(cup).body().validate()
@@ -1646,7 +1656,7 @@ ev.value(rolled).body().validate()
 # survived the hollowing wear exactly `carried` of what they were.
 faces = NamePat.of_kind(EntityKind.Face)
 survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
-assert sorted(survivors) == sorted(carried(cup, band(ring, 0, s)) for s in (0, 1, 3))
+assert sorted(survivors) == sorted(carried(cup, band(ring, piece(leg))) for leg in (bottom, outer, section))
 ```
 
 ## 3. Parametric models
@@ -1707,6 +1717,7 @@ let (next, profile) = insert(
     Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![outline, hole],
+        ids: Vec::new(),
     }),
 );
 doc = next;
@@ -1749,7 +1760,7 @@ use pncad::prelude::*;
 # let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 # let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
 # doc = next;
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole] }));
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
 # let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
 # doc = next;
@@ -1818,7 +1829,11 @@ the standing goal's register at work: the gap was named in the
 north-star audit rather than worked around, and closing it flips this
 section from a pin to a demonstration.
 
-One parameter, referenced by two loops, moved by one edit:
+One parameter, referenced by two loops, moved by one edit.
+`ParamName::from_static` takes a name written in source; a name that
+arrives as text at runtime goes through `ParamName::new`, which
+refuses one an expression could not read back (blank, padded, not
+one identifier) with a `ParamNameFault`:
 
 ```
 use pncad::prelude::*;
@@ -1829,7 +1844,7 @@ let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 // ONE expression, shared: BOTH holes' radius reads `hole_r`.
 let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     centre: [lit(cx), lit(cy)],
-    radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+    radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
 };
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
@@ -1837,7 +1852,7 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // Declare the parameter. An ordinary edit: recorded, replayable,
 // undoable like any other.
 doc = apply(&doc, &DocEdit::SetDocParam {
-    name: ParamName::new("hole_r"),
+    name: ParamName::from_static("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.25),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
@@ -1862,6 +1877,7 @@ doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
     plane: base_frame,
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
+    ids: Vec::new(),
 }));
 doc = next;
 let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5) });
@@ -1881,6 +1897,7 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),
     ],
+    ids: Vec::new(),
 }));
 doc = next;
 let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25) });
@@ -1916,7 +1933,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
 // One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::SetDocParam {
-    name: ParamName::new("hole_r"),
+    name: ParamName::from_static("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.4),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
@@ -1978,8 +1995,8 @@ use pncad::document::{Distribution, DocParamValue};
 let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
-let declare = |doc: &Doc<ProfileProgram>, name: &str, value: DocParam| {
-    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol, &pncad::document::RefusingReach)
+let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: DocParam| {
+    apply(doc, &DocEdit::SetDocParam { name: ParamName::from_static(name), value }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 
@@ -1998,23 +2015,23 @@ let boxed = analyzed_box(&doc, &policy);
 
 // The normal's box is the symmetric quantile interval, so it is
 // roughly ±3σ and it leaves the rest OUTSIDE.
-let bore = boxed.get(&ParamName::new("bore_r")).expect("an axis");
+let bore = boxed.get(&ParamName::from_static("bore_r")).expect("an axis");
 assert!((bore.offsets.hi / 1e-6 - 3.0).abs() < 0.01);
-let tail = tail_mass(&ParamName::new("bore_r"),
+let tail = tail_mass(&ParamName::from_static("bore_r"),
                      &bore.distribution.expect("annotated"), &bore.offsets)
     .expect("a normal prices");
 assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
 
 // The band's box IS its support, so nothing escapes it...
-let plate = boxed.get(&ParamName::new("plate_t")).expect("an axis");
+let plate = boxed.get(&ParamName::from_static("plate_t")).expect("an axis");
 assert_eq!(plate.offsets.lo, -1e-4);
 // ...and the unannotated parameter is a width-zero axis at its nominal.
-assert!(boxed.get(&ParamName::new("web_t")).expect("an axis").offsets.is_fixed());
+assert!(boxed.get(&ParamName::from_static("web_t")).expect("an axis").offsets.is_fixed());
 assert_eq!(boxed.varying().count(), 2);
 
 // The band refuses to price anything its shape would decide, and the
 // refusal NAMES the parameter rather than quietly assuming uniform.
-let refusal = box_mass(&ParamName::new("plate_t"),
+let refusal = box_mass(&ParamName::from_static("plate_t"),
                        &plate.distribution.expect("annotated"), (-5e-5, 5e-5));
 assert!(matches!(refusal, Err(MeasureUnavailable::BandHasNoMeasure { .. })));
 assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
@@ -2022,10 +2039,10 @@ assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
 // Moving a value KEEPS the annotation — use the value door, never a
 // rebuilt `DocParam`.
 doc = apply(&doc, &DocEdit::SetDocParamValue {
-    name: ParamName::new("bore_r"),
+    name: ParamName::from_static("bore_r"),
     value: DocParamValue::Continuous(0.0045),
 }, tol, &pncad::document::RefusingReach)?.doc;
-assert!(doc.params()[&ParamName::new("bore_r")].distribution().is_some());
+assert!(doc.params()[&ParamName::from_static("bore_r")].distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
@@ -2113,10 +2130,9 @@ schedules produce bit-identical reports. A band refuses the whole run
 answering an offset in the distribution's own dimension.
 
 What does NOT cross is the certified half — the E6 driver, the E4/E5
-stackup, the E10 reports — which lives behind the `interval` feature
-the wheel is not built with. That is the whole reason the advisory
-lane is un-gated in the kernel: a caller with no certified scalar
-still gets the labeled estimate.
+stackup, the E10 reports — which answers at the certified scalar, and
+the binding evaluates at `f64`. The advisory lane is pure `f64` replay,
+so a caller with no certified scalar still gets the labeled estimate.
 
 ## 4. The rest of the documentation
 

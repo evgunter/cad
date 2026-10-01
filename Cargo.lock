@@ -295,6 +295,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 name = "bvh"
 version = "0.0.0"
 dependencies = [
+ "bvh",
  "geom-core",
  "proptest",
  "test-utils",
@@ -766,6 +767,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "slotmap",
  "sweep",
  "test-utils",
  "topo",
@@ -1180,6 +1182,7 @@ dependencies = [
  "geom-core",
  "nalgebra 0.35.0",
  "proptest",
+ "strum",
  "test-utils",
 ]
 
@@ -1191,6 +1194,7 @@ dependencies = [
  "geom-core",
  "proptest",
  "slotmap",
+ "strum",
  "test-utils",
 ]
 
@@ -1205,6 +1209,8 @@ dependencies = [
  "num-integer",
  "num-traits",
  "proptest",
+ "rayon",
+ "strum",
  "test-utils",
 ]
 
@@ -4177,7 +4183,6 @@ dependencies = [
 name = "verbs"
 version = "0.0.0"
 dependencies = [
- "geom-brep",
  "geom-core",
  "profile",
  "sweep",
@@ -4211,11 +4216,13 @@ dependencies = [
  "pollster 1.0.1",
  "profile",
  "quantity",
+ "rayon",
  "rfd",
  "sweep",
  "test-utils",
  "toml",
  "topo",
+ "viewer",
  "wasm-bindgen-futures",
  "winit",
 ]

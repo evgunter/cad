@@ -52,8 +52,7 @@ echo "staged $stage/pncad.so"
 # `python suite` job. No one place both call exists — the hosted job
 # cannot call THIS script, which builds through
 # `local-scripts/with-build-slot.sh` (a tree every hosted job deletes at
-# checkout) and stages a cdylib rather than installing a wheel. The lift
-# is filed at work/ciw/python-suite-zero-test-guard-three-copies.md.
+# checkout) and stages a cdylib rather than installing a wheel.
 #
 # `Ran N tests` goes to STDERR, so the redirect is load-bearing, and this
 # script's `pipefail` is what keeps python's exit status from being

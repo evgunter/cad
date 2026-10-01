@@ -16,8 +16,8 @@ use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use crate::revolve_common;
 
-use geom_core::Tol;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use geom_core::{Point2, Tol};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 
@@ -26,11 +26,11 @@ use sweep::{Revolution, revolve};
 /// pole joints non-tangent), counterclockwise. Revolved by `α` its
 /// volume is `α·(r·w² + (2/3)·w² − (2/3)·r³)` by Pappus.
 fn dimple(r: f64, w: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 0.0),
-        ProfileVertex::new(p2(w, -r - 1.0), 0.0),
-        ProfileVertex::new(p2(w, r + 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, r), -1.0),
+    bulge_loop(vec![
+        (Point2::new(0.0, -r), 0.0),
+        (Point2::new(w, -r - 1.0), 0.0),
+        (Point2::new(w, r + 1.0), 0.0),
+        (Point2::new(0.0, r), -1.0),
     ])
 }
 

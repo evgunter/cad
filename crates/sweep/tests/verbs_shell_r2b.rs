@@ -12,13 +12,9 @@
 
 use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
@@ -44,11 +40,7 @@ fn plane_chart_at_z(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
 }
 
 fn poly(pts: &[(f64, f64)]) -> ProfileLoop<f64> {
-    ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    )
+    bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect())
 }
 
 fn revolved(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
@@ -58,7 +50,7 @@ fn revolved(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -235,7 +227,7 @@ fn r2b_partial_revolve_reaches_the_rim() {
         let swept = revolve(
             &profile,
             RevolveAxis {
-                origin: p2(0.0, 0.0),
+                origin: Point2::new(0.0, 0.0),
                 dir: Vec2::new(0.0, 1.0),
             },
             Revolution::Partial(theta),

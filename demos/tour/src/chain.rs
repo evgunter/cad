@@ -8,11 +8,6 @@
 //! about it. A second transcription of the chain would let the two
 //! drift into being about two different studies.
 //!
-//! The split is also what makes the density cell REACHABLE: the
-//! Monte-Carlo lane is pure `f64` replay and is ungated on purpose
-//! (`crates/pncad/src/analysis.rs`), so the document it replays cannot
-//! sit inside an `interval`-gated module.
-//!
 //! # The kinematics, and the door that expresses it
 //!
 //! Joint `k` carries a parameter `joint_k` at [`Dimension::Angle`],
@@ -200,11 +195,8 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 /// MEASURED by [`crate::chaintol`] and pinned there;
 /// [`CERTIFIABLE_FRACTION`] is the last row.
 ///
-/// Read only by that cell, which is behind the `interval` feature, so
-/// a default build legitimately has no consumer for it — the
-/// measurement is part of this document's record either way, and the
-/// sheet's own [`CERTIFIABLE_FRACTION`] is the last row of it.
-#[cfg_attr(not(feature = "interval"), allow(dead_code))]
+/// Read only by that cell; the sheet's own [`CERTIFIABLE_FRACTION`] is
+/// the last row of it.
 pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
 
 /// **The tip's certified lateral half-width, over the pin radius** —
@@ -218,8 +210,7 @@ pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1
 /// says. The one-link chain is excluded on purpose: its box is the
 /// study, not the wall.
 ///
-/// Read only by that cell, which is behind the `interval` feature.
-#[cfg_attr(not(feature = "interval"), allow(dead_code))]
+/// Read only by that cell.
 pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 4.995e-1;
 
 /// **The certified enclosure of each joint pin's centre at that box**
@@ -293,8 +284,8 @@ pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
 /// certified table alike.
-pub fn joint_name(k: usize) -> String {
-    format!("joint_{k}")
+pub fn joint_name(k: usize) -> ParamName {
+    ParamName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
 }
 
 fn len(v: f64) -> Expr {
@@ -312,11 +303,17 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(doc: &mut ProfileDoc, n: &str, value: f64, distribution: Distribution, tol: Tol) {
+fn declare(
+    doc: &mut ProfileDoc,
+    name: ParamName,
+    value: f64,
+    distribution: Distribution,
+    tol: Tol,
+) {
     let applied = apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name,
             value: DocParam::continuous_with(Dimension::Angle, value, distribution),
         },
         tol,
@@ -333,12 +330,7 @@ pub struct Chain {
     pub doc: ProfileDoc,
     /// The tip-position `Measure` node — `distance(tip pin, target)`.
     pub measure: RecipeNodeId,
-    /// The `Assertion` over it. Read by [`crate::chaintol`], which is
-    /// behind the `interval` feature, so a default build legitimately
-    /// has no consumer for it — the field is part of the document
-    /// either way and a cell that dropped it would be describing a
-    /// different one.
-    #[cfg_attr(not(feature = "interval"), allow(dead_code))]
+    /// The `Assertion` over it. Read by [`crate::chaintol`].
     pub assertion: RecipeNodeId,
     /// The placed bars, base first. Carried because a cell that DRAWS
     /// the study needs the built bodies and not only the summary over
@@ -362,7 +354,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     for k in 1..=links {
         declare(
             &mut doc,
-            &joint_name(k),
+            joint_name(k),
             0.0,
             Distribution::Normal { sigma: joint_sigma },
             tol,
@@ -395,6 +387,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                 LoopProgram::polygon([(0.0, -h), (LINK_LENGTH, -h), (LINK_LENGTH, h), (0.0, h)])
                     .expect("finite bar corners"),
             ],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -415,6 +408,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     centre: [len(x), len(0.0)],
                     radius: len(PIN_RADIUS),
                 }],
+                ids: Vec::new(),
             }),
             tol,
         );
@@ -441,12 +435,14 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             let step = if j == 1 { 0.0 } else { LINK_LENGTH };
             node = insert(
                 doc,
-                Node::Transform {
-                    input: node,
-                    translation: [len(step), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: Expr::param(ParamName::new(joint_name(j)), Dimension::Angle),
-                },
+                Node::transform(
+                    node,
+                    pncad::document::Step::Rigid {
+                        translation: [len(step), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: Expr::param(joint_name(j), Dimension::Angle),
+                    },
+                ),
                 tol,
             );
         }

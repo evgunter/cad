@@ -16,12 +16,11 @@ priority: P0
 The Euler operators proper, after the 2026-09-20 cut: the surgery doors
 that MUTATE a body, and the ways they leave it half-described. `mev`,
 `mef` and `mekr` mint half-edges into a cached curved face with no
-pcurve row beside them; `mef` and `kef` move a RUN of half-edges
-between loops of different faces, keeping their keys and changing
-chart, silently where the new face mints nothing; the re-basing gate
-skips null scaffolding, so a fan `mev` can leave a null edge whose two
-ends are distinct points. Every one is a live corruption of the arena,
-which is why the track stayed P0 when its other halves left.
+pcurve row beside them, and `kev`'s fan merge moves one end of a null
+edge onto a distinct point unchecked. Each is a live corruption of the
+arena, which is why the track stayed P0 when its other halves left.
+(The run doors' silent chart change closed with PR 2603; the fan
+`mev`'s null-edge hole closed with PR 3148.)
 
 TOPO was 132 budget points in one directory on 2026-09-20 — about four
 and a half sittings. The cut (Ev, in chat, the same day) divided it on

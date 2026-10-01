@@ -159,16 +159,16 @@ const CERTIFIED_MIN_PX: f64 = 5.0;
 /// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`] are measured at
 /// the compiled default ε, and the box MOVES with ε (`1.083e-1` at
 /// `1e-6` against `1.110e-1` at the default, measured) — so at another
-/// ε it is a different box, and `chaintol` says so on the same walk.
+/// ε it is a different box, and `chaintol` says so (`demo-tour certified`).
 /// Why it moves is not established: the wall's refusal is a poisoned
 /// margin, which is not a quantity a band classifies. The sheet
-/// has to agree with it: it is one run and one statement, and a legend
-/// claiming `0.111` certifies while the cell three lines down reports
-/// a declared frontier is the picture contradicting the report.
+/// has to agree with it: at one ε they are one statement, and a legend
+/// claiming `0.111` certifies while the cell reports a declared
+/// frontier at the same ε is the picture contradicting the report.
 ///
 /// Answered by the ε and not by the certified lane, because this cell
-/// is ungated on purpose — it is the ADVISORY half and must draw in a
-/// build that has no certified scalar at all. A run at a non-default ε
+/// is the ADVISORY half and draws without driving the certified one.
+/// A run at a non-default ε
 /// where the box happens to certify anyway is therefore under-claimed
 /// rather than over-claimed, which is the direction to be wrong in.
 fn certified_box_applies(tol: Tol) -> bool {
@@ -1063,7 +1063,7 @@ fn sheet(
                 CERTIFIABLE_FRACTION,
                 Tol::witness().eps()
             ),
-            "\u{2014} the box MOVES with \u{03b5} (1.083e-1 at 1e-6 against 1.110e-1 at the default, measured), so at another \u{03b5} it is a different box. The tour's chaintol cell declares that frontier on this same walk; the sheet says what the cell says."
+            "\u{2014} the box MOVES with \u{03b5} (1.083e-1 at 1e-6 against 1.110e-1 at the default, measured), so at another \u{03b5} it is a different box. The tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."
                 .to_string(),
         )
     };

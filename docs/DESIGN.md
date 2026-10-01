@@ -178,10 +178,21 @@ representation of reversal. Normative consequences:
   exclusive by surface kind, so every outward normal is negated exactly
   once, the anchor move is a key swap, and `revert ∘ revert` is
   bit-identical at every scalar backend.
-- A face **fragment** inherits its parent's `sense`: `mef` and `mfkrh`
-  mint `true` for a new or foreign surface, but a face landing on the
-  old face's surface key takes that face's bit. Key equality, never a
-  numeric compare.
+- A face's `sense` is decided where its chart is decided. An Euler
+  operator minting a face on its parent's chart (`same_chart`: one
+  key, or keys sharing one payload) derives the bit from its own
+  topology: a `mef` fragment is a piece of the parent's region and
+  takes the parent's bit; the ring `mfkrh` promotes was wound
+  clockwise about the parent's outward normal and now bounds its face
+  counter-clockwise, so that face takes the parent's bit negated
+  (`kfmrh` demotes the other way). A face minted or re-charted onto
+  any other chart carries the bit its caller states beside the
+  surface (`FaceSurface::New`, `Shared`); a stated bit that
+  contradicts the derived one on the parent's chart is refused, typed,
+  before mutating. Never a numeric compare, and never a default. Where
+  the parent bounds no region yet, its bit and so the derived one are
+  provisional, and the constructor states the honest bit when it
+  charts the face.
 - Every "which way is out" consumer (tier gates, mass-properties flux,
   boolean classification, tessellation and export winding) reads the
   signed normal, or documents in place why it is sense-invariant.
@@ -238,15 +249,22 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 3. **Tier 3 "geometric"** — D4 ¶2 residual certification, plus the
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
-   legal smooth-seam case; and the ends carry a **declared second-order
-   arm**: wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's
-   `revert` image — legal together or not at all) are legal iff the
-   tangency is **declared** (the C7 `Tangent` contact vocabulary, never
-   inferred from values) and **jet-determinate**: quadratic transverse
-   separation with κ_rel bounded away from zero — `TangentIntersection`'s
-   own margin, so the cusp edge's honest description IS
-   `TangentIntersection`. In-band κ_rel escalates; an undeclared cusp
-   refuses (`UndeclaredCusp`); osculation refuses (`LaminaWedge`). The
+   legal smooth-seam case; and the ends carry a **second-order arm**:
+   wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's `revert`
+   image — legal together or not at all) are legal iff the tangency is
+   **jet-determinate**: quadratic transverse separation with κ_rel
+   bounded away from zero — `TangentIntersection`'s own margin, so the
+   cusp edge's honest description IS `TangentIntersection` wherever the
+   tangent certificate's lane reaches. The ends are derived from the
+   body exactly as the π seam is: a cusp and a smooth seam are the same
+   tangent junction on one shared edge, told apart only by the sign of
+   the two faces' outward normals, which the body already certifies.
+   The shared edge is the structural record. Whether a cusp is *wanted*
+   is declared where the tangency is created — the profile's cusp
+   joint, a boolean's C7 `Tangent` operand declaration — never inferred
+   from values, and an op that could mint a wedge end its inputs never
+   declared owns that refusal. In-band κ_rel escalates; osculation
+   refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
    A doubled cusp (two material wedges on one tangent line) is the
    coincident-distinct-edges class, each edge classifying separately.
@@ -263,7 +281,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    self-intersection / minimum clearance is the interval clearance
    engine's: its body-level half — cell subdivision over
    `Body<Interval>` — lives in `editor-core` today and moves into
-   `topo` behind `interval` (SHELL-3, ruled at #1737), with the
+   `topo` (SHELL-3, ruled at #1737), with the
    parameter-box outer half above it in `editor-core`, so a verb that
    must certify a boundary embedded (`shell`'s cavity clone) runs the
    same engine at a certifying scalar and refuses typed at the door.
@@ -355,7 +373,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   holes in its one shell.
 - **The minimal sphere at rest is V2/E2/F2**: tier 2's valence-1 ban
   makes a one-band wire sweep unrepresentable, so axis-touching full
-  revolves sweep two π-bands and poles have valence 2.
+  revolves sweep two π-bands and poles have valence 2. The split is
+  owed only by CURVED walls, whose pole or apex must keep valence 2. A
+  full revolve emits each PLANAR wall as one face: a disc's centre is
+  interior to the face, not a vertex, and no revolve returns two
+  adjacent faces on one plane.
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
   complete loci; an edge's bounds derive from its vertices via the
@@ -369,12 +391,34 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   ∂u × ∂v with no "outward" contract — topology carries sense. A seam
   is defined SPATIALLY (the u_ref half-plane meridian), which on
   mirror-nappe cones differs from chart u = 0.
-- **Profile format**: a profile loop is a vertex chain with bulge
-  (b = tan(θ/4) of the arc to the next vertex, DXF-compatible) — zero
-  representation-consistency conditions by construction; closed
-  carriers split into ≥ 2 vertices; winding is invisible to users
-  (roles derive from containment). Downstream re-inspection of arc
-  geometry uses the stored bulge/carrier data, never endpoint atan2.
+- **Profile format**: a profile loop is a vertex chain whose segments
+  are each a carrier plus a signed interval on it — a line (the chord
+  between its two vertices), or an arc (centre, radius and signed sweep
+  Δθ, |Δθ| ≤ 2π). Vertices are stored verbatim and are authoritative; a
+  full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
+  carrier is one edge. The form is redundant (the vertices lie on the
+  carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
+  consistency conditions are verified at validate as ε-decisions at the
+  validating scalar, never trusted; a stored carrier is carried
+  verbatim, including across scalars, and never re-derived from its
+  vertices. The authored shape lives in the program, which is what a
+  document stores and edits; the loop is its canonical cache, rebuilt
+  from it and never persisted, and each arc mode's lowering is that
+  mode's one conversion into this form. Each construction lowers what
+  the user wrote into this form in the
+  shape's own algebra (the radius as authored, the sweep as one
+  `4·atan` of a quantity algebraic in the authored data, never an
+  angle difference), so the symbolic tier, replaying the program, reads
+  the authored shape through the stored fields. An identity the
+  algebra does not close is registered by the construction that proves
+  it, on the values it built; nothing about it is stored on the arc,
+  and a copied or embedded arc claims nothing. The arc carrier is one
+  type shared by the profile and the B-rep sketch segment. Bulge
+  (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
+  modes, lowered into this form once, at the algebra — not the
+  storage. Winding is invisible to users (roles derive from
+  containment). Downstream re-inspection of arc geometry uses the
+  stored carrier data, never endpoint atan2.
 - **Declared-tangency discipline**: profiles refuse undeclared
   definite-Zero tangency at junctions (`UndeclaredTangency`, with a
   repair menu); declarations are verified, never trusted
@@ -404,16 +448,28 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 - **Maximal-faces precondition and the merge stage.** Booleans
   precondition no two adjacent coplanar faces (`NonMaximalFaces`); the
   explicit opt-in normalization op is `merge_coplanar_faces` (merging
-  is never silent), and boolean *outputs* run it as a documented final
-  stage of the op's contract — the seam zip manufactures coplanar
-  pairs by construction; the recipe records one boolean node, not
-  hidden healing. Merge glues on the structural and declared rungs
-  only; numeric coincidence never merges. Load-bearing dependency:
-  `merge_coplanar_faces` **never elides vertices**, and tier 3′'s
-  strict record-drop rule (a contact record whose vertex pair fused
-  into one vertex is consumed and drops) is correct *because* of that;
-  any future collinear-vertex elision re-opens the record-carriage
-  class.
+  is never silent), and two ops run it as a documented final stage of
+  their contract, because each manufactures coplanar pairs by
+  construction: boolean *outputs* (the seam zip), and *sweeps* over a
+  profile side the author subdivided with a declared straight
+  continuation (the two walls are one carrier by that declaration, so
+  they share a surface key and merge on the structural rung). In
+  either case the recipe records one node, not hidden healing. Merge glues on the structural and declared rungs
+  only; numeric coincidence never merges. A boolean whose output
+  stage cannot glue a planar group it was licensed to merge refuses
+  the step with the merge's own typed reason, so every boolean output
+  is a legal boolean operand; only a curved group's skip is recorded
+  and shipped. Load-bearing dependency: `merge_coplanar_faces`
+  **never fuses two vertices into one and never removes a vertex from
+  a face's boundary**. The one vertex it deletes is the free end of a
+  seam edge the glue left dangling inside the merged face: that edge
+  encloses no area, so it and its free end go together, at any angle
+  and repeatedly along a seam chain, and the deletion is recorded in
+  `killed_vertices`. Tier 3′'s strict record-drop rule (a contact
+  record whose vertex pair fused into one vertex is consumed and
+  drops) is correct *because* nothing is fused; a record citing a
+  deleted free end drops as consumed. Any future fusing or
+  boundary-vertex elision re-opens the record-carriage class.
 
 **The frontier is typed, named and inventoried elsewhere.** Every
 unbuilt case refuses with a message naming its own blocker (D9 row 2),
@@ -616,19 +672,57 @@ Five commitments:
    input. ε_input IS K·ε, a synonym, not a third dial; K stays the one
    knob (`Tolerance.k`, env `CAD_AMBIGUITY_K`). Binding consequences:
    (i) user-facing messages and recourse never fork on exactly-on vs
-   in-band below ε_input — ONE message, ONE recourse (declare the
-   coincidence / move the geometry / lower the tolerance — the
-   three-arm sentence at every site whose question is "is this margin
-   decidable"; a contact site, whose question is "did anyone declare
-   this", drops the third arm per SELECT-DESIGN §3d), with the margin
-   riding the payload as data; kernel semantics keep the distinction
-   (message policy, not predicate policy). (ii) Error variants may stay
-   distinct as data; their user stories converge, with the shared
-   `Indeterminate` Display string (`COINCIDENCE_RECOURSE`) as the
-   carrier. (iii) D7's ε_in is an instance of ε_input, not a separate
+   in-band below ε_input — ONE message, ONE recourse per **decision**
+   (the one question a site asks), written once in the decision's own
+   levers and shared by all its refused arms, with the margin riding
+   the payload as data; kernel semantics keep the distinction (message
+   policy, not predicate policy). The recourse follows from the
+   decision and its verdict: *declare the coincidence* only at a door
+   that takes a declaration whose presence would change the verdict;
+   *move the geometry*, phrased as the decision's own lever, always;
+   *tighten the tolerance* only where the refused margin is a size the
+   user may intend and a smaller ε decides it — the band-decided arms
+   (in band, or Zero where Zero does not pass) of a decision that passes
+   on a nonzero sign — phrased conditionally and with the value the
+   margin gives ("if this size is intended, tighten the tolerance below
+   m/K"); never on a sign-certain arm, and never on a decision that
+   passes only at Zero (a residual), whose refused margin is a miss,
+   not a size. No refusal advises loosening ε, with one exception: a
+   refusal that would otherwise name no recourse at all (a kernel
+   approximation limit — an offset fit that stalls, a quadrature budget
+   spent, a built curve's residual) names loosening the tolerance as a
+   last resort and says the refusal may indicate a kernel bug worth
+   reporting. At adoption, certification runs at ε and a refusal reads
+   as at rest. ε_in is the file's own coincidence distance (D7): it
+   governs interpretation — what the file's data is evidence of, where
+   healing may move geometry by up to O(ε_in) — and its refusals are
+   the import door's, named in ε_in with the value the margin gives; a
+   size below ε_in is not one the file intends, so no refusal offers to
+   keep it. Until adoption rebuilds its caches from the file's
+   descriptions (D7), a certification refusal whose miss lies within
+   ε_in but beyond ε (the file's data agrees to its own declared
+   coincidence distance, not to this run's) names setting ε to ε_in as
+   a stopgap, beside re-exporting the file more precisely. A change to
+   a document's ε reports what it flips at the change itself. The
+   three-arm sentence (declare the coincidence / move the geometry /
+   tighten the tolerance) is thus the recourse of a decision whose
+   refused side is a declarable coincidence; a contact site, whose
+   question is "did anyone declare this", drops the third arm per
+   SELECT-DESIGN §3d. The decision is a closed type at its site (as
+   `CertCheck` is), so its recourse is an exhaustive match, never a
+   lookup by predicate name. (ii) Error variants may stay distinct as
+   data; their user stories converge per decision. `Indeterminate`
+   carries data, not a recourse: its Display renders the payload, and
+   the site that knows the decision appends the one ending
+   (`COINCIDENCE_RECOURSE` is the sentence coincidence decisions
+   compose). (iii) D7's ε_in is an instance of ε_input, not a separate
    concept. (iv) **The rule binds a predicate's DEFINITE arms too**: a
    new definite outcome a user could reach by moving geometry tells the
-   same one story with the same one recourse as its in-band sibling.
+   same one story with the same one recourse as its in-band sibling. A
+   surface reading a body at rest may end a definite contradiction
+   between a stored description and its stored geometry as a defect —
+   no move of the geometry reaches it — and never names a lever the
+   decision does not.
    Review checklist form: for every arm added to a decision, name which
    ε_input story it belongs to, or say why it belongs to none.
 
@@ -874,11 +968,11 @@ swallowed.
   row below applies.
 - *Row 1 absorbs the terminal indeterminates*, but the axis is
   curable-vs-terminal, not bug-vs-invalid: an `Indeterminate` whose
-  `MarginDiag` is `Value` or an `Enclosure` wholly inside a sliver band
-  is a statement about the input and reaches the user through
-  `COINCIDENCE_RECOURSE`; a straddling `Enclosure` is generally curable
-  by subdivision, and a `MarginDiag::Invalid` from a domain clamp may
-  cure as the violating sub-box shrinks (a NaI never does). The
+  `MarginDiag` is of kind `Value`, or an `Enclosure` wholly inside a
+  sliver band, is a statement about the input and reaches the user
+  through `COINCIDENCE_RECOURSE`; a straddling `Enclosure` is generally
+  curable by subdivision, and an `Invalid` margin from a domain clamp
+  may cure as the violating sub-box shrinks (a NaI never does). The
   subdivision driver exists (`editor_core::drive`, ERROR-DESIGN E6): a
   curable indeterminate unwinds to it and is not reported as invalid
   input.
@@ -984,15 +1078,13 @@ grounds (rounding control, f64, portability) are re-checkable facts.
    checks watcher asserts a minimum green-row count equal to the current
    full CI matrix, bumped in the same PR that grows the matrix. CI
    carries a three-tier change filter, implemented once in
-   `scripts/ci-filter.py` and called by both `ci.yml`'s filter job and
-   `local-scripts/ci-local.sh` so hosted and local gating cannot drift:
+   `scripts/ci-filter.py` and called by `ci.yml`'s filter job:
    tier `docs` (only `*.md`/`memories/`) skips every build row and
    gates on the `docs-only` marker job; tier `all` (any workspace-level
    file, any member `Cargo.toml`, anything the allowlist does not
    recognise) runs the whole matrix; tier `closure` (crate sources
    only) scopes the cargo rows to the changed members plus every member
    that transitively depends on them. Classification fails CLOSED.
-   `ci-local.sh --full` forces tier `all`.
 4. **Semantic equivariance where it is free — with the premise
    UNAUDITED.** Kernel constructions and selection rules should commute
    with rigid motions *and reflections* at the semantic level (in ℝ),
@@ -1019,7 +1111,7 @@ Each layer depends only on the layers below it.
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
 | `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
-| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the bulge-chain `Profile` and its trilean validation |
+| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/declared-contact machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
 | `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one closed `Verb` enum reifying an operation's parameters as data, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
@@ -1306,8 +1398,7 @@ Cross-milestone commitments; each binds at the layer named.
 - Evaluation code (evaluators, derivatives, transforms, measurements)
   is generic over a `Real` trait we define. Instantiations: `f64`,
   `Interval` (the in-house `interval-transcendentals` backend; the
-  `interval` feature gates the kernel's lane-trait impls at it and the
-  interval test files, not the type, which compiles in every build),
+  scalar and the kernel's lane impls at it compile in every build),
   `Dual<T>` (one in-house generic type; `num-dual` is a dev-only oracle
   because its std-backed transcendentals cannot satisfy the
   value-channel bit-identity contract), and `Sym`.
@@ -1361,7 +1452,7 @@ Cross-milestone commitments; each binds at the layer named.
   `T` payload**: candidate generation (`ssi::jet`/`march`/`system`, the
   analytic composite's implicit form) is `f64`-only and untrusted, and
   the certificate is derived and carried at `T` (`SsiCertificate<T>`,
-  `PcurveFittedLane`) — so a WIDENED analytic operand refuses typed
+  `FittedLane`) — so a WIDENED analytic operand refuses typed
   rather than picking a representative surface out of the family.
 
 ### Q2: Tolerance model — **resolved**, folded into D4.

@@ -183,12 +183,14 @@ fn rotational_transform_wires_and_preserves_volume() {
     let (doc, cube) = unit_cube(doc, 2.0, 0.0);
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: cube,
-            translation: [len(0.25), len(-1.5), len(3.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(FRAC_PI_2),
-        },
+        Node::transform(
+            cube,
+            editor_core::Step::Rigid {
+                translation: [len(0.25), len(-1.5), len(3.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(FRAC_PI_2),
+            },
+        ),
     );
     let ev = run(&doc);
     let ValuePayload::Body(body) = &ev.value(moved).unwrap().payload else {
@@ -651,7 +653,6 @@ fn a_zero_and_a_merely_small_pattern_direction_keep_the_zero_refusal() {
 /// against the band, which for this input answers zero. Pinning that
 /// is what separates a point-scalar gate from one that started
 /// reading brackets.
-#[cfg(feature = "interval")]
 #[test]
 fn an_underflowed_pattern_direction_still_decides_zero_at_the_interval_scalar() {
     use geom_core::Interval;
@@ -712,12 +713,14 @@ fn non_finite_transform_axis_refuses_at_the_direction_door() {
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: cube,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(1e200), scl(0.0)],
-            rotation_angle: ang(FRAC_PI_2),
-        },
+        Node::transform(
+            cube,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(1e200), scl(0.0)],
+                angle: ang(FRAC_PI_2),
+            },
+        ),
     );
     let ev = run(&doc);
     match ev.nodes.get(&moved) {
@@ -824,12 +827,14 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: cube,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(0.0)],
-            rotation_angle: ang(FRAC_PI_2),
-        },
+        Node::transform(
+            cube,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(0.0)],
+                angle: ang(FRAC_PI_2),
+            },
+        ),
     );
     let ev = run(&doc);
     match ev.nodes.get(&moved) {
@@ -897,7 +902,6 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
 /// refusal comes from is named here in prose rather than asserted,
 /// because it belongs to certification and moves when certification
 /// moves; that the document is refused at all does not.
-#[cfg(feature = "interval")]
 #[test]
 fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
     use editor_core::{CancelToken, EvalOptions, evaluate};

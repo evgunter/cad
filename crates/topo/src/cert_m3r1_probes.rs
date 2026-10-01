@@ -18,11 +18,7 @@
 //! The cube this drives, its two construction steps and the chord-line
 //! and Newell-plane specs under them are [`crate::test_support_fixtures`]'s
 //! — the crate's shared Euler-op fixture family, named by path because
-//! this module is in-crate. Nothing box-shaped is built here. It is not
-//! the crate's only Euler-op box sequence:
-//! `crate::splitting::reassembly::quad_prism` is a second one under
-//! `src/`, filed on S-DUP's
-//! `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`.
+//! this module is in-crate. Nothing box-shaped is built here.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -93,7 +89,13 @@ fn m7_8_cube() -> (
         );
     }
     let wall = body
-        .set_face_surface(front, FaceSurface::New(nurbs_wall(0.0)))
+        .set_face_surface_stranding_for_tests(
+            front,
+            FaceSurface::New {
+                surface: nurbs_wall(0.0),
+                sense: true,
+            },
+        )
         .unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = Vec::new();
@@ -149,8 +151,9 @@ fn edge_cert_count(r: &Result<(), Vec<ValidationError>>) -> String {
     }
 }
 
-/// The six at-rest doors, in one order: the three whose bound names the
-/// certification right, then their three `_structural` twins.
+/// Six at-rest doors — the three passes' plain forms and their three
+/// `_structural` twins, in that order; the full roster is
+/// `validate.rs`'s module-doc table.
 const DOOR_NAMES: [&str; 6] = [
     "validate_geometric",
     "validate_pseudomanifold",
@@ -192,8 +195,9 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
     for (name, d) in DOOR_NAMES.iter().zip(&before) {
         eprintln!("[m3 door table] certified body  {name:34} {d}");
     }
-    // The described-NURBS face has no certified flux lane, so check 7
-    // answers `VolumeUncomputable` at the composed doors; what this row
+    // The described-NURBS face has no flux the closed form computes, and
+    // no certified flux lane either, so check 7 answers
+    // `VolumeUncomputable` at every door that reaches it; what this row
     // measures is check 2, so the premise is "no EdgeCertification".
     for d in &before {
         assert!(
@@ -250,8 +254,8 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
 /// **The fold's content, pinned as the exact verdict at the four plain
 /// tier-3′/marks names** — not only which side of the line each door
 /// falls on, but what each says on the corrupt wall and what it no
-/// longer says. `validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
-/// `contact_marks` and `contact_marks_declared` each report ONE
+/// longer says. `validate_pseudomanifold`, `validate_pseudomanifold_certificate`
+/// and `contact_marks` each report ONE
 /// `EdgeCertification` per lane edge and nothing else: check 2
 /// re-derives the four certificates through the plane × NURBS lane and
 /// every one is false, so the pass stops there and check 7 — gated on
@@ -272,7 +276,7 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
     body.surfaces[wall] = nurbs_wall(0.05);
     let tol = Tol::witness();
     let records = ContactRecords::default();
-    let verdicts: [(&str, Result<(), Vec<ValidationError>>); 4] = [
+    let verdicts: [(&str, Result<(), Vec<ValidationError>>); 3] = [
         (
             "validate_pseudomanifold",
             validate::validate_pseudomanifold(&body, &records, tol),
@@ -284,10 +288,6 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
         (
             "contact_marks",
             validate::contact_marks(&body, tol).map(|_| ()),
-        ),
-        (
-            "contact_marks_declared",
-            validate::contact_marks_declared(&body, &[], tol).map(|_| ()),
         ),
     ];
     let mut expect = lane_edges.clone();

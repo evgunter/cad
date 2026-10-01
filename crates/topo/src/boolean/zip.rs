@@ -65,7 +65,7 @@ pub(super) fn zip_seam<T: Decide>(
     let mut report = ZipReport::default();
 
     // ---- Fuse: B's section face becomes a ring of A's. ----
-    let fused = body.kfmrh(a_face, b_face)?;
+    let fused = body.kfmrh_minting(a_face, b_face, tol)?;
     let ring = fused.ring;
     let outer = body
         .get_face(a_face)
@@ -152,7 +152,10 @@ pub(super) fn zip_seam<T: Decide>(
         let dead = body
             .half_edge_end(he)
             .ok_or_else(|| corr("kev half-edge has no end"))?;
-        body.kev(he)?;
+        // A merge of two vertices the section put a band apart (they
+        // can differ by ulps): the merged fan keeps its carriers, each
+        // re-certified at the kept vertex under the run's band.
+        body.kev_describing(he, &[], tol)?;
         report.vertex_merges.push((dead, kept));
         Ok(())
     };
@@ -178,9 +181,9 @@ pub(super) fn zip_seam<T: Decide>(
             tol,
         )?;
         record_kev(body, nj.he_plus, &mut report)?;
-        body.kef(rs[(j + 1) % n])?;
+        body.kef_minting(rs[(j + 1) % n], tol)?;
     }
-    body.kef(rs[1 % n])?;
+    body.kef_minting(rs[1 % n], tol)?;
     for &he in &ob {
         let edge = body
             .get_half_edge(he)

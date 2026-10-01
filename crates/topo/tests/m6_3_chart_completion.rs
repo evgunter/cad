@@ -122,11 +122,7 @@ fn fit_image() -> NurbsCurve2<f64> {
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
@@ -136,7 +132,7 @@ fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
 /// public-door pattern).
 fn build<T>() -> (Body<T>, topo::HalfEdgeKey)
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
     try_build::<T>().expect("the general circle certifies through the fitted door")
 }
@@ -148,7 +144,7 @@ where
 /// wants to assert that outcome needs the error, not a panic.
 fn try_build<T>() -> Result<(Body<T>, topo::HalfEdgeKey), geom_brep::PcurveCertifyError>
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
     let band = Band::linear(Tol::witness()).unwrap();
     let carrier = general_circle::<T>();
@@ -158,13 +154,25 @@ where
     let image = Arc::new(lift2::<T>(&fit_image()));
 
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph_key = body
-        .set_face_surface(seed.face, topo::FaceSurface::New(sphere::<T>()))
+        .set_face_surface(
+            seed.face,
+            topo::FaceSurface::New {
+                surface: sphere::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let pl_key = body
-        .set_face_surface(anchor.face, topo::FaceSurface::New(tilted_plane::<T>()))
+        .set_face_surface(
+            anchor.face,
+            topo::FaceSurface::New {
+                surface: tilted_plane::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
     let mid = T::from_f64(0.5 * (f0 + f1));
     let made = body
@@ -202,6 +210,7 @@ where
             Some(&tilted_plane::<T>()),
             window,
             band,
+            T::fitted_lane().expect("a certifying scalar holds the fitted door"),
         )?;
         body.attach_pcurve(he, cache);
     }
@@ -246,7 +255,6 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
 /// refuses definitely — so the row asserts whichever of the three the
 /// run's tolerance selects rather than claiming one unconditionally.
 /// Either way it is the evidence the lane genuinely left `f64`.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::Tol;
     use geom_core::interval::Interval;
@@ -291,7 +299,7 @@ mod certified {
     /// - **the bound > ε > the bound / K**: the bound lands inside the
     ///   open sliver band and the fitted door ESCALATES on
     ///   `ssi_hull_sup`. Honest, and terminal:
-    ///   [`geom_core::MarginDiag::Enclosure`]'s own documentation says
+    ///   [`geom_core::MarginKind::Enclosure`]'s own documentation says
     ///   an enclosure lying wholly inside one open sliver band "is not
     ///   refinable by subdivision at all (the band is semantically
     ///   indeterminate at any width, even for a point)" and is
@@ -347,7 +355,9 @@ mod certified {
         assert_eq!(cause.predicate, Some("ssi_hull_sup"));
         // The refusal carries the REAL margin. Before #925's fix this
         // reported `NaN`, indistinguishable from a poisoned enclosure.
-        let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            cause.margin.diagnostic_f64_for_error_text()
+        else {
             panic!("the escalation must carry its enclosure, not a poison or a hole: {cause:?}");
         };
         assert!(

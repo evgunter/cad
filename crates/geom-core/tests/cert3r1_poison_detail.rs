@@ -1,7 +1,6 @@
 //! R1 triage: what does a zero axis yield at Interval, old vs new
 //! spelling, at angle = 0 and at angle = 1?
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Bounds, Interval, Mat3, Point3, Real, Vec3};
