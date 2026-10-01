@@ -129,7 +129,7 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
         );
         assert_eq!(
             got.to_string(),
-            want.replace("{n}", &body.0.to_string()),
+            want.replace("{n}", &format!("{:012x}", body.0)),
             "{what}"
         );
     }
@@ -161,7 +161,7 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
         );
         assert_eq!(
             got.to_string(),
-            want.replace("{n}", &body.0.to_string()),
+            want.replace("{n}", &format!("{:012x}", body.0)),
             "{what}"
         );
     }
@@ -189,7 +189,7 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
     assert_eq!(
         got.to_string(),
         format!(
-            "the derived frame's name minted by node {} denotes an edge, not a face",
+            "the derived frame's name minted by node {:012x} denotes an edge, not a face",
             body.0
         )
     );

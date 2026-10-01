@@ -1428,7 +1428,7 @@ impl ViewerApp {
                     for finding in &report.findings {
                         ui.horizontal_top(|ui| {
                             if ui
-                                .button(crate::tree::node_number(finding.root))
+                                .button(self.session.doc().spoken(finding.root).to_string())
                                 .on_hover_text("select the root this finding is about")
                                 .clicked()
                             {
@@ -1742,7 +1742,11 @@ impl ViewerApp {
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
-                frame::index_badge(self.picks.error(), self.session.evaluation()),
+                frame::index_badge(
+                    self.picks.error(),
+                    self.session.doc(),
+                    self.session.evaluation(),
+                ),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
             .into_iter()
@@ -3612,10 +3616,8 @@ mod properties_pane_tests {
         let (body, painted) = painted_with_tool(crate::tools::ToolKind::Boolean, |body| {
             vec![Selection::Node(body)]
         });
-        let line = format!(
-            "first operand: {}; second operand: —",
-            crate::tree::node_number(body)
-        );
+        // The startup body is an extrude, spoken by its kind and tag.
+        let line = format!("first operand: Extrude {:012x}; second operand: —", body.0);
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 
@@ -3627,10 +3629,7 @@ mod properties_pane_tests {
         let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |body| {
             vec![Selection::Face(cap_of(body, pncad::prelude::CapEnd::End))]
         });
-        let line = format!(
-            "pick a: face of {}; pick b: —",
-            crate::tree::node_number(body)
-        );
+        let line = format!("pick a: face of Extrude {:012x}; pick b: —", body.0);
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 
@@ -3912,7 +3911,7 @@ mod properties_pane_tests {
         // reader gets for this row.
         assert_eq!(
             said,
-            "the distance slot on node 2 is computed, so it has no written unit to change — \
+            "the distance slot on node 000000000002 is computed, so it has no written unit to change — \
              set an expression to change what it says"
         );
         pane.click("computed");
@@ -4090,7 +4089,7 @@ mod properties_pane_tests {
         );
         assert_eq!(
             said,
-            "the origin z slot on node 0 is computed, so it has no written unit to change — \
+            "the origin z slot on node 000000000000 is computed, so it has no written unit to change — \
              set an expression to change what it says"
         );
         pane.click("mm");
@@ -4231,9 +4230,9 @@ mod properties_pane_tests {
         assert_eq!(gained, vec![said.join("\n")]);
         assert!(
             gained[0].starts_with(
-                "the origin x slot on node 0 is computed, so it has no written unit to change"
-            ) && gained[0].contains("\nthe origin y slot on node 0 is computed")
-                && gained[0].contains("\nthe origin z slot on node 0 is computed"),
+                "the origin x slot on node 000000000000 is computed, so it has no written unit to change"
+            ) && gained[0].contains("\nthe origin y slot on node 000000000000 is computed")
+                && gained[0].contains("\nthe origin z slot on node 000000000000 is computed"),
             "{gained:?}"
         );
         pane.click("computed");

@@ -608,11 +608,11 @@ fn the_wire_refuses_an_emptied_placement_list() {
 }
 
 /// **Explicit frames meet the A6/A11 bar at the EDIT door** — the same
-/// finite-and-proper test `SetPlacement` applies to a cluster frame,
+/// finite-and-proper test `SetPlacement` applies to a group frame,
 /// and the same typed refusals (review MINOR-2). A non-finite frame no
 /// longer reads as a separation failure; it says what it is.
 #[test]
-fn placement_frames_are_held_to_the_cluster_frame_bar() {
+fn placement_frames_are_held_to_the_group_frame_bar() {
     let (doc, fin) = fin_only();
     let with = |f: Frame| Node::<editor_core::ProfileProgram>::placed_union_at(fin, vec![f]);
 

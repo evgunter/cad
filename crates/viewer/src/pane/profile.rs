@@ -109,7 +109,7 @@ pub(crate) fn edit_door_ui(
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> Result<Option<SessionOp>, frame::Message> {
     let node = edit.node;
-    ui.label(format!("profile on frame {}", edit.plane().0));
+    ui.label(format!("profile on {}", session.doc().spoken(edit.plane())));
     let loops = edit.loops().len();
     let units = (notation.length.def(), notation.angle.def());
     let mut rows = Vec::new();
@@ -119,7 +119,7 @@ pub(crate) fn edit_door_ui(
         if loops > 1 {
             ui.label(format!("loop {index}"));
         }
-        let salt = format!("edit_{}_{index}", node.0);
+        let salt = format!("edit_{}_{index}", node.full());
         if let Some(row) = path_steps_ui(ui, &salt, session.tol(), units, edit.steps_mut(index)) {
             rows.push((index, row));
         }
@@ -1293,7 +1293,7 @@ mod tests {
             );
         });
         assert!(
-            hovered.contains(&format!("node {} carries a {wall}", carrier.0)),
+            hovered.contains(&format!("node {:012x} carries a {wall}", carrier.0)),
             "the hover names the carrier and the name: {hovered}"
         );
         // Another step dropped instead strands nothing — what Apply

@@ -441,7 +441,7 @@ impl Staged for PersistError {
         match self {
             Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
             Self::ProfileProgram { node, fault } => {
-                write!(f, "profile program fault at node {}: {fault}", node.0)
+                write!(f, "profile program fault at node {}: {fault}", node)
             }
             Self::Distribution { name, fault } => {
                 write!(f, "document parameter {name}: {fault}")

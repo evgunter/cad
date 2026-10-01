@@ -66,10 +66,10 @@ impl core::fmt::Display for RootFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotLive { root } => {
-                write!(f, "product root {} is not a live node", root.0)
+                write!(f, "product root {} is not a live node", root)
             }
             Self::Duplicate { root } => {
-                write!(f, "product root {} is listed twice", root.0)
+                write!(f, "product root {} is listed twice", root)
             }
             Self::Ancestor {
                 ancestor,
@@ -78,13 +78,13 @@ impl core::fmt::Display for RootFault {
                 f,
                 "product root {} is an ancestor of product root {} — \
                  the product would gather its material twice",
-                ancestor.0, descendant.0
+                ancestor, descendant
             ),
             Self::Uncovered { node } => write!(
                 f,
                 "node {} reaches no product root — it would contribute \
                  to nothing",
-                node.0
+                node
             ),
         }
     }

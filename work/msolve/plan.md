@@ -225,6 +225,9 @@ and CHROME; triaged 2026-10-01:**
     underneath both — does the solve decide over the lane's own scalar
     — and it is a design fork: two designers weigh it before any lane
     builds it (`memories/orchestration-model.md`).
+    Weighed 2026-10-01: both designers chose one solve, generic over the
+    run's scalar, with the structure read at the nominal. Asked on
+    `[ev]` PR 3679 (fork-log row 34).
 20. **`MSOLVE-11` gains three riders**, all refusal and reporting
     words the solve owns: AUTH's `materole-has-no-display` (P1, E — a
     kernel word for whether a mate placed its child; AUTH's viewer row
@@ -249,6 +252,14 @@ and CHROME; triaged 2026-10-01:**
     name, or a rider the table decides on the coincidence row), so two
     designers weigh it before any lane builds it; CHROME's affordance
     sits on whichever word lands.
+    Weighed 2026-10-01; the designers converged in two rounds: the turn
+    is the mate's, as `FrameCoincidence { turn }` and
+    `Coaxial { turn: Option }`, with the rider deleted. Asked on `[ev]`
+    PR 3681 (fork-log row 35). If approved, the unit also owes an edit
+    that rewrites a committed mate's turn (only `InsertNode` writes a
+    mate's datum today), and the mate panel's turn control (it
+    hard-codes `clocking: None`). The planar zero went to a note under
+    LINALG's `interval-orthonormal-basis-sign-hull`.
 
 The exit walk waits on 10–12, 14–16 and 17–22: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm

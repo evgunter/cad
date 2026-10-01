@@ -394,7 +394,7 @@ impl core::fmt::Display for NamingError {
                 f,
                 "{EMISSION_FRAMING}: the name table of upstream node {} lacks an entity the \
                  emission needed",
-                node.0
+                node
             ),
             Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
             // The category IS an emission inconsistency, so the framing
@@ -431,7 +431,7 @@ impl core::fmt::Display for NamingError {
                 "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand node {}'s body \
                  share {found} where a seam chord's rim, derived from adjacency alone, needs \
                  exactly one",
-                node.0
+                node
             ),
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
@@ -465,14 +465,14 @@ impl core::fmt::Display for NamingError {
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
                  does not lie within the rim {rim:?} of operand node {}'s body its key reads \
                  through to",
-                node.0
+                node
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: the crossings of member node {}'s edge (the {edge}) cannot \
                  be ranked along it, because a tie stands where one edge is needed (the member \
                  ties that name to several edges, or two of its crossings were tied)",
-                member.0
+                member
             ),
             Self::Band(error) => write!(
                 f,
@@ -1579,7 +1579,7 @@ mod display_tests {
                 NamingError::MissingUpstream {
                     node: RecipeNodeId(11),
                 },
-                vec!["11"],
+                vec!["00000000000b"],
             ),
             (
                 // A refusal that still EXISTS (ties propagate, so there
@@ -1623,7 +1623,12 @@ mod display_tests {
                     other: pair.1,
                     found: RimShare::Several,
                 },
-                vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
+                vec![
+                    face0.as_str(),
+                    face1.as_str(),
+                    "000000000017",
+                    "more than one edge",
+                ],
             ),
             (
                 NamingError::SeamVertexPartners {
@@ -1633,8 +1638,8 @@ mod display_tests {
                 vec![
                     vtx_shown.as_str(),
                     "2 differently named vertices",
-                    "vertex name minted by node 3",
-                    "vertex name minted by node 4",
+                    "vertex name minted by node 000000000003",
+                    "vertex name minted by node 000000000004",
                 ],
             ),
             (
@@ -1649,7 +1654,7 @@ mod display_tests {
                     node: RecipeNodeId(29),
                     rim: two_edges().1,
                 },
-                vec!["merged faces", "29", "does not lie within"],
+                vec!["merged faces", "00000000001d", "does not lie within"],
             ),
             (
                 NamingError::MergedChordConstituents {
@@ -1674,8 +1679,8 @@ mod display_tests {
                     }),
                 },
                 vec![
-                    "member node 37",
-                    "edge name minted by node 37",
+                    "member node 000000000025",
+                    "edge name minted by node 000000000025",
                     "a tie stands",
                 ],
             ),

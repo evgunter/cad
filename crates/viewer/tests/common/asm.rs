@@ -50,7 +50,7 @@ pub struct Bench {
     pub dir: PathBuf,
     /// The assembly document's save file inside it.
     pub asm_path: PathBuf,
-    /// The gauge post instance (identity placement).
+    /// The root post instance (identity placement).
     pub post_a: RecipeNodeId,
     /// The shelf instance (explicit frame).
     pub shelf_i: RecipeNodeId,
@@ -235,7 +235,7 @@ pub fn seat_choice() -> viewer::matetool::MateChoice {
 /// **The seat as a planar REST alone**, at `b_x` along the shelf: one
 /// planar rest fixes the seating plane and nothing else, so the pair
 /// may still slide and spin in it and the solve refuses UNDER, naming
-/// the one mate. The refusal the badge rows build a refused cluster
+/// the one mate. The refusal the badge rows build a refused group
 /// from — a verdict about the PAIR, which the edit door admits and the
 /// solve decides (a mate the table refuses on its own datum is
 /// refused at the insert).
@@ -253,7 +253,7 @@ pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
 /// rider.
 ///
 /// One home because it is one geometric fact about this fixture — the
-/// two suites that build refused clusters differ only in where along
+/// two suites that build refused groups differ only in where along
 /// the shelf a post lands and whether a rider rides, and a per-suite
 /// copy of the ladder could only drift from the bench it addresses.
 /// (`seat` above is the mate TOOL's choice for the same seat; this is
