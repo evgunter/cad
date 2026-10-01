@@ -2,7 +2,9 @@
 id: equator-seam-reauthor-refuses-the-hollowed-elbow
 kind: issue
 title: The klein elbow's equator seams (RevolvedPoint-declared chart seams) refuse at reauthor once the spiric rims mint - the moved cap displaces the corner off the sketch plane
-status: review
+status: closed
+closed: 2026-10-01
+pr: 3626
 branch: curved/equator-seam
 opened: 2026-09-14
 refs: [c5-plane-torus-cone-cylinder-arms, spiric-carrier-ruling, 2566]
@@ -39,3 +41,7 @@ measurement already taken on #2566's head.
 ## Home
 
 CURVED — the spiric lane (`spiric-rim-carrier`).
+
+## Closed (2026-10-01)
+
+Merged in PR 3626 (single full Opus review, MERGEABLE; outside the suspended A/B protocol, no row).
