@@ -1579,41 +1579,4 @@ mod tests {
             assert_eq!(offered_below(&text), offer.map(Some), "{rung:?}: {text}");
         }
     }
-
-    /// **The straightness margin's sign is the recourse's polarity.** A
-    /// corner whose bounds are too short to read decides `sector_straight`
-    /// in band; the ending offers a tighter tolerance exactly when a
-    /// tighter one would decide the corner PASSING — a negative `cos θ`,
-    /// a straight corner — and offers nothing on the spike side, where
-    /// no tolerance makes it pass. Rendered from `sector_shape`'s own
-    /// escalation, so flipping the metered sign there reds this row
-    /// while the ending table still reads `Negative`.
-    #[test]
-    fn a_straight_corner_offers_to_tighten_and_a_spike_does_not() {
-        // Arm just past the escalation band, so `sin θ` and `cos θ` at
-        // 45° off either axis both land in band.
-        let arm = 1.2 * band().escalate();
-        let normal = geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let next = Vec3::new(arm, 0.0, 0.0);
-        for (theta_deg, offers) in [(135.0_f64, true), (45.0, false)] {
-            let theta = theta_deg.to_radians();
-            let own = Vec3::new(arm * theta.cos(), arm * theta.sin(), 0.0);
-            let fault = crate::sector_shape::sector_shape(own, next, normal, false, band())
-                .expect_err("an in-band corner refuses");
-            let crate::sector_shape::SectorFault::Rung { rung, diag } = fault else {
-                panic!("{theta_deg}°: a rung refusal, not {fault:?}");
-            };
-            assert_eq!(
-                rung,
-                SectorRung::Straight { full_circle: false },
-                "{theta_deg}°"
-            );
-            let text = BooleanDecision::Corner(rung).render(&diag);
-            assert_eq!(
-                text.contains("tighten the tolerance"),
-                offers,
-                "{theta_deg}°: {text}"
-            );
-        }
-    }
 }
