@@ -117,7 +117,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_filleted_bracket",
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
-            registered: 144,
+            // 144 until the certification schedule assigned its last
+            // sample `t₁` itself (`geom_brep::schedule_param`) rather
+            // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
+            // numeric decisions reach the door, verdicts unchanged.
+            registered: 146,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
@@ -198,7 +202,17 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // which was not taken. The decisions stay discharged; the claim on
             // those 32 is the read's, not a theorem
             // (`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`).
-            registered: 150,
+            //
+            // Over copied arc carriers (a lift carries the stored
+            // carrier rather than re-lowering it) 150 → 148, numeric
+            // 1002 → 1004, verdicts unchanged: six registered decisions
+            // go numeric where the reversed chord's re-lowered centre
+            // used to freeze to an atom the rim registration reached
+            // (`work/sym/registrations-sealed-inside-frozen-compounds`),
+            // and four numeric ones reach the door at the schedule's
+            // assigned end sample (`geom_brep::schedule_param`), as the
+            // bracket's two above do.
+            registered: 148,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.

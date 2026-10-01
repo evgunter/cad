@@ -749,7 +749,7 @@ impl<T: Real> Curve3<T> {
     /// `Circle` arm calls `circle_point` on the one frame it shares
     /// with its tangent half — so a caller that builds a point here
     /// builds the very node either door would. That is what
-    /// `sweep::swept::register_span_identity` rests on — node ids are
+    /// `sweep::swept::register_placed_carrier_end` rests on — node ids are
     /// content hashes, so "the constructor states the identity about
     /// the node the certifier will ask about" is a fact of this
     /// delegation and not a transcription anyone has to keep in step.

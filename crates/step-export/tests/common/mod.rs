@@ -198,7 +198,7 @@ pub fn lily_lantern() -> Body<f64> {
         .line_to(Start, Tol::witness())
         .unwrap()
         .loop_;
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+    let profile = Profile::new(SketchPlane::xy(), vec![lp.into_loop()])
         .validate(Tol::witness())
         .unwrap();
     revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())

@@ -19,8 +19,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::authoring::{p3, polygon};
-use pncad::profile::{Profile, SketchPlane};
+use pncad::authoring::{p3, polygon, validated};
+use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanResultKind};
 
@@ -35,9 +35,7 @@ pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) ->
     let lp =
         polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], tol).expect("slab rectangle");
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(tol)
-        .expect("slab profile validation");
+    let profile = validated(plane, vec![lp], tol).expect("slab profile validation");
     // Raw extrude output IS boolean-consumable since PR 5's
     // extrude-operand description remap (proven by the PR 5.5 review's
     // die e2e).
