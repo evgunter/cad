@@ -2,10 +2,11 @@
 id: pcurve-fit-refusal-drops-the-domain-doors-reason
 kind: issue
 title: PlaneNurbsRefusal::PcurveFit discards the domain door's typed SplineError
-status: open
+status: dispatched
 opened: 2026-09-12
 priority: P1
 cost: E
+branch: pcert/pcurve-fit-domain-refusal
 ---
 
 ## Finding
