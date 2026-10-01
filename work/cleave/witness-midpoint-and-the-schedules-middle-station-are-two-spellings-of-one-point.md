@@ -2,10 +2,12 @@
 id: witness-midpoint-and-the-schedules-middle-station-are-two-spellings-of-one-point
 kind: issue
 title: WitnessMidpoint and the certification schedule's middle station evaluate the same carrier point under two spellings, so the sym walk builds both chains
-status: open
+status: review
 opened: 2026-10-01
 priority: P1
 cost: E
+pr: 3697
+branch: cleave/schedule-mid
 ---
 
 
