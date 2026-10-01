@@ -524,7 +524,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
     );
-    let absent = RecipeNodeId(9_999);
+    let absent = RecipeNodeId(test_utils::refusal::tagged(9_999));
     assert_eq!(
         display::instance_check(doc, absent),
         Err(AdmissionFault::NoSuchNode { node: absent }),

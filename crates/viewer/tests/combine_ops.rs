@@ -21,6 +21,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use test_utils::refusal::tagged;
 
 use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
 use pncad::document::SplitSide;
@@ -250,7 +251,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
     );
     // A profile, a datum and an id the document never held are each
     // "not a body" at either seat.
-    for wrong in [profile, plane, RecipeNodeId(999)] {
+    for wrong in [profile, plane, RecipeNodeId(tagged(999))] {
         for (x, y) in [(wrong, a), (a, wrong)] {
             let refused = session.perform(SessionOp::AddBoolean {
                 op: BooleanOp::Union,
@@ -1720,7 +1721,7 @@ fn the_seat_line_names_the_roles() {
     let doc = Doc::empty_derived("seat-line", Tol::witness());
     let mut boolean = BooleanTool::new();
     assert_eq!(seat_line(boolean.seats(), &doc), "no picks yet");
-    boolean.pick(&doc, RecipeNodeId(3));
+    boolean.pick(&doc, RecipeNodeId(tagged(3)));
     // The empty document holds neither pick, so each is spoken by its
     // tag alone.
     assert_eq!(
@@ -1728,7 +1729,7 @@ fn the_seat_line_names_the_roles() {
         "first operand: node 000000000003; second operand: —"
     );
     let mut transform = TransformTool::new();
-    transform.pick(&doc, RecipeNodeId(7));
+    transform.pick(&doc, RecipeNodeId(tagged(7)));
     assert_eq!(
         seat_line(transform.seats(), &doc),
         "transformed body: node 000000000007"
@@ -1745,8 +1746,8 @@ fn the_seat_line_names_the_roles() {
 fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     let doc = Doc::empty_derived("seat-drop", Tol::witness());
     let mut boolean = BooleanTool::new();
-    boolean.pick(&doc, RecipeNodeId(3));
-    boolean.pick(&doc, RecipeNodeId(4));
+    boolean.pick(&doc, RecipeNodeId(tagged(3)));
+    boolean.pick(&doc, RecipeNodeId(tagged(4)));
     let line = seat_line(boolean.seats(), &doc);
     let events = boolean.reconcile(&doc);
     assert_eq!(events.len(), 2, "neither node is in the empty document");
@@ -1767,7 +1768,7 @@ fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     assert_eq!(
         SeatEvent::PickLost {
             seat: Seat::OperandB,
-            node: viewer::test_support::spoken(RecipeNodeId(4), None),
+            node: viewer::test_support::spoken(RecipeNodeId(tagged(4)), None),
         }
         .to_string(),
         "the second operand pick (node 000000000004) is no longer in the document; the tool \
@@ -1785,22 +1786,22 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Boolean,
             SessionOp::AddBoolean {
                 op: BooleanOp::Union,
-                a: RecipeNodeId(1),
-                b: RecipeNodeId(2),
+                a: RecipeNodeId(tagged(1)),
+                b: RecipeNodeId(tagged(2)),
                 declare: Vec::new(),
             },
         ),
         (
             ToolKind::Split,
             SessionOp::AddSplit {
-                target: RecipeNodeId(1),
-                tool: RecipeNodeId(2),
+                target: RecipeNodeId(tagged(1)),
+                tool: RecipeNodeId(tagged(2)),
             },
         ),
         (
             ToolKind::Transform,
             SessionOp::AddTransform {
-                input: RecipeNodeId(1),
+                input: RecipeNodeId(tagged(1)),
                 translation: len3([0.0; 3]),
                 rotation_axis: scl3([0.0, 0.0, 1.0]),
                 rotation_angle: ang(0.0),
@@ -1809,7 +1810,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
         (
             ToolKind::Pattern,
             SessionOp::AddPattern {
-                input: RecipeNodeId(1),
+                input: RecipeNodeId(tagged(1)),
                 count: 2,
                 rule: PatternRuleSpec::Linear {
                     direction: scl3([1.0, 0.0, 0.0]),
@@ -1820,8 +1821,8 @@ fn a_tool_closes_on_its_own_committed_edit() {
         (
             ToolKind::Revolve,
             SessionOp::AddRevolve {
-                profile: RecipeNodeId(1),
-                axis: RecipeNodeId(2),
+                profile: RecipeNodeId(tagged(1)),
+                axis: RecipeNodeId(tagged(2)),
                 angle: ang(1.0),
             },
         ),
@@ -1841,7 +1842,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
     // open — the mate tool included, which closes at its own click.
     for op in [
         SessionOp::AddExtrude {
-            profile: RecipeNodeId(1),
+            profile: RecipeNodeId(tagged(1)),
             distance: len(0.01),
         },
         SessionOp::Undo,
@@ -2910,7 +2911,7 @@ fn the_part_tools_seats_route_a_pick_to_the_one_that_can_hold_it() {
 /// nothing else — the rule that makes a tool modal.
 #[test]
 fn the_part_and_duplicate_tools_close_on_their_own_edits() {
-    let node = RecipeNodeId(1);
+    let node = RecipeNodeId(tagged(1));
     let part = SessionOp::AddPart {
         of: node,
         select: PartSelectSpec::Instance(0),

@@ -27,6 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
@@ -1572,7 +1573,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         name.path = vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId(tagged(99)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -1599,18 +1600,18 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
 #[test]
 fn the_crossing_refusal_is_a_named_node_error() {
     let e = NodeErrorKind::CrossingUnverified {
-        instance: RecipeNodeId(1),
+        instance: RecipeNodeId(tagged(1)),
         outer: Box::new(
             FaceName::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(2),
+                node: RecipeNodeId(tagged(2)),
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             })
             .expect("a crossing's references are face names"),
         ),
         name: Box::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId(tagged(3)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }),
     };
@@ -1768,15 +1769,15 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     use editor_core::{AtRestFinding, Attribution, MintedDeclaration};
 
     let minted = MintedDeclaration {
-        mate: RecipeNodeId(4),
+        mate: RecipeNodeId(tagged(4)),
         a: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(1),
+            node: RecipeNodeId(tagged(1)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         },
         b: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(2),
+            node: RecipeNodeId(tagged(2)),
             path: vec![RoleSeg::Cap(CapEnd::Start)],
         },
         class: ContactClass::Rest,
@@ -1853,7 +1854,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     let cases = vec![
         ProductError::RootInvalid {
             findings: vec![editor_core::SourceFinding {
-                node: RecipeNodeId(3),
+                node: RecipeNodeId(tagged(3)),
                 output: 1,
                 errors: vec![
                     topo::ValidationError::NegativeVolume {
@@ -1866,15 +1867,15 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             }],
         },
         ProductError::Naming {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId(tagged(2)),
             name: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId(tagged(1)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         },
         ProductError::Graft {
-            node: RecipeNodeId(5),
+            node: RecipeNodeId(tagged(5)),
             source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
                 zero: 1.0,
                 escalate: 0.5,

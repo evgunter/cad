@@ -2516,8 +2516,8 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
-        profile: RecipeNodeId(7),
-        frame: RecipeNodeId(3),
+        profile: RecipeNodeId(test_utils::refusal::tagged(7)),
+        frame: RecipeNodeId(test_utils::refusal::tagged(3)),
         refusal: DirectionRefusal {
             role: "datum frame x axis",
             error,

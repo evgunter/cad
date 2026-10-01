@@ -1,7 +1,7 @@
 //! **How a sentence names a recipe node** (DESIGN.md Band 1, "Node
 //! labels"): a person reads a node as its kind and its tag,
-//! `Extrude 000000000003`; a node the document does not hold reads
-//! `node 000000000003`.
+//! `Extrude 3fa9c1d2a0b1`; a node the document does not hold reads
+//! `node 3fa9c1d2a0b1`.
 //!
 //! Three spellings, one home each:
 //!
@@ -27,22 +27,18 @@ use crate::node::{Datum, Node, RecipeNodeId, StepId};
 /// leaked document id).
 const TAG_DIGITS: usize = 12;
 
-/// The bits a tag shows: the low [`TAG_DIGITS`] hex digits of the id.
-///
-/// The LOW bits, because a counter-minted id's high bits are all zero
-/// and the low ones are what tell two nodes apart. An id minted as a
-/// digest prefix spreads its distinguishing bits from the top, and the
-/// tag is then the high [`TAG_DIGITS`] digits instead (the `DocRef`
-/// pin prefix's rule); `work/emit/node-labels-are-document-data.md`
-/// carries that switch.
-const TAG_MASK: u64 = (1 << (4 * TAG_DIGITS)) - 1;
+/// How far a tag shifts the id: it shows the HIGH [`TAG_DIGITS`] hex
+/// digits. An id is the head of a digest read big-endian
+/// (`crate::mint`), so its leading digits are the hash's own, and a
+/// tag is the id's prefix — the rule a `DocRef`'s pin prefix follows.
+const TAG_SHIFT: u32 = 64 - 4 * TAG_DIGITS as u32;
 
 fn write_tag(f: &mut fmt::Formatter<'_>, bits: u64) -> fmt::Result {
-    write!(f, "{:0width$x}", bits & TAG_MASK, width = TAG_DIGITS)
+    write!(f, "{:0width$x}", bits >> TAG_SHIFT, width = TAG_DIGITS)
 }
 
-/// The bare tag: the id's low 48 bits as 12 lowercase hex digits,
-/// zero-padded (`000000000003`).
+/// The bare tag: the id's high 48 bits as 12 lowercase hex digits, the
+/// first twelve of its sixteen (`3fa9c1d2a0b1`).
 impl fmt::Display for RecipeNodeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_tag(f, self.0)
@@ -85,7 +81,7 @@ impl StepId {
 }
 
 /// **A recipe node as a person reads it**: its kind noun and its tag
-/// (`Extrude 000000000003`), or `node 000000000003` for an id the
+/// (`Extrude 3fa9c1d2a0b1`), or `node 3fa9c1d2a0b1` for an id the
 /// document does not hold.
 ///
 /// Built by [`Doc::spoken`] from the document that holds the node.
@@ -196,21 +192,17 @@ mod tests {
     use crate::program::ProfileProgram;
     use crate::{RefusingReach, test_support};
 
-    /// The tag is the id's low twelve hex digits, zero-padded; the full
+    /// The tag is the id's high twelve hex digits, its prefix; the full
     /// id is all sixteen. Written as numbers whose digits a reader can
-    /// check by eye, and one past 48 bits, where the two part.
+    /// check by eye: the low four digits never reach the tag, and an id
+    /// below 2^16 tags as zeros.
     #[test]
-    fn the_tag_is_twelve_low_hex_digits_and_the_full_id_sixteen() {
-        assert_eq!(RecipeNodeId(3).to_string(), "000000000003");
-        assert_eq!(RecipeNodeId(0xab).to_string(), "0000000000ab");
-        assert_eq!(StepId(0x10).to_string(), "000000000010");
+    fn the_tag_is_the_twelve_high_hex_digits_and_the_full_id_sixteen() {
         let wide = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
-        assert_eq!(
-            wide.to_string(),
-            "c1d2a0b10042",
-            "the tag drops the high digits"
-        );
+        assert_eq!(wide.to_string(), "3fa9c1d2a0b1", "the tag is the prefix");
         assert_eq!(wide.full().to_string(), "3fa9c1d2a0b10042");
+        assert_eq!(StepId(0x0000_0000_00ab_ffff).to_string(), "0000000000ab");
+        assert_eq!(RecipeNodeId(0xffff).to_string(), "000000000000");
         assert_eq!(StepId(7).full(), FullId(7));
         assert_eq!(FullId(7).to_string(), "0000000000000007");
     }

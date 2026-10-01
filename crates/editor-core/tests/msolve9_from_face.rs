@@ -27,6 +27,7 @@
 
 use crate::fixture;
 use crate::wire;
+use test_utils::refusal::tagged;
 
 use std::sync::Arc;
 
@@ -776,7 +777,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let reach = mate_reach::<f64>(&s.opts, Tol::witness());
     let bogus = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(99),
+        node: RecipeNodeId(tagged(99)),
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let (named, fault) = at_the_door(

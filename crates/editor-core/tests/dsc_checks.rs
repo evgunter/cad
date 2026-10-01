@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use std::collections::BTreeMap;
 
@@ -883,7 +884,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
     let could_not_look = ChecksReport {
         findings: vec![CheckFinding {
             check: CheckId::ChartCoherence,
-            root: RecipeNodeId(3),
+            root: RecipeNodeId(tagged(3)),
             output_ix: 0,
             evidence: CheckEvidence::ChartCoherenceUnexamined {
                 unexamined: topo::Unexamined {
@@ -930,7 +931,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
 fn a_coherence_measurement_renders_its_length_and_its_band() {
     let finding = CheckFinding {
         check: CheckId::ChartCoherence,
-        root: RecipeNodeId(4),
+        root: RecipeNodeId(tagged(4)),
         output_ix: 1,
         evidence: CheckEvidence::ChartCoherence {
             finding: topo::CoherenceFinding {

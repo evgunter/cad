@@ -16,6 +16,7 @@
 
 use crate::common;
 use crate::common::plate_index;
+use test_utils::refusal::tagged;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -123,13 +124,13 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // carries the answer its event arm gives rather than a second
     // spelling of it.
     let target = BlendTarget {
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         body: 0,
     };
     let notice = frame::tool_notice(&ToolNotice::Blend(BlendEvent::OtherTarget {
         held: target,
         picked: BlendTarget {
-            node: RecipeNodeId(5),
+            node: RecipeNodeId(tagged(5)),
             body: 0,
         },
     }));
@@ -216,9 +217,9 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
     );
     let dashes = frame::tool_news(
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(3),
-            root: RecipeNodeId(9),
-            others: vec![RecipeNodeId(5)],
+            instance: RecipeNodeId(tagged(3)),
+            root: RecipeNodeId(tagged(9)),
+            others: vec![RecipeNodeId(tagged(5))],
         }
         .to_string(),
         frame::Retold::Again,
@@ -337,19 +338,19 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
 fn every_cause() -> Vec<AdmissionFault> {
     vec![
         AdmissionFault::NoSuchNode {
-            node: RecipeNodeId(4),
+            node: RecipeNodeId(tagged(4)),
         },
         AdmissionFault::NotAnInstance {
-            node: RecipeNodeId(5),
+            node: RecipeNodeId(tagged(5)),
         },
         AdmissionFault::MateConstrained {
-            instance: RecipeNodeId(6),
-            mates: vec![RecipeNodeId(7), RecipeNodeId(8)],
+            instance: RecipeNodeId(tagged(6)),
+            mates: vec![RecipeNodeId(tagged(7)), RecipeNodeId(tagged(8))],
         },
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(9),
-            root: RecipeNodeId(10),
-            others: vec![RecipeNodeId(11), RecipeNodeId(12)],
+            instance: RecipeNodeId(tagged(9)),
+            root: RecipeNodeId(tagged(10)),
+            others: vec![RecipeNodeId(tagged(11)), RecipeNodeId(tagged(12))],
         },
     ]
 }
@@ -387,8 +388,8 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
     assert_eq!(
         covered.len(),
         cause_ordinal(&AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(1),
-            root: RecipeNodeId(2),
+            instance: RecipeNodeId(tagged(1)),
+            root: RecipeNodeId(tagged(2)),
             others: vec![],
         }) + 1,
         "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
@@ -427,7 +428,7 @@ fn a_withdrawals_cause_list_splits_back_into_its_causes() {
             .iter()
             .enumerate()
             .map(|(seat, cause)| Withdrawn {
-                instance: RecipeNodeId(seat as u64 + 20),
+                instance: RecipeNodeId(tagged(seat as u64 + 20)),
                 cause: cause.clone(),
             })
             .collect(),
@@ -650,14 +651,14 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         .expect_err("a zero aspect has no projection");
     let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
     let build = pickindex::PickIndexError::DrawnTwice {
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         body: 0,
     };
     let collision = ProductError::Naming {
-        node: RecipeNodeId(2),
+        node: RecipeNodeId(tagged(2)),
         name: Box::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(2),
+            node: RecipeNodeId(tagged(2)),
             path: Vec::new(),
         }),
     };
@@ -700,7 +701,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             frame::checks_badge(Some(&ChecksReport {
                 findings: vec![CheckFinding {
                     check: CheckId::Connectedness,
-                    root: RecipeNodeId(3),
+                    root: RecipeNodeId(tagged(3)),
                     output_ix: 0,
                     evidence: CheckEvidence::Connectedness {
                         actual: 2,
@@ -896,7 +897,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     // words — and so does a standing refusal with no evaluation to
     // find its cause in, since there is then no row it can defer to.
     let own = pickindex::PickIndexError::DrawnTwice {
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         body: 0,
     };
     let badge =
@@ -910,7 +911,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     // A root that NEVER RAN, with an evaluation in hand: the tree draws
     // it `Unevaluated` and `Advisory`, so there is no loud row above it
     // to defer to, and quieting it would hide the only news there is.
-    let absent = RecipeNodeId(99);
+    let absent = RecipeNodeId(tagged(99));
     assert!(
         session
             .evaluation()
@@ -1286,7 +1287,7 @@ fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
     use viewer::tools::ToolNotice;
 
     let target = BlendTarget {
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         body: 0,
     };
     let refused = unnamed_on(target);
@@ -1441,7 +1442,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     let report = ChecksReport {
         findings: vec![CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId(3),
+            root: RecipeNodeId(tagged(3)),
             output_ix: 0,
             evidence: CheckEvidence::Connectedness {
                 actual: 2,
@@ -1472,7 +1473,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     // δ member was missing altogether: it promised three labels and
     // asserted about one, and stayed green with either affordance
     // flipped.
-    let node = RecipeNodeId(2);
+    let node = RecipeNodeId(tagged(2));
     let collision = ProductError::Naming {
         node,
         name: Box::new(StableName {
@@ -1955,7 +1956,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 #[test]
 fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
     let error = UnnamedEntity {
-        node: RecipeNodeId(2),
+        node: RecipeNodeId(tagged(2)),
         entity: editor_core::names::EntityRef {
             body: 0,
             key: editor_core::names::EntityKey::Body,
@@ -2184,7 +2185,7 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         assert_eq!(key.node, right);
     }
     assert!(!index.ids_in(right, hit.body).is_empty());
-    assert!(index.ids_in(RecipeNodeId(9999), 0).is_empty());
+    assert!(index.ids_in(RecipeNodeId(tagged(9999)), 0).is_empty());
 }
 
 // --- the rebuild loop, across the index seam -------------------------
@@ -3269,11 +3270,11 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
 
     let declined = frame::tool_notice(&ToolNotice::Blend(BlendEvent::OtherTarget {
         held: BlendTarget {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId(tagged(3)),
             body: 0,
         },
         picked: BlendTarget {
-            node: RecipeNodeId(5),
+            node: RecipeNodeId(tagged(5)),
             body: 0,
         },
     }));
@@ -3281,7 +3282,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
         tool: ToolKind::Revolve,
         event: SeatEvent::PickLost {
             seat: Seat::RevolveProfile,
-            node: viewer::test_support::spoken(RecipeNodeId(4), None),
+            node: viewer::test_support::spoken(RecipeNodeId(tagged(4)), None),
         },
     });
     let panel = frame::tool_news(
@@ -3342,10 +3343,10 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
     let tied = |t: f64| pncad::select::PickHit {
         name: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId(tagged(3)),
             path: vec![],
         },
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         body: 0,
         t,
         t_lo: t,
@@ -3471,12 +3472,12 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
     use viewer::tools::{ToolKind, ToolNotice};
 
     let target = BlendTarget {
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         body: 0,
     };
     let face = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         path: vec![],
     };
     let cases = [
@@ -3484,15 +3485,15 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::B,
-                node: viewer::test_support::spoken(RecipeNodeId(3), None),
+                node: viewer::test_support::spoken(RecipeNodeId(tagged(3)), None),
                 pick: FaceSelection {
                     name: face.clone(),
-                    node: RecipeNodeId(3),
+                    node: RecipeNodeId(tagged(3)),
                     body: 0,
                 },
                 resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                     standing: NodeStanding::NotEvaluated {
-                        node: RecipeNodeId(3),
+                        node: RecipeNodeId(tagged(3)),
                     },
                 })),
             }),
@@ -3504,7 +3505,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
                 tool: ToolKind::Boolean,
                 event: SeatEvent::PickLost {
                     seat: Seat::OperandA,
-                    node: viewer::test_support::spoken(RecipeNodeId(3), None),
+                    node: viewer::test_support::spoken(RecipeNodeId(tagged(3)), None),
                 },
             },
             frame::Retold::Never,
@@ -3528,7 +3529,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             ToolNotice::Blend(BlendEvent::OtherTarget {
                 held: target,
                 picked: BlendTarget {
-                    node: RecipeNodeId(5),
+                    node: RecipeNodeId(tagged(5)),
                     body: 0,
                 },
             }),
@@ -3569,9 +3570,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
 #[test]
 fn every_withdrawal_kind_rides_beside_a_refusal() {
     let gone = |node: u64| Withdrawn {
-        instance: RecipeNodeId(node),
+        instance: RecipeNodeId(tagged(node)),
         cause: AdmissionFault::NoSuchNode {
-            node: RecipeNodeId(node),
+            node: RecipeNodeId(tagged(node)),
         },
     };
     let report = PruneReport {

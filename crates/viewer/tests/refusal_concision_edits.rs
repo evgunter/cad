@@ -25,6 +25,7 @@ use editor_core::{
     StepIdFault,
 };
 use test_utils::refusal::Admission;
+use test_utils::refusal::tagged;
 use viewer::session::Refusal;
 
 fn shown(e: EditError) -> String {
@@ -34,7 +35,7 @@ fn shown(e: EditError) -> String {
 fn name() -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         path: Vec::new(),
     }
 }
@@ -44,7 +45,7 @@ fn param() -> ParamName {
 }
 
 fn n(id: u64) -> RecipeNodeId {
-    RecipeNodeId(id)
+    RecipeNodeId(tagged(id))
 }
 
 /// Every `EditError` arm, on a representative payload.
@@ -328,12 +329,12 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                     path: vec![editor_core::RoleSeg::RimEdge(
                         editor_core::CapEnd::End,
                         editor_core::ProfileEdgeRef::Piece {
-                            step: editor_core::StepId(9),
+                            step: editor_core::StepId(tagged(9)),
                             role: editor_core::PieceRole::Leg,
                         },
                     )],
                 },
-                step: editor_core::StepId(9),
+                step: editor_core::StepId(tagged(9)),
             },
         ),
         (
@@ -584,9 +585,15 @@ fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
             authored: 4,
             given: 3,
         }),
-        StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles { step: StepId(7) }),
-        StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated { step: StepId(7) }),
-        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides { step: StepId(7) }),
+        StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles {
+            step: StepId(tagged(7)),
+        }),
+        StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated {
+            step: StepId(tagged(7)),
+        }),
+        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides {
+            step: StepId(tagged(7)),
+        }),
         StepIdFault::Collides { .. } => None,
         // No row: no edit door raises it. It is the load door's word,
         // and an edit that writes a name spelling a step the document

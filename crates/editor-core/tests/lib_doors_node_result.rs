@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use crate::fixture::len;
 use editor_core::{
@@ -159,7 +160,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
 
     let edit = EditError::UnknownNode {
-        id: RecipeNodeId(7),
+        id: RecipeNodeId(tagged(7)),
     };
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
@@ -250,7 +251,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         let message = EditError::MetaUnversioned {
             name: editor_core::StableName {
                 kind: editor_core::EntityKind::Body,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId(tagged(1)),
                 path: vec![editor_core::RoleSeg::OutputBody],
             },
             key: "provenance".to_string(),
@@ -275,7 +276,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
     use editor_core::NodeErrorKind as K;
     let name = |kind| editor_core::StableName {
         kind,
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     vec![
@@ -288,7 +289,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             error: Box::new(editor_core::ResolveError::NodeGone {
                 name: name(editor_core::EntityKind::Face),
                 edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(3),
+                    node: RecipeNodeId(tagged(3)),
                 },
             }),
         },
@@ -298,7 +299,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
                 tie: editor_core::TieWitness {
-                    node: RecipeNodeId(3),
+                    node: RecipeNodeId(tagged(3)),
                     at: name(editor_core::EntityKind::Edge),
                     width: 2,
                 },
@@ -507,7 +508,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
 
     let name = |kind| StableName {
         kind,
-        node: RecipeNodeId(5),
+        node: RecipeNodeId(tagged(5)),
         path: vec![RoleSeg::OutputBody],
     };
     let cases: Vec<(String, &[&str])> = vec![
@@ -545,7 +546,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::NodeGone {
                 name: name(EntityKind::Vertex),
                 edit: RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(5),
+                    node: RecipeNodeId(tagged(5)),
                 },
             }
             .to_string(),
