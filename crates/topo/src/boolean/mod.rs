@@ -130,7 +130,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{LoopShape, loop_shape};
-pub use discard::DiscardRow;
+pub use discard::{DiscardRow, HeldEdge};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -732,6 +732,9 @@ pub struct BooleanReduction<T: Real> {
     /// a region they share and drops the other, so the result holds
     /// either face's region through the other (`BooleanNaming::covered`).
     pub covered: Vec<(FaceKey, FaceKey)>,
+    /// For each covered pair, every edge of either face that runs into
+    /// the other face ([`HeldEdge`]), sorted and deduplicated.
+    pub held: Vec<HeldEdge>,
 }
 
 impl<T: Real> BooleanReduction<T> {
@@ -2568,6 +2571,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
     let mut covered = Vec::new();
+    let mut held = Vec::new();
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
@@ -2585,6 +2589,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
         covered.extend(out.covered);
+        held.extend(out.held);
     }
     for &c in &contacts.b_on_a {
         let out = vtxfac::classify_vertex_on_face(
@@ -2601,6 +2606,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
         covered.extend(out.covered);
+        held.extend(out.held);
     }
 
     // Vertex-vertex classification.
@@ -2618,6 +2624,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             &declared,
             band,
             &mut covered,
+            &mut held,
         )?;
         recl::recl_edges(
             &mut records,
@@ -2651,6 +2658,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
             .collect(),
+        held: {
+            held.sort_by_key(|h: &HeldEdge| (h.holder == Operand::B, h.edge, h.face));
+            held.dedup();
+            held
+        },
     })
 }
 

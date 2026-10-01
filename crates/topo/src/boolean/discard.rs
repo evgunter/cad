@@ -44,6 +44,62 @@ pub struct DiscardRow {
     /// result, so a later reader that meets an ancestor here can still
     /// tell that the edge bounded this face.
     pub boundary_chains: Vec<Vec<EdgeKey>>,
+    /// Each result edge of a kept face that holds part of this face's
+    /// region through a coincident copy (`BooleanNaming::covered`) and
+    /// runs into this face: there the region this face lost meets the
+    /// kept face holding the rest of it. Result keys.
+    pub held: Vec<EdgeKey>,
+}
+
+/// An edge of one face of a covered pair that runs into the other face
+/// (`BooleanReduction::held`), read where the classification finds the
+/// pair coincident: it is a bound of one face's sector, coplanar with
+/// and inside the other's, along none of that sector's edges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeldEdge {
+    /// The operand whose clone holds `edge`.
+    pub holder: Operand,
+    /// The edge, in `holder`'s clone keys.
+    pub edge: EdgeKey,
+    /// The face it runs into, in the other operand's clone keys.
+    pub face: FaceKey,
+}
+
+/// Gives each discarded row the result edges that run into it
+/// ([`DiscardRow::held`]): the held edges whose face the row's face is
+/// a fragment of (`fragments_a`/`fragments_b`, `(new, divided-from)`
+/// rows in clone keys), and that `live` finds in the result.
+pub(super) fn attach_held(
+    rows: &mut [DiscardRow],
+    held: &[HeldEdge],
+    fragments_a: &[(FaceKey, FaceKey)],
+    fragments_b: &[(FaceKey, FaceKey)],
+    live: impl Fn(Operand, EdgeKey) -> Option<EdgeKey>,
+) -> Result<(), BooleanError> {
+    for row in rows {
+        let fragments = match row.operand {
+            Operand::A => fragments_a,
+            Operand::B => fragments_b,
+        };
+        let mut from = vec![row.face];
+        while let Some(&(_, up)) = fragments.iter().find(|(new, _)| Some(new) == from.last()) {
+            if from.contains(&up) {
+                return Err(BooleanError::JoinDesync {
+                    what: "a face's fragment lineage is cyclic",
+                });
+            }
+            from.push(up);
+        }
+        let mut edges: Vec<EdgeKey> = held
+            .iter()
+            .filter(|h| h.holder != row.operand && from.contains(&h.face))
+            .filter_map(|h| live(h.holder, h.edge))
+            .collect();
+        edges.sort();
+        edges.dedup();
+        row.held = edges;
+    }
+    Ok(())
 }
 
 /// The row for discarded face `face` of `body`, an operand clone.
@@ -68,6 +124,7 @@ pub(super) fn discard_row<T: geom_core::Real>(
         face,
         bordered: Vec::new(),
         boundary_chains: Vec::new(),
+        held: Vec::new(),
     };
     for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
         let LoopBoundary::Cycle { first } = body

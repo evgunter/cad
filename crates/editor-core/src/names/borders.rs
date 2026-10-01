@@ -9,7 +9,9 @@
 //! across an earlier step's seam. Each piece edge is chased to the
 //! stretch a discard recorded along it, through the edge's split
 //! lineage and the lineage the discards themselves carry for edges that
-//! died with them, and so to its obstacle. An obstacle that borders two
+//! died with them, and so to its obstacle. A face discarded where a
+//! coincident kept face holds part of its region borders that face
+//! where the held part ends (`topo::DiscardRow::held`). An obstacle that borders two
 //! or more pieces DIVIDES the face; a piece's qualifier is the set of
 //! walls — the faces across its edges — along which it meets a divider,
 //! each cited by its parent's name. Nothing beyond a piece's own
@@ -132,6 +134,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                     seams.extend(es.iter().copied());
                 }
             }
+            seams.extend(row.held.iter().copied());
             for chain in &chains {
                 for w in chain.windows(2) {
                     self.dead_split.insert(w[0], w[1]);

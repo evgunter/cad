@@ -443,6 +443,58 @@ fn a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names() {
     }
 }
 
+/// **The slab's cut of the merged top is named alike in every order.**
+/// In `near`, `[b, g, a]` and `[g, b, a]` cut `b`'s top before `a`
+/// joins, so `a`'s top is held as `a`'s piece beyond the slab and,
+/// past it, through `b`'s coincident top. The two tops are still one
+/// parent, cut by one obstacle the slab makes, so each piece is
+/// `Merged` of both and one `Borders` (N2), as where the merge comes
+/// first. The face table is compared, since the bodies differ by the
+/// leftover vertex above.
+#[test]
+fn a_cut_a_covered_face_meets_is_one_divider_in_every_order() {
+    let case = near_slab();
+    let mut faces = std::collections::BTreeMap::new();
+    runs(&case, |at, ev, _, unions| {
+        let union = unions[0].1;
+        if failure(ev, union).is_some() {
+            return;
+        }
+        let names: BTreeSet<StableName> = table(ev, union)
+            .iter()
+            .filter(|(n, _)| n.kind == EntityKind::Face)
+            .map(|(n, _)| n.clone())
+            .collect();
+        faces.insert(at.to_string(), names);
+    });
+    assert!(
+        faces.contains_key("[1, 2, 0]") && faces.contains_key("[2, 1, 0]"),
+        "the orders that cut before they merge fuse: {:?}",
+        faces.keys()
+    );
+    assert!(faces.len() >= 4, "only {} orders fuse", faces.len());
+    let (first_at, first) = faces.iter().next().expect("a fused order");
+    let tops = first
+        .iter()
+        .filter(|n| {
+            matches!(n.path.as_slice(),
+                [RoleSeg::Merged(set), RoleSeg::Fragment(editor_core::Qualifier::Borders(_))]
+                    if set.len() == 2)
+        })
+        .count();
+    assert!(
+        tops >= 2,
+        "{first_at}: the merged top is not cut in two: {first:?}"
+    );
+    for (at, names) in &faces {
+        assert_eq!(
+            names.symmetric_difference(first).collect::<Vec<_>>(),
+            Vec::<&StableName>::new(),
+            "{at} against {first_at}: faces published in one order only"
+        );
+    }
+}
+
 /// `a` = [0,1]³ and a block touching it along an edge or at a corner.
 const TOUCH_EDGE: Bx = ((1.0, 2.0), (1.0, 2.0), (0.0, 1.0));
 const TOUCH_CORNER: Bx = ((1.0, 2.0), (1.0, 2.0), (1.0, 1.0));

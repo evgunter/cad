@@ -333,6 +333,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts;
     let covered = red.covered;
+    let held = red.held;
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
@@ -358,6 +359,19 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let body = zipped;
     gate(&body)?;
     T::gate_volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
+    super::discard::attach_held(
+        &mut discards,
+        &held,
+        &a_fragments,
+        &b_fragments,
+        |operand, e| {
+            match operand {
+                Operand::A => Some(e),
+                Operand::B => graft.edges.get(e).copied(),
+            }
+            .filter(|&k| body.get_edge(k).is_some())
+        },
+    )?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,

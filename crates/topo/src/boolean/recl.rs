@@ -168,7 +168,8 @@ fn cancel_uniform(r: &mut PairRecord) {
 ///
 /// Each coincident pair whose lump keeps one copy of the region is
 /// pushed onto `covered` as `(A face, B face)`
-/// (`BooleanReduction::covered`).
+/// (`BooleanReduction::covered`), and each edge of either face that
+/// runs into the other onto `held`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_sectors<T: Decide>(
     records: &mut [PairRecord],
@@ -180,6 +181,7 @@ pub(super) fn recl_sectors<T: Decide>(
     declared: &super::DeclaredPairs,
     band: Band,
     covered: &mut Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
+    held: &mut Vec<super::HeldEdge>,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     for i in 0..records.len() {
@@ -294,6 +296,19 @@ pub(super) fn recl_sectors<T: Decide>(
         )?;
         if lump_keeps_one(op, rel) {
             covered.push((sa.face, sb.face));
+            for (holder, body, own, other) in
+                [(Operand::A, a_body, sa, sb), (Operand::B, b_body, sb, sa)]
+            {
+                for (edge, dir) in super::sectors::bound_edges(body, own)? {
+                    if super::sectors::runs_into(other, dir, arm, band)? {
+                        held.push(super::HeldEdge {
+                            holder,
+                            edge,
+                            face: other.face,
+                        });
+                    }
+                }
+            }
         }
         let (newsa, newsb) = (
             eq15_3_lump(op, Operand::A, rel),
