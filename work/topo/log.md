@@ -5404,3 +5404,29 @@ corruption refusals end in `KERNEL_DEFECT_ENDING`. `StaleKey`,
 `StaleGeometry` and `NotSameEdge` keep their fact-only text until the
 filed split lands. `MergeRebasesCarriers` carries a true geometric
 lever.
+
+## PR 3618 fix pass read; main merged; row closed (2026-10-01)
+
+The fix pass landed `15960fbf01`, and CI run 36827889714 went green.
+- **M1:** the four survive-direction mutants now red, through a
+  two-ring fixture, the review's two probes as rows, and a sweep that
+  moves every ring, same face included.
+- **M2:** every op doc carries one wording: "a null-face record lives
+  only while its face holds both loops it names".
+- **M3:** the disclosure is corrected.
+- **N2 is kept.** Pass 13 now reports
+  `StaleNullFaceOwnership { face, named_loop }`, wired through
+  editor-core and pncad-py (tag `stale_null_face_ownership`).
+  `removal_census` has 20 relations. Every `ci` profile stayed green.
+  The "referential-only" text it replaces traces to `6e6c5761a2`, an M3
+  implementation commit. The ratified M3-PLAN only requires tier 1 to
+  tolerate 2-loop null faces, which the check does.
+
+PR 3621 merged after this branch last took main, and both touch
+`euler.rs`'s variant census. So I merged main into the branch myself.
+The 24 overlapping tests pass locally (null rows, the census,
+`every_euler_op_error`, the corruption-ending row). The row is closed
+on the branch (`16748bf70b`), and the PR merges on green.
+
+`mef-and-mfkrh-onto-a-new-chart` takes the rebase target once PR 3618
+merges.
