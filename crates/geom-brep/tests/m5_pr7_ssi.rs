@@ -2876,28 +2876,81 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
     }
 }
 
-/// **A tiny net the plane DOES meet refuses by the kind its size
-/// earns**, never `Ok` with no branch. Paired with the row above, whose
-/// `Ok`-empty answers are honest only because its plane misses.
+/// **A tiny net the plane DOES meet traces or refuses by the kind its
+/// size earns**, never `Ok` with no branch. Paired with the row above,
+/// whose `Ok`-empty answers are honest only because its plane misses.
 ///
-/// The branch is `3·spread` long, against the march's longest step of
-/// `SSI_STEP_MAX · 1.5` m. Three regions, placed against the run band so
-/// every ε of the battery reads the same kinds:
+/// The branch is `3·spread` long, far shorter than the march's longest
+/// step of `SSI_STEP_MAX · 1.5` m, so the first trace has 3 samples and
+/// the branch is re-marched in steps of a fifth of its length. Three
+/// regions, placed against the run band so every ε of the battery reads
+/// the same kinds:
 ///
-/// - a branch at least twice the band's escalate width is traced in
-///   one step each way, and refuses `BranchUndersampled` with its 3
-///   samples. This is also the row that pins the march's diagonal cap
-///   on a real chart: the step (over 1e6 state units at `1e-8`) is
-///   capped at the ℝ⁴ domain's diagonal (5.83). Without the cap, from
-///   spread `1e-7` down it lands where Newton cannot settle it, and the
-///   answer is `StepRefinementFailed`.
-/// - a branch within a few ε of the band is a step that collapses into
-///   it, or a band decision that escalates on it;
+/// - a branch whose fifth is at least twice the band's escalate width
+///   is traced and certified, end to end. This is also the row that
+///   pins the march's diagonal cap on a real chart: the first march's
+///   step (over 1e6 state units at `1e-8`) is capped at the ℝ⁴ domain's
+///   diagonal (5.83). Without the cap it lands where Newton cannot
+///   settle it, and the answer is `StepRefinementFailed` before the
+///   re-march is reached;
+/// - a shorter branch is a step that collapses into the band, or a
+///   step whose progress the band cannot decide;
 /// - from `1e-100` down, the transversality margin is unreadable and
 ///   escalates `ssi_transversality`.
 #[test]
-fn a_tiny_net_the_plane_meets_refuses_by_the_kind_its_size_earns() {
-    // SSI-SHORT-STUB
+fn a_tiny_net_the_plane_meets_traces_or_refuses_by_the_kind_its_size_earns() {
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.5,
+        floor_scale: 1.0,
+    };
+    for s in [
+        1.0e-2f64, 1.0e-3, 1.0e-4, 1.0e-5, 1.0e-6, 1.0e-7, 1.0e-8, 1.0e-9, 1.0e-10, 1.0e-11,
+        1.0e-12, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315,
+    ] {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.25 * s),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let r = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band());
+        let at = format!("spread {s:e} at ε {:e}", band().zero());
+        if s <= 1.0e-100 {
+            assert!(
+                matches!(
+                    &r,
+                    Err(SsiError::Escalated {
+                        decision: TraceDecision::Transversality,
+                        ..
+                    })
+                ),
+                "{at}: {r:?}"
+            );
+        } else if 3.0 * s / 5.0 >= 2.0 * band().escalate() {
+            let out = r.unwrap_or_else(|e| panic!("{at}: the branch is not traced: {e}"));
+            assert_eq!(out.branches.len(), 1, "{at}");
+            let b = &out.branches[0];
+            let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+            // The net's columns run from 0 to 3·spread along x.
+            assert!(
+                (span - 3.0 * s).abs() <= 1.0e-6 * s,
+                "{at}: the carrier spans {span:e} m"
+            );
+        } else {
+            assert!(
+                matches!(
+                    &r,
+                    Err(SsiError::StepCollapsed { .. }
+                        | SsiError::Escalated {
+                            decision: TraceDecision::StepProgress,
+                            ..
+                        })
+                ),
+                "{at}: {r:?}"
+            );
+        }
+    }
 }
 
 /// **An unusable domain refuses at the door, by its knob**, at every
@@ -3345,15 +3398,143 @@ fn a_wall_whose_chart_cannot_settle_the_march_refuses_by_its_chart() {
     );
 }
 
-/// **A branch shorter than a few march steps names its extent.** The
-/// collapsed net at spread `1e-2`, against a plane that meets it, has
-/// a branch about 3 cm long. The march's longest step is
-/// `SSI_STEP_MAX` of the domain's 1.5 m extent, about 4.7 cm, so the
-/// trace leaves the wall in one step each way and yields 3 samples. The
-/// fit used to refuse that as `Fit(TooFewPoints)`, which named no
-/// geometry. Following the recourse — an extent the size of the branch
-/// — traces and certifies the branch.
+/// **A short branch traces at the caller's extent.** The collapsed net
+/// at spread `1e-2`, against a plane that meets it, has a branch 3 cm
+/// long. The march's longest step at the domain's 1.5 m extent is
+/// `SSI_STEP_MAX · 1.5` m, about 4.7 cm, so the first trace leaves the
+/// wall in one step each way with 3 samples, one short of the cubic.
+/// The march re-traces it in steps cut from its own length, and the
+/// branch certifies without the caller naming a smaller extent.
 #[test]
-fn a_branch_shorter_than_the_march_step_names_the_extent_that_set_it() {
-    // SSI-SHORT-STUB
+fn a_short_branch_traces_at_the_callers_extent() {
+    let spread = 1.0e-2;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.25 * spread),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.5,
+        floor_scale: 1.0,
+    };
+    let out = ssi::plane_nurbs_ssi(&plane, &collapsed_net(spread), dom, band())
+        .unwrap_or_else(|e| panic!("the short branch is not traced: {e}"));
+    assert_eq!(out.branches.len(), 1);
+    let b = &out.branches[0];
+    let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+    assert!(
+        (span - 3.0 * spread).abs() < 1.0e-6,
+        "the carrier spans {span:e} m"
+    );
+}
+
+/// A flat bilinear wall in `y = 0`, `1 m` wide along `x` and `height`
+/// tall along `z`.
+fn flat_wall(height: f64) -> NurbsSurface<f64> {
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    NurbsSurface::new(
+        knots(),
+        knots(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, height),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, height),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap()
+}
+
+/// **A plane clipping a wall's corner traces the clip, however short.**
+/// The flat 1 m wall cut by the plane `x + z = d`: the branch is the
+/// segment from `(d, 0, 0)` to `(0, 0, d)`, `d·√2` long. From `d = 0.01`
+/// (1.4 cm) to `0.2` (28 cm) at extents of 1 m and 1.5 m, every clip
+/// certifies as one branch end to end, the shortest (to `d = 0.03` at
+/// 1 m, `0.05` at 1.5 m) through the short-branch re-march. A boolean
+/// meets clips like these routinely, and no one extent serves both them
+/// and the body they are cut from.
+#[test]
+fn a_plane_clipping_a_walls_corner_traces_the_clip_however_short() {
+    let wall = flat_wall(1.0);
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    for d in [0.01, 0.02, 0.03, 0.05, 0.08, 0.1, 0.15, 0.2] {
+        let clip = Surface::Plane {
+            origin: Point3::new(d, 0.0, 0.0),
+            normal: Vec3::new(s2, 0.0, s2),
+            u_ref: Vec3::new(s2, 0.0, -s2),
+        };
+        for extent in [1.0, 1.5] {
+            let dom = SsiDomain {
+                center: Point3::new(0.0, 0.0, 0.0),
+                half_extent: 2.0,
+                extent,
+                floor_scale: 1.0,
+            };
+            let at = format!("d = {d} at extent {extent} m, ε {:e}", band().zero());
+            let out = ssi::plane_nurbs_ssi(&clip, &wall, dom, band())
+                .unwrap_or_else(|e| panic!("{at}: the clip is not traced: {e}"));
+            assert_eq!(out.branches.len(), 1, "{at}");
+            let b = &out.branches[0];
+            let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+            assert!(
+                (span - d * std::f64::consts::SQRT_2).abs() < 1.0e-6 * d,
+                "{at}: the carrier spans {span:e} m"
+            );
+        }
+    }
+}
+
+/// **A marched state within the band of the domain's boundary
+/// escalates the open end, by name.** The plane `x = 0.5` crosses a
+/// flat wall of height `H`, the march seeds at `v = 1/256` of the
+/// wall's chart, and its steps are `1/32` m at the 1 m extent, so its
+/// states sit at `z = H/256 + k/32`. Choosing `H` so the 31st sits `δ`
+/// below the wall's top edge plants a state `δ` inside the boundary on
+/// the first march, at the caller's extent.
+///
+/// At `δ = 0` the state is on the edge, inside the band's zero, and the
+/// branch certifies. At `δ` a few ε either side the open end cannot be
+/// decided, and escalates `ssi_branch_open_end` naming the margin. The
+/// escalation is not over-strict: read as inside, the march appends the
+/// crossing a few ε past that state, and at `ε = 1e-12` the cubic
+/// through that sub-band chord fails its certificate.
+#[test]
+fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
+    let across = Surface::Plane {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        normal: Vec3::new(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let wall = |delta: f64| flat_wall((31.0 / 32.0 + delta) * 256.0 / 255.0);
+    match ssi::plane_nurbs_ssi(&across, &wall(0.0), dom, band()) {
+        Ok(out) => assert_eq!(out.branches.len(), 1, "on the edge"),
+        Err(e) => panic!("a state on the edge does not certify: {e}"),
+    }
+    let eps = band().zero();
+    for delta in [5.0 * eps, -3.0 * eps] {
+        let r = ssi::plane_nurbs_ssi(&across, &wall(delta), dom, band());
+        let Err(SsiError::Escalated {
+            decision: TraceDecision::BranchOpenEnd,
+            cause,
+        }) = r
+        else {
+            panic!("δ = {delta:e}: expected the open end to escalate, got {r:?}");
+        };
+        let Some(margin) = cause.margin.diagnostic_f64_for_error_text().value() else {
+            panic!("δ = {delta:e}: the open end read no point margin: {cause:?}");
+        };
+        assert!(
+            (margin - delta).abs() < 1.0e-2 * delta.abs(),
+            "δ = {delta:e}: the open end read {margin:e} m"
+        );
+    }
 }

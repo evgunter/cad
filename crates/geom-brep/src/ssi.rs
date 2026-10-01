@@ -125,10 +125,7 @@ pub mod system;
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{
-    Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, Margin, Point3, Real,
-    SizedPass,
-};
+use geom_core::{Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, Margin, Point3, Real, SizedPass};
 
 use crate::certify::CertCheck;
 use crate::recourse::{
@@ -729,6 +726,10 @@ impl core::fmt::Display for SsiError {
                  distance {last_distance:e} m), so the on-locus residual against the \
                  NURBS operand cannot be stated"
             ),
+            Self::Fit(FitError::TooFewPoints { have, need }) => write!(
+                f,
+                "ssi: a traced branch yielded {have} samples, and the cubic fit needs {need}"
+            ),
             Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
             Self::FitSampleBudget { samples, budget } => write!(
                 f,
@@ -866,10 +867,10 @@ impl SsiError {
                 "Recourse: loosen the tolerance until a branch needs at most {budget} samples, \
                  {KERNEL_LIMIT_LAST_RESORT}"
             ),
-            // `march_both` re-marches a trace too short for the cubic at
-            // the branch's own length, so one that is still short is the
-            // kernel's limit, with no lever of the caller's behind it.
-            Self::Fit(FitError::TooFewPoints { .. }) => KERNEL_LIMIT_RECOURSE.to_owned(),
+            // `march_both` re-marches a trace too short for the cubic in
+            // steps cut from the branch's own length, so one still short
+            // is the kernel's: no tolerance makes it longer.
+            Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             // Decisions not yet given an ending
             // (`work/ssi/ssi-refusals-whose-decision-has-no-ending.md`).
             Self::ExhaustivenessInconclusive(_)
@@ -2331,7 +2332,9 @@ mod ending_tests {
     /// their in-band margin gives (`m/K`, here `K = 10`), never a
     /// declaration (the doors take none); the spent fit budget ends in
     /// the loosening clause and the last resort, within 50 words
-    /// rendered.
+    /// rendered; and a trace too short for the cubic, which the march's
+    /// re-march rules out, ends as a kernel defect with no fit recourse
+    /// in its payload.
     #[test]
     fn each_ssi_ending_is_its_decisions() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -2350,7 +2353,9 @@ mod ending_tests {
             samples: 4 * SSI_MAX_FIT_SAMPLES,
             budget: SSI_MAX_FIT_SAMPLES,
         };
+        let short = SsiError::Fit(geom::FitError::TooFewPoints { have: 3, need: 4 });
         for (error, ending) in [
+            (&short, KERNEL_DEFECT_ENDING.to_owned()),
             (
                 &death,
                 format!(

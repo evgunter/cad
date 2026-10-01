@@ -124,9 +124,16 @@ stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
-(`StepCollapsed`) refuses naming the speed. A trace too short for the
-cubic fit refuses by its length and the extent that set its step
-(`BranchUndersampled`).
+(`StepCollapsed`) refuses naming the speed. The longest step is
+`SSI_STEP_MAX` of the caller's feature extent, and `march_both`, the
+one place a whole branch is known, marches once more any trace too
+short at that step for the cubic fit: its steps are then capped at the
+trace's own polyline length over the fewest odd count that gives the
+fit its samples (five), odd so that a seed near the branch's middle
+leaves each end half a step from a state. A branch shorter than the
+extent's step is traced, not refused; a trace still short after that is
+a kernel defect (`Fit(TooFewPoints)`). The extent keeps its other
+roles: the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure), *accounted* (contained in a found branch's tube), or
