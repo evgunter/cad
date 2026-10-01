@@ -212,8 +212,8 @@ fn is_hull_refusal(e: &topo::TransformError) -> bool {
                 limb,
                 ..
             }) => *limb == geom_brep::SsiLimb::HullSup,
-            geom_brep::CertifyError::Escalated { cause, .. } => {
-                format!("{cause:?}").contains("ssi_hull_sup_chart")
+            geom_brep::CertifyError::Escalated { check, .. } => {
+                *check == geom_brep::CertCheck::PlaneNurbsHull
             }
             _ => false,
         },

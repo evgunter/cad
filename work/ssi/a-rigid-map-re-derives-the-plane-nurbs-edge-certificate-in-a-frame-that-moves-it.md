@@ -63,7 +63,7 @@ lamina whose two edges both run the arc, minted through
 (default ε). Through `transform_rigid_via` with the lane injected, the
 32 rotations of the `Approx` row's sweep: **24 refuse**, all on limb 2
 (`ssi_hull_sup_chart` in-band at `1.0006 … 1.1479 ε`, surfaced as
-`CertifyError::Escalated { check: PlaneNurbsCertificate }`); the 8
+`CertifyError::Escalated { check: PlaneNurbsHull }`); the 8
 rotations about x, which keep the arc's chord on an axis, move it.
 
 **Which term moves.** At a loose band, every image certifies and its
