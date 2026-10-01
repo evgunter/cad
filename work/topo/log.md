@@ -4879,3 +4879,34 @@ Dispatched on the walk target, branch
 The null-face row, the corruption-ending row and the mef/mfkrh row all
 wait for PR 3592, whose kill-proofs lane holds `euler.rs` and the kill
 files.
+
+## PR 3592 delivered; single full review dispatched (2026-10-01)
+
+The resumed lane validated the unit, wrote the body and took PR 3592
+out of draft. Hosted CI run 36797003477 went green on `bfab1dc0f8`, ε
+rows included.
+
+An earlier run failed the new `loop-boundary-discards` gate on
+`review_d18::far_loop`. The lane fixed it (the function takes a slice;
+the discard is registered `audited`) and filed the gate's lost fn-name
+as a guard row.
+
+**The census.** The four half-edge relations move from Filed to Read.
+The only relation still Filed is `StaleNullFaceLoop`.
+
+**The probe.** All 25 fault cells go to 0. `Err` grows by exactly the
+faulted count, and no no-fault cell moves.
+
+**A new variant, `NotOwned`,** carries `movefac`'s ownership proofs.
+`movefac` requires both halves of face ownership where the row says
+"or".
+
+A single full review is dispatched on the frozen head, on the rebase
+target. It is to probe:
+- whether `Clearing.links` is the one home the mutation writes from;
+- `movefac`'s "both" against tier 1;
+- `LoopCycleBroken` for a loop's `first`;
+- `NotOwned` against the corruption-ending row;
+- the gate disposition.
+
+The report is archived as `killproof2-report.md`.
