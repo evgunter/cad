@@ -10,7 +10,9 @@ refs: [sphere-union-sphere-refuses-though-the-section-is-closed-form]
 Found by the `reach-snowman` lane. Once the crossing layer had circle ×
 sphere roots and the boolean's join had a sphere-pair arm (the chord
 rides the pair's RADICAL PLANE on both sides, `boolean::join`'s
-`(Sf::Sphere, Sf::Sphere)` arm), the coaxial snowman builds. A sphere
+`(Sf::Sphere, Sf::Sphere)` arm), the coaxial snowman builds — in its
+coplanar-seam pose only; spun about the axis it stops at the pierce-ring
+door (`work/tang/pierce-ring-has-no-join-arm.md`). A sphere
 pair whose centre line is not along BOTH operands' chart polar axes
 gets through the crossing layer and stops at the join.
 

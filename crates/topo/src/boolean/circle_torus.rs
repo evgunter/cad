@@ -327,7 +327,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 t1,
                 radius,
                 lever,
-                noise: T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms,
+                noise: rounding_charge(terms),
                 f_per_metre,
             },
             &CIRCLE_TORUS_ROWS,
@@ -396,6 +396,12 @@ pub(super) struct HalfAngleFrame<T> {
 /// ([`super::circle_sphere`]) charges its first harmonic the same count:
 /// its chain is shorter, so the count holds there with more room.
 pub(super) const NOISE_ULPS: f64 = 16.0;
+
+/// The rounding charged against a term bound `terms`: [`NOISE_ULPS`]
+/// half-ulps of it — the meters' one spelling of the charge.
+pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
+    T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms
+}
 
 /// What [`half_angle_roots`] certifies.
 pub(super) enum HalfAngleRoots<T> {
@@ -757,8 +763,7 @@ fn parallel_axes_roots<T: Decide>(
         // decisions are on the wrong point.
         let sin_spread = (T::one() - c.powi(2)).max(T::zero()).sqrt();
         let slope = half / minor_radius * radius * offset * sin_spread / contour;
-        let rounding = T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5)
-            * (contour.powi(2) + offset.powi(2) + radius.powi(2))
+        let rounding = rounding_charge(contour.powi(2) + offset.powi(2) + radius.powi(2))
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
         match decide("bool_circle_torus_root_slack", Margin::of(slack), band) {

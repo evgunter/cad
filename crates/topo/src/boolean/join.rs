@@ -403,12 +403,14 @@ pub(super) fn bool_connect<T: Decide>(
         // other pair refuses typed citing its C5 routing (per-arm,
         // C12.1).
         let germ = open[m.entry].a[m.entry_slot].0;
-        let surf_of = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .cloned()
-                .ok_or(desync("germ face surface no longer resolves"))
-        };
+        let surf_of =
+            |body: &Body<T>,
+             f: FaceKey|
+             -> Result<(crate::geometry::SurfaceKey, geom::Surface<T>), BooleanError> {
+                body.get_face(f)
+                    .and_then(|fd| Some((fd.surface, body.get_surface(fd.surface)?.clone())))
+                    .ok_or(desync("germ face surface no longer resolves"))
+            };
         // The germ faces' SURFACES, deliberately unoriented (S10): what
         // the curved lanes below take from a plane germ is a
         // [`SplitPlane`] — a section datum, an operation input whose
@@ -418,8 +420,8 @@ pub(super) fn bool_connect<T: Decide>(
         // a sense flip, so folding the sense in here would rewrite an
         // input that never meant "outward"; the created faces' own
         // orientation comes from the joiner's stored winding.
-        let ga = surf_of(&red.a, germ.a_face)?;
-        let gb = surf_of(&red.b, germ.b_face)?;
+        let (ka, ga) = surf_of(&red.a, germ.a_face)?;
+        let (kb, gb) = surf_of(&red.b, germ.b_face)?;
         use crate::chord_join::{JoinLane, face_azimuth_window};
         use crate::splitting::SplitPlane;
         use geom::Surface as Sf;
@@ -535,15 +537,6 @@ pub(super) fn bool_connect<T: Decide>(
                     }
                     Err(_) => return Err(desync("germ pair's section refused at join time")),
                 };
-                let surface_key = |body: &Body<T>, f: FaceKey| {
-                    body.get_face(f)
-                        .map(|fd| fd.surface)
-                        .ok_or(desync("germ face no longer resolves"))
-                };
-                let (ka, kb) = (
-                    surface_key(&red.a, germ.a_face)?,
-                    surface_key(&red.b, germ.b_face)?,
-                );
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
                 sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), tol)?;
                 sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), tol)?;

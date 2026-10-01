@@ -434,11 +434,14 @@ fn a_lens_against_a_ball_crossing_both_its_caps_builds() {
 
 /// **A plane × sphere germ and a sphere × sphere germ against one
 /// partner face.** A hemisphere (its flat cap at `y = 0`, its dome
-/// below) against a ball of radius 0.8 at `y = −0.5`: the ball's sphere
-/// crosses the hemisphere's flat cap AND its dome, so the same partner
-/// face of the ball is a plane×sphere germ's partner (a copy of the
-/// ball's sphere) and a sphere pair's (a radical plane) — two different
-/// aux surfaces that must not share a key.
+/// below) against a ball of radius 0.9 at `y = −0.2`: the ball's sphere
+/// crosses the hemisphere's flat cap AND its dome, and at this pose one
+/// partner face of the ball is both a plane×sphere germ's partner (its
+/// aux is a copy of the ball's sphere) and a sphere pair's (its aux is
+/// a radical plane). Keyed by the partner face alone, the two auxes
+/// collide and every op refuses `ResidualExceeded { Surface2Residual }`;
+/// keyed by the datum each one is, every op builds to the oracle — in
+/// both operand orders.
 #[test]
 fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
     let mut hemi = revolved_about_y(
@@ -455,14 +458,21 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
     // into one first.
     hemi.merge_coplanar_faces(Tol::witness())
         .expect("the hemisphere's cap halves merge");
-    let b = ball(0.8, -0.5);
-    let spheres = [(1.0, 0.0), (0.8, -0.5)];
-    let (h_axi, b_axi) = (axi_ball(1.0, 0.0, 0.0), axi_ball(0.8, -0.5, f64::INFINITY));
+    let (r, c) = (0.9, -0.2);
+    let b = ball(r, c);
+    let spheres = [(1.0, 0.0), (r, c)];
+    let (h_axi, b_axi) = (axi_ball(1.0, 0.0, 0.0), axi_ball(r, c, f64::INFINITY));
     for op in OPS {
         let want = axi_op(op, &h_axi, &b_axi, &spheres);
         assert_body(
             &format!("hemisphere {op:?} ball"),
             &run(op, &hemi, &b),
+            want,
+        );
+        let want = axi_op(op, &b_axi, &h_axi, &spheres);
+        assert_body(
+            &format!("ball {op:?} hemisphere"),
+            &run(op, &b, &hemi),
             want,
         );
     }

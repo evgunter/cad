@@ -29,9 +29,10 @@
 //!   (`NOISE_ULPS` half-ulps of the sum of the terms' magnitudes, over
 //!   `2r`) definitely past the escalation threshold, or not readable at
 //!   all, refuses: the representation cannot resolve what the band asks
-//!   of it. A rounding
-//!   estimate on `f64`; the `Interval` lane carries its enclosure through
-//!   every stage and needs no meter to be sound.
+//!   of it. A rounding estimate on `f64`, run on every scalar: the
+//!   `Interval` lane carries its own enclosure and needs no meter to be
+//!   sound, but the meter still reads there and can refuse a pose the
+//!   enclosures alone would answer.
 //! - `bool_circle_sphere_coaxial` — the swing `A₁` in the zero band: the
 //!   residual is constant along the carrier (its centre's offset from
 //!   the sphere's centre is along its axis), so `c₀` alone decides it:
@@ -56,9 +57,10 @@
 //! not lie on the sphere — the fact the reduction's `(Zero, Zero)` chord
 //! arm leans on to separate a chord from an on-carrier edge.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Sign};
 
-use super::circle_torus::NOISE_ULPS;
+use super::BooleanError;
+use super::circle_torus::rounding_charge;
 use crate::validate::decide;
 
 /// What the certified circle × sphere roots say about a whole carrier.
@@ -70,9 +72,8 @@ pub(super) enum CircleSphereRoots<T> {
     Coaxial,
     /// The carrier misses the sphere: wholly outside or wholly inside.
     Miss,
-    /// No certain answer — a tangency, a carrier that is not a circle
-    /// or a surface that is not a sphere, or a representation that
-    /// cannot resolve the band.
+    /// No certain answer — a tangency, or a representation that cannot
+    /// resolve the band.
     Uncertain,
     /// Two distinct roots, each within `π` of the arc's midpoint so it
     /// compares with the arc `[t₀, t₁]` the caller passed without
@@ -85,8 +86,11 @@ pub(super) enum CircleSphereRoots<T> {
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] — the constant residual of a coaxial carrier, or
-/// an extreme residual, in the band's escalation gap. An escalated
+/// [`BooleanError::ClassificationInvariant`] when `carrier` is not a
+/// circle or `sphere` not a sphere — the caller dispatched on those kinds,
+/// so a mismatch is a desync, never an answer. A coincidence escalation
+/// when the constant residual of a coaxial carrier, or an extreme
+/// residual, lies in the band's escalation gap. An escalated
 /// noise or root-slack reading is NOT an error: it answers `Uncertain`,
 /// as a definitely excessive one does — a meter that cannot be read
 /// does not license the roots it meters. An escalated coaxial test
@@ -97,7 +101,7 @@ pub(super) fn circle_sphere_roots<T: Decide>(
     t1: T,
     sphere: &geom::Surface<T>,
     band: Band,
-) -> Result<CircleSphereRoots<T>, Indeterminate> {
+) -> Result<CircleSphereRoots<T>, BooleanError> {
     let (
         &geom::Curve3::Circle {
             center,
@@ -112,8 +116,12 @@ pub(super) fn circle_sphere_roots<T: Decide>(
         },
     ) = (carrier, sphere)
     else {
-        return Ok(CircleSphereRoots::Uncertain);
+        return Err(BooleanError::ClassificationInvariant {
+            what: "the circle × sphere root door was handed a carrier that is not a circle \
+                   or a surface that is not a sphere",
+        });
     };
+    let decide = |row, m, band| decide(row, m, band).map_err(BooleanError::coincidence);
     let geom_brep::CircleSphereHarmonic {
         c0,
         a1,
@@ -122,7 +130,7 @@ pub(super) fn circle_sphere_roots<T: Decide>(
         terms,
     } = geom_brep::circle_sphere_harmonic(center, axis, radius, u_ref, s_center, s_radius);
     let two = T::from_f64(2.0);
-    let noise = T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms / (two * s_radius);
+    let noise = rounding_charge(terms) / (two * s_radius);
     match decide("bool_circle_sphere_noise", Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Ok(CircleSphereRoots::Uncertain),
@@ -317,29 +325,34 @@ mod tests {
         ));
     }
 
-    /// **The noise meter refuses a representation that cannot resolve
-    /// the band.** A circle of radius `1e4` through a unit sphere: the
-    /// crossing is deep and definite, but the harmonics are built from
-    /// terms of order `ρ²`, whose rounding is past the escalation
-    /// threshold. Without the meter this pose answers two roots.
+    /// **The noise meter, isolated.** On a crossing the slack reads at
+    /// least the noise (`|R′| ≤ ρ` there, so `ρ·noise/|R′| ≥ noise`), so a
+    /// crossing pose cannot tell the two meters apart. A MISS can: it
+    /// returns before the slack is read. A unit circle against a unit
+    /// sphere far away is a definite miss whose harmonics are built from
+    /// terms of order `|e|²`: at 2·10⁵ m their rounding is definitely past
+    /// the band (`Positive`), at 2000 m it lies in the band's escalation
+    /// gap (`Err`). Either reading refuses; without its arm, each pose
+    /// answers `Miss`.
     #[test]
-    fn the_noise_meter_refuses_a_circle_too_large_for_the_band() {
+    fn the_noise_meter_refuses_a_definite_and_an_unreadable_reading() {
         if !default_band() {
             return;
         }
-        let rho = 1e4;
-        let got = circle_sphere_roots(
-            &circle(rho),
-            -1.0,
-            1.0,
-            &sphere([rho + 0.5, 0.0, 0.0], 1.0),
-            band(),
-        )
-        .unwrap();
-        assert!(
-            matches!(got, CircleSphereRoots::Uncertain),
-            "the noise meter refuses: {got:?}"
-        );
+        for far in [2e5, 2000.0] {
+            let got = circle_sphere_roots(
+                &circle(1.0),
+                -1.0,
+                1.0,
+                &sphere([far, 0.0, 0.0], 1.0),
+                band(),
+            )
+            .unwrap();
+            assert!(
+                matches!(got, CircleSphereRoots::Uncertain),
+                "a sphere {far} m off: the noise meter refuses, got {got:?}"
+            );
+        }
     }
 
     /// **The root-slack meter refuses a root it cannot place.** A
@@ -366,6 +379,56 @@ mod tests {
             matches!(got, CircleSphereRoots::Uncertain),
             "the root-slack meter refuses: {got:?}"
         );
+    }
+
+    /// **The root-slack meter refuses an unreadable reading.** The same
+    /// shallow crossing dipping `4e-5` instead: the slack (`≈ 4e-9`) lies
+    /// in the band's escalation gap while the noise is in its zero band.
+    /// Without the `Err` arm this pose answers two roots.
+    #[test]
+    fn the_root_slack_meter_refuses_a_reading_in_the_band_gap() {
+        if !default_band() {
+            return;
+        }
+        let rho = 100.0;
+        let got = circle_sphere_roots(
+            &circle(rho),
+            -1.0,
+            1.0,
+            &sphere([rho + 1.0 - 4e-5, 0.0, 0.0], 1.0),
+            band(),
+        )
+        .unwrap();
+        assert!(
+            matches!(got, CircleSphereRoots::Uncertain),
+            "the root-slack meter refuses: {got:?}"
+        );
+    }
+
+    /// **A desynced caller is a kernel defect, loudly.** The door is
+    /// dispatched on a circle against a sphere; anything else reaching it
+    /// is the caller's broken invariant, never an answer.
+    #[test]
+    fn a_non_circle_or_non_sphere_is_a_classification_invariant() {
+        let line = geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let plane = geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for (carrier, surface) in [
+            (&line, &sphere::<f64>([0.0; 3], 1.0)),
+            (&circle::<f64>(1.0), &plane),
+        ] {
+            let got = circle_sphere_roots(carrier, 0.0, 1.0, surface, band());
+            assert!(
+                matches!(got, Err(BooleanError::ClassificationInvariant { .. })),
+                "a wrong kind refuses as a kernel invariant, got {got:?}"
+            );
+        }
     }
 
     /// The interval lane: every root enclosure contains the oracle's

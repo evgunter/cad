@@ -483,9 +483,10 @@ impl SplitJoinError {
             }
             Self::SectionNotPolar { band, .. } => write!(
                 f,
-                "the section through a sphere face is tilted against the face's polar \
-                 axis, and the arc-side rule reads azimuth, which runs monotone only \
-                 along a polar section ('split_sphere_section_polar', band ({:e}, {:e}))",
+                "a section through a sphere face is tilted against the sphere's polar axis, \
+                 and the join takes only polar sections ('split_sphere_section_polar', band \
+                 ({:e}, {:e})). Recourse: revolve the ball about the section's normal: the \
+                 line through both centres for two balls, the face's normal for a plane",
                 band.zero(),
                 band.escalate(),
             ),
