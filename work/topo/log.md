@@ -5347,3 +5347,21 @@ needs no Ev wait.
 
 The fix pass is out on the rebase target. It merges after CI and an
 orchestrator read.
+
+## Filed on TOPO by PCERT: kev_describing red under --all-features (2026-10-01)
+
+PCERT's orchestrator filed `kev-describing-row-fails-under-all-features`
+(P3, M; `125463a1ce`, on main). Two independent lanes saw `kev`'s
+tier-1 postcondition fail with `DanglingGeometry { Vertex → Point }`
+under `--all-features`: `euler_kill::tests::kev_describing_asks_the_survivors_point…`,
+and on one head also `review_d18::kill_anchors_on_a_few_torn_bodies`.
+
+No CI row runs topo with `--all-features`, so the gate cannot see it.
+If a feature changes what `kev` leaves behind, a user can build that
+configuration, which would make it a real defect.
+
+**Queued first** for the next free target, after PR 3618 and PR 3621
+leave `euler*.rs`. The first fact to establish is which feature flips
+it. The unit also asks whether a CI row should run topo with
+`--all-features`. That is GUARD's call, so it would be filed there,
+not built here.
