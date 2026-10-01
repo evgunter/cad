@@ -6,19 +6,19 @@
 //! sweep verb makes of that declaration, and what the boolean, the
 //! merge ladder and the fillet then do with the body:
 //!
-//! - **extrude, revolve**: the two walls share ONE surface key (the
-//!   cosurface run structure the sweep lowering decides per join), and
-//!   the body is tier-3 valid — but the verb does not merge them, so a
-//!   PLANAR pair of them reaches `topo`'s maximal-faces gate unmerged
-//!   and the boolean refuses `NonMaximalFaces` at their shared edge.
-//!   The structural rung merges them on request
-//!   (`Body::merge_coplanar_faces`), after which the boolean runs.
+//! - **extrude, revolve**: the two segments are one run on one carrier
+//!   (the cosurface verdict the sweep lowering decides per join), so
+//!   the verb builds ONE wall over both (`crates/sweep/README.md`,
+//!   "Walls: one per run"). Where a cap carries the profile the
+//!   continuation's vertex stays, splitting the cap rim into collinear
+//!   edges; nothing is left for the structural rung to merge, and the
+//!   body is a boolean operand as built.
 //! - **loft**: each segment's wall is its own NURBS surface under its
 //!   own key, so no rung merges them; the boolean refuses the body's
 //!   spline edges before its gate is reached.
 //! - **fillet**: the subdivided rim is a two-link chain whose joint is
 //!   collinear, and the blend door refuses it as unbuilt junction
-//!   carry-through, merged or not.
+//!   carry-through.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -28,7 +28,7 @@ use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{ClosedLoop, Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
 use sweep::blend::BlendError;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
-use topo::{Body, BooleanError, EdgeKey, FaceKey, Operand, union, validate_closed};
+use topo::{Body, BooleanError, EdgeKey, FaceKey, union, validate_closed};
 
 /// `[0,2]²` whose bottom side is authored as `line(1)` and then the
 /// straight continuation to `(2, 0)`: five vertices, four corners, and
@@ -93,62 +93,58 @@ fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
     )
 }
 
-fn edges_between(body: &Body<f64>, f: FaceKey, g: FaceKey) -> Vec<EdgeKey> {
-    body.edges()
-        .filter(|(_, e)| {
-            let a = body.face_of_half_edge(e.he_plus);
-            let b = body.face_of_half_edge(e.he_minus);
-            (a == Some(f) && b == Some(g)) || (a == Some(g) && b == Some(f))
-        })
-        .map(|(k, _)| k)
-        .collect()
-}
-
 fn volume(body: &Body<f64>, t: Tol) -> f64 {
     topo::mass_properties(body, t).unwrap().volume
 }
 
-/// **Extrude: one key, not merged, refused at the gate; merged on
-/// request, the union runs.** The cube `[0.5,1.5]×[−0.5,0.5]×[0.5,1.5]`
-/// crosses the subdivided wall `y = 0` across the continuation's strut.
+/// **Extrude: one wall over the run, and the union runs as built.**
+/// The cube `[0.5,1.5]×[−0.5,0.5]×[0.5,1.5]` crosses the subdivided wall
+/// `y = 0` across the continuation's vertex.
 #[test]
-fn extruded_continuation_walls_share_a_key_and_refuse_until_merged() {
+fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     let t = Tol::witness();
     let ex = subdivided_prism(t);
-    let (w0, w1) = (ex.side_faces()[0][0], ex.side_faces()[0][1]);
-    assert_eq!(
-        key_of(&ex.body, w0),
-        key_of(&ex.body, w1),
-        "the declared continuation's two walls share one plane key"
-    );
+    let sides = ex.side_faces();
+    let (w0, w1) = (sides[0][0], sides[0][1]);
+    assert_eq!(w0, w1, "the declared continuation sweeps one wall");
     assert!(is_plane(&ex.body, w0));
-    assert_ne!(key_of(&ex.body, w1), key_of(&ex.body, ex.side_faces()[0][2]));
-    let interior = ex.strut_edges()[0][1].unwrap();
-    assert_eq!(edges_between(&ex.body, w0, w1), vec![interior]);
+    assert_ne!(w0, sides[0][2]);
+    assert_eq!(ex.walls[0].len(), 4, "four walls for five segments");
+    let wall = &ex.walls[0][0];
+    assert_eq!(wall.segments, vec![0, 1]);
+    assert_eq!(
+        ex.strut_edges()[0][1],
+        None,
+        "the continuation's vertex is a station: no strut"
+    );
+    // The station stays on both caps: each rim of the wall is two
+    // collinear edges meeting at the continuation's vertex.
+    for rims in [&wall.bottom_rims, &wall.top_rims] {
+        assert_eq!(rims.len(), 2);
+        let ends = |e: EdgeKey| {
+            let edge = ex.body.get_edge(e).unwrap();
+            let a = ex.body.get_half_edge(edge.he_plus).unwrap().start;
+            let b = ex.body.get_half_edge(edge.he_minus).unwrap().start;
+            [a, b]
+        };
+        let shared: Vec<_> = ends(rims[0])
+            .into_iter()
+            .filter(|v| ends(rims[1]).contains(v))
+            .collect();
+        assert_eq!(shared.len(), 1, "the station vertex joins the two rims");
+    }
+    assert_eq!(ex.body.vertices().count(), 10, "five vertices on each cap");
+    assert_eq!(ex.body.faces().count(), 6);
     assert_eq!(validate_closed(&ex.body), Ok(()), "tier 2");
     assert_eq!(topo::validate_geometric(&ex.body, t), Ok(()), "tier 3");
-
-    let cube = cube_at(0.5, -0.5, 0.5, 1.0);
-    match union(&ex.body, &cube, t) {
-        Err(BooleanError::NonMaximalFaces { operand, edge }) => {
-            assert_eq!(operand, Operand::A);
-            assert_eq!(edge, interior, "refused at the continuation's strut");
-        }
-        other => panic!("expected NonMaximalFaces at the strut, got {other:?}"),
-    }
-
     let mut merged = ex.body.clone();
-    let out = merged.merge_coplanar_faces(t).unwrap();
-    assert!(out.skipped.is_empty(), "{:?}", out.skipped);
-    assert_eq!(out.groups.len(), 1, "one structural run");
-    assert_eq!(out.groups[0].killed_edges, vec![interior]);
-    assert_eq!(topo::validate_geometric(&merged, t), Ok(()), "tier 3");
     assert!(
-        (volume(&merged, t) - 8.0).abs() < 1e-12,
-        "the merge is pure structure"
+        merged.merge_coplanar_faces(t).unwrap().groups.is_empty(),
+        "nothing left for the structural rung to merge"
     );
 
-    let r = union(&merged, &cube, t).expect("the merged operand is maximal-faced");
+    let cube = cube_at(0.5, -0.5, 0.5, 1.0);
+    let r = union(&ex.body, &cube, t).expect("the extrusion is maximal-faced as built");
     let body = &r.body().expect("non-empty").body;
     assert_eq!(validate_closed(body), Ok(()), "tier 2");
     // [0,2]²×[0,2] plus the half of the cube outside it.
@@ -157,11 +153,13 @@ fn extruded_continuation_walls_share_a_key_and_refuse_until_merged() {
 
 /// **Revolve, full and partial: the same branch.** The subdivided
 /// square at `x ∈ [1, 3]` revolved about the sketch's y axis: its
-/// subdivided bottom side sweeps to two same-key annulus planes (the
-/// gate refuses them), its subdivided outer side to two same-key
-/// cylinder bands (the gate's canonical maximal form).
+/// subdivided bottom side sweeps to ONE annulus wall, its subdivided
+/// outer side to ONE cylinder wall. The partial revolve's wedge caps
+/// keep each continuation's vertex (a meridian vertex splitting the
+/// cap's chain); the full revolve keeps no entity for it. The union
+/// with a cube across the annulus runs as built.
 #[test]
-fn revolved_continuation_walls_share_a_key_and_refuse_until_merged() {
+fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
     let t = Tol::witness();
     let lp: ProfileLoop<f64> = Open
         .at(Point2::new(1.0, 0.0))
@@ -191,27 +189,31 @@ fn revolved_continuation_walls_share_a_key_and_refuse_until_merged() {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    // A cube across the annulus plane y = 0 over the split circle at
-    // radius 2, clear of the axis.
+    // A cube across the annulus plane y = 0 over the continuation's
+    // circle at radius 2, clear of the axis.
     let cube = cube_at(1.5, -0.5, -0.5, 1.0);
-    for rev in [Revolution::Full, Revolution::Partial(FRAC_PI_2)] {
+    for (rev, vertices) in [(Revolution::Full, 4), (Revolution::Partial(FRAC_PI_2), 12)] {
         let r = revolve(&v, axis, rev, t).unwrap();
-        let w = |j: usize| r.walls()[0][j].expect("off-axis segment has a wall");
-        assert_eq!(key_of(&r.body, w(0)), key_of(&r.body, w(1)), "{rev:?}");
+        let walls = r.walls();
+        let w = |j: usize| walls[0][j].expect("off-axis segment has a wall");
+        assert_eq!(w(0), w(1), "{rev:?}: one annulus wall");
         assert!(is_plane(&r.body, w(0)), "{rev:?}");
-        assert_eq!(key_of(&r.body, w(2)), key_of(&r.body, w(3)), "{rev:?}");
+        assert_eq!(w(2), w(3), "{rev:?}: one cylinder wall");
         assert!(!is_plane(&r.body, w(2)), "{rev:?}");
+        assert_eq!(r.bands[0].len(), 4, "{rev:?}: four walls for six segments");
+        assert_eq!(r.rims[0][1], None, "{rev:?}: no rim at a station");
+        assert_eq!(r.rims[0][3], None, "{rev:?}: no rim at a station");
+        assert_eq!(r.body.vertices().count(), vertices, "{rev:?}");
         assert_eq!(topo::validate_geometric(&r.body, t), Ok(()), "{rev:?}");
-
-        let split_circle = edges_between(&r.body, w(0), w(1));
-        assert_eq!(split_circle.len(), 1, "{rev:?}");
-        match union(&r.body, &cube, t) {
-            Err(BooleanError::NonMaximalFaces { operand, edge }) => {
-                assert_eq!(operand, Operand::A, "{rev:?}");
-                assert_eq!(edge, split_circle[0], "{rev:?}: the annulus pair");
-            }
-            other => panic!("{rev:?}: expected NonMaximalFaces, got {other:?}"),
-        }
+        let mut merged = r.body.clone();
+        assert!(
+            merged.merge_coplanar_faces(t).unwrap().groups.is_empty(),
+            "{rev:?}: nothing left for the structural rung to merge"
+        );
+        let u = union(&r.body, &cube, t)
+            .unwrap_or_else(|e| panic!("{rev:?}: the revolve is maximal-faced as built: {e:?}"));
+        let body = &u.body().expect("non-empty").body;
+        assert_eq!(validate_closed(body), Ok(()), "{rev:?}: tier 2");
     }
 }
 
@@ -245,11 +247,10 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
 }
 
 /// **Fillet: the subdivided rim is a two-link chain.** Every edge of
-/// the prism but the continuation's own (flat) strut, requested at
-/// once, refuses as unbuilt junction carry-through — merged or not,
-/// because the merge keeps the continuation's rim vertices. The plain
-/// cube's twelve edges, the same request without the subdivision,
-/// build.
+/// the prism requested at once refuses as unbuilt junction
+/// carry-through: the one wall keeps the continuation's rim vertices.
+/// The plain cube's twelve edges, the same request without the
+/// subdivision, build.
 #[test]
 fn subdivided_rim_fillet_refuses_as_junction_carry_through() {
     let t = Tol::witness();
@@ -259,21 +260,12 @@ fn subdivided_rim_fillet_refuses_as_junction_carry_through() {
     assert_eq!(topo::validate_geometric(&f.body, t), Ok(()));
 
     let ex = subdivided_prism(t);
-    let interior = ex.strut_edges()[0][1].unwrap();
-    let mut merged = ex.body.clone();
-    merged.merge_coplanar_faces(t).unwrap();
-    for (label, body) in [("split", &ex.body), ("merged", &merged)] {
-        let req: Vec<_> = body
-            .edges()
-            .map(|(k, _)| k)
-            .filter(|k| *k != interior)
-            .collect();
-        assert_eq!(req.len(), 14, "{label}: 12 cube edges + the split rims");
-        let err = sweep::fillet::fillet_edges(body, &req, 0.25, t).unwrap_err();
-        assert!(
-            matches!(err.error, BlendError::UnsupportedChain { detail, .. }
-                if detail.contains("junction carry-through")),
-            "{label}: {err}"
-        );
-    }
+    let req: Vec<_> = ex.body.edges().map(|(k, _)| k).collect();
+    assert_eq!(req.len(), 14, "12 cube edges + the split rims");
+    let err = sweep::fillet::fillet_edges(&ex.body, &req, 0.25, t).unwrap_err();
+    assert!(
+        matches!(err.error, BlendError::UnsupportedChain { detail, .. }
+            if detail.contains("junction carry-through")),
+        "{err}"
+    );
 }

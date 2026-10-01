@@ -653,8 +653,10 @@ pub enum CornerConfig {
     DependentNormals,
     /// A vertex where a CHART SEAM crosses an otherwise smooth rim: the
     /// two edges continuing the rim carry the same support pair, and the
-    /// other two are co-surface seam meridians (one surface on both
-    /// sides, so the dihedral there is zero by construction).
+    /// other one or two are co-surface seam meridians of those supports
+    /// (one surface on both sides, so the dihedral there is zero by
+    /// construction) — one where the other support is a whole face
+    /// carrying both arcs, as a full revolve's plane wall is.
     ///
     /// **Not a corner**, and that is the whole content of the tag. The
     /// surface is smooth through the point — the seam is where a chart

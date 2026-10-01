@@ -100,9 +100,10 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
 }
 
 /// The mixed dome: (0,0) →line→ (1,0) →quarter arc→ (0,1) →axis
-/// line→ close. One off-axis anchor + two poles, full revolve: the
-/// narrowed refusal must NOT fire (the off-axis vertex anchors), and
-/// both poles come from the export.
+/// line→ close. One off-axis anchor + the dome's pole, full revolve:
+/// the narrowed refusal must NOT fire (the off-axis vertex anchors),
+/// and the pole comes from the export. The base disc's centre (0,0) is
+/// no vertex — a plane wall is built whole — so it names no pole.
 #[test]
 fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
@@ -121,7 +122,10 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     // Canonical v0=(0,0), v1=(1,0) off-axis, v2=(0,1).
-    assert!(t.lookup(&outer_pole(&doc, rev, 0)).is_some());
+    assert!(
+        t.lookup(&outer_pole(&doc, rev, 0)).is_none(),
+        "a disc's centre is not a pole"
+    );
     assert!(
         t.lookup(&outer_pole(&doc, rev, 1)).is_none(),
         "off-axis vertex is not a pole"

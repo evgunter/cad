@@ -2516,10 +2516,13 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(node),
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: crate::node::StepId(u64::from(seg)),
-                role: crate::names::PieceRole::Leg,
-            }.into())],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: crate::node::StepId(u64::from(seg)),
+                    role: crate::names::PieceRole::Leg,
+                }
+                .into(),
+            )],
         }
     }
 

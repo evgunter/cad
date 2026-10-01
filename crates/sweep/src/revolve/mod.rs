@@ -59,7 +59,8 @@
 //!   wall). Full revolves OMIT on-axis edges (they sweep to nothing):
 //!   a profile whose axis contact is one contiguous run of on-axis
 //!   line segments opens into a **wire** whose tips become poles/
-//!   apexes; contact at an isolated vertex, or in two or more runs,
+//!   apexes (a tip where a plane wall meets the axis is a disc's
+//!   centre, built whole, and no vertex); contact at an isolated vertex, or in two or more runs,
 //!   revolves to a non-manifold solid and is refused (D1). Holes are
 //!   supported for partial revolves (extrude-shaped) AND for full
 //!   revolves: a full revolve of a holed profile is DEFINED as
@@ -93,14 +94,17 @@
 //! edges upgrade to `Intersection { start cap, end cap }` when the caps
 //! are definitely transverse (θ ≠ π), and a full revolve's meridians
 //! become `Seam` on periodic walls and images at rest in the wall's
-//! chart on plane ones. No edge KEEPS its `MappedCurve` past this
+//! chart on a lamina's plane annulus (a wire's plane walls carry no
+//! meridian at all). No edge KEEPS its `MappedCurve` past this
 //! pass: the mint's scaffolding is for edges whose surfaces do not
 //! exist yet (D3's transience fence), and by here they all do — a
 //! conventional description at rest is a chart image, which owes the
-//! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface runs (collinear segments,
-//! same-carrier tangent arcs) share one surface key, decided for the
-//! whole loop — including the wrap pair — before any wall is minted
-//! (the PR 4 SHOULD-1 lesson).
+//! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface verdicts are decided for
+//! the whole loop — including the wrap pair — before any wall is minted
+//! (the PR 4 SHOULD-1 lesson): a run of collinear segments is ONE wall
+//! (crate README, "Walls: one per run"; a full revolve collapses the run
+//! to one segment before it builds, a partial one keeps each station on
+//! its wedge caps), and same-carrier tangent arcs share one surface key.
 //!
 //! # K-telemetry
 //!
@@ -153,7 +157,8 @@ pub enum Revolution<T: Real> {
     /// The full revolution: sweeps exactly +2π (no wedge caps). A
     /// closed off-axis profile closes its seam through same-shell
     /// `kfmrh` plus the loopglue zip; an axis-touching profile sweeps
-    /// as a two-band wire (see [`RevolvedKind::Full`]).
+    /// as a two-band wire whose plane walls are made whole (see
+    /// [`RevolvedKind::Full`]).
     Full,
     /// A partial revolution by the **signed** angle θ (radians,
     /// right-hand rule about the placed axis direction);
@@ -203,9 +208,11 @@ pub struct Revolved<T: Real> {
     /// vertex an on-axis profile vertex revolves to (the rotation
     /// fixes it, so every meridian chain meets there). `None` at
     /// off-axis vertices — those have one copy per chain, addressed
-    /// through `rims` and the meridian chains — and at vertices
-    /// strictly INTERIOR to a full revolve's omitted axis run, which
-    /// that case deletes outright (no body entity exists to name).
+    /// through `rims` and the meridian chains — at vertices strictly
+    /// INTERIOR to a full revolve's omitted axis run, which that case
+    /// deletes outright (no body entity exists to name), and at a full
+    /// revolve's tip where a plane wall meets the axis (the disc is
+    /// built whole, its centre no vertex).
     /// A multi-segment axis run authors through the recipe layer as
     /// well as through this API — its continuation verbs declare the
     /// collinear join as a tangent joint — so that last case is

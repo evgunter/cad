@@ -176,8 +176,10 @@ pub(crate) fn name_extrude<T: Decide>(
                 ),
                 ent(0, EntityKey::Edge(wall.strut)),
             )?;
-            for (end, rims) in [(CapEnd::End, &wall.top_rims), (CapEnd::Start, &wall.bottom_rims)]
-            {
+            for (end, rims) in [
+                (CapEnd::End, &wall.top_rims),
+                (CapEnd::Start, &wall.bottom_rims),
+            ] {
                 if rims.len() != wall.segments.len() {
                     return Err(NamingError::Emission {
                         what: "an extruded wall's rims do not match its segments",
@@ -403,7 +405,11 @@ pub(crate) fn name_revolve<T: Decide>(
                         insert_edge(&mut t, RoleSeg::AxisEdge(pe(l, s)?), se)?;
                     } else {
                         let one = PieceRun::one(pe(l, s)?);
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Start, one.clone()), se)?;
+                        insert_edge(
+                            &mut t,
+                            RoleSeg::Meridian(MeridianEnd::Start, one.clone()),
+                            se,
+                        )?;
                         insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::End, one), ee)?;
                     }
                 }
@@ -487,7 +493,11 @@ pub(crate) fn name_revolve<T: Decide>(
                             RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)?),
                             seam,
                         )?;
-                        insert_vertex(&mut t, RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)?), pi)?;
+                        insert_vertex(
+                            &mut t,
+                            RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)?),
+                            pi,
+                        )?;
                     } else if let Some(p) = built.poles[0][v] {
                         insert_vertex(&mut t, RoleSeg::Pole(pv(0, v)?), p)?;
                     }

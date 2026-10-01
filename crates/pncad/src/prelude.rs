@@ -755,7 +755,7 @@ pub use crate::select::{
     ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact,
     Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
-    Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
+    PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
     StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
     declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, edge_name,

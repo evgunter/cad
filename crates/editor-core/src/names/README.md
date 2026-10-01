@@ -51,7 +51,9 @@ subdivided axis run — an on-axis side carried by several collinear legs, which
 the continuation verbs author — is structurally a pole and takes `Pole(v)` like
 the run's tips. A FULL revolve deletes the axis run outright, so an interior
 vertex of it has no body entity and nothing to name: the export's `None` is the
-answer there, and the run's tips are the only named on-axis vertices. Totality
+answer there. Nor does a tip where a plane wall meets the axis: the full revolve
+builds that disc whole, its centre no vertex, so it too exports `None`; the tips
+a cone or a curved wall ends on are the named on-axis vertices. Totality
 is the check on that silence — `check_total` refuses a table leaving a LIVE body
 vertex unnamed, so a `None` standing over surviving geometry cannot pass.
 

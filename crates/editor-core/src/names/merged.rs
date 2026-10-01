@@ -198,7 +198,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::names::role::CapEnd;
+    use crate::names::role::{CapEnd, ProfileEdgeRef};
     use crate::node::RecipeNodeId;
 
     fn face(node: u64, path: Vec<RoleSeg>) -> StableName {
@@ -270,5 +270,77 @@ mod tests {
         );
         assert!(constituents_through_wrappers(&fragment).is_none());
         assert!(!covers(&outer_set, &fragment));
+    }
+
+    fn lateral(node: u64, steps: &[u64]) -> StableName {
+        face(
+            node,
+            vec![RoleSeg::Lateral(
+                PieceRun::new(
+                    steps
+                        .iter()
+                        .map(|&s| ProfileEdgeRef::Piece {
+                            step: crate::node::StepId(s),
+                            role: crate::names::PieceRole::Leg,
+                        })
+                        .collect(),
+                )
+                .unwrap(),
+            )],
+        )
+    }
+
+    /// **A run wall covers its pieces' walls and the runs inside it**,
+    /// read through descent wrappers, and is not a merge.
+    #[test]
+    fn a_run_wall_covers_its_pieces_walls_through_its_wrappers() {
+        let run = lateral(3, &[7, 8, 9]);
+        assert!(constituents_through_wrappers(&run).is_none(), "not a merge");
+        assert_eq!(
+            run_constituents(&run).unwrap(),
+            vec![lateral(3, &[7]), lateral(3, &[8]), lateral(3, &[9])]
+        );
+        assert!(row_covers(&run, &lateral(3, &[8])));
+        assert!(
+            row_covers(&run, &lateral(3, &[7, 8])),
+            "a shorter run inside it"
+        );
+        assert!(!row_covers(&run, &lateral(3, &[6])));
+        assert!(!row_covers(&run, &lateral(4, &[8])), "another node's wall");
+        assert!(
+            run_constituents(&lateral(3, &[7])).is_none(),
+            "one piece holds no set"
+        );
+        let carried = from_a(12, run.clone());
+        assert!(row_covers(&carried, &from_a(12, lateral(3, &[9]))));
+        assert!(!row_covers(&carried, &from_b(12, lateral(3, &[9]))));
+        // A merge that consumed the run wall covers its pieces' walls.
+        let set = {
+            let mut s = vec![from_a(12, run.clone()), from_b(12, cap(5))];
+            s.sort();
+            s
+        };
+        assert!(covers(&set, &from_a(12, lateral(3, &[7]))));
+    }
+
+    /// **N3's offers over a run** (`names/README.md`, N1 "Swept walls
+    /// over a run"): a selection made before a station was inserted is
+    /// offered the run wall that now covers it, and a run an edit broke
+    /// offers its pieces' live walls.
+    #[test]
+    fn a_station_offers_the_run_wall_and_a_broken_run_offers_its_pieces_walls() {
+        let run = lateral(3, &[7, 8]);
+        let before = lateral(3, &[7]);
+        let rows = [run.clone(), lateral(3, &[9]), cap(3)];
+        assert_eq!(offers(&before, rows.iter()), vec![run.clone()]);
+        let broken = [lateral(3, &[7]), lateral(3, &[8]), cap(3)];
+        assert_eq!(
+            offers(&run, broken.iter()),
+            vec![lateral(3, &[7]), lateral(3, &[8])]
+        );
+        // A run broken into a piece and a shorter run: both walls.
+        let wider = lateral(3, &[7, 8, 9]);
+        let split = [lateral(3, &[7]), lateral(3, &[8, 9])];
+        assert_eq!(offers(&wider, split.iter()), split.to_vec());
     }
 }

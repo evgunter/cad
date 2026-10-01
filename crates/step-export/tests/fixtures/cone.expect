@@ -3,10 +3,11 @@
 # EXACT ANALYTIC value in FreeCAD's internal mm^3, not a readback --
 # right cone base radius 1 height 1: pi/3 m^3
 #
-# Kernel census is 4 faces / 6 edges / 4 vertices; OCC reports 8 EDGES,
-# adding a degenerate apex edge per conical face (the same pole-chart
-# normalisation it applies to the ball). Faces, vertices and the volume
-# are unchanged.
+# Kernel census is 3 faces / 4 edges / 3 vertices (the cone's two
+# half-bands and ONE base disc, which a full revolve builds whole); OCC
+# reports 6 EDGES, adding a degenerate apex edge per conical face (the
+# same pole-chart normalisation it applies to the ball). Faces, vertices
+# and the volume are unchanged.
 #
 # KERNEL_* pin the NATIVE body's census and certified volume, full
 # precision (the literal is the export writer's round-tripping float
@@ -15,14 +16,14 @@
 # EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
 KERNEL_SOLIDS=1
 KERNEL_SHELLS=1
-KERNEL_FACES=4
-KERNEL_EDGES=6
-KERNEL_VERTICES=4
+KERNEL_FACES=3
+KERNEL_EDGES=4
+KERNEL_VERTICES=3
 KERNEL_VOLUME_MM3=1047197551.1965976
 KERNEL_VOLUME_PAD_MM3=0.0
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
-EXPECT_FACES=4
-EXPECT_EDGES=8
-EXPECT_VERTICES=4
+EXPECT_FACES=3
+EXPECT_EDGES=6
+EXPECT_VERTICES=3
 EXPECT_VOLUME_MM3=1047197551.1965976

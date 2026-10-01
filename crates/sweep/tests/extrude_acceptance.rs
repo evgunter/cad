@@ -635,7 +635,10 @@ fn rebuild_is_byte_identical() {
         format!("{:?}", a.strut_edges()),
         format!("{:?}", b.strut_edges())
     );
-    assert_eq!(format!("{:?}", a.side_faces()), format!("{:?}", b.side_faces()));
+    assert_eq!(
+        format!("{:?}", a.side_faces()),
+        format!("{:?}", b.side_faces())
+    );
 }
 
 #[test]

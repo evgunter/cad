@@ -1646,12 +1646,14 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 /// **A chart-seam vertex, recognized structurally** — the point where a
 /// CLOSED rim was cut by the chart seams of its own two supports.
 ///
-/// Its shape, and the whole of it: four incident edges, of which two are
-/// CO-SURFACE seams (one surface on both sides, so the dihedral there is
-/// zero by construction and not by measurement — the same structural
-/// reading S10/S11 require of every sense question), and the other two
-/// carry ONE support pair between them, i.e. the same rim arriving and
-/// leaving.
+/// Its shape, and the whole of it: two incident edges carrying ONE
+/// support pair between them, i.e. the same rim arriving and leaving,
+/// and beside them one or two CO-SURFACE seams (one surface on both
+/// sides, so the dihedral there is zero by construction and not by
+/// measurement — the same structural reading S10/S11 require of every
+/// sense question). Two where both supports are periodic walls cut at
+/// their seams; one where a support is a whole face carrying both arcs —
+/// a full revolve's plane disc or annulus, which has no seam to cut it.
 ///
 /// The two families must be the SAME geometry, not merely the right
 /// counts: each seam's surface has to be one of the rim's own two
@@ -1709,7 +1711,7 @@ fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
     let [(p, q), second] = rim[..] else {
         return false;
     };
-    seams.len() == 2 && (p, q) == second && seams.iter().all(|s| *s == p || *s == q)
+    matches!(seams.len(), 1 | 2) && (p, q) == second && seams.iter().all(|s| *s == p || *s == q)
 }
 
 /// The refusal for a ruled link's end that is not a transverse cap —

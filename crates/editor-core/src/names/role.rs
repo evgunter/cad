@@ -673,8 +673,17 @@ pub enum ProfileEdgeRef {
 /// A one-piece run is spelled as that one locator, on the wire and in
 /// words, so a name minted before runs existed reads back unchanged; a
 /// run of several is spelled as the list.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PieceRun(Vec<ProfileEdgeRef>);
+
+impl core::fmt::Debug for PieceRun {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.single() {
+            Some(one) => one.fmt(f),
+            None => f.debug_list().entries(&self.0).finish(),
+        }
+    }
+}
 
 impl PieceRun {
     /// The run of `pieces`, or `None` when there are none.
@@ -754,8 +763,9 @@ impl<'de> serde::Deserialize<'de> for PieceRun {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         match PieceRunWire::deserialize(d)? {
             PieceRunWire::One(one) => Ok(Self::one(one)),
-            PieceRunWire::Many(many) => Self::new(many)
-                .ok_or_else(|| serde::de::Error::custom("a run of profile pieces holds at least one")),
+            PieceRunWire::Many(many) => Self::new(many).ok_or_else(|| {
+                serde::de::Error::custom("a run of profile pieces holds at least one")
+            }),
         }
     }
 }
@@ -1025,7 +1035,8 @@ pub enum RoleSeg {
     BandRim(ProfileVertexRef),
     /// Full, wire case: the π…2π band's latitude half-rim.
     BandRimPi(ProfileVertexRef),
-    /// Full, wire case: the π…2π band's wall face.
+    /// Full, wire case: a CURVED wall's π…2π band face. A plane wall is
+    /// built whole and named by [`RoleSeg::Band`] alone.
     BandPi(PieceRun),
     /// A meridian edge (per meridian, per wall run: a partial revolve's
     /// stations split its meridian chains, so there it is per piece).
@@ -1371,8 +1382,9 @@ pub enum RoleSeg {
     },
 }
 
-/// **The `[0, π)` band face swept from the profile piece `piece`** on
-/// the revolve at `node` — [`RoleSeg::Band`].
+/// **The band face swept from the profile piece `piece`** on the
+/// revolve at `node` (in a full revolve's wire case, a curved wall's
+/// `[0, π)` half) — [`RoleSeg::Band`] over the one-piece run.
 ///
 /// This and its three siblings are the MINTING direction of the
 /// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
@@ -1393,8 +1405,8 @@ pub fn band(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
 }
 
 /// **The `[π, 2π)` band face swept from the profile piece `piece`** —
-/// [`band`]'s twin in the wire case, where a full revolve emits every
-/// profile segment as two faces ([`RoleSeg::BandPi`]).
+/// [`band`]'s twin in the wire case, where a full revolve emits a
+/// curved wall as two faces ([`RoleSeg::BandPi`]); a plane wall is one.
 /// [`EntityKind::Face`], as [`band`] is.
 #[must_use]
 pub fn band_pi(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
@@ -2303,10 +2315,13 @@ mod tests {
         let wall = |node: u64, step: u64| StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(node),
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: StepId(step),
-                role: PieceRole::Leg,
-            }.into())],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: StepId(step),
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
         };
         let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
         assert_eq!(

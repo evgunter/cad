@@ -421,12 +421,9 @@ fn hole_circle_anchor_recovers_reversal() {
         let name = StableName {
             kind: EntityKind::Face,
             node: doc.order()[2],
-            path: vec![RoleSeg::Lateral(crate::fixture::piece(
-                &doc,
-                doc.order()[2],
-                1,
-                seg as usize,
-            ).into())],
+            path: vec![RoleSeg::Lateral(
+                crate::fixture::piece(&doc, doc.order()[2], 1, seg as usize).into(),
+            )],
         };
         assert!(
             table.lookup(&name).is_some(),

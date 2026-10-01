@@ -24,7 +24,18 @@
 //! struts only interior vertices; tip walls close directly onto the
 //! fixed tip vertices; the zip runs with no `kfmrh` (an axis-anchored
 //! wire adds no handle — genus 0) and no null-edge `mekr` (the tips
-//! were never duplicated).
+//! were never duplicated). The two π-bands exist so a pole or apex
+//! keeps valence 2 through a CURVED wall's two meridians; a plane wall
+//! needs neither, so it is made one face before the build returns —
+//! its band-2 twin killed into it across the angle-π copy, its angle-0
+//! meridian killed with the pole it ends at (a disc) or into the ring
+//! that separates its inner circle (an annulus).
+//!
+//! **Runs** (crate README, "Walls: one per run"): both cases build from
+//! the loop with each run of collinear segments collapsed to one
+//! ([`Collapsed`]), so a station inside a run has no entity here; the
+//! handles map each run's wall and meridians back onto every canonical
+//! segment it holds.
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
@@ -868,11 +879,8 @@ pub(super) fn collapse_runs<T: Decide>(
         });
         out.cls.verts.push(cls.verts[run.first]);
         out.cls.walls.push(cls.walls[run.first]);
-        out.members.push(
-            run.segments(n)
-                .map(|s| segs[s].canonical_segment)
-                .collect(),
-        );
+        out.members
+            .push(run.segments(n).map(|s| segs[s].canonical_segment).collect());
     }
     Ok(out)
 }

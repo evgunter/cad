@@ -2265,10 +2265,13 @@ pub(super) mod tests {
             let piece = named(
                 EntityKind::Face,
                 3,
-                vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                    step: StepId(7),
-                    role: PieceRole::Leg,
-                }.into())],
+                vec![RoleSeg::Lateral(
+                    ProfileEdgeRef::Piece {
+                        step: StepId(7),
+                        role: PieceRole::Leg,
+                    }
+                    .into(),
+                )],
             );
             let copy = |r: NameRef| RoleSeg::Instance { i: 1, of: r };
             assert_eq!(
@@ -2310,10 +2313,13 @@ pub(super) mod tests {
             named(
                 EntityKind::Face,
                 1,
-                vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                    step: StepId(i as u64),
-                    role: PieceRole::Leg,
-                }.into())],
+                vec![RoleSeg::Lateral(
+                    ProfileEdgeRef::Piece {
+                        step: StepId(i as u64),
+                        role: PieceRole::Leg,
+                    }
+                    .into(),
+                )],
             )
         };
         let member = |i: usize| {

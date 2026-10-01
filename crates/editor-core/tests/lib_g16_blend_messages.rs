@@ -99,7 +99,9 @@ fn messages(
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Edge,
         node: cube,
-        path: vec![editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc).into())],
+        path: vec![editor_core::RoleSeg::Lateral(
+            fixture::no_piece_of(&doc).into(),
+        )],
     };
     let (d, n) = fixture::insert(doc, blend(cube, size, vec![ghost]));
     out.push(("resolve", msg_of(&d, n)));

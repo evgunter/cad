@@ -394,10 +394,11 @@ enum HostFoot {
 /// It is reachable through `topo`'s public `kef` — kill one of a sphere
 /// wall's two seam meridians and the remaining face carries both rim
 /// arcs — and through no sweep or boolean door. It refuses at the
-/// half-band gate on BOTH routes, and never carves:
+/// half-band gate (on the `Struts` route, a full revolve's plane side
+/// being one face), and never carves:
 /// `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
 /// rowed by
-/// `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both_routes`.
+/// `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`.
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible

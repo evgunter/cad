@@ -1137,10 +1137,13 @@ mod tests {
         let wall = StableName {
             kind: EntityKind::Face,
             node: extrude,
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: program.ids[0][named],
-                role: PieceRole::Leg,
-            }.into())],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: program.ids[0][named],
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
         };
         let (doc, carrier) = inserted(
             &doc,

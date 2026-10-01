@@ -476,12 +476,19 @@ fn full_wire_revolve_names_pi_band_and_poles() {
             .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_)))),
         "no BandRimPi role minted"
     );
-    // Two poles: the on-axis profile vertices.
+    // No poles: both on-axis profile vertices are disc centres, and a
+    // plane wall is built whole, so neither is a vertex.
     let poles = t
         .iter()
         .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Pole(_))))
         .count();
-    assert_eq!(poles, 2);
+    assert_eq!(poles, 0);
+    // The discs are plain `Band` faces: one π twin, the cylinder's.
+    let pi_bands = t
+        .iter()
+        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandPi(_))))
+        .count();
+    assert_eq!(pi_bands, 1, "only the curved wall has a π twin");
 }
 
 /// M9-D1: the natural ball. Every vertex of the meridian is on-axis,
@@ -637,7 +644,11 @@ fn split_names_sections_fragments_and_crossings() {
     // each cut wall contributes a SectionEdge.
     for side in [SplitHalf::Above, SplitHalf::Below] {
         for s in 0..4 {
-            let lateral = minted(EntityKind::Face, ext, RoleSeg::Lateral(pe(&doc, ext, 0, s).into()));
+            let lateral = minted(
+                EntityKind::Face,
+                ext,
+                RoleSeg::Lateral(pe(&doc, ext, 0, s).into()),
+            );
             assert!(
                 t.lookup(&minted(
                     EntityKind::Face,

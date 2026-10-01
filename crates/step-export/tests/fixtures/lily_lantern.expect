@@ -8,10 +8,11 @@
 # carries NEITHER pole, and the only one pairing a sphere zone with a
 # cone across a shared circle. Both halves matter on import.
 #
-# Faces 8 = 2 half-bands x (attachment plane, sphere zone, cone,
-# mouth plane); the axis-touching profile makes a revolve emit two
-# half-bands per wall, meeting on the seam meridian and its pi copy.
-# Edges 14 and vertices 8 are the kernel's own census, UNCHANGED by
+# Faces 6 = the attachment disc + 2 half-bands x (sphere zone, cone) +
+# the mouth disc; the axis-touching profile makes a revolve emit two
+# half-bands per CURVED wall, meeting on the seam meridian and its pi
+# copy, and each plane wall whole. Edges 10 and vertices 6 are the
+# kernel's own census, UNCHANGED by
 # import: OCC adds a DEGENERATE pole edge for every pole a spherical
 # face actually carries (ball.expect records +4 for the whole sphere,
 # die_pips.expect +2 per cap-shaped dimple), and a doubly-truncated
@@ -35,14 +36,14 @@
 # EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
 KERNEL_SOLIDS=1
 KERNEL_SHELLS=1
-KERNEL_FACES=8
-KERNEL_EDGES=14
-KERNEL_VERTICES=8
+KERNEL_FACES=6
+KERNEL_EDGES=10
+KERNEL_VERTICES=6
 KERNEL_VOLUME_MM3=362258037.29804665
 KERNEL_VOLUME_PAD_MM3=0.0
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
-EXPECT_FACES=8
-EXPECT_EDGES=14
-EXPECT_VERTICES=8
+EXPECT_FACES=6
+EXPECT_EDGES=10
+EXPECT_VERTICES=6
 EXPECT_VOLUME_MM3=362258037.2980467

@@ -478,7 +478,10 @@ fn a_declared_name_that_denotes_nothing_refuses() {
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
         SitedRef::new(
             b,
-            fname(b, RoleSeg::Lateral(crate::fixture::no_piece_of(&doc).into())),
+            fname(
+                b,
+                RoleSeg::Lateral(crate::fixture::no_piece_of(&doc).into()),
+            ),
         ),
     )];
     let (doc, union, _) = declared_union(doc, &[a, b], named2);

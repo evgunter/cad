@@ -81,12 +81,9 @@ fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: bar,
-        path: vec![RoleSeg::Lateral(crate::fixture::piece(
-            doc,
-            bar,
-            0,
-            segment as usize,
-        ).into())],
+        path: vec![RoleSeg::Lateral(
+            crate::fixture::piece(doc, bar, 0, segment as usize).into(),
+        )],
     }
 }
 

@@ -61,7 +61,12 @@ fn r1_cusp_profile_extrudes_and_the_cusp_is_legal_at_rest() {
         panic!("one Tangent mark: {tangent:?}");
     };
     assert!(
-        built.strut_edges().iter().flatten().flatten().any(|e| e == marked),
+        built
+            .strut_edges()
+            .iter()
+            .flatten()
+            .flatten()
+            .any(|e| e == marked),
         "the marked edge is a strut"
     );
     let he = body.get_edge(*marked).unwrap().he_plus;

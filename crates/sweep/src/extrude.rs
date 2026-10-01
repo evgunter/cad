@@ -20,15 +20,20 @@
 //!    face is immediately consumed by a same-shell `kfmrh` demoting the
 //!    disc loop into the bottom cap. Genus rises by one per hole.
 //! 3. **Sweep.** Per loop of the seed face (outer, then rings in
-//!    canonical hole order): one strut `mev` per vertex (the
-//!    `he1 == he2` case — swept vertex, `ExtrudedPoint` description),
-//!    then one side-quad `mef` per segment (the new edge is the **top
-//!    rim**, `PlacedSegment` at the translated placement; the new face
-//!    is the side wall, plane or cylinder — a CONCAVE arc's wall is
-//!    minted `sense: false`: its material lies outside the carrier,
-//!    against the chart normal), the last `mef` closing
-//!    against the first top rim. The original loop survives
-//!    translated by `w` — the swept face becomes the top cap.
+//!    canonical hole order), one wall per RUN of collinear segments
+//!    (crate README, "Walls: one per run"): one strut `mev` per run's
+//!    leading vertex (the `he1 == he2` case — swept vertex,
+//!    `ExtrudedPoint` description), then per run a `mev` chain laying
+//!    the top rim of every segment but the last (minting each
+//!    station's top vertex) and one side `mef` (the new edge is the
+//!    last segment's **top rim**, `PlacedSegment` at the translated
+//!    placement; the new face is the side wall, plane or cylinder — a
+//!    CONCAVE arc's wall is minted `sense: false`: its material lies
+//!    outside the carrier, against the chart normal), the last `mef`
+//!    closing against the first top rim. A station inside a run is a
+//!    vertex of both caps' rim chains and of nothing else. The original
+//!    loop survives translated by `w` — the swept face becomes the top
+//!    cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
 //!    sharing) keep the conventional description structurally;
 //!    otherwise `classify_dihedral` at the strut midpoint decides —
@@ -989,7 +994,14 @@ fn sweep_loop<T: Decide>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[last], top_place, normal, qs[last] + w, qs[end] + w, tol),
+            placed_segment_spec(
+                &segs[last],
+                top_place,
+                normal,
+                qs[last] + w,
+                qs[end] + w,
+                tol,
+            ),
             surface,
             tol,
         )?;
@@ -1100,9 +1112,9 @@ fn sweep_loop<T: Decide>(
                         vertex_index: segs[j].chord.canonical_vertex,
                         source,
                     },
-                    geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted {
-                        edge: strut.edge,
-                    },
+                    geom_brep::MustCarryRefusal::Refuted => {
+                        ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
+                    }
                 };
                 match geom_brep::must_carry_over_edge(
                     &s_prev,

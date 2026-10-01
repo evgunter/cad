@@ -599,10 +599,13 @@ fn a_cluster_act_is_carried_but_not_worded() {
         name: StableName {
             kind: EntityKind::Face,
             node: gauge,
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: StepId(tagged(1)),
-                role: PieceRole::Leg,
-            }.into())],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: StepId(tagged(1)),
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
         },
     };
     assert_eq!(
