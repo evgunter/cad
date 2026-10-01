@@ -924,7 +924,7 @@ const BAND_PROBE: &str = "TREE_BADGES_BAND_PROBE";
 ///
 /// The same value as `wire_band_cause.rs`'s `OVERFLOW_EPS`, which it
 /// was derived from; that both spellings exist is
-/// `work/tint/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`.
+/// `work/helper/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`.
 const BANDLESS_EPS: f64 = f64::MAX / 2.0;
 
 /// **What the child prints once it has run every assertion below.**
@@ -1631,11 +1631,11 @@ const SNAPSHOT_TEXT: &str = "TREE_BADGES_BAND_SNAPSHOT_TEXT";
 /// default K (16 m to 160 m) and overflows at [`SNAPSHOT_LOAD_K`]. A
 /// document records its ε and not its K, which is the process's
 /// (`CAD_AMBIGUITY_K`), so one file meets both.
-const SNAPSHOT_EPS: &str = "16";
+const SNAPSHOT_EPS: f64 = 16.0;
 
 /// The K the loading child commits: finite, so the run's validator
 /// admits it, and large enough that K·ε overflows at [`SNAPSHOT_EPS`].
-const SNAPSHOT_LOAD_K: &str = "8.98846567431158e307";
+const SNAPSHOT_LOAD_K: f64 = f64::MAX / 2.0;
 
 /// Bracket the authored snapshot in the author child's stdout.
 const SNAPSHOT_BEGIN: &str = "BAND-SNAPSHOT-BEGIN";
@@ -1776,6 +1776,11 @@ fn child_band_snapshot_load() {
 
 /// Runs the child `name` of this module with `envs` and the ambient
 /// tolerance variables removed, answering its stdout once it exits 0.
+///
+/// Another copy of the re-exec harness this file's band row and
+/// `wire_band_cause.rs` already spell, disclosed on
+/// `work/helper/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`;
+/// its caller reads a sentinel, as that item asks.
 fn run_child(name: &str, envs: &[(&str, &str)]) -> String {
     let exe = std::env::current_exe().expect("test exe path");
     let probe = match module_path!().split_once("::") {
@@ -1801,9 +1806,11 @@ fn run_child(name: &str, envs: &[(&str, &str)]) -> String {
 /// the saved text, load it where no band exists.
 #[test]
 fn a_loaded_snapshot_reaches_a_mates_band_refusal() {
+    let eps = format!("{SNAPSHOT_EPS:e}");
+    let k = format!("{SNAPSHOT_LOAD_K:e}");
     let authored = run_child(
         "child_band_snapshot_author",
-        &[(SNAPSHOT_AUTHOR, "1"), ("CAD_TOLERANCE_EPS", SNAPSHOT_EPS)],
+        &[(SNAPSHOT_AUTHOR, "1"), ("CAD_TOLERANCE_EPS", &eps)],
     );
     let snapshot = authored
         .split_once(&format!("{SNAPSHOT_BEGIN}\n"))
@@ -1814,8 +1821,8 @@ fn a_loaded_snapshot_reaches_a_mates_band_refusal() {
         "child_band_snapshot_load",
         &[
             (SNAPSHOT_TEXT, snapshot),
-            ("CAD_TOLERANCE_EPS", SNAPSHOT_EPS),
-            ("CAD_AMBIGUITY_K", SNAPSHOT_LOAD_K),
+            ("CAD_TOLERANCE_EPS", &eps),
+            ("CAD_AMBIGUITY_K", &k),
         ],
     );
     assert!(
