@@ -74,6 +74,8 @@ mod cert3r1_e2e;
 mod cert5_arm_and_cells;
 #[path = "cert5_r1_patch_probes.rs"]
 mod cert5_r1_patch_probes;
+#[path = "chart_box_span.rs"]
+mod chart_box_span;
 
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;

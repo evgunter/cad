@@ -310,12 +310,25 @@ fn digest() -> String {
 /// moves; the refusing face stays pinned, now by the line's own
 /// `at FaceKey(…)`, and no verdict, pad or count changes.
 ///
-/// **Re-cut at all three ε when the symbolic tier gained rule G and the
+/// **Re-cut at all three ε when the certification schedule began
+/// assigning its end samples** (`geom_brep::schedule_param`: `t₀` and
+/// `t₁` themselves rather than `t₀ + (t₁ − t₀)·0` and `·1`). Only the
+/// `sym_thin_strip validate_geometric` row moves: 8 of its decisions
+/// discharge as structural zeros instead of numerically (`sz` 26 → 34,
+/// `num` 634 → 626 at every ε), and `frozen` falls 803 → 757 /
+/// 768 → 722 / 801 → 755 at ε = 1e-6 / 1e-9 / 1e-12. Decisions, shapes
+/// and the verdict are unchanged. The end sample is now the interval's
+/// own end exactly, so 8 end residuals take a form the session proves
+/// zero rather than one it rounds.
+/// **Re-cut at all three ε at the merge that brought rule G and the
 /// decision read** (`geom_core::SymRules::canonical_root`,
-/// `decision_read`) on a tree that already carried the two re-cuts
-/// above: `sym_arc_loft`'s `validate_geometric` row reads 8 more
-/// theorems out of `numeric` (`sz` 40 → 48, `num` 620 → 612) at every
-/// ε. Decisions, frozen, shapes and verdicts are unchanged.
+/// `decision_read`) **together with the tier-3 re-cuts above**:
+/// `sym_arc_loft`'s `validate_geometric` row reads 8 more theorems out
+/// of `numeric` (`sz` 40 → 48, `num` 620 → 612) at every ε. Neither
+/// side moved it alone — the tree with the rules and without the
+/// re-cuts read `sz=40`, and so did the tree with the re-cuts and
+/// without the rules — so the 8 are the two composing. Decisions,
+/// frozen, shapes and verdicts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
