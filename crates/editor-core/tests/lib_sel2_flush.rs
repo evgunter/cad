@@ -201,7 +201,7 @@ fn detect_declare_boolean_round_trip() {
             // candidate declaration in the detector's own value shape,
             // built from what the raise site held (no re-detection on
             // the error path).
-            NodeErrorKind::UndeclaredContact { finding, diag, .. } => {
+            NodeErrorKind::UndeclaredCoincidence { finding, diag, .. } => {
                 // Exactly-on contact: the verifier's decided-zero
                 // encoding, on the verify door's own site.
                 assert!(diag.margin.is_invalid(), "{diag:?}");

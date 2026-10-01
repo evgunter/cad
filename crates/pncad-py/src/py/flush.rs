@@ -8,7 +8,7 @@
 //! across the language boundary: no door here both detects and
 //! declares. The same value also rides the boolean's
 //! refusal MENU: an `EvaluationError` with `kind ==
-//! "undeclared_contact"` carries one as its `finding` attribute
+//! "undeclared_coincidence"` carries one as its `finding` attribute
 //! — the recourse is in the error.
 //!
 //! The pair's names cross as the SAME opaque texts every other door

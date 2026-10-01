@@ -476,7 +476,7 @@ let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
 // The refusal IS the menu: it carries the candidate
 // declaration — the pair by stable name, with its relation — in
 // the detector's own value shape.
-let NodeErrorKind::UndeclaredContact { finding, .. } = &e.kind else {
+let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
     panic!("expected the refusal menu, got {:?}", e.kind);
 };
 assert_eq!(finding.class, BooleanCoincidence::REST);

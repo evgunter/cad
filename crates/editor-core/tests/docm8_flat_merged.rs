@@ -936,7 +936,7 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     let (docx, union, _) = declared_union_classed(doc.clone(), &[a, s, d], pairs.clone());
     let ev = run(&docx);
     let what = failure(&ev, union);
-    let Some(NodeErrorKind::UndeclaredContact {
+    let Some(NodeErrorKind::UndeclaredCoincidence {
         finding, merged, ..
     }) = what
     else {

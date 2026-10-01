@@ -144,8 +144,8 @@ pub enum NodeErrorClass {
     DeclareSiteNotAnOperand,
     /// [`NodeErrorKind::DeclareUnsupportedPair`].
     DeclareUnsupportedPair,
-    /// [`NodeErrorKind::UndeclaredContact`].
-    UndeclaredContact,
+    /// [`NodeErrorKind::UndeclaredCoincidence`].
+    UndeclaredCoincidence,
     /// [`NodeErrorKind::UndeclarableContact`].
     UndeclarableContact,
     /// [`NodeErrorKind::BlendSelectionResolve`] refused by a fillet.
@@ -322,7 +322,7 @@ impl NodeErrorKind {
             Self::DeclareResolve { .. } => C::DeclareResolve,
             Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
             Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::UndeclaredContact { .. } => C::UndeclaredContact,
+            Self::UndeclaredCoincidence { .. } => C::UndeclaredCoincidence,
             Self::UndeclarableContact { .. } => C::UndeclarableContact,
             Self::BlendSelectionResolve { verb, .. } => {
                 by_verb(*verb, C::FilletSelectionResolve, C::ChamferSelectionResolve)
@@ -537,7 +537,7 @@ mod tests {
         DeclareResolve,
         DeclareSiteNotAnOperand,
         DeclareUnsupportedPair,
-        UndeclaredContact,
+        UndeclaredCoincidence,
         UndeclarableContact,
         FilletSelectionResolve,
         ChamferSelectionResolve,
@@ -825,7 +825,7 @@ mod tests {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
             },
-            C::UndeclaredContact => K::UndeclaredContact {
+            C::UndeclaredCoincidence => K::UndeclaredCoincidence {
                 finding: Box::new(crate::FlushFinding {
                     pair: (
                         crate::SitedRef {

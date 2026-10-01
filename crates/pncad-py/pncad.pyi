@@ -216,7 +216,7 @@ class EvaluationError(PncadError):
     different question and is not this attribute's.
 
     `finding` is the boolean's refusal MENU: when
-    `kind == "undeclared_contact"`, it carries the candidate
+    `kind == "undeclared_coincidence"`, it carries the candidate
     declaration as a typed `FlushFinding` — the same value
     `Evaluation.find_flush_candidates` answers with, ready for
     `Node.declare` / `Doc.declare`. The menu has exactly two arms:
@@ -617,7 +617,8 @@ class SelectRefusal(PncadError):
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
     `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
-    `not_a_length`, `pair_in_band`, `bad_value`, or `band`. The other attributes are
+    `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
+    `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text),
     `predicate` (the funnel site), `matched`/`candidates` (a tied
@@ -2445,7 +2446,7 @@ class Node:
         """A Boolean of two upstream solids. `declare` names a
         `Declare` node whose coincidence pairs this boolean consumes;
         without one, operands that merely TOUCH refuse with the typed
-        menu (`EvaluationError`, `kind == "undeclared_contact"`,
+        menu (`EvaluationError`, `kind == "undeclared_coincidence"`,
         `finding` attached) — the kernel never infers that two faces
         are the same face."""
 
@@ -2461,7 +2462,7 @@ class Node:
         `DocEdit.set_members` rewrites on the live node. `declare` is
         the same optional coincidence input `boolean` takes, fed at
         the fold step its two members meet at; without one, members
-        that merely TOUCH refuse (`undeclared_contact`).
+        that merely TOUCH refuse (`undeclared_coincidence`).
 
         Refuses at `Doc.insert` on the list as stated: `too_few_members`
         (with the `count` found), `duplicate_input`,

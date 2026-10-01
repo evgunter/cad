@@ -44,9 +44,9 @@
 //!   still happens inside the op. Undeclared, the mate refuses before
 //!   its crossing layer runs, naming the first undeclared continuation
 //!   it meets, and the live narration prints that refusal.
-//! - **The union is exactly additive.** vol(P) + vol(Q) = vol(mated):
+//! - **The union is additive, to 4 ULP.** vol(P) + vol(Q) = vol(mated):
 //!   the interiors are disjoint, so the glue discards nothing, and the
-//!   pegs' π-terms cancel the bores' exactly. The claim is asked of
+//!   pegs' π-terms cancel the bores'. The claim is asked of
 //!   THREE kernel answers rather than of one answer against a
 //!   hand-written constant — which is both its actual content and the
 //!   form that survives the corner fillets: a plate is `24 − (4 − π)r²`,
@@ -466,7 +466,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
     );
     println!(
         "   two-peg mate WITH the three contacts and the continuations declared: GLUED \
-         — volume {V_MATED} (vol P + vol Q = {V_P} + {V_Q}), every bore wall interior, \
+         — measured volume {v} (vol P + vol Q = {vp} + {vq}), every bore wall interior, \
          {} corner-fillet faces left unmerged as a recorded curved skip",
         cylinders(&mated.body).len()
     );
@@ -487,8 +487,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          where the two parts carry on across the seam — the rounded outline's walls \
          and fillets, the peg ends flush with Q's top — a continuation each. \
          Undeclared the mate refuses ({refusal}); declared, the M9-3 zip GLUES it \
-         and the union merges the flat continuations: volume {V_MATED}, exactly \
-         additive — vol(P) + vol(Q) = ({V_P}) + ({V_Q}), the pegs' pi-terms \
+         and the union merges the flat continuations: the closed-form volume {V_MATED} \
+         (which the body measures to 1e-9), additive to 4 ULP — in closed form \
+         vol(P) + vol(Q) = ({V_P}) + ({V_Q}), the pegs' pi-terms \
          cancelling the bores'. Full engagement removes all four peg and bore \
          patches; the corner fillets stay two faces each, P's and Q's, the merge's \
          recorded curved skip"

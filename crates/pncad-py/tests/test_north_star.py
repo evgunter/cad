@@ -1885,10 +1885,10 @@ class TestTable(unittest.TestCase):
         self.assertEqual(props.surface_area, 35.5)
 
 
-class TestCrosslapGlued(unittest.TestCase):
+class TestCrosslapAtTheNamingWall(unittest.TestCase):
     """Tour scene `crosslap` (row 37): the two notched beams MATED.
     Undeclared, the mate refuses at the coincidence door — since
-    register R3 as the typed MENU (`kind == "undeclared_contact"`,
+    register R3 as the typed MENU (`kind == "undeclared_coincidence"`,
     the candidate declaration attached). The recourse the menu names
     is executed: detect, INSPECT (the joint's mate is the
     resting-contact class — the notch floor/ceiling and the four
@@ -1933,7 +1933,7 @@ class TestCrosslapGlued(unittest.TestCase):
         self.assertFalse(ev.succeeded(naive))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(naive)
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         menu = caught.exception.finding
         self.assertIsNotNone(menu)
 
@@ -1958,7 +1958,7 @@ class TestCrosslapGlued(unittest.TestCase):
         ev = evaluate(doc)
         with self.assertRaises(EvaluationError) as caught:
             ev.value(mate_only)
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         self.assertEqual(
             caught.exception.finding.class_, BooleanCoincidence.Continuation
         )
@@ -4190,7 +4190,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # set), so the module-level absence below is shape, not gap —
         # and `find_flush_candidates` joined them when G5 closed
         # (LIB-PYG5): the detector is an `Evaluation` method too
-        # (`TestTable`/`TestCrosslapGlued` are the positive forms).
+        # (`TestTable` is the positive form; `TestCrosslapAtTheNamingWall`
+        # runs the same detector to the naming wall).
         # `StableName` stays, and for a sharper reason than "nothing
         # spells it": a name is `str` on this side, so there is no
         # name TYPE and no grammar to half-parse. The five role-name
@@ -4338,7 +4339,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # closed G4/G6/G7 — the positive forms are `TestDiefillet`,
         # `TestTiltedcut` and `TestCrosslapExploded`/`TestDiepips`.
         # `declare` left it when LIB-PYG5 closed G5 — the positive
-        # forms are `TestTable` and `TestCrosslapGlued`.
+        # form is `TestTable` (`TestCrosslapAtTheNamingWall` declares the
+        # whole inventory and stops at the naming wall).
         # `sweep` STAYS: `wire_sweep` refuses unconditionally
         # (SWEEP_FRONTIER, the path-composition lane banked past M6).
         # `tube` LEFT this list at LIB-TUBE — see the paragraph two

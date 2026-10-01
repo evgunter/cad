@@ -114,4 +114,4 @@ to glue on the mate alone (to a body whose coplanar tops and bottoms
 were left unmerged), waits on this rule. The kernel tour's crosslap
 declares the whole inventory and glues; only the naming layer stops.
 Pinned in `crates/pncad-py/tests/test_north_star.py`
-(`TestCrosslapGlued`).
+(`TestCrosslapAtTheNamingWall`).

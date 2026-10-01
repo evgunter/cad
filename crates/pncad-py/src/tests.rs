@@ -2336,7 +2336,7 @@ fn node_error_tags_are_the_published_words() {
         DeclareResolve => "declare_resolve",
         DeclareSiteNotAnOperand => "declare_site_not_an_operand",
         DeclareUnsupportedPair => "declare_unsupported_pair",
-        UndeclaredContact => "undeclared_contact",
+        UndeclaredCoincidence => "undeclared_coincidence",
         UndeclarableContact => "undeclarable_contact",
         FilletSelectionResolve => "fillet_selection_resolve",
         ChamferSelectionResolve => "chamfer_selection_resolve",
@@ -5179,7 +5179,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transform",
             "tube",
             "undeclarable_contact",
-            "undeclared_contact",
+            "undeclared_coincidence",
             "underflowed_direction",
             "unschedulable_cycle",
             "verb_arity",
@@ -5543,6 +5543,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "bad_value",
             "datum_has_no_value",
+            "distinct_finding",
             "in_band",
             "node_has_no_value",
             "not_a_datum",
@@ -6107,7 +6108,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
-    ("undeclared_contact", 2),
+    // The node refusal that carries the menu, and the bare kernel
+    // refusal it falls back to when a key resolves to no name
+    // (`boolean_error_tag`'s doc): ONE coincidence, the same word.
+    ("undeclared_coincidence", 2),
     ("underflowed_direction", 2),
     ("unknown_node", 5),
     ("unknown_param", 4),

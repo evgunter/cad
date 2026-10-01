@@ -197,6 +197,9 @@ pub enum FlushRefusal {
         /// The verifier's own diagnostic, carrying its funnel site.
         source: Indeterminate,
     },
+    /// The verify door reported `Distinct` as a finding's evidence
+    /// ([`finding`]'s refusal): a kernel defect.
+    Distinct(DistinctFinding),
 }
 
 impl core::fmt::Display for FlushRefusal {
@@ -210,6 +213,7 @@ impl core::fmt::Display for FlushRefusal {
                  than reported or dropped; separate the geometry or widen the tolerance",
                 pair.0, pair.1
             ),
+            Self::Distinct(defect) => defect.fmt(f),
         }
     }
 }
@@ -304,20 +308,43 @@ pub fn pair_finding<T: Decide>(
 /// verifies — and nothing else. When `Tangent` becomes detectable
 /// (once the verifier has a locus for it), this function is where it is
 /// decided, once, rather than at each seat's own push.
-#[must_use]
-pub fn finding<P>(pair: P, evidence: FlushEvidence) -> FlushFinding<P> {
+///
+/// # Errors
+///
+/// [`DistinctFinding`] for evidence carrying
+/// [`CarrierRelation::Distinct`]: `FlushEvidence`'s contract excludes
+/// it, so a caller that hands one in is a kernel defect, and it is
+/// refused rather than read as either class.
+pub fn finding<P>(pair: P, evidence: FlushEvidence) -> Result<FlushFinding<P>, DistinctFinding> {
     let class = match evidence.relation {
         CarrierRelation::SameOriented => BooleanCoincidence::Continuation,
-        // A finding never carries `Distinct` (`FlushEvidence`'s
-        // contract), so the remaining arm is the opposed pair.
-        CarrierRelation::SameOpposite | CarrierRelation::Distinct => BooleanCoincidence::REST,
+        CarrierRelation::SameOpposite => BooleanCoincidence::REST,
+        CarrierRelation::Distinct => return Err(DistinctFinding),
     };
-    FlushFinding {
+    Ok(FlushFinding {
         pair,
         class,
         evidence,
+    })
+}
+
+/// [`finding`]'s refusal: evidence whose relation is `Distinct`, which
+/// no finding may carry. Only a kernel defect reaches it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DistinctFinding;
+
+impl core::fmt::Display for DistinctFinding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "flush detection: a finding was minted from evidence relating two DISTINCT carriers, \
+             which no finding carries. {}",
+            geom_core::KERNEL_DEFECT_ENDING
+        )
     }
 }
+
+impl core::error::Error for DistinctFinding {}
 
 /// **The cross-body flush candidates between two bodies** — the
 /// C4 verifier run in candidate-generation mode (module docs).
@@ -352,7 +379,7 @@ pub fn find_flush_candidates<T: Decide>(
                     source,
                 })?;
             if let Some(evidence) = evidence {
-                out.push(finding((ka, kb), evidence));
+                out.push(finding((ka, kb), evidence).map_err(FlushRefusal::Distinct)?);
             }
         }
     }

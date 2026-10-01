@@ -2176,7 +2176,7 @@ pub enum Node<P> {
     /// whose boxes meet, or between which a pair is declared, are
     /// evaluated as the two-member union of just those two, with the
     /// pairs declared between them, and two members
-    /// that touch with the contact undeclared refuse `UndeclaredContact`
+    /// that touch with the contact undeclared refuse `UndeclaredCoincidence`
     /// exactly as a pair boolean's operands do. That holds in every
     /// member order, and for a contact a third member covers too. The
     /// fold then builds the body and judges no contact of its own. The

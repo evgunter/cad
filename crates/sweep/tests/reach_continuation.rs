@@ -11,6 +11,9 @@
 //! stack's tangent wall edges are covered through a structural tangency
 //! on EITHER operand, while a tangency in the middle of an edge keeps
 //! its typed refusal; and every output is a legal boolean operand.
+//! Two guard rows close the file: a kiss or a gap is no continuation,
+//! and aligned pairs whose interiors overlap are accepted as
+//! continuations today (pinned as behaviour, not as a ruling).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -421,5 +424,192 @@ fn the_stack_is_a_legal_operand() {
             &third,
             &with(&mate, &walls),
         );
+    }
+}
+
+fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
+    sweep::test_support::brick(x, y, z, tol())
+}
+
+/// The rabbeted plate: 6 × 4 × 1 with a 1 × 0.5 step cut along its
+/// east edge, swept along y from its xz section (volume 22).
+fn rabbeted() -> Body<f64> {
+    let section = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(W, 0.0),
+        Point2::new(W, 0.5),
+        Point2::new(W - 1.0, 0.5),
+        Point2::new(W - 1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
+    let xz = sweep::test_support::sketch_from_axes(
+        geom_core::Point3::new(0.0, H, 0.0),
+        geom_core::Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+        tol(),
+    );
+    extruded(xz, vec![section], H, tol())
+}
+
+/// A boolean that must build, at `expect`, valid at tier 3 and 3′.
+fn builds(
+    label: &str,
+    out: Result<BooleanResult<f64>, BooleanError>,
+    expect: f64,
+    faces: usize,
+) -> BooleanBody<f64> {
+    let Ok(BooleanResult::Body(bb)) = out else {
+        panic!("{label}: {out:?}");
+    };
+    let v = volume(&bb.body);
+    assert!((v - expect).abs() <= 1e-12, "{label}: {v} vs {expect}");
+    assert_eq!(bb.body.faces().count(), faces, "{label}: faces");
+    assert_eq!(
+        topo::validate_geometric(&bb.body, tol()),
+        Ok(()),
+        "{label}: tier 3"
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+        Ok(()),
+        "{label}: tier 3′"
+    );
+    bb
+}
+
+/// **The scan does not mistake a touch for a meeting.** Three placements
+/// of a second plate beside the 6 × 4 × 1 one, each with tops and
+/// bottoms on one plane and each sharing no stretch of boundary with
+/// it, union UNDECLARED:
+///
+/// - corner kiss: the plates share one vertical edge line (x = 6,
+///   y = 4) and nothing else;
+/// - vertex kiss: lifted a plate's height as well, they share one
+///   point;
+/// - a real gap: the second plate starts a unit east, so the coplanar
+///   tops and bottoms (the detector offers them as continuations: one
+///   carrier, aligned) never meet.
+///
+/// A scan that read box overlap, or a shared point, as "meets" refuses
+/// the first two as continuations and a box pad wider than the gap
+/// refuses the third.
+#[test]
+fn a_kiss_or_a_gap_is_no_continuation() {
+    let none = BooleanDeclarations::default();
+    let p = brick((0.0, W), (0.0, H), (0.0, 1.0));
+    for (label, q, offered) in [
+        (
+            "corner kiss",
+            brick((W, 2.0 * W), (H, 2.0 * H), (0.0, 1.0)),
+            (2, 2),
+        ),
+        (
+            "vertex kiss",
+            brick((W, 2.0 * W), (H, 2.0 * H), (1.0, 2.0)),
+            (3, 0),
+        ),
+        (
+            "gap",
+            brick((W + 1.0, 2.0 * W), (0.0, H), (0.0, 1.0)),
+            (0, 4),
+        ),
+    ] {
+        let (rest, cont) = findings(&p, &q);
+        assert_eq!(
+            (rest.coincident_faces.len(), cont.coincident_faces.len()),
+            offered,
+            "{label}: the detector reports carriers, not meetings"
+        );
+        builds(
+            label,
+            topo::union_with(&p, &q, &none, tol()),
+            volume(&p) + volume(&q),
+            12,
+        );
+    }
+}
+
+/// **Aligned pairs whose interiors OVERLAP are minted and accepted as
+/// continuations today.** C4 defines a continuation as interiors
+/// disjoint; the detector and the door do not ask, and the results are
+/// exact. These rows pin that behaviour, not a ruling: whether the
+/// definition widens to match is Ev's question, asked separately.
+///
+/// Each refuses undeclared (and with only its `Rest` findings), naming
+/// an aligned pair, and builds exact with every finding declared:
+///
+/// - overlapping equal-height plates: the tops overlap, as do the
+///   bottoms;
+/// - a sunk stack: a second plate half sunk into the first, its walls
+///   overlapping the first plate's;
+/// - a flush pocket: a subtract whose cutter's top is flush with the
+///   plate's;
+/// - a rabbet filled: a block in a rabbet, its top flush with the
+///   plate's and its east wall with the step's.
+#[test]
+fn overlapping_aligned_pairs_are_accepted_as_continuations() {
+    let none = BooleanDeclarations::default();
+    let p = brick((0.0, W), (0.0, H), (0.0, 1.0));
+    let rows: [(&str, bool, Body<f64>, Body<f64>, f64, usize); 4] = [
+        (
+            "overlapping plates",
+            false,
+            p.clone(),
+            brick((3.0, 9.0), (1.0, 3.0), (0.0, 1.0)),
+            30.0,
+            10,
+        ),
+        (
+            "sunk stack",
+            false,
+            p.clone(),
+            brick((0.0, W), (0.0, H), (0.5, 1.5)),
+            36.0,
+            6,
+        ),
+        (
+            "flush pocket",
+            true,
+            p.clone(),
+            brick((2.0, 4.0), (1.0, 3.0), (0.5, 1.0)),
+            22.0,
+            11,
+        ),
+        (
+            "rabbet filled",
+            false,
+            rabbeted(),
+            brick((W - 1.0, W), (0.0, H), (0.5, 1.0)),
+            24.0,
+            6,
+        ),
+    ];
+    for (label, subtract, a, b, expect, faces) in rows {
+        let op = |d: &BooleanDeclarations| {
+            if subtract {
+                topo::subtract_with(&a, &b, d, tol())
+            } else {
+                topo::union_with(&a, &b, d, tol())
+            }
+        };
+        let (rest, cont) = findings(&a, &b);
+        assert!(
+            !cont.coincident_faces.is_empty(),
+            "{label}: the detector mints the overlapping aligned pairs as continuations"
+        );
+        for (posture, d) in [("undeclared", &none), ("Rest only", &rest)] {
+            let err = op(d).expect_err("an aligned pair is undeclared");
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::UndeclaredCoincidence {
+                        relation: PlaneRelation::SameOriented,
+                        ..
+                    }
+                ),
+                "{label}, {posture}: {err:?}"
+            );
+        }
+        builds(label, op(&with(&rest, &cont)), expect, faces);
     }
 }

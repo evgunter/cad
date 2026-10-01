@@ -101,8 +101,8 @@ fn require_same<T: Decide>(
     }
     let c1 = carrier_of(body1, o1, s1)?;
     let c2 = carrier_of(body2, o2, s2)?;
-    let declared_rest = declared.declares_one_carrier(o1, s1.face, o2, s2.face);
-    if !declared_rest {
+    let declared_one_carrier = declared.declares_one_carrier(o1, s1.face, o2, s2.face);
+    if !declared_one_carrier {
         let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
         let refusal = if curved(&c1) {
             Some((o1, s1.face, body1.get_face(s1.face), body1))
@@ -129,7 +129,7 @@ fn require_same<T: Decide>(
     let id = super::PlaneIdentity {
         s1: g1.as_ref(),
         s2: g2.as_ref(),
-        declared: declared_rest,
+        declared: declared_one_carrier,
     };
     match super::carrier_eq::carrier_eq(&c1, &c2, id, arm, band) {
         Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
@@ -138,7 +138,7 @@ fn require_same<T: Decide>(
         Ok(rel) => Ok(rel),
         Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
             rung,
-            super::PlaneDoor::of(declared_rest),
+            super::PlaneDoor::of(declared_one_carrier),
             diag,
         )),
         Err(PlaneEqError::Undeclared { diag, relation }) => {
@@ -196,8 +196,7 @@ pub(super) fn recl_sectors<T: Decide>(
         // no neighbor propagation: nothing here is a coincident-
         // sector identity.
         let tangent_pair =
-            declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
-                == Some(crate::contact::BooleanCoincidence::TANGENT);
+            declared.declares_tangent(super::Operand::A, sa.face, super::Operand::B, sb.face);
         if tangent_pair {
             let surface_of = |body: &Body<T>, face| {
                 body.get_face(face)
@@ -736,46 +735,48 @@ fn resolve_edge_edge<T: Decide>(
                         // across distinct carriers).
                         let own_sec = &own_secs[own_idx];
                         let other_sec = &other_secs[oi];
-                        let lump =
-                            if declared.class_of(own_op, own_sec.face, other_op, other_sec.face)
-                                == Some(crate::contact::BooleanCoincidence::TANGENT)
-                            {
-                                let surface_of = |body: &Body<T>, face| {
-                                    body.get_face(face)
-                                        .and_then(|f| body.get_surface(f.surface))
-                                        .cloned()
-                                        .ok_or(BooleanError::ClassificationInvariant {
-                                            what: "declared-Tangent face lost its surface",
-                                        })
-                                };
-                                let s_own = surface_of(own_body, own_sec.face)?;
-                                let s_other = surface_of(other_body, other_sec.face)?;
-                                let p = own_body
-                                    .get_half_edge(own_sec.he)
-                                    .and_then(|he| own_body.get_vertex(he.start))
-                                    .and_then(|vd| own_body.get_point(vd.point))
-                                    .copied()
+                        let lump = if declared.declares_tangent(
+                            own_op,
+                            own_sec.face,
+                            other_op,
+                            other_sec.face,
+                        ) {
+                            let surface_of = |body: &Body<T>, face| {
+                                body.get_face(face)
+                                    .and_then(|f| body.get_surface(f.surface))
+                                    .cloned()
                                     .ok_or(BooleanError::ClassificationInvariant {
-                                        what: "edge-edge site lost its point",
-                                    })?;
-                                super::sectors::tangent_lump(
-                                    &s_own,
-                                    &s_other,
-                                    other_sec.normal,
-                                    p,
-                                    op,
-                                    comparison,
-                                    own_sec.face,
-                                    arm,
-                                    band,
-                                )?
-                            } else {
-                                let rel = require_same(
-                                    own_body, own_op, own_sec, other_body, other_op, other_sec,
-                                    declared, arm, band,
-                                )?;
-                                eq15_3_lump(op, comparison, rel)
+                                        what: "declared-Tangent face lost its surface",
+                                    })
                             };
+                            let s_own = surface_of(own_body, own_sec.face)?;
+                            let s_other = surface_of(other_body, other_sec.face)?;
+                            let p = own_body
+                                .get_half_edge(own_sec.he)
+                                .and_then(|he| own_body.get_vertex(he.start))
+                                .and_then(|vd| own_body.get_point(vd.point))
+                                .copied()
+                                .ok_or(BooleanError::ClassificationInvariant {
+                                    what: "edge-edge site lost its point",
+                                })?;
+                            super::sectors::tangent_lump(
+                                &s_own,
+                                &s_other,
+                                other_sec.normal,
+                                p,
+                                op,
+                                comparison,
+                                own_sec.face,
+                                arm,
+                                band,
+                            )?
+                        } else {
+                            let rel = require_same(
+                                own_body, own_op, own_sec, other_body, other_op, other_sec,
+                                declared, arm, band,
+                            )?;
+                            eq15_3_lump(op, comparison, rel)
+                        };
                         if lump != SideCode::In {
                             inside = false;
                         }
@@ -797,12 +798,12 @@ fn resolve_edge_edge<T: Decide>(
     let tangent_flank = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)]
         .into_iter()
         .any(|(ia, ib)| {
-            declared.class_of(
+            declared.declares_tangent(
                 super::Operand::A,
                 a_sectors[ia].face,
                 super::Operand::B,
                 b_sectors[ib].face,
-            ) == Some(crate::contact::BooleanCoincidence::TANGENT)
+            )
         });
     if !tangent_flank {
         let a_in = [

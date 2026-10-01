@@ -586,6 +586,20 @@ impl<T: Real> Body<T> {
         self.surface_axis_sources.remove(key);
     }
 
+    /// Whether an intrinsic description's surface pair `(d1, d2)` is
+    /// exactly the edge's two face surfaces `{s1, s2}`, in either order.
+    /// This is the one spelling of "the description cites this edge's two
+    /// faces", read by the validator's adjacency check, the merge's
+    /// stale-description re-describe, and the boolean's structural
+    /// tangency source.
+    pub(crate) fn cites_pair(
+        (d1, d2): (SurfaceKey, SurfaceKey),
+        s1: SurfaceKey,
+        s2: SurfaceKey,
+    ) -> bool {
+        (d1, d2) == (s1, s2) || (d1, d2) == (s2, s1)
+    }
+
     /// The surface keys an edge description references: the two
     /// intrinsic arms' pair, a chart image's chart, none for the
     /// scaffolding door (whose pushforward carries its own defining

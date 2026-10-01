@@ -31,9 +31,9 @@
 //!
 //! A box bigger than it needs to be is free only where the box
 //! PRUNES. That is **two** of the eight doors that read a box from
-//! here; at five of the other six, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL, and at the sixth it is more
-//! exact work AND can be a refusal:
+//! here; at four of the other six, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the other two it is
+//! more exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
@@ -50,10 +50,14 @@
 //!   enter a pair, so the operation runs. A bigger box refuses an
 //!   operation whose faces never meet.
 //! - `boolean::reduce`'s undeclared-continuation scan
-//!   (`refuse_undeclared_continuations`) GRANTS on non-overlap: a
-//!   one-carrier aligned pair whose boundary-edge boxes clear each
-//!   other does not meet, so the op runs. A bigger box refuses, as an
-//!   undeclared continuation, a coplanar pair with a gap between.
+//!   (`refuse_undeclared_continuations`) mostly PRUNES: a face pair
+//!   or an edge pair whose boxes clear is never asked, and whether two
+//!   faces meet is decided point-on-edge through `Decide`, so a bigger
+//!   box costs exact work there. Its one box-decided answer is the
+//!   fallback for an edge whose carrier has no point parameter
+//!   (ellipse, spline), which reads a long enough overlap as a shared
+//!   curve. There a bigger box can refuse, as an undeclared
+//!   continuation, a pair that only touches.
 //! - `separation` GRANTS on non-overlap — `Ok(())` IS the
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.

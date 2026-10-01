@@ -331,7 +331,7 @@ try:
     ev.value(naive)
     raise AssertionError("the undeclared union must refuse")
 except EvaluationError as err:
-    assert err.kind == "undeclared_contact"
+    assert err.kind == "undeclared_coincidence"
     menu = err.finding                      # the candidate declaration
     # The slabs share a footprint, so besides the resting contact at
     # z = 10 mm their four walls carry on across it, one surface each:

@@ -207,12 +207,13 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         if let Some(diag) = in_band {
             return Err(BooleanError::coincidence(diag));
         }
-        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
+        let declared_tangent =
+            declared.declares_tangent(piercing, s.face, pierced_op, contact.face);
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
         // sector's carrier CURVES to relative to the pierced face's
         // material ([`super::sectors::tangent_lump`]).
-        if class == Some(crate::contact::BooleanCoincidence::TANGENT) {
+        if declared_tangent {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)
                     .and_then(|face| body.get_surface(face.surface))
@@ -248,14 +249,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 kind,
             });
         };
-        let declared_rest = class.is_some_and(crate::contact::BooleanCoincidence::is_one_carrier);
+        let declared_one_carrier =
+            declared.declares_one_carrier(piercing, s.face, pierced_op, contact.face);
         // C8: a CURVED on-carrier sector is opened by a VERIFIED
         // declaration and by nothing else — undeclared touching keeps
         // this typed frontier refusal. The recourse is a declared
         // Tangent/Rest contact (vocabulary CONTACT-DESIGN C4), under
         // which classification descends to the carrier ladder or the
         // C7 sector trilean instead of refusing.
-        if !declared_rest && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
+        if !declared_one_carrier
+            && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
         {
             let kind = piercing_body
                 .get_face(s.face)
@@ -307,7 +310,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         let id = super::PlaneIdentity {
             s1: g1.as_ref(),
             s2: g2.as_ref(),
-            declared: declared_rest,
+            declared: declared_one_carrier,
         };
         let rel =
             match super::carrier_eq::carrier_eq(&sector_carrier, &pierced_carrier, id, s.arm, band)
@@ -321,7 +324,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 Err(PlaneEqError::Escalated { rung, diag }) => {
                     return Err(BooleanError::plane_identity(
                         rung,
-                        super::PlaneDoor::of(declared_rest),
+                        super::PlaneDoor::of(declared_one_carrier),
                         diag,
                     ));
                 }

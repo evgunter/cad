@@ -278,9 +278,7 @@ fn record_germ_dir<T: Decide>(
     declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    if declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
-        != Some(crate::contact::BooleanCoincidence::TANGENT)
-    {
+    if !declared.declares_tangent(super::Operand::A, sa.face, super::Operand::B, sb.face) {
         return germ_dir(sa, sb, band);
     }
     let surface_of = |body: &Body<T>, face| {

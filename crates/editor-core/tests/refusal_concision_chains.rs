@@ -3059,7 +3059,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let mut rows = vec![
         row(
             "UndeclaredContact(rest)",
-            NodeErrorKind::UndeclaredContact {
+            NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(finding(topo::PlaneRelation::SameOpposite)),
                 merged: Box::new((Vec::new(), Vec::new())),
                 diag: diag(),
@@ -3067,7 +3067,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row(
             "UndeclaredContact(flush, merged)",
-            NodeErrorKind::UndeclaredContact {
+            NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(finding(topo::PlaneRelation::SameOriented)),
                 merged: Box::new((vec![sited(2), sited(4)], Vec::new())),
                 diag: diag(),

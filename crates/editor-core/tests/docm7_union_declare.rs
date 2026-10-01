@@ -162,7 +162,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
         },
     );
     let ev = run(&bare);
-    let Some(NodeErrorKind::UndeclaredContact { finding, .. }) = failure(&ev, plain) else {
+    let Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) = failure(&ev, plain) else {
         panic!(
             "expected the undeclared contact, got {:?}",
             failure(&ev, plain)
@@ -1063,7 +1063,7 @@ fn a_union_refusal_against_a_merged_wall_names_two_members() {
         let ev = run(&docx);
         match failure(&ev, union) {
             None => break,
-            Some(NodeErrorKind::UndeclaredContact {
+            Some(NodeErrorKind::UndeclaredCoincidence {
                 finding, merged, ..
             }) => {
                 assert!(

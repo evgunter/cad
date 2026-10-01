@@ -569,9 +569,52 @@ pub(crate) struct DeclaredPairs {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), BooleanCoincidence>,
     /// What the declaration door VERIFIED, `(A face, B face)`.
     verified: VerifiedDeclarations,
-    /// The pairs whose carriers are certified to lie each in one closed
-    /// side of the other ([`Self::one_sided`]), `(A face, B face)`.
-    one_sided: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+    /// The ORDERED one-sided cover ([`Self::one_sided`]): `(parent,
+    /// target)`, where the parent face's carrier is certified to lie in
+    /// one closed side of the target's. C4 states the certificate one
+    /// way, so the key is directed.
+    one_sided: std::collections::BTreeSet<(OperandFace, OperandFace)>,
+}
+
+/// A face tagged with the operand it belongs to, ordered A before B;
+/// the one-sided cover's key half.
+type OperandFace = (bool, FaceKey);
+
+/// `(o, f)` as a cover key half: `true` for A.
+fn tagged(o: Operand, f: FaceKey) -> OperandFace {
+    (o == Operand::A, f)
+}
+
+/// **Which structural tangencies certify a GLOBAL side** (C4's strut
+/// source). A `TangentIntersection` edge certifies that its two faces'
+/// carriers are tangent ALONG THE EDGE — a local fact. The cover needs a
+/// global one: the strut face's (`parent`'s) carrier lies in one closed
+/// side of its partner's (`partner`'s) carrier, which the door verified
+/// one carrier with the target. Local implies global exactly for these
+/// carrier-kind pairs, and each is admitted for its own reason:
+///
+/// - **cylinder or sphere tangent to a plane**: both are convex
+///   surfaces, and a convex surface lies in the closed half-space of
+///   any plane tangent to it. The cylinder or sphere is on one closed
+///   side of the plane.
+/// - **plane tangent to a cylinder or sphere**: every point of a plane
+///   tangent to a cylinder is at least the radius from the axis (the
+///   plane's distance to the axis IS the radius, tangency being where
+///   it is attained). Every point of a plane tangent to a sphere is at
+///   least the radius from the centre. So the plane lies in the
+///   cylinder's or sphere's closed exterior, one closed side.
+///
+/// Every other pair gives no cover, and its crossing stays a typed
+/// frontier. A cone's tangent plane passes through the apex and leaves
+/// the second nappe on its other side. A torus has tangent planes that
+/// cut it. A spline (a strut minted by STEP adoption or by a blend)
+/// carries no global convexity the strut could stand on.
+fn strut_certifies_side(parent: geom_brep::SurfaceKind, partner: geom_brep::SurfaceKind) -> bool {
+    use geom_brep::SurfaceKind::{Cylinder, Plane, Sphere};
+    matches!(
+        (parent, partner),
+        (Cylinder | Sphere, Plane) | (Plane, Cylinder | Sphere)
+    )
 }
 
 /// What [`verify_declared_contacts`] certified, per declared pair
@@ -595,25 +638,49 @@ impl DeclaredPairs {
         a: &Body<T>,
         b: &Body<T>,
     ) -> Self {
-        let mut one_sided: std::collections::BTreeSet<(FaceKey, FaceKey)> = verified
+        // Both directions for a verified one-carrier pair (one carrier:
+        // each lies in, so on one closed side of, the other) and for a
+        // verified `Tangent` pair (the witness lane's kinds, plane ×
+        // cylinder along a ruling and parallel cylinders, each lie in
+        // one closed side of the other — the separation invariant).
+        let mut one_sided: std::collections::BTreeSet<(OperandFace, OperandFace)> = verified
             .one_carrier
             .iter()
             .chain(&verified.tangent)
-            .copied()
+            .flat_map(|&(fa, fb)| {
+                let (x, y) = (tagged(Operand::A, fa), tagged(Operand::B, fb));
+                [(x, y), (y, x)]
+            })
             .collect();
-        // A structural tangency on either operand, to a face verified
-        // one carrier with the target: the strut's face is tangent to
-        // the shared carrier, so it lies in one closed side of it.
+        // A structural tangency on either operand, between a strut face
+        // and a partner the door verified one carrier with a face of
+        // the other operand. Each direction is its own certificate,
+        // admitted only for the kinds where the strut's local tangency
+        // is a global side ([`strut_certifies_side`]): strut face →
+        // other face when the strut face lies on one side of the
+        // partner, other face → strut face when the partner lies on
+        // one side of the strut face.
         let (struts_a, struts_b) = (tangent_struts(a), tangent_struts(b));
         for &(fa, fb) in &verified.one_carrier {
-            for &(f, k) in &struts_a {
-                if k == fa {
-                    one_sided.insert((f, fb));
-                }
-            }
-            for &(f, k) in &struts_b {
-                if k == fb {
-                    one_sided.insert((fa, f));
+            for (o, struts, k, target) in [
+                (Operand::A, &struts_a, fa, (Operand::B, fb)),
+                (Operand::B, &struts_b, fb, (Operand::A, fa)),
+            ] {
+                for &(f, f_kind, partner, partner_kind) in struts {
+                    if partner != k {
+                        continue;
+                    }
+                    let (strut_face, other_face) = (tagged(o, f), tagged(target.0, target.1));
+                    // The strut face's carrier on one side of the
+                    // partner's, which IS the other face's carrier.
+                    if strut_certifies_side(f_kind, partner_kind) {
+                        one_sided.insert((strut_face, other_face));
+                    }
+                    // The partner's carrier (the other face's) on one
+                    // side of the strut face's.
+                    if strut_certifies_side(partner_kind, f_kind) {
+                        one_sided.insert((other_face, strut_face));
+                    }
                 }
             }
         }
@@ -653,17 +720,20 @@ impl DeclaredPairs {
         Self::key(o1, f1, o2, f2).is_some_and(|k| self.verified.one_carrier.contains(&k))
     }
 
-    /// **The crossing layer's one-sided cover** (C4): is `f1`'s carrier
-    /// certified to lie in one closed side of `f2`'s?
+    /// **The crossing layer's one-sided cover** (C4): is the PARENT
+    /// face `f1`'s carrier certified to lie in one closed side of the
+    /// target `f2`'s? Directed: the answer for `(f1, f2)` says nothing
+    /// about `(f2, f1)`.
     ///
     /// The certificate has exactly these sources, and no value reading:
     /// a verified `Rest` or continuation (residual ≡ 0), a verified
     /// `Tangent` (the witness lane's separation invariant), or a
     /// structural tangency — an edge described `TangentIntersection` —
-    /// on EITHER operand, between one face of the pair and a face the
-    /// door verified one carrier with the other.
+    /// on EITHER operand, from the parent to a face the door verified
+    /// one carrier with the target, on a carrier-kind pair where that
+    /// tangency is a global side ([`strut_certifies_side`]).
     pub(crate) fn one_sided(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
-        Self::key(o1, f1, o2, f2).is_some_and(|k| self.one_sided.contains(&k))
+        o1 != o2 && self.one_sided.contains(&(tagged(o1, f1), tagged(o2, f2)))
     }
 
     /// The coincidence the (operand-tagged) face pair is declared under,
@@ -704,10 +774,17 @@ impl DeclaredPairs {
     }
 }
 
-/// Every structural tangency of `body`, as `(face, other face)` both
-/// ways: the two faces across an edge described `TangentIntersection`
-/// of exactly their two surfaces.
-fn tangent_struts<T: Real>(body: &Body<T>) -> Vec<(FaceKey, FaceKey)> {
+/// Every structural tangency of `body`, as `(face, its kind, other
+/// face, its kind)` both ways: the two faces across an edge described
+/// `TangentIntersection` of exactly their two surfaces.
+fn tangent_struts<T: Real>(
+    body: &Body<T>,
+) -> Vec<(
+    FaceKey,
+    geom_brep::SurfaceKind,
+    FaceKey,
+    geom_brep::SurfaceKind,
+)> {
     let mut out = Vec::new();
     for (_, edge) in body.edges() {
         let (Some(f1), Some(f2)) = (
@@ -731,10 +808,15 @@ fn tangent_struts<T: Real>(body: &Body<T>) -> Vec<(FaceKey, FaceKey)> {
         if let geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } =
             curve.description()
             && f1 != f2
-            && ((*d1, *d2) == (s1, s2) || (*d1, *d2) == (s2, s1))
+            && Body::<T>::cites_pair((*d1, *d2), s1, s2)
+            && let (Some(k1), Some(k2)) = (body.get_surface(s1), body.get_surface(s2))
         {
-            out.push((f1, f2));
-            out.push((f2, f1));
+            let (k1, k2) = (
+                geom_brep::SurfaceKind::of(k1),
+                geom_brep::SurfaceKind::of(k2),
+            );
+            out.push((f1, k1, f2, k2));
+            out.push((f2, k2, f1, k1));
         }
     }
     out
@@ -2517,7 +2599,18 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
-    reduce::refuse_undeclared_continuations(a_operand, b_operand, &declared, band)?;
+    // The scan is `Decide`-only; its boxes are built here, at the
+    // driver the 2026-07-29 amendment ratified to read brackets.
+    let pad = boxes::sweep_pad(band);
+    reduce::refuse_undeclared_continuations(
+        a_operand,
+        b_operand,
+        &declared,
+        band,
+        pad,
+        |body, face| boxes::face_box(body, face, pad),
+        |body, edge| boxes::edge_box(body, edge, pad),
+    )?;
 
     // The reduction carves both operand clones through the Euler
     // operators; tier 1 is paid once per clone at the end of the
@@ -2759,7 +2852,12 @@ fn verify_one_carrier_declaration<T: Decide>(
         Ok(
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
         ) => Err(sense_contradiction(fa, fb, class, band)),
-        Ok(carrier_eq::CarrierRelation::Distinct) => Ok(false),
+        // The declared posture contradicts a definite difference, it
+        // never answers `Distinct`: the same kernel-defect answer the
+        // REST lane gives (`rest.rs`).
+        Ok(carrier_eq::CarrierRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
+            what: "declaration door: declared rung returned Distinct instead of contradicting",
+        }),
         Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => Err(match class {
             BooleanCoincidence::Continuation => BooleanError::ContinuationContradicted {
                 a: fa,
@@ -2800,7 +2898,8 @@ fn verify_one_carrier_declaration<T: Decide>(
 /// 1. **The conformal screen.** The carrier ladder runs first in its
 ///    DETECTOR posture: a pair it can call one carrier — structurally
 ///    (rung 1) or geometrically (rung 4's coincidence refusal) — is
-///    `Rest`-shaped, and a `Tangent` claim on a conformal pair is
+///    one carrier (a `Rest` or a continuation), and a `Tangent` claim
+///    on a conformal pair is
 ///    CONTRADICTED, not class-refused (a flush pair declared Tangent
 ///    is the wrong class, and the geometry says so).
 /// 2. **The witness.** The closed-form locus derives, or the class is
@@ -3171,6 +3270,56 @@ fn validate_declarations<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **A strut gives cover only where its local tangency is a global
+    /// side.** The table is exhaustive over both kinds, so a kind added
+    /// to `SurfaceKind` fails here until someone decides its arm. The
+    /// admitted four are plane against cylinder or sphere, either way
+    /// round. A spline strut (STEP adoption, blends), a cone, a torus
+    /// or a fitted stand-in gives no cover, so its crossing stays a
+    /// typed frontier.
+    #[test]
+    fn only_plane_against_cylinder_or_sphere_struts_certify_a_side() {
+        use geom_brep::SurfaceKind::{self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+        let all = [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx];
+        let visit = |k: SurfaceKind| match k {
+            Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx => k,
+        };
+        let admitted: Vec<(SurfaceKind, SurfaceKind)> = all
+            .iter()
+            .flat_map(|&p| all.iter().map(move |&q| (visit(p), q)))
+            .filter(|&(p, q)| strut_certifies_side(p, q))
+            .collect();
+        assert_eq!(
+            admitted,
+            [
+                (Plane, Cylinder),
+                (Plane, Sphere),
+                (Cylinder, Plane),
+                (Sphere, Plane)
+            ]
+        );
+        for k in [Nurbs, Approx, Cone, Torus] {
+            assert!(!strut_certifies_side(k, Plane), "{k:?} strut on a plane");
+            assert!(!strut_certifies_side(Plane, k), "plane strut on a {k:?}");
+        }
+    }
+
+    /// **The one-sided cover is directed** (C4 states it one way): a
+    /// key inserted parent → target answers for that direction only,
+    /// and a same-operand pair is never covered.
+    #[test]
+    fn the_one_sided_cover_is_keyed_parent_to_target() {
+        let mut faces: slotmap::SlotMap<FaceKey, ()> = slotmap::SlotMap::with_key();
+        let (f, g) = (faces.insert(()), faces.insert(()));
+        let mut pairs = DeclaredPairs::default();
+        pairs
+            .one_sided
+            .insert((tagged(Operand::A, f), tagged(Operand::B, g)));
+        assert!(pairs.one_sided(Operand::A, f, Operand::B, g));
+        assert!(!pairs.one_sided(Operand::B, g, Operand::A, f));
+        assert!(!pairs.one_sided(Operand::A, f, Operand::A, g));
+    }
 
     /// **[`BooleanOp::ALL`] holds each operation once, and an
     /// operation added to the enum cannot reach a release without

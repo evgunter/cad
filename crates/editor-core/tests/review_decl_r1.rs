@@ -67,7 +67,7 @@ fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
             declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (c, c)));
         let ev = run(&doc);
         let got = failure(&ev, union);
-        let Some(NodeErrorKind::UndeclaredContact {
+        let Some(NodeErrorKind::UndeclaredCoincidence {
             finding, merged, ..
         }) = got
         else {
@@ -115,7 +115,7 @@ fn a_merged_row_contact_is_declared_through_its_constituents() {
     let (only_c, union, _) = declared_union_classed(doc.clone(), &[a, c, d], pairs.clone());
     let ev = run(&only_c);
     assert!(
-        matches!(failure(&ev, union), Some(NodeErrorKind::UndeclaredContact { finding, .. })
+        matches!(failure(&ev, union), Some(NodeErrorKind::UndeclaredCoincidence { finding, .. })
             if [finding.pair.0.at, finding.pair.1.at] == if a < d { [a, d] } else { [d, a] }),
         "{:?}",
         failure(&ev, union)
@@ -394,7 +394,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         },
     );
     let ev = run(&bare);
-    let Some(NodeErrorKind::UndeclaredContact { finding, .. }) = failure(&ev, plain) else {
+    let Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) = failure(&ev, plain) else {
         panic!("{:?}", failure(&ev, plain))
     };
     let (applied, decl2) =
@@ -414,7 +414,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     // changing character.
     let next = failure(&ev, union2);
     assert!(
-        matches!(next, Some(NodeErrorKind::UndeclaredContact { .. })),
+        matches!(next, Some(NodeErrorKind::UndeclaredCoincidence { .. })),
         "{next:?}"
     );
 }

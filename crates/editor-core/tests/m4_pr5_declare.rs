@@ -202,7 +202,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         // Since R3 (LIB-PYG5) the undeclared-coincidence refusal
         // surfaces as the typed refusal-menu variant, finding attached.
         Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::UndeclaredContact { .. }),
+            matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. }),
             "expected the UndeclaredContact menu, got {:?}",
             e.kind
         ),

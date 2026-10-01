@@ -819,7 +819,7 @@ pub struct RefusedBoolean {
     b: RecipeNodeId,
     declared: Vec<FlushFinding>,
     at: Generation,
-    /// Always the kernel's `NodeErrorKind::UndeclaredContact`: the one
+    /// Always the kernel's `NodeErrorKind::UndeclaredCoincidence`: the one
     /// constructor admits nothing else.
     refused: NodeErrorKind,
 }
@@ -858,7 +858,7 @@ impl RefusedBoolean {
         declared: Vec<FlushFinding>,
         at: Generation,
     ) -> Option<Self> {
-        let NodeErrorKind::UndeclaredContact {
+        let NodeErrorKind::UndeclaredCoincidence {
             finding,
             merged,
             diag,
@@ -875,7 +875,7 @@ impl RefusedBoolean {
             b,
             declared,
             at,
-            refused: NodeErrorKind::UndeclaredContact {
+            refused: NodeErrorKind::UndeclaredCoincidence {
                 finding: finding.clone(),
                 merged: merged.clone(),
                 diag: *diag,
@@ -886,7 +886,7 @@ impl RefusedBoolean {
     /// The finding the kernel refused: the pair and the class a
     /// declaration of it asserts.
     pub fn finding(&self) -> &FlushFinding {
-        let NodeErrorKind::UndeclaredContact { finding, .. } = &self.refused else {
+        let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &self.refused else {
             unreachable!("`RefusedBoolean::read` admits only an undeclared contact")
         };
         finding
@@ -1378,7 +1378,7 @@ mod refused_boolean {
     #[test]
     fn a_same_operand_pair_is_not_offered() {
         with_refusal(|kind, operands| {
-            let NodeErrorKind::UndeclaredContact {
+            let NodeErrorKind::UndeclaredCoincidence {
                 finding,
                 merged,
                 diag,
@@ -1388,7 +1388,7 @@ mod refused_boolean {
             };
             let mut same = (**finding).clone();
             same.pair.1.at = same.pair.0.at;
-            let one_operand = NodeErrorKind::UndeclaredContact {
+            let one_operand = NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(same),
                 merged: merged.clone(),
                 diag: *diag,

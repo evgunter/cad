@@ -1774,7 +1774,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 {
                     geom_brep::EdgeDescription::Intersection { s1: d1, s2: d2, .. }
                     | geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } => {
-                        !((*d1 == s1 && *d2 == s2) || (*d1 == s2 && *d2 == s1))
+                        !Body::<T>::cites_pair((*d1, *d2), s1, s2)
                     }
                     // A chart image cites ONE adjacent surface (its
                     // residual chart); stale iff neither side is it

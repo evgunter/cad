@@ -311,7 +311,7 @@ fn pair_verdict<T: Decide>(
         // seat contributes the pair vocabulary and the tie-resolved
         // evidence, and takes the classification from the door that
         // decides it (`topo::flush::finding`).
-        (m, Some(relation)) if m == total => Ok(Some(finding(
+        (m, Some(relation)) if m == total => finding(
             (
                 SitedRef::new(at_a, na.clone()),
                 SitedRef::new(at_b, nb.clone()),
@@ -324,7 +324,9 @@ fn pair_verdict<T: Decide>(
                     FlushRung::DecidedCoincident
                 },
             },
-        ))),
+        )
+        .map(Some)
+        .map_err(SelectRefusal::DistinctFinding),
         _ => Err(tied_disagrees(na, ca, nb, matched, total)),
     }
 }

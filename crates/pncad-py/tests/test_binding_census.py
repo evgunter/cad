@@ -3290,8 +3290,9 @@ MEMBERS_BOUND_AS = {
     # --- a wrapping arm flattened into its payload's words ---------
     # `BooleanCoincidence::Contact(ContactClass)` crosses as the
     # contact class's own words beside `Continuation`: the Python enum
-    # is flat, `Rest`, `Tangent`, `Continuation` (`Rest` named here).
-    "BooleanCoincidence::Contact": "BooleanCoincidence.Rest",
+    # is flat, `Rest`, `Tangent`, `Continuation`, so the arm is every
+    # contact word.
+    "BooleanCoincidence::Contact": ("BooleanCoincidence.Rest", "BooleanCoincidence.Tangent"),
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
@@ -4020,10 +4021,14 @@ class TestBindingCensus(unittest.TestCase):
         """A mapping to a spelling the stub does not declare is a
         claim nobody is checking — the failure mode that would make
         this whole roster decorative."""
+        # A row's spelling is one name, or a tuple of names when one
+        # member crosses as several (a wrapping arm flattened into its
+        # payload's words); each must exist.
         absent = sorted(
             f"{name} -> {spelling}"
             for table in (BOUND_AS, MEMBERS_BOUND_AS)
-            for name, spelling in table.items()
+            for name, spellings in table.items()
+            for spelling in (spellings if isinstance(spellings, tuple) else (spellings,))
             if spelling not in self.top and spelling not in self.members
         )
         self.assertEqual(

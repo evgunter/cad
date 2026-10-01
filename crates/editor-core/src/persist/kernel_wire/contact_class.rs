@@ -84,28 +84,41 @@ fn known() -> String {
         .join(", ")
 }
 
-/// The spelling to write for `class`, or the reason there is none —
-/// the ONE write-side door, so no caller can skip the round trip.
+/// The spelling to write for `value`, or the reason there is none —
+/// the ONE write-side round trip, shared by the mate's class and the
+/// declare payload's coincidences, so no write direction can skip it.
 ///
-/// The check is belt-and-braces over [`ContactClass::ALL`]: a class
+/// The check is belt-and-braces over the kernel's enumeration: a value
 /// this build spells but cannot read back is refused at the write
-/// rather than committed to a file.
-fn spelling(class: ContactClass) -> Result<&'static str, String> {
-    let Some(t) = tag(class) else {
+/// rather than committed to a file. `what` names the vocabulary and
+/// `known` quotes its read table.
+fn round_trip<V: Copy + PartialEq>(
+    value: V,
+    tag: impl Fn(V) -> Option<&'static str>,
+    untag: impl Fn(&str) -> Option<V>,
+    what: &str,
+    known: impl Fn() -> String,
+) -> Result<&'static str, String> {
+    let Some(t) = tag(value) else {
         return Err(format!(
-            "this build has no wire spelling for the contact class (a newer kernel's \
+            "this build has no wire spelling for the {what} (a newer kernel's \
              vocabulary) — refusing to write a guessed tag. {}",
             topo::FIT_DEFERRAL
         ));
     };
-    if untag(t) != Some(class) {
+    if untag(t) != Some(value) {
         return Err(format!(
-            "the contact class spelled '{t}' is missing from this build's read table ({}) — \
+            "the {what} spelled '{t}' is missing from this build's read table ({}) — \
              refusing to write a file this build could not open",
             known()
         ));
     }
     Ok(t)
+}
+
+/// The spelling to write for a mate's `class` ([`round_trip`]).
+fn spelling(class: ContactClass) -> Result<&'static str, String> {
+    round_trip(class, tag, untag, "contact class", known)
 }
 
 /// Serializes the class as its stable lowercase spelling.
@@ -172,6 +185,7 @@ fn coincidence_known() -> String {
 pub(crate) mod pairs {
     use super::{
         BooleanCoincidence, SitedRef, coincidence_known, coincidence_tag, coincidence_untag,
+        round_trip,
     };
     use serde::de::Error as _;
     use serde::ser::Error as _;
@@ -186,16 +200,14 @@ pub(crate) mod pairs {
     pub(crate) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
         let mut out = Vec::with_capacity(pairs.len());
         for ((a, b), class) in pairs {
-            let t = coincidence_tag(*class)
-                .filter(|t| coincidence_untag(t) == Some(*class))
-                .ok_or_else(|| {
-                    S::Error::custom(format!(
-                        "persist: declared coincidence {}: this build has no wire spelling it \
-                         can read back ({}) — refusing to write a guessed tag",
-                        class.name(),
-                        coincidence_known()
-                    ))
-                })?;
+            let t = round_trip(
+                *class,
+                coincidence_tag,
+                coincidence_untag,
+                "declared coincidence",
+                coincidence_known,
+            )
+            .map_err(|why| S::Error::custom(format!("persist: {why}")))?;
             out.push(((a, b), t));
         }
         out.serialize(ser)

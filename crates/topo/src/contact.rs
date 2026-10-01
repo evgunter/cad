@@ -128,6 +128,19 @@ pub enum BooleanCoincidence {
     Continuation,
 }
 
+/// [`BooleanCoincidence::ALL`]'s storage: every contact class in
+/// [`ContactClass::ALL`]'s order, then the continuation, built from
+/// that list at compile time.
+const COINCIDENCES: [BooleanCoincidence; ContactClass::ALL.len() + 1] = {
+    let mut out = [BooleanCoincidence::Continuation; ContactClass::ALL.len() + 1];
+    let mut i = 0;
+    while i < ContactClass::ALL.len() {
+        out[i] = BooleanCoincidence::Contact(ContactClass::ALL[i]);
+        i += 1;
+    }
+    out
+};
+
 impl BooleanCoincidence {
     /// The conformal contact, `Contact(Rest)`.
     pub const REST: Self = Self::Contact(ContactClass::Rest);
@@ -136,8 +149,16 @@ impl BooleanCoincidence {
 
     /// **Every coincidence this type can name**: each contact class in
     /// [`ContactClass::ALL`]'s order, then the continuation. The one
-    /// enumeration, for the reason [`ContactClass::ALL`] gives.
-    pub const ALL: &'static [BooleanCoincidence] = &[Self::REST, Self::TANGENT, Self::Continuation];
+    /// enumeration, for the reason [`ContactClass::ALL`] gives. DERIVED
+    /// from [`ContactClass::ALL`], so a class added there is a
+    /// coincidence here with nothing to keep by hand.
+    pub const ALL: &'static [BooleanCoincidence] = &COINCIDENCES;
+
+    /// The continuation's content tag: outside the contact classes'
+    /// tag space (`ContactClass::content_tag` counts up from 1), so a
+    /// class added later (`Fit`) can take the next small tag without
+    /// colliding. Tags are process-internal, never persisted.
+    const CONTINUATION_TAG: u64 = 1 << 32;
 
     /// The coincidence's name, for messages.
     pub fn name(self) -> &'static str {
@@ -154,7 +175,7 @@ impl BooleanCoincidence {
     pub fn content_tag(self) -> u64 {
         match self {
             Self::Contact(class) => class.content_tag(),
-            Self::Continuation => 3,
+            Self::Continuation => Self::CONTINUATION_TAG,
         }
     }
 
@@ -469,5 +490,10 @@ mod tests {
             ContactClass::ALL.len() + 1,
             "ALL holds every contact class and the continuation"
         );
+        // The continuation's tag sits outside the class tags' space, so
+        // the next class (`Fit`, at the next small tag) cannot collide.
+        for &class in ContactClass::ALL {
+            assert!(class.content_tag() < BooleanCoincidence::CONTINUATION_TAG);
+        }
     }
 }

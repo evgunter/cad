@@ -47,6 +47,14 @@
 //!   declared v-v contact pair by construction.
 //! - Sweep order (D9): direction A→B fully, then B→A; edges in arena
 //!   order, faces in arena snapshot order, worklist FIFO.
+//!
+//! The module also hosts the three **pre-sweep gates**, which refuse an
+//! operand pair before any edge is split: the operand gate
+//! ([`gate_operand_pairs`]: a kind with no wired arm may not enter an
+//! undeclared pair), the maximal-faces gate ([`gate_maximal_faces`]:
+//! no operand carries two coplanar neighbours), and the
+//! undeclared-continuation scan ([`refuse_undeclared_continuations`]:
+//! no aligned one-carrier pair meets without a declaration).
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
@@ -648,36 +656,59 @@ pub(super) fn gate_maximal_faces<T: Decide>(
 /// The carrier question is the detector posture of the verify ladder
 /// ([`super::carrier_pair_relation`]); a pair it calls one carrier by
 /// shared recipe source is structurally licensed, and an in-band
-/// escalation is left to the stages that already own it. "Meets along
-/// its boundary" is read off padded boxes — a boundary edge of each
-/// face sharing a stretch of curve, not a point
-/// ([`edges_share_a_curve`]) — which can only over-report a meeting,
-/// and so only ever refuses.
+/// escalation is left to the stages that already own it. **"Meets along
+/// its boundary" is decided point-on-edge** ([`edges_share_a_curve`]):
+/// a boundary edge of each face must share a stretch of curve, not a
+/// point, read off the edges' carriers through `Decide`. Boxes only
+/// PRUNE here — a B face whose box clears an A face's is never asked,
+/// and an edge pair whose boxes clear is never sampled — except on the
+/// one fallback `edges_share_a_curve` documents for a carrier with no
+/// point parameter, where box overlap stands in for the decision and
+/// can only over-report a meeting, so only ever refuses.
+///
+/// **The boxes are handed in, not built here.** Box construction reads
+/// coordinate brackets, which is the `Bounds` seam the 2026-07-29
+/// driver amendment ratified for the reduction's DRIVER
+/// (`boolean_reduce_declared_strategy`, geom-core `real.rs`'s Bounds
+/// scope rule); this scan is `Decide`-only, so the bracket read stays
+/// at that door and nothing here can compare a bracket. `face_box` and
+/// `edge_box` are that door's padded boxes (`boxes::face_box`,
+/// `boxes::edge_box` at `pad`).
 ///
 /// # Errors
 ///
 /// [`BooleanError::UndeclaredCoincidence`] naming the first undeclared
 /// continuation in arena order (A's faces, then B's within each);
 /// [`BooleanError::ClassificationInvariant`] for a torn arena.
-pub(super) fn refuse_undeclared_continuations<T: Decide + Bounds>(
+pub(super) fn refuse_undeclared_continuations<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
     declared: &super::DeclaredPairs,
     band: Band,
+    pad: f64,
+    face_box: impl Fn(&Body<T>, FaceKey) -> Result<bvh::Aabb, BooleanError>,
+    edge_box: impl Fn(&Body<T>, EdgeKey) -> Result<bvh::Aabb, BooleanError>,
 ) -> Result<(), BooleanError> {
-    let pad = boxes::sweep_pad(band);
-    let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
-        body.faces()
-            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad)?)))
-            .collect()
-    };
-    let (a_faces, b_faces) = (boxed(a)?, boxed(b)?);
+    let a_faces: Vec<(FaceKey, bvh::Aabb)> = a
+        .faces()
+        .map(|(k, _)| Ok((k, face_box(a, k)?)))
+        .collect::<Result<_, BooleanError>>()?;
+    let b_keys: Vec<FaceKey> = b.faces().map(|(k, _)| k).collect();
+    let b_boxes: Vec<bvh::Aabb> = b_keys
+        .iter()
+        .map(|&k| face_box(b, k))
+        .collect::<Result<_, BooleanError>>()?;
+    // The C10 tree over B's faces, as the sweep builds it: candidates
+    // arrive in ascending arena order, so "first in arena order" is the
+    // brute-force scan's first.
+    let tree = bvh::Bvh::build(&b_boxes);
     let mut edge_boxes: Option<[FaceEdges; 2]> = None;
     for &(fa, box_a) in &a_faces {
-        for &(fb, box_b) in &b_faces {
-            if !box_a.overlaps(&box_b)
-                || declared.class_of(Operand::A, fa, Operand::B, fb).is_some()
-            {
+        for i in tree.overlapping(&box_a) {
+            let fb = *b_keys.get(i).ok_or(BooleanError::ClassificationInvariant {
+                what: "continuation scan: the face tree returned an index past its input",
+            })?;
+            if declared.class_of(Operand::A, fa, Operand::B, fb).is_some() {
                 continue;
             }
             let Some(relation) = super::carrier_pair_relation(a, fa, b, fb, false, band) else {
@@ -691,7 +722,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide + Bounds>(
                 continue;
             };
             if edge_boxes.is_none() {
-                edge_boxes = Some([face_edge_boxes(a, pad)?, face_edge_boxes(b, pad)?]);
+                edge_boxes = Some([face_edges(a, &edge_box)?, face_edges(b, &edge_box)?]);
             }
             let [ea, eb] = edge_boxes
                 .as_ref()
@@ -699,13 +730,11 @@ pub(super) fn refuse_undeclared_continuations<T: Decide + Bounds>(
                     what: "continuation scan: edge boxes not built",
                 })?;
             let mut meets = false;
-            for &(ex, bx) in ea.get(&fa).map_or(&[][..], Vec::as_slice) {
+            'pairs: for &(ex, bx) in ea.get(&fa).map_or(&[][..], Vec::as_slice) {
                 for &(ey, by) in eb.get(&fb).map_or(&[][..], Vec::as_slice) {
-                    if !meets
-                        && bx.overlaps(&by)
-                        && edges_share_a_curve(a, ex, b, ey, &bx, &by, pad, band)?
-                    {
+                    if bx.overlaps(&by) && edges_share_a_curve(a, ex, b, ey, &bx, &by, pad, band)? {
                         meets = true;
+                        break 'pairs;
                     }
                 }
             }
@@ -724,14 +753,14 @@ pub(super) fn refuse_undeclared_continuations<T: Decide + Bounds>(
 /// Each face's boundary edges with their padded boxes.
 type FaceEdges = std::collections::BTreeMap<FaceKey, Vec<(EdgeKey, bvh::Aabb)>>;
 
-/// Every face's boundary edges, each with its padded box.
-fn face_edge_boxes<T: Decide + Bounds>(
+/// Every face's boundary edges, each with the box the driver hands in.
+fn face_edges<T: Decide>(
     body: &Body<T>,
-    pad: f64,
+    edge_box: &impl Fn(&Body<T>, EdgeKey) -> Result<bvh::Aabb, BooleanError>,
 ) -> Result<FaceEdges, BooleanError> {
     let mut out = FaceEdges::new();
     for (key, edge) in body.edges() {
-        let bx = boxes::edge_box(body, key, pad)?;
+        let bx = edge_box(body, key)?;
         let f1 = body.face_of_half_edge(edge.he_plus);
         let f2 = body
             .face_of_half_edge(edge.he_minus)
@@ -754,8 +783,21 @@ fn face_edge_boxes<T: Decide + Bounds>(
 /// can only over-report a meeting and so only ever refuses.
 ///
 /// A carrier with no point parameter (ellipse, spline) falls back to
-/// the boxes: their overlap must run longer than the two pads on some
-/// axis, which two edges meeting at one point cannot do.
+/// the boxes: they must overlap on every axis and run past
+/// [`POINT_TOUCH_RUN`] pads on some axis. This is the scan's one
+/// box-decided answer, and it errs only toward "meets", so toward a
+/// refusal.
+/// How many pads two edge boxes must overlap by, on some axis, before
+/// the box fallback of [`edges_share_a_curve`] reads them as sharing a
+/// curve. Each box is its edge's extent padded by `pad` on every side,
+/// so two edges that meet at ONE point and leave it in opposite
+/// directions along an axis overlap there by the two pads, `2·pad`, at
+/// most. Four pads is that bound doubled, so that point touches stay
+/// clear of it. Edges that leave a shared point on the same side of an
+/// axis (a V) can still overlap past it. That over-reports a meeting,
+/// and so refuses rather than admits.
+const POINT_TOUCH_RUN: f64 = 4.0;
+
 #[allow(clippy::too_many_arguments)]
 fn edges_share_a_curve<T: Decide>(
     x: &Body<T>,
@@ -801,7 +843,9 @@ fn edges_share_a_curve<T: Decide>(
             run(bx.min_y, bx.max_y, by.min_y, by.max_y),
             run(bx.min_z, bx.max_z, by.min_z, by.max_z),
         ];
-        return Ok(runs.iter().all(|&r| r >= 0.0) && runs.iter().any(|&r| r > 4.0 * pad));
+        return Ok(
+            runs.iter().all(|&r| r >= 0.0) && runs.iter().any(|&r| r > POINT_TOUCH_RUN * pad)
+        );
     };
     let zero = |m: T| {
         !matches!(

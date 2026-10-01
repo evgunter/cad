@@ -870,7 +870,7 @@ fn orders_that(outcomes: &[(Vec<usize>, String)], what: &str) -> Vec<Vec<usize>>
 /// **A covered contact is a contact, in every member order** (DM4's
 /// contact rule). `row` is `a`, `b`, `g`, `h`, with `(a, b)` declared
 /// and `(a, h)` not; `b` covers the `(a, h)` contact. Every one of the 24
-/// orders refuses `UndeclaredContact`, naming a face of `a` and a face
+/// orders refuses `UndeclaredCoincidence`, naming a face of `a` and a face
 /// of `h`, whichever order the members are in and whichever order they
 /// were created in (`rowids`). Judged in the fold, 6 orders fused, 8
 /// refused the contact and 10 refused `DeclareResolve`.
@@ -904,7 +904,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
             );
             let ev = run(&docx);
             match failure(&ev, union) {
-                Some(editor_core::NodeErrorKind::UndeclaredContact { finding, .. }) => {
+                Some(editor_core::NodeErrorKind::UndeclaredCoincidence { finding, .. }) => {
                     let mut sites = [finding.pair.0.at, finding.pair.1.at];
                     sites.sort();
                     let mut ah = [ids[0], ids[3]];
@@ -933,7 +933,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
 }
 
 /// **The covered-contact row itself: `{a, b, h}`.** Undeclared, `(a, h)`
-/// refuses `UndeclaredContact` in all six orders; judged in the fold,
+/// refuses `UndeclaredCoincidence` in all six orders; judged in the fold,
 /// `[a, b, h]` and `[b, a, h]` fused, because `b` had covered the contact
 /// before `h` joined. Declared, those two orders fuse: `b` consumed `a`'s
 /// wall whole before the pair's step, so the declaration is satisfied
@@ -945,7 +945,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
 fn a_contact_b_covers_refuses_undeclared_and_is_satisfied_declared_where_b_consumed_the_face() {
     let undeclared = outcomes(&[A, B, H], &[0, 1, 2], None);
     assert_eq!(
-        orders_that(&undeclared, "UndeclaredContact").len(),
+        orders_that(&undeclared, "UndeclaredCoincidence").len(),
         6,
         "{undeclared:?}"
     );

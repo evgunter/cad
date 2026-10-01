@@ -289,7 +289,7 @@ class TestEvaluation(unittest.TestCase):
         # Since register R3 (LIB-PYG5) the undeclared-contact refusal
         # is the typed MENU: its own stable tag, and the candidate
         # declaration attached as a `FlushFinding` value.
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         self.assertIsNone(caught.exception.through)
         finding = caught.exception.finding
         self.assertIsInstance(finding, pncad.FlushFinding)
@@ -305,7 +305,7 @@ class TestEvaluation(unittest.TestCase):
         # F6 (reopened on review): the MESSAGE is prose stating the
         # problem and the two-armed recourse, not Debug guts.
         message = str(caught.exception)
-        self.assertIn("Boolean refused an undeclared contact", message)
+        self.assertIn("Boolean refused an undeclared coincidence", message)
         self.assertIn("declare the candidate pair", message)
         for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
             self.assertNotIn(guts, message)
@@ -323,7 +323,7 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.node, downstream)
         self.assertEqual(caught.exception.through, cut)
         # The root cause's tag rides along: the ancestor's refusal.
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         # The menu payload does NOT ride a poisoning — the recourse
         # belongs to the node that refused; here it is None (attributes
         # never go missing, LIB-DOORS F3).
@@ -335,7 +335,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
     """LIB-PYG5 (G5): the detect/declare doors' own contracts —
     positive paths through every spelling, adversarial args refused
     typed. The scene-level flips live in `test_north_star.py`
-    (`TestTable`, `TestCrosslapGlued`); the guide's executed block is
+    (`TestTable`, `TestCrosslapAtTheNamingWall`); the guide's executed block is
     the end-to-end menu recourse."""
 
     def stacked(self):
@@ -1392,7 +1392,7 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(cut)
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         self.assertIsNone(caught.exception.inner_kind)
         self.assertIsNotNone(caught.exception.finding)
 
