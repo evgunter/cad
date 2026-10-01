@@ -3637,13 +3637,15 @@ fn asm_r2a_mated_assembly(
     };
     let (doc, _) = insert(
         doc,
+        // The second instance is the mate's first operand: the mate
+        // places its group on the first's.
         Node::Mate {
-            a: face_head(name(ids[0])),
-            b: face_head(name(ids[1])),
+            a: face_head(name(ids[1])),
+            b: face_head(name(ids[0])),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: axis([30.0, 0.0, 0.0]),
-                b: axis([0.0, 0.0, 0.0]),
+                a: axis([0.0, 0.0, 0.0]),
+                b: axis([30.0, 0.0, 0.0]),
                 primitive: MatePrimitive::FrameCoincidence,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -3680,7 +3682,7 @@ fn asm_r2a_child_mated_probe() {
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let (doc, ids) = asm_r2a_mated_assembly("asm-r2a-probe-asm", doc_ref, body);
     // The mate SOLVED the second instance's pose: the mate door took
-    // its offset when the mate joined it to the first's group, so the
+    // its offset when the mate placed its group on the first's, so the
     // pose is recipe data, not a stored frame.
     assert!(
         matches!(
