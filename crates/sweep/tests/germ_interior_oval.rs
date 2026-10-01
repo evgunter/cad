@@ -767,8 +767,8 @@ fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
 ///
 /// ∪ never reaches the guard today: the join's role resolution probes
 /// the clamp's regions against the bump block, and point-in-solid has
-/// no NURBS arm, so ∪ refuses there first (and the volume backstop's
-/// closed form, which has no NURBS arm either, stands behind it). The
+/// no NURBS arm, so ∪ refuses there first (and the volume backstop
+/// stands behind it). The
 /// row pins that refusal, so the day containment serves NURBS it goes
 /// red and says whether the guard is what refuses. ∩ and ∖ refuse at
 /// the revert roster, which has no NURBS.
