@@ -30,14 +30,23 @@ here at dispatch.
   runners are a budget and the four share one file and one routing
   table. Review: single FULL, because routing a refusal to the wrong
   ending is a correctness defect that reads as plausible prose.
-- **The chart speed (designers first)**:
-  `ssi-chart-speed-usability-boundary`,
-  `limb-3-chart-tube-speed-has-neither-guard-its-sibling-site-has`,
-  `ssi-tube-pad-folds-both-axes-by-max-speed-where-limb-3-proved-per-axis`
-  and `ssi-certify-stretch-divides-by-a-norm-with-no-sqrt-up` are four
-  findings about one value: the chart speed, where it is minted, what it
-  bounds, how it is rounded and who checks it. They go to a designer
-  pair as one problem before any lane builds them.
+- **The chart speed**: four rows, one design. The design was weighed by
+  two designers and converged in three rounds without going to Ev; the
+  spec is the "Design" section of `ssi-chart-speed-usability-boundary`.
+  There are three sequential units, each building on the last:
+  - **`ssi/chart-rate`**: one outward `norm_sup` in `geom_core`, with
+    `Box3::speed_sup` deleted, plus NaN-keeping folds on
+    `SupSpeed`/`InfSpeed`. Closes `ssi-certify-stretch-divides-by-a-norm-with-no-sqrt-up`
+    and the `offset_meters` NaN-dropping folds. Review: single FULL,
+    because it moves bits on a soundness claim.
+  - **`ssi/chart-tube`**: the per-axis mint, the per-kind certificate
+    tube, `chart_tube_windows`, and the NaN-window door. Closes
+    `limb-3-chart-tube-speed-has-neither-guard-its-sibling-site-has` and
+    `ssi-tube-pad-folds-both-axes-by-max-speed-where-limb-3-proved-per-axis`.
+    Review: single FULL.
+  - **`ssi/chart-floor`**: the floor door on both lanes, and the
+    stepper's guard on its own step. Closes
+    `ssi-chart-speed-usability-boundary`. Review: single FULL.
 - **`ssi/eps-refine`**, after the first wave:
   `plane-nurbs-certificate-bound-does-not-refine-with-eps`. Measure
   first, as the row says, and then fix or document what the measurement shows.
