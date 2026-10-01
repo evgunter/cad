@@ -2,10 +2,10 @@
 id: MSOLVE-11
 kind: unit
 title: The solve's decisions reach a mate's own log, the lever is a finite length by construction, and a Part's own index is refused at the Part
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P1
-cost: D
+cost: H
 branch: msolve/11-escalations
 ---
 
@@ -21,3 +21,9 @@ escalation has no input left to reach it; a `Part`'s own index
 refuses at the `Part`. Review tier: single, full (the frame
 attribution is a correctness claim, not a reading). Dispatches from
 main after MSOLVE-9 merges; both units rewrite `mate/solve.rs`.
+
+Riders (plan item 20, 2026-10-01): AUTH's `materole-has-no-display`,
+CHROME's `msolve-refusals-short-of-the-shape-guard` and
+`mate-refusals-name-documents-by-hex-id`, and
+`lever-refusal-respells-reach-refusal`, which the hex-id row asks to
+be done with it. Spec §4–§7. Dispatched 2026-10-01 on Opus.

@@ -6,7 +6,7 @@ Unit of the `msolve` program. Item `work/msolve/MSOLVE-11.md`. Answers
 (CHROME). Read both in full, including what the first says it does
 NOT claim. **Track:** a kernel change to where the solve's funnel
 decisions are recorded and where two refusals are sited. No verdict
-moves. One review, full: style questions plus the claims below. No A/B
+moves. One review, full: style questions plus the claims below (C1–C7). No A/B
 row. Dispatches from main after MSOLVE-9, which rewrites the same
 functions.
 
@@ -107,6 +107,54 @@ call: does each seat at the node whose slot it evaluates? Say so in
 the PR, with the blind spot and a second pass shaped at it
 (discipline §5).
 
+## Riders (plan item 20, triaged 2026-10-01)
+
+Four reporting rows touch the `MateFault` arms this unit re-sites,
+so they ride it rather than open another pass over one enum. Read
+each item in full; a rider closes with its own `## Closed` section.
+The core (§1–§3) lands first; a rider never delays it, and a rider
+that turns out bigger than its price STOPs alone (the core's PR
+goes on) — say what you measured.
+
+**4. `materole-has-no-display`** (AUTH, P1). `MateRole`
+(`mate/solve.rs`) gains a `Display`: the kernel's one word for
+whether a tree mate placed its child (`Determining`), solved nothing
+and only declares contact (`Declaring`), or refused. A sentence a
+person reads, not a variant name; AUTH's viewer row
+(`work/author/a-mate-row-does-not-say-whether-it-placed-its-child`)
+consumes it and is unblocked when this lands. Pin each sentence.
+
+**5. `msolve-refusals-short-of-the-shape-guard`** (CHROME, P2).
+Every `MateFault`, `LeverRefusal`, `FaceRefusal`, `MateRefused` and
+`MaintenanceRefused` row the two `FILED_NO_RECOURSE` lists admit is
+rewritten at its source to the refusal standard: the recourse the
+raise site supports, or "There is no way through" where none exists.
+A recourse is a claim — read the raise site before writing one. Drop
+each admission as its row passes; the must-fire checks keep the
+lists honest. The item's two later sections (the predicate name in
+`mate.rs`'s sentence, `PlacerRefused`'s carried line) are in scope.
+
+**6. `mate-refusals-name-documents-by-hex-id`** (CHROME, P3). The
+`PosesOfAnotherDocument` sentence and `LeverRefusal`'s part arms
+name the instance and leave document ids (and arena keys printed
+with `{:?}`) to the typed payload. Drop the admissions.
+
+**7. `lever-refusal-respells-reach-refusal`** (MSOLVE-8's and
+MSOLVE-9's fix passes, P1). The hex-id rider says the two want doing
+together, and §2 adds a lever refusal of its own, so this unit is
+where `LeverRefusal` and `FaceRefusal` become one carrier each: the
+lever's subject (`instance`, `part`, and `face` for the face pose)
+beside the reach's own refusal, with the arms that are the solve's
+alone (`PartUnresolved`, `NotAnInstance`) kept beside it. The Python
+tags (`lever_refusal_tag`, `face_refusal_tag`), the shared
+`instance` projection in `mate_payload.rs`, the four shared tag
+words pinned as one fact, and the binding census move with it. The
+tags are LIB's: announce the move on LIB's tracker (a log line in
+`work/lib/log.md`).
+
+Order: §7 before §6 and §5 where they meet, so each sentence is
+rewritten once, on its final carrier.
+
 ## Acceptance
 
 - **A1** The row that pinned the gap flips.
@@ -126,6 +174,11 @@ the PR, with the blind spot and a second pass shaped at it
   the evaluation fails.
 - **A6** Both items closed with `## Closed` sections citing the rows.
   `work.py lint` clean.
+- **A7** Riders: `MateRole` reads in words; no `FILED_NO_RECOURSE` or
+  `ADMISSIONS` entry naming a rider's file is left; `LeverRefusal`
+  and `FaceRefusal` each carry the reach's refusal once. Each rider
+  closed with a `## Closed` section, or left open with what stopped
+  it written into the item.
 
 ## Constraints, binding
 
@@ -140,7 +193,11 @@ the PR, with the blind spot and a second pass shaped at it
   `mate/member.rs`, `mate.rs` (the refusal's arm and its docs),
   `eval/mod.rs` (the mate node's splice, and nothing else there),
   `pncad-py` if a new `MateFault`/`LeverRefusal` arm crosses
-  (tag, payload, `.pyi`, census), tests, the items. `geom-core` is
+  (tag, payload, `.pyi`, census), tests, the items. The riders widen
+  it by `mate/reach.rs` (the carriers' reach halves), the
+  `MaintenanceRefused`/`MateRefused` sentences in `edit.rs` or
+  wherever they are spelled, the two refusal-concision suites'
+  admission lists, and `work/lib/log.md` for the announcement. `geom-core` is
   outside: `detached`, `splice` and `RANGE_RECOURSE` are taken as they
   are. If the unit needs a door there, STOP and say what door.
 - Comments state the invariant (discipline §4).
@@ -173,3 +230,8 @@ One review, full, claims to falsify:
   named `placer` is the node the evaluation fails.
 - **C5** No verdict moved: the mate suites pass unchanged except the
   rows the PR names as moved, each with where it meets its answer now.
+- **C6** Every recourse the riders write is true at its raise site:
+  the step it names is one the document admits, and "no way through"
+  is said only where there is none.
+- **C7** The one-carrier refactor keeps every word on the wire that a
+  Python caller reads, or names each tag that moved.
