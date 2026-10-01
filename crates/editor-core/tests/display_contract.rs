@@ -3506,7 +3506,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             let at = text
                 .find(&spoken)
                 .unwrap_or_else(|| panic!("{error:?} does not say {spoken}: {text}"));
-            let before = text[..at].trim_end_matches(|c: char| c == ' ' || c == '(');
+            let before = text[..at].trim_end_matches([' ', '(']);
             let word = before
                 .rsplit(|c: char| !c.is_alphanumeric())
                 .next()

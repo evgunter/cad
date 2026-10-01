@@ -2035,6 +2035,66 @@ mod tests {
     use super::*;
     use geom_core::ErrorTextReading;
 
+    /// A gauge the edit left is spoken from the document it leaves; a
+    /// gauge the edit dropped is gone from that one, so it is spoken
+    /// from the document the edit found, kind and label and all, not
+    /// as a node nothing holds.
+    #[test]
+    fn a_dropped_gauge_is_spoken_from_the_document_the_edit_found() {
+        use crate::edit::DocEdit;
+        let tol = Tol::witness();
+        let empty: Doc<crate::program::ProfileProgram> = Doc::empty_derived("gauge-spoken", tol);
+        let node = crate::test_support::xy_frame();
+        let inserted = empty
+            .apply(&DocEdit::InsertNode { node }, tol, &crate::RefusingReach)
+            .expect("the frame inserts")
+            .doc;
+        let gauge = *inserted.order().last().expect("the inserted node");
+        let label = crate::Label::new("anchor").expect("a valid label");
+        let before = inserted
+            .apply(
+                &DocEdit::SetLabel {
+                    node: gauge,
+                    label: Some(label.clone()),
+                },
+                tol,
+                &crate::RefusingReach,
+            )
+            .expect("the label sets")
+            .doc;
+        let after = before
+            .apply(
+                &DocEdit::DeleteNode { id: gauge },
+                tol,
+                &crate::RefusingReach,
+            )
+            .expect("the node deletes")
+            .doc;
+        let dropped = gauge_spoken(&before, &after, gauge);
+        assert_eq!(dropped, before.spoken(gauge));
+        assert_eq!(
+            dropped.label(),
+            Some(&label),
+            "read off the document the edit found"
+        );
+        let renamed = before
+            .apply(
+                &DocEdit::SetLabel {
+                    node: gauge,
+                    label: Some(crate::Label::new("datum").expect("a valid label")),
+                },
+                tol,
+                &crate::RefusingReach,
+            )
+            .expect("the label moves")
+            .doc;
+        assert_eq!(
+            gauge_spoken(&before, &renamed, gauge),
+            renamed.spoken(gauge),
+            "a gauge the edit left is spoken from the document it leaves"
+        );
+    }
+
     const SITE: &str = "solve_test_direction";
 
     fn band() -> Band {

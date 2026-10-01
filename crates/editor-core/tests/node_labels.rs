@@ -348,3 +348,51 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
         "{twice}"
     );
 }
+
+/// **A held node an edit rewrites is spoken with its label**: a
+/// `SetMembers` that names one member twice refuses about the union as
+/// the document holds it, label and all, not as the insert door's
+/// kind-and-tag spelling of a node being minted.
+#[test]
+fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
+    let doc = ProfileDoc::empty_derived("node-labels-set-members", Tol::witness());
+    let (doc, [_, _, left]) = block(doc, 0.0);
+    let (doc, [_, _, right]) = block(doc, 2.0);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: vec![left, right],
+            declare: None,
+        },
+    );
+    let doc = set_label(doc, union, Some("pair"));
+    let doc = set_label(doc, left, Some("left"));
+
+    let twice = refusal(
+        &doc,
+        DocEdit::SetMembers {
+            node: union,
+            members: vec![left, left],
+        },
+    );
+    let EditError::DuplicateInput { node, input } = &twice else {
+        panic!("a member named twice refuses DuplicateInput, got {twice:?}");
+    };
+    assert_eq!(
+        (node, input),
+        (&doc.spoken(union), &doc.spoken(left)),
+        "both nodes as the document holds them"
+    );
+    assert_eq!(
+        node.label(),
+        Some(&label("pair")),
+        "the rewritten union keeps its label"
+    );
+    assert!(
+        twice.to_string().contains(&format!(
+            "Extrude \"left\" ({}) is taken as an input twice",
+            tag(left.0)
+        )),
+        "{twice}"
+    );
+}
