@@ -245,6 +245,9 @@ pub enum SensitivityOutcome {
 /// One continuous parameter's sensitivity entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sensitivity {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// The parameter.
     pub param: ParamName,
     /// The pass's reading, marked.
@@ -355,16 +358,12 @@ pub enum SensitivityRefusal {
     /// over this document (module docs — the document was edited
     /// since the drive, or the verdict is another document's).
     VerdictNotOfThisBuild {
-        /// The leaf that was replayed. Boxed so that a
-        /// [`StackupRefusal`] carrying this arm stays a small `Err`.
+        /// The leaf that was replayed, boxed so the refusal stays a
+        /// small `Err`.
         leaf: Box<ParamBox>,
         /// The first node whose key differs (or is missing on one
-        /// side), in evaluation order. Spoken from the document asked
-        /// about where its replay holds that node; the drive's record
-        /// alone is spelled in the document the drive ran on, which may
-        /// be another, so a node only the record names is
-        /// [`SpokenNode::absent`].
-        node: SpokenNode,
+        /// side), in evaluation order.
+        node: DivergedAt,
         /// The drive's recorded key there, if the record has one.
         recorded: Option<ContentKey>,
         /// This document's replay key there, if the replay built it.
@@ -373,6 +372,38 @@ pub enum SensitivityRefusal {
     /// The pairing gate fired (module docs): no sensitivity of an
     /// unvalidated build.
     Pairing(PairingViolation),
+}
+
+/// **Where a stale verdict's replay first parts from its record**, said
+/// by what is known of that node.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DivergedAt {
+    /// A node this document's replay holds, spoken from this document.
+    Replayed(SpokenNode),
+    /// A node only the drive's record names. The record is spelled in
+    /// the document the drive ran on, which may be another one, so the
+    /// node is said by tag as the record's, never looked up here.
+    Recorded(RecipeNodeId),
+}
+
+impl DivergedAt {
+    /// The node's full id, whichever side named it.
+    #[must_use]
+    pub fn id(&self) -> RecipeNodeId {
+        match self {
+            Self::Replayed(node) => node.id(),
+            Self::Recorded(id) => *id,
+        }
+    }
+}
+
+impl core::fmt::Display for DivergedAt {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Replayed(node) => write!(f, "{node}"),
+            Self::Recorded(id) => write!(f, "the drive record's node {id}"),
+        }
+    }
 }
 
 impl core::fmt::Display for SensitivityRefusal {
@@ -508,6 +539,7 @@ fn driver(
             None => read_pass(&pass, measure, &chamber),
         };
         Ok(Sensitivity {
+            document: doc.id(),
             param: name.clone(),
             outcome,
         })
@@ -1084,10 +1116,10 @@ fn tie(
             // document the drive ran on.
             let node = match (r, p) {
                 (Some((recorded, _)), Some((replayed, _))) if recorded == replayed => {
-                    doc.spoken(replayed)
+                    DivergedAt::Replayed(doc.spoken(replayed))
                 }
-                (None, Some((replayed, _))) => doc.spoken(replayed),
-                (Some((recorded, _)), _) => SpokenNode::absent(recorded),
+                (None, Some((replayed, _))) => DivergedAt::Replayed(doc.spoken(replayed)),
+                (Some((recorded, _)), _) => DivergedAt::Recorded(recorded),
                 (None, None) => unreachable!("two absent keys are equal"),
             };
             return Err(SensitivityRefusal::VerdictNotOfThisBuild {
@@ -1255,6 +1287,9 @@ pub struct WorstCase {
 /// accounting — M10-3's, verbatim — plus the mark, once, at the top.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stackup {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// The `Measure` node the report is about.
     pub measurement: RecipeNodeId,
     /// The f64 build's measured value — re-derived from the anchored
@@ -1404,8 +1439,13 @@ impl Stackup {
     ///
     /// Each node it names is spoken from `doc`, the document the
     /// stackup was taken of.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the stackup was taken of.
     pub fn render<P>(&self, doc: &Doc<P>, analyzed: &crate::analysis::AnalyzedBox) -> String {
         use core::fmt::Write as _;
+        crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let mut s = String::new();
         let _ = writeln!(s, "stackup of {}", doc.spoken(self.measurement));
         let _ = writeln!(
@@ -1446,7 +1486,7 @@ impl Stackup {
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
                 row.param.as_str(),
-                render_sensitivity(&row.sensitivity, doc),
+                sensitivity_text(&row.sensitivity, |id| doc.spoken(id).to_string()),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
                     Err(u) => format!("[{u}]"),
@@ -1518,10 +1558,15 @@ const RSS_BLOCKER_LEAD: &str = "      - ";
 /// better than a struct dump, in ONE spelling rather than a second one
 /// per consumer.
 ///
-/// A node it names is spoken from `doc`, the document the sensitivity
-/// was taken of.
-pub fn render_sensitivity<P>(outcome: &SensitivityOutcome, doc: &Doc<P>) -> String {
-    sensitivity_text(outcome, |id| doc.spoken(id).to_string())
+/// A node it names is spoken from `doc`, the document the entry was
+/// taken of.
+///
+/// # Panics
+///
+/// When `doc` is not the document the entry was taken of.
+pub fn render_sensitivity<P>(entry: &Sensitivity, doc: &Doc<P>) -> String {
+    crate::spoken::assert_taken_of("this sensitivity", entry.document, doc);
+    sensitivity_text(&entry.outcome, |id| doc.spoken(id).to_string())
 }
 
 /// One sensitivity reading, each node it names written by `node`: a
@@ -1638,8 +1683,8 @@ pub enum StackupRefusal {
     /// swallowed. (A foreign or edited document is caught before this
     /// by the tie, as [`SensitivityRefusal::VerdictNotOfThisBuild`].)
     LeafDiverged {
-        /// The leaf's box.
-        leaf: ParamBox,
+        /// The leaf's box, boxed so the refusal stays a small `Err`.
+        leaf: Box<ParamBox>,
         /// The refusing node, spoken from the document asked about.
         node: SpokenNode,
         /// The node error, rendered.
@@ -1666,8 +1711,8 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::MeasureRefusedAtNominal { node, cause } => write!(
                 f,
-                "the measure refuses at the nominal build ({node}), so there is no \
-                 nominal to report: {cause}"
+                "{node} refuses at the nominal build, so there is no nominal to \
+                 report: {cause}"
             ),
             Self::NothingCertified { receipt, .. } => write!(
                 f,
@@ -1843,6 +1888,7 @@ pub fn stackup(
     };
 
     Ok(Stackup {
+        document: doc.id(),
         measurement: measure,
         nominal,
         chamber,
@@ -1913,7 +1959,7 @@ fn worst_case(
             .measure
             .unwrap_or(Ok(None))
             .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
-                leaf: leaf.box_.clone(),
+                leaf: Box::new(leaf.box_.clone()),
                 node: doc.spoken(node),
                 cause,
             })?

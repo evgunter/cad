@@ -3249,6 +3249,7 @@ NOT_BOUND = {
     "CertifiedLeaf": SHAPE,
     "Chamber": SHAPE,
     "ChamberSpan": SHAPE,
+    "DivergedAt": SHAPE,
     "DEFAULT_MAX_DEPTH": SHAPE,
     "DEFAULT_MAX_LEAVES": SHAPE,
     "DriveConfig": SHAPE,
@@ -3924,6 +3925,11 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # The document a report was taken of, which the kernel's `render`
+    # checks it is handed. Python's `McReport` holds that document
+    # itself and renders from it, so there is no second document to
+    # check against and no id to read back.
+    "McReport::document": SHAPE,
     # The chain is authored through `Placement`'s constructors and
     # `then`, and read back only as its length: the steps are the
     # `Step` entry's `different-shape` argument, one level in.

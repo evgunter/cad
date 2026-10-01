@@ -1137,7 +1137,9 @@ class McRefusal(PncadError):
     asked for zero samples, and an estimator over no draws has no
     estimate (`no_samples`). Or the document does not build at its
     nominal, so there is nothing to replay
-    (`nominal_does_not_build`, with `node` and `cause`).
+    (`nominal_does_not_build`, with `node` and `cause`). Its message
+    speaks that node as the document holds it, kind, label and tag;
+    `node` keeps the full id.
 
     The band arm's `variant` is MeasureUnavailable's own word, because
     it carries that refusal: one fault, one word, whichever door

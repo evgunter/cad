@@ -196,6 +196,9 @@ impl McAssertion {
 /// and the count and seed that produced it ride at the top.
 #[derive(Debug, Clone, PartialEq)]
 pub struct McReport {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// How many samples were drawn.
     pub samples: usize,
     /// The seed they were drawn from.
@@ -265,8 +268,13 @@ impl McReport {
     /// Repeating "advisory (N samples, seed …)" on each line is
     /// deliberate: a reader who copies one line out of a report takes
     /// the label with it, which a single header line does not survive.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the run was drawn from.
     pub fn render<P>(&self, doc: &Doc<P>) -> String {
         use core::fmt::Write as _;
+        crate::spoken::assert_taken_of("this Monte-Carlo report", self.document, doc);
         let tag = format!(
             "ADVISORY — Monte-Carlo estimate over {} samples, seed {:#018x}",
             self.samples, self.seed
@@ -525,6 +533,7 @@ pub fn monte_carlo(
     }
     let outside = samples.iter().filter(|s| s.outside).count();
     Ok(McReport {
+        document: doc.id(),
         samples: samples.len(),
         seed: config.seed,
         measures,

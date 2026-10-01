@@ -1264,7 +1264,7 @@ impl core::fmt::Display for DriveRefusal {
             ),
             Self::SymbolicClearanceUnsupported { node } => write!(
                 f,
-                "{node} measures a `min_clearance`, whose engine has no lane at the symbolic \
+                "{node} is a `min_clearance`, whose engine has no lane at the symbolic \
                  identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
                  to get the numeric-only answer, or measure a closed form"
             ),

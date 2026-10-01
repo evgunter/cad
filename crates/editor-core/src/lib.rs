@@ -237,7 +237,7 @@ pub use resolve::{
 };
 pub use roots::RootFault;
 pub use stackup::{
-    Chamber, ChamberSpan, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
+    Chamber, ChamberSpan, DivergedAt, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
     SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,
     render_sensitivity, sensitivities, stackup,
 };

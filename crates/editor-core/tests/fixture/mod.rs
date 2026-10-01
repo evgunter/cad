@@ -336,6 +336,25 @@ pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Opti
     step_with(doc, edit, &RefusingReach)
 }
 
+/// `doc` with every node labelled `text`. Labels are outside every
+/// content key, so the relabelled document builds the same bits and
+/// differs only in what it speaks: a test that must tell two documents
+/// apart by their sentences relabels one of them.
+pub fn label_every_node(doc: ProfileDoc, text: &str) -> ProfileDoc {
+    let label = editor_core::Label::new(text).expect("a valid label");
+    let order = doc.order().to_vec();
+    order.into_iter().fold(doc, |doc, node| {
+        step(
+            doc,
+            DocEdit::SetLabel {
+                node,
+                label: Some(label.clone()),
+            },
+        )
+        .0
+    })
+}
+
 /// [`step`] through `reach` — the store's, for an edit whose
 /// maintenance mints a frame from a solve.
 pub fn step_with(

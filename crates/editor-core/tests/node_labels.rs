@@ -815,8 +815,8 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
 fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     use editor_core::range::{RangeField, RangeSeed, derive};
     use editor_core::{
-        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McReport, ParamName, SensitivityOutcome,
-        SlotId, render_sensitivity, sensitivities,
+        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McRefusal, McReport, ParamBox, ParamName,
+        Sensitivity, SensitivityOutcome, SlotId, StackupRefusal, render_sensitivity, sensitivities,
     };
 
     let doc = ProfileDoc::empty_derived("node-labels-analysis", Tol::witness());
@@ -850,11 +850,15 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         format!("{plate} is not a Measure node")
     );
 
-    let pinned = SensitivityOutcome::Unliftable {
-        node: extrude,
-        refusal: LiftRefusal::PinnedSection {
-            section: profile,
-            param: ParamName::new("w").expect("an identifier"),
+    let pinned = Sensitivity {
+        document: doc.id(),
+        param: ParamName::new("w").expect("an identifier"),
+        outcome: SensitivityOutcome::Unliftable {
+            node: extrude,
+            refusal: LiftRefusal::PinnedSection {
+                section: profile,
+                param: ParamName::new("w").expect("an identifier"),
+            },
         },
     };
     assert_eq!(
@@ -865,7 +869,42 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         )
     );
 
+    // The raise sites below hold the document; a value built here with
+    // the spoken node they build says what their sentences say.
+    assert_eq!(
+        McRefusal::NominalDoesNotBuild {
+            node: doc.spoken(extrude),
+            cause: "a cause".to_owned(),
+        }
+        .to_string(),
+        format!(
+            "the document does not build at its nominal ({plate}), so there is nothing to \
+             replay: a cause"
+        )
+    );
+    assert_eq!(
+        StackupRefusal::MeasureRefusedAtNominal {
+            node: doc.spoken(extrude),
+            cause: "a cause".to_owned(),
+        }
+        .to_string(),
+        format!("{plate} refuses at the nominal build, so there is no nominal to report: a cause")
+    );
+    assert!(
+        StackupRefusal::LeafDiverged {
+            leaf: Box::new(ParamBox::from_axes(Default::default())),
+            node: doc.spoken(extrude),
+            cause: "a cause".to_owned(),
+        }
+        .to_string()
+        .starts_with(&format!(
+            "a certified leaf tied to this build by its content keys refused at {plate} on \
+             replay"
+        ))
+    );
+
     let mc = McReport {
+        document: doc.id(),
         samples: 4,
         seed: 7,
         measures: vec![McMeasure {
@@ -881,6 +920,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         outside_box: 0.0,
     };
     let histogram = LeafHistogram {
+        document: doc.id(),
         measurement: extrude,
         rows: Vec::new(),
         uncovered: Ok(0.0),
@@ -909,4 +949,34 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
             "the goldening form keeps the full id and no label: {golden}"
         );
     }
+}
+
+/// **A report renders only from the document it was taken of.** Ids are
+/// not document-scoped, so another document can hold the same id as a
+/// different node; rendering from it fails loud rather than naming that
+/// node.
+#[test]
+#[should_panic(expected = "its node ids would name another document's nodes")]
+fn a_report_rendered_from_another_document_fails_loud() {
+    use editor_core::{ParamName, Sensitivity, SensitivityOutcome, render_sensitivity};
+    let doc = ProfileDoc::empty_derived("node-labels-taken-of", Tol::witness());
+    let (doc, [_, _, extrude]) = block(doc, 0.0);
+    let other = ProfileDoc::empty_derived("node-labels-another", Tol::witness());
+    let (other, [_, _, same]) = block(other, 0.0);
+    assert_eq!(
+        extrude, same,
+        "the two documents hold one id as two nodes: the hazard this guards"
+    );
+    let entry = Sensitivity {
+        document: doc.id(),
+        param: ParamName::new("w").expect("an identifier"),
+        outcome: SensitivityOutcome::Unliftable {
+            node: extrude,
+            refusal: editor_core::LiftRefusal::PinnedSection {
+                section: extrude,
+                param: ParamName::new("w").expect("an identifier"),
+            },
+        },
+    };
+    let _ = render_sensitivity(&entry, &other);
 }

@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-01
 priority: P2
 cost: M
+design: true
 parent: node-labels-are-document-data
 ---
 
@@ -14,7 +15,7 @@ Split from `analysis-door-refusals-speak-the-node`, whose PR spoke range, drive,
 
 ## The hits
 
-- `ProductError` (`product.rs`), 6 node fields: `PlacedUnderTwoRoots` (`placed`, `first`, `second`), `Naming` (`node`, and `name`'s minting node), `Graft`, `ContactLineage`; and `SourceFinding::node` under `RootInvalid`. Its sentences are in `ProductError`'s `fmt_labelled` (`Staged`) and `SourceLine::subject` ("root N output M").
+- `ProductError` (`product.rs`), seven `RecipeNodeId` fields and one `StableName`'s minting node: `PlacedUnderTwoRoots` (`placed`, `first`, `second`), `Naming` (`node`, and `name`'s minting node), `Graft` (`node`), `ContactLineage` (`node`); and `SourceFinding::node` under `RootInvalid`. Its sentences are in `ProductError`'s `fmt_labelled` (`Staged`) and `SourceLine::subject` ("root N output M").
 - `ProductError::Root(NodeStanding)` carries `NodeStanding`, which is `selection-door-refusals-speak-the-node`'s.
 
 ## Why it needs a ruling first
@@ -25,4 +26,6 @@ One type, raised at two kinds of site:
 - **Inside a part's evaluation**: `eval/parts.rs`'s `product_fault` renders `error.sentence()` into `PartFault::PartProduct { message }`, which lives in `NodeErrorKind` and is memoized. A label spoken into that string would go stale on a rename.
 
 So `ProductError` cannot simply hold `SpokenNode`s. Either the part's evaluation renders a bare-tag sentence (and `memoized-refusals-speak-inner-nodes-through-the-frame` speaks it later), or the error keeps ids and gets a rendering that takes the speaker. The payloads keep the full id either way.
+
+That choice is a design fork, so the row carries `design: true`. It is weighed by a designer pair first, then goes to Ev, before a lane builds it.
 

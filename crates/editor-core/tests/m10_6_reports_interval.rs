@@ -492,9 +492,22 @@ fn the_mc_report_is_deterministic_and_labeled() {
     .expect("replays");
     assert_ne!(a.serialize(), other.serialize(), "the seed is the draw");
 
-    // Every advisory line carries the count and the seed.
+    // Every estimate line carries the count and the seed. Each one opens
+    // with its node as the document speaks it.
     let rendered = a.render(&doc);
-    for line in rendered.lines().filter(|l| l.contains("node")) {
+    let nodes: Vec<String> = a
+        .measures
+        .iter()
+        .map(|m| m.node)
+        .chain(a.assertions.iter().map(|x| x.node))
+        .map(|n| doc.spoken(n).to_string())
+        .collect();
+    assert!(!nodes.is_empty(), "the report estimates at least one node");
+    for node in &nodes {
+        let line = rendered
+            .lines()
+            .find(|l| l.starts_with(&format!("  {node}: ")))
+            .unwrap_or_else(|| panic!("an estimate line for {node} in:\n{rendered}"));
         assert!(
             line.contains("64 samples") && line.contains("0x4d435f4531315f31"),
             "an estimate line carries its count and seed: {line}"

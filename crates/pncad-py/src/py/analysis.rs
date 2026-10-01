@@ -989,32 +989,49 @@ impl McAssertion {
 /// included, so it estimates the quantity the certified lane
 /// deliberately does not.
 #[pyclass(frozen, module = "pncad")]
-pub(crate) struct McReport(a::McReport, d::ProfileDoc);
+pub(crate) struct McReport {
+    report: a::McReport,
+    /// The document the run was drawn from, captured at `monte_carlo`:
+    /// the report's node ids are spelled in it, so `render` speaks them
+    /// from it and from no other, and a later edit or rename does not
+    /// reach a report already taken.
+    doc: d::ProfileDoc,
+}
 
 #[pymethods]
 impl McReport {
     /// How many samples were drawn.
     #[getter]
     fn samples(&self) -> usize {
-        self.0.samples
+        self.report.samples
     }
 
     /// The seed they were drawn from.
     #[getter]
     fn seed(&self) -> u64 {
-        self.0.seed
+        self.report.seed
     }
 
     /// Per measure node, in the document's own node order.
     #[getter]
     fn measures(&self) -> Vec<McMeasure> {
-        self.0.measures.iter().cloned().map(McMeasure).collect()
+        self.report
+            .measures
+            .iter()
+            .cloned()
+            .map(McMeasure)
+            .collect()
     }
 
     /// Per assertion node, in the document's own node order.
     #[getter]
     fn assertions(&self) -> Vec<McAssertion> {
-        self.0.assertions.iter().cloned().map(McAssertion).collect()
+        self.report
+            .assertions
+            .iter()
+            .cloned()
+            .map(McAssertion)
+            .collect()
     }
 
     /// The fraction of samples that landed OUTSIDE the analyzed box —
@@ -1022,7 +1039,7 @@ impl McReport {
     /// reader can check against the certified side.
     #[getter]
     fn outside_box(&self) -> f64 {
-        self.0.outside_box
+        self.report.outside_box
     }
 
     /// **The human form**, with the advisory label and the dials on
@@ -1036,16 +1053,16 @@ impl McReport {
     ///
     /// Its nodes are spoken from the document the run was drawn from.
     fn render(&self) -> String {
-        self.0.render(&self.1)
+        self.report.render(&self.doc)
     }
 
     fn __repr__(&self) -> String {
         format!(
             "McReport(ADVISORY, samples={}, seed={:#018x}, measures={}, assertions={})",
-            self.0.samples,
-            self.0.seed,
-            self.0.measures.len(),
-            self.0.assertions.len()
+            self.report.samples,
+            self.report.seed,
+            self.report.measures.len(),
+            self.report.assertions.len()
         )
     }
 }
@@ -1084,7 +1101,10 @@ fn monte_carlo(
     // price, so the interpreter runs while it is paid.
     let answer = py.detach(|| a::monte_carlo(recipe, box_, &config, tol));
     match answer {
-        Ok(report) => Ok(McReport(report, recipe.clone())),
+        Ok(report) => Ok(McReport {
+            report,
+            doc: recipe.clone(),
+        }),
         Err(refusal) => Err(mc_err(py, &refusal)),
     }
 }

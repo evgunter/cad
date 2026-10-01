@@ -427,7 +427,7 @@ fn real_study(tol: Tol) {
                 println!(
                     "     ∂web/∂{}: {}",
                     s.param.as_str(),
-                    render_sensitivity(&s.outcome, &doc)
+                    render_sensitivity(s, &doc)
                 );
             }
             println!(
