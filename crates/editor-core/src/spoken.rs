@@ -1,7 +1,7 @@
 //! **How a sentence names a recipe node** (DESIGN.md Band 1, "Node
 //! labels"): a person reads a node as its kind and its tag,
-//! `Extrude 3fa9c1d2a0b1`; a node the document does not hold reads
-//! `node 3fa9c1d2a0b1`.
+//! `Extrude 000000000003`; a node the document does not hold reads
+//! `node 000000000003`.
 //!
 //! Three spellings, one home each:
 //!
@@ -26,6 +26,13 @@ use crate::node::{Datum, Node, RecipeNodeId, StepId};
 const TAG_DIGITS: usize = 12;
 
 /// The bits a tag shows: the low [`TAG_DIGITS`] hex digits of the id.
+///
+/// The LOW bits, because a counter-minted id's high bits are all zero
+/// and the low ones are what tell two nodes apart. An id minted as a
+/// digest prefix spreads its distinguishing bits from the top, and the
+/// tag is then the high [`TAG_DIGITS`] digits instead (the `DocRef`
+/// pin prefix's rule); `work/emit/node-labels-are-document-data.md`
+/// carries that switch.
 const TAG_MASK: u64 = (1 << (4 * TAG_DIGITS)) - 1;
 
 fn write_tag(f: &mut fmt::Formatter<'_>, bits: u64) -> fmt::Result {

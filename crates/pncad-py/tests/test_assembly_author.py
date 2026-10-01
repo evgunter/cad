@@ -94,6 +94,7 @@ from pathlib import Path
 
 import bench_scene
 import pncad
+from spoken import tag
 from bench_scene import (
     PATTERN_COUNT,
     PATTERN_SPACING,
@@ -944,7 +945,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertIsNone(fault.head)
         # The fault names the placer and points; the placer's own
         # refusal is its typed cause, in the placer's own words.
-        self.assertIn(f"repair node {repr(lifted)[-13:-1]}", str(fault))
+        self.assertIn(f"repair node {tag(lifted)}", str(fault))
         self.assertNotIn("transform rotation axis", str(fault))
         cause = fault.cause
         self.assertIsInstance(cause, pncad.EvaluationError)
