@@ -21,7 +21,9 @@ use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use sweep::{Revolution, revolve};
-use topo::{Body, FaceContainment, FaceKey, SolidContainment, curved_face_containment, point_in_solid};
+use topo::{
+    Body, FaceContainment, FaceKey, SolidContainment, curved_face_containment, point_in_solid,
+};
 
 const BORE: f64 = 0.5;
 
@@ -127,42 +129,4 @@ fn the_solid_door_reads_the_full_turn_bore() {
         SolidContainment::OnBoundary,
         "on the bore wall"
     );
-}
-
-#[test]
-fn probe_full_turn_collar_rest() {
-    use crate::mate2_common::{peg, volume, wall_decls};
-    use geom_core::{Affine3, Vec3};
-    let lp = bulge_loop(vec![
-        (Point2::new(0.5, 1.0), 0.0),
-        (Point2::new(1.5, 1.0), 0.0),
-        (Point2::new(1.5, 2.0), 0.0),
-        (Point2::new(0.5, 2.0), 0.0),
-    ]);
-    let collar = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    let to_y = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        -core::f64::consts::FRAC_PI_2,
-    );
-    for (z0, h) in [(1.0, 1.0), (0.5, 2.0)] {
-        let p = topo::transform_rigid(&peg(z0, h), &to_y, Tol::witness()).unwrap();
-        let decls = wall_decls(&collar, &p);
-        eprintln!("PROBE decls {}", decls.coincident_faces.len());
-        match topo::union_with(&collar, &p, &decls, Tol::witness()) {
-            Ok(r) => {
-                let b = crate::mate2_common::body_of(r);
-                eprintln!(
-                    "PROBE ({z0},{h}) OK vol {} vs {} + {} ; valid {:?}",
-                    volume(&b),
-                    volume(&collar),
-                    volume(&p),
-                    topo::validate_geometric(&b, Tol::witness()).is_ok()
-                );
-            }
-            Err(e) => eprintln!("PROBE ({z0},{h}) ERR {e:?}"),
-        }
-    }
 }

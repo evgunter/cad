@@ -1393,9 +1393,7 @@ pub(super) fn full_turn_outline<T: Decide>(
         else {
             continue;
         };
-        if !is_wall_rim(origin, axis, radius, (center, c_axis, c_radius), band)
-            .map_err(escalate)?
-        {
+        if !is_wall_rim(origin, axis, radius, (center, c_axis, c_radius), band).map_err(escalate)? {
             return Ok(None);
         }
         let level = (center - origin).dot(axis);
