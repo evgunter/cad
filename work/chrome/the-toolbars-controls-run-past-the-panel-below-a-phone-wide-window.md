@@ -4,11 +4,16 @@ kind: issue
 title: viewer: below a 400-point window the toolbar's theme picker, and below the message floor its canceled line, are drawn past the panel
 status: open
 opened: 2026-09-29
+needs_ev: true
 priority: P3
 cost: M
 design: true
 refs: [the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window]
 ---
+
+## Question
+
+What does the chrome owe a window narrower than it was laid out for? The toolbar's theme picker, an egui `ComboBox`, does not wrap and runs past the panel. Below about 190 points, the canceled line runs past too. The Checks window and the part chooser clip below a floor-wide screen. The choice is the chrome's contract with window width: what number it is stated in, and what happens below it.
 
 
 Found while moving the status line into a row of its own
