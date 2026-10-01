@@ -207,7 +207,36 @@ PORT; triaged 2026-09-24:**
     input, the `Part`'s index refused at the `Part`. Dispatches after
     MSOLVE-9 merges; both rewrite `mate/solve.rs`.
 
-The exit walk waits on 10–12, 14–16 and 17–18: the program closes when the
+**Routed onto this slate 2026-09-24 … 09-30 by EDIT, GATHER, AUTH
+and CHROME; triaged 2026-10-01:**
+
+19. **The analysis lanes solve at the nominal** — one design row
+    gathering `from-face-frame-under-an-analysis-lane-refuses-unpinned`
+    (P1, MSOLVE-9's residue) and EDIT's
+    `a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`
+    (P2, both of EDIT's designers found it): `evaluate` solves once at
+    the document's nominal, so a box or seed run reads every pose as a
+    fixed `f64` frame while the placers and the parts it solves over
+    widen or carry derivatives. The face frame refuses that honestly;
+    a parametric placer is silently held at nominal. One question
+    underneath both — does the solve decide over the lane's own scalar
+    — and it is a design fork: two designers weigh it before any lane
+    builds it (`memories/orchestration-model.md`).
+20. **`MSOLVE-11` gains three riders**, all refusal and reporting
+    words the solve owns: AUTH's `materole-has-no-display` (P1, E — a
+    kernel word for whether a mate placed its child; AUTH's viewer row
+    is blocked on it), CHROME's `msolve-refusals-short-of-the-shape-guard`
+    (P2, M) and `mate-refusals-name-documents-by-hex-id` (P3, E). They
+    touch the same `MateFault` arms MSOLVE-11 re-sites, so they ride it
+    rather than open a fourth pass over one enum.
+21. **`the-solve-accepts-a-body-placed-under-two-roots`** (GATHER, P1):
+    the solve returns poses for a document the product gather refuses
+    as `PlacedUnderTwoRoots`, so the two layers disagree about one
+    instance. Re-priced M with a design question (which layer owns the
+    refusal, and whether the solve should ask the gather's predicate),
+    specced after MSOLVE-11.
+
+The exit walk waits on 10–12, 14–16 and 17–21: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
 (with the witness and the `MateFault` note), the face-resolved frame
 and the static clocking refusal are in.

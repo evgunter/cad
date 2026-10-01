@@ -824,3 +824,29 @@ side's part, the `InPart` unwrapping and the replay's static order.
 Tally candidates: none. The pre-note is in the lane's scratch and
 goes into `docs/DUAL-REVIEW-LOG.md` at state-sync.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## Resumed after the weekly usage limit (2026-10-01)
+
+The MSOLVE-9 lane stopped on the weekly limit on 2026-09-24, after it
+merged main at `7cceee566` and before handing back. The fix pass at
+`4f7e073d8` was verified (every ruling in, run 35970616129 green)
+and the dual review is coded (DR-2 drafted; blinded coding, byte 35,
+tally 0). Main has since moved 3,721 commits, and PR 2934 is
+conflicting in 18 files: EDIT's node standing and carried refusals,
+CHROME's and VNEWS's seat line and mate panel, AUTH's held face pick,
+and names' pinned candidates all touched the files this unit
+rewrote. The state-sync is saved as a patch and lands after the
+merge goes green.
+
+Triage of five rows filed here while the session was stopped
+(`plan.md` items 19–21): the analysis-lane nominal solve becomes one
+design row (the face frame's `Unpinned` and EDIT's parametric-placer
+finding are the same question); three refusal and reporting rows
+ride MSOLVE-11; GATHER's two-roots disagreement is re-priced M with a
+design question and specced after MSOLVE-11.
+
+Friction, recorded as a finding: the session's disk allowance holds
+one build. The shared target directory is 16 GB, and 2.8 GB is free,
+so the week-late rebuild this merge needs cannot run until the stale
+cache is cleared. Clearing it was refused by the session's permission
+check and is put to Ev.
