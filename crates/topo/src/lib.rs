@@ -511,7 +511,7 @@ pub use instance::{
 };
 pub use merge_faces::{
     MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
-    OutlineVerdict, SkippedMerge,
+    OutlineVerdict, Redescription, SkippedMerge,
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};

@@ -118,6 +118,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
+use crate::merge_faces::Redescription;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{decide, validate, validate_closed};
@@ -539,7 +540,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
-        .map_err(BooleanError::Merge)?;
+        .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let mut contacts = remap_contacts(
@@ -1633,13 +1634,11 @@ fn bound_holds<T: Decide>(
 
 /// D6 (M3 PR 6a): honest descriptions on boolean-minted edges AT MINT
 /// TIME — the worklist is tracked lineage (the zips' surviving seam
-/// edges plus every boundary edge of a merge-kept face, whose
-/// adjacency the merge just rewrote), never a post-hoc scan of the
-/// body. Each worklist edge that still resolves is described from its
-/// two faces' surfaces (structural adjacency): definitely transverse ⇒
-/// `Intersection` with the chord-midpoint witness; definitely smooth ⇒
-/// the existing conventional description stays (D2's split — the
-/// surfaces under-determine the locus); escalation refuses typed.
+/// edges plus every boundary edge of a face whose merge group the
+/// merge door SKIPPED), never a post-hoc scan of the body. The
+/// merge-kept faces' boundaries are the door's own: it re-describes
+/// them before it returns ([`Body::merge_coplanar_faces_declared`]).
+/// Each worklist edge is described by [`describe_edges`].
 pub(super) fn describe_minted_edges<T: Decide>(
     body: &mut Body<T>,
     seam_edges: &[crate::entity::EdgeKey],
@@ -1647,30 +1646,50 @@ pub(super) fn describe_minted_edges<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    let corrupt = || BooleanError::JoinDesync {
-        what: "description worklist edge not walkable",
-    };
+    let worklist = describe_worklist(body, seam_edges, merged).map_err(of_redescription)?;
+    describe_edges(body, worklist, band, tol).map_err(of_redescription)
+}
+
+/// [`describe_minted_edges`]' worklist: the seam edges that survived
+/// the merge, then the skipped groups' faces' boundaries.
+fn describe_worklist<T: Real>(
+    body: &Body<T>,
+    seam_edges: &[crate::entity::EdgeKey],
+    merged: &crate::merge_faces::MergeCoplanarOutcome,
+) -> Result<Vec<crate::entity::EdgeKey>, Redescription> {
     let mut worklist: Vec<crate::entity::EdgeKey> = Vec::new();
     for &e in seam_edges {
         if body.get_edge(e).is_some() {
             worklist.push(e); // merge may have consumed flush seam edges
         }
     }
-    // Merge-KEPT faces' boundaries (adjacency rewritten by the glue)
-    // AND SKIPPED groups' faces' boundaries (M4 PR 5 F1: the glue
-    // those groups' classification anticipated did NOT happen, so
-    // their in-plane cut edges may carry descriptions citing
-    // no-longer-adjacent surfaces — they must be re-checked against
-    // the ACTUAL adjacency below). A declared pair the door declined
-    // (a non-planar carrier) enters this worklist through the same
-    // field: its faces were left as the zip shipped them, and their
-    // boundaries are re-checked here for the same reason.
-    let group_faces = merged
-        .groups
-        .iter()
-        .map(|g| g.kept)
-        .chain(merged.skipped.iter().flat_map(|s| s.faces.iter().copied()));
-    for f in group_faces {
+    // SKIPPED groups' faces' boundaries (M4 PR 5 F1: the glue those
+    // groups' classification anticipated did NOT happen, so their
+    // in-plane cut edges may carry descriptions citing no-longer-
+    // adjacent surfaces — they must be re-checked against the ACTUAL
+    // adjacency). A declared pair the door declined (a non-planar
+    // carrier) enters this worklist through the same field: its faces
+    // were left as the zip shipped them, and their boundaries are
+    // re-checked here for the same reason.
+    boundary_edges(
+        body,
+        merged.skipped.iter().flat_map(|s| s.faces.iter().copied()),
+        &mut worklist,
+    )?;
+    Ok(worklist)
+}
+
+/// Pushes every boundary edge of each live face in `faces` onto
+/// `worklist`: outer loop then rings, each in cycle order, so an edge
+/// both of whose sides are listed faces is pushed twice. A face that
+/// no longer resolves contributes nothing.
+pub(crate) fn boundary_edges<T: Real>(
+    body: &Body<T>,
+    faces: impl IntoIterator<Item = FaceKey>,
+    worklist: &mut Vec<crate::entity::EdgeKey>,
+) -> Result<(), Redescription> {
+    let corrupt = || Redescription::NotWalkable;
+    for f in faces {
         let Some(face) = body.get_face(f) else {
             continue;
         };
@@ -1684,6 +1703,49 @@ pub(super) fn describe_minted_edges<T: Decide>(
             }
         }
     }
+    Ok(())
+}
+
+/// The boolean's refusal for a [`Redescription`]: a torn walk or a
+/// failed certification is a join desync, and an undecided dihedral is
+/// a coincidence escalation.
+pub(super) fn of_redescription(refusal: Redescription) -> BooleanError {
+    match refusal {
+        Redescription::NotWalkable => BooleanError::JoinDesync {
+            what: "description worklist edge not walkable",
+        },
+        Redescription::Uncertified { what, .. } => BooleanError::JoinDesync { what },
+        Redescription::Escalated { diag, .. } => BooleanError::coincidence(diag),
+    }
+}
+
+/// The boolean's refusal for a merge-door refusal: the door's
+/// re-description of its kept faces' boundaries refuses as the
+/// boolean's own description pass does ([`of_redescription`]), and
+/// every other refusal is the output stage's.
+pub(super) fn of_merge(refusal: crate::merge_faces::MergeCoplanarError) -> BooleanError {
+    match refusal {
+        crate::merge_faces::MergeCoplanarError::KeptBoundary { refusal } => {
+            of_redescription(refusal)
+        }
+        other => BooleanError::Merge(other),
+    }
+}
+
+/// Describes each worklist edge from its two faces' surfaces
+/// (structural adjacency): definitely transverse ⇒ `Intersection` with
+/// the chord-midpoint witness; definitely smooth ⇒ the existing
+/// conventional description stays (D2's split — the surfaces
+/// under-determine the locus) unless it no longer cites its faces;
+/// escalation refuses typed. The boolean's minted edges and the merge
+/// door's kept boundaries are both described here.
+pub(crate) fn describe_edges<T: Decide>(
+    body: &mut Body<T>,
+    worklist: Vec<crate::entity::EdgeKey>,
+    band: Band,
+    tol: Tol,
+) -> Result<(), Redescription> {
+    let corrupt = || Redescription::NotWalkable;
     for edge in worklist {
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
         let face_of = |body: &Body<T>, he| -> Option<crate::geometry::SurfaceKey> {
@@ -1719,7 +1781,8 @@ pub(super) fn describe_minted_edges<T: Decide>(
         match geom_brep::classify_dihedral(surf1, surf2, witness, extent, band) {
             Ok(geom_brep::DihedralClass::Transverse) => {
                 body.set_edge_curve(edge, draft.into_spec(s1, s2), tol)
-                    .map_err(|_| BooleanError::JoinDesync {
+                    .map_err(|_| Redescription::Uncertified {
+                        edge,
                         what: "minted-edge description failed certification",
                     })?;
             }
@@ -1812,10 +1875,12 @@ pub(super) fn describe_minted_edges<T: Decide>(
                         param_start: t0,
                         param_end: t1,
                     };
-                    body.set_edge_curve(edge, spec, tol)
-                        .map_err(|_| BooleanError::JoinDesync {
+                    body.set_edge_curve(edge, spec, tol).map_err(|_| {
+                        Redescription::Uncertified {
+                            edge,
                             what: "tangent-seam description failed certification",
-                        })?;
+                        }
+                    })?;
                 } else if stale {
                     if curved {
                         // The conventional re-description for an arc
@@ -1834,13 +1899,15 @@ pub(super) fn describe_minted_edges<T: Decide>(
                         let Some(spec) =
                             geom_brep::EdgeCurveSpec::arc_of_circle(c.carrier().clone(), t0, t1)
                         else {
-                            return Err(BooleanError::JoinDesync {
+                            return Err(Redescription::Uncertified {
+                                edge,
                                 what: "stale CURVED smooth-seam description (no conventional \
                                        re-description lane exists for this carrier kind)",
                             });
                         };
                         body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|_| BooleanError::JoinDesync {
+                            .map_err(|_| Redescription::Uncertified {
+                                edge,
                                 what: "stale arc description failed re-certification",
                             })?;
                     } else {
@@ -1850,13 +1917,14 @@ pub(super) fn describe_minted_edges<T: Decide>(
                                 .at_rest_in_chart(s1, false),
                             tol,
                         )
-                        .map_err(|_| BooleanError::JoinDesync {
+                        .map_err(|_| Redescription::Uncertified {
+                            edge,
                             what: "stale in-plane description failed re-certification",
                         })?;
                     }
                 }
             }
-            Err(diag) => return Err(BooleanError::coincidence(diag)),
+            Err(diag) => return Err(Redescription::Escalated { edge, diag }),
         }
     }
     Ok(())
@@ -2850,7 +2918,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
             let merged = body
                 .merge_coplanar_faces_declared(&declared_pairs, tol)
-                .map_err(BooleanError::Merge)?;
+                .map_err(of_merge)?;
             let mut desc = Descendants::default();
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band, tol)?;
@@ -2913,9 +2981,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     // Cross-operand declared pairs are inapplicable here (one operand
     // is absent from the result); the surviving operand's CARRIED
     // records still apply.
-    let merged = body
-        .merge_coplanar_faces(tol)
-        .map_err(BooleanError::Merge)?;
+    let merged = body.merge_coplanar_faces(tol).map_err(of_merge)?;
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;

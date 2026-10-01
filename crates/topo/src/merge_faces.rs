@@ -468,9 +468,9 @@ pub enum MergeCoplanarError {
     /// all, so a record's `faces` is never empty.
     DeclaredCarrierUnsupported {
         /// The declared surface pair, as the caller passed it. Both
-        /// keys resolved when the door read them; a caller that
-        /// re-describes edges after this call may drop a surface the
-        /// pair names (a surface held only by an edge curve's
+        /// keys resolved when the door read them; a re-description,
+        /// the door's own of its kept boundaries or a caller's after
+        /// it, may drop a surface the pair names (a surface held only by an edge curve's
         /// reference goes with that curve), so a consumer walks the
         /// record's `faces`, not the pair, for what is live.
         pair: (SurfaceKey, SurfaceKey),
@@ -517,6 +517,61 @@ pub enum MergeCoplanarError {
         /// The mint pass's typed refusal.
         source: crate::pcurves::PcurveMintError,
     },
+    /// An edge on a merged face's boundary could not be re-described
+    /// against the faces the merge left it between.
+    KeptBoundary {
+        /// Why the description refused.
+        refusal: Redescription,
+    },
+    /// Edges on a merged face's boundary whose stored descriptions name
+    /// a surface that is not their faces' — the at-rest
+    /// `DescriptionNotAdjacent` this door never returns. A kernel
+    /// defect in the re-description, refused rather than shipped.
+    KeptBoundaryStranded {
+        /// The stranded edges, in the merged faces' cycle order.
+        edges: Vec<EdgeKey>,
+    },
+}
+
+/// Why an edge re-described from its two faces' surfaces
+/// ([`Body::merge_coplanar_faces_declared`]'s kept boundaries, and the
+/// boolean's minted edges) has no description.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Redescription {
+    /// The edge's halves, faces, vertices or surfaces do not resolve.
+    NotWalkable,
+    /// The description the faces call for failed certification against
+    /// the edge's carrier, or no conventional description exists for
+    /// it.
+    Uncertified {
+        /// The edge.
+        edge: EdgeKey,
+        /// Which description failed.
+        what: &'static str,
+    },
+    /// Whether the two faces meet transversally or smoothly at the edge
+    /// could not be decided at this tolerance.
+    Escalated {
+        /// The edge.
+        edge: EdgeKey,
+        /// The dihedral decision's diagnostics.
+        diag: Indeterminate,
+    },
+}
+
+impl core::fmt::Display for Redescription {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotWalkable => write!(f, "an edge on the worklist does not resolve"),
+            Self::Uncertified { edge, what } => write!(f, "edge {edge:?}: {what}"),
+            Self::Escalated { edge, diag } => write!(
+                f,
+                "whether the faces meet transversally or smoothly at edge {edge:?} is \
+                 undecided: {}",
+                diag.payload()
+            ),
+        }
+    }
 }
 
 impl MergeCoplanarError {
@@ -792,6 +847,18 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: the staged result's pcurve re-mint refused \
                  ({source}) — the body is untouched"
+            ),
+            Self::KeptBoundary { refusal } => write!(
+                f,
+                "merge_coplanar_faces: re-describing the merged faces' boundaries refused \
+                 ({refusal}) — the body is untouched"
+            ),
+            Self::KeptBoundaryStranded { edges } => write!(
+                f,
+                "merge_coplanar_faces: {} edges on the merged faces' boundaries still name a \
+                 surface their faces do not wear ({edges:?}) after re-description — a kernel \
+                 defect; the body is untouched",
+                edges.len()
             ),
         }
     }
@@ -1294,6 +1361,18 @@ impl<T: Decide> Body<T> {
     /// [`MergedGroup::killed_vertices`], whose docs say where the
     /// region argument lives.
     ///
+    /// **The kept faces' boundaries are re-described.** An absorbed
+    /// face's boundary edges end on its survivor still described
+    /// against the absorbed face's surface. Before it returns, the door
+    /// describes every boundary edge of each kept face again from the
+    /// two faces it now lies between — definitely transverse ⇒
+    /// `Intersection`, definitely smooth ⇒ the description stays unless
+    /// it no longer cites those faces — certified in
+    /// `Band::linear(tol)`, and refuses
+    /// ([`MergeCoplanarError::KeptBoundaryStranded`]) rather than return
+    /// one whose description is not coherent with those faces (tier 3's
+    /// `DescriptionNotAdjacent`, read exactly, with no band).
+    ///
     /// **Atomic and deterministic (D9)**: the op stages on a clone —
     /// on any refusal `self` is untouched; on success the staged body
     /// replaces `self` wholesale. All scans are arena-order; the
@@ -1664,6 +1743,36 @@ impl<T: Decide> Body<T> {
                         }
                     }
                 }
+            }
+        }
+        // ---- The kept faces' boundaries, re-described. ----
+        //
+        // An absorbed face's boundary edges now lie on its survivor,
+        // and their descriptions still name the absorbed face's
+        // surface: each is described again from the two faces it lies
+        // between, and none may be incoherent with them when the door
+        // returns.
+        if !outcome.groups.is_empty() {
+            let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+            let mut boundary = Vec::new();
+            crate::boolean::boundary_edges(
+                &work,
+                outcome.groups.iter().map(|g| g.kept),
+                &mut boundary,
+            )
+            .map_err(|refusal| MergeCoplanarError::KeptBoundary { refusal })?;
+            let mut surgery = work.begin_surgery();
+            crate::boolean::describe_edges(&mut surgery, boundary.clone(), band, tol)
+                .map_err(|refusal| MergeCoplanarError::KeptBoundary { refusal })?;
+            surgery.sweep_and_close();
+            let mut stranded = Vec::new();
+            for edge in boundary {
+                if !work.stored_description_adjacent(edge)? && !stranded.contains(&edge) {
+                    stranded.push(edge);
+                }
+            }
+            if !stranded.is_empty() {
+                return Err(MergeCoplanarError::KeptBoundaryStranded { edges: stranded });
             }
         }
         // ---- Gate: tier-valid after; commit. ----
@@ -2609,6 +2718,10 @@ impl<T: Decide> Body<T> {
         Err(MergeCoplanarError::MergedFaceRoleAmbiguous { face, verdict })
     }
 }
+
+#[cfg(test)]
+#[path = "merge_faces_kept_rows.rs"]
+mod kept_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

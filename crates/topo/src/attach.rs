@@ -1077,6 +1077,34 @@ impl<T: Decide> Body<T> {
         }
         Ok(())
     }
+
+    /// Whether `edge`'s STORED description is adjacency-coherent with
+    /// the two faces it lies between — the reading
+    /// [`Body::check_description_adjacent`] gives a spec, and tier 3's
+    /// `DescriptionNotAdjacent` at rest. Exact: it compares keys and
+    /// reads no coordinate.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] when the edge, a half, a loop or a
+    /// face does not resolve; [`EulerOpError::StaleGeometry`] when its
+    /// curve does not.
+    pub(crate) fn stored_description_adjacent(&self, edge: EdgeKey) -> Result<bool, EulerOpError> {
+        let curve = self
+            .get_edge(edge)
+            .ok_or(EulerOpError::StaleKey {
+                key: EntityId::Edge(edge),
+            })?
+            .curve;
+        let stored = self
+            .get_curve_geom(curve)
+            .ok_or(EulerOpError::StaleGeometry {
+                key: crate::GeomRef::Curve(curve),
+            })?;
+        Ok(self
+            .sides(edge, |_| None)?
+            .coherent_before(Named::of(stored)))
+    }
 }
 
 /// One chart [`Body::set_face_surfaces_describing`] moves faces onto,
