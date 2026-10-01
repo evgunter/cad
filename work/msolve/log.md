@@ -928,3 +928,16 @@ zero. Round 2, on that point alone, converged: no row, and a note
 under LINALG's `interval-orthonormal-basis-sign-hull`, written there.
 Asked on `[ev]` PR 3681 (fork-log row 35). Both `[ev]` PRs are
 subscribed for Ev's answer.
+
+## 2026-10-01 — MSOLVE-11 handed back; single full review dispatched
+
+The lane handed back PR 3680 green at `fff779e03`. The core and all
+four riders are closed, no verdict moved, and the STOP clause did not
+fire. It deviates from the spec once: `PartUnresolved` is carried
+inside the `Reach` arm, not as a twin arm. It filed
+`a-clocking-rider-is-levered-unreduced` (P3). The head is frozen. One
+full review (C1–C7, plus the lane's eight doubts) is dispatched on
+Opus, reusing the lane's warm target dir. Friction: the stopped
+MSOLVE-9 merge lane had rebuilt a 7 GB target that took free disk to
+3.9 GB. A lane that is stopped leaves its cache behind, and the
+orchestrator has to sweep it.
