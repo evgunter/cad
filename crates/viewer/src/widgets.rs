@@ -534,7 +534,7 @@ pub(crate) struct ProbeOps<'a> {
 }
 
 /// One preview operation of a probe, minted from the row's three
-/// millimetre boxes.
+/// boxes, in the unit they are written in.
 type BoxedPreview<'a> = Box<dyn Fn([f64; 3]) -> SessionOp + 'a>;
 
 /// **A FREE-MOVE probe's whole vocabulary**, minted from the one
@@ -547,8 +547,9 @@ type BoxedPreview<'a> = Box<dyn Fn([f64; 3]) -> SessionOp + 'a>;
 /// could still name a second instance. Both arms go to [`drag_ops`],
 /// which is why they are returned together.
 ///
-/// `frame_of` is the panel's own writing — the millimetres its three
-/// boxes show composed into the rigid frame a preview carries — and is
+/// `frame_of` is the panel's own writing — the three boxes' numbers, in
+/// the working notation's length unit, composed into the rigid frame a
+/// preview carries — and is
 /// the only part of the probe's vocabulary that is not the name's.
 pub(crate) fn free_move_gesture<'a>(
     instance: RecipeNodeId,
@@ -561,9 +562,11 @@ pub(crate) fn free_move_gesture<'a>(
             begin: gesture.begin(),
             commit: gesture.commit(),
             cancel: gesture.cancel(),
-            preview: Box::new(move |mm| name.preview(frame_of(mm))),
+            preview: Box::new(move |shown| name.preview(frame_of(shown))),
         },
-        typed: Box::new(move |mm| vec![name.begin(), name.preview(frame_of(mm)), name.commit()]),
+        typed: Box::new(move |shown| {
+            vec![name.begin(), name.preview(frame_of(shown)), name.commit()]
+        }),
     }
 }
 

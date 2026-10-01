@@ -229,7 +229,7 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
 /// edge.** The cutter is the half-space `y ≥ 0` over the rod's whole
 /// length, with a thin half-rod (`r = 0.1`) on the axis, bulging either
 /// way. Every rod vertex sits on the cutter's boundary, so role
-/// resolution falls to its `Anchor::EdgeMidpoint` chord midpoints, and
+/// resolution falls to its `Anchor::ChordMidpoint` chord midpoints, and
 /// a rim semicircle's is the circle's centre — a point on neither
 /// flanking region, whose one verdict both loops then take. The join
 /// refuses `SectionLoopMixed` rather than resolving. Pinned at that

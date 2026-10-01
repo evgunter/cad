@@ -1136,9 +1136,10 @@ fn finish_r3(
         band,
     )?;
     let params = carrier.domain();
-    let witness = certify::witness(&carrier);
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
+    let witness = carrier.mid_point(params.0, params.1);
     Ok(SsiBranch {
-        carrier: Curve3::Nurbs(std::sync::Arc::new(carrier)),
+        carrier,
         params,
         end: trace.end,
         certificate: cert,
@@ -1373,9 +1374,10 @@ fn finish_r4(
         band,
     )?;
     let params = carrier.domain();
-    let witness = certify::witness(&carrier);
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
+    let witness = carrier.mid_point(params.0, params.1);
     Ok(SsiBranch {
-        carrier: Curve3::Nurbs(std::sync::Arc::new(carrier)),
+        carrier,
         params,
         end: trace.end,
         certificate: cert,

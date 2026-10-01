@@ -564,7 +564,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         // The carrier is VERIFIED onto both moved surfaces at its own
         // midpoint: a re-derived edge's claim is that it lies on the two
         // surfaces it separates.
-        let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+        let mid = carrier.mid_point(t0, t1);
         for c in [ca, cb] {
             let gap = surface_residual(&c.new, mid, &frame);
             match decide("offset_axial_edge_on_surface", Margin::of(gap), band) {
@@ -2043,7 +2043,7 @@ fn mint_carrier<T: Decide>(
         // unreachable on a ring torus and refused rather than guessed.
         let a = ta.normalize();
         let in_plane = a.cross(n);
-        let q_mid = old.eval((t0_old + t1_old) * T::from_f64(0.5));
+        let q_mid = old.mid_point(t0_old, t1_old);
         let side = in_plane.dot(q_mid - *tc);
         let (n_side, d_side) = match decide("offset_axial_rim_side", Margin::of(side), band) {
             Ok(Sign::Positive) => (n, d),

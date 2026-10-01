@@ -7150,7 +7150,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 radius,
                 u_ref,
             };
-            let mid = (t0 + t1) * T::from_f64(0.5);
+            let mid = geom::mid_param(t0, t1);
             match crate::splitting::containment::arc_trim(
                 p,
                 [carrier.eval(t0), carrier.eval(t1)],
@@ -11020,7 +11020,7 @@ mod tests {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: cylinder,
-                witness: carrier.eval((t0 + t1) * 0.5),
+                witness: carrier.mid_point(t0, t1),
             },
             carrier,
             param_start: t0,

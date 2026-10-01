@@ -112,7 +112,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
+    Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Real, Sign, SupSpeed, Vec3,
 };
 
 use crate::certify::CertCheck;
@@ -942,15 +942,6 @@ fn tube_transversality<T: Decide>(
         Some(verdict) => Err(SsiError::TubeStraddles { verdict, boxes }),
         None => Ok(transversality.value()),
     }
-}
-
-/// The witness of a rung-3 carrier: `carrier(mid)`, unchanged from M2
-/// (`WitnessMidpoint`; S2 stays discharged).
-pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-) -> Point3<T> {
-    let (t0, t1) = carrier.domain();
-    carrier.eval(T::from_f64(0.5 * (t0 + t1)))
 }
 
 #[cfg(test)]
