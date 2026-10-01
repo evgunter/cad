@@ -71,21 +71,22 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 }
 
 /// #347's "two `circle`-derived cylinders refuse to union at all
-/// (coaxial or not)": every crossing pose meets the CURVED SWEEP ARM's
-/// frontier — the pierce door, not a kind gate and not a join refusal.
+/// (coaxial or not)": every crossing pose refuses typed, and none of
+/// them at a kind gate or a join.
 ///
 /// **The four rows are not one family, and the ring lane moves none of
 /// them.** Each is named with the pair that actually raises, measured
 /// rather than inferred, and with the carrier kind pinned because that
 /// is what decides whose work the row is waiting on:
 ///
-/// 1. `coaxial-equal-r` — A's rim CIRCLE lies on B's wall carrier. An
-///    undeclared value-coincident contact; CONTACT-DESIGN C2/C4 forbid
-///    inferring the gluing at any ε, so its destination is the
-///    declaration ladder and no crossing or join arm moves it.
-/// 2. `coaxial-stacked` — A's seam LINE lies on B's wall carrier
-///    (residual identically zero). Same class, same destination; the
-///    binding coincidence is the cap discs, a plane × plane rest.
+/// 1. `coaxial-equal-r` — the two walls are ONE carrier facing the same
+///    way. An undeclared value-coincident pair; CONTACT-DESIGN C2/C4
+///    forbid inferring the gluing at any ε, so the reduction refuses
+///    the pair before its crossing layer runs, naming it and its
+///    aligned relation, and its destination is the declaration ladder.
+/// 2. `coaxial-stacked` — the walls are one carrier carried on across
+///    the caps: an undeclared continuation, refused at the same door
+///    for the same reason.
 /// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall.
 ///    A real pierce, and the one this lane cannot serve: the circle ×
 ///    wall event parameters are the roots of a degree-2 TRIGONOMETRIC
@@ -106,7 +107,7 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 /// touch either, which is why this table pins the reason and not just
 /// the variant.
 #[test]
-fn cylinder_unions_refuse_at_the_curved_pierce_door() {
+fn cylinder_unions_refuse_typed_at_the_reduction() {
     let turned = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
         &Affine3::rotation_about_axis(
@@ -144,17 +145,30 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
     // above): a `line` row waits on second-order or declaration work, a
     // `circle` row waits on the trigonometric root lane that does not
     // exist.
-    let carriers = ["circle", "line", "circle", "line"];
+    let carriers = [None, None, Some("circle"), Some("line")];
     for ((name, err), want) in rows.into_iter().zip(carriers) {
+        let Some(want) = want else {
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::UndeclaredCoincidence {
+                        relation: topo::PlaneRelation::SameOriented,
+                        ..
+                    }
+                ),
+                "{name}: expected the undeclared aligned wall pair, got {err:?}"
+            );
+            continue;
+        };
         assert!(
             matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
             "{name}: expected the curved pierce door, got {err:?}"
         );
         // The carrier is read from the body the refusal NAMES, not from
-        // an assumption that it is always A: all four rows measure
+        // an assumption that it is always A: both pierce rows measure
         // A-side today, and asserting that here means a row that moves
         // to B reds this table instead of silently reading the wrong
-        // body's arena. (`coaxial-*` and `parallel-*` share one A;
+        // body's arena. (`parallel-*` shares the coaxial rows' A;
         // `steinmetz` has the tall one.)
         let BooleanError::CurvedPierceUnsupported { operand, .. } = err else {
             panic!("{name}: not a pierce refusal: {err:?}");

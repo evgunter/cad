@@ -669,9 +669,12 @@ impl Refusal {
     /// The declare-offer question, and its one home — shown over the
     /// pairs the offer declares, in the boolean tool.
     pub fn declare_question(offer: &DeclareOffer) -> String {
-        let what = match offer.findings.len() {
-            1 => "this contact",
-            _ => "these contacts",
+        let contacts = offer.findings.iter().all(|f| f.class.contact().is_some());
+        let what = match (offer.findings.len(), contacts) {
+            (1, true) => "this contact",
+            (_, true) => "these contacts",
+            (1, false) => "this pair",
+            (_, false) => "these pairs",
         };
         format!("declare {what} and commit the boolean?")
     }
@@ -689,16 +692,21 @@ impl Refusal {
 
     /// **One pair an offer declares, as the panel names it**: each
     /// side's operand through the chrome's one spelling of a node, and
-    /// the class the declaration asserts. The face within each operand
-    /// has no prose name (`work/author/face-pick-cannot-name-which-face.md`),
-    /// so the line says "a face of" rather than inventing one.
+    /// the class the declaration asserts: a contact's class, or a
+    /// continuation (one surface carried on, which is not a contact).
+    /// The face within each operand has no prose name
+    /// (`work/author/face-pick-cannot-name-which-face.md`), so the line
+    /// says "a face of" rather than inventing one.
     pub fn declare_pair_wording(finding: &FlushFinding) -> String {
         let (one, other) = &finding.pair;
+        let what = match finding.class.contact() {
+            Some(class) => format!("{} contact", class.name()),
+            None => "a continuation".to_owned(),
+        };
         format!(
-            "a face of {} against a face of {} — {} contact",
+            "a face of {} against a face of {} — {what}",
             crate::tree::node_number(one.at),
             crate::tree::node_number(other.at),
-            finding.class.name()
         )
     }
 }

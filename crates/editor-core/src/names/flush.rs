@@ -72,18 +72,18 @@
 //! downstream still owns the ambiguity refusal); none ⇒ no finding;
 //! mixed ⇒ [`SelectRefusal::TiedDisagrees`].
 //!
-//! # What `Rest` means here
+//! # What a finding's class means here
 //!
-//! Cosurface contact on every carrier the `Rest` ladder verifies —
-//! plane, sphere, cylinder and torus — is the whole detector; the
-//! [`ContactClass::Rest`] tag names C4's coincident-carrier contact
-//! class, and a peg's wall in its bore is reported exactly as two
-//! flush plates' faces are. The evidence records which orientation
-//! the verifier decided: [`PlaneRelation::SameOpposite`] is the
-//! resting-contact flavor (opposed material sides — the REST lane's
-//! zip), [`PlaneRelation::SameOriented`] the merge-stage flavor
-//! (flush walls). Both are exactly the pairs the declared rung
-//! verifies. `Tangent`/`Fit` findings reuse this shape when their
+//! Cosurface pairs on every carrier the ladder verifies — plane,
+//! sphere, cylinder and torus — are the whole detector, and a peg's
+//! wall in its bore is reported exactly as two flush plates' faces
+//! are. The class is read off the orientation the verifier decided:
+//! [`PlaneRelation::SameOpposite`] is a `Rest` contact (opposed
+//! material sides — the REST lane's zip), and
+//! [`PlaneRelation::SameOriented`] a continuation
+//! ([`BooleanCoincidence::Continuation`]: two stacked parts' outer
+//! walls, which the union merges). Both are exactly the pairs the
+//! declared rung verifies under that class. `Tangent`/`Fit` findings reuse this shape when their
 //! demand arrives — the `class` field is the reserved slot, not a
 //! `flush: bool` — and tangency waits on a locus the verifier can
 //! check, which is a different kind of gap from the one the curved
@@ -125,7 +125,7 @@ use crate::node::{Node, RecipeNodeId, SitedRef};
 /// (SELECT-DESIGN §3d, "one vocabulary end-to-end") and `topo` cannot
 /// depend on this crate. Everything above re-exports it; nothing
 /// redefines it.
-pub use topo::ContactClass;
+pub use topo::{BooleanCoincidence, ContactClass};
 
 /// The rest of the kernel contact vocabulary, re-exported at the same
 /// door and for the same reason (see [`ContactClass`]): a refusal the

@@ -56,8 +56,8 @@ use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::{Revolution, revolve};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, ContactClass, FaceContainment, FaceKey,
-    FacePairDeclaration, SplitJoinError,
+    Body, BooleanCoincidence, BooleanDeclarations, BooleanError, ContactClass, FaceContainment,
+    FaceKey, FacePairDeclaration, SplitJoinError,
 };
 
 /// The waist's tube.
@@ -176,7 +176,7 @@ fn is_torus(s: &geom::Surface<f64>) -> bool {
 fn declarations(
     a: &Body<f64>,
     b: &Body<f64>,
-    handle_class: Option<ContactClass>,
+    handle_class: Option<BooleanCoincidence>,
 ) -> BooleanDeclarations {
     let mut decls = BooleanDeclarations::none();
     for fa in faces_where(a, is_joint_disc) {
@@ -198,11 +198,12 @@ fn declarations(
     decls
 }
 
-/// The T2 union: both halves, the joint discs and the handle pairs
-/// declared `Rest`.
+/// The T2 union: both halves, the joint discs declared `Rest` and the
+/// handle pairs — one handle carried on across the joint — declared
+/// continuations.
 fn t2(handle: Handle) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let (a, b) = (half(1.0, handle), half(-1.0, handle));
-    let decls = declarations(&a, &b, Some(ContactClass::Rest));
+    let decls = declarations(&a, &b, Some(BooleanCoincidence::Continuation));
     topo::union_with(&a, &b, &decls, Tol::witness())
 }
 
@@ -264,12 +265,12 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_once_premerged() {
 ///
 /// What admission must NOT do is turn a torus pair nobody vouched for
 /// into a body: undeclared, the coincident waists still refuse typed —
-/// at the circle rung, where the sampled clearance is what it is and no
-/// declared cover exists to take the endpoint posture.
+/// as the undeclared continuation they are, at the reduction, naming
+/// the waist pair and its aligned relation.
 #[test]
 fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    for class in [None, Some(ContactClass::Rest)] {
+    for class in [None, Some(BooleanCoincidence::Continuation)] {
         let err = topo::union_with(&a, &b, &declarations(&a, &b, class), Tol::witness())
             .expect_err("no torus union builds a body yet");
         assert!(
@@ -279,27 +280,27 @@ fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
     }
     let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
         .expect_err("an undeclared coincident torus pair must refuse");
-    let BooleanError::CurvedPierceUnsupported { operand, face, .. } = err else {
-        panic!("undeclared, the waists refuse at the circle rung: {err:?}");
+    let BooleanError::UndeclaredCoincidence {
+        pair: [(topo::Operand::A, fa), (topo::Operand::B, fb)],
+        relation: topo::PlaneRelation::SameOriented,
+        ..
+    } = err
+    else {
+        panic!("undeclared, the waists refuse as a continuation: {err:?}");
     };
-    assert_eq!(operand, topo::Operand::A);
-    assert!(is_torus(surface(&b, face)), "the refusal names B's waist");
+    assert!(
+        is_handle(surface(&a, fa)) && is_handle(surface(&b, fb)),
+        "the refusal names a handle pair: {err:?}"
+    );
 }
 
-/// **The ordering fact the gate's class-blind cover predicate rests on,
-/// held on a torus.** The gate's covered-pair rung reads ANY declared
-/// class as cover, which is safe only while the `Tangent` door refuses
-/// every curved pair it cannot verify BEFORE the gate runs. On the
-/// waists it does: the conformal screen finds one carrier and a
-/// `Tangent` claim on a conformal pair is contradicted at the
-/// declaration door. Admitting the torus to the roster means no torus
-/// pair ever needs the cover again — and this row is what goes red if
-/// the `Tangent` door learns to admit one without the gate's predicate
-/// being revisited.
+/// **A `Tangent` claim on a conformal torus pair is refused at the
+/// declaration door**: the conformal screen finds one carrier, so the
+/// claim is contradicted before the gate runs.
 #[test]
 fn a_tangent_declared_torus_pair_is_refused_before_the_gate() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    let decls = declarations(&a, &b, Some(ContactClass::Tangent));
+    let decls = declarations(&a, &b, Some(BooleanCoincidence::TANGENT));
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("a Tangent claim on one carrier is false");
     let BooleanError::ContactContradicted { declaration, .. } = err else {
@@ -1164,7 +1165,8 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 ///   (R-loop), and two tori meeting in an oval, or a cylinder grazing
 ///   the outer equator, have no section classification (R-reach);
 /// - the dumbbell's declared waists stop at the section pass on their
-///   tangency (R-tan), and undeclared at the crossing layer.
+///   tangency (R-tan), and undeclared at the reduction, as the
+///   undeclared continuation they are.
 ///
 /// None of them is a body.
 #[test]
@@ -1230,7 +1232,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             .body
     };
     let halves = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    let waists = declarations(&halves.0, &halves.1, Some(ContactClass::Rest));
+    let waists = declarations(&halves.0, &halves.1, Some(BooleanCoincidence::Continuation));
     for (name, a, b, decls, says) in [
         (
             "slab",
@@ -1263,10 +1265,18 @@ fn subtract_and_intersect_refuse_where_union_does() {
             assert!(what.contains(says), "{name}, {op}: {what}");
         }
     }
+    // Undeclared, the dumbbell's handle halves are an undeclared
+    // continuation, refused at the reduction.
     for (op, r) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none) {
         let err = r.expect_err(op);
         assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::UndeclaredCoincidence {
+                    relation: topo::PlaneRelation::SameOriented,
+                    ..
+                }
+            ),
             "undeclared dumbbell, {op}: {err:?}"
         );
     }

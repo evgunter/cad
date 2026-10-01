@@ -837,7 +837,7 @@ mod tests {
                             name: name(),
                         },
                     ),
-                    class: topo::ContactClass::Rest,
+                    class: topo::BooleanCoincidence::REST,
                     evidence: crate::FlushEvidence {
                         relation: topo::PlaneRelation::SameOpposite,
                         rung: crate::FlushRung::DecidedCoincident,

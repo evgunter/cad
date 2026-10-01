@@ -29,6 +29,7 @@ from pncad import (
     AxisSense,
     Bulge,
     ClosedLoop,
+    BooleanCoincidence,
     BooleanOp,
     CancelToken,
     CapEnd,
@@ -482,7 +483,7 @@ declared_stadium: ClosedLoop = (
 # feeds the boolean's declare= input.
 findings: list[FlushFinding] = ev.find_flush_candidates(plate, lightened)
 first_relation: PlaneRelation = findings[0].relation
-first_class: ContactClass = findings[0].class_
+first_class: BooleanCoincidence = findings[0].class_
 first_rung: FlushRung = findings[0].rung
 opaque_a: str = findings[0].a
 opaque_b: str = findings[0].b

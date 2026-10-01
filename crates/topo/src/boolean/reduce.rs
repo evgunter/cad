@@ -372,31 +372,13 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         gate_operand_edges(body, operand)?;
     }
-    // **`class_of`, not `declares_rest` — and the safety of that is an
-    // ORDERING fact, so it is stated here rather than left to be
-    // rediscovered.** This predicate is class-BLIND by construction: any
-    // declared class covers the pair. That would be wrong on its own,
-    // because a `Tangent` claim licenses no same-carrier treatment and
-    // the class-aware twin (`DeclaredPairs::declares_rest`) sits in
-    // `mod`. What makes it right is that `verify_declared_contacts` runs
-    // BEFORE this gate and has already refused every declaration it
-    // cannot verify — for a curved pair outside the DEV-1 witness lane
-    // that is every `Tangent` claim. So a `Tangent` pair of a kind this
-    // roster refuses never survives to be covered here.
-    //
-    // A torus pair still reaches this predicate — a cone offender
-    // against a torus face is asked whether that pair is covered — and
-    // it is safe there for the same reason: a `Tangent` claim on it is
-    // refused by `verify_tangent_declaration` before the gate (the
-    // witness lane has no torus arm; the conformal screen contradicts
-    // one-carrier pairs). Read the dependency the other way and it is a warning: whoever
-    // teaches the `Tangent` door to ADMIT a curved pair of an off-roster
-    // kind must revisit this predicate in the same change, because the
-    // class-blindness is load-bearing only while that door refuses.
+    // A pair is covered by the certificate its consumer reads: the
+    // declared descent through the carrier ladder, which runs on a pair
+    // the door verified ONE carrier. A `Tangent` claim covers nothing
+    // here: its arms are the witness lane's, whose kinds are all on the
+    // roster.
     if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists, |operand, f, other| {
-        declared
-            .class_of(operand, f, operand.other(), other)
-            .is_some()
+        declared.verified_one_carrier(operand, f, operand.other(), other)
     })? {
         return Err(BooleanError::CurvedPairUnsupported {
             op: None,
@@ -650,6 +632,198 @@ pub(super) fn gate_maximal_faces<T: Decide>(
     Ok(())
 }
 
+/// **An undeclared continuation refuses at the reduction, on every
+/// carrier kind** (C4's continuation clause).
+///
+/// A cross-operand face pair on one carrier with ALIGNED senses that
+/// meets along its boundary is one surface carried on across the seam.
+/// Without a declaration the op has no licence to treat the two as one
+/// carrier, and no licence to merge them, so its output would carry two
+/// cosurface faces side by side, which the next boolean refuses as an
+/// operand. So the pair refuses here, before the sweep, naming the pair
+/// and the relation a declaration would assert — the same
+/// [`BooleanError::UndeclaredCoincidence`] an undeclared opposed pair
+/// gets.
+///
+/// The carrier question is the detector posture of the verify ladder
+/// ([`super::carrier_pair_relation`]); a pair it calls one carrier by
+/// shared recipe source is structurally licensed, and an in-band
+/// escalation is left to the stages that already own it. "Meets along
+/// its boundary" is read off padded boxes — a boundary edge of each
+/// face sharing a stretch of curve, not a point
+/// ([`edges_share_a_curve`]) — which can only over-report a meeting,
+/// and so only ever refuses.
+///
+/// # Errors
+///
+/// [`BooleanError::UndeclaredCoincidence`] naming the first undeclared
+/// continuation in arena order (A's faces, then B's within each);
+/// [`BooleanError::ClassificationInvariant`] for a torn arena.
+pub(super) fn refuse_undeclared_continuations<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    declared: &super::DeclaredPairs,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let pad = boxes::sweep_pad(band);
+    let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
+        body.faces()
+            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad)?)))
+            .collect()
+    };
+    let (a_faces, b_faces) = (boxed(a)?, boxed(b)?);
+    let mut edge_boxes: Option<[FaceEdges; 2]> = None;
+    for &(fa, ref box_a) in &a_faces {
+        for &(fb, ref box_b) in &b_faces {
+            if !box_a.overlaps(box_b) || declared.class_of(Operand::A, fa, Operand::B, fb).is_some()
+            {
+                continue;
+            }
+            let Some(relation) = super::carrier_pair_relation(a, fa, b, fb, false, band) else {
+                continue;
+            };
+            let Err(super::CarrierEqError::Undeclared {
+                diag,
+                relation: relation @ super::CarrierRelation::SameOriented,
+            }) = relation
+            else {
+                continue;
+            };
+            if edge_boxes.is_none() {
+                edge_boxes = Some([face_edge_boxes(a, pad)?, face_edge_boxes(b, pad)?]);
+            }
+            let [ea, eb] = edge_boxes
+                .as_ref()
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "continuation scan: edge boxes not built",
+                })?;
+            let mut meets = false;
+            for &(ex, ref bx) in ea.get(&fa).map_or(&[][..], Vec::as_slice) {
+                for &(ey, ref by) in eb.get(&fb).map_or(&[][..], Vec::as_slice) {
+                    if bx.overlaps(by) && edges_share_a_curve(a, ex, b, ey, bx, by, pad, band)? {
+                        meets = true;
+                    }
+                }
+            }
+            if meets {
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(Operand::A, fa), (Operand::B, fb)],
+                    relation,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Each face's boundary edges with their padded boxes.
+type FaceEdges = std::collections::BTreeMap<FaceKey, Vec<(EdgeKey, bvh::Aabb)>>;
+
+/// Every face's boundary edges, each with its padded box.
+fn face_edge_boxes<T: Decide + Bounds>(
+    body: &Body<T>,
+    pad: f64,
+) -> Result<FaceEdges, BooleanError> {
+    let mut out = FaceEdges::new();
+    for (key, edge) in body.edges() {
+        let bx = boxes::edge_box(body, key, pad)?;
+        let f1 = body.face_of_half_edge(edge.he_plus);
+        let f2 = body
+            .face_of_half_edge(edge.he_minus)
+            .filter(|&f| Some(f) != f1);
+        for f in [f1, f2].into_iter().flatten() {
+            out.entry(f).or_default().push((key, bx.clone()));
+        }
+    }
+    Ok(out)
+}
+
+/// **Do two edges share a CURVE, not merely a point?** Two faces meet
+/// along their boundary exactly when some edge of each overlaps the
+/// other's along a stretch, and the ends of that stretch are ends of
+/// the two edges. So the edges share a curve iff two definitely
+/// distinct points among both edges' ends and midpoints lie on BOTH
+/// edges. A point is on an edge when its distance to the edge's
+/// carrier, at the carrier parameter nearest it clamped into the
+/// edge's span, decides zero; an in-band distance counts as on, which
+/// can only over-report a meeting and so only ever refuses.
+///
+/// A carrier with no point parameter (ellipse, spline) falls back to
+/// the boxes: their overlap must run longer than the two pads on some
+/// axis, which two edges meeting at one point cannot do.
+#[allow(clippy::too_many_arguments)]
+fn edges_share_a_curve<T: Decide>(
+    x: &Body<T>,
+    ex: EdgeKey,
+    y: &Body<T>,
+    ey: EdgeKey,
+    bx: &bvh::Aabb,
+    by: &bvh::Aabb,
+    pad: f64,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let corrupt = || BooleanError::ClassificationInvariant {
+        what: "continuation scan: an edge lost its geometry",
+    };
+    let sampled = |body: &Body<T>, key: EdgeKey| -> Result<Option<_>, BooleanError> {
+        let edge = body.get_edge(key).ok_or_else(corrupt)?;
+        let Some(curve) = body
+            .get_curve_geom(edge.curve)
+            .and_then(CurveGeom::certified)
+        else {
+            return Ok(None);
+        };
+        let (t0, t1) = curve.params();
+        let mid = (t0 + t1) * T::from_f64(0.5);
+        let carrier = curve.carrier().clone();
+        if carrier.param_near(carrier.eval(mid), mid).is_none() {
+            return Ok(None);
+        }
+        let end = |he| -> Result<Point3<T>, BooleanError> {
+            let v = body.get_half_edge(he).ok_or_else(corrupt)?.start;
+            body.get_vertex(v)
+                .and_then(|v| body.get_point(v.point))
+                .copied()
+                .ok_or_else(corrupt)
+        };
+        let points = [end(edge.he_plus)?, end(edge.he_minus)?, carrier.eval(mid)];
+        Ok(Some((carrier, t0, t1, mid, points)))
+    };
+    let (Some(cx), Some(cy)) = (sampled(x, ex)?, sampled(y, ey)?) else {
+        let run = |lo_x: f64, hi_x: f64, lo_y: f64, hi_y: f64| hi_x.min(hi_y) - lo_x.max(lo_y);
+        let runs = [
+            run(bx.min_x, bx.max_x, by.min_x, by.max_x),
+            run(bx.min_y, bx.max_y, by.min_y, by.max_y),
+            run(bx.min_z, bx.max_z, by.min_z, by.max_z),
+        ];
+        return Ok(runs.iter().all(|&r| r >= 0.0) && runs.iter().any(|&r| r > 4.0 * pad));
+    };
+    let zero = |m: T| {
+        !matches!(
+            decide("bool_continuation_boundary", Margin::of(m), band),
+            Ok(Sign::Positive | Sign::Negative)
+        )
+    };
+    let on = |(carrier, t0, t1, mid, _): &(geom::Curve3<T>, T, T, T, [Point3<T>; 3]),
+              p: Point3<T>| {
+        carrier.param_near(p, *mid).is_some_and(|t| {
+            let foot = carrier.eval(t.max(*t0).min(*t1));
+            zero((foot - p).norm())
+        })
+    };
+    let shared: Vec<Point3<T>> =
+        cx.4.iter()
+            .chain(&cy.4)
+            .copied()
+            .filter(|&p| on(&cx, p) && on(&cy, p))
+            .collect();
+    Ok(shared
+        .iter()
+        .enumerate()
+        .any(|(i, &p)| shared[i + 1..].iter().any(|&q| !zero((q - p).norm()))))
+}
+
 fn edge_chord_len<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<T> {
     let e = body.get_edge(edge)?;
     let pa = *body.get_point(body.get_vertex(body.get_half_edge(e.he_plus)?.start)?.point)?;
@@ -832,6 +1006,17 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
             // place `Out` splits exactly like a proper line crossing;
             // both fragments re-examine the SAME face, so any other
             // root is found again on them.
+            //
+            // **The one-sided cover** (C4, as on the curved arm): when an
+            // edge's parent carrier is certified to lie in one closed side
+            // of this face's plane, a conic on it never crosses the plane,
+            // and its residual along the carrier circle is a sinusoid of
+            // one sign, zero at most once. An endpoint ON the plane is then
+            // the edge's one incidence, a touch, and it takes the endpoint
+            // rows; the root lane, which cannot separate the double root
+            // there from a crossing, is not asked. With no endpoint on the
+            // plane the roots still decide, so a touch in the middle of
+            // the edge keeps their typed refusal.
             {
                 let curve = match x.get_curve_geom(edge.curve) {
                     Some(CurveGeom::Certified(c)) => c.clone(),
@@ -843,6 +1028,27 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     }
                 };
                 let (t0, t1) = curve.params();
+                let one_sided = [
+                    x.face_of_half_edge(edge.he_plus),
+                    x.face_of_half_edge(edge.he_minus),
+                ]
+                .into_iter()
+                .flatten()
+                .any(|f| declared.one_sided(x_is, f, x_is.other(), face));
+                let touch_at_end = if one_sided {
+                    let side = |p: Point3<T>| {
+                        decide(
+                            "bool_vertex_face_side",
+                            Margin::of((p - plane.origin).dot(plane.normal)),
+                            band,
+                        )
+                        .map_err(BooleanError::coincidence)
+                    };
+                    let (s1, s2) = (side(pu)?, side(pv)?);
+                    ((s1 == Sign::Zero) != (s2 == Sign::Zero)).then_some(s1 == Sign::Zero)
+                } else {
+                    None
+                };
                 match crate::splitting::conic_plane_crossing_roots(
                     curve.carrier(),
                     t0,
@@ -871,6 +1077,20 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band, tol)?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
+                            tr.accepted.push((edge_key, face));
+                        }
+                        continue;
+                    }
+                    Ok(ConicPlaneMeet::Roots(_)) if touch_at_end.is_some() => {
+                        let Some(first_end) = touch_at_end else {
+                            return Err(BooleanError::ClassificationInvariant {
+                                what: "conic lane: the one-sided touch lost its sides",
+                            });
+                        };
+                        let (w, pw) = if first_end { (u, pu) } else { (v, pv) };
+                        if vertex_on_face(x_is, y, w, pw, face, &plane, contacts, band, tol)?
+                            && let Some(tr) = trace.as_deref_mut()
+                        {
                             tr.accepted.push((edge_key, face));
                         }
                         continue;
@@ -1045,20 +1265,28 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// silent fallback.
 ///
 /// **The carrier-identity rung** comes before any enclosure on a
-/// CIRCLE carrier: an edge whose parent face is `Rest`-declared against
+/// CIRCLE carrier: an edge whose parent face is declared one carrier with
 /// `face`, on a carrier the ladder calls the same, lies on `face`'s
 /// carrier, so its clearance is zero by that certificate
-/// ([`on_declared_rest_carrier`]). The sampled enclosure cannot say so
+/// ([`on_declared_shared_carrier`]). The sampled enclosure cannot say so
 /// of a coincident pair — it is `±charge` about an identically-zero
 /// residual and reads definitely negative.
 ///
-/// **The declared-cover rung** (CONTACT-DESIGN C8 at the crossing
+/// **The one-sided cover rung** (C4's cover clause at the crossing
 /// layer): a zero-clearance incidence whose edge has a parent face
-/// DECLARED against `face` — `Rest` (the edge bounds a face on the
-/// verified shared carrier, so it lies ON that carrier) or `Tangent`
-/// (the on-carrier locus IS the verified tangency: the ruling a
-/// tangent edge realizes) — takes the planar sweep's endpoint
-/// posture instead of the frontier door: each on-carrier endpoint is
+/// whose carrier is CERTIFIED to lie in one closed side of `face`'s
+/// ([`super::DeclaredPairs::one_sided`]) — by a verified `Rest` or
+/// continuation (the edge bounds a face on the shared carrier, so it
+/// lies ON that carrier), a verified `Tangent` (the on-carrier locus IS
+/// the verified tangency: the ruling a tangent edge realizes), or a
+/// structural tangency on either operand to a face verified one carrier
+/// with `face` (a flat wall whose fillet strut is tangent to the other
+/// plate's continued corner cylinder) — takes the planar sweep's
+/// endpoint posture instead of the frontier door. A roots-lane
+/// "tangent" verdict is a band decision and never a source, so a
+/// graze within the band keeps the frontier; a tangency in the middle
+/// of an edge does too, since the cover records endpoints only. Each
+/// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
 /// ([`super::contain::curved_face_containment`] — the boundary walk,
 /// and behind it the cylinder chart trim), producing the same v-v
@@ -1119,7 +1347,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// polynomial, a quartic in the tangent half-angle, and the ray lane's
 /// certified ladder answers it. It reaches those arms only from the
 /// circle rung, after the enclosures failed to clear the arc, and never
-/// through a declared-cover arm — those rest on a line's separation
+/// through a one-sided cover arm — those rest on a line's separation
 /// story.
 ///
 /// **What a successful wall pierce reaches next is a typed door, not
@@ -1177,19 +1405,18 @@ fn curved_face_arm<T: Decide>(
         edge: edge_key,
         band,
     };
-    // The declared cover (docs above): one of the edge's parent faces
-    // is declared against `face` under a class the door VERIFIED —
-    // the on-carrier claim the numeric rows then certify per
-    // incidence.
-    let covered = {
-        [
-            x.face_of_half_edge(edge.he_plus),
-            x.face_of_half_edge(edge.he_minus),
-        ]
-        .into_iter()
-        .flatten()
-        .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
-    };
+    // The one-sided cover (docs above): one of the edge's parent faces
+    // has its carrier certified to lie in one closed side of `face`'s
+    // carrier, so the edge's residual against it is one-signed and an
+    // on-carrier endpoint is a touch, never an entry. The numeric rows
+    // then certify each incidence.
+    let covered = [
+        x.face_of_half_edge(edge.he_plus),
+        x.face_of_half_edge(edge.he_minus),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|f| declared.one_sided(x_is, f, x_is.other(), face));
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
     // but the boolean's CROSSING layer for the kind — edge×NURBS-face
@@ -1281,8 +1508,8 @@ fn curved_face_arm<T: Decide>(
             // residual and reads definitely negative by construction,
             // and the harmonic one has no torus form. Reading the
             // certificate first is what lets a coincident pair reach
-            // the declared-cover rung at all.
-            let clearance = if on_declared_rest_carrier(x, x_is, edge, face, declared) {
+            // the one-sided cover rung at all.
+            let clearance = if on_declared_shared_carrier(x, x_is, edge, face, declared) {
                 Ok(Sign::Zero)
             } else {
                 circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
@@ -1290,7 +1517,7 @@ fn curved_face_arm<T: Decide>(
             };
             match clearance {
                 Ok(Sign::Positive) => return Ok(CurvedEvent::None),
-                // The declared-cover rung: a covered zero-clearance
+                // The one-sided cover rung: a covered zero-clearance
                 // circle takes the planar sweep's endpoint posture —
                 // each endpoint's own side decides its treatment
                 // (existing row): ON the carrier ⇒ boundary
@@ -1391,7 +1618,7 @@ fn curved_face_arm<T: Decide>(
                 // not decide — the roots still can.
                 //
                 // **Only an UNCOVERED circle falls through.** The
-                // declared-cover arms below rest on a line's separation
+                // one-sided cover arms below rest on a line's separation
                 // story, so a covered circle — whose covered-Zero case
                 // returned above — keeps the frontier door here rather
                 // than reaching them. That makes those arms structurally
@@ -1411,26 +1638,28 @@ fn curved_face_arm<T: Decide>(
             band,
         )
     };
-    // The declared-cover arms rest on a LINE's separation story; only an
+    // The one-sided cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
     let s1 = side(pu).map_err(BooleanError::coincidence)?;
     let s2 = side(pv).map_err(BooleanError::coincidence)?;
     match (s1, s2) {
-        // The declared-cover rung: a covered line with endpoint(s) ON
+        // The one-sided cover rung: a covered line with endpoint(s) ON
         // the carrier takes the planar sweep's endpoint posture — the
         // `(za, zb)` branch mirrored: each Zero endpoint gets boundary
         // containment (which must decide, or the frontier stands).
         // What makes the `(Zero, Positive)` branch eventless is NOT
         // convexity (a convex residual's endpoint bound is its
         // MAXIMUM, not its minimum — q(0) = 0, q(1) > 0 can dip
-        // negative between): it is the witness lane's SEPARATION
-        // INVARIANT — every pair `tangent_locus` admits has each
-        // carrier wholly in ONE closed residual half-space of the
-        // other (the contract sentence on [`super::rest::tangent_locus`];
-        // a `Rest` cover's shared carrier is residual-zero
-        // identically) — so a covered on-carrier edge's residual is
-        // one-signed and a Zero endpoint is a touch, never an entry.
+        // negative between): it is the cover's invariant — the edge's
+        // parent carrier lies wholly in ONE closed residual half-space
+        // of `face`'s ([`super::DeclaredPairs::one_sided`]; for a
+        // `Tangent` source that is the witness lane's separation
+        // invariant, the contract sentence on
+        // [`super::rest::tangent_locus`], and a one-carrier source's
+        // shared carrier is residual-zero identically) — so a covered
+        // on-carrier edge's residual is one-signed and a Zero endpoint
+        // is a touch, never an entry.
         // A configuration without that one-sign story must not be
         // admitted to the lane. **The coaxial cylinder×sphere circle
         // arm is no longer an EXAMPLE of one, and this citation is
@@ -1780,16 +2009,16 @@ fn circle_clearance<T: Decide>(
 }
 
 /// **The carrier-identity rung**: does one of the edge's parent faces
-/// sit on `face`'s carrier by a verified `Rest` declaration?
+/// sit on `face`'s carrier by a verified one-carrier declaration?
 ///
-/// `Rest` is the one class that licenses it, and only where the
-/// declaration door's carrier ladder CALLED the pair one carrier
+/// `Rest` and a continuation are the classes that license it, and only
+/// where the declaration door's carrier ladder CALLED the pair one carrier
 /// ([`super::DeclaredPairs::verified_one_carrier`], recorded once at the
 /// door rather than re-derived per event). An edge bounding a face on
 /// that carrier lies on it. `Tangent` licenses nothing of the kind — a
 /// tangent pair shares a locus, not a carrier — and an undeclared pair
 /// is never read as coincident by value (CONTACT-DESIGN C2/C4).
-fn on_declared_rest_carrier<T: Decide>(
+fn on_declared_shared_carrier<T: Decide>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
@@ -2099,7 +2328,7 @@ enum CurvedEvent<T: geom_core::Real> {
     /// No event: the pair is definitely clear, or the crossing lies
     /// outside this face's trim.
     None,
-    /// The arm recorded the event itself (the declared-cover rung,
+    /// The arm recorded the event itself (the one-sided cover rung,
     /// whose endpoint treatment mints its own contacts). Reported so
     /// the differential suite's accepted-pair channel still sees it.
     Recorded,

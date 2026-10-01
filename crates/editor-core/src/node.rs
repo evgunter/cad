@@ -10,7 +10,7 @@ use crate::names::SplitHalf;
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
 // owns the single upward re-export.
-use topo::ContactClass;
+use topo::BooleanCoincidence;
 
 /// The [`Node`] variants whose payload REFERENCES no [`StableName`], as
 /// a PATTERN.
@@ -2443,18 +2443,21 @@ pub enum Node<P> {
     /// whose SHAPE is wrong rather than whose kind is
     /// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
     Declare {
-        /// The declared contact pairs, each with the CLASS it asserts
-        /// (CONTACT-DESIGN C4).
+        /// The declared pairs, each with the COINCIDENCE it asserts
+        /// (CONTACT-DESIGN C4): a contact of a class, or a continuation
+        /// — the valid inputs to a boolean, where a mate takes a
+        /// [`ContactClass`] alone.
         ///
         /// The class rides every pair rather than a node-level
         /// default: a declaration is "these two faces are in contact,
-        /// of THIS kind", and one `Declare` node may carry pairs of
-        /// different kinds. A class-less pair is unrepresentable —
-        /// there is no constructor that omits it and no default to
-        /// fall back to, because defaulting would let a `Tangent`
-        /// intent be verified against the conformal table.
+        /// of THIS kind" (or "these two faces are one surface carried
+        /// on"), and one `Declare` node may carry pairs of different
+        /// kinds. A class-less pair is unrepresentable — there is no
+        /// constructor that omits it and no default to fall back to,
+        /// because defaulting would let a `Tangent` intent be verified
+        /// against the conformal table.
         #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        pairs: Vec<((SitedRef, SitedRef), ContactClass)>,
+        pairs: Vec<((SitedRef, SitedRef), BooleanCoincidence)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
@@ -3819,7 +3822,22 @@ impl<P> Node<P> {
     /// [`Node::Declare`] directly.
     pub fn declare_rest(pairs: Vec<(SitedRef, SitedRef)>) -> Self {
         Node::Declare {
-            pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
+            pairs: pairs
+                .into_iter()
+                .map(|p| (p, BooleanCoincidence::REST))
+                .collect(),
+        }
+    }
+
+    /// A `Declare` node whose every pair asserts a CONTINUATION — one
+    /// carrier, aligned senses: two stacked parts' outer walls. Named
+    /// at the call site for the reason [`Node::declare_rest`] gives.
+    pub fn declare_continuation(pairs: Vec<(SitedRef, SitedRef)>) -> Self {
+        Node::Declare {
+            pairs: pairs
+                .into_iter()
+                .map(|p| (p, BooleanCoincidence::Continuation))
+                .collect(),
         }
     }
 

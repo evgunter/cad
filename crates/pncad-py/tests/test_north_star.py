@@ -20,11 +20,11 @@ from typing import ClassVar
 from pncad import (
     ArcSide,
     ArcSweep,
+    BooleanCoincidence,
     BooleanOp,
     Bulge,
     Center,
     Cmp,
-    ContactClass,
     CurveKind,
     Doc,
     DocEdit,
@@ -1871,7 +1871,7 @@ class TestTable(unittest.TestCase):
             self.assertEqual(len(findings), [2, 4, 5, 7][i])
             for f in findings:
                 self.assertEqual(f.relation, PlaneRelation.SameOriented)
-                self.assertEqual(f.class_, ContactClass.Rest)
+                self.assertEqual(f.class_, BooleanCoincidence.Continuation)
             decl = doc.declare_all(findings)
             acc = doc.insert(Node.boolean(BooleanOp.Union, acc, leg, declare=decl))
         ev = evaluate(doc)
@@ -1899,7 +1899,7 @@ class TestCrosslapGlued(unittest.TestCase):
 
     The inspection step EARNS ITS KEEP here, and honestly: the
     detector also reports the beams' coplanar exteriors (bottoms at
-    z=0, tops at z=0.5 — `SameOriented`, the merge-stage flavor), and
+    z=0, tops at z=0.5 — `SameOriented`, continuations), and
     declaring the BOTTOM pairs trips a document-layer naming-emitter
     wall (`kind == "naming"`) after the kernel glues fine — a
     measured residue pinned below, not hidden. The scene's statement
@@ -1952,8 +1952,8 @@ class TestCrosslapGlued(unittest.TestCase):
 
     def test_the_merge_stage_bottom_declaration_hits_the_naming_wall(self):
         """The measured residue, pinned so its fall is loud: declare
-        the detector's FULL inventory — mate plus the merge-stage
-        `SameOriented` exteriors — and the kernel glues, but the
+        the detector's FULL inventory — mate plus the `SameOriented`
+        exteriors, continuations — and the kernel glues, but the
         boolean node still fails in the document layer's NAMING
         emitter. The bottom plane merges beam A's bottom with BOTH of
         beam B's coplanar bottom halves, so a seam chord bordering the
@@ -3542,11 +3542,17 @@ class TestTwopeg(unittest.TestCase):
         findings = ev.find_flush_candidates(p, q)
         self.assertEqual(len(findings), 25)
         # One mating plane and 18 peg-against-bore pairs oppose (Rest);
-        # the six flush walls are the merge-stage flavor.
+        # the six flush walls are continuations.
         self.assertEqual(
             sum(1 for f in findings if f.relation == PlaneRelation.SameOpposite), 19
         )
-        self.assertTrue(all(f.class_ == ContactClass.Rest for f in findings))
+        for f in findings:
+            self.assertEqual(
+                f.class_,
+                BooleanCoincidence.Rest
+                if f.relation == PlaneRelation.SameOpposite
+                else BooleanCoincidence.Continuation,
+            )
 
         declared = doc.insert(
             Node.boolean(
@@ -3628,7 +3634,7 @@ class TestTwopeg(unittest.TestCase):
         self.assertEqual(len(findings), 4)
         for f in findings:
             self.assertEqual(f.relation, PlaneRelation.SameOpposite)
-            self.assertEqual(f.class_, ContactClass.Rest)
+            self.assertEqual(f.class_, BooleanCoincidence.Rest)
         with self.assertRaises(TypeError):
             pncad.FlushFinding()
 

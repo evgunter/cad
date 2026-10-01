@@ -30,9 +30,9 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **two** of the seven doors that read a box from
-//! here; at four of the other five, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL, and at the fifth it is more
+//! PRUNES. That is **two** of the eight doors that read a box from
+//! here; at five of the other six, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the sixth it is more
 //! exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
@@ -49,6 +49,11 @@
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
 //!   operation whose faces never meet.
+//! - `boolean::reduce`'s undeclared-continuation scan
+//!   (`refuse_undeclared_continuations`) GRANTS on non-overlap: a
+//!   one-carrier aligned pair whose boundary-edge boxes clear each
+//!   other does not meet, so the op runs. A bigger box refuses, as an
+//!   undeclared continuation, a coplanar pair with a gap between.
 //! - `separation` GRANTS on non-overlap — `Ok(())` IS the
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.
@@ -79,10 +84,10 @@
 //!   (`bool4r1_probes::probe_d`).
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The seven are not
+//! about a door, and the door has to be named. The eight are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! an eighth door cannot land unargued. **It pins WHERE the doors are
+//! a ninth door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -2970,7 +2975,7 @@ mod tests {
         // list of doors and gains nothing from the two.
         const PINNED: [(&str, usize); 4] = [
             ("boolean/ops.rs", 4),
-            ("boolean/reduce.rs", 5),
+            ("boolean/reduce.rs", 7),
             ("census.rs", 7),
             ("separation.rs", 2),
         ];

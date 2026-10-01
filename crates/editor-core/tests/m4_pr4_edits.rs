@@ -8,8 +8,8 @@
 use crate::fixture;
 
 use editor_core::{
-    BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd, ContactClass,
-    Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
+    BifurcationKind, BooleanCoincidence, BranchCertification, BranchMarginEvidence, CancelToken,
+    CapEnd, Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
     ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, StableName, WitnessAge,
     WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
@@ -104,7 +104,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
         pairs,
         &vec![(
             (sited(t.a), SitedRef::new(t.b, cap(t.c))),
-            ContactClass::Rest
+            BooleanCoincidence::REST
         )]
     );
     // One-shot: no alias table — a SECOND rebind of the same source
@@ -127,7 +127,10 @@ fn rebind_rewrites_declare_sites_one_shot() {
     let Some(Node::Declare { pairs }) = t.doc.node(t.decl) else {
         panic!()
     };
-    assert_eq!(pairs, &vec![((sited(t.a), sited(t.b)), ContactClass::Rest)]);
+    assert_eq!(
+        pairs,
+        &vec![((sited(t.a), sited(t.b)), BooleanCoincidence::REST)]
+    );
 }
 
 #[test]
@@ -157,7 +160,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
         pairs,
         &vec![(
             (sited(t.a), SitedRef::new(t.b, cap(t.c))),
-            ContactClass::Rest
+            BooleanCoincidence::REST
         )]
     );
     assert!(matches!(

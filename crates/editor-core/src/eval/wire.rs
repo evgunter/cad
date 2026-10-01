@@ -49,8 +49,8 @@ use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
 use topo::{
-    Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
-    DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, VfContact, VvContact,
+    Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, DATUM_UNIT_NORM,
+    FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
 use super::anchor::{self, ProfilePre, ProfileValue};
@@ -3102,7 +3102,7 @@ fn drop_consumed<'n>(bucket: Vec<SidedPair<'n>>, acc_table: &NameTable) -> Vec<S
 
 /// One declared pair as the recipe carries it: the two SITED
 /// entities and the contact class the author claimed for them.
-type DeclaredPair = ((SitedRef, SitedRef), ContactClass);
+type DeclaredPair = ((SitedRef, SitedRef), topo::BooleanCoincidence);
 
 /// One declared pair as the shared resolver takes it: each side's
 /// name in the table of the operand its SITE picked, and the class.
@@ -3114,7 +3114,7 @@ type DeclaredPair = ((SitedRef, SitedRef), ContactClass);
 type SidedPair<'n> = (
     (topo::Operand, SidedName<'n>),
     (topo::Operand, SidedName<'n>),
-    ContactClass,
+    topo::BooleanCoincidence,
 );
 
 /// One side's name on its way to the shared resolver, and whether
@@ -3709,16 +3709,18 @@ fn refusal_menu<T: geom_core::Bounds>(
     NodeErrorKind::UndeclaredContact {
         // Filled only by [`union_refusal`].
         merged: Box::new((Vec::new(), Vec::new())),
-        finding: Box::new(names::FlushFinding {
-            pair: (na, nb),
-            class: names::ContactClass::Rest,
-            evidence: names::FlushEvidence {
+        // The class comes from the one place a finding's class is
+        // minted, off the relation the refusal carries: an opposed pair
+        // is a `Rest` contact, an aligned one a continuation.
+        finding: Box::new(topo::flush::finding(
+            (na, nb),
+            names::FlushEvidence {
                 relation,
                 // Shared-source pairs never refuse Undeclared (rung 1
                 // answers Ok), so this is always the geometric rung.
                 rung: names::FlushRung::DecidedCoincident,
             },
-        }),
+        )),
         diag,
     }
 }
@@ -3819,10 +3821,18 @@ fn resolve_declarations<'n>(
                 out.coincident_faces
                     .push(FacePairDeclaration::new(fa, fb, class));
             }
+            // A carried row is a CONTACT; a continuation is a relation
+            // between two faces and has no vertex reading.
+            DeclaredStep::SameVv(_) | DeclaredStep::SameVf(..) if class.contact().is_none() => {
+                return Err(unsupported((n1.kind, n2.kind)));
+            }
             DeclaredStep::SameVv(side) => {
                 let (Some(va), Some(vb)) = (k1.vertex(), k2.vertex()) else {
                     return Err(broke("same-operand vertex-vertex"));
                 };
+                let class = class
+                    .contact()
+                    .ok_or_else(|| broke("vertex continuation"))?;
                 // The AUTHORED class, carried, not re-defaulted.
                 carried(&mut out, side.operand()).vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
@@ -3834,6 +3844,9 @@ fn resolve_declarations<'n>(
                 let (Some(vertex), Some(face)) = (v.vertex(), f.face()) else {
                     return Err(broke("same-operand vertex-face"));
                 };
+                let class = class
+                    .contact()
+                    .ok_or_else(|| broke("vertex continuation"))?;
                 carried(&mut out, side.operand()).vf.push(CarriedVf {
                     rest: VfContact { vertex, face },
                     class,
@@ -4549,7 +4562,7 @@ mod route_tests {
     use crate::resolve::{Diagnosis, FoldConsumption, ResolveError};
     use crate::{DocEdit, ProfileDoc};
     use geom_core::Tol;
-    use topo::{ContactClass, Operand};
+    use topo::{BooleanCoincidence, Operand};
 
     /// A live document and `n` live node ids standing in for a union's
     /// members, plus one more for the union itself.
@@ -4614,8 +4627,8 @@ mod route_tests {
         )
     }
 
-    fn pair(a: SitedRef, b: SitedRef) -> ((SitedRef, SitedRef), ContactClass) {
-        ((a, b), ContactClass::Rest)
+    fn pair(a: SitedRef, b: SitedRef) -> ((SitedRef, SitedRef), BooleanCoincidence) {
+        ((a, b), BooleanCoincidence::REST)
     }
 
     /// **The routing reads the SITE, not the name's minting node.**
@@ -4855,7 +4868,7 @@ mod route_tests {
         (
             (a.0, SidedName::Rewritten(a.1)),
             (b.0, SidedName::Rewritten(b.1)),
-            ContactClass::Rest,
+            BooleanCoincidence::REST,
         )
     }
 

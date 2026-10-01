@@ -113,7 +113,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
-use crate::contact::ContactClass;
+use crate::contact::{BooleanCoincidence, ContactClass};
 use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
@@ -483,9 +483,9 @@ impl CarriedContacts {
 /// ([`BooleanError::InvalidDeclaration`]), never a silent drop.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BooleanDeclarations {
-    /// Cross-operand declared face pairs, each naming its class:
-    /// classification treats a `Rest` pair's carriers as the same
-    /// carrier (orientation decided, contradiction refused —
+    /// Cross-operand declared face pairs, each naming what it asserts:
+    /// classification treats a `Rest` or continuation pair's carriers as
+    /// the same carrier (orientation decided, contradiction refused —
     /// [`mod@carrier_eq`] rung 2), and the result's merge stage glues the
     /// pair's surviving coplanar-adjacent material (N3 `Merged`).
     pub coincident_faces: Vec<FacePairDeclaration>,
@@ -507,35 +507,45 @@ impl BooleanDeclarations {
     }
 }
 
-/// One declared cross-operand face pair AND the class it asserts.
+/// One declared cross-operand face pair AND the coincidence it asserts.
 ///
 /// The class rides the pair rather than a parallel list because the
-/// two are one fact: "these faces are in contact, of THIS kind". A
-/// pair whose class had to be looked up elsewhere could be read
-/// without it, and reading a declaration without its class is how a
-/// `Tangent` intent gets verified against the conformal table.
+/// two are one fact: "these faces are in contact, of THIS kind", or
+/// "these faces are one surface carried on". A pair whose class had to
+/// be looked up elsewhere could be read without it, and reading a
+/// declaration without its class is how a `Tangent` intent gets
+/// verified against the conformal table.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FacePairDeclaration {
     /// The A-operand face.
     pub a: FaceKey,
     /// The B-operand face.
     pub b: FaceKey,
-    /// The asserted class.
-    pub class: ContactClass,
+    /// The asserted coincidence.
+    pub class: BooleanCoincidence,
 }
 
 impl FacePairDeclaration {
     /// A declared pair. There is no class-less constructor: the class
     /// is an argument at every mint site, so "I forgot the class" is a
-    /// compile error rather than a silent `Rest`.
-    pub fn new(a: FaceKey, b: FaceKey, class: ContactClass) -> Self {
-        Self { a, b, class }
+    /// compile error rather than a silent `Rest`. A [`ContactClass`]
+    /// passes as its [`BooleanCoincidence::Contact`].
+    pub fn new(a: FaceKey, b: FaceKey, class: impl Into<BooleanCoincidence>) -> Self {
+        Self {
+            a,
+            b,
+            class: class.into(),
+        }
     }
 
-    /// The `Rest` pair — the conformal class S1's planar declarations
-    /// have always meant, spelled out.
+    /// The `Rest` pair: one carrier, opposed senses.
     pub fn rest(a: FaceKey, b: FaceKey) -> Self {
         Self::new(a, b, ContactClass::Rest)
+    }
+
+    /// The continuation pair: one carrier, aligned senses.
+    pub fn continuation(a: FaceKey, b: FaceKey) -> Self {
+        Self::new(a, b, BooleanCoincidence::Continuation)
     }
 }
 
@@ -555,29 +565,83 @@ impl FacePairDeclaration {
 /// arm.)
 #[derive(Debug, Default)]
 pub(crate) struct DeclaredPairs {
-    map: std::collections::BTreeMap<(FaceKey, FaceKey), ContactClass>,
-    /// The `Rest` pairs the declaration door's carrier ladder called ONE
-    /// carrier, `(A face, B face)`.
-    one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+    map: std::collections::BTreeMap<(FaceKey, FaceKey), BooleanCoincidence>,
+    /// What the declaration door VERIFIED, `(A face, B face)`.
+    verified: VerifiedDeclarations,
+    /// The pairs whose carriers are certified to lie each in one closed
+    /// side of the other ([`Self::one_sided`]), `(A face, B face)`.
+    one_sided: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+}
+
+/// What [`verify_declared_contacts`] certified, per declared pair
+/// `(A face, B face)`: the certificates, not the claims.
+#[derive(Debug, Default)]
+pub(crate) struct VerifiedDeclarations {
+    /// `Rest` and continuation pairs the carrier ladder called ONE
+    /// carrier, with the sense the class demands.
+    pub(crate) one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+    /// `Tangent` pairs the witness lane verified.
+    pub(crate) tangent: std::collections::BTreeSet<(FaceKey, FaceKey)>,
 }
 
 impl DeclaredPairs {
-    pub(crate) fn build(
+    /// The index over `decls`, with the door's certificates and the
+    /// one-sided cover they and the operands' structural tangencies
+    /// derive ([`Self::one_sided`]).
+    pub(crate) fn build<T: Real>(
         decls: &BooleanDeclarations,
-        one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+        verified: VerifiedDeclarations,
+        a: &Body<T>,
+        b: &Body<T>,
     ) -> Self {
+        let mut one_sided: std::collections::BTreeSet<(FaceKey, FaceKey)> = verified
+            .one_carrier
+            .iter()
+            .chain(&verified.tangent)
+            .copied()
+            .collect();
+        // A structural tangency on either operand, to a face verified
+        // one carrier with the target: the strut's face is tangent to
+        // the shared carrier, so it lies in one closed side of it.
+        let (struts_a, struts_b) = (tangent_struts(a), tangent_struts(b));
+        for &(fa, fb) in &verified.one_carrier {
+            for &(f, k) in &struts_a {
+                if k == fa {
+                    one_sided.insert((f, fb));
+                }
+            }
+            for &(f, k) in &struts_b {
+                if k == fb {
+                    one_sided.insert((fa, f));
+                }
+            }
+        }
         Self {
             map: decls
                 .coincident_faces
                 .iter()
                 .map(|d| ((d.a, d.b), d.class))
                 .collect(),
-            one_carrier,
+            verified,
+            one_sided,
         }
     }
 
-    /// Whether the (operand-tagged) pair is a `Rest` declaration the
-    /// door VERIFIED as one carrier — the certificate, not the claim.
+    /// `(f1, f2)` as the `(A face, B face)` key, for a cross-operand
+    /// pair; `None` for a same-operand one, which is never declared here
+    /// (operand-internal coplanarity is the producing op's merge, not
+    /// this op's).
+    fn key(o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> Option<(FaceKey, FaceKey)> {
+        match (o1, o2) {
+            (Operand::A, Operand::B) => Some((f1, f2)),
+            (Operand::B, Operand::A) => Some((f2, f1)),
+            _ => None,
+        }
+    }
+
+    /// Whether the (operand-tagged) pair is a `Rest` or continuation
+    /// declaration the door VERIFIED as one carrier — the certificate,
+    /// not the claim.
     pub(crate) fn verified_one_carrier(
         &self,
         o1: Operand,
@@ -585,37 +649,94 @@ impl DeclaredPairs {
         o2: Operand,
         f2: FaceKey,
     ) -> bool {
-        match (o1, o2) {
-            (Operand::A, Operand::B) => self.one_carrier.contains(&(f1, f2)),
-            (Operand::B, Operand::A) => self.one_carrier.contains(&(f2, f1)),
-            _ => false,
-        }
+        Self::key(o1, f1, o2, f2).is_some_and(|k| self.verified.one_carrier.contains(&k))
     }
 
-    /// The class the (operand-tagged) face pair is declared under, if
-    /// any. Same-operand pairs are never declared here
-    /// (operand-internal coplanarity is the producing op's merge, not
-    /// this op's).
+    /// **The crossing layer's one-sided cover** (C4): is `f1`'s carrier
+    /// certified to lie in one closed side of `f2`'s?
+    ///
+    /// The certificate has exactly these sources, and no value reading:
+    /// a verified `Rest` or continuation (residual ≡ 0), a verified
+    /// `Tangent` (the witness lane's separation invariant), or a
+    /// structural tangency — an edge described `TangentIntersection` —
+    /// on EITHER operand, between one face of the pair and a face the
+    /// door verified one carrier with the other.
+    pub(crate) fn one_sided(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
+        Self::key(o1, f1, o2, f2).is_some_and(|k| self.one_sided.contains(&k))
+    }
+
+    /// The coincidence the (operand-tagged) face pair is declared under,
+    /// if any.
     pub(crate) fn class_of(
         &self,
         o1: Operand,
         f1: FaceKey,
         o2: Operand,
         f2: FaceKey,
-    ) -> Option<ContactClass> {
-        match (o1, o2) {
-            (Operand::A, Operand::B) => self.map.get(&(f1, f2)).copied(),
-            (Operand::B, Operand::A) => self.map.get(&(f2, f1)).copied(),
-            _ => None,
-        }
+    ) -> Option<BooleanCoincidence> {
+        Self::key(o1, f1, o2, f2).and_then(|k| self.map.get(&k).copied())
     }
 
-    /// Whether the pair is declared as the CONFORMAL class — the
-    /// question the classification stages actually ask (a `Tangent`
-    /// pair does not license same-carrier treatment).
-    pub(crate) fn declares_rest(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
-        self.class_of(o1, f1, o2, f2) == Some(ContactClass::Rest)
+    /// Whether the pair is declared ONE carrier (`Rest` or a
+    /// continuation) — the question the classification stages actually
+    /// ask (a `Tangent` pair does not license same-carrier treatment).
+    pub(crate) fn declares_one_carrier(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> bool {
+        self.class_of(o1, f1, o2, f2)
+            .is_some_and(BooleanCoincidence::is_one_carrier)
     }
+
+    /// Whether the pair is declared `Tangent`.
+    pub(crate) fn declares_tangent(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> bool {
+        self.class_of(o1, f1, o2, f2) == Some(BooleanCoincidence::TANGENT)
+    }
+}
+
+/// Every structural tangency of `body`, as `(face, other face)` both
+/// ways: the two faces across an edge described `TangentIntersection`
+/// of exactly their two surfaces.
+fn tangent_struts<T: Real>(body: &Body<T>) -> Vec<(FaceKey, FaceKey)> {
+    let mut out = Vec::new();
+    for (_, edge) in body.edges() {
+        let (Some(f1), Some(f2)) = (
+            body.face_of_half_edge(edge.he_plus),
+            body.face_of_half_edge(edge.he_minus),
+        ) else {
+            continue;
+        };
+        let (Some(s1), Some(s2)) = (
+            body.get_face(f1).map(|f| f.surface),
+            body.get_face(f2).map(|f| f.surface),
+        ) else {
+            continue;
+        };
+        let Some(curve) = body
+            .get_curve_geom(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)
+        else {
+            continue;
+        };
+        if let geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } =
+            curve.description()
+            && f1 != f2
+            && ((*d1, *d2) == (s1, s2) || (*d1, *d2) == (s2, s1))
+        {
+            out.push((f1, f2));
+            out.push((f2, f1));
+        }
+    }
+    out
 }
 
 /// The **germ** a null-edge half faces (F9 as data, PR 5): every
@@ -1020,6 +1141,26 @@ pub enum BooleanError {
         /// Extra recourse steering when the counter-evidence has a
         /// named remedy (AQ6's designed-clearance arm).
         steer: Option<&'static str>,
+    },
+    /// A declared CONTINUATION meets definite counter-evidence at the
+    /// op (C4's continuation clause): the two faces are not one carrier,
+    /// or their senses are opposed — which makes them a `Rest` pair, not
+    /// a continuation.
+    ///
+    /// Beside [`Self::ContactContradicted`] rather than inside it: a
+    /// continuation is not a contact, and that variant's payload is a
+    /// contact claim.
+    ContinuationContradicted {
+        /// The A-operand face.
+        a: FaceKey,
+        /// The B-operand face.
+        b: FaceKey,
+        /// The fact that contradicted it, where the carrier ladder found
+        /// the two carriers distinct; `None` where the senses did, which
+        /// the margin's predicate labels.
+        fact: Option<Contradiction>,
+        /// The margin that decided, and its predicate.
+        margin: Indeterminate,
     },
     /// A declaration names a contact class in a configuration this
     /// op's classification cannot act on: a `Tangent` pair outside
@@ -1527,6 +1668,8 @@ pub enum BooleanErrorKind {
     DeclarationContradicted,
     /// [`BooleanError::ContactContradicted`].
     ContactContradicted,
+    /// [`BooleanError::ContinuationContradicted`].
+    ContinuationContradicted,
     /// [`BooleanError::UnsupportedDeclarationClass`].
     UnsupportedDeclarationClass,
     /// [`BooleanError::RimSeamNotDeclarable`].
@@ -1682,6 +1825,7 @@ impl BooleanError {
             Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
             Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
             Self::ContactContradicted { .. } => BooleanErrorKind::ContactContradicted,
+            Self::ContinuationContradicted { .. } => BooleanErrorKind::ContinuationContradicted,
             Self::UnsupportedDeclarationClass { .. } => {
                 BooleanErrorKind::UnsupportedDeclarationClass
             }
@@ -1995,6 +2139,16 @@ impl core::fmt::Display for BooleanError {
                 fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 crate::contact::CONTRADICTION_RECOURSE,
                 crate::contact::steer_clause(*steer),
+            ),
+            Self::ContinuationContradicted { fact, .. } => write!(
+                f,
+                "the declared continuation between the operands' faces is contradicted: {}. {}",
+                fact.map_or(
+                    "the two faces are one surface facing opposite ways, which is a Rest \
+                     contact rather than a continuation",
+                    Contradiction::fact
+                ),
+                crate::contact::CONTRADICTION_RECOURSE,
             ),
             Self::DeclarationContradicted { fact } => write!(
                 f,
@@ -2357,11 +2511,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
-    let one_carrier = verify_declared_contacts(a_operand, b_operand, decls, band)?;
-    let declared = DeclaredPairs::build(decls, one_carrier);
+    let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand);
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
+    reduce::refuse_undeclared_continuations(a_operand, b_operand, &declared, band)?;
 
     // The reduction carves both operand clones through the Euler
     // operators; tier 1 is paid once per clone at the end of the
@@ -2506,17 +2661,16 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 /// pairs, so a Subtract with a false declaration was never verified at
 /// all.
 ///
-/// Both Same± verdicts pass: this door verifies the CARRIER claim (the
-/// classification's own question), and aligned coincidence is the
-/// merge stage's legitimate flush-wall answer. Refusing containment is
-/// the contact record's job, one level up.
+/// The sense is part of each one-carrier claim, as an exact bit:
+/// `Rest` demands opposed senses and a continuation aligned ones, and
+/// each is contradicted by the other's.
 fn verify_declared_contacts<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
     band: Band,
-) -> Result<std::collections::BTreeSet<(FaceKey, FaceKey)>, BooleanError> {
-    let mut one_carrier = std::collections::BTreeSet::new();
+) -> Result<VerifiedDeclarations, BooleanError> {
+    let mut verified = VerifiedDeclarations::default();
     for &FacePairDeclaration {
         a: fa,
         b: fb,
@@ -2524,30 +2678,70 @@ fn verify_declared_contacts<T: Decide>(
     } in &decls.coincident_faces
     {
         match class {
-            ContactClass::Rest => {
-                if verify_rest_declaration(a, fa, b, fb, band)? {
-                    one_carrier.insert((fa, fb));
+            BooleanCoincidence::Contact(ContactClass::Tangent) => {
+                verify_tangent_declaration(a, fa, b, fb, band)?;
+                verified.tangent.insert((fa, fb));
+            }
+            BooleanCoincidence::Contact(ContactClass::Rest) | BooleanCoincidence::Continuation => {
+                if verify_one_carrier_declaration(a, fa, b, fb, class, band)? {
+                    verified.one_carrier.insert((fa, fb));
                 }
             }
-            ContactClass::Tangent => verify_tangent_declaration(a, fa, b, fb, band)?,
         }
     }
-    Ok(one_carrier)
+    Ok(verified)
 }
 
-/// The `Rest` half of [`verify_declared_contacts`]: the carrier
-/// ladder in its declared posture — a definitely-different carrier
-/// contradicts, an in-band residue is bridged (C4), a sliver
-/// escalates.
+/// The refusal of a one-carrier declaration whose senses contradict
+/// its class: aligned under `Rest`, opposed under a continuation. The
+/// sense is a structural bit, so no `decide` ran; the predicate labels
+/// the finding for the reader and never enters the K funnel.
+pub(super) fn sense_contradiction(
+    fa: FaceKey,
+    fb: FaceKey,
+    class: BooleanCoincidence,
+    band: Band,
+) -> BooleanError {
+    let margin = |predicate| Indeterminate {
+        margin: MarginDiag::INVALID,
+        band,
+        predicate: Some(predicate),
+        terminal_sliver: false,
+    };
+    match class {
+        BooleanCoincidence::Continuation => BooleanError::ContinuationContradicted {
+            a: fa,
+            b: fb,
+            fact: None,
+            margin: margin("continuation_senses_aligned"),
+        },
+        BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
+            declaration: crate::contact::DeclaredContact {
+                a: fa,
+                b: fb,
+                class,
+            },
+            steer: None,
+            fact: None,
+            margin: margin("contact_rest_senses_opposed"),
+        },
+    }
+}
+
+/// The `Rest` and continuation half of [`verify_declared_contacts`]:
+/// the carrier ladder in its declared posture — a definitely-different
+/// carrier contradicts, an in-band residue is bridged (C4), a sliver
+/// escalates — and then the sense bit the class demands.
 ///
-/// `Ok(true)` when the ladder called the two faces ONE carrier (either
-/// orientation) — the certificate the crossing layer's carrier-identity
+/// `Ok(true)` when the ladder called the two faces ONE carrier with
+/// that sense — the certificate the crossing layer's carrier-identity
 /// rung reads, recorded once here instead of re-derived per event.
-fn verify_rest_declaration<T: Decide>(
+fn verify_one_carrier_declaration<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
+    class: BooleanCoincidence,
     band: Band,
 ) -> Result<bool, BooleanError> {
     // A carrier kind the ladder cannot describe: `validate_
@@ -2557,23 +2751,32 @@ fn verify_rest_declaration<T: Decide>(
     let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
         return Ok(false);
     };
+    let aligned = class == BooleanCoincidence::Continuation;
     match outcome {
+        Ok(carrier_eq::CarrierRelation::SameOriented) if aligned => Ok(true),
+        Ok(carrier_eq::CarrierRelation::SameOpposite) if !aligned => Ok(true),
         Ok(
             carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
-        ) => Ok(true),
+        ) => Err(sense_contradiction(fa, fb, class, band)),
         Ok(carrier_eq::CarrierRelation::Distinct) => Ok(false),
-        Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => {
-            Err(BooleanError::ContactContradicted {
+        Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => Err(match class {
+            BooleanCoincidence::Continuation => BooleanError::ContinuationContradicted {
+                a: fa,
+                b: fb,
+                fact: Some(fact),
+                margin: diag,
+            },
+            BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
                     a: fa,
                     b: fb,
-                    class: ContactClass::Rest,
+                    class,
                 },
                 steer: contact_verify::fit_steer(fact),
                 fact: Some(fact),
                 margin: diag,
-            })
-        }
+            },
+        }),
         Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => Err(
             BooleanError::plane_identity(rung, PlaneDoor::Declared, diag),
         ),
@@ -3232,6 +3435,12 @@ mod tests {
                 steer: None,
                 fact: None,
             },
+            BooleanError::ContinuationContradicted {
+                a: face,
+                b: face,
+                fact: None,
+                margin: diag,
+            },
             BooleanError::UnsupportedDeclarationClass {
                 class: ContactClass::Tangent,
             },
@@ -3378,6 +3587,7 @@ mod tests {
                 BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
                 BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",
                 BooleanErrorKind::ContactContradicted => "ContactContradicted",
+                BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",
                 BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
                 BooleanErrorKind::RimSeamNotDeclarable => "RimSeamNotDeclarable",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",

@@ -99,6 +99,88 @@ impl ContactClass {
     }
 }
 
+/// **What a boolean node may declare about a cross-operand face pair**
+/// (C4's continuation clause): a contact, or a continuation.
+///
+/// The two declaration seats take different types, so each states only
+/// what its consumer can use. A mate, a contact record and the census
+/// speak [`ContactClass`] — the valid inputs to a mate. A boolean node
+/// (`BooleanDeclarations::coincident_faces`, and a `Declare` node at
+/// the recipe layer) speaks this type — the valid inputs to a union,
+/// which are every contact plus the one relation that is not a contact.
+///
+/// - [`Contact`](Self::Contact) — the pair touches, of that class.
+/// - [`Continuation`](Self::Continuation) — the pair lies on ONE
+///   carrier with its senses ALIGNED, interiors disjoint, sharing only
+///   a boundary curve: one surface carried on across the seam. It is
+///   verified by `Rest`'s carrier rung with the sense bit reversed
+///   (opposed senses contradict it), and a union merges it.
+///
+/// A continuation is declarable on a boolean node and nowhere else: at
+/// rest two flush walls carry nothing to verify, so no mate can state
+/// one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BooleanCoincidence {
+    /// The pair is in contact, of this class.
+    Contact(ContactClass),
+    /// The pair is one surface carried on across a shared boundary:
+    /// one carrier, aligned senses.
+    Continuation,
+}
+
+impl BooleanCoincidence {
+    /// The conformal contact, `Contact(Rest)`.
+    pub const REST: Self = Self::Contact(ContactClass::Rest);
+    /// The tangent contact, `Contact(Tangent)`.
+    pub const TANGENT: Self = Self::Contact(ContactClass::Tangent);
+
+    /// **Every coincidence this type can name**: each contact class in
+    /// [`ContactClass::ALL`]'s order, then the continuation. The one
+    /// enumeration, for the reason [`ContactClass::ALL`] gives.
+    pub const ALL: &'static [BooleanCoincidence] = &[Self::REST, Self::TANGENT, Self::Continuation];
+
+    /// The coincidence's name, for messages.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Contact(class) => class.name(),
+            Self::Continuation => "Continuation",
+        }
+    }
+
+    /// A stable, distinct content tag ([`ContactClass::content_tag`]'s
+    /// contract). A contact keeps its class's tag, so a declaration
+    /// that was a contact before the continuation existed keys as it
+    /// always did.
+    pub fn content_tag(self) -> u64 {
+        match self {
+            Self::Contact(class) => class.content_tag(),
+            Self::Continuation => 3,
+        }
+    }
+
+    /// The contact class, when the coincidence is a contact.
+    pub fn contact(self) -> Option<ContactClass> {
+        match self {
+            Self::Contact(class) => Some(class),
+            Self::Continuation => None,
+        }
+    }
+
+    /// Whether the declaration asserts ONE carrier (`Rest` or a
+    /// continuation) — the claim the classification stages' same-carrier
+    /// treatment and the merge stage consume. A `Tangent` pair's
+    /// carriers are distinct by its own verification.
+    pub fn is_one_carrier(self) -> bool {
+        matches!(self, Self::REST | Self::Continuation)
+    }
+}
+
+impl From<ContactClass> for BooleanCoincidence {
+    fn from(class: ContactClass) -> Self {
+        Self::Contact(class)
+    }
+}
+
 /// **The two-arm recourse menu** for a contact refusal (SELECT-DESIGN
 /// §3d, ratified; C4's failure table verbatim): declare the named
 /// class, or move the geometry.
@@ -362,5 +444,30 @@ mod tests {
     fn class_names_are_the_declaration_spelling() {
         assert_eq!(ContactClass::Rest.name(), "Rest");
         assert_eq!(ContactClass::Tangent.name(), "Tangent");
+        assert_eq!(BooleanCoincidence::Continuation.name(), "Continuation");
+    }
+
+    /// A contact keys as its class always did, and the continuation
+    /// takes a tag no contact holds.
+    #[test]
+    fn coincidence_tags_extend_the_class_tags_injectively() {
+        for &class in ContactClass::ALL {
+            assert_eq!(
+                BooleanCoincidence::from(class).content_tag(),
+                class.content_tag()
+            );
+        }
+        let mut tags: Vec<u64> = BooleanCoincidence::ALL
+            .iter()
+            .map(|c| c.content_tag())
+            .collect();
+        tags.sort_unstable();
+        tags.dedup();
+        assert_eq!(tags.len(), BooleanCoincidence::ALL.len());
+        assert_eq!(
+            BooleanCoincidence::ALL.len(),
+            ContactClass::ALL.len() + 1,
+            "ALL holds every contact class and the continuation"
+        );
     }
 }

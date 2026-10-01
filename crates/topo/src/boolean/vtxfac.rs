@@ -212,7 +212,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // verdict is the second-order sector trilean — which side the
         // sector's carrier CURVES to relative to the pierced face's
         // material ([`super::sectors::tangent_lump`]).
-        if class == Some(crate::contact::ContactClass::Tangent) {
+        if class == Some(crate::contact::BooleanCoincidence::TANGENT) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)
                     .and_then(|face| body.get_surface(face.surface))
@@ -248,7 +248,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 kind,
             });
         };
-        let declared_rest = class == Some(crate::contact::ContactClass::Rest);
+        let declared_rest = class.is_some_and(crate::contact::BooleanCoincidence::is_one_carrier);
         // C8: a CURVED on-carrier sector is opened by a VERIFIED
         // declaration and by nothing else — undeclared touching keeps
         // this typed frontier refusal. The recourse is a declared

@@ -22,7 +22,9 @@
 use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{declared_union, failure, flush_pairs, run};
+use crate::docm7_union_declare::{
+    declared_union, declared_union_classed, failure, flush_pairs, run,
+};
 use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus, rim_piece};
 use crate::fixture::{ang, face_vertices, fname, insert, len, scl, table, wall};
 
@@ -823,15 +825,21 @@ fn a_h_contact(
 /// `"fuse"` or the refusal's variant.
 fn outcomes(blocks: &[Bx], creation: &[usize], ah: Option<usize>) -> Vec<(Vec<usize>, String)> {
     let (doc, ids) = document(blocks, creation);
-    let mut pairs = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]));
+    let mut pairs: Vec<_> = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]))
+        .into_iter()
+        .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
+        .collect();
     if let Some(h) = ah {
-        pairs.push(a_h_contact(&doc, ids[0], ids[h]));
+        pairs.push((
+            a_h_contact(&doc, ids[0], ids[h]),
+            editor_core::BooleanCoincidence::REST,
+        ));
     }
     permutations(&(0..blocks.len()).collect::<Vec<_>>())
         .into_iter()
         .map(|order| {
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union, _) = declared_union(doc.clone(), &members, pairs.clone());
+            let (docx, union, _) = declared_union_classed(doc.clone(), &members, pairs.clone());
             let ev = run(&docx);
             let variant = |shown: String| {
                 shown

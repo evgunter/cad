@@ -3036,7 +3036,7 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, ContactClass, DirectionRefusal, EntityKind,
+        BifurcationKind, BooleanCoincidence, BranchMarginEvidence, DirectionRefusal, EntityKind,
         FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
         MeasureNodeFault, PartFault, SitedRef, WitnessAge, WitnessBifurcation,
     };
@@ -3050,7 +3050,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     };
     let finding = |relation| FlushFinding {
         pair: (sited(2), sited(3)),
-        class: ContactClass::Rest,
+        class: BooleanCoincidence::REST,
         evidence: FlushEvidence {
             relation,
             rung: FlushRung::DecidedCoincident,

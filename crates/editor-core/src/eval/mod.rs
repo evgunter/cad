@@ -53,7 +53,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
+use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -553,7 +553,7 @@ pub enum ValuePayload<T: Decide> {
     /// `declare` input). The class travels WITH its pair from
     /// authoring to the kernel door — the one vocabulary end-to-end
     /// (SELECT-DESIGN §3d).
-    Declarations(Vec<((SitedRef, SitedRef), ContactClass)>),
+    Declarations(Vec<((SitedRef, SitedRef), topo::BooleanCoincidence)>),
     /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
     /// tree mate determined its child, a non-tree mate declared and
     /// solved nothing. Not body-denoting, so the product gather skips

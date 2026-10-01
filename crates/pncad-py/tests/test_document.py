@@ -294,9 +294,9 @@ class TestEvaluation(unittest.TestCase):
         finding = caught.exception.finding
         self.assertIsInstance(finding, pncad.FlushFinding)
         # Both boxes rise from z=0: the shared bottom planes face the
-        # same way — the flush-wall (merge-stage) flavor.
+        # same way — a continuation, not a contact.
         self.assertEqual(finding.relation, pncad.PlaneRelation.SameOriented)
-        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
+        self.assertEqual(finding.class_, pncad.BooleanCoincidence.Continuation)
         self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
         # The pair's names speak the one opaque alphabet: each side is
         # a FACE name of its own operand's evaluation.
@@ -458,7 +458,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
         # The names are the same alphabet the materializers speak.
         self.assertIn(finding.a, ev.all_faces(lower))
         self.assertIn(finding.b, ev.all_faces(upper))
-        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
+        self.assertEqual(finding.class_, pncad.BooleanCoincidence.Rest)
         self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
         # Value semantics: re-detection answers an equal value.
         self.assertEqual(finding, ev.find_flush_candidates(lower, upper)[0])

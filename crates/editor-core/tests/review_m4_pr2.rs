@@ -107,7 +107,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     // per-operand, so ONE Declare serves both operand orders).
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(
+        Node::declare_continuation(vec![(
             SitedRef::new(a, fixture::fname(a, RoleSeg::Cap(CapEnd::Start))),
             SitedRef::new(b, fixture::fname(b, RoleSeg::Cap(CapEnd::Start))),
         )]),
@@ -742,7 +742,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         // B side is read at the TRANSFORM, the subtract's operand.
         let (doc, decl) = insert(
             doc,
-            Node::declare_rest(vec![(
+            Node::declare_continuation(vec![(
                 SitedRef::new(cube, fixture::fname(cube, RoleSeg::Cap(CapEnd::End))),
                 SitedRef::new(tr, fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
             )]),

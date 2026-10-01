@@ -88,7 +88,7 @@ fn require_same<T: Decide>(
     // lanes that can consume its second-order verdict dispatch to
     // [`super::sectors::tangent_lump`] before reaching here, so a
     // remaining reach is a lane without that arm — refused typed.
-    if declared.class_of(o1, s1.face, o2, s2.face) == Some(crate::contact::ContactClass::Tangent) {
+    if declared.declares_tangent(o1, s1.face, o2, s2.face) {
         let kind = body1
             .get_face(s1.face)
             .and_then(|f| body1.get_surface(f.surface))
@@ -101,7 +101,7 @@ fn require_same<T: Decide>(
     }
     let c1 = carrier_of(body1, o1, s1)?;
     let c2 = carrier_of(body2, o2, s2)?;
-    let declared_rest = declared.declares_rest(o1, s1.face, o2, s2.face);
+    let declared_rest = declared.declares_one_carrier(o1, s1.face, o2, s2.face);
     if !declared_rest {
         let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
         let refusal = if curved(&c1) {
@@ -197,7 +197,7 @@ pub(super) fn recl_sectors<T: Decide>(
         // sector identity.
         let tangent_pair =
             declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
-                == Some(crate::contact::ContactClass::Tangent);
+                == Some(crate::contact::BooleanCoincidence::TANGENT);
         if tangent_pair {
             let surface_of = |body: &Body<T>, face| {
                 body.get_face(face)
@@ -738,7 +738,7 @@ fn resolve_edge_edge<T: Decide>(
                         let other_sec = &other_secs[oi];
                         let lump =
                             if declared.class_of(own_op, own_sec.face, other_op, other_sec.face)
-                                == Some(crate::contact::ContactClass::Tangent)
+                                == Some(crate::contact::BooleanCoincidence::TANGENT)
                             {
                                 let surface_of = |body: &Body<T>, face| {
                                     body.get_face(face)
@@ -802,7 +802,7 @@ fn resolve_edge_edge<T: Decide>(
                 a_sectors[ia].face,
                 super::Operand::B,
                 b_sectors[ib].face,
-            ) == Some(crate::contact::ContactClass::Tangent)
+            ) == Some(crate::contact::BooleanCoincidence::TANGENT)
         });
     if !tangent_flank {
         let a_in = [

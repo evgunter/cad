@@ -2575,7 +2575,7 @@ mod declared_union {
     use pncad::document::{BooleanOp, Node, RecipeNodeId};
     use pncad::geom_core::Tol;
     use pncad::prelude::{CapEnd, RoleSeg};
-    use pncad::select::ContactClass;
+    use pncad::select::{BooleanCoincidence, ContactClass};
 
     use super::declare_offer_rows;
     use crate::combine::BooleanTool;
@@ -2693,7 +2693,7 @@ mod declared_union {
             ),
             "the block's top cap against the boss's bottom cap"
         );
-        assert_eq!(finding.class, ContactClass::Rest);
+        assert_eq!(finding.class, BooleanCoincidence::REST);
 
         let op = (BooleanOp::Union, tool);
         let (painted, _, _) = panel(&session, offer.clone(), op, None);
@@ -2730,7 +2730,7 @@ mod declared_union {
         let doc = session.committed_doc();
         assert!(matches!(
             doc.node(declare),
-            Some(Node::Declare { pairs }) if pairs[..] == [(finding.pair.clone(), ContactClass::Rest)]
+            Some(Node::Declare { pairs }) if pairs[..] == [(finding.pair.clone(), BooleanCoincidence::REST)]
         ));
         assert!(matches!(
             doc.node(union),

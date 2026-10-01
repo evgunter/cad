@@ -463,7 +463,7 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![
+        Node::declare_continuation(vec![
             (
                 SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
                 SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),

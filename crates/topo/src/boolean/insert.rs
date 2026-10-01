@@ -279,7 +279,7 @@ fn record_germ_dir<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     if declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
-        != Some(crate::contact::ContactClass::Tangent)
+        != Some(crate::contact::BooleanCoincidence::TANGENT)
     {
         return germ_dir(sa, sb, band);
     }

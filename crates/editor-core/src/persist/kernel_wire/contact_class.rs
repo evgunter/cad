@@ -1,7 +1,7 @@
 //! The wire form of a contact class — the mate node's `class` field
 //! and, through [`pairs`], a [`Node::Declare`](crate::Node) payload's
-//! classes. ONE vocabulary, one wire spelling of it, one table
-//! (ASM-R2a D-1).
+//! coincidences (a contact class, or `continuation`). ONE vocabulary,
+//! one wire spelling of it, one table (ASM-R2a D-1).
 //!
 //! Lowercase because the class vocabulary was minted straight into a
 //! `with` module at the v11 break and never had a derive to match; see
@@ -47,7 +47,7 @@ use crate::node::SitedRef;
 use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serializer};
-use topo::ContactClass;
+use topo::{BooleanCoincidence, ContactClass};
 
 /// The wire spelling of a class, or `None` if this build has no name
 /// for it.
@@ -140,27 +140,62 @@ pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ContactCla
     untag(&spelling).ok_or_else(|| D::Error::custom(unknown(&spelling)))
 }
 
-/// The declare payload's `((a, b), class)` list, spelling its classes
-/// with the same table as the single-class form above.
+/// The wire spelling of a boolean node's coincidence: a contact under
+/// its class's spelling ([`tag`]), the continuation as `continuation`.
+fn coincidence_tag(c: BooleanCoincidence) -> Option<&'static str> {
+    match c {
+        BooleanCoincidence::Contact(class) => tag(class),
+        BooleanCoincidence::Continuation => Some("continuation"),
+    }
+}
+
+/// The inverse of [`coincidence_tag`], over the kernel's enumeration.
+fn coincidence_untag(s: &str) -> Option<BooleanCoincidence> {
+    BooleanCoincidence::ALL
+        .iter()
+        .copied()
+        .find(|c| coincidence_tag(*c) == Some(s))
+}
+
+/// The coincidence spellings this build can read, for a refusal.
+fn coincidence_known() -> String {
+    BooleanCoincidence::ALL
+        .iter()
+        .filter_map(|c| coincidence_tag(*c).map(|t| format!("`{t}`")))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The declare payload's `((a, b), class)` list. A contact spells its
+/// class with the same table as the single-class form above, so a
+/// declaration written before the continuation existed reads unchanged.
 pub(crate) mod pairs {
-    use super::{ContactClass, SitedRef, spelling, unknown, untag};
+    use super::{
+        BooleanCoincidence, SitedRef, coincidence_known, coincidence_tag, coincidence_untag,
+    };
     use serde::de::Error as _;
     use serde::ser::Error as _;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    type Pairs = Vec<((SitedRef, SitedRef), ContactClass)>;
+    type Pairs = Vec<((SitedRef, SitedRef), BooleanCoincidence)>;
 
     /// # Errors
     ///
     /// A class with no spelling in this build, or none this build
-    /// could read back, refuses rather than inventing one — the same
-    /// write-side door the single-class form uses.
+    /// could read back, refuses rather than inventing one.
     pub(crate) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
         let mut out = Vec::with_capacity(pairs.len());
         for ((a, b), class) in pairs {
-            let t = spelling(*class).map_err(|why| {
-                S::Error::custom(format!("persist: declared contact class: {why}"))
-            })?;
+            let t = coincidence_tag(*class)
+                .filter(|t| coincidence_untag(t) == Some(*class))
+                .ok_or_else(|| {
+                    S::Error::custom(format!(
+                        "persist: declared coincidence {}: this build has no wire spelling it \
+                         can read back ({}) — refusing to write a guessed tag",
+                        class.name(),
+                        coincidence_known()
+                    ))
+                })?;
             out.push(((a, b), t));
         }
         out.serialize(ser)
@@ -168,15 +203,21 @@ pub(crate) mod pairs {
 
     /// # Errors
     ///
-    /// An unknown spelling refuses typed, quoting the same table and
-    /// the same deferral as the single-class form.
+    /// An unknown spelling refuses typed, quoting the table and the
+    /// `Fit` deferral.
     pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
         let raw: Vec<((SitedRef, SitedRef), String)> = Vec::deserialize(de)?;
         raw.into_iter()
             .map(|(pair, t)| {
-                untag(&t)
+                coincidence_untag(&t)
                     .map(|class| (pair, class))
-                    .ok_or_else(|| D::Error::custom(unknown(&t)))
+                    .ok_or_else(|| {
+                        D::Error::custom(format!(
+                            "unknown declared coincidence '{t}' — a document spells one of {}; {}",
+                            coincidence_known(),
+                            topo::FIT_DEFERRAL
+                        ))
+                    })
             })
             .collect()
     }

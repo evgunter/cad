@@ -21,15 +21,15 @@ use crate::mate2_common;
 use geom_brep::SurfaceKind;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use mate2_common::{
-    assert_additive, body_of, boolean_body, collar, collar_at, peg_at, plane_face, volume,
-    wall_decls, walls_at,
+    assert_additive, body_of, boolean_body, collar, collar_at, continuations, peg_at, plane_face,
+    volume, wall_decls, walls_at,
 };
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass, FacePairDeclaration,
-    FaceSurface, MergeCoplanarError, Rechart, SkippedMerge, validate_closed, validate_geometric,
-    validate_pseudomanifold,
+    FaceSurface, MergeCoplanarError, Operand, Rechart, SkippedMerge, validate_closed,
+    validate_geometric, validate_pseudomanifold,
 };
 
 const BORE_R: f64 = 0.5;
@@ -79,7 +79,8 @@ fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
         )
         .unwrap(),
     );
-    let mut d = BooleanDeclarations::none();
+    // The plates' flush outer walls are continuations.
+    let mut d = continuations(&p, &q);
     d.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&p, 1.0, true),
         plane_face(&q, 1.0, false),
@@ -854,9 +855,12 @@ fn rendered_skip_names_the_door_not_the_declaration() {
     assert!(!text.to_lowercase().contains("invalid"), "{text}");
 }
 
-/// Row 7 (E, F): two equal pegs stacked end to end. With only the
-/// caps declared (E) the reduction refuses `CurvedPierceUnsupported`.
-/// With every wall pair declared too (F) the mate REACHES this door:
+/// Row 7 (E, F): two equal pegs stacked end to end, their walls one
+/// cylinder carried on across the caps — continuations. With only the
+/// caps declared (E) the reduction refuses the undeclared CURVED
+/// continuation, naming a wall pair and its aligned relation, as it
+/// refuses an undeclared planar one. With every wall pair declared a
+/// continuation too (F) the mate REACHES this door:
 /// the union is exact and honest, the nine wall pairs are recorded as
 /// one cylinder pair, and six wall faces survive — all of one sense,
 /// each lower sector meeting its upper across the z = 1 rim (three
@@ -877,16 +881,24 @@ fn stacked_equal_pegs_same_sense_walls() {
     let err = topo::union_with(&lo, &hi, &caps, Tol::witness())
         .err()
         .unwrap_or_else(|| panic!("E: the caps-only stacked pegs reach a new door — re-pin"));
+    let BooleanError::UndeclaredCoincidence {
+        pair: [(Operand::A, fa), (Operand::B, fb)],
+        relation: topo::PlaneRelation::SameOriented,
+        ..
+    } = err
+    else {
+        panic!("E caps only: an undeclared continuation, A then B: {err:?}");
+    };
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "E caps only: {err:?}"
+        walls_at(&lo, BORE_R).contains(&fa) && walls_at(&hi, BORE_R).contains(&fb),
+        "E: the refused pair is a wall pair, on the cylinder: {err:?}"
     );
 
     let mut both = caps.clone();
     for &fa in &walls_at(&lo, BORE_R) {
         for &fb in &walls_at(&hi, BORE_R) {
             both.coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
+                .push(FacePairDeclaration::continuation(fa, fb));
         }
     }
     let bb = union_honest("F", &lo, &hi, &both);

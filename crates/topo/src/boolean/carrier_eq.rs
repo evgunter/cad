@@ -865,8 +865,9 @@ mod tests {
 
     /// Aligned coincidence is the carrier ladder's honest
     /// `SameOriented`, on the torus arm as on every other: two
-    /// same-carrier walls facing the SAME way are a merge-stage pair,
-    /// and refusing containment is the contact door's job.
+    /// same-carrier walls facing the SAME way are declarable as a
+    /// continuation, and refusing a `Rest` claim on them is the
+    /// declaration door's job.
     #[test]
     fn torus_aligned_is_same_oriented() {
         let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);

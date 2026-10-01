@@ -2111,10 +2111,11 @@ pub(super) fn declared_surface_pairs<T: Real>(
                  b: fb,
                  class,
              }| {
-                // Only the CONFORMAL class declares a merge-stage
-                // coincidence; a `Tangent` pair's carriers are DISTINCT
-                // by its own verification and never merge.
-                if class != crate::contact::ContactClass::Rest {
+                // A one-carrier declaration (`Rest` or a continuation)
+                // licenses a merge-stage coincidence; a `Tangent` pair's
+                // carriers are DISTINCT by its own verification and never
+                // merge.
+                if !class.is_one_carrier() {
                     return None;
                 }
                 // A-clone surface keys ARE result keys (carve/clone

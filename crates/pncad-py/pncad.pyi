@@ -4567,7 +4567,7 @@ class Verdict:
 class PlaneRelation:
     """The verify door's relation verdict: `SameOpposite` = resting
     contact (opposed outward normals), `SameOriented` = flush walls
-    (the merge-stage flavor). `Distinct` exists as vocabulary; a
+    (a continuation). `Distinct` exists as vocabulary; a
     finding never carries it."""
 
     SameOriented: Final[PlaneRelation]
@@ -4575,17 +4575,24 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The contact class a declaration asserts. `Rest` (cosurface
-    contact, on any carrier the verify ladder names — plane, sphere,
-    cylinder, torus) is the only class the flush DETECTOR mints, so
-    it is the only one a `FlushFinding` from
-    `find_flush_candidates` carries;
-    `Tangent` crossed the mirror with M9-1 and is nameable here
-    because a class the binding cannot name would refuse typed at the
-    crossing instead."""
+    """The contact class a mate asserts: `Rest` (cosurface contact,
+    opposed senses, on any carrier the verify ladder names — plane,
+    sphere, cylinder, torus) or `Tangent`. A union's declaration
+    speaks `BooleanCoincidence`, which adds the continuation."""
 
     Rest: Final[ContactClass]
     Tangent: Final[ContactClass]
+
+class BooleanCoincidence:
+    """What a boolean node may declare about a face pair: a contact
+    (`Rest`, `Tangent`), or a `Continuation` — one carrier with aligned
+    senses, as two stacked parts' outer walls are, which the union
+    merges. The flush detector reports `Rest` for an opposed pair and
+    `Continuation` for an aligned one."""
+
+    Rest: Final[BooleanCoincidence]
+    Tangent: Final[BooleanCoincidence]
+    Continuation: Final[BooleanCoincidence]
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:
@@ -4596,11 +4603,10 @@ class FlushRung:
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:
-    """One flush finding: "this face pair would verify as declared
-    contact" — a VALUE to inspect and declare, never itself a
-    declaration. The detector's reach is the `Rest` ladder's, so a
-    pair may be cosurface on a plane, a sphere, a cylinder or a
-    torus. `a`/`b` are the pair's names in the same OPAQUE text
+    """One flush finding: "this face pair would verify as declared" —
+    a VALUE to inspect and declare, never itself a declaration. The
+    detector's reach is the carrier ladder's, so a pair may be
+    cosurface on a plane, a sphere, a cylinder or a torus. `a`/`b` are the pair's names in the same OPAQUE text
     alphabet every materializer speaks (store them, hand them back;
     never parse). `class_` spells `class` (a Python keyword)
     with the `or_` trailing-underscore precedent."""
@@ -4612,7 +4618,7 @@ class FlushFinding:
     @property
     def relation(self) -> PlaneRelation: ...
     @property
-    def class_(self) -> ContactClass: ...
+    def class_(self) -> BooleanCoincidence: ...
     @property
     def rung(self) -> FlushRung: ...
     def __eq__(self, other: object) -> bool: ...

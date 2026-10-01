@@ -48,6 +48,22 @@ pub(crate) enum ContactClass {
     Tangent,
 }
 
+/// What a boolean node may declare about a face pair: a contact of a
+/// class (`Rest`, `Tangent`), or a `Continuation` — one carrier with
+/// aligned senses, two stacked parts' outer walls. A mate takes a
+/// `ContactClass`; a union's declaration takes this.
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(
+    missing_docs,
+    reason = "each variant mirrors the documented `topo::BooleanCoincidence` value of the same name"
+)]
+pub(crate) enum BooleanCoincidence {
+    Rest,
+    Tangent,
+    Continuation,
+}
+
 /// Which rung of the verify ladder decided a finding.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,11 +76,11 @@ pub(crate) enum FlushRung {
     DecidedCoincident,
 }
 
-/// One flush finding: "this face pair would verify as declared
-/// contact" — a VALUE to inspect and pass to `Node.declare` /
-/// `Doc.declare` / `Doc.declare_all`, never itself a declaration.
-/// The detector's reach is the `Rest` ladder's, so the pair may be
-/// cosurface on a plane, a sphere, a cylinder or a torus.
+/// One flush finding: "this face pair would verify as declared" — a
+/// VALUE to inspect and pass to `Node.declare` / `Doc.declare` /
+/// `Doc.declare_all`, never itself a declaration. The detector's reach
+/// is the carrier ladder's, so the pair may be cosurface on a plane, a
+/// sphere, a cylinder or a torus.
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
 /// query's first node, `b` from its second). Each side also carries
@@ -75,8 +91,8 @@ pub(crate) enum FlushRung {
 /// node id beside it would be the one part a caller could act on
 /// wrongly. `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
-/// material sides; `SameOriented` = flush walls, the merge-stage
-/// flavor); `class_` names the contact class (trailing underscore:
+/// material sides; `SameOriented` = flush walls, a continuation);
+/// `class_` names what a declaration would assert (trailing underscore:
 /// `class` is a Python keyword — the `or_` precedent); `rung` says
 /// which ladder rung decided (`SharedSource` = syntactic recipe
 /// identity, `DecidedCoincident` = the geometric trilean).
@@ -159,6 +175,22 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
     }
 }
 
+/// Crossing helper: the kernel coincidence as the Python mirror. A
+/// contact crosses through [`contact_class`], so a class this binding
+/// predates refuses typed there; the continuation crosses as itself.
+pub(crate) fn boolean_coincidence(
+    py: Python<'_>,
+    c: s::BooleanCoincidence,
+) -> PyResult<BooleanCoincidence> {
+    match c {
+        s::BooleanCoincidence::Contact(class) => Ok(match contact_class(py, class)? {
+            ContactClass::Rest => BooleanCoincidence::Rest,
+            ContactClass::Tangent => BooleanCoincidence::Tangent,
+        }),
+        s::BooleanCoincidence::Continuation => Ok(BooleanCoincidence::Continuation),
+    }
+}
+
 /// Crossing helper: the kernel rung as the Python mirror. Exhaustive
 /// over the KERNEL enum, no wildcard arm — kernel growth stops the
 /// build here.
@@ -190,10 +222,11 @@ impl FlushFinding {
         plane_relation(self.0.evidence.relation)
     }
 
-    /// The contact class the pair would verify as.
+    /// What the pair would verify as when declared: `Rest` for opposed
+    /// senses, `Continuation` for aligned ones.
     #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<ContactClass> {
-        contact_class(py, self.0.class)
+    fn class_(&self, py: Python<'_>) -> PyResult<BooleanCoincidence> {
+        boolean_coincidence(py, self.0.class)
     }
 
     /// Which ladder rung decided.
@@ -215,6 +248,7 @@ impl FlushFinding {
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PlaneRelation>()?;
     m.add_class::<ContactClass>()?;
+    m.add_class::<BooleanCoincidence>()?;
     m.add_class::<FlushRung>()?;
     m.add_class::<FlushFinding>()?;
     Ok(())

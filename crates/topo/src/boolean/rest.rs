@@ -91,7 +91,7 @@ use super::{
     BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
 };
 use crate::body::Body;
-use crate::contact::ContactClass;
+use crate::contact::{BooleanCoincidence, ContactClass};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
@@ -984,9 +984,10 @@ fn verify_declared_pairs<T: Decide>(
     } in &decls.coincident_faces
     {
         // Only the CONFORMAL class names REST-contact surfaces; a
-        // `Tangent` pair touches along a locus, was verified by its
-        // own C4 table at the front door, and licenses no patch.
-        if class != ContactClass::Rest {
+        // `Tangent` pair touches along a locus and a continuation is
+        // one surface carried on, each verified at the front door, and
+        // neither licenses a patch.
+        if class != BooleanCoincidence::REST {
             continue;
         }
         // The one carrier-pair door: oriented sources, sense-folded
@@ -1020,7 +1021,10 @@ fn verify_declared_pairs<T: Decide>(
                 a_rest.insert(sa, ());
                 b_rest.insert(sb, ());
             }
-            Ok(PlaneRelation::SameOriented) => {} // merge-stage pair
+            // Aligned senses contradict `Rest` here as at the door.
+            Ok(PlaneRelation::SameOriented) => {
+                return Err(super::sense_contradiction(fa, fb, class, band));
+            }
             Ok(PlaneRelation::Distinct) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "REST lane: declared rung returned Distinct instead of contradicting",

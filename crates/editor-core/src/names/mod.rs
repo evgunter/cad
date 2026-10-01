@@ -64,9 +64,9 @@ pub(crate) use emit_union::{
     is_fold_ranked_member_edge, member_name, member_view, name_union,
 };
 pub use flush::{
-    CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
-    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,
-    find_flush_candidates,
+    BooleanCoincidence, CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict,
+    DeclareError, DeclaredContact, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare,
+    declare_all, declare_node, find_flush_candidates,
 };
 pub use geompred::{
     ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,

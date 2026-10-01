@@ -1466,6 +1466,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UndeclaredCoincidence => "undeclared_coincidence",
         BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
+        BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
         BooleanErrorKind::RimSeamNotDeclarable => "rim_seam_not_declarable",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
