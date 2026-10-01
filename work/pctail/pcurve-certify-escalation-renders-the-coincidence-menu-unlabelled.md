@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: PcurveCertifyError's two escalation arms render the coincidence menu unlabelled, where the boundary's own fit leaves nothing to declare
 status: open
 opened: 2026-09-28
+cost: E
+priority: P3
 ---
 
 (ENCL implementer, from the §5 sweep of
