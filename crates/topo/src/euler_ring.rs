@@ -1167,15 +1167,10 @@ impl<T: Decide> Body<T> {
     ///
     /// **A ring moved onto a face on another chart is vouched for by
     /// its edges, or refused** ([`RechartDoor::RingMove`]), at both
-    /// doors: where `to_face`'s key is not the ring's face's,
-    /// [`Body::mef`]'s two questions are asked of every edge of the
-    /// ring — stranded ([`EulerOpError::RechartStrandsDescriptions`]),
-    /// then a certified edge naming no key `to_face` wears
-    /// ([`EulerOpError::RechartUnvouched`]), unless the two faces are on
-    /// one payload ([`Body::same_chart`]). Scaffold and null edges are
-    /// not asked. The containment decision stays the caller's; this is
-    /// the keys' half of it. The lever is the face the ring moves onto:
-    /// one on a chart its edges name.
+    /// doors: every edge of the ring is asked [`Body::vouch_move`]'s
+    /// questions against `to_face`'s key. The containment decision
+    /// stays the caller's; this is the keys' half of it. The lever is
+    /// the face the ring moves onto: one on a chart its edges name.
     ///
     /// # Tier-1 preservation (the demotion claim's least obvious case)
     ///

@@ -192,7 +192,9 @@
 //!   its side faces): mint with a conventional spec, then upgrade via
 //!   [`Body::set_edge_curve`], which also enforces
 //!   description-adjacency coherence. The operators themselves accept
-//!   any spec that certifies.
+//!   any spec that certifies, save `mef`: the chord's two faces are
+//!   the old face and the one it mints, both known in its plan phase,
+//!   so it asks the same adjacency question of the chord.
 //! - Chord-line sugar for polyhedral construction and the migrated M1
 //!   suites: [`Body::mev_line`], [`Body::mef_chord`],
 //!   [`Body::mekr_chord`] derive the spec from the site's endpoint
@@ -275,7 +277,7 @@ use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
-use crate::attach::Slot;
+use crate::attach::{Slot, require_description_adjacent};
 use crate::body::Body;
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -332,9 +334,13 @@ pub enum RechartDoor {
     /// [`Body::mef`] and [`Body::mef_chord`]: mints a face from part of
     /// a loop (the run `[he1 .. he2)` and the chord's `he_minus`).
     Mef,
-    /// [`Body::mfkrh`], [`Body::mfkrh_minting`] and
-    /// [`Body::mfkrh_plug`]: mints a face from a ring.
+    /// [`Body::mfkrh`] and [`Body::mfkrh_minting`]: mints a face from a
+    /// ring.
     Mfkrh,
+    /// [`Body::mfkrh_plug`]: mints a face from a ring on a fresh
+    /// placeholder chart. Its caller picks no chart, so its lever is
+    /// the door: [`Body::mfkrh`], which takes one.
+    MfkrhPlug,
     /// [`Body::ring_move`] and [`Body::ring_move_minting`]: moves a
     /// ring onto another face.
     RingMove,
@@ -347,6 +353,7 @@ impl RechartDoor {
             Self::SetFaceSurface => "set_face_surface",
             Self::Mef => "mef",
             Self::Mfkrh => "mfkrh",
+            Self::MfkrhPlug => "mfkrh_plug",
             Self::RingMove => "ring_move",
         }
     }
@@ -369,6 +376,10 @@ impl RechartDoor {
                  (set_face_surfaces_describing takes their re-descriptions under a band, and \
                  carried_redescriptions states the stored ones there)",
             ),
+            Self::MfkrhPlug => (
+                "the face it mints",
+                "promote the ring with mfkrh onto the chart those edges name",
+            ),
             Self::RingMove => (
                 "the move",
                 "move the loop onto a face on the chart its edges name",
@@ -386,13 +397,13 @@ impl RechartDoor {
     fn unvouched(self, face: FaceKey, edges: &[EdgeKey], chord: bool) -> String {
         let name = self.name();
         let named = match (edges.is_empty(), chord) {
-            (_, false) => format!("its certified edges {edges:?}"),
-            (true, true) => "the certified chord it mints".to_string(),
-            (false, true) => format!("its certified edges {edges:?} and the chord it mints"),
+            (_, false) => format!("its certified edges {edges:?} do"),
+            (true, true) => "the certified chord it mints does".to_string(),
+            (false, true) => format!("its certified edges {edges:?} and the chord it mints do"),
         };
         match self {
             Self::SetFaceSurface => format!(
-                "{name}: face {face:?} would move onto a chart that {named} do not name, so \
+                "{name}: face {face:?} would move onto a chart that {named} not name, so \
                  nothing vouches that its boundary lies on that chart. Recourse: move the face \
                  onto a chart its certified edges name, or re-describe them on the new chart \
                  (set_face_surfaces_describing certifies each re-description it is handed \
@@ -400,14 +411,20 @@ impl RechartDoor {
             ),
             Self::Mef | Self::Mfkrh => format!(
                 "{name}: the face it would mint from face {face:?} lies on a chart that \
-                 {named} do not name, so nothing vouches that its boundary lies on that \
+                 {named} not name, so nothing vouches that its boundary lies on that \
                  chart. Recourse: mint the face on a chart its certified edges name, or mint \
                  it on its parent's chart and move it with set_face_surfaces_describing, which \
                  certifies each re-description it is handed against the new chart"
             ),
+            Self::MfkrhPlug => format!(
+                "{name}: the face it would mint from face {face:?} lies on a fresh placeholder \
+                 chart that {named} not name, so nothing vouches that its boundary lies on \
+                 that chart; this door promotes scaffold rings. Recourse: promote the ring \
+                 with mfkrh onto a chart its certified edges name"
+            ),
             Self::RingMove => format!(
-                "{name}: the loop would move onto face {face:?}, on a chart that {named} do \
-                 not name, so nothing vouches that they lie on that chart. Recourse: move the \
+                "{name}: the loop would move onto face {face:?}, on a chart that {named} not \
+                 name, so nothing vouches that they lie on that chart. Recourse: move the \
                  loop onto a face on a chart its edges name"
             ),
         }
@@ -786,15 +803,19 @@ pub enum EulerOpError {
         /// The edge listed twice.
         edge: EdgeKey,
     },
-    /// A door writing a description ([`Body::set_edge_curve`] and the
-    /// describing doors' listed specs): an intrinsic (`Intersection`) or
-    /// `Seam` description's surface keys do not match the edge's two
-    /// adjacent faces' surfaces — the description does not describe
-    /// *this* edge's locus (D2: an intersection edge's surfaces are its
-    /// adjacent faces'; a seam's surface is on both sides).
+    /// A door writing a description ([`Body::set_edge_curve`], the
+    /// describing doors' listed specs, and the chord [`Body::mef`]
+    /// mints): an intrinsic (`Intersection`) or `Seam` description's
+    /// surface keys do not match the edge's two adjacent faces'
+    /// surfaces, or a chart image names neither — the description does
+    /// not describe *this* edge's locus (D2: an intersection edge's
+    /// surfaces are its adjacent faces'; a seam's surface is on both
+    /// sides).
     DescriptionNotAdjacent {
-        /// The edge whose description is incoherent with its faces.
-        edge: EdgeKey,
+        /// The edge whose description is incoherent with its faces;
+        /// `None` for the edge a minting door would mint, which has no
+        /// key before the mutation phase.
+        edge: Option<EdgeKey>,
     },
     /// A keys-only re-chart door ([`RechartDoor`]) would leave these
     /// edges described against a surface their faces no longer wear:
@@ -1345,10 +1366,17 @@ impl EulerOpError {
             Self::DuplicateRedescription { edge } => {
                 format!("edge {edge:?} is re-described twice")
             }
-            Self::DescriptionNotAdjacent { edge } => format!(
-                "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
-                 its adjacent faces' surfaces (D2 adjacency coherence)"
-            ),
+            Self::DescriptionNotAdjacent { edge } => {
+                let edge = edge.map_or_else(
+                    || "the edge the door mints".to_string(),
+                    |edge| format!("edge {edge:?}"),
+                );
+                format!(
+                    "{edge}: its description names surfaces that are not its two faces' \
+                     surfaces (D2 adjacency coherence). Recourse: describe it against the \
+                     surfaces its faces wear"
+                )
+            }
             Self::RechartStrandsDescriptions { door, edges } => door.strands(edges),
             Self::RechartUnvouched {
                 door,
@@ -1608,7 +1636,7 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::MergeRebasesCarriers { edges: vec![ek] },
         EulerOpError::NotMergedMember { edge: ek },
         EulerOpError::DuplicateRedescription { edge: ek },
-        EulerOpError::DescriptionNotAdjacent { edge: ek },
+        EulerOpError::DescriptionNotAdjacent { edge: Some(ek) },
         EulerOpError::RechartStrandsDescriptions {
             door: RechartDoor::Mef,
             edges: vec![ek],
@@ -2306,24 +2334,22 @@ impl<T: Decide> Body<T> {
     /// its loops the cut rewires leave complete, and a ring it keeps
     /// keeps what it had.
     ///
+    /// **The chord's description describes this edge, or is refused.**
+    /// Its two faces wear the old face's key and the new face's, so
+    /// `curve`'s description is asked the adjacency question
+    /// [`Body::set_edge_curve`] asks
+    /// ([`EulerOpError::DescriptionNotAdjacent`], naming no edge: the
+    /// chord has no key yet), whatever `surface` is.
+    ///
     /// **A face minted on another chart is vouched for by the edges it
     /// takes, or refused** ([`RechartDoor::Mef`]). Where `surface` is
     /// not the old face's key, the run's edges and the chord change the
     /// key one of their faces wears, and this keys-only door asks
-    /// [`Body::set_face_surface`]'s two questions of them: an edge whose
-    /// description is coherent now and would name no key either of its
-    /// faces wears is refused
-    /// ([`EulerOpError::RechartStrandsDescriptions`]); a certified edge
-    /// of the run, or a certified chord, whose description does not
-    /// name the new face's key is refused
-    /// ([`EulerOpError::RechartUnvouched`]), since only a certificate on
-    /// the new chart vouches that it lies there — unless the new face is
-    /// on the old one's payload ([`Body::same_chart`]). A `New` key is
-    /// one no description names, so onto a `New` chart only scaffold
-    /// and null edges pass; they carry no certificate and are not
-    /// asked. The lever is the chart the face is minted on: mint it on
-    /// a key its certified edges name, or on the old face's and move it
-    /// with [`Body::set_face_surfaces_describing`].
+    /// [`Body::vouch_move`]'s questions of them. A `New` key is one no
+    /// description names, so onto a `New` chart off the old face's
+    /// payload only scaffold and null edges pass. The lever is the chart the face is minted on: mint it
+    /// on a key its certified edges name, or on the old face's and move
+    /// it with [`Body::set_face_surfaces_describing`].
     ///
     /// # Surgery (Chords, `he1 != he2`)
     ///
@@ -2371,8 +2397,11 @@ impl<T: Decide> Body<T> {
     /// Then, for both sites, the geometry gates: a
     /// [`FaceSurface::Shared`] key resolves (`StaleGeometry`), a stated
     /// sense agrees with the derived one on the old face's chart
-    /// ([`EulerOpError::SenseContradictsChart`]), and `curve` certifies
-    /// ([`EulerOpError::Certification`]). Then, where the new face's key
+    /// ([`EulerOpError::SenseContradictsChart`]), `curve`'s description
+    /// is adjacency-coherent with the old face's key and the new face's
+    /// ([`EulerOpError::DescriptionNotAdjacent`], `edge: None`), and
+    /// `curve` certifies ([`EulerOpError::Certification`]) — the order
+    /// [`Body::set_edge_curve`] asks them in. Then, where the new face's key
     /// is not the old one's, no edge of the run is stranded
     /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
     /// in run order), then every certified edge of the run and a
@@ -2931,11 +2960,14 @@ impl<T: Decide> Body<T> {
             ParentSide::With,
         )?;
         let carried = resolved.on_parent_chart;
-        let certified = self.certify_edge_spec(curve.spec(u1 == u2, p1, p2), p1, p2, tol)?;
+        let after = Slot::of_spec(&surface, inherit_surface);
+        let spec = curve.spec(u1 == u2, p1, p2);
+        require_description_adjacent(None, &spec.description, [Slot::Kept(inherit_surface), after])?;
+        let certified = self.certify_edge_spec(spec, p1, p2, tol)?;
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
-            (inherit_surface, Slot::of_spec(&surface, inherit_surface)),
+            (inherit_surface, after),
             self.run_edges(&run)?,
             |he, _, _| run.contains(&he),
             carried,
@@ -3089,13 +3121,15 @@ impl<T: Decide> Body<T> {
             (inherit_surface, inherit_sense),
             ParentSide::With,
         )?;
-        let certified =
-            self.certify_edge_spec(curve.spec(true, anchor, anchor), anchor, anchor, tol)?;
+        let after = Slot::of_spec(&surface, inherit_surface);
+        let spec = curve.spec(true, anchor, anchor);
+        require_description_adjacent(None, &spec.description, [Slot::Kept(inherit_surface), after])?;
+        let certified = self.certify_edge_spec(spec, anchor, anchor, tol)?;
         let carried = resolved.on_parent_chart;
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
-            (inherit_surface, Slot::of_spec(&surface, inherit_surface)),
+            (inherit_surface, after),
             [],
             |_, _, _| false,
             carried,

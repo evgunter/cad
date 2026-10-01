@@ -1780,16 +1780,11 @@ impl<T: Decide> Body<T> {
     ///
     /// **A face minted on another chart is vouched for by the ring's
     /// edges, or refused** ([`RechartDoor::Mfkrh`]), at every door of
-    /// the family: where the new face's key is not the demoting face's,
-    /// [`Body::mef`]'s two questions are asked of every edge of the
-    /// ring — stranded ([`EulerOpError::RechartStrandsDescriptions`]),
-    /// then a certified edge naming no key the new face wears
-    /// ([`EulerOpError::RechartUnvouched`]), unless the new face is on
-    /// the demoting face's payload ([`Body::same_chart`]). Scaffold and
-    /// null edges are not asked. The lever is the chart the face is
-    /// minted on: mint it on a key the ring's certified edges name, or
-    /// on the demoting face's and move it with
-    /// [`Body::set_face_surfaces_describing`].
+    /// the family: every edge of the ring is asked
+    /// [`Body::vouch_move`]'s questions against the new face's key. The
+    /// lever is the chart the face is minted on: mint it on a key the
+    /// ring's certified edges name, or on the demoting face's and move
+    /// it with [`Body::set_face_surfaces_describing`].
     ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
@@ -1831,7 +1826,7 @@ impl<T: Decide> Body<T> {
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mfkrh_with(ring, surface, None)?;
+        let created = self.mfkrh_with(ring, surface, None, RechartDoor::Mfkrh)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh");
         Ok(created)
@@ -1856,20 +1851,22 @@ impl<T: Decide> Body<T> {
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let created = self.mfkrh_with(ring, surface, Some(tol))?;
+        let created = self.mfkrh_with(ring, surface, Some(tol), RechartDoor::Mfkrh)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh_minting");
         Ok(created)
     }
 
     /// [`Body::mfkrh`]'s plan and surgery, with the band its site mint
-    /// runs at, or none for the keys-only door. The door that calls it
-    /// declares the postcondition.
+    /// runs at, or none for the keys-only door, and the door its
+    /// re-chart refusals name. The door that calls it declares the
+    /// postcondition.
     fn mfkrh_with(
         &mut self,
         ring: LoopKey,
         surface: FaceSurface<T>,
         tol: Option<Tol>,
+        door: RechartDoor,
     ) -> Result<MfkrhCreated, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
         let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
@@ -1897,7 +1894,7 @@ impl<T: Decide> Body<T> {
         )?;
         let ring_halves = self.site_cycle(ring)?;
         self.vouch_move(
-            RechartDoor::Mfkrh,
+            door,
             old_face,
             (inherit_surface, Slot::of_spec(&surface, inherit_surface)),
             self.run_edges(&ring_halves)?,
@@ -1971,21 +1968,33 @@ impl<T: Decide> Body<T> {
     /// refuses for one. The caller states the honest bit, and mints the
     /// rows, when it gives the face a real surface.
     ///
-    /// No description names the placeholder's fresh key, so a ring with
-    /// a certified edge is refused ([`EulerOpError::RechartUnvouched`]):
-    /// this door promotes scaffold rings.
+    /// **This door promotes scaffold rings.** No description names the
+    /// placeholder's fresh key, so it asks [`Body::mfkrh`]'s questions
+    /// ([`Body::vouch_move`]) as [`RechartDoor::MfkrhPlug`]: a ring
+    /// with an edge it would strand, or with a certified edge, is
+    /// refused. Its caller picks no chart, so the lever its refusals
+    /// name is the door: promote the ring with [`Body::mfkrh`] onto a
+    /// chart its certified edges name.
     ///
     /// # Errors
     ///
-    /// As [`Body::mfkrh`].
+    /// As [`Body::mfkrh`], the re-chart refusals naming
+    /// [`RechartDoor::MfkrhPlug`].
     pub fn mfkrh_plug(&mut self, ring: LoopKey, sense: bool) -> Result<MfkrhCreated, EulerOpError> {
-        self.mfkrh(
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mfkrh_with(
             ring,
             FaceSurface::New {
                 surface: geom::Surface::nurbs_placeholder(),
                 sense,
             },
-        )
+            None,
+            RechartDoor::MfkrhPlug,
+        )?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh_plug");
+        Ok(created)
     }
 }
 
@@ -2701,7 +2710,7 @@ mod tests {
         assert_eq!(
             body.kev_describing(strut.he_minus, &[(seg.edge, spec)], Tol::witness())
                 .map(|_| ()),
-            Err(EulerOpError::DescriptionNotAdjacent { edge: seg.edge })
+            Err(EulerOpError::DescriptionNotAdjacent { edge: Some(seg.edge) })
         );
         assert_eq!(deep_snapshot(&body), before);
     }
