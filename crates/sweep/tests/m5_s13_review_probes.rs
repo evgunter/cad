@@ -129,18 +129,20 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 /// top face's boundary — but the configuration NEVER reaches the scan's
 /// near-boundary arm, because a circle crossing a boundary edge means
 /// that edge passes within `r` of the sphere center (the two conditions
-/// are the same inequality, `cx² + s² < r²`), so the REDUCE-stage
-/// pierce frontier fires first: `CurvedPierceUnsupported`, typed. The
+/// are the same inequality, `cx² + s² < r²`), so the REDUCE stage meets
+/// the edge first: the line × sphere roots pierce it, and the op stops
+/// at the pierce point's curved sector side
+/// (`work/reach/slab-cut-cylinder-refuses-sector-side.md`), typed. The
 /// scan's near-boundary arm remains as certified-enclosure
 /// defense-in-depth behind that door (its residual live width is the
-/// box pad; the shadowing is structural — the pierce door runs before
+/// box pad; the shadowing is structural — the reduction runs before
 /// any fallback — so this pin is stable).
 #[test]
-fn probe_edge_escape_refuses_typed_at_the_pierce_frontier() {
+fn probe_edge_escape_refuses_typed_before_the_scan() {
     let b = ball_poled_y(0.5, Vec3::new(0.3, 2.0, 1.2), Tol::witness());
     let err = topo::union(&slab(), &b, Tol::witness()).expect_err("edge escape must not certify");
-    let BooleanError::CurvedPierceUnsupported { .. } = err else {
-        panic!("expected the pierce frontier, got {err:?}");
+    let BooleanError::CurvedSectorSideUnsupported { .. } = err else {
+        panic!("expected the pierce to land and the sector side to refuse, got {err:?}");
     };
 }
 

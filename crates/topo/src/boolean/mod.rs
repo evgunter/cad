@@ -68,6 +68,7 @@
 
 pub(crate) mod boxes;
 pub mod carrier_eq;
+mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;
 pub mod contact_verify;

@@ -248,3 +248,17 @@ arms. Single review (style + claims), then a fix pass and a delta review;
 both clean. Filed: CARVE's `extrude-arc-walls-are-ruled-in-n-not-w`,
 CLEAVE's `topo-smooth-arms-decide-descriptions-outside-the-must-carry-rule`,
 and the residue row `blend-split-rows-and-must-carry-prose-residue` (P4).
+
+## 2026-10-01 — `annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance` closed (PR #3670)
+
+The annulus rim phase splits its seams through `split_fragment`, which
+now takes the expected source and refuses inside the one home if its
+lookup disagrees; every annulus row names `frag.source`, as the ladder's
+`slits` row does. `blend_surgery`'s debug postcondition checks the SOURCE
+half of every birth row (an exhaustive destructure of `BlendNaming`). No
+name moved (sweep, editor-core naming, tour teapot rows). Full review,
+fix pass, delta review; the review's row
+`every_band_crossing_names_the_seam_its_foot_split` is what tells a
+right source from a merely valid one. Residue (the ladder still names
+`meridian_splits` by the split key) is on
+`blend-split-rows-and-must-carry-prose-residue`.

@@ -215,6 +215,15 @@ pub enum BooleanDecision {
     /// depth, contour residuals and sides, a coaxial tilt and offset, and
     /// the quartic's own rows.
     ArcTorusRoots,
+    /// Where a straight edge crosses a sphere: the line × sphere
+    /// quadratic's discriminant (`solid_contain::line_sphere_roots`,
+    /// `bool_ray_sphere_disc`).
+    SphereRoots,
+    /// Where an arc crosses a sphere: the circle × sphere lane's
+    /// extremes (`circle_sphere`, `bool_circle_sphere_extreme`), read
+    /// for a coaxial carrier's constant residual and for either end of
+    /// a tilted one's range.
+    ArcSphereRoots,
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.
     PierceCurvature,
@@ -1368,6 +1377,8 @@ impl BooleanDecision {
             }
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
+            Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
+            Self::ArcSphereRoots => "whether an arc crosses a sphere, grazes it or misses it",
             Self::PierceCurvature => {
                 "whether an edge leaves a curved face steeply enough against its bend to read \
                  which side it goes"
@@ -1521,6 +1532,21 @@ impl BooleanDecision {
             // a tolerance to tighten below.
             Self::ArcTorusRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the torus or clearly misses it",
+                LeverPass::ByRung,
+            ),
+            // As the wall's discriminant: two roots pass, a miss passes
+            // where both ends are off the sphere, and a zero is a
+            // tangency, refused at the frontier.
+            Self::SphereRoots => Ending::Lever(
+                "move the parts so the edge clearly crosses the sphere or clearly misses it",
+                LeverPass::ByArm,
+            ),
+            // One predicate reads three extremes that pass on different
+            // sets (a coaxial residual's zero is the constant case, the
+            // near end passes positive, the far end negative), and the
+            // escalation does not say which refused.
+            Self::ArcSphereRoots => Ending::Lever(
+                "move the parts so the arc clearly crosses the sphere or clearly misses it",
                 LeverPass::ByRung,
             ),
             Self::PierceCurvature => Ending::Sized(PIERCE_CURVATURE),
@@ -1760,6 +1786,8 @@ mod tests {
                 }
                 BooleanDecisionKind::TorusRoots => vec![BooleanDecision::TorusRoots],
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
+                BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
+                BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
                 BooleanDecisionKind::PierceCurvature => vec![BooleanDecision::PierceCurvature],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
@@ -2063,6 +2091,22 @@ mod tests {
                 "how many times an arc crosses a torus",
                 Ending::Lever(
                     "Recourse: move the parts so the arc clearly crosses the torus or clearly \
+                     misses it",
+                    LeverPass::ByRung,
+                ),
+            ),
+            BooleanDecision::SphereRoots => (
+                "whether an edge crosses a sphere, grazes it or misses it",
+                Ending::Lever(
+                    "Recourse: move the parts so the edge clearly crosses the sphere or clearly \
+                     misses it",
+                    LeverPass::ByArm,
+                ),
+            ),
+            BooleanDecision::ArcSphereRoots => (
+                "whether an arc crosses a sphere, grazes it or misses it",
+                Ending::Lever(
+                    "Recourse: move the parts so the arc clearly crosses the sphere or clearly \
                      misses it",
                     LeverPass::ByRung,
                 ),

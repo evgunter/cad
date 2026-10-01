@@ -25,6 +25,11 @@ use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
+/// A one-metre lever, through the one door a lever is formed by.
+fn unit_arm() -> editor_core::mate::coset::Arm {
+    editor_core::mate::coset::Arm::of(0.0, 1.0).expect("a metre is in range")
+}
+
 /// `step`, with the minted id unwrapped — every insert in this suite
 /// mints one.
 fn mint(doc: ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
@@ -371,7 +376,10 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
         "the measured clash IS the authored gap mismatch: {metres}"
     );
     let message = fault.to_string();
-    assert!(message.contains(predicate), "{message}");
+    assert!(
+        message.contains("the translation leaves the shared plane") && !message.contains(predicate),
+        "the sentence says in words what the predicate found: {message}"
+    );
     assert!(message.contains("clash"), "{message}");
 }
 
@@ -750,8 +758,9 @@ fn row5_the_closure_set_is_closed_under_intersection() {
         point: p,
         direction: d,
     };
-    let meet =
-        |a, b| editor_core::mate::coset::intersect_subgroups(a, b, band, 1.0).expect("decided");
+    let meet = |a, b| {
+        editor_core::mate::coset::intersect_subgroups(a, b, band, unit_arm()).expect("decided")
+    };
     // The universal rows: SE(3) is the identity, empty absorbs,
     // trivial is the zero.
     for g in [
@@ -918,7 +927,7 @@ fn row5b_the_folded_representative_is_the_solved_clocking() {
         },
         representative: Affine3::from_parts(Mat3::identity(), Vec3::new(1.0, -1.0, 0.0)),
     };
-    let out = intersect(held, added, band, 1.0).expect("the pair is assemblable");
+    let out = intersect(held, added, band, unit_arm()).expect("the pair is assemblable");
     assert_eq!(out.subgroup.name(), "prismatic");
     let turned = out
         .representative
@@ -1658,17 +1667,16 @@ fn row7d_an_in_band_case_split_escalates_typed() {
     );
 }
 
-/// **The mate solve's escalations are on no node's log.** The solve is
-/// a whole-document computation that runs BEFORE any node's verdict
-/// bracket opens, so the funnel's escalation on the in-band case split
-/// lands in whatever frame encloses the evaluation — visible to an
-/// outer bracket a caller holds, on no `NodeValue` and no `NodeError`
-/// — and reaches a consumer only as `NodeErrorKind::Mate` carrying
-/// `MateFault::Indeterminate`. Pinned so the gap is guarded: the item
-/// `work/props/escalation-channel-misses-op-minted-indeterminates.md`
-/// records it, and this row goes red when the solve is bracketed.
+/// **The mate solve's escalation is on the refused mate's own log,
+/// and on no other.** The solve is a whole-document computation that
+/// runs before any node's frame opens, so it keeps each decision for
+/// the mate whose answer it decided, and that mate's node splices it
+/// into its own frame. The in-band case split here is decided while
+/// the fold adds `mates[1]` to the pair's intersection, so it is
+/// `mates[1]`'s: on that mate's `NodeError`, on no other node's log,
+/// and not in a frame the caller holds around the evaluation.
 #[test]
-fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_frame() {
+fn row7e_a_mate_solve_escalation_is_on_the_refused_mates_own_log_and_not_in_an_outer_frame() {
     let eps = geom_core::Tol::witness().get().eps;
     let tilt = 3.0 * eps;
     let (doc, ids, store, body) = assembly("asm-r2a-row7e", 2);
@@ -1699,30 +1707,35 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
     let named = |escalations: &[geom_core::k_stats::Escalation]| {
         escalations
             .iter()
-            .any(|e| e.predicate() == "mate_axes_parallel")
+            .filter(|e| e.predicate() == "mate_axes_parallel")
+            .count()
     };
+    let mut carriers = Vec::new();
     for (id, result) in &ev.nodes {
         let on_node = match result {
             NodeResult::Ok(v) => named(&v.escalations),
             NodeResult::Failed(e) => named(&e.escalations),
-            NodeResult::Poisoned { .. } => false,
+            NodeResult::Poisoned { .. } => 0,
         };
-        assert!(
-            !on_node,
-            "node {:012x} carries the solve's escalation",
-            id.0
-        );
+        carriers.extend(std::iter::repeat_n(*id, on_node));
     }
-    assert!(
-        matches!(
-            mate_fault(&ev, mates[1]),
-            editor_core::MateFault::Indeterminate { .. }
-        ),
-        "the mate node fails typed through the error enum"
+    assert_eq!(
+        carriers,
+        vec![mates[1]],
+        "the escalation is on the refused mate's log, once, and on no other node's"
     );
-    assert!(
+    let editor_core::MateFault::Indeterminate { mate: refused, .. } = mate_fault(&ev, mates[1])
+    else {
+        panic!("the mate node fails typed through the error enum");
+    };
+    assert_eq!(
+        refused, mates[1],
+        "the fault names the mate whose log holds it"
+    );
+    assert_eq!(
         named(&outside.escalations),
-        "the outer frame saw the solve's escalation: {:?}",
+        0,
+        "no frame around the evaluation sees the solve's escalation: {:?}",
         outside.escalations
     );
 }

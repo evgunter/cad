@@ -2105,10 +2105,17 @@ fn top_level_fn(line: &str) -> Option<String> {
 /// The per-site table, as the census reads it: `(file, function,
 /// decision, mentions)`.
 const SITES: &[(&str, &str, &str, usize)] = &[
+    (
+        "circle_sphere.rs",
+        "circle_sphere_roots",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "mint_directed", "Coincide::Sectors", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
+    ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
     (
@@ -2262,6 +2269,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
+    (
+        "reduce.rs",
+        "line_wall_root_count",
+        "BooleanDecision::SphereRoots",
+        1,
+    ),
     (
         "reduce.rs",
         "line_wall_root_count",

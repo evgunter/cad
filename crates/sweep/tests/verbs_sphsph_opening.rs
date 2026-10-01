@@ -14,11 +14,16 @@
 //!   is found, the containment fallback runs, and its curved-extent
 //!   scan refuses `SpheresMeet`.
 //! * **Offset along X or Y.** The seam circle now meets the other
-//!   sphere, so a seam edge pierces a CURVED face and the reduce layer
-//!   refuses `CurvedPierceUnsupported` — the pierce door, which is a
-//!   layer *above* any germ-pair join arm. A sphere×sphere crossing
-//!   therefore cannot reach the join in this build, whatever the germ
-//!   frame knows about the section circle.
+//!   sphere, so a seam edge crosses a CURVED face and the circle ×
+//!   sphere roots pierce it. The pair reaches the join, which hands each
+//!   side the pair's radical plane, and the split turns on that plane
+//!   against the CHART: offset along X it is tilted and the arc-side
+//!   rule's polar gate refuses it, typed (`SectionNotPolar`); offset
+//!   along Y (the polar axis) the section is polar for both operands,
+//!   and the union builds because both balls are revolved from the same
+//!   seam — each seam meridian pierces the other sphere ON the other's
+//!   seam. Spin either ball about Y and the pierce lands inside a
+//!   half-band: the pierce-ring door (`snowman.rs`).
 //!
 //! Nested balls answer, and must keep answering.
 
@@ -54,7 +59,7 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> Body<f64> {
 }
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("a crossing sphere pair has no join lane")
+    topo::union(a, b, Tol::witness()).expect_err("the pair is refused")
 }
 
 /// **The nesting question offers a tolerance only where a smaller one
@@ -161,26 +166,35 @@ fn z_offset_pairs_refuse_at_the_curved_extent_scan() {
 }
 
 /// An in-seam-plane or polar-axis offset drives a seam meridian through
-/// the other ball's sphere face: the curved PIERCE door, above the join.
-/// The polar-axis row is the one a polar-aligned germ pair would take,
-/// so no sphere×sphere section reaches a germ frame in this build.
+/// the other ball's sphere face, and the circle × sphere roots pierce
+/// it. What the join makes of the section then turns on the chart: a
+/// polar-axis offset builds, and an in-seam-plane offset refuses at the
+/// polar gate
+/// (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
 #[test]
-fn seam_crossing_pairs_refuse_at_the_curved_pierce() {
-    for (centre, label) in [
-        (
-            Vec3::new(3.4, 2.0, 0.5),
-            "offset along X, in the seam plane",
+fn seam_crossing_pairs_reach_the_join() {
+    let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));
+    let err = union_err(&a, &ball_at(1.0, Vec3::new(3.4, 2.0, 0.5)));
+    assert!(
+        matches!(
+            &err,
+            BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
         ),
-        (Vec3::new(2.0, 3.4, 0.5), "offset along Y, the polar axis"),
-    ] {
-        let err = union_err(
-            &ball_at(1.0, Vec3::new(2.0, 2.0, 0.5)),
-            &ball_at(1.0, centre),
-        );
-        let BooleanError::CurvedPierceUnsupported { .. } = err else {
-            panic!("{label}: expected the curved pierce door, got {err:?}");
-        };
-    }
+        "offset along X, in the seam plane: expected the polar gate, got {err:?}"
+    );
+    let joined = topo::union(&a, &ball_at(1.0, Vec3::new(2.0, 3.4, 0.5)), Tol::witness())
+        .unwrap_or_else(|e| panic!("offset along Y, the polar axis: the union builds, got {e:?}"));
+    let joined = &joined.body().expect("a body").body;
+    let v = topo::mass_properties(joined, Tol::witness())
+        .unwrap()
+        .volume;
+    // Two unit balls 1.4 apart share a lens of two caps of height 0.3.
+    let lens = 2.0 * PI * 0.3_f64.powi(2) * (3.0 - 0.3) / 3.0;
+    let want = 2.0 * 4.0 * PI / 3.0 - lens;
+    assert!(
+        (v - want).abs() < 1e-9 * want,
+        "union volume {v}, want {want}"
+    );
 }
 
 /// Nested balls never reach either door; the outer ball is the answer.
