@@ -79,7 +79,7 @@ holds at most one solution and the solution set in the chain is one arc.
 The tube says nothing about a disjoint component at other `e`-levels;
 that is C3's exhaustiveness obligation, a separate theorem. A straddling
 enclosure is a genuine sliver of the operand pair and escalates
-(`ssi_tube_transversality`, `SsiError::TransversalityBand`), never a
+(`ssi_tube_transversality`, `SsiError::TubeStraddles`), never a
 retry. Hull bounds are an entry requirement: no schedule-max-only
 certificate ever reaches an at-rest body, and the tube is required for
 every fitted `Intersection`, not only where several branches were found.
@@ -256,7 +256,8 @@ implemented.
 **C9 — Enclosures run on the in-repo interval backend.** Every enclosure
 certification needs is transcendental-free (implicit residuals are
 polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
-so certification arithmetic is `±`, `×`, `÷` and integer powers over
+so certification arithmetic is IEEE-754's correctly rounded operations —
+`±`, `×`, `÷`, integer powers and `√` — and no transcendental, over
 `geom_core::Interval` — the evaluation scalar itself, a newtype over
 `interval-transcendentals`' `DInterval`, outward-rounded where the
 operation is inexact, always compiled, MIT-clean. Its refusal is the

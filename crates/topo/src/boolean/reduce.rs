@@ -1965,8 +1965,8 @@ fn wall_crossing<T: Decide>(
         // The face's own trim decides whether a crossing of the CARRIER
         // is a crossing of this FACE. `None` is the chart door's honest
         // remainder (a ringed face, a non-iso boundary, a full-period
-        // azimuth window) and keeps the caller's frontier rather than
-        // reading as "outside".
+        // window outside the band class) and keeps the caller's
+        // frontier rather than reading as "outside".
         //
         // **A landing point definitely OFF the carrier is not "outside
         // the trim".** The root was certified ON the surface, so the
@@ -2492,7 +2492,7 @@ fn split_other_at_point<T: Decide>(
     }
     let t = curve
         .carrier()
-        .param_near(p, (t0 + t1) * T::from_f64(0.5))
+        .param_near(p, geom::mid_param(t0, t1))
         .ok_or(BooleanError::PointSplitCarrierUnsupported {
             operand: y_is,
             edge,

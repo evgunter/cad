@@ -708,25 +708,10 @@ impl core::fmt::Display for RefusedRef {
     }
 }
 
-impl AssemblyError {
-    /// How this door renders a document that did not gather: the
-    /// [`AssemblyError::Product`] arm's own sentence, over a refusal
-    /// the caller still owns.
-    ///
-    /// One copy of that sentence, and [`Display`](core::fmt::Display)
-    /// reads it from here: a caller that gathered for itself and holds
-    /// the refusal reports the gate's verdict in the gate's words
-    /// without re-spelling them.
-    #[must_use]
-    pub fn product_refusal(source: &crate::ProductError) -> String {
-        source.to_string()
-    }
-}
-
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Product(e) => f.write_str(&Self::product_refusal(e)),
+            Self::Product(e) => write!(f, "{e}"),
             Self::Mint { refusals } => {
                 write!(
                     f,
@@ -1466,6 +1451,7 @@ fn attribute(
         | ValidationError::NullScaffoldShared { .. }
         | ValidationError::LeakedNullFaceRecord { .. }
         | ValidationError::StaleNullFaceLoop { .. }
+        | ValidationError::StaleNullFaceOwnership { .. }
         | ValidationError::NullEdgeAtRest { .. }
         | ValidationError::NullFaceAtRest { .. } => Attribution::Unattributed,
     }

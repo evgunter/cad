@@ -510,8 +510,10 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
 /// is poisoned through `post_a`; the tree draws both downstream of the
 /// offending mate. The properties panel's verdict on a picked face, the
 /// mate tool's dropped pick, the sketch-on-face seat, the duplicate
-/// door, the blend loader and the product's gather refusal each carry a
-/// standing, and each must carry the TREE's.
+/// door and the blend loader each carry a standing, and each must
+/// carry the TREE's. The product's gather refusal is drawn by none of
+/// them: the tree badges the refused root at its row, and the at-rest
+/// badge takes no verdict on a product that did not gather.
 #[test]
 fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     use pncad::document::{NodeStanding, ProductError};
@@ -691,9 +693,9 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         "the pick index's tooltip names the offending mate: {detail}"
     );
 
-    // The product gather: its value is the kernel's, and the at-rest
-    // badge draws it with the tree's pointer, never "ancestor" for a
-    // mate.
+    // The product gather: its value is the kernel's, the tree draws the
+    // refused root downstream of the mate, and the at-rest badge says
+    // nothing about it.
     let root = match session.product_fault() {
         Some(ProductError::Root(
             NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
@@ -704,20 +706,11 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         matches!(common::status_of(&rows, root), RowStatus::Poisoned { through, .. } if through == offender),
         "the refused root is drawn downstream of the offending mate"
     );
-    match session.at_rest() {
-        Some(viewer::session::AtRestBadge::Refused { message }) => assert_eq!(
-            *message,
-            format!(
-                "product: root {}",
-                NodeStanding::Poisoned {
-                    node: root,
-                    through: offender
-                }
-            ),
-            "the at-rest badge points where the tree points"
-        ),
-        other => panic!("the at-rest badge refuses, got {other:?}"),
-    }
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "the at-rest badge takes no verdict on a gather refusal; the tree's row carries it"
+    );
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
@@ -727,8 +720,8 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
 /// below by name with the reason it need not.
 ///
 /// A source census over the code view. A door call counts as read when
-/// it sits inside the argument list of a re-read (`*_as_drawn(…)`,
-/// `product_refusal_wording(…)`), or when a re-read appears in the rest
+/// it sits inside the argument list of a re-read (`*_as_drawn(…)`),
+/// or when a re-read appears in the rest
 /// of its own statement: from the call to the first `;` at the call's
 /// own brace depth, or to the end of the enclosing block. What it cannot
 /// see: a kernel door missing from `STANDING_DOORS`, and a door reached
@@ -758,7 +751,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         "resolution_as_drawn(",
         "interrogation_as_drawn(",
         "index_refusal_as_drawn(",
-        "product_refusal_wording(",
     ];
     /// `(file, door, reason)`: each admits exactly one unread call.
     const ADMITTED: &[(&str, &str, &str)] = &[
@@ -770,7 +762,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "tree.rs",
             ".usable(",
-            "`measured_of` is asked only of a row `rows` has read `Ok`: it picks which payload \
+            "`readout_of` is asked only of a row `rows` has read `Ok`: it picks which payload \
              to show, never whether the row stands",
         ),
         (
@@ -826,6 +818,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "product(",
             "runs only over a pair whose gather already succeeded (the A5 gate ate the \
              body), so no root refusal reaches it",
+        ),
+        (
+            "session.rs",
+            "product_recorded(",
+            "the landing keeps the typed refusal (`product_fault`), and `frame::badge_site` \
+             sends a root's refusal to the feature tree, so no surface draws its standing",
         ),
         (
             "session.rs",
@@ -908,69 +906,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         found, admitted,
         "every standing door reads through the tree's answer or is admitted by name; \
          unread calls: {unread:#?}"
-    );
-}
-
-/// **A root the tree does NOT redraw keeps the gather's own words** —
-/// `tree::product_refusal_wording`'s re-read, pinned by its literal
-/// text so it cannot re-point a root that is its own cause, or one
-/// poisoned through a real DAG ancestor.
-#[test]
-fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
-    use pncad::document::{Node, NodeStanding, ProductError};
-
-    let tol = Tol::witness();
-
-    // A failed root: the extrude alone.
-    let doc = pncad::document::Doc::empty_derived("gather-words-failed", tol);
-    let (mut doc, profile) = common::framed_square(&doc, 0.04, tol);
-    let extrude = common::insert_into(
-        &mut doc,
-        Node::Extrude {
-            profile,
-            distance: pncad::document::Expr::div(common::len(0.008), common::scl(0.0))
-                .expect("length / scalar is a length"),
-        },
-        tol,
-    );
-    let ev = evaluate(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let failed = ProductError::Root(NodeStanding::Failed { node: extrude });
-    assert_eq!(
-        tree::product_refusal_wording(&failed, &ev),
-        format!(
-            "product: root node {} failed, so it has no value — fix the node's own failure",
-            extrude.0
-        ),
-        "a root that is its own cause keeps the gather's sentence"
-    );
-
-    // A root poisoned through a real DAG ancestor.
-    let (doc, extrude, moved) = common::broken_document(tol);
-    let ev = evaluate(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let poisoned = ProductError::Root(NodeStanding::Poisoned {
-        node: moved,
-        through: extrude,
-    });
-    assert_eq!(
-        tree::product_refusal_wording(&poisoned, &ev),
-        format!(
-            "product: root node {} is poisoned by the failure at node {}, so it has no value — \
-             the repair is upstream, at node {}",
-            moved.0, extrude.0, extrude.0
-        ),
-        "a root poisoned through the row the tree names keeps the gather's sentence"
     );
 }
 
@@ -1265,7 +1200,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         status,
         note: None,
         repair_at: None,
-        measured: None,
+        readout: None,
         version_offer: None,
     };
     let rows = [
@@ -1357,4 +1292,322 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         "the profile's row links to the frame whose slot refused"
     );
     assert_eq!(row(frame).repair_at, None, "an `Ok` row links nowhere");
+}
+
+/// **An empty value says so on its own row, and the node that refuses
+/// it links nowhere.** Each failing arm below names an input that
+/// evaluated to a legal value the failing node's own choice does not
+/// fit — nothing on the input refused — so its row carries no repair
+/// link, and the input's row says what its value is where that is
+/// the cause.
+///
+/// One document, built up: an intersect of two blocks that do not
+/// meet, first as the document's root and then under a transform; a
+/// split whose tool plane clears the block, with a `Part` reading its
+/// empty side; a `Part` indexed past a pattern's count; and a revolve
+/// whose axis lives on another frame than its profile.
+#[test]
+fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
+    use pncad::document::{
+        BooleanValue, Datum, Doc, Node, NodeErrorKind, PartSelect, PatternKind, ProfileProgram,
+        RecipeNodeId, SplitSide, ValuePayload,
+    };
+    use pncad::select::SplitHalf;
+    use viewer::tree::{Emptiness, Readout, TreeRow};
+
+    let tol = Tol::witness();
+    let run = |doc: &Doc<ProfileProgram>| {
+        let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+        let rows = tree::rows(doc, Some(&ev), &viewer::parts::PartFiles::default());
+        (ev, rows)
+    };
+    let row = |rows: &[TreeRow], id: RecipeNodeId| -> TreeRow {
+        rows.iter()
+            .find(|row| row.id == id)
+            .cloned()
+            .expect("every node has a row")
+    };
+
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("tree-empty-readout", tol);
+    let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
+    let block = |doc: &Doc<ProfileProgram>, x: f64| {
+        let (doc, profile) =
+            common::inserted(doc, common::rectangle(plane, [x, 0.0], 0.02, 0.02), tol);
+        common::inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: common::len(0.02),
+            },
+            tol,
+        )
+    };
+    let (doc, near) = block(&doc, 0.0);
+    let (doc, far) = block(&doc, 0.1);
+    let (doc, apart) = common::inserted(
+        &doc,
+        Node::Boolean {
+            op: BooleanOp::Intersect,
+            a: near,
+            b: far,
+            declare: None,
+        },
+        tol,
+    );
+
+    // The empty intersect alone is the product: its row is the only
+    // place a reader learns the document makes nothing.
+    let (ev, rows) = run(&doc);
+    assert!(
+        matches!(
+            ev.usable(apart).ok().map(|value| &value.payload),
+            Some(ValuePayload::Boolean(BooleanValue::Empty))
+        ),
+        "the fixture's blocks do not meet: {:?}",
+        ev.result(apart)
+    );
+    let root = row(&rows, apart);
+    assert!(root.root, "the premise: the intersect is the product");
+    assert!(matches!(root.status, RowStatus::Ok), "{root:?}");
+    assert_eq!(
+        root.readout,
+        Some(Readout::Empty(Emptiness::Whole)),
+        "an empty root says so on its own row"
+    );
+    assert_eq!(
+        Emptiness::Whole.to_string(),
+        "empty",
+        "the phrase a reader sees"
+    );
+    assert_eq!(
+        row(&rows, near).readout,
+        None,
+        "a body's `Ok` says everything its value does"
+    );
+
+    // A consumer of the empty value: `EmptyOperand`.
+    let (doc, moved) = common::inserted(
+        &doc,
+        Node::transform(
+            apart,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
+        tol,
+    );
+
+    // A tool plane above the block: the split's above side is empty,
+    // and a `Part` reading it refuses `EmptyHalf`.
+    let (doc, tool) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Plane {
+            origin: [common::len(0.0), common::len(0.0), common::len(0.05)],
+            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    let (doc, split) = common::inserted(&doc, Node::Split { target: near, tool }, tol);
+    let (doc, above) = common::inserted(
+        &doc,
+        Node::Part {
+            of: split,
+            select: PartSelect::SplitHalf(SplitHalf::Above),
+        },
+        tol,
+    );
+
+    // Beside them, values with material: a subtract that leaves a
+    // body, and a split whose tool plane cuts the block in two.
+    let (doc, kept) = common::inserted(
+        &doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: near,
+            b: far,
+            declare: None,
+        },
+        tol,
+    );
+    let (doc, through) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Plane {
+            origin: [common::len(0.0), common::len(0.0), common::len(0.01)],
+            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    let (doc, halved) = common::inserted(
+        &doc,
+        Node::Split {
+            target: near,
+            tool: through,
+        },
+        tol,
+    );
+
+    // A three-instance pattern, and a `Part` reading instance 3.
+    let (doc, pattern) = common::inserted(
+        &doc,
+        Node::Pattern {
+            input: far,
+            count: pncad::document::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.05),
+            },
+        },
+        tol,
+    );
+    let (doc, past) = common::inserted(
+        &doc,
+        Node::Part {
+            of: pattern,
+            select: PartSelect::Instance(pncad::document::Expr::count(3)),
+        },
+        tol,
+    );
+
+    // A revolve whose axis lives on a second frame, parallel to the
+    // profile's and a metre up.
+    let (doc, other_plane) = common::inserted(
+        &doc,
+        common::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        tol,
+    );
+    let (doc, stranger) = common::inserted(
+        &doc,
+        Node::Datum(Datum::AxisInPlane {
+            plane: other_plane,
+            origin: [common::len(-0.01), common::len(0.0)],
+            direction: [common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    let (doc, section) =
+        common::inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.01, 0.01), tol);
+    let (doc, revolved) = common::inserted(
+        &doc,
+        Node::Revolve {
+            profile: section,
+            axis: stranger,
+            angle: common::ang(std::f64::consts::PI),
+        },
+        tol,
+    );
+
+    let (ev, rows) = run(&doc);
+    assert!(
+        matches!(
+            ev.usable(split).ok().map(|value| &value.payload),
+            Some(ValuePayload::Split {
+                above: SplitSide::Empty,
+                below: SplitSide::Body(_),
+            })
+        ),
+        "the fixture's tool plane clears the block: {:?}",
+        ev.result(split)
+    );
+    assert_eq!(
+        row(&rows, split).readout,
+        Some(Readout::Empty(Emptiness::Half(SplitHalf::Above))),
+        "a split with an empty side says which"
+    );
+    assert_eq!(
+        Emptiness::Half(SplitHalf::Above).to_string(),
+        "above half empty"
+    );
+    assert_eq!(
+        Emptiness::Half(SplitHalf::Below).to_string(),
+        "below half empty"
+    );
+    // The readout's half word is the kernel's, as `EmptyHalf` says it.
+    for half in SplitHalf::ALL {
+        let phrase = Emptiness::Half(half).to_string();
+        let word = phrase
+            .strip_suffix(" half empty")
+            .expect("the readout ends in its suffix");
+        let kernel = NodeErrorKind::EmptyHalf {
+            input: RecipeNodeId(0),
+            half,
+        }
+        .to_string();
+        assert!(
+            kernel.contains(&format!("the split's {word} half")),
+            "{half:?}: the readout says {phrase:?}, the kernel {kernel:?}"
+        );
+    }
+    assert_eq!(
+        row(&rows, apart).readout,
+        Some(Readout::Empty(Emptiness::Whole)),
+        "the intersect still says so once it is no longer the root"
+    );
+    assert_eq!(
+        row(&rows, pattern).readout,
+        None,
+        "a pattern's count is authored, and the refusal's words state it"
+    );
+    assert!(
+        matches!(
+            ev.usable(kept).ok().map(|value| &value.payload),
+            Some(ValuePayload::Boolean(BooleanValue::Body { .. }))
+        ),
+        "the subtract leaves the block: {:?}",
+        ev.result(kept)
+    );
+    assert_eq!(
+        row(&rows, kept).readout,
+        None,
+        "a boolean with a body says everything its value does"
+    );
+    assert!(
+        matches!(
+            ev.usable(halved).ok().map(|value| &value.payload),
+            Some(ValuePayload::Split {
+                above: SplitSide::Body(_),
+                below: SplitSide::Body(_),
+            })
+        ),
+        "the tool plane cuts the block: {:?}",
+        ev.result(halved)
+    );
+    assert_eq!(
+        row(&rows, halved).readout,
+        None,
+        "a split with two bodies says everything its value does"
+    );
+
+    // The arm each row raised, among the four under test.
+    let raised = |id| match ev.node_error(id).map(|error| &error.kind) {
+        Some(NodeErrorKind::EmptyOperand { .. }) => Some("EmptyOperand"),
+        Some(NodeErrorKind::EmptyHalf { .. }) => Some("EmptyHalf"),
+        Some(NodeErrorKind::InstanceOutOfRange { .. }) => Some("InstanceOutOfRange"),
+        Some(NodeErrorKind::AxisInDifferentPlane { .. }) => Some("AxisInDifferentPlane"),
+        _ => None,
+    };
+    let arms = [
+        (moved, "EmptyOperand"),
+        (above, "EmptyHalf"),
+        (past, "InstanceOutOfRange"),
+        (revolved, "AxisInDifferentPlane"),
+    ];
+    for (id, arm) in arms {
+        assert_eq!(
+            raised(id),
+            Some(arm),
+            "the fixture raises {arm}: {:?}",
+            ev.result(id)
+        );
+        let failed = row(&rows, id);
+        assert!(
+            matches!(failed.status, RowStatus::Failed { .. }),
+            "{arm}: {failed:?}"
+        );
+        assert_eq!(
+            failed.repair_at, None,
+            "{arm}: the input it names refused nothing, so the row links nowhere"
+        );
+    }
 }

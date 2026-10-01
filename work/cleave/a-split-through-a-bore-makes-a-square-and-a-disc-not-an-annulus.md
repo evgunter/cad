@@ -2,10 +2,11 @@
 id: a-split-through-a-bore-makes-a-square-and-a-disc-not-an-annulus
 kind: issue
 title: split through a bored body makes each half's section a full face with no ring plus a coplanar disc face over the bore, not one annular face with a ring
-status: open
+status: dispatched
 opened: 2026-09-28
 priority: P1
 cost: M
+branch: cleave/section-rings
 ---
 
 

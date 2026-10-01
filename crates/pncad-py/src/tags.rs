@@ -1502,6 +1502,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Merge => "merge",
         BooleanErrorKind::ResultInvalid => "result_invalid",
         BooleanErrorKind::ResultVolumeImplausible => "result_volume_implausible",
+        BooleanErrorKind::VolumeUnmeasured => "volume_unmeasured",
+        BooleanErrorKind::VolumeCorrupt => "volume_corrupt",
+        BooleanErrorKind::VolumeUndecided => "volume_undecided",
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
     }
@@ -2879,6 +2882,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::NullScaffoldShared { .. } => "null_scaffold_shared",
         ValidationError::LeakedNullFaceRecord { .. } => "leaked_null_face_record",
         ValidationError::StaleNullFaceLoop { .. } => "stale_null_face_loop",
+        ValidationError::StaleNullFaceOwnership { .. } => "stale_null_face_ownership",
         ValidationError::NullEdgeAtRest { .. } => "null_edge_at_rest",
         ValidationError::NullFaceAtRest { .. } => "null_face_at_rest",
     }

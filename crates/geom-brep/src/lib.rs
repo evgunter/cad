@@ -79,8 +79,8 @@ pub mod tangent;
 pub mod torus_convention;
 
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, NurbsLane,
-    edge_extent, sample_param,
+    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
+    IntersectionDraft, NurbsLane, edge_extent, sample_param, schedule_param,
 };
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
@@ -90,7 +90,10 @@ pub use dihedral::{
     classify_dihedral, classify_material_pairing, classify_material_pairing_as, folded_lever_arm,
     material_kappa_rel, must_carry_over_edge, tangent_second_order,
 };
-pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
+pub use edge_nurbs::{
+    CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
+    PlaneNurbsRefusal, plane_nurbs_limbs,
+};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };

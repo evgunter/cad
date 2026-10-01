@@ -108,7 +108,8 @@ use pncad::document::{
     RecipeNodeId,
 };
 use pncad::geom_core::Tol;
-use viewer::sketch::{Notation, ProfileShape};
+use viewer::props::Notation;
+use viewer::sketch::ProfileShape;
 
 // The literal, edit, frame, rectangle and δ doors are `viewer`'s own
 // `test_support` (its `test-support` feature, on for these suites through

@@ -570,6 +570,7 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
             slot,
             params,
             current,
+            ..
         }) => {
             assert_eq!((node, slot), (extrude, SlotId::Distance));
             assert_eq!(params, vec![width_param()]);

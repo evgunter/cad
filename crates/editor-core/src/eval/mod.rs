@@ -1470,18 +1470,15 @@ pub enum NodeErrorKind {
     /// A revolve whose axis and profile are written against DIFFERENT
     /// sketch frames.
     ///
-    /// This replaced `AxisNotInSketchPlane`, which said that a 3-D
-    /// axis had a decided out-of-plane component. That refusal was a
-    /// tolerance verdict on a projection — and the direction half of
-    /// it was the dimension audit's F15, a bare sine judged against
-    /// the metre band. An axis authored IN a frame cannot leave it, so
-    /// the only question left is whether it is the frame the profile
-    /// was drawn on, and that is an equality of node ids: exact, and
-    /// the same answer at every model scale.
+    /// An axis authored IN a frame cannot leave it, so the only
+    /// question is whether it is the frame the profile was drawn on,
+    /// and that is an equality of node ids: exact, and the same answer
+    /// at every model scale — no tolerance verdict on a projection.
     ///
-    /// Both frames are named because the fix depends on which one is
-    /// wrong, and a reader looking at two node numbers can tell. Each
-    /// is optional for one reason: a node that is neither a profile
+    /// Both frames are named so a reader can see which of the axis or
+    /// the profile sits on the frame they meant. They are not repair
+    /// sites: no edit to a frame's pose makes two ids equal. Each is
+    /// optional for one reason: a node that is neither a profile
     /// nor an in-plane axis is written against no frame at all, and
     /// `None` says that rather than inventing an id.
     AxisInDifferentPlane {
