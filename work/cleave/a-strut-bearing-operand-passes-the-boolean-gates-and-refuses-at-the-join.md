@@ -4,6 +4,8 @@ kind: issue
 title: A boolean operand with a valence-1 vertex passes the operand gates and refuses at the join as UnpairedLooseEnds, whose text says kernel defect
 status: open
 opened: 2026-10-01
+priority: P2
+cost: E
 ---
 
 Found by the LINALG pole-branch measurement (`linalg/pole-branch-shift`).

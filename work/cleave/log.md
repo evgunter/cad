@@ -225,3 +225,4 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   the split's finish and `plane_section` both read. The ring-vs-ring
   guard is split-only. Filed `plane-section-polygons-drop-their-arcs`
   (P2).
+- LINALG filed `a-strut-bearing-operand-passes-the-boolean-gates-and-refuses-at-the-join` on our slate. Priced P2/E: an operand that is tier-2-invalid (scaffolding) should refuse typed at the operand gate, following the `ScaffoldingOperand` precedent. That is the obvious answer, not a fork.
