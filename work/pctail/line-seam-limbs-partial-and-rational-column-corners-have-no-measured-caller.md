@@ -5,7 +5,7 @@ title: the seam class's LINE-carrier limb: its partial-column and rational-colum
 status: open
 opened: 2026-09-22
 priority: P3
-cost: D
+cost: M
 ---
 
 

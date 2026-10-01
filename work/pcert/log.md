@@ -66,3 +66,54 @@ Signed (FIX orchestrator).
 - 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `pcurve_cache.rs`: `PcurveCertifyError::ending(reading)` / `PcurveCheck::recourse`; `AzimuthPeriodExceeded` ends as ParamWinding's sign-certain arm, pinned against `WindingExceeded`. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3160 (`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`, not yet merged) amends `validate-pcurves-never-recertifies-a-face-it-finds-incomplete`: `mev`/`mef`/`mekr` no longer mint a rowless half-edge into a complete face, and the row now names the doors that still can (`PcurveMintError::MissingCache`'s list). The same PR moves `validate_pcurves`' presence verdict onto `StoredRows::complete` and its gaps, shared with the Euler operators' site mint; the findings and their order are unchanged. (TOPO)
+
+## 2026-10-01 — picked up; the tail cut; the design question named
+
+First orchestrator on the track. Status `active`.
+
+**The cut.** The track measured 36.5 points against its 30, so its P3
+and P4 rows went to a new program, PCTAIL, along the priority seam
+(`work/README.md`, Track size): `recourse-chain-stops-at-pcurve-certify-error`,
+`pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled`,
+`pcert-refusal-prose-outgrows-the-viewer`, `pcurve-posture-guard-is-blind-to-body-producing-doors`,
+`line-seam-limbs-partial-and-rational-column-corners-have-no-measured-caller`,
+`D305` and `S83`, by `git mv`, ids unchanged. PCERT keeps 22 points.
+The alternative was to keep the tail and run it after the spine; the
+README makes the split the rule once a track grows past its ceiling, and
+the tail's rows are independent of the spine.
+
+**Re-priced.** The two legacy-`D` validate_pcurves rows are M with
+`design` set; `S331` gains `design` (its question is open: TOPO's
+2026-09-05 direction, Ev concurring, says at-rest validation must tell a
+refused mint from an uncovered class, and names two shapes).
+
+**The design question.** `S331` and its two `validate-pcurves-*`
+siblings are one question — what a face storing no row, or some rows,
+may mean at rest, and what `validate_pcurves` may claim — and go to
+the Opus and Fable designer pair before any lane builds them.
+**`D36` is held with them**: `mint_faces` swallows exactly
+`PcurveCertifyError::UnsupportedCarrier` and clears the face, so
+splitting that variant decides what the mint may leave behind. That
+coupling is not on either row.
+
+**Ruled, not weighed: `pcurve-fit-refusal-drops-the-domain-doors-reason`.**
+`chart_image` collapses two failure sites into `PcurveFit` — the
+interpolation (`edge_nurbs.rs`, `chart_image`, the `interpolate` call)
+and the carrier-domain door — so they become two refusals a caller can
+tell apart, and the domain one carries the domain door's typed reason.
+Whether that is a split-off variant keeping the enum's derives or a
+payload is a local choice; the lane argues it in its PR. `design`
+cleared.
+
+**Dispatched, in parallel with the weighing** (review tier and reason):
+
+- `placeholder-chart-sup-arms-are-not-a-bound` — single FULL review:
+  the deliverable is a reachability claim (can a placeholder chart
+  reach a metred verdict), which is believed by checking, not reading.
+- `pcurve-chart-box-is-looser-than-harmonic-extent` — single FULL
+  review: an enclosure that tightens is exactly where a too-tight box
+  ships green; check 5 re-measures.
+- `pcurve-fit-refusal-drops-the-domain-doors-reason` — single STYLE
+  review: a refusal-vocabulary change that reads for itself.
+
+Signed (PCERT orchestrator).
