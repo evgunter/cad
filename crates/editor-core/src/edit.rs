@@ -20,8 +20,8 @@ use crate::doc::{
     ParamRefFault, PlacementFault, WitnessSiteFault,
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
-use crate::mate::reach::MateReach;
 use crate::mate::maintain::Maintain;
+use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
 use crate::node::{
