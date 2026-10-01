@@ -5430,3 +5430,24 @@ on the branch (`16748bf70b`), and the PR merges on green.
 
 `mef-and-mfkrh-onto-a-new-chart` takes the rebase target once PR 3618
 merges.
+
+## PR 3618 merged; the mef/mfkrh chart row dispatched (2026-10-01)
+
+PR 3618 merged at `a01aa5d45d` after CI run 36830326575 went green on
+`16748bf70b` (main merged, row closed). The python suite ran, with the
+new `stale_null_face_ownership` tag.
+
+`mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move` is
+dispatched on the rebase target, branch
+`topo/euler-doors-vouch-their-charts`. The brief is
+`mefchart-impl-brief.md`. The doors are `mef`, `mef_lone`, `mfkrh`,
+`kef`, `kfmrh` and `ring_move`, each in both forms.
+
+**The pattern is ruled.** Each keys-only door refuses what it would
+strand or leave unvouched, through PR 3598's one walk. That is PR 2527's
+pattern, so it raises no new design question.
+
+**A measurement guard comes first.** If a production caller relies on
+such a move and neither reordering nor `set_face_surfaces_describing`
+serves it, the lane stops before adding a describing twin. A new public
+door is the orchestrator's design question.
