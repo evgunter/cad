@@ -1576,3 +1576,17 @@ The review also caught:
 - a README promise that a live session cannot keep.
 
 **This is the third refuse-then-offer instance** (after `creation_offer` and AUTH-9's `declare_offer`). All three live in one home, but in three shapes. The general `Offer` type they want is named on OFFER's P1 row as evidence.
+
+## 2026-10-01 — Ev ruled #3551 (negative extrude): (a)
+
+Ev's ruling:
+- An extrude's distance is a positive depth with a structural `side`.
+- The rule "a size an operation covers is positive; its direction has one home" is adopted, with revolve and patterns as named follow-ons.
+- Ev added a requirement: a negative depth's refusal shows how to write the extrude the other way.
+
+The AUTHOR design row closes. Its work is on the owners' slates:
+- EDIT `extrude-distance-is-a-depth-and-a-side` (P0, H), with the kernel half on CARVE/STRUT ground and the eval wiring on WIRE's;
+- AUTHOR `the-create-pane-has-no-extrude-side` (P1, blocked on it);
+- CARVE `revolve-angle-is-a-signed-size-beside-a-directed-axis` and EDIT `pattern-spacing-is-a-signed-size-beside-a-direction` (design).
+
+Fork-log row 22's decision half is filled in. Ev took A's first recommendation, which B also reached in round 1. Mapping: A=Opus, B=Fable.

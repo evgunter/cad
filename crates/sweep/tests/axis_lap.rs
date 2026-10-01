@@ -190,9 +190,9 @@ fn full_length_flats_build_at_the_analytic_volume() {
 /// The arm mints both chords; the result then refuses
 /// `Containment(VolumeUncertified)`, because the containment door's
 /// orientation probe measures the body in closed form and an
-/// obliquely trimmed wall has none — the capability the volume
-/// backstop lacks on the same shapes
-/// (`work/reach/union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`).
+/// obliquely trimmed wall has none; the boolean's volume backstop
+/// measures the same shapes through the certified quadrature
+/// (`work/contact/at-infinity-probe-measures-in-closed-form-only`).
 #[test]
 fn an_oblique_cap_flats_through_its_ellipse_arc() {
     let theta = 20f64.to_radians();
