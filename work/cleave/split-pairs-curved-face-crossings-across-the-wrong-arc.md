@@ -2,11 +2,12 @@
 id: split-pairs-curved-face-crossings-across-the-wrong-arc
 kind: issue
 title: a steep split of a cylinder pairs the two crossings on one wall face across the arc outside the face, so the section comes back as an ellipse face plus two coplanar segment faces cancelling it
-status: dispatched
+status: review
 opened: 2026-10-01
 priority: P1
 cost: H
 branch: cleave/wrong-arc
+pr: 3718
 ---
 
 
