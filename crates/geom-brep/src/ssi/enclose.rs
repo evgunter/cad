@@ -1052,7 +1052,7 @@ mod tests {
         for s in [sphere(), cylinder()] {
             let g = implicit_gradient_enclosure(&s, b);
             let at = implicit_gradient(&s, b.center());
-            for (i, v) in [at.x, at.y, at.z].iter().enumerate() {
+            for (i, v) in at.to_array().iter().enumerate() {
                 assert!(
                     g[i].contains(*v),
                     "{v} not in [{}, {}]",

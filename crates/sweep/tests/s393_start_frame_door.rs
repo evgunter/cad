@@ -59,11 +59,7 @@ fn cone_place(path: &NurbsCurve3<f64>) -> Affine3<f64> {
 
 /// The twelve stored numbers of a placement, as bits.
 fn bits12(a: &Affine3<f64>) -> [u64; 12] {
-    let (m, t) = (a.linear, a.translation);
-    [
-        m.c0.x, m.c0.y, m.c0.z, m.c1.x, m.c1.y, m.c1.z, m.c2.x, m.c2.y, m.c2.z, t.x, t.y, t.z,
-    ]
-    .map(f64::to_bits)
+    a.components().map(f64::to_bits)
 }
 
 const S_RADIUS: f64 = 2.0;

@@ -933,14 +933,14 @@ fn c2_parallel_boundary_through_doors() {
         let first = al(
             MatePrimitive::PlanarRest { offset: 0.0 },
             AxisSense::Aligned,
-            frame([t, 0.0, 0.0], [raw1.x, raw1.y, raw1.z], [0.0, 1.0, 0.0]),
+            frame([t, 0.0, 0.0], raw1.to_array(), [0.0, 1.0, 0.0]),
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
         let second = al(
             MatePrimitive::PlanarRest { offset: 0.0 },
             AxisSense::Aligned,
-            frame([0.0, 0.0, 0.0], [raw2.x, raw2.y, raw2.z], [0.0, 1.0, 0.0]),
+            frame([0.0, 0.0, 0.0], raw2.to_array(), [0.0, 1.0, 0.0]),
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );

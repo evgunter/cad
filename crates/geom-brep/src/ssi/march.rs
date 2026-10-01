@@ -976,7 +976,7 @@ mod tests {
         }
 
         fn point(&self, x: &[f64; 3]) -> Point3<f64> {
-            Point3::new(x[0], x[1], x[2])
+            Point3::from_array(*x)
         }
 
         fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {

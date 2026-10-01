@@ -3248,7 +3248,7 @@ mod declaration_order_rows {
     /// The unique planar face of `body` whose outward normal is within a
     /// milliradian of `n`.
     fn face_facing(body: &crate::body::Body<f64>, n: [f64; 3]) -> crate::entity::FaceKey {
-        let n = geom_core::Vec3::new(n[0], n[1], n[2]);
+        let n = geom_core::Vec3::from_array(n);
         let hits: Vec<_> = body
             .faces()
             .map(|(k, _)| k)
