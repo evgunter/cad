@@ -317,3 +317,17 @@ that are main's own (filed there: REACH's 1e-6 `SectionLoopMixed`, PROPS'
 thread-count golden); every other row green. Filed:
 `ruled-band-refuses-a-joint-on-one-support-pair`,
 `unmerged-subdivided-wall-rim-fillet-names-no-merge-recourse`.
+
+## 2026-10-01 — `annulus-rim-host-outer-boundary-is-metered-only-by-the-sampled-screen` closed (PR #3715)
+
+Every closed rim's host AND mate outer boundary is now metered in closed
+form (`support_boundary_clearance`), not only by predicate 2's sampled
+screen: four silent-wrong carves (a notch or a tilted cut whose closest
+approach falls between sample stations) now refuse `RingClearance`.
+Non-line/circle edges are bounded by geom's certified boxes with the
+ellipse's exact height range, and a refusal decided by a box says so
+(`bounded`). Full review (MAJOR: an ellipse ball assumed `major ≥ minor`),
+two fix passes, delta review. Merged with two red rows that are main's own
+(as #3701). Filed: `face-clearance-screen-skips-boundary-edges-it-cannot-read`,
+`support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place`,
+`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`.
