@@ -177,7 +177,7 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     use pncad::document::{Dimension, DocParam, Expr, MeasureExpr, ParamName};
     use viewer::props::{Computed, SlotValue};
     use viewer::session::{DocSession, SessionOp};
-    use viewer::tree::Measured;
+    use viewer::tree::Readout;
 
     let tol = Tol::witness();
     let gap = ParamName::from_static("gap");
@@ -203,10 +203,10 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
             .tree_rows()
             .into_iter()
             .find(|row| row.id == measure)
-            .and_then(|row| row.measured)
+            .and_then(|row| row.readout)
     };
     let reading = |metres| {
-        Some(Measured::Value(Computed {
+        Some(Readout::Value(Computed {
             canonical: metres,
             dimension: Dimension::Length,
         }))

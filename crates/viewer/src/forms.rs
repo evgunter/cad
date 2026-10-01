@@ -40,7 +40,6 @@
 use pncad::document::{BooleanOp, Dimension, MatePrimitive};
 use pncad::profile::{ArcMode, TargetKind};
 use pncad::quantity::UnitDef;
-use pncad::select::SplitHalf;
 
 use crate::props;
 use crate::session::DatumSpec;
@@ -226,24 +225,7 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
-/// The word the part form shows for a half of the KERNEL's
-/// [`SplitHalf`], whose `ALL` the radio row offers.
-///
-/// **A match, not a table**, for the reason [`boolean_op_label`] is:
-/// the enum is declared in `topo`, so no list written here can be
-/// projected from its declaration — but it publishes `SplitHalf::ALL`,
-/// and the form draws one button per entry. A third half would arrive
-/// with no membership edit here and could not arrive silently, because
-/// it has no word until this match gives it one.
-///
-/// The words are the kernel's own sides — the plane's normal decides
-/// which is which, and the form does not paraphrase that.
-pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
-    match half {
-        SplitHalf::Above => "above",
-        SplitHalf::Below => "below",
-    }
-}
+pub(crate) use crate::tree::split_half_label;
 
 vocabulary! {
     /// The add-profile form's loop choice: the two templates, or a PATH

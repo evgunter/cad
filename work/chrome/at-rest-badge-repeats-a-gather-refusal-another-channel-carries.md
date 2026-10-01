@@ -2,10 +2,13 @@
 id: at-rest-badge-repeats-a-gather-refusal-another-channel-carries
 kind: issue
 title: the at-rest badge repeats every gather refusal of an assembly-shaped document, including the ones frame::badge_site sends to the feature tree or to product_badge
-status: open
+status: closed
 opened: 2026-09-24
+closed: 2026-10-01
+pr: 3632
 priority: P3
 cost: E
+branch: chrome/at-rest-result
 ---
 
 ## Question (answered by Ev, 2026-10-01)
@@ -79,3 +82,18 @@ The ruling has three parts:
 - **Wording deleted.** `tree::product_refusal_wording` loses its only caller and is deleted, and `AssemblyError::product_refusal` folds back into the kernel's `Display`.
 
 The tests that move are the ones the PR body lists. `work/vnews/the-at-rest-badge-restates-a-failed-root-louder-than-its-row.md` closes with the same change.
+
+## Closed
+
+PR 3632. `LandedRun` holds the gather's outcome as
+`gather: Result<Gathered, ProductError>`, `Gathered { at_rest, body }`,
+so a gather refusal of any class takes no at-rest badge and the landing
+has no class policy of its own; `frame::badge_site` is the one router.
+`tree::product_refusal_wording` and `AssemblyError::product_refusal`
+are gone. `work/vnews/the-at-rest-badge-restates-a-failed-root-louder-than-its-row.md`
+closes with it.
+
+**Moved since** the finding was written: e4478ac4f dropped
+`product_refusal`'s `"assembly: "` prefix, so until PR 3632 the badge
+read *"at rest: product: …"*, its own `"at rest: "` before the
+kernel's words.

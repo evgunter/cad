@@ -744,7 +744,7 @@ impl Computed {
 /// One spelling for every computed value the chrome says: a driven
 /// slot's field ([`field_text`]), the refusal's affordance
 /// (`crate::session::Refusal::affordance`), a measure's tree row
-/// ([`crate::tree::Measured::Value`]) and an assertion's numbers
+/// ([`crate::tree::Readout::Value`]) and an assertion's numbers
 /// ([`crate::tree::Asserted`]) — so one quantity never reads two ways.
 /// The symbol is carried because nothing else says the unit: a
 /// computed slot's picker says `computed`, and a measure has no picker
