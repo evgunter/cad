@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [3142]
 design: true
+needs_ev: true
 ---
 
 Filed by GATHER's two-roots lane (branch `gather/two-roots-refusal`),
@@ -38,4 +39,27 @@ does refuse, it should call the gather's predicate rather than restate
 it: `placed_under_two_roots` is private to `product.rs` today and would
 need to become `pub(crate)`, with a typed `MateFault` arm that carries
 the same four fields.
+
+## Weighed (2026-10-01)
+
+Two designers weighed this on `msolve/ev-two-roots` and agreed on
+their first reports. The solve should not refuse: it answers where
+each instance is, and the gather answers whether the roots make one
+product. The same shape with no mates fails the gather identically,
+and the solve already returns poses for every other product-less
+document. `ASSEMBLY.md` A11 (4) gains the sentence that says so.
+
+Both designers also found that `PlacedUnderTwoRoots`'s recourse
+("place it under one root, or union the two") is the repair for a
+body document. For an instance, the repair is a second instance or a
+pattern. One designer traced a union over two transforms of a mated
+instance into `RefusedRef::ReadBelowARoot` (read, not run). That
+rewording rides the unit that lands the sentence, after a row pins
+the trace.
+
+Brief corrections: `work/gather/` left the tracker
+(`docs/doc-ledger/gather-leaves-the-tracker.md`). The viewer never
+solves before it gathers: it lands through the product and badges
+this refusal on the frame. Only Python's `solve_document` exposes the
+solve bare.
 

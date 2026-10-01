@@ -420,7 +420,12 @@ verified by the gate. No cycle is ever solved; an inconsistent loop
 dies at its closing mate's verification (`MateFault::Contradictory`,
 recourse `CONTRADICTORY_RECOURSE`). The solve is total and
 per-node: a refusing cluster faults its own mate and instances
-(`SolvedPoses::fault`), nothing else. (5) A placed instance's world pose composes its gauge's frame and its
+(`SolvedPoses::fault`), nothing else. The solve states where each instance
+is and what each mate decides, and never that a product exists:
+whether the document has a product is the gather's question alone
+(A10), so a product refusal — `PlacedUnderTwoRoots`, one instance
+placed under two transform roots, among them — is not a mate fault,
+and a document can solve whole and still have no product. (5) A placed instance's world pose composes its gauge's frame and its
 root's offset onto the solved relative pose; a lone instance returns
 its placement's frame bit for bit. An unplaced instance has no world
 pose, only its pose in its group's own frame. It is one of A2a's
