@@ -513,7 +513,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1666, "rows in the committed baseline");
+    assert_eq!(all.len(), 1641, "rows in the committed baseline");
     assert_eq!(sized.len(), 88, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
@@ -559,7 +559,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // what it measures is the size of the hole the sized-row census
     // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 29_915, "pairs across every row");
+    assert_eq!(all_pairs, 26_963, "pairs across every row");
     assert_eq!(all_scenes.len(), 81, "scenes carrying one, corpus-wide");
 }
 
@@ -990,7 +990,7 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 394_240, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 395_814, "triangles over the whole sweep");
     assert_eq!(
         t.nurbs_triangles, 291_438,
         "triangles the Hessian-sized faces carry"
