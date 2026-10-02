@@ -2,11 +2,14 @@
 id: thread-count-digest-moved-on-main-loft-area-pads
 kind: issue
 title: mass_props_are_thread_count_invariant's serial golden is red on main at every eps: the two NURBS lofts' area pads moved down since the last cut, and #3524 is the suspect
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: E
 refs: [3524, 3737]
+closed: 2026-10-01
+pr: 3751
+branch: reach/threadgolden-red
 ---
 
 
@@ -48,3 +51,11 @@ Bisect, confirm the moving change is right (the pads go DOWN, which is
 the licensed direction under H5's ruling 2), and re-cut the three
 digests with the cause named in `expected`'s re-cut log, as that
 function's docs require.
+
+## Closed
+
+PR 3751. The first-parent bisect clears #3524: its merge `ba06ed4bf3` reads the old digest. The first bad merge is #3727 (`43333da8ae`, `linalg/certification-sqrt`), whose parent `a266a5a796` reads the old digest and whose own tree reads main's.
+
+#3727 replaced `props/quad.rs`'s local `sqrt_enclosure` with the backend root (`Certification::sqrt`). The old root stepped one ulp outward unconditionally, and the backend root steps only where the root is inexact, so the area pads tightened.
+
+The one- and four-thread digests are byte-identical on main at all three ε. Both moved enclosures still contain the independently computed true areas: 25.312438347381 m² for `loft_prism` (Simpson), and s²·(18 + π(1+√2)) for the arc loft. The digests are re-cut, and the cause is named in `expected`'s log.

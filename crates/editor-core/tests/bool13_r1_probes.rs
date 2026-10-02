@@ -418,8 +418,8 @@ const OLDER_SHAPED: &str = concat!(
     "\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":",
     "\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Lite",
     "ral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}}]}}}},\"order\":[1648122260434539093",
-    "3,11240919837605776152,6569902697801218581],\"roots\":[6569902697801218581],\"pla",
-    "cements\":{},\"params\":{},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearan",
+    "3,11240919837605776152,6569902697801218581],\"roots\":[6569902697801218581],",
+    "\"params\":{},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearan",
     "ce\":[]},\"edits\":[]}",
     "\n"
 );

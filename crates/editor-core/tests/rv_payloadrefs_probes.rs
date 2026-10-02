@@ -195,10 +195,10 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Measure {
+            node: Box::new(Node::Measure {
                 expr: leaf,
                 refs: Vec::new(),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -285,6 +285,18 @@ foreign_tag! {
     arc_side => profile::ArcSide { Left, Right }
 }
 
+/// **An `Option` field that must be PRESENT on the wire**, `null` for
+/// `None`: one `Option::deserialize`, with no fallback. A derived
+/// `Deserialize` reads an absent `Option` field as `None`, which for an
+/// instance's `gauge` and `offset` would load a file written before
+/// gauges as an unplaced instance; routed through here, the absent key
+/// is serde's own "missing field" refusal, which names it.
+pub(crate) fn present<'de, D: Deserializer<'de>, T: serde::Deserialize<'de>>(
+    de: D,
+) -> Result<Option<T>, D::Error> {
+    Option::deserialize(de)
+}
+
 /// The profile's `plane`, read so that a document written before the
 /// sketch plane became a node refuses in terms that NAME what moved.
 ///

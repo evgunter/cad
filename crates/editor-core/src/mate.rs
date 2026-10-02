@@ -83,8 +83,8 @@ pub use reach::{
 };
 pub(crate) use solve::solve_with_env;
 pub use solve::{
-    ClusterMaintenance, MateRole, SolvedPoses, groups, reading_edges, relative_freedom_components,
-    root_of, solve_document,
+    MateRole, PoseRefusal, SolvedPoses, Space, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
+    places, reading_edges, relative_freedom_components, root_of, solve_document,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -482,8 +482,8 @@ impl Alignment {
     }
 
     /// Whether every authored coordinate is finite — the edit door's
-    /// admission test, the placement registry's rule applied one level
-    /// out (a non-finite alignment could never decide anything). A
+    /// admission test, as a placement's (a non-finite alignment could
+    /// never decide anything). A
     /// `FromFace` side authors no number; its face's pose is the
     /// part's, read at the solve, and is not a number this door can
     /// see.
@@ -1115,6 +1115,31 @@ pub enum MateFault {
         /// and the fault's every other arm stays the size it is.
         refusal: Box<LeverRefusal>,
     },
+    /// **A checked offset disagrees with the solve** (A11 (2)): a
+    /// member of a placed group that is not its root carries an
+    /// offset, which states where it sits, and the solve places it
+    /// elsewhere. The statement is verified, never trusted and never
+    /// ignored, so the instance is faulted and the rest of its group
+    /// stands. Recourse: [`OFFSET_RECOURSE`].
+    OffsetDisagrees {
+        /// The instance whose offset disagrees.
+        instance: RecipeNodeId,
+        /// Its group's root, whose offset places the group.
+        root: RecipeNodeId,
+        /// The predicate that measured the disagreement.
+        predicate: &'static str,
+        /// What it measured.
+        clash: Clash,
+    },
+    /// **A checked offset could not be checked** (A11 (2)): the
+    /// statement is neither confirmed nor refuted, so the instance is
+    /// faulted rather than trusted.
+    OffsetUnchecked {
+        /// The instance whose offset could not be checked.
+        instance: RecipeNodeId,
+        /// Why.
+        cause: Box<OffsetCheck>,
+    },
     /// **A side's `FromFace` frame did not resolve to a pose**: the
     /// mated part's own evaluation answered no pose for the face the
     /// frame names ([`MateReach::face_pose`]), in the resolver's or
@@ -1126,7 +1151,7 @@ pub enum MateFault {
     /// a mate being inserted, and the solve at every evaluation for a
     /// state a part edit brings a mate to (a face that vanished or
     /// changed carrier) — a load never refuses it, since replay
-    /// declines the read ([`solve::Maintain`]).
+    /// declines the read (`solve::admit_mate`).
     FaceUnresolved {
         /// The mate.
         mate: RecipeNodeId,
@@ -1137,6 +1162,85 @@ pub enum MateFault {
         /// arm, and the fault's every other arm stays the size it is.
         refusal: Box<FaceRefusal>,
     },
+}
+
+/// The recourse a disagreeing checked offset names.
+pub const OFFSET_RECOURSE: &str = "clear the offset, or change the mate";
+
+/// **Why a checked offset could not be checked**
+/// ([`MateFault::OffsetUnchecked`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum OffsetCheck {
+    /// A placement the check reads did not evaluate at the document's
+    /// own parameters: the offset itself, the root's, or a gauge on
+    /// the chain.
+    Placement {
+        /// The instance or gauge whose placement refused.
+        node: RecipeNodeId,
+        /// The evaluation layer's own refusal, unchanged.
+        error: NodeRefusal,
+    },
+    /// The member's part reach — the lever the check is decided over —
+    /// is not in hand.
+    Unleverable(LeverRefusal),
+    /// The check landed in the ambiguity band.
+    Indeterminate(Box<Indeterminate>),
+    /// The solve gives the member no pose: `mate`, which welds its
+    /// group, refused, so the group's spanning tree does not reach it.
+    Unreached {
+        /// The group's first mate the solve refused.
+        mate: RecipeNodeId,
+    },
+}
+
+impl core::fmt::Display for OffsetCheck {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Placement { node, .. } => {
+                write!(f, "the placement at node {} does not evaluate", node)
+            }
+            Self::Unleverable(refusal) => write!(f, "{refusal}"),
+            Self::Indeterminate(diag) => {
+                write!(f, "the check could not be decided — {}", diag.payload())
+            }
+            Self::Unreached { mate } => write!(
+                f,
+                "the solve gives it no pose, because mate {}, which welds its group, refused",
+                mate
+            ),
+        }
+    }
+}
+
+/// The measurement a refusal quotes, as the tail of its sentence:
+/// what was measured where `there` would have had to hold.
+fn write_clash(f: &mut core::fmt::Formatter<'_>, clash: Clash, there: &str) -> core::fmt::Result {
+    match clash {
+        Clash::Structural => write!(
+            f,
+            "found the cosets meet in the empty set — a structural refusal, with no margin to \
+             measure"
+        ),
+        Clash::Length { metres } if metres.is_finite() => {
+            write!(f, "measured a clash of {metres} m where {there}")
+        }
+        // A length that is not finite is not one.
+        Clash::Length { metres } => write!(
+            f,
+            "measured a clash that is not a finite length ({metres}) where {there}"
+        ),
+        Clash::Levered(lever @ Lever::Roll { radians, arm }) => write!(
+            f,
+            "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m where {there}",
+            lever.deviation()
+        ),
+        Clash::Levered(lever @ Lever::Residual { value, arm }) => write!(
+            f,
+            "measured a dimensionless residual of {value} on a {arm} m arm, a deviation of {} m \
+             where {there}",
+            lever.deviation()
+        ),
+    }
 }
 
 /// **The pairing predicate's finding, in this door's vocabulary.**
@@ -1189,7 +1293,14 @@ impl MateFault {
             | Self::PartSelectsAnotherCopy { .. }
             | Self::SelfMate { .. }
             | Self::Unleverable { .. }
-            | Self::FaceUnresolved { .. } => None,
+            | Self::FaceUnresolved { .. }
+            | Self::OffsetDisagrees { .. } => None,
+            Self::OffsetUnchecked { cause, .. } => match &**cause {
+                OffsetCheck::Placement { node, error } => Some((*node, error)),
+                OffsetCheck::Unleverable(_)
+                | OffsetCheck::Indeterminate(_)
+                | OffsetCheck::Unreached { .. } => None,
+            },
         }
     }
 
@@ -1376,38 +1487,10 @@ impl core::fmt::Display for MateFault {
                 // WHETHER there is a measurement to report, and of
                 // which kind, is the predicate's fact and the type
                 // carries it: a levered clash prints the product of
-                // the two halves it shows, computed here, so the
+                // the two halves it shows, computed there, so the
                 // sentence cannot assert an identity the payload
                 // failed to keep.
-                match clash {
-                    Clash::Structural => write!(
-                        f,
-                        "found the cosets meet in the empty set — a structural refusal, with no \
-                         margin to measure"
-                    )?,
-                    Clash::Length { metres } if metres.is_finite() => write!(
-                        f,
-                        "measured a clash of {metres} m where the cosets would have had to meet"
-                    )?,
-                    // A length that is not finite is not one.
-                    Clash::Length { metres } => write!(
-                        f,
-                        "measured a clash that is not a finite length ({metres}) where the cosets \
-                         would have had to meet"
-                    )?,
-                    Clash::Levered(lever @ Lever::Roll { radians, arm }) => write!(
-                        f,
-                        "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
-                         where the cosets would have had to meet",
-                        lever.deviation()
-                    )?,
-                    Clash::Levered(lever @ Lever::Residual { value, arm }) => write!(
-                        f,
-                        "measured a dimensionless residual of {value} on a {arm} m arm, a \
-                         deviation of {} m where the cosets would have had to meet",
-                        lever.deviation()
-                    )?,
-                }
+                write_clash(f, *clash, "the cosets would have had to meet")?;
                 // The repair is the same whichever measurement the
                 // predicate had to report, so it is stated once.
                 write!(f, ". Recourse: {CONTRADICTORY_RECOURSE}")
@@ -1473,6 +1556,56 @@ impl core::fmt::Display for MateFault {
             ),
             Self::Unleverable { mate, refusal } => {
                 write!(f, "mate {}: {refusal}", mate)
+            }
+            Self::OffsetDisagrees {
+                instance,
+                root,
+                predicate,
+                clash,
+            } => {
+                write!(
+                    f,
+                    "instance {}'s offset disagrees with where its mates place it relative to \
+                     its group's root, instance {} — predicate `{predicate}` ",
+                    instance, root
+                )?;
+                write_clash(
+                    f,
+                    *clash,
+                    "the offset and the solve would have had to agree",
+                )?;
+                write!(f, ". {}", crate::sentence::Recourse(OFFSET_RECOURSE))
+            }
+            Self::OffsetUnchecked { instance, cause } => {
+                write!(
+                    f,
+                    "instance {}'s offset could not be checked against where its mates place \
+                     it: {cause}",
+                    instance
+                )?;
+                // A lever refusal ends on its own recourse.
+                match &**cause {
+                    OffsetCheck::Placement { node, .. } => write!(
+                        f,
+                        ". {}",
+                        crate::sentence::Recourse(format_args!(
+                            "repair node {}, or clear the offset",
+                            node
+                        ))
+                    ),
+                    OffsetCheck::Unleverable(_) => Ok(()),
+                    OffsetCheck::Unreached { mate } => write!(
+                        f,
+                        ". {}",
+                        crate::sentence::Recourse(format_args!(
+                            "repair mate {}, or clear the offset",
+                            mate
+                        ))
+                    ),
+                    OffsetCheck::Indeterminate(_) => {
+                        write!(f, ". {}", crate::sentence::Recourse("clear the offset"))
+                    }
+                }
             }
             Self::FaceUnresolved {
                 mate,

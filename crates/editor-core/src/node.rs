@@ -52,6 +52,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::Assertion { .. }
+            | $crate::node::Node::Gauge { .. }
     };
 }
 
@@ -1232,6 +1233,7 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Mate { .. } => None,
     }
 }
@@ -1265,6 +1267,7 @@ pub(crate) fn payload_exprs_mut<P>(node: &mut Node<P>) -> Option<Vec<&mut Expr>>
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Mate { .. } => None,
     }
 }
@@ -2581,11 +2584,13 @@ pub enum Node<P> {
     /// [`Node::inputs`] is empty and the DAG has nothing to schedule
     /// ahead of it.
     ///
-    /// **No frame field.** A11 puts placement on the GROUP, and the
-    /// registry holding it is document data ([`crate::Doc::placement`])
-    /// — an instance carries no frame of its own, which is what makes
-    /// zero-anchor and multi-anchor states unrepresentable rather than
-    /// merely refused.
+    /// **Where it sits** (A11 (2)): it names its [`Node::Gauge`] —
+    /// the world when `gauge` is `None` — and may carry an `offset` in
+    /// it. Its world pose is the gauge's frame composed with the offset
+    /// of its group's root, composed with its solved pose relative to
+    /// that root ([`crate::mate::SolvedPoses`]). An instance with no
+    /// offset sits where its mates place it, or, when nothing places
+    /// its group, in the group's own space.
     InstantiatePart {
         /// Which document, at which version (A4: the id answers "which
         /// part", the pin "which version of it"). Cargo.lock semantics
@@ -2601,6 +2606,36 @@ pub enum Node<P> {
         /// the node's content key.
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
+        /// The gauge the instance sits on, `None` for the world. A
+        /// READING edge, like a mate's: it is not an input, so a gauge
+        /// is never consumed by what sits on it, and deleting it is
+        /// never refused. A reference to a deleted gauge is kept, so
+        /// the group it unplaces can name its cause. Required on the
+        /// wire, `null` for the world, so a file written before gauges
+        /// refuses typed rather than loading as unplaced.
+        #[serde(deserialize_with = "crate::persist::wire::present")]
+        gauge: Option<RecipeNodeId>,
+        /// The instance's offset in its gauge, `None` when it carries
+        /// none. On its group's root it places the group; on any other
+        /// member it is a statement the solve checks
+        /// ([`crate::mate::MateFault::OffsetDisagrees`]). Its rigid
+        /// steps are slots ([`SlotId::rigid`]). Required on the wire,
+        /// `null` for none, as `gauge` is.
+        #[serde(deserialize_with = "crate::persist::wire::present")]
+        offset: Option<crate::placement::Placement>,
+    },
+    /// **A gauge** (A11 (2)): a frame that instances and other gauges
+    /// sit on. It denotes no body, so as a product root it contributes
+    /// nothing (A10). Its frame is its parent's frame composed with its
+    /// `placement`, the world's when `parent` is `None`; `parent` is a
+    /// READING edge, as an instance's `gauge` is. Its placement's rigid
+    /// steps are slots ([`SlotId::rigid`]), so a document parameter can
+    /// drive where everything on it sits.
+    Gauge {
+        /// The gauge this one sits on, `None` for the world.
+        parent: Option<RecipeNodeId>,
+        /// Where it sits on its parent.
+        placement: crate::placement::Placement,
     },
     /// A **mate** between two instances (ASSEMBLY-DESIGN A3/A12;
     /// ASM-R2a D-1): one node carrying BOTH the placement constraint
@@ -2942,7 +2977,17 @@ macro_rules! node_rows {
                 $out.push((S::Stations, stations));
                 $out.push((S::VDegree, v_degree));
             }
-            Node::Transform { placement, .. } => $out.extend(placement.$rows()),
+            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
+                $out.extend(placement.$rows())
+            }
+            // The offset's rigid steps are the instance's slots; the
+            // reference itself takes no arguments (AQ4 — the referenced
+            // document evaluates at its OWN parameters).
+            Node::InstantiatePart { offset, .. } => {
+                if let Some(offset) = offset {
+                    $out.extend(offset.$rows())
+                }
+            }
             // A pattern's count is a field, so it is always there; a
             // placed union's is an `Option`, and a rule missing the
             // count it needs carries no count SLOT either — the
@@ -2957,16 +3002,13 @@ macro_rules! node_rows {
                 PartSelect::SplitHalf(_) => {}
                 PartSelect::Instance(index) => $out.push((S::Instance, index)),
             },
-            // AQ4: an instance takes no arguments in v1 — the
-            // referenced document evaluates at its OWN parameters.
             Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Union { .. }
             | Node::Declare { .. }
             // A11: the alignment datum is authored geometry, not a
             // continuous slot — a mate has no expression to drive.
-            | Node::Mate { .. }
-            | Node::InstantiatePart { .. } => {}
+            | Node::Mate { .. } => {}
             // Neither carries a SLOT. A slot's address fixes its
             // dimension ([`SlotId::dimension`]) — that is the
             // vocabulary's contract, read by the edit door, the load
@@ -3061,7 +3103,8 @@ impl<P> Node<P> {
             // A mate is a leaf: its references are NAMES, not edges
             // (A12's reading edges are recomputed, never stored here).
             | Node::Mate { .. }
-            | Node::InstantiatePart { .. } => Vec::new(),
+            | Node::InstantiatePart { .. }
+            | Node::Gauge { .. } => Vec::new(),
             // A measure's references ARE its data dependencies (the
             // variant's docs state why this kind departs from the D3
             // carve-out). The edge is the node each reference is READ
@@ -3162,6 +3205,7 @@ impl<P> Node<P> {
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
@@ -3202,6 +3246,7 @@ impl<P> Node<P> {
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
@@ -3409,6 +3454,7 @@ impl<P> Node<P> {
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => false,
@@ -3768,25 +3814,72 @@ impl<P> Node<P> {
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
-    /// record — the authoring constructor. A non-empty record is
-    /// mintable only by the refactoring that observed declarations
-    /// crossing a cut, which reaches it through
-    /// [`Node::instantiate_part_with`]: an authored instance crosses
-    /// nothing.
+    /// record, on the world at the empty offset — the authoring
+    /// constructor, so every insert door yields an instance placed at
+    /// the world origin. A non-empty record is mintable only by the
+    /// refactoring that observed declarations crossing a cut, which
+    /// reaches it through [`Node::instantiate_part_with`]: an authored
+    /// instance crosses nothing.
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
+        Self::instantiate_part_with(
+            doc_ref,
+            InterfaceRecord::default(),
+            None,
+            Some(crate::placement::Placement::IDENTITY),
+        )
     }
 
     /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
-    /// (ASM-R2b D-4): the split's door, since only a split knows what
-    /// crossed its cut. Authoring an instance by hand goes through
-    /// [`Node::instantiate_part`] — an authored instance crosses
-    /// nothing.
+    /// (ASM-R2b D-4), on `gauge` at `offset`: the split's door, since
+    /// only a split knows what crossed its cut. Authoring an instance
+    /// by hand goes through [`Node::instantiate_part`] — an authored
+    /// instance crosses nothing.
     pub fn instantiate_part_with(
         doc_ref: crate::ident::DocRef,
         interface: InterfaceRecord,
+        gauge: Option<RecipeNodeId>,
+        offset: Option<crate::placement::Placement>,
     ) -> Self {
-        Node::InstantiatePart { doc_ref, interface }
+        Node::InstantiatePart {
+            doc_ref,
+            interface,
+            gauge,
+            offset,
+        }
+    }
+
+    /// Builds a [`Node::Gauge`] on `parent` (the world when `None`) at
+    /// `placement`.
+    pub fn gauge(
+        parent: Option<RecipeNodeId>,
+        placement: impl Into<crate::placement::Placement>,
+    ) -> Self {
+        Node::Gauge {
+            parent,
+            placement: placement.into(),
+        }
+    }
+
+    /// **The gauge reference this node reads**, where it has one: an
+    /// instance's gauge, or a gauge's parent. `None` is the world —
+    /// and for every other node kind, which sits on nothing.
+    pub fn gauge_ref(&self) -> Option<RecipeNodeId> {
+        match self {
+            Node::InstantiatePart { gauge, .. } => *gauge,
+            Node::Gauge { parent, .. } => *parent,
+            _ => None,
+        }
+    }
+
+    /// **The placement this node holds**, where it holds one: a
+    /// transform's, a gauge's, or an instance's offset when it carries
+    /// one.
+    pub fn held_placement(&self) -> Option<&crate::placement::Placement> {
+        match self {
+            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => Some(placement),
+            Node::InstantiatePart { offset, .. } => offset.as_ref(),
+            _ => None,
+        }
     }
 
     /// Builds a [`Node::PlacedUnion`] with a PARAMETRIC rule (linear
@@ -3828,7 +3921,10 @@ impl<P> Node<P> {
         tol: geom_core::Tol,
     ) -> Option<(usize, crate::placement::FrameFault)> {
         match self {
-            Node::Transform { placement, .. } => placement.frame_fault(tol),
+            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
+                placement.frame_fault(tol)
+            }
+            Node::InstantiatePart { offset, .. } => offset.as_ref()?.frame_fault(tol),
             // EXHAUSTIVE, as `placement_rule_fault` is: a node kind that
             // comes to hold a placement is classified here or the
             // compile breaks, rather than slipping past both doors.
@@ -3850,7 +3946,6 @@ impl<P> Node<P> {
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
-            | Node::InstantiatePart { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
@@ -3903,6 +3998,7 @@ impl<P> Node<P> {
             | Node::Part { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => return None,
@@ -3922,9 +4018,9 @@ impl<P> Node<P> {
         if frames.is_empty() {
             return Some(PlacementRuleFault::NoPlacements);
         }
-        // A11/A6 parity: a placement frame is held to exactly what
-        // `SetPlacement` holds a cluster frame to, because it is held
-        // to it by the same predicate — `Frame::admission_fault`, whose
+        // A6 parity: a listed frame is held to exactly what a
+        // placement's literal step is held to, because it is held to
+        // it by the same predicate — `Frame::admission_fault`, whose
         // home is the frame. This arm says only WHICH frame in the list
         // answered. Checked HERE so the refusal lands at the edit door
         // with the best diagnostics, not at the kernel's rigidity
