@@ -15,3 +15,12 @@ EDIT's narrative of P1, P2a and P2-core (the sittings, the cut, ruling C, A∘F�
 - The dual-review log's foot reads tally 10, with 15 fair pairs that found a MAJOR (DR-34).
 - Readout 2 was ruled (`7cb05367e`), so an L unit stays a concurrent pair.
 - `sweep reach_volume_backstop::an_open_sign…` is red on main at 1e-6 (REACH P0). Expect it on any run whose eps filter reaches `sweep`.
+
+## 2026-10-02 — first sitting: the track is taken
+
+The PLACE orchestrator holds the track (`status: active`). Order, per the plan:
+- the P2-split spec is drafted by a survey lane over `refactor.rs` as P2-core built it, and ruled here;
+- `split-and-inline-refusals-short-of-the-shape-guard` goes first, as its own small unit, so P2-split's build starts from arms that already state a recourse rather than carrying them (orchestrator's read);
+- `document-order-is-read-off-node-id-comparison-since-ids-are-digests` runs concurrently: its ground is the mate solve and the document, not `refactor.rs` (single review if the sweep fixes sites).
+
+`a-part-resting-on-a-gauge-cannot-follow-a-part-edit` is priced `H` with `design: true`: every candidate fix touches A11 (2), so it goes to a designer pair and then an `[ev]` PR, after P2-split's spec is out.

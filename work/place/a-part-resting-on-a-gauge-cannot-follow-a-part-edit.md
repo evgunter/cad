@@ -5,6 +5,8 @@ title: a part set on another part's gauge cannot follow that part's edit: a mate
 status: open
 opened: 2026-10-02
 priority: P3
+design: true
+cost: H
 ---
 
 
