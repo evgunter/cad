@@ -495,7 +495,7 @@ mod meetings_rows {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod crossing_rows {
     //! [`super::boundary_crossing`] against a face whose boundary vertices
     //! cannot name the meeting: a tilted circle through the interior of a

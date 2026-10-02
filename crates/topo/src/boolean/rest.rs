@@ -900,6 +900,9 @@ struct SeamSet {
     per_segment: Vec<EdgeKey>,
 }
 
+/// An edge's two vertices, `(u, v)`.
+type VertexPair = (VertexKey, VertexKey);
+
 /// Realizes the seam in one solid: per segment, the existing operand
 /// edge (fan walk) or a minted chord through the standard splitting
 /// machinery, on the other solid's edge for the segment where it has
@@ -908,7 +911,7 @@ struct SeamSet {
 fn realize_seam<T: Decide>(
     body: &mut Body<T>,
     other: &Body<T>,
-    segments: &[((VertexKey, VertexKey), (VertexKey, VertexKey))],
+    segments: &[(VertexPair, VertexPair)],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -979,6 +982,7 @@ fn interior_edges<T: Decide>(
 /// `Ok(None)`: an interior edge whose ends have no counterpart here (a
 /// vertex of the other solid interior to the region), a closed one, or
 /// one whose host is not a single patch face — not this lane's frontier.
+#[allow(clippy::too_many_arguments)] // both solids, the vertex map, and the split bookkeeping `mint_chord` takes
 fn mirror_edges<T: Decide>(
     body: &mut Body<T>,
     other: &Body<T>,
