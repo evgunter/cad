@@ -248,7 +248,7 @@ fn mint_directed<T: Decide>(
     // the whole orbit).
     let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
     let structural = if empty {
-        let corrupt = || BooleanError::CorruptOperand { operand, vertex };
+        let corrupt = || BooleanError::corrupt_at(operand, vertex);
         let arrival = body
             .get_half_edge(sectors[gf.0].he)
             .ok_or_else(corrupt)?
@@ -624,10 +624,10 @@ fn mint_run<T: Decide>(
     let successor = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, BooleanError> {
         let mate = body
             .mate(he)
-            .ok_or(BooleanError::CorruptOperand { operand, vertex })?;
+            .ok_or(BooleanError::corrupt_at(operand, vertex))?;
         Ok(body
             .get_half_edge(mate)
-            .ok_or(BooleanError::CorruptOperand { operand, vertex })?
+            .ok_or(BooleanError::corrupt_at(operand, vertex))?
             .next)
     };
     let (site, dangling) = if hes.is_empty() {

@@ -2,7 +2,7 @@ use geom_brep::Pcurve;
 use geom_brep::props::quad::{
     self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
+use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use geom_core::Tol;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -127,6 +127,42 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
         cb: Interval::from_certified(cb),
         cl: Interval::from_certified(cl),
     })
+}
+
+/// One closed-form face's flux and area at the interval scalar: its
+/// surface and loops lifted point for point (`map_scalar`, which does no
+/// arithmetic) and handed to the same closed form the face walk runs,
+/// (`super::closed_form_of`), so the result holds the exact flux of the
+/// stored geometry rather than its `f64` rounding.
+pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
+    surface: &Surface<T>,
+    loops: &[Vec<LoopEdge<T>>],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<Interval>, PropsError> {
+    let loops: Vec<Vec<LoopEdge<Interval>>> = loops
+        .iter()
+        .map(|edges| {
+            edges
+                .iter()
+                .map(|e| LoopEdge {
+                    carrier: e.carrier.map_scalar(Interval::from_certified),
+                    carrier_id: e.carrier_id,
+                    t0: Interval::from_certified(e.t0),
+                    t1: Interval::from_certified(e.t1),
+                    forward: e.forward,
+                    start: e.start,
+                    end: e.end,
+                })
+                .collect()
+        })
+        .collect();
+    super::closed_form_of(
+        &surface.map_scalar(Interval::from_certified),
+        &loops,
+        sense,
+        band,
+    )
 }
 
 /// The certified flux/area enclosures of one curved-cut face
