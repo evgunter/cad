@@ -22,7 +22,7 @@ use pncad::topo::splitting::{PlaneSide, SplitPart, SplitPlane, plane_section, sp
 
 use crate::SceneBody;
 use crate::projectbox::{BORE_AXES, BORE_R};
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, split_plane};
 use pncad::geom_core::Tol;
 
 /// The section plane's normal, unnormalized: tilted about both
@@ -57,12 +57,13 @@ pub(crate) struct SectionNumbers {
     pub area_pad: f64,
 }
 
-/// The section plane, its normal unit.
-fn section_plane<S: Scalar>() -> SplitPlane<S> {
-    SplitPlane {
-        origin: p3(THROUGH.0, THROUGH.1, THROUGH.2),
-        normal: v3(NORMAL.0, NORMAL.1, NORMAL.2).normalize(),
-    }
+/// The section plane.
+fn section_plane<S: Scalar>(tol: Tol) -> SplitPlane<S> {
+    split_plane(
+        p3(THROUGH.0, THROUGH.1, THROUGH.2),
+        v3(NORMAL.0, NORMAL.1, NORMAL.2),
+        tol,
+    )
 }
 
 /// `cos φ`, φ the plane's tilt from the horizontal: a vertical prism of
@@ -77,7 +78,7 @@ pub(crate) fn build<S: Scalar>(
     boxbody: &pncad::topo::Body<S>,
     tol: Tol,
 ) -> ((pncad::topo::Body<S>, pncad::topo::Body<S>), SectionNumbers) {
-    let plane = section_plane::<S>();
+    let plane = section_plane::<S>(tol);
     let res = split(boxbody, &plane, tol).expect("split of the boolean-result box");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&res.above, &res.below) else {
         panic!("the section plane crosses the box: both sides must be bodies");
@@ -121,9 +122,9 @@ pub(crate) fn build<S: Scalar>(
     let area = (s_above + s_below - s_box) / 2.0;
     let area_pad = (pad_above + pad_below + pad_box) / 2.0;
 
-    // Pull the halves apart along the section normal: rigid transforms
-    // re-mint every moved witness (#84).
-    let n = plane.normal * S::from_f64(0.75);
+    // Pull the halves apart 0.75 along the section normal: rigid
+    // transforms re-mint every moved witness (#84).
+    let n = plane.normal.get() * S::from_f64(0.75);
     let moved_above = pncad::topo::transform_rigid(above, &Affine3::translation(n), tol)
         .expect("translate above half");
     let moved_below = pncad::topo::transform_rigid(below, &Affine3::translation(-n), tol)
@@ -173,7 +174,7 @@ fn read_section(
     (split_area, split_pad): (f64, f64),
     tol: Tol,
 ) -> SectionReading {
-    let section = plane_section(boxbody, &section_plane::<f64>(), tol)
+    let section = plane_section(boxbody, &section_plane::<f64>(tol), tol)
         .expect("plane_section of the box through its bores");
     let ellipse = PI * BORE_R * BORE_R / cos_tilt();
     let boss = 0.375 * 0.375 / cos_tilt();

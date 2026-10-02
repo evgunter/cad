@@ -294,10 +294,13 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     let wall = |step| {
         fixture::fname(
             ext,
-            RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
-                step,
-                role: editor_core::PieceRole::Leg,
-            }),
+            RoleSeg::Lateral(
+                editor_core::ProfileEdgeRef::Piece {
+                    step,
+                    role: editor_core::PieceRole::Leg,
+                }
+                .into(),
+            ),
         )
     };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
