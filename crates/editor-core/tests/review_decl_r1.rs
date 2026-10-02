@@ -15,7 +15,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
+use crate::docm7_union_declare::{
+    block, declared_union, declared_union_classed, failure, flush_pairs, run,
+};
 use crate::fixture::{ang, fname, insert, len, scl, step, wall};
 use editor_core::{
     BooleanOp, CapEnd, DocEdit, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, ResolveError,
@@ -65,7 +67,7 @@ fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
             declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (c, c)));
         let ev = run(&doc);
         let got = failure(&ev, union);
-        let Some(NodeErrorKind::UndeclaredContact {
+        let Some(NodeErrorKind::UndeclaredCoincidence {
             finding, merged, ..
         }) = got
         else {
@@ -105,18 +107,21 @@ fn a_merged_row_contact_is_declared_through_its_constituents() {
             SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
         )
     };
-    let mut pairs = flush_pairs(&doc, (a, a), (c, c));
-    pairs.push(rests(c));
-    let (only_c, union, _) = declared_union(doc.clone(), &[a, c, d], pairs.clone());
+    let mut pairs: Vec<_> = flush_pairs(&doc, (a, a), (c, c))
+        .into_iter()
+        .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
+        .collect();
+    pairs.push((rests(c), editor_core::BooleanCoincidence::REST));
+    let (only_c, union, _) = declared_union_classed(doc.clone(), &[a, c, d], pairs.clone());
     let ev = run(&only_c);
     assert!(
-        matches!(failure(&ev, union), Some(NodeErrorKind::UndeclaredContact { finding, .. })
+        matches!(failure(&ev, union), Some(NodeErrorKind::UndeclaredCoincidence { finding, .. })
             if [finding.pair.0.at, finding.pair.1.at] == if a < d { [a, d] } else { [d, a] }),
         "{:?}",
         failure(&ev, union)
     );
-    pairs.push(rests(a));
-    let (doc, union, _) = declared_union(doc, &[a, c, d], pairs);
+    pairs.push((rests(a), editor_core::BooleanCoincidence::REST));
+    let (doc, union, _) = declared_union_classed(doc, &[a, c, d], pairs);
     let ev = run(&doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let v = volume(&ev, union);
@@ -150,7 +155,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     // Sited at the minting node, which is not an operand.
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_rest(vec![(
+        Node::declare_continuation(vec![(
             SitedRef::new(a, fname(a, wall(&base, a, 0))),
             SitedRef::new(b0, fname(b0, wall(&base, b0, 0))),
         )]),
@@ -165,7 +170,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     // Sited at the transform, naming a row the block does not have.
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_rest(vec![(
+        Node::declare_continuation(vec![(
             SitedRef::new(a, fname(a, wall(&doc, a, 0))),
             SitedRef::new(
                 tr,
@@ -201,7 +206,7 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, x) = block(doc, (12.0, 13.0), (0.0, 1.0), 0.0, 1.0);
     // The name is `c`'s; the site is `x`, live but not an operand.
-    let node = Node::declare_rest(vec![(
+    let node = Node::declare_continuation(vec![(
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
         SitedRef::new(x, fname(c, wall(&doc, c, 0))),
     )]);
@@ -390,7 +395,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         },
     );
     let ev = run(&bare);
-    let Some(NodeErrorKind::UndeclaredContact { finding, .. }) = failure(&ev, plain) else {
+    let Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) = failure(&ev, plain) else {
         panic!("{:?}", failure(&ev, plain))
     };
     let (applied, decl2) =
@@ -410,7 +415,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     // changing character.
     let next = failure(&ev, union2);
     assert!(
-        matches!(next, Some(NodeErrorKind::UndeclaredContact { .. })),
+        matches!(next, Some(NodeErrorKind::UndeclaredCoincidence { .. })),
         "{next:?}"
     );
 }

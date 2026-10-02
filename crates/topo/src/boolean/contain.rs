@@ -320,17 +320,8 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            let margin = Margin::norm3(q - *p);
-            match decide("bool_contact_vertex", margin, band) {
-                Ok(Sign::Zero) => return Ok(PrePass::On(FaceContainment::OnVertex(*v))),
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Negative) => {
-                    return Err(ContainError::Escalated(crate::invalid_margin::invalid(
-                        band,
-                        "bool_contact_vertex",
-                    )));
-                }
-                Err(diag) => return Err(ContainError::Escalated(diag)),
+            if super::one_vertex(q, *p, band).map_err(ContainError::Escalated)? {
+                return Ok(PrePass::On(FaceContainment::OnVertex(*v)));
             }
         }
     }
@@ -925,13 +916,13 @@ pub(super) fn point_on_circle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
-    let w = q - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let r_norm = radial.norm();
-    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
+    let d = crate::splitting::containment::circle_miss(q, center, axis, radius);
     match decide("bool_contact_arc", Margin::of(d), band) {
-        Ok(Sign::Zero) => Ok(Some((radial, r_norm))),
+        Ok(Sign::Zero) => {
+            let w = q - center;
+            let radial = w - axis * w.dot(axis);
+            Ok(Some((radial, radial.norm())))
+        }
         Ok(Sign::Positive) => Ok(None),
         Ok(Sign::Negative) => Err(crate::invalid_margin::invalid(band, "bool_contact_arc")),
         Err(diag) => Err(diag),

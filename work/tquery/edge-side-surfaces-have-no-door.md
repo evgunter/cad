@@ -2,11 +2,13 @@
 id: edge-side-surfaces-have-no-door
 kind: issue
 title: An edge's two side surfaces have no public door; the read is spelled at least nine times
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
 branch: tquery/edge-side-door
+pr: 3803
+closed: 2026-10-02
 ---
 
 
@@ -40,3 +42,8 @@ privately wherever it is needed:
 One read-back door (`readback::edge_sides` or a `query` twin) returning
 both side faces or surfaces with a typed refusal, the private copies
 routed through it, and the tour seed finder spelled on it.
+
+## Closed
+
+`topo::readback::edge_sides` answers an edge's two sides (half-edge, face, surface key; `he_plus`'s first, a `DanglingRef` refusal), and every private spelling listed above reads through it (PR 3803).
+The sites that keep their own walk, and why, are on `work/strut/blend-spells-the-half-edge-to-face-walk-five-times.md` and `work/helper/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.

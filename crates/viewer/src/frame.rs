@@ -229,8 +229,9 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Doc, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
-    PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, SlotId,
+    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName,
+    ParseError, PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId,
+    ResolveFault, Said, SlotId, Speaker,
 };
 use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
@@ -843,14 +844,69 @@ pub fn batch_refusal(
     doc: &Doc<ProfileProgram>,
 ) -> Option<Refusal> {
     let refusal = refusal?;
-    let replaced = ops
-        .iter()
-        .any(|op| matches!(op, SessionOp::Open(_) | SessionOp::NewDocument { .. }));
-    Some(if replaced {
+    Some(if ops.iter().any(replaces_the_document) {
         refusal
     } else {
         refusal.respoken(doc)
     })
+}
+
+/// **Whether `op` puts another document in the session**, whose ids say
+/// nothing about a refusal raised before it ([`batch_refusal`]). Every
+/// op is listed, so a new one is sorted here by whoever adds it: one
+/// left out of the `true` arm has its batch's refusal spoken from a
+/// document that is not the one it was raised in.
+fn replaces_the_document(op: &SessionOp) -> bool {
+    match op {
+        SessionOp::Open(_) | SessionOp::NewDocument { .. } => true,
+        SessionOp::Hover(_)
+        | SessionOp::Select(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::CancelGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove { .. }
+        | SessionOp::CancelFreeMove
+        | SessionOp::AddMate { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
+        | SessionOp::AddBoolean { .. }
+        | SessionOp::AddSplit { .. }
+        | SessionOp::AddTransform { .. }
+        | SessionOp::AddPattern { .. }
+        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFillet { .. }
+        | SessionOp::AddChamfer { .. }
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. }
+        | SessionOp::SetLabel { .. } => false,
+        SessionOp::CreateLabelled { creation, .. } => replaces_the_document(creation.op()),
+    }
 }
 
 /// **A [`Refusal`] as the line carries it** — the one place a refusal
@@ -2073,16 +2129,22 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 /// [`crate::idpass::Disagreement`] renders a name — kind and minting
 /// node, then the role path — for the same reason and with the same
 /// shape. Every other arm is the typed refusal's own words,
-/// unaltered.
+/// unaltered. Each node is said from `doc`, the landed document the
+/// index was built against.
 ///
 /// [`Retold::Again`]: the same click says it again.
-pub fn pick_refusal(error: &PickError) -> Message {
+pub fn pick_refusal(error: &PickError, doc: &Doc<ProfileProgram>) -> Message {
+    let by = Speaker::of(doc);
     let PickError::HitTest(HitTestError::Ambiguous { hits }) = error else {
-        return Message::new(Subject::Document, error.to_string(), Retold::Again);
+        return Message::new(
+            Subject::Document,
+            Said(error, by).to_string(),
+            Retold::Again,
+        );
     };
     let tied: Vec<String> = hits
         .iter()
-        .map(|hit| format!("{} ({:?})", hit.name, hit.name.path))
+        .map(|hit| crate::idpass::NameAndPath(&hit.name, by).to_string())
         .collect();
     Message::new(
         Subject::Document,
@@ -2098,7 +2160,7 @@ pub fn pick_refusal(error: &PickError) -> Message {
 
 /// **What a tool did on its own** — a survival drop or a declined pick
 /// ([`ToolNotice`]) — as a notice, [`Subject::Document`] like
-/// [`tool_news`], in the words [`ToolNotice`]'s own `Display` gives it.
+/// [`tool_news`], in the words [`ToolNotice::said`] gives it.
 ///
 /// **The one door a tool event reaches the line through**, because the
 /// event's arm is what says whether anything will say it again, and a
@@ -2111,7 +2173,7 @@ pub fn pick_refusal(error: &PickError) -> Message {
 /// and rides beside a refusal ([`frame_status`]). A **declined pick**
 /// took nothing: the held picks are untouched and the same pick says
 /// the same sentence again, so it is [`Retold::Again`].
-pub fn tool_notice(notice: &ToolNotice) -> Message {
+pub fn tool_notice(notice: &ToolNotice, landed: Option<&Doc<ProfileProgram>>) -> Message {
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
         ToolNotice::Seated {
@@ -2127,7 +2189,7 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
             | BlendEvent::TargetHasNoValue { .. },
         ) => Retold::Again,
     };
-    Message::new(Subject::Document, notice.to_string(), retold)
+    Message::new(Subject::Document, notice.said(landed), retold)
 }
 
 /// **What a tool has to say** that is not one of its own events — an
@@ -2220,6 +2282,40 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
         .opens()
         .detailed("show what the checks found"),
     )
+}
+
+/// **One row of the Checks window**: the root a finding is about, the
+/// label of the button that selects it, and the finding's sentence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckRow {
+    /// The root the finding is about, which the button selects.
+    pub root: RecipeNodeId,
+    /// The root, spoken.
+    pub button: String,
+    /// The finding, its roots spoken.
+    pub sentence: String,
+}
+
+/// **The Checks window's rows**, each root spoken from `landed`.
+///
+/// The report is the landed run's: its roots' ids are spelled in the
+/// document that run was over, which the committed one passes while a
+/// run is outstanding. `landed` must be that run's document
+/// (`DocSession::landed_pair`). [`ChecksReport::speaker`] refuses
+/// another document, but not another version of this one, since a
+/// document's id survives every edit: the landed-against-committed
+/// choice is the caller's, and `ViewerApp::checks_window` makes it.
+pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<CheckRow> {
+    let by = report.speaker(landed);
+    report
+        .findings
+        .iter()
+        .map(|finding| CheckRow {
+            root: finding.root,
+            button: by.node(finding.root).to_string(),
+            sentence: Said(finding, by).to_string(),
+        })
+        .collect()
 }
 
 /// **What the chrome badges about the δ the display budget chose**,
@@ -2461,7 +2557,9 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// them.** It names the root the build refused on, and the standing it
 /// carries is read as the tree reads it ([`index_refusal_as_drawn`]),
 /// so for a root a mate refusal reached it names the mate the label
-/// names rather than the root or the root's DAG ancestor.
+/// names rather than the root or the root's DAG ancestor. Its nodes
+/// are said from the landed document, the one the index was built
+/// against; the label's row, from `doc`, as the tree draws it.
 ///
 /// Every other refusal is the index's own and stays
 /// [`Tone::Actionable`] in its own words — and so does a standing
@@ -2471,14 +2569,20 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 pub fn index_badge(
     error: Option<&PickIndexError>,
     doc: &Doc<ProfileProgram>,
-    evaluation: Option<&Evaluation<f64>>,
+    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
 ) -> Option<Badge> {
     let error = error?;
     let cause = downstream_root(error)
-        .zip(evaluation)
-        .and_then(|(root, evaluation)| crate::tree::cause_row(root, evaluation));
-    let said = match evaluation {
-        Some(evaluation) => format!("pick index: {}", index_refusal_as_drawn(error, evaluation)),
+        .zip(landed)
+        .and_then(|(root, (_, evaluation))| crate::tree::cause_row(root, evaluation));
+    let said = match landed {
+        Some((landed, evaluation)) => format!(
+            "pick index: {}",
+            Said(
+                &index_refusal_as_drawn(error, evaluation),
+                Speaker::of(landed)
+            )
+        ),
         None => format!("pick index: {error}"),
     };
     Some(match cause {
@@ -2625,6 +2729,40 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
     })
 }
 
+/// **A value whose ids are spelled in one document, carried past the
+/// frame that made it.** Ids are not document-scoped, so the frame that
+/// draws it speaks its nodes only from that document
+/// ([`Spelled::speaker`]); by its tag from any other, or when no
+/// document was landed where it was made.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Spelled<T> {
+    /// The document whose ids `value` is spelled in.
+    pub doc: Option<DocumentId>,
+    /// The value.
+    pub value: T,
+}
+
+impl<T> Spelled<T> {
+    /// `value`, spelled in `landed`, the landed document where it was
+    /// made.
+    pub fn in_landed(value: T, landed: Option<&Doc<ProfileProgram>>) -> Self {
+        Self {
+            doc: landed.map(Doc::id),
+            value,
+        }
+    }
+
+    /// Who says `value`'s nodes when `landed` is the landed document
+    /// now: that document if it is the one `value` is spelled in, the
+    /// tag otherwise.
+    pub fn speaker<'a>(&self, landed: Option<&'a Doc<ProfileProgram>>) -> Speaker<'a> {
+        match landed {
+            Some(doc) if self.doc == Some(doc.id()) => Speaker::of(doc),
+            Some(_) | None => Speaker::TAG,
+        }
+    }
+}
+
 /// **What the chrome badges about a held edge set whose body the index
 /// cannot wholly name**, and `None` while it can, or while nothing is
 /// held.
@@ -2637,11 +2775,22 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
 /// refusal is the naming layer's bug report, which no reader can act
 /// on, so [`Tone::Advisory`]; its subject is the document's
 /// (`SeamSubject for EdgeNamesRefused` says why).
-pub fn held_edges_badge(refused: Option<&EdgeNamesRefused>) -> Option<Badge> {
+///
+/// The refusal was made by the last frame's viewport, so its node is
+/// said from `landed` only while that is the document it is spelled in
+/// ([`Spelled`]): an `Open` between the two frames would otherwise say
+/// one document's id as another's node.
+pub fn held_edges_badge(
+    refused: Option<&Spelled<EdgeNamesRefused>>,
+    landed: Option<&Doc<ProfileProgram>>,
+) -> Option<Badge> {
     refused.map(|refused| {
         Badge::read(
             EdgeNamesRefused::SUBJECT,
-            format!("held edges: the mark may leave some out — {refused}"),
+            format!(
+                "held edges: the mark may leave some out — {}",
+                Said(&refused.value, refused.speaker(landed))
+            ),
             Tone::Advisory,
         )
     })

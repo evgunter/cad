@@ -32,9 +32,9 @@
 #
 # THE RULE IS STRUCTURAL, NOT SNIFFED. CI does not get an exemption for
 # being CI: `render.yml` sets this variable in the file, at the step
-# that renders. (`ci.yml` renders by
-# CALLING render.yml, so that file makes the declaration for the gate
-# too.) There is no
+# that renders. (nightly.yml renders by
+# CALLING render.yml, so that file makes the declaration for it too.)
+# There is no
 # GITHUB_ACTIONS check here on purpose — a sniffed exemption is invisible
 # at the call site and grows silently (every new runner, every act-like
 # local emulator), whereas an env line in the workflow is reviewable
@@ -67,17 +67,17 @@ require_hosted_render() {
     if [ "$got" = "$CAD_RENDER_LOCAL_OVERRIDE_SENTENCE" ]; then
         echo "[$entry] LOCAL RENDER OVERRIDE in effect — this pass is PREVIEW ONLY." >&2
         echo "[$entry]   Frames it publishes carry THIS box's renderer/GL stack." >&2
-        echo "[$entry]   The committed tree is refreshed by CI, which re-baselines" >&2
-        echo "[$entry]   every lane on a push — do NOT commit what this pass draws." >&2
+        echo "[$entry]   The committed tree is refreshed by hosted renders (the" >&2
+        echo "[$entry]   [render] commit tag, the nightly) — do NOT commit what this pass draws." >&2
         return 0
     fi
 
     if [ "$got" = "$CAD_RENDER_HOSTED_SENTENCE" ]; then
         echo "[$entry] HOSTED RENDER declared — this pass IS the canonical renderer." >&2
         echo "[$entry]   What it draws is what the repo keeps: the run COMMITS it" >&2
-        echo "[$entry]   wherever it has a commit target (main's gate run, or a" >&2
+        echo "[$entry]   wherever it has a commit target (the nightly on main, or a" >&2
         echo "[$entry]   dispatch with a branch to land on), and otherwise reports" >&2
-        echo "[$entry]   the drift against the committed lane, as on a pull request." >&2
+        echo "[$entry]   the drift against the committed lane." >&2
         return 0
     fi
 
@@ -85,37 +85,31 @@ require_hosted_render() {
         echo
         echo "REFUSING: renders are hosted now. $entry is not the default path."
         echo
-        echo "THE DEFAULT WAY TO RE-RENDER IS TO LET CI DO IT."
-        echo "ci.yml renders every lane on every push that builds anything"
-        echo "(a docs-only change skips them, with the rest of the code tier). A"
-        echo "lane that no longer matches is RE-BASELINED for you — you never"
-        echo "hand-commit cells:"
+        echo "THE DEFAULT WAY TO RE-RENDER IS TO ASK CI FOR IT."
+        echo "A PR's own CI run renders nothing. Put [render] as a word of the"
+        echo "SUBJECT line of your PR's head commit (not its body), on a ready"
+        echo "(non-draft) PR; CI then renders every lane on your branch and"
+        echo "COMMITS the re-baselined cells back to it — you never hand-commit"
+        echo "cells:"
         echo
-        echo "  git push          # CI renders and posts a neutral (\"!\") drift"
-        echo "                    #   check naming the cells that differ"
-        echo "  <merge the PR>    # main's own run commits the new cells"
-        echo "  git pull          # on main, the frames are there"
+        echo "  git commit -m \"scene: widen the bracket [render]\""
+        echo "  git push          # the render runs on the branch, commits what"
+        echo "                    #   differs with a neutral (\"!\") check and"
+        echo "                    #   [skip ci]; the PR's CI ran on your commit"
+        echo "  git pull          # the frames are on your branch: look at them"
         echo
-        echo "A drift check is NOT a failure: if the render is what you intended"
-        echo "it is a pass, needing no re-run and no second commit. PRs report"
-        echo "and main commits — a bot commit on a PR branch would strand every"
-        echo "other check on the parent commit, so it is deliberately not done."
+        echo "A neutral check is NOT a failure: if the render is what you intended"
+        echo "it is a pass, needing no re-run and no second commit."
         echo
-        echo "To LOOK at the new cells before merging, take the run's artifact:"
+        echo "Where gh can dispatch workflows (an agent's integration token"
+        echo "cannot), the same render is one command:"
         echo
         echo "  local-scripts/render-hosted.sh              # every lane"
         echo "  local-scripts/render-hosted.sh --lane <lane>  # one of them"
         echo "  local-scripts/render-hosted.sh --help         # which lanes exist"
         echo
-        echo "If the branch has no CI run yet (not pushed, no PR), render on"
-        echo "demand instead:"
-        echo
-        echo "  local-scripts/render-hosted.sh --on-demand              # every lane"
-        echo "  local-scripts/render-hosted.sh --on-demand --lane <lane>"
-        echo
-        echo "That triggers .github/workflows/render.yml on your PUSHED branch"
-        echo "and polls it; that run re-baselines too, so it also ends in a"
-        echo "pull. See demos/README.md, \"Off-box: the hosted lanes\"."
+        echo "Either way it renders your PUSHED branch. See demos/README.md,"
+        echo "\"Rendering the montages\"."
         echo
         echo "For preview-only local iteration (a scene you are still shaping,"
         echo "frames you do NOT intend to commit):"

@@ -142,7 +142,7 @@ pub(crate) fn refused(
     // `Evaluation.find_flush_candidates` answers with, ready for
     // `Node.declare`/`Doc.declare`. `None` on every other kind.
     let finding = match kind {
-        d::NodeErrorKind::UndeclaredContact { finding, .. } => {
+        d::NodeErrorKind::UndeclaredCoincidence { finding, .. } => {
             match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
                 Ok(bound) => bound.unbind().into_any(),
                 Err(failed) => return failed,
@@ -1218,7 +1218,10 @@ pub(crate) struct Evaluation {
     /// caller ask this evaluation about a document it is not of, and
     /// answer confidently against the wrong recipe. Pairing the two
     /// here makes that unspellable.
-    doc: d::ProfileDoc,
+    ///
+    /// Shared, so a report taken of the pair keeps the document it
+    /// speaks from without a copy of it.
+    doc: Arc<d::ProfileDoc>,
     /// The document's gathered product, materialized on the first ask
     /// and kept for every later one
     /// ([`crate::product_memo`], which holds the whole of the reasoning).
@@ -1236,6 +1239,12 @@ impl Evaluation {
     /// from it speaks its nodes from.
     pub(crate) fn doc(&self) -> &d::ProfileDoc {
         &self.doc
+    }
+
+    /// [`Self::doc`], shared: what a report taken of this pair keeps to
+    /// speak from.
+    pub(crate) fn doc_shared(&self) -> Arc<d::ProfileDoc> {
+        Arc::clone(&self.doc)
     }
 
     /// The (document, evaluation) pair and the memo over it, as the
@@ -1661,7 +1670,9 @@ impl Evaluation {
     /// ambiguity band (`reason="pair_in_band"` — neither reported nor
     /// silently dropped), a tied name whose candidates disagree
     /// (`"tied_disagrees"`), an unreadable name-table entry
-    /// (`"unreadable"`), and an ambient tolerance admitting no band at
+    /// (`"unreadable"`), a matched pair the kernel classifies as
+    /// distinct (`"distinct_finding"`, a kernel defect), and an
+    /// ambient tolerance admitting no band at
     /// all under the constructor's own word (`reason="empty"` when K·ε
     /// collapsed back onto ε, `"invalid_value"` when it overflowed).
     fn find_flush_candidates(
@@ -2528,7 +2539,7 @@ pub(crate) fn evaluate(
     Evaluation {
         inner,
         params: doc.inner.param_env::<f64>(),
-        doc: doc.inner.clone(),
+        doc: Arc::new(doc.inner.clone()),
         product: crate::product_memo::ProductMemo::default(),
     }
 }

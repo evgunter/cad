@@ -70,6 +70,7 @@ mod lily;
 mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
+mod oracles;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;
@@ -78,6 +79,7 @@ mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
+mod snowman;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
@@ -353,6 +355,16 @@ struct StepFrontierPin {
     pinned: fn(&pncad::step_export::StepExportError) -> bool,
     /// What to do with the scene when the export stops refusing.
     retire: &'static str,
+}
+
+/// Whether a boolean result declares no contacts, which is how its
+/// body is routed: a TRANSVERSE curved boolean declares none and takes
+/// plain tier 3, because the 3′ census is exact-on-planar by ruling
+/// (C12.4/OQ5: a TOUCHING curved result refuses there — pinned in
+/// `sweep/tests/m5_pr9_boss_union.rs`); a result that declares some
+/// takes 3′ with them.
+fn declares_no_contacts(contacts: &ContactRecords) -> bool {
+    contacts.vv.is_empty() && contacts.a_on_b.is_empty() && contacts.b_on_a.is_empty()
 }
 
 /// The writer's named subset frontier, as one list. Refusals in this
@@ -861,6 +873,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
     for stop in bossplate::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the snowman (two coaxial balls under every boolean; the waist rolled into a \
+         torus band) --"
+    );
+    for stop in snowman::stops(tol) {
         visit(&stop);
     }
 

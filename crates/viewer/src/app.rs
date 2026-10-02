@@ -156,12 +156,21 @@ fn container_kind_title(kind: ContainerKind) -> &'static str {
 /// The status line for a referent the resolution machinery cannot
 /// place right now.
 ///
-/// The cause is rendered through its OWN `Display`: the layer that
-/// raised the indeterminacy names it, and this one contributes only
-/// the noun it is talking about. Named rather than composed inside the
-/// render pass so the wording has one home and can be asserted on.
-pub fn indeterminate_wording(noun: &str, cause: &editor_core::ResolveIndeterminate) -> String {
-    format!("this {noun} cannot be resolved right now: {cause}")
+/// The cause is said in its OWN words: the layer that raised the
+/// indeterminacy names it, and this one contributes only the noun it
+/// is talking about. Its node is said by `by`, which speaks for the
+/// document the cause's ids are spelled in. Named rather than composed
+/// inside the render pass so the wording has one home and can be
+/// asserted on.
+pub fn indeterminate_wording(
+    noun: &str,
+    cause: &editor_core::ResolveIndeterminate,
+    by: pncad::document::Speaker<'_>,
+) -> String {
+    format!(
+        "this {noun} cannot be resolved right now: {}",
+        pncad::document::Said(cause, by)
+    )
 }
 
 /// The most of the Features/Properties stack the feature tree is
@@ -404,7 +413,7 @@ pub struct ViewerApp {
     /// held_refused`), read by [`crate::frame::held_edges_badge`].
     /// Zeroed and assigned back every frame as
     /// [`Self::datums_vanished`] is.
-    held_edges_refused: Option<EdgeNamesRefused>,
+    held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -942,7 +951,12 @@ impl ViewerApp {
         // it did not survive, so the act that accepts the next one is
         // what retires it; `frame::tool_notice` reads from the event
         // whether the pick is lost for good.
-        self.notices.extend(dropped.iter().map(frame::tool_notice));
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        self.notices.extend(
+            dropped
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -1424,45 +1438,47 @@ impl ViewerApp {
         egui::Window::new("Checks")
             .open(&mut open)
             .default_width(420.0)
-            .show(ctx, |ui| match self.session.checks() {
-                None => {
-                    ui.label("nothing has been checked yet");
-                }
-                Some(report) => {
-                    if report.findings.is_empty() {
-                        ui.label("checks: no findings");
+            .show(ctx, |ui| {
+                match self.session.checks().zip(self.session.landed_pair()) {
+                    None => {
+                        ui.label("nothing has been checked yet");
                     }
-                    for finding in &report.findings {
-                        ui.horizontal_top(|ui| {
-                            if ui
-                                .button(self.session.doc().spoken(finding.root).to_string())
-                                .on_hover_text("select the root this finding is about")
-                                .clicked()
-                            {
-                                ops.push(SessionOp::Select(Selection::Node(finding.root)));
-                            }
-                            // A sentence, so `widgets::message`.
-                            crate::widgets::message(ui, finding.to_string());
-                        });
-                    }
-                    if !report.skipped.is_empty() {
-                        ui.separator();
-                        // A sentence too, and one whose length grows
-                        // with the number of checks turned off.
-                        crate::widgets::message_toned(
-                            ui,
-                            format!(
-                                "not run (severity Off): {}",
-                                report
-                                    .skipped
-                                    .iter()
-                                    .map(ToString::to_string)
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            ),
-                            &self.theme,
-                            frame::Tone::Advisory,
-                        );
+                    Some((report, (landed, _))) => {
+                        if report.findings.is_empty() {
+                            ui.label("checks: no findings");
+                        }
+                        for row in frame::check_rows(report, landed) {
+                            ui.horizontal_top(|ui| {
+                                if ui
+                                    .button(row.button)
+                                    .on_hover_text("select the root this finding is about")
+                                    .clicked()
+                                {
+                                    ops.push(SessionOp::Select(Selection::Node(row.root)));
+                                }
+                                // A sentence, so `widgets::message`.
+                                crate::widgets::message(ui, row.sentence);
+                            });
+                        }
+                        if !report.skipped.is_empty() {
+                            ui.separator();
+                            // A sentence too, and one whose length grows
+                            // with the number of checks turned off.
+                            crate::widgets::message_toned(
+                                ui,
+                                format!(
+                                    "not run (severity Off): {}",
+                                    report
+                                        .skipped
+                                        .iter()
+                                        .map(ToString::to_string)
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                ),
+                                &self.theme,
+                                frame::Tone::Advisory,
+                            );
+                        }
                     }
                 }
             });
@@ -1754,7 +1770,7 @@ impl ViewerApp {
                 frame::index_badge(
                     self.picks.error(),
                     self.session.doc(),
-                    self.session.evaluation(),
+                    self.session.landed_pair(),
                 ),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
@@ -1781,7 +1797,10 @@ impl ViewerApp {
                 draw_badge(ui, &self.theme, &badge);
             }
             // And the held edges the mark could not tell held or not.
-            if let Some(badge) = frame::held_edges_badge(self.held_edges_refused.as_ref()) {
+            if let Some(badge) = frame::held_edges_badge(
+                self.held_edges_refused.as_ref(),
+                self.session.landed_pair().map(|(doc, _)| doc),
+            ) {
                 draw_badge(ui, &self.theme, &badge);
             }
             ui.separator();
@@ -1899,7 +1918,7 @@ impl eframe::App for ViewerApp {
         // the field last held.
         let mut datums_vanished = 0_usize;
         let mut profiles_undrawn = 0_usize;
-        let mut held_edges_refused: Option<EdgeNamesRefused> = None;
+        let mut held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>> = None;
         let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -2014,7 +2033,12 @@ impl eframe::App for ViewerApp {
         // A declined pick answers an act the user aimed at the
         // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        self.notices.extend(declined.iter().map(frame::tool_notice));
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        self.notices.extend(
+            declined
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
 
         self.perform_batch(ops);
     }
@@ -2122,7 +2146,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// What the index could not name on the held edge set's body
     /// ([`ViewerApp::held_edges_refused`]); zeroed by the frame entry
     /// point and written by the viewport, as `datums_vanished` is.
-    pub(crate) held_edges_refused: &'a mut Option<EdgeNamesRefused>,
+    pub(crate) held_edges_refused: &'a mut Option<frame::Spelled<EdgeNamesRefused>>,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -4798,7 +4822,16 @@ mod properties_pane_tests {
             named: drawn.len() - 1,
             refused: 1,
         };
-        let badge = crate::frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
+        let (landed, _) = driven.app.session.landed_pair().expect("the plate lands");
+        let refused_said =
+            pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
+        assert!(
+            refused_said.contains("of Extrude"),
+            "the refusal's node is said as the landed document holds it: {refused_said}"
+        );
+        let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
+        let badge =
+            crate::frame::held_edges_badge(Some(&spelled), Some(landed)).expect("a refusal badges");
         let badged = driven.quiet();
         assert!(
             badged.iter().any(|(run, _)| run == badge.label()),
@@ -4833,7 +4866,7 @@ mod properties_pane_tests {
             .map(|(run, _)| run)
             .find(|run| run.contains("the tool loaded no edges:"))
             .unwrap_or_else(|| panic!("the refused load is on the line: {said:?}"));
-        assert!(line.contains(&refused.to_string()), "{line}");
+        assert!(line.contains(&refused_said), "{line}");
         assert!(!line.contains("has no edges to select"), "{line}");
         assert_eq!(
             driven.app.tools.blend().map(crate::blend::BlendTool::count),
@@ -4856,6 +4889,180 @@ mod properties_pane_tests {
                 .iter()
                 .any(|(run, _)| run.starts_with("held edges:")),
             "a badge with nothing held is gone: {cleared:?}"
+        );
+    }
+
+    /// A seam that lands a request only while `open` is set: a run held
+    /// back for as long as a row wants the landed document behind the
+    /// shown one.
+    struct Gated {
+        inner: crate::evalseam::InlineEvaluator,
+        open: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl crate::evalseam::EvalService for Gated {
+        fn submit(&mut self, request: crate::evalseam::EvalRequest) {
+            self.inner.submit(request);
+        }
+
+        fn cancel(&mut self) {
+            self.inner.cancel();
+        }
+
+        fn poll(&mut self) -> Option<crate::evalseam::EvalDone> {
+            if self.open.load(std::sync::atomic::Ordering::SeqCst) {
+                self.inner.poll()
+            } else {
+                None
+            }
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// The startup app over a [`Gated`] seam, open, and the gate.
+    fn gated() -> (Driven, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+        let open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let gate = std::sync::Arc::clone(&open);
+        let driven = Driven::with_seams(Vec::new(), |app| {
+            app.session = crate::session::DocSession::new(
+                app.session.doc().clone(),
+                pncad::tolerance::witness(),
+                Box::new(Gated {
+                    inner: crate::evalseam::InlineEvaluator::new(),
+                    open: gate,
+                }),
+            );
+        });
+        (driven, open)
+    }
+
+    /// `text` as a node's label.
+    fn label(text: &str) -> Option<pncad::document::Label> {
+        Some(pncad::document::Label::new(text).expect("a label"))
+    }
+
+    /// **The rename `shown plate` committed and held behind `gate`**,
+    /// two frames drawn after it: what they painted, and the extrude
+    /// as the landed document still says it.
+    fn renamed_behind(
+        driven: &mut Driven,
+        gate: &std::sync::atomic::AtomicBool,
+    ) -> (Vec<(String, egui::Rect)>, String) {
+        gate.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("shown plate"),
+        }]);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let drawn = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven
+                .app
+                .session
+                .doc()
+                .spoken(extrude())
+                .to_string()
+                .contains("shown plate"),
+            "the shown document is ahead of the landed one"
+        );
+        let landed = driven
+            .app
+            .session
+            .landed_pair()
+            .expect("the earlier run stays landed")
+            .0
+            .spoken(extrude())
+            .to_string();
+        assert!(landed.contains("landed plate"), "{landed}");
+        (drawn, landed)
+    }
+
+    /// **The pick path speaks from the landed document, not the shown
+    /// one.** A rename committed while its run is held leaves the shown
+    /// document ahead of the landed one; the blend panel's target line
+    /// and the held mark's badge say the label the landed run's ids
+    /// were read in, which is the label the picture they describe was
+    /// drawn under.
+    #[test]
+    fn the_pick_path_says_the_landed_label_while_a_rename_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("landed plate"),
+        }]);
+        driven.settle();
+        let (edge, unnamed) = {
+            let index = driven.on_screen();
+            let drawn = index.edges_in(extrude(), 0).to_vec();
+            let edge = crate::session::EdgeSelection {
+                name: index
+                    .edge_name_of(drawn[0])
+                    .expect("a drawn edge is named")
+                    .clone(),
+                node: extrude(),
+                body: 0,
+            };
+            (edge, drawn[1])
+        };
+        driven.app.tools.open(crate::tools::ToolKind::Blend);
+        driven.click_through(vec![Selection::Edge(edge)]);
+        driven
+            .app
+            .picks
+            .index_mut()
+            .expect("the settled app holds an index")
+            .unname_edge(unnamed);
+        driven.quiet();
+        driven.click(crate::pane::create::BLEND_EDGES);
+        driven.quiet();
+
+        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        for prefix in ["1 edges picked on ", "held edges:"] {
+            let line = drawn
+                .iter()
+                .map(|(run, _)| run)
+                .find(|run| run.starts_with(prefix))
+                .unwrap_or_else(|| panic!("{prefix:?} is drawn: {drawn:?}"));
+            assert!(
+                line.contains(&landed) && !line.contains("shown plate"),
+                "{prefix:?} says the landed label: {line}"
+            );
+        }
+    }
+
+    /// **The selection's verdict speaks from the landed document, not
+    /// the shown one**: the standing is asked of the landed run, so a
+    /// picked face that no longer resolves names its minting node by
+    /// the label that run's ids were read in while a rename is held.
+    #[test]
+    fn the_selections_verdict_says_the_landed_label_while_a_rename_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("landed plate"),
+        }]);
+        driven.settle();
+        let mut gone = cap_of(extrude(), pncad::prelude::CapEnd::End);
+        gone.name
+            .path
+            .push(pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Select(Selection::Face(gone))]);
+        driven.quiet();
+
+        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        let line = drawn
+            .iter()
+            .map(|(run, _)| run)
+            .find(|run| run.starts_with("this face is gone: "))
+            .unwrap_or_else(|| panic!("the verdict is drawn: {drawn:?}"));
+        assert!(
+            line.contains(&landed) && !line.contains("shown plate"),
+            "the verdict says the landed label: {line}"
         );
     }
 }
