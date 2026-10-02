@@ -130,7 +130,7 @@
 
 use std::collections::HashMap;
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 
@@ -914,7 +914,7 @@ pub(crate) fn loop_polygon(
         .ok_or(TessellateError::MissingEntity {
             what: "face surface",
         })?;
-    let surface_kind = SurfaceKind::of(surface);
+    let surface_kind = surface.kind();
     require_a_meridian(kinds, face, surface_kind)?;
     let m = travs.len();
     // ISO-SIDE RUNS (#653): which traversals open a side, and so take

@@ -646,7 +646,7 @@ pub(super) fn tangent_lump<T: Decide>(
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand: on_side,
                 face: sector_face,
-                kind: geom_brep::SurfaceKind::of(sector_surface),
+                kind: sector_surface.kind(),
             });
         }
     };

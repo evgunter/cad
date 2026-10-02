@@ -59,3 +59,27 @@ fixture already implies. `slab_extent` waits on the carrier rule.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to TOPO (crates/topo/src/split.rs, euler.rs and the provenance graft are TOPO's paths) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## SplitPlane and the germ-plane read taken (2026-10-02)
+
+Both are taken on `tquery/split-cyl-feature`
+(`split-refuses-cylindrical-feature-box`, PR 3768), where the prose
+precondition turned out to be P0's cause: the tour's cutaway authored a
+non-unit normal and the plane×cylinder section read it as direction
+cosines.
+
+- `SplitPlane.normal` is a `UnitVec3`; the editor's plane datum hands
+  its witness straight through; fixtures mint through
+  `topo::test_support::split_plane(origin, dir, tol)`.
+- The join lanes (`chord_join::SectionCtx`, `JoinLane::Planar`) carry
+  the witness end to end. The boolean's germ planes are plane carriers
+  whose unit normal no tier certifies, and they reach the same
+  `geom_brep::plane_*_section` lanes, so the boolean decides each germ
+  normal's length AT THE READ (`UnitVec3::new` under
+  `bool_germ_plane_normal`, `crates/topo/src/boolean/join.rs`) — the
+  "decision at the read" this row named. A germ normal with no decided
+  length refuses as `BooleanError::JoinDesync` (a broken plane
+  carrier, a corrupt reduction).
+
+What remains here is `slab_extent`, which still waits on the carrier
+rule.

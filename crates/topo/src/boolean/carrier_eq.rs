@@ -181,14 +181,16 @@ pub enum CarrierDesc<T: geom_core::Real> {
 }
 
 impl<T: geom_core::Real> CarrierDesc<T> {
-    /// The kind's name, for messages and the kind-mismatch rung.
+    /// The kind's name, for messages and the kind-mismatch rung: the
+    /// surface kind's own spelling ([`geom::SurfaceKind::name`]).
     pub fn kind(&self) -> &'static str {
         match self {
-            Self::Plane { .. } => "plane",
-            Self::Sphere { .. } => "sphere",
-            Self::Cylinder { .. } => "cylinder",
-            Self::Torus { .. } => "torus",
+            Self::Plane { .. } => geom::SurfaceKind::Plane,
+            Self::Sphere { .. } => geom::SurfaceKind::Sphere,
+            Self::Cylinder { .. } => geom::SurfaceKind::Cylinder,
+            Self::Torus { .. } => geom::SurfaceKind::Torus,
         }
+        .name()
     }
 }
 

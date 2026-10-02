@@ -36,3 +36,16 @@ Wanted: carry the distinction through (an uncovered arm worded as the
 frontier, the off-chart arm keeping today's wording and its `why`), or
 the whole `PcurveCertifyError` nested; re-check the routing each arm
 gets in `decision()`.
+
+Evidence from `pcert/general-circle-fitted-route` (2026-10-01): the
+pcurve MINT now routes a sphere's general circle through the fitted
+lane (`topo::pcurves::analytic_derive`, `FittedLane::sphere_circle_image`
+then `certify_fitted`), so the class is no longer uncovered at rest. This
+door is the one place it still reads as uncovered: an edge DESCRIBED
+conventionally (`EdgeDescriptionSpec::Chart`, no stated image) as a
+general circle on its sphere still refuses here, because the image
+derivation is the closed-form door and this certification runs at
+`Decide`, without the fitted door. No producer is known to reach it —
+the fillet corner's contact circles are `TangentIntersection`s — so the
+wording fix above is what is owed; a route for that description would
+need this door to take the fitted lane.

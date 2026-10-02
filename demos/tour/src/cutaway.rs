@@ -12,10 +12,10 @@
 
 use pncad::authoring::{p3, v3};
 use pncad::geom_core::{Affine3, Vec3};
-use pncad::topo::splitting::{SplitPart, SplitPlane, split};
+use pncad::topo::splitting::{SplitPart, split};
 
 use crate::SceneBody;
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, split_plane};
 use pncad::geom_core::Tol;
 
 /// The narration numbers `build` reports alongside the halves:
@@ -31,11 +31,7 @@ pub(crate) fn build<S: Scalar>(
     // A tilted section plane through the box interior: normal
     // (0.75, 0.1875, 1) — no axis alignment, crosses walls, bosses,
     // and cavity floor.
-    let normal = v3(0.75, 0.1875, 1.0);
-    let plane = SplitPlane {
-        origin: p3(1.5, 1.0, 0.75),
-        normal,
-    };
+    let plane = split_plane(p3(1.5, 1.0, 0.75), v3(0.75, 0.1875, 1.0), tol);
     let res = split(boxbody, &plane, tol).expect("split of the boolean-result box");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&res.above, &res.below) else {
         panic!("the section plane crosses the box: both sides must be bodies");
@@ -60,9 +56,9 @@ pub(crate) fn build<S: Scalar>(
         "split halves must partition the volume (gap {gap:.3e})"
     );
 
-    // Pull the halves apart along the (unnormalized) section normal:
-    // rigid transforms re-mint every moved witness (#84).
-    let n = normal * (S::from_f64(0.75) / normal.norm());
+    // Pull the halves apart 0.75 along the section normal: rigid
+    // transforms re-mint every moved witness (#84).
+    let n = plane.normal.get() * S::from_f64(0.75);
     let moved_above = pncad::topo::transform_rigid(above, &Affine3::translation(n), tol)
         .expect("translate above half");
     let moved_below = pncad::topo::transform_rigid(below, &Affine3::translation(-n), tol)

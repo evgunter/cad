@@ -357,7 +357,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand: piercing,
                 face: s.face,
@@ -376,7 +376,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand: piercing,
                 face: s.face,
@@ -845,10 +845,10 @@ pub(super) fn pierce_germ_dir<T: Decide>(
 /// The surface kind a refusal about `face` cites. A face whose surface
 /// cannot be read at all is reported as the kind with no arm anywhere,
 /// which is what the sibling refusal sites in this module do.
-fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom_brep::SurfaceKind {
+fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom::SurfaceKind {
     body.get_face(face)
         .and_then(|f| body.get_surface(f.surface))
-        .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of)
+        .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind)
 }
 
 /// Maximal cyclic Out-runs `(start, len)` (PR 2's `above_runs` on

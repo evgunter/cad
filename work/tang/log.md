@@ -252,3 +252,25 @@ only red is the ε=1e-6 row, which is REACH's filed
 over it, annotated on the PR. A class finding from this unit:
 reviewers twice found a claim of mutant coverage that held only at
 function level. Briefs now ask for the mutant run, not the claim.
+
+## 2026-10-02 — the E batch lands (PR 3784) (TANG orchestrator)
+
+Review tier: the orchestrator's read (diff read; `gate ok` green).
+`loop_shape` is now `loop_circle`, and the three classes nothing read
+are gone. `RimRouting::Cusp`'s refusal names both real gaps, the
+pair's locus arm and the kiss-edge consumer. The coaxiality docs name
+the axis-shaped channel. `tangent_locus`'s doc states the ruled reason
+a circle arm waits. Sweep siblings fixed in `docs/KERNEL-VERBS.md` and
+`verbs_cylsph_tangent_residuals.rs`. Both rows closed.
+
+## 2026-10-02 — the circle × cylinder cell lands (PR 3752) (TANG orchestrator)
+
+Review tier: dual, concurrent (H), recorded as DR-36. No MAJOR from
+either review. A delta review of fix pass 1 found one MINOR, shown by
+execution: the constant-residual answers charged no spread, so a false
+`Miss` appeared at K=1.5. Fix pass 2 put one `constant_residual_roots`
+under every constant answer. The cell is settled; the poses now meet
+other rows' doors (the row's Closed section lists them). Two container
+restarts interrupted this unit; every lane's state was rescued from its
+worktree, and the later lanes ran as cloud sessions.
+- 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)

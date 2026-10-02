@@ -87,6 +87,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "general_circle_octant_dual.rs"]
+mod general_circle_octant_dual;
 #[path = "lane1_r2_probes.rs"]
 mod lane1_r2_probes;
 #[path = "offb_r1_loft_probes.rs"]
@@ -168,6 +170,8 @@ mod verbs_shell;
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
+#[path = "band_clearance_screen_reads_every_feature.rs"]
+mod band_clearance_screen_reads_every_feature;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -442,6 +446,8 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_cylindrical_feature_box.rs"]
+mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]
@@ -581,6 +587,8 @@ mod mate7a_torus_rest;
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "snowman.rs"]
 mod snowman;
+#[path = "tang_circle_cylinder.rs"]
+mod tang_circle_cylinder;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
@@ -663,23 +671,17 @@ mod rim_of_rows_interval;
 #[path = "rim_of_r1_probes.rs"]
 mod rim_of_r1_probes;
 
-#[path = "rim_of_r1_probes_interval.rs"]
-mod rim_of_r1_probes_interval;
+#[path = "rim_of_structural_review_probes.rs"]
+mod rim_of_structural_review_probes;
 
-#[path = "r2_rim_interval_probes.rs"]
-mod r2_rim_interval_probes;
-
+#[path = "fillet_h6_cap_rim.rs"]
+mod fillet_h6_cap_rim;
 #[path = "n3r1_d31.rs"]
 mod n3r1_d31;
 #[path = "n3r1_prune.rs"]
 mod n3r1_prune;
 #[path = "n3r2_d31_bitid.rs"]
 mod n3r2_d31_bitid;
-#[path = "r2_rim_corpus_probes.rs"]
-mod r2_rim_corpus_probes;
-
-#[path = "fillet_h6_cap_rim.rs"]
-mod fillet_h6_cap_rim;
 
 #[path = "review_blend_e2_r1_probes.rs"]
 mod review_blend_e2_r1_probes;

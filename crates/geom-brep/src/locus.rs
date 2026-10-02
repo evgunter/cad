@@ -82,21 +82,22 @@ pub enum TangentLocusError {
 /// crosses the partner surface. A new arm may NOT land here without
 /// restating its own residual-sign story.
 ///
-/// **The coaxial cylinder×sphere circle arm's story is MEASURED and it
-/// PASSES — and that is not what still blocks the arm** (issue #974;
-/// the blocker's stated cause is superseded here rather than left
-/// standing). At the only coaxial tangency, `R = r`, the sphere lies
+/// **The coaxial cylinder×sphere pair satisfies this contract and still
+/// has no arm.** At the only coaxial tangency, `R = r`, the sphere lies
 /// wholly in the cylinder's non-positive residual half-space and the
-/// cylinder wholly in the sphere's non-negative one. The orientations
-/// are OPPOSITE per direction, which this contract never forbade: the
+/// cylinder wholly in the sphere's non-negative one — opposite
+/// orientations per direction, which the contract allows (the
 /// internally tangent parallel cylinder pair the `|r1 − r2|` fallback
-/// already admits has exactly that structure. Both halves are pinned
-/// by `crates/topo/tests/verbs_cylsph_tangent_residuals.rs`. What
-/// blocks the arm is downstream of the story: [`TangentLocus`] carries
-/// a LINE and nothing else, its consumers all read a locus DIRECTION
-/// and none has a circle story, and the arm would need a
-/// declared-coaxiality channel this lane cannot reach. #974 stays open
-/// for that work.
+/// admits has the same structure); both halves are pinned by
+/// `crates/topo/tests/verbs_cylsph_tangent_residuals.rs`. Its circle
+/// locus serves the coaxial KISS alone (material wedge 0 or 2π), and two
+/// things keep it out. No consumer builds the kiss edge from a locus of
+/// any shape, so a circle arm would complete no boolean. And answering
+/// that pair here would take it past `Unsupported`, which is where
+/// `topo` routes a declared pair meeting along one circle by material
+/// wedge — the routing that tells a smooth seam (wedge π, never a
+/// `Tangent` contact) from a kiss — so the arm lands only behind that
+/// routing, run on the locus.
 ///
 /// # Errors
 ///
