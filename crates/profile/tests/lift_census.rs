@@ -158,7 +158,7 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
             Class::Bits,
         ),
         ("circle_split_3", thirds(), Class::Bits),
-        ("half_disc", half_disc(), Class::Bits),
+        ("half_disc", half_disc(), Class::Value),
         (
             "half_disc_undeclared",
             half_disc_undeclared(),
@@ -201,8 +201,8 @@ fn the_census() {
 
     // The tally of record. A vocabulary change that moves a loop
     // between buckets must move these numbers deliberately.
-    assert_eq!(tally[Class::Bits as usize], 6, "bit-identical lifts");
-    assert_eq!(tally[Class::Value as usize], 5, "value-equal lifts");
+    assert_eq!(tally[Class::Bits as usize], 5, "bit-identical lifts");
+    assert_eq!(tally[Class::Value as usize], 6, "value-equal lifts");
     assert_eq!(tally[Class::Refused as usize], 1, "structural walls");
     assert_eq!(tally[Class::Wall as usize], 1, "geometric walls");
     // The one mismatch is the undeclared cocircular run, whose lift
@@ -248,8 +248,10 @@ fn the_fidelity_report_is_honest() {
     // inoperative on this row (4.39e18 ulp, a straddle of zero), so only
     // the 1e-12 absolute floor applied: 300x the residue actually
     // measured. Its residue is the same class as the bracket's — four
-    // fillet arcs re-deriving their bulge — so it gets the same kind of
-    // ceiling, sized to what it does.
+    // fillet arcs re-derived as tangent arcs, each leaving on the
+    // tangent its stored sweep gives and each `line(len)` after it
+    // carrying that direction's rounding forward — so it gets the same
+    // kind of ceiling, sized to what it does.
     match lift_checked(&rounded_rect(4.0, 3.0, 0.5), Tol::witness()) {
         LiftOutcome::Lifted {
             fidelity,
@@ -260,17 +262,17 @@ fn the_fidelity_report_is_honest() {
             assert_eq!(fidelity, Fidelity::ValueEqual);
             assert!(worst_ulps > 0, "value-equal means some bit moved");
             assert!(
-                worst_abs < 1e-14,
-                "the fillet arcs' bulge re-derivation, and nothing more: {worst_abs:e}"
+                worst_abs < 5e-14,
+                "the fillet arcs' re-derivation, and nothing more: {worst_abs:e}"
             );
         }
         other => panic!("rounded_rect should lift: {}", describe(&other)),
     }
     // An undeclared arc is written about its stored centre
-    // (`arc_to(Center)`), and the replay derives its sweep from the two
-    // endpoint angles about that centre, so the free arc chains are
-    // value-equal too — the writer's lossless route is a program step
-    // spelled on the carrier, and its residue is this, measured.
+    // (`arc_to(Center)`), and the replay keeps that centre and reads the
+    // radius as the rim at the arc's start and the sweep off the chord
+    // about it, so the free arc chains are value-equal too, and their
+    // residue is this, measured.
     for (name, loop_, ceiling) in [("arc_chain", arc_chain(), 1e-14), ("lens", lens(), 1e-15)] {
         match lift_checked(&loop_, Tol::witness()) {
             LiftOutcome::Lifted {
@@ -409,12 +411,13 @@ fn geometric_walls_are_the_drivers_own() {
 
 /// The §5-1 same-carrier class, both halves in one place: MID-CHAIN it
 /// lifts (through the lattice's own declared-joint spelling,
-/// `.tangent().tangent_arc_to(p)`), AT THE SEAM it still refuses.
+/// `.tangent().tangent_arc_to(p)`; value-equal, the leading arc being
+/// written about its stored centre), AT THE SEAM it still refuses.
 #[test]
 fn the_same_carrier_class_splits_in_two() {
     assert_eq!(
         classify(&lift_checked(&half_disc(), Tol::witness())),
-        Class::Bits
+        Class::Value
     );
     assert_eq!(
         classify(&lift_checked(&unequal_split(), Tol::witness())),
@@ -426,8 +429,10 @@ fn the_same_carrier_class_splits_in_two() {
 /// driver refuses the raw run's zero-turn junction (`JunctionTangent`)
 /// and the lift's re-spelling is the lattice's own — `.tangent()` then
 /// `tangent_arc_to(p)`, the tangent-chord derivation the raw carrier
-/// satisfies — which mints the raw run's vertex and bulge BITS: the
-/// vertex table replays bit for bit, and the one difference is the
+/// satisfies — which mints the raw run's vertex BITS: the vertex table
+/// replays bit for bit, the arcs agree in the last bits (the leading
+/// arc is written about its stored centre, and its replayed radius is
+/// the rim at its start), and the one structural difference is the
 /// joint the ruling names (every zero-turn joint is a declared tangent
 /// joint). The comparator scores a joint-set difference as
 /// incomparable, so the census classes the row `Mismatch`; this row
@@ -463,11 +468,20 @@ fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
         let g = replayed.vertices()[k];
         assert_eq!(w.x.to_bits(), g.x.to_bits(), "vertex {k} x");
         assert_eq!(w.y.to_bits(), g.y.to_bits(), "vertex {k} y");
-        assert_eq!(
-            crate::common::segment_bits(&raw.segments()[(rotation + k) % n]),
-            crate::common::segment_bits(&replayed.segments()[k]),
-            "segment {k}"
-        );
+        match (raw.segments()[(rotation + k) % n], replayed.segments()[k]) {
+            (Segment::Line, Segment::Line) => {}
+            (Segment::Arc(w), Segment::Arc(g)) => {
+                for (what, w, g) in [
+                    ("centre.x", w.centre.x, g.centre.x),
+                    ("centre.y", w.centre.y, g.centre.y),
+                    ("radius", w.radius, g.radius),
+                    ("sweep", w.sweep, g.sweep),
+                ] {
+                    assert!((w - g).abs() < 1e-15, "segment {k} {what}: {w} vs {g}");
+                }
+            }
+            (w, g) => panic!("segment {k}: {w:?} replayed as {g:?}"),
+        }
     }
     assert_eq!(replayed.tangent_joints(), &[(1 + n - rotation) % n]);
 }

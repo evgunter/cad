@@ -136,6 +136,22 @@ pub(crate) struct PendingArc<T: Real> {
     pub radius: T,
     /// The captured resolution machinery (see [`ArcResolver`]).
     pub resolver: ArcResolver<T>,
+    /// Whether the chain head the side's run leaves lies on the side's
+    /// circle (about `centre` through `anchor`) by the incoming mode's
+    /// own algebra ([`crate::Facts::Registered`]), or only to its
+    /// `Center` equidistance decision ([`crate::Facts::Decided`]).
+    pub head_on_circle: crate::Facts,
+}
+
+impl<T: Real> Pending<T> {
+    /// The incoming side's circle run, for an arc side: its anchor and
+    /// whether the chain head lies on its circle by construction.
+    pub(crate) fn run(&self) -> Option<(Point2<T>, crate::Facts)> {
+        match self {
+            Pending::Ray(_) => None,
+            Pending::Arc(p) => Some((p.anchor, p.head_on_circle)),
+        }
+    }
 }
 
 /// An opened fillet: the arrival-side state value. The variant is the
@@ -353,18 +369,26 @@ pub(crate) fn via_carrier<T: Decide>(
 /// The endpoint-free legs' shared derivation ([`Sweep`] / [`ArcLen`]):
 /// carrier centre from the directed start (as [`radius_carrier`]), the
 /// endpoint by rotating the start about it through the swept angle in
-/// the side's travel sense, and the leg's bulge tan(angle/4) signed by
-/// the side. Everything closed-form; the swept angle is gated
-/// definitely positive (`path_arc_sweep`).
+/// the side's travel sense, and the leg's arc — the authored radius,
+/// and Δθ = 4·atan(tan(θ/4)) of the signed swept angle θ. Everything
+/// closed-form; the swept angle is gated definitely positive
+/// (`path_arc_sweep`).
+///
+/// **The arc's endpoint facts are theorems** (the leg registers them):
+/// the centre is the authored radius off the start along the unit
+/// normal, the end is the start rotated about it through θ, and
+/// 4·atan(tan(θ/4)) is θ less a whole number of turns wherever it is
+/// defined, so the rim at each end is the radius and the sweep turns
+/// each end onto the other, over the reals at every value of the
+/// directed start and the authored data.
 pub struct TangentArcLeg<T: Real> {
     /// The derived endpoint.
     pub end: Point2<T>,
-    /// The derived carrier centre.
-    pub centre: Point2<T>,
     /// The travel sense (from the side bit).
     pub winding: ArcSweep,
-    /// The leg's bulge.
-    pub bulge: T,
+    /// The leg's arc: the derived centre, the authored radius and the
+    /// signed sweep.
+    pub arc: geom_core::Arc2<T>,
     /// The end tangent (departure rotated by the signed sweep).
     pub end_dir: Dir<T>,
     /// The chord length, meters (the junction-lever cap).
@@ -392,14 +416,17 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     let (s, c) = signed.sin_cos();
     let v = dp.at - centre;
     let end = centre + Vec2::new(v.x * c - v.y * s, v.x * s + v.y * c);
-    let bulge = (signed / T::from_f64(4.0)).tan();
+    let four = T::from_f64(4.0);
     let end_dir = Dir::from_angle(dp.dir.ang + signed);
     let chord = (end - dp.at).norm_squared().sqrt();
     Ok(TangentArcLeg {
         end,
-        centre,
         winding: side.winding(),
-        bulge,
+        arc: geom_core::Arc2 {
+            centre,
+            radius: r,
+            sweep: four * (signed / four).tan().atan(),
+        },
         end_dir,
         chord,
     })

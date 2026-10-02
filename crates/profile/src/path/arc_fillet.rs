@@ -132,6 +132,13 @@ pub(crate) struct ArcFilletTrims<T: Real> {
     pub arc: ArcData<T>,
 }
 
+impl<T: Real> ArcFilletTrims<T> {
+    /// The fillet arc as this resolution built it (`super::fillet_arc`).
+    pub(crate) fn fillet(&self) -> crate::BuiltArc<T> {
+        super::fillet_arc(self.arc, self.bulge)
+    }
+}
+
 impl<T: Real> SideCarrier<T> {
     /// The leg shape the ratified S2 construction takes for this
     /// carrier (the corner is supplied separately, as the builder door

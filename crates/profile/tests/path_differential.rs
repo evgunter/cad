@@ -25,17 +25,19 @@ use crate::common;
 use common::pinned;
 use geom_core::Tol;
 use geom_core::{Arc2, Point2, Vec2};
+use profile::RawLoop;
 use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, Start, Via};
-use profile::{RawLoop, test_support::bulge_loop};
 
 // ---------------------------------------------------------------
 // The recorded fixtures (LIB-RETTAIL): what this suite compares against
 // ---------------------------------------------------------------
 
-/// A BLESSED lowering: the vertex table (x, y, bulge) and declared-joint
-/// set that the algebra produced when the fixture was recorded, spelled
-/// as `f64` literals — Rust's shortest round-tripping form, so the
-/// literals ARE the bits.
+/// A BLESSED lowering: the canonical table — each vertex with the
+/// segment leaving it, `[x, y, centre.x, centre.y, radius, sweep]`, a
+/// line spelled with all four segment fields zero — and the
+/// declared-joint set that the algebra produced when the fixture was
+/// recorded, spelled as `f64` literals — Rust's shortest round-tripping
+/// form, so the literals ARE the bits.
 ///
 /// This is what replaced the `LoopBuilder` twin. Be precise about what
 /// changed and what did not:
@@ -64,12 +66,15 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
         println!("    (");
         println!("        {name:?},");
         println!("        &[");
-        // The bulge column is READ BACK off the stored sweep, which is
-        // lossy (`tan(Δθ/4)` rounds away from the authored bulge), so a
-        // re-blessed table is a new recording and not the old one.
         for (v, s) in algebra.vertices().iter().zip(algebra.segments()) {
-            let b = crate::common::quarter_tan(s);
-            println!("            [{:?}, {:?}, {:?}],", v.x, v.y, b);
+            let [cx, cy, r, sweep] = match *s {
+                profile::Segment::Line => [0.0; 4],
+                profile::Segment::Arc(arc) => [arc.centre.x, arc.centre.y, arc.radius, arc.sweep],
+            };
+            println!(
+                "            [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}],",
+                v.x, v.y, cx, cy, r, sweep
+            );
         }
         println!("        ],");
         println!("        &{:?},", algebra.tangent_joints());
@@ -83,144 +88,243 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
         .find(|(n, _, _)| *n == name)
         .map(|(_, t, j)| (*t, *j))
         .unwrap_or_else(|| panic!("no recorded fixture named {name:?}"));
-    let mut lp = bulge_loop(
-        table
-            .iter()
-            .map(|&[x, y, bulge]| (Point2::new(x, y), bulge))
-            .collect(),
-    );
-    lp = lp.with_tangent_joints(joints.to_vec());
-    lp
+    <ProfileLoop<f64> as RawLoop<f64>>::new(table.iter().map(|&[x, y, cx, cy, radius, sweep]| {
+        let segment = if radius == 0.0 {
+            profile::Segment::Line
+        } else {
+            profile::Segment::Arc(Arc2 {
+                centre: Point2::new(cx, cy),
+                radius,
+                sweep,
+            })
+        };
+        (Point2::new(x, y), segment)
+    }))
+    .with_tangent_joints(joints.to_vec())
 }
 
 /// The blessed tables. One row per fixture name; see [`recorded`].
 #[allow(clippy::type_complexity)]
-static FIXTURES: &[(&str, &[[f64; 3]], &[usize])] = &[
+static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
     (
         "arc_center_ccw",
         &[
-            [1.0, 0.0, 0.41421356237309503],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 1.5707963267948968],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[],
     ),
     (
         "arc_center_cw",
         &[
-            [1.0, 0.0, -2.414213562373095],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, -4.71238898038469],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[],
     ),
     (
         "arc_via_closing_matches_loopbuilder_close_arc_via",
-        &[[0.0, 0.0, -0.5], [2.0, 0.0, 0.1]],
+        &[
+            [0.0, 0.0, 1.0, -0.75, 1.25, -1.8545904360032244],
+            [
+                2.0,
+                0.0,
+                1.0,
+                -4.949999999999999,
+                5.049999999999999,
+                0.3986746099646482,
+            ],
+        ],
         &[],
     ),
     (
         "arc_via_matches_loopbuilder_arc_to_via",
-        &[[0.0, 0.0, -0.9999999999999999], [2.0, 0.0, 0.0]],
+        &[
+            [
+                0.0,
+                0.0,
+                1.0,
+                -2.2204460492503136e-16,
+                1.0,
+                -3.1415926535897927,
+            ],
+            [2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ],
         &[],
     ),
     (
         "arrival_bound_by_line_to_matches_loopbuilder",
         &[
-            [0.0, 0.0, 0.0],
-            [5.5, 0.0, 0.4142135623730951],
-            [6.0, 0.5, 0.0],
-            [6.0, 3.0, 0.0],
-            [0.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [5.5, 0.0, 5.5, 0.5, 0.5, 1.5707963267948968],
+            [6.0, 0.5, 0.0, 0.0, 0.0, 0.0],
+            [6.0, 3.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 3.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[1, 2],
     ),
     (
         "bracket_matches_loopbuilder_via_toward_and_far_end_anchor",
         &[
-            [0.0, 0.0, 0.0],
-            [3.0, 0.0, 0.0],
-            [3.0, 1.0, 0.0],
-            [1.5, 1.0, -0.4142135623730951],
-            [1.0, 1.5, 0.0],
-            [1.0, 3.0, 0.0],
-            [0.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [3.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [3.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [1.5, 1.0, 1.5, 1.5, 0.5, -1.5707963267948968],
+            [1.0, 1.5, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 3.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 3.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[3, 4],
     ),
     (
         "eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner",
         &[
-            [0.0, -0.8660254037844386, 0.5105684202253234],
-            [0.16666666666666674, 0.7453559924999299, 0.38196601125010526],
-            [-0.16666666666666674, 0.7453559924999299, 0.5105684202253233],
+            [
+                0.0,
+                -0.8660254037844386,
+                -0.5,
+                0.0,
+                0.9999999999999999,
+                1.8882662217645279,
+            ],
+            [
+                0.16666666666666674,
+                0.7453559924999299,
+                0.0,
+                0.5590169943749473,
+                0.25,
+                1.4594553124539331,
+            ],
+            [
+                -0.16666666666666674,
+                0.7453559924999299,
+                0.5,
+                0.0,
+                0.9999999999999999,
+                1.8882662217645279,
+            ],
         ],
         &[1, 2],
     ),
     (
         "line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner",
         &[
-            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             [
                 3.0502112764355034,
                 -1.6653345369377348e-16,
-                0.805875189115555,
+                3.0502112764355034,
+                0.2999999999999998,
+                0.3,
+                2.7132524868003074,
             ],
-            [3.174819725635825, 0.5728969299715385, 0.31310350092995504],
+            [
+                3.174819725635825,
+                0.5728969299715385,
+                2.0,
+                -2.0,
+                2.8284271247461903,
+                1.2137383301869349,
+            ],
         ],
         &[1, 2],
     ),
     (
         "rounded_square_with_seam_fillet_matches_explicit_hand_chain",
         &[
-            [-0.7499999999999999, -1.0, 0.0],
-            [0.7499999999999999, -1.0, 0.41421356237309503],
-            [0.9999999999999999, -0.75, 0.0],
-            [1.0, 0.7499999999999999, 0.41421356237309503],
-            [0.75, 0.9999999999999999, 0.0],
-            [-0.75, 1.0000000000000002, 0.41421356237309515],
-            [-1.0, 0.7500000000000002, 0.0],
-            [-0.9999999999999999, -0.75, 0.41421356237309503],
+            [-0.7499999999999999, -1.0, 0.0, 0.0, 0.0, 0.0],
+            [
+                0.7499999999999999,
+                -1.0,
+                0.7499999999999999,
+                -0.75,
+                0.25,
+                1.5707963267948966,
+            ],
+            [0.9999999999999999, -0.75, 0.0, 0.0, 0.0, 0.0],
+            [
+                1.0,
+                0.7499999999999999,
+                0.75,
+                0.7499999999999999,
+                0.25,
+                1.5707963267948966,
+            ],
+            [0.75, 0.9999999999999999, 0.0, 0.0, 0.0, 0.0],
+            [
+                -0.75,
+                1.0000000000000002,
+                -0.75,
+                0.7500000000000002,
+                0.25,
+                1.570796326794897,
+            ],
+            [-1.0, 0.7500000000000002, 0.0, 0.0, 0.0, 0.0],
+            [
+                -0.9999999999999999,
+                -0.75,
+                -0.7499999999999999,
+                -0.75,
+                0.25,
+                1.5707963267948966,
+            ],
         ],
         &[1, 2, 3, 4, 5, 6, 7, 0],
     ),
     (
         "sharp_arc_chain_matches_loopbuilder",
-        &[[0.0, 0.0, 0.0], [2.0, 0.0, 0.5], [2.0, 2.0, 0.2]],
+        &[
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [2.0, 0.0, 1.25, 1.0, 1.25, 1.8545904360032244],
+            [2.0, 2.0, 3.4, -1.4, 3.6769552621700474, 0.7895822393995231],
+        ],
         &[],
     ),
     (
         "sharp_triangle_matches_loopbuilder",
-        &[[0.0, 0.0, 0.0], [4.0, 0.5, 0.0], [1.5, 3.0, 0.0]],
+        &[
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [4.0, 0.5, 0.0, 0.0, 0.0, 0.0],
+            [1.5, 3.0, 0.0, 0.0, 0.0, 0.0],
+        ],
         &[],
     ),
     (
         "single_fillet_after_leg_matches_loopbuilder_fillet",
         &[
-            [0.0, 0.0, 0.0],
-            [5.5, 0.0, 0.4142135623730951],
-            [6.0, 0.5, 0.0],
-            [6.0, 3.0, 0.0],
-            [0.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [5.5, 0.0, 5.5, 0.5, 0.5, 1.5707963267948968],
+            [6.0, 0.5, 0.0, 0.0, 0.0, 0.0],
+            [6.0, 3.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 3.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[1, 2],
     ),
     (
         "straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner",
         &[
-            [5.0, 0.0, 0.14833147735478827],
-            [4.15739709641549, 2.7777777777777777, 0.2504916501726719],
-            [3.7416573867739413, 3.0, 0.0],
-            [-3.0, 3.0, 0.0],
+            [5.0, 0.0, 0.0, 0.0, 5.0, 0.5890309702162738],
+            [
+                4.15739709641549,
+                2.7777777777777777,
+                3.7416573867739413,
+                2.5,
+                0.5,
+                0.9817653565786227,
+            ],
+            [3.7416573867739413, 3.0, 0.0, 0.0, 0.0, 0.0],
+            [-3.0, 3.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[1, 2],
     ),
     (
         "tangent_arc_leg_matches_loopbuilder",
         &[
-            [0.0, 0.0, 0.0],
-            [2.0, 0.0, 0.41421356237309503],
-            [3.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [2.0, 0.0, 2.0, 0.9999999999999999, 1.0, 1.5707963267948968],
+            [3.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[1],
     ),
@@ -268,10 +372,6 @@ fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
             a.y,
             h.y
         );
-        // The two doors lower alike: the emission layer names each
-        // segment's kind by the one lowering rule and `bulge_loop`
-        // reaches that same rule, so the canonical segments agree bit
-        // for bit.
         assert_eq!(
             segment_bits(algebra.segments()[i]),
             segment_bits(hand.segments()[i]),
@@ -352,8 +452,9 @@ fn sharp_arc_chain_matches_loopbuilder() {
 }
 
 /// D3 — declared tangent leg: `.tangent().tangent_arc_to(p)` lowers to
-/// a joint declared tangent plus the bulge tan(Δ/2), Δ the
-/// tangent-chord angle from atan2 — bit-identical to that closed form
+/// a joint declared tangent plus the arc whose sweep is 4·atan(X), X =
+/// tan(Δ/2) of the tangent-chord angle Δ spelled algebraically,
+/// `across / (|d| + along)` — bit-identical to that closed form
 /// evaluated directly on the same inputs (the oracle below).
 #[test]
 fn tangent_arc_leg_matches_loopbuilder() {
@@ -362,10 +463,9 @@ fn tangent_arc_leg_matches_loopbuilder() {
         Point2::new(2.0, 0.0),
         Point2::new(3.0, 1.0),
     );
-    // The unique tangent arc departing east from b to c: tangent-chord
-    // angle Δ = atan2(1, 1), bulge tan(Δ/2) (the documented form).
-    let delta = 1.0_f64.atan2(1.0);
-    let expected_bulge = (delta / 2.0).tan();
+    // The unique tangent arc departing east from b to c: d = (1, 1),
+    // along = across = 1, X = 1 / (√2 + 1) (the documented form).
+    let expected_bulge = 1.0 / (2.0_f64.sqrt() + 1.0);
     let algebra = Open
         .at(a)
         .line_to(b, Tol::witness())
@@ -378,8 +478,8 @@ fn tangent_arc_leg_matches_loopbuilder() {
     let algebra = pinned(algebra);
     // The INDEPENDENT oracle (it used to be the hand chain's argument;
     // now it is asserted directly): vertex 1's arc is lowered from the
-    // bulge tan(delta/2) of the documented closed form, bit for bit, so
-    // its sweep is that bulge's 4·atan.
+    // X of the documented closed form, bit for bit, so its sweep is
+    // that X's 4·atan.
     let profile::Segment::Arc(arc) = algebra.segments()[1] else {
         panic!("vertex 1 leaves on an arc: {:?}", algebra.segments()[1]);
     };
@@ -615,16 +715,22 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
 
 /// G1-1 — the circle primitive lowers to the corpus's existing
 /// convention bit-for-bit: two semicircles at the ±x poles, east first,
-/// bulge 1, counterclockwise, nothing declared (the two joints are
-/// same-carrier identities, not tangencies).
+/// each on the authored carrier (the centre and radius as written, the
+/// sweep 4·atan(1)), counterclockwise, nothing declared (the two joints
+/// are same-carrier identities, not tangencies).
 #[test]
 fn circle_matches_the_raw_corpus_convention() {
     for (cx, cy, r) in [(0.0, 0.0, 1.0), (-1.5, 0.0, 0.7), (2.0, 2.0, 0.5)] {
         let algebra = profile::circle(Point2::new(cx, cy), r, Tol::witness()).unwrap();
         let algebra = pinned(algebra);
-        let hand = bulge_loop(vec![
-            (Point2::new(cx + r, cy), 1.0),
-            (Point2::new(cx - r, cy), 1.0),
+        let half = profile::Segment::Arc(Arc2 {
+            centre: Point2::new(cx, cy),
+            radius: r,
+            sweep: 4.0 * 1.0_f64.atan(),
+        });
+        let hand = <ProfileLoop<f64> as RawLoop<f64>>::new([
+            (Point2::new(cx + r, cy), half),
+            (Point2::new(cx - r, cy), half),
         ]);
         assert_loops_identical(&algebra, &hand);
         assert_validate_identically(&algebra, &hand);

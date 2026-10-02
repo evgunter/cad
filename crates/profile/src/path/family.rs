@@ -136,9 +136,9 @@ use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
-    ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
-    PAIRED, PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming,
-    carriers_are_identical, in_state, junction_check, leg_end_tip, linear_band,
+    ArcData as SegArc, Core, Dir, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PAIRED,
+    PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming, carriers_are_identical,
+    in_state, junction_check, leg_end_tip, linear_band,
 };
 
 // ------------------------------------------------------------------
@@ -264,7 +264,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         pending.radius(),
         tol,
     )?;
-    core.emit_fillet_in(&trims, merge, &meta)?;
+    core.emit_fillet_in(&trims, merge, &meta, pending.run())?;
     // The carrier run to the anchor follows the fillet arc tangentially
     // by construction, so the arc's outgoing joint is declared exactly
     // when that run exists; on an exact fit the fillet arc ends the
@@ -273,8 +273,8 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     core.emit_fillet_arc(&trims, follows, meta.bound_at, tol)?;
     let tip = if trims.fit_out == Sign::Positive {
         let head = core.head()?;
-        let bulge = crate::sugar::bulge_from_center(head, anchor, centre, winding);
-        let radius = (anchor - centre).norm_squared().sqrt();
+        let radius = (anchor - centre).norm();
+        let arc = super::side_arc(head, anchor, centre, radius, winding);
         let carrier = SegArc {
             center: centre,
             radius,
@@ -292,7 +292,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         // The authored arrival arc is the fillet's run out, whichever
         // step lowers it.
         core.claim(meta.bound_at, crate::structure::PieceRole::RunOut);
-        core.push_arc(anchor, bulge)?;
+        core.push_arc(anchor, arc)?;
         let chord = (anchor - head).norm_squared().sqrt();
         leg_end_tip(anchor, dir, radius.min(chord), Some(carrier))
     } else {
@@ -349,7 +349,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         pending.radius(),
         tol,
     )?;
-    core.emit_fillet_in(&trims, merge, &meta)?;
+    core.emit_fillet_in(&trims, merge, &meta, pending.run())?;
     let radius = (start_pos - centre).norm_squared().sqrt();
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
@@ -361,14 +361,14 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             tol,
         )?;
         let head = core.head()?;
-        let bulge = crate::sugar::bulge_from_center(head, start_pos, centre, winding);
+        let arc = super::side_arc(head, start_pos, centre, radius, winding);
         // The arrival spec's own step is the fused verb's (see
         // `resolve_arc_arrival`), never the step being lowered.
         if arrival_radius {
             core.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier2)?;
         }
         core.claim(meta.bound_at, crate::structure::PieceRole::RunOut);
-        core.close_leaving(bulge, FirstSeg::Arc)?;
+        core.close_leaving(Some(arc))?;
         let chord = (start_pos - head).norm_squared().sqrt();
         junction_check(
             &Incoming {
@@ -392,7 +392,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         // junction check below reads the resolver's computed carrier
         // and says nothing about what was stored.
         let leaving = core.record_fillet_arc(trims.arc.radius, meta.bound_at)?;
-        core.close_leaving(trims.bulge, FirstSeg::Arc)?;
+        core.close_leaving(Some(trims.fillet()))?;
         debug_assert_eq!(leaving, core.verts.len() - 1, "{PAIRED}");
         junction_check(
             &Incoming {
@@ -946,6 +946,18 @@ pub trait PointIncoming<T: ArcCarrierScalar> {
     fn to_wire(&self) -> ArcData<T>;
 }
 
+/// Whether an anchored incoming's carrier passes through the tip by its
+/// mode's algebra: a `Bulge` or `Via` carrier is derived from the
+/// chord, so both ends are on it; a `Center` carrier is the authored
+/// centre, on which the tip lies only to the door's
+/// `path_arc_center_equidistant` decision.
+fn head_on_circle<T: Real>(wire: &ArcData<T>) -> crate::Facts {
+    match wire {
+        ArcData::Center { .. } => crate::Facts::Decided,
+        _ => crate::Facts::Registered,
+    }
+}
+
 /// A point-mode incoming's derived pieces: (centre, winding, start
 /// tangent, anchor).
 type PointCarrier<T> = (Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>);
@@ -969,12 +981,11 @@ fn bulge_carrier<T: geom_core::Decide>(
         Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
         Err(source) => return Err(PathError::Escalated { source }),
     };
-    let data = super::arc_carrier(at, p, b);
+    let arc = crate::lower_arc(at, p, b);
     let d = p - at;
     let gamma = d.y.atan2(d.x);
-    let theta = b.atan() * T::from_f64(4.0);
-    let start = Dir::from_angle(gamma - theta / T::from_f64(2.0));
-    Ok((data.center, winding, start))
+    let start = Dir::from_angle(gamma - arc.sweep / T::from_f64(2.0));
+    Ok((arc.centre, winding, start))
 }
 
 impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
@@ -1012,7 +1023,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
             Ok(_) => {}
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        let b = crate::sugar::bulge_from_via(at, self.q, self.p);
+        let b = super::via_quarter_tan(at, self.q, self.p);
         let (c, w, start) = bulge_carrier(at, self.p, b, tol)?;
         Ok((c, w, start, self.p))
     }
@@ -1054,10 +1065,9 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
             PathError::DegenerateArcChord { chord: c }
         })?;
-        let b = crate::sugar::bulge_from_center(at, self.p, self.c, self.winding);
+        let theta = super::center_sweep(at, self.p, self.c, r_tip, self.winding);
         let d = self.p - at;
         let gamma = d.y.atan2(d.x);
-        let theta = b.atan() * T::from_f64(4.0);
         let start = Dir::from_angle(gamma - theta / T::from_f64(2.0));
         // The AUTHORED centre is the carrier (never the re-derived one).
         Ok((self.c, self.winding, start, self.p))
@@ -1221,6 +1231,8 @@ fn entry_arc_open<T: ArcCarrierScalar>(
             winding: spec.winding,
             radius,
             resolver: arc_fillet::resolve::<T>,
+            // The chain is seeded at the anchor itself.
+            head_on_circle: crate::Facts::Registered,
         },
         PointIncoming::to_wire(spec).carries_radius(),
         tol,
@@ -1304,10 +1316,12 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             &mut self.core,
             PendingArc {
                 anchor: leg.end,
-                centre: leg.centre,
+                centre: leg.arc.centre,
                 winding: leg.winding,
                 radius,
                 resolver: arc_fillet::resolve::<T>,
+                // The leg's end is its start rotated about the centre.
+                head_on_circle: crate::Facts::Registered,
             },
             spec.to_wire().carries_radius(),
             tol,
@@ -1324,8 +1338,8 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let (at, ang) = self.dep()?;
         let leg = spec.leg(DirectedPoint { at, dir: ang }, tol)?;
         let carrier = SegArc {
-            center: leg.centre,
-            radius: (at - leg.centre).norm_squared().sqrt(),
+            center: leg.arc.centre,
+            radius: leg.arc.radius,
         };
         // A leg emits on its OWN step, which the row recorded before
         // this kernel ran.
@@ -1334,7 +1348,13 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             self.core
                 .record_radius(step, crate::structure::RadiusRole::Carrier)?;
         }
-        self.core.push_arc(leg.end, leg.bulge)?;
+        self.core.push_arc(
+            leg.end,
+            crate::BuiltArc {
+                arc: leg.arc,
+                facts: crate::Facts::Registered,
+            },
+        )?;
         let arm = carrier.radius.min(leg.chord);
         Ok(in_state(
             self.core,
@@ -1404,6 +1424,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
                 winding,
                 radius,
                 resolver: arc_fillet::resolve::<T>,
+                head_on_circle: head_on_circle(&spec.to_wire()),
             },
             spec.to_wire().carries_radius(),
             tol,
@@ -1531,6 +1552,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         winding,
                         radius,
                         resolver: arc_fillet::resolve::<T>,
+                        head_on_circle: head_on_circle(&spec.to_wire(tol)),
                     },
                     incoming_radius,
                     tol,
@@ -1559,6 +1581,8 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         winding,
                         radius,
                         resolver: arc_fillet::resolve::<T>,
+                        // The anchor is the chain head itself.
+                        head_on_circle: crate::Facts::Registered,
                     },
                     incoming_radius,
                     extends,
@@ -1608,7 +1632,8 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<
             target: Target::Point(spec.p),
             b: spec.b,
         }));
-        path.arc_to_point(spec.p, spec.b, tol)
+        let leg = path.arc_bulge(spec.p, spec.b)?;
+        path.arc_to_point(spec.p, leg, tol)
     }
 }
 
@@ -1619,7 +1644,8 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             target: Target::Start,
             b: spec.b,
         }));
-        path.arc_to_start(spec.b, false, tol)
+        let leg = path.arc_bulge(path.start_target()?, spec.b)?;
+        path.arc_to_start(leg, false, tol)
     }
 }
 
@@ -1638,7 +1664,8 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::
             target: Target::StartArriving,
             b: spec.b,
         }));
-        path.arc_to_start(spec.b, true, tol)
+        let leg = path.arc_bulge(path.start_target()?, spec.b)?;
+        path.arc_to_start(leg, true, tol)
     }
 }
 
@@ -1649,8 +1676,8 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Point2<T>> {
             q: spec.q,
             target: Target::Point(spec.p),
         }));
-        let bulge = path.arc_via_bulge(spec.q, spec.p, tol)?;
-        path.arc_to_point(spec.p, bulge, tol)
+        let leg = path.arc_via(spec.q, spec.p, tol)?;
+        path.arc_to_point(spec.p, leg, tol)
     }
 }
 
@@ -1661,8 +1688,8 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
             q: spec.q,
             target: Target::Start,
         }));
-        let bulge = path.arc_via_bulge(spec.q, path.start_target()?, tol)?;
-        path.arc_to_start(bulge, false, tol)
+        let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
+        path.arc_to_start(leg, false, tol)
     }
 }
 
@@ -1674,8 +1701,8 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Point2<T>> {
             winding: spec.winding,
             target: Target::Point(spec.p),
         }));
-        let bulge = path.arc_center_bulge(spec.c, spec.p, spec.winding, tol)?;
-        path.arc_to_point(spec.p, bulge, tol)
+        let leg = path.arc_center(spec.c, spec.p, spec.winding, tol)?;
+        path.arc_to_point(spec.p, leg, tol)
     }
 }
 
@@ -1687,8 +1714,8 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
             winding: spec.winding,
             target: Target::Start,
         }));
-        let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding, tol)?;
-        path.arc_to_start(bulge, false, tol)
+        let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
+        path.arc_to_start(leg, false, tol)
     }
 }
 
