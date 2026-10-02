@@ -2,11 +2,12 @@
 id: tquery-refusal-prose-outgrows-the-viewer
 kind: issue
 title: topo: RimError::NotOneRim is over 50 words (Ev's concision request)
-status: review
+status: closed
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 branch: tquery/rim-of-structural
 pr: 3773
+closed: 2026-10-02
 ---
 
 
@@ -40,3 +41,7 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## Closed (2026-10-02, PR 3773)
+
+`rim_of` reads one rim from structure (the seed's two surface keys, chained on shared vertex keys, oriented by the lower-key side) and compares no carrier; see the PR body and the reviewer's 43-body oracle `rim_of_structural_review_probes`.

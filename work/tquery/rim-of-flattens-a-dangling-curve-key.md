@@ -2,13 +2,14 @@
 id: rim-of-flattens-a-dangling-curve-key
 kind: issue
 title: rim_of answers NotAnArc{kind:None} for a dangling curve key, the arm whose doc says null scaffold
-status: review
+status: closed
 opened: 2026-09-14
 refs: [edge-carrier-kind-has-no-readback-door, 2587]
 priority: P3
 cost: E
 branch: tquery/rim-of-structural
 pr: 3773
+closed: 2026-10-02
 ---
 
 
@@ -59,3 +60,7 @@ The state is plantable from inside the crate with `get_edge_mut`, as
 `a_live_edge_with_a_torn_curve_key_refuses_dangling_geometry_on_both_doors`
 does; no public door can produce it. A unit closing this row owes a
 `rim_of` row beside that one.
+
+## Closed (2026-10-02, PR 3773)
+
+`rim_of` reads one rim from structure (the seed's two surface keys, chained on shared vertex keys, oriented by the lower-key side) and compares no carrier; see the PR body and the reviewer's 43-body oracle `rim_of_structural_review_probes`.
