@@ -1909,16 +1909,15 @@ pub(super) fn crossed_edge_orientation<T: geom_core::Real>(
     if a == b {
         return Ok(None);
     }
-    let edge = body
-        .get_edge(e)
-        .ok_or_else(|| bug("a crossed seam edge is not live in its body"))?;
+    let sides = topo::readback::edge_sides(body, e).map_err(|what| match what {
+        topo::DanglingRef::Entity(topo::EntityId::Edge(_)) => {
+            bug("a crossed seam edge is not live in its body")
+        }
+        _ => bug("a crossed seam edge's half-edge lies on no face"),
+    })?;
     let mut names = Vec::with_capacity(2);
-    for he in [edge.he_plus, edge.he_minus] {
-        let face = body
-            .get_half_edge(he)
-            .and_then(|h| body.get_loop(h.parent_loop))
-            .map(|l| l.face)
-            .ok_or_else(|| bug("a crossed seam edge's half-edge lies on no face"))?;
+    let (plus, minus) = sides.faces();
+    for face in [plus, minus] {
         names.push(
             table
                 .name_of(&ent(0, EntityKey::Face(face)))

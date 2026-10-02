@@ -2,8 +2,10 @@
 id: viewer-refusals-speak-the-node
 kind: unit
 title: The viewer's own refusal types speak the node with its label, built where the frame owns the document
-status: open
+status: closed
+pr: 3806
 opened: 2026-10-01
+closed: 2026-10-02
 priority: P2
 cost: M
 parent: node-labels-are-document-data
@@ -37,3 +39,21 @@ Added by `memoized-refusals-speak-inner-nodes-through-the-frame`: `NodeErrorKind
 Added by `product-refusals-speak-the-node`: `ProductError` has `spoken(doc)` too, and `PartFault::PartProduct` now holds the gather's refusal whole, so `PartFault::spoken` says its nodes from the part. The viewer draws a gather refusal's `Display` in `frame::product_badge` (the session's `product_fault`) and in `scene.rs`'s `NoProduct`; both hold the document.
 
 The viewer reads them in `pickindex.rs` (most), `tree.rs`, `frame.rs`, `pane/properties.rs`, `pane/create.rs`, `pane/viewport.rs`, `session.rs`, `session/refuse.rs`, `session/select.rs`, `matetool.rs`, `blend.rs`, `combine.rs`, `idpass.rs` and `app.rs`. Not every read prints a sentence; the ones that do are this row's to speak.
+
+## Ruled (implementer, 2026-10-02; revised in review): a kept refusal is a sentence made once, at the end of its batch, and the next accepted act retires it
+
+Not a fork. The status line holds a `frame::Message`, a string made once per frame. Two rules keep the label it says the document's:
+
+- **Made at the end of the batch.** `frame::batch_refusal` speaks the batch's refusal again from the committed document the batch leaves (`Refusal::respoken`), so a rename later in the same batch is the label it says. A batch that replaced the document (`Open`, `NewDocument`) leaves the refusal as raised: the new document's ids say nothing about it. `Refusal::Edit` cannot be spoken again yet (the kernel door speaks `EditError` at the refusal), filed as `edit-error-respeaks-from-a-later-version`.
+- **Retired by the next accepted act.** `frame::batch_status` clears the line on any batch that acts (`frame::acts`), and `SessionOp::SetLabel` acts, so the frame that renames a node clears a refusal that said its old label. This holds only while every label-changing op answers `acts` true; the viewer README's channel section says so.
+
+Re-speaking from a later version is sound because within one document's history an id names one node: an id is the head of the mint chain at its insert, so two versions that part from one value mint different ids from there on (`Refusal::respoken`'s doc comment; `node_labels::an_undo_then_a_different_insert_mints_a_different_id`).
+
+Each of the viewer's own refusal types is spoken at the raise, from the document the raising door holds: `Refusal`'s `NoSuchSlot`, `WrongNodeKind` and `ProfileEditStale` (the committed document), `FaceFrameFault` and `DuplicateFault` (the landed document their evaluation was taken of), `AdmissionFault` and `SlotUnitFault` (the document the admission or slot test reads), `MateToolError` (the landed pair `MateTool::proposal` is handed), and `HeldRefusal` (the document `held_loops` reads). A kernel `Say` value they carry whole (`InterrogateError`, `NodeStanding`, `NodeErrorKind` in `RefusedBoolean`) keeps the `HeldNodes` its sentence names (`held_by`), as `EditError::MateRefused` does. Each has `respoken(doc)`. The mate tool's notice is spoken again from the session's document (`MateToolError::respoken`), the one its panel line speaks, so a rename that has not landed reads the same in both. The at-rest badge speaks `AssemblyError` from the landed document (`AssemblyError::spoken`), and the product badge and `SceneError::NoProduct` speak the gather's refusal (`viewer-product-badge-speaks-the-node`).
+
+## Split
+
+- `viewer-pick-path-refusals-speak-the-node`: `PickIndexError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`, `BlendEvent`/`BlendTarget`, `IdAnswer`. The pick path has no document, so these take `Say`.
+- `viewer-panes-speak-the-kernel-refusals-they-draw`: `Standing`'s verdict, `app::indeterminate_wording`, `line_in_part`/`PartFault::spoken`, and the remaining kernel reads.
+- `viewer-product-badge-speaks-the-node`: `frame::product_badge` and `scene.rs`'s `NoProduct`, carried by this row's PR once #3794 merged.
+- `edit-error-respeaks-from-a-later-version`: `Refusal::Edit` inside its own batch.

@@ -346,8 +346,8 @@ fn fused_geometry_refuses_both_display_ops_typed() {
                 root,
                 others,
             }))) => {
-                assert!(instance == a || instance == b);
-                assert_eq!(root, weld, "the refusal names the fusing root");
+                assert!(instance.id() == a || instance.id() == b);
+                assert_eq!(root.id(), weld, "the refusal names the fusing root");
                 assert_eq!(others.len(), 1, "…and the other instance");
             }
             other => panic!("{label}: expected FusedGeometry, got {other:?}"),
@@ -379,7 +379,7 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
         .expect_err("…and no display operation can address it separately");
     assert!(
         matches!(&fault, AdmissionFault::FusedGeometry { instance, root, .. }
-            if *instance == a && *root == weld),
+            if instance.id() == a && root.id() == weld),
         "{fault:?}"
     );
 
@@ -403,8 +403,8 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
     assert_eq!(
         fault.to_string(),
         format!(
-            "instance {}'s geometry is fused into node {} together with instance(s) {} — \
-             a display operation cannot address it separately",
+            "InstantiatePart {}'s geometry is fused into Boolean {} together with InstantiatePart \
+             {} — a display operation cannot address it separately",
             test_utils::refusal::tag(a.0),
             test_utils::refusal::tag(weld.0),
             test_utils::refusal::tag(b.0)
@@ -520,14 +520,18 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     );
     assert_eq!(
         display::instance_check(doc, mate),
-        Err(AdmissionFault::NotAnInstance { node: mate }),
+        Err(AdmissionFault::NotAnInstance {
+            node: doc.spoken(mate)
+        }),
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
     );
     let absent = RecipeNodeId(test_utils::refusal::tagged(9_999));
     assert_eq!(
         display::instance_check(doc, absent),
-        Err(AdmissionFault::NoSuchNode { node: absent }),
+        Err(AdmissionFault::NoSuchNode {
+            node: doc.spoken(absent)
+        }),
         "an id the document does not hold is the ABSENT refusal, not \
          the wrong-kind one — the two are the sentences a person reads"
     );
@@ -550,7 +554,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     assert_eq!(
         wrong_kind_says,
         format!(
-            "node {} is not a part instance",
+            "Mate {} is not a part instance",
             test_utils::refusal::tag(mate.0)
         ),
         "the wrong-kind sentence says something IS there and is the \
@@ -607,7 +611,7 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
                 instance,
                 mates,
             }))) => {
-                assert_eq!(instance, constrained);
+                assert_eq!(instance.id(), constrained);
                 assert_eq!(mates.len(), 1, "the refusal lists the constraining mate");
             }
             other => panic!("a mate-constrained instance must refuse typed, got {other:?}"),
@@ -858,10 +862,14 @@ fn a_landing_mate_discards_the_probe_value() {
             superseded.cause
         )
     };
-    assert_eq!(*instance, bench.post_b, "the fault names the same instance");
     assert_eq!(
-        mates,
-        &mate_nodes(&session),
+        instance.id(),
+        bench.post_b,
+        "the fault names the same instance"
+    );
+    assert_eq!(
+        mates.iter().map(|mate| mate.id()).collect::<Vec<_>>(),
+        mate_nodes(&session),
         "and names the mate that landed, read off the recipe"
     );
     // DISCARDED, not zeroed: the value is gone, and the map holds no

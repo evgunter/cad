@@ -1060,7 +1060,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
             body.faces()
                 .map(|(k, fd)| {
                     let s = body.get_surface(fd.surface).ok_or_else(lost)?.clone();
-                    Ok((k, s, boxes::face_box(body, k, pad)?))
+                    Ok((k, s, boxes::face_box(body, k, pad, band)?))
                 })
                 .collect()
         };
@@ -1726,20 +1726,11 @@ pub(super) fn describe_minted_edges<T: Decide>(
     }
     for edge in worklist {
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
-        let face_of = |body: &Body<T>, he| -> Option<crate::geometry::SurfaceKey> {
-            Some(body.get_face(body.face_of_half_edge(he)?)?.surface)
-        };
-        let (Some(s1), Some(s2)) = (
-            face_of(body, edge_data.he_plus),
-            face_of(body, edge_data.he_minus),
-        ) else {
-            return Err(corrupt());
-        };
-        let start = body
-            .get_half_edge(edge_data.he_plus)
-            .ok_or_else(corrupt)?
-            .start;
-        let end = body.half_edge_end(edge_data.he_plus).ok_or_else(corrupt)?;
+        let sides = crate::readback::edge_sides(body, edge).map_err(|_| corrupt())?;
+        let (s1, s2) = sides.surfaces();
+        let he_plus = sides.plus.half_edge;
+        let start = body.get_half_edge(he_plus).ok_or_else(corrupt)?.start;
+        let end = body.half_edge_end(he_plus).ok_or_else(corrupt)?;
         let p0 = *body
             .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
             .ok_or_else(corrupt)?;
@@ -2486,7 +2477,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // it has no declaration channel to reach one
                         // through in any case. Certified boxes prove
                         // separation, anything closer refuses typed.
-                        if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                        if boxes::face_box(y, yf, pad, band)?.overlaps(&ball_box) {
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,
                                 face,
@@ -2572,7 +2563,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // relevant here than it is at the operand
                         // gate. Only a face the ball may actually
                         // reach costs the operation its answer.
-                        if !boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                        if !boxes::face_box(y, yf, pad, band)?.overlaps(&ball_box) {
                             continue;
                         }
                         return Err(BooleanError::CurvedBooleanUnsupported {
