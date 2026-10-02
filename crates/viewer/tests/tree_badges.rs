@@ -1610,6 +1610,86 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     }
 }
 
+/// **A mate's row says whether it placed its child or only declares**,
+/// carrying the solve's own role for that mate.
+///
+/// Two shelves on the bench's two posts: the shelf the bench placed is
+/// the group's root, the posts hang off it, and the second shelf hangs
+/// off one post — so its seat on the other post closes a loop, and the
+/// solve reads that seat as a declaration. The row of every mate reads
+/// the role the solve recorded for it; both roles are on the rows.
+#[test]
+fn a_mate_row_reads_whether_it_placed_its_child() {
+    use pncad::document::{Alignment, MateRole};
+    use viewer::tree::Readout;
+
+    let tol = Tol::witness();
+    let bench = common::asm::bench("auth16-role", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let middle = common::asm::SHELF_LENGTH / 2.0;
+    let quarter = common::asm::SHELF_LENGTH / 4.0;
+    let seat = |session: &mut DocSession, post, shelf, b_x| {
+        common::commit_mate(
+            session,
+            common::asm::seat_op_under(
+                &bench,
+                post,
+                shelf,
+                ContactClass::Rest,
+                common::asm::seat_alignment(b_x, None),
+            ),
+        )
+    };
+    let a_under_shelf = seat(&mut session, bench.post_a, bench.shelf_i, middle);
+    let b_under_shelf = seat(&mut session, bench.post_b, bench.shelf_i, quarter);
+    // The second shelf is the mate's FIRST operand, so the door clears
+    // the offset its insert authored and the bench shelf stays the root.
+    let upper = common::instance_in(&mut session, bench.shelf.id);
+    let flipped = common::asm::seat_alignment(middle, None);
+    let upper_on_a = common::commit_mate(
+        &mut session,
+        SessionOp::AddMate {
+            a: common::head(common::asm::in_part(upper, &bench.shelf_bottom)),
+            b: common::head(common::asm::in_part(bench.post_a, &bench.post_top)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: flipped.b.clone(),
+                b: flipped.a.clone(),
+                ..flipped
+            },
+        },
+    );
+    let b_under_upper = seat(&mut session, bench.post_b, upper, quarter);
+
+    let doc = session.committed_doc().clone();
+    let poses = common::solve(&session, &doc, tol);
+    let rows = session.tree_rows();
+    let mut roles = Vec::new();
+    for mate in [a_under_shelf, b_under_shelf, upper_on_a, b_under_upper] {
+        let role: MateRole = poses
+            .role(mate)
+            .unwrap_or_else(|| panic!("the premise: the solve gave {mate:?} a role"));
+        let row = rows
+            .iter()
+            .find(|row| row.id == mate)
+            .expect("every node has a row");
+        assert_eq!(row.status, RowStatus::Ok, "{mate:?}: the loop is consistent");
+        assert_eq!(
+            row.readout,
+            Some(Readout::Role(role)),
+            "{mate:?}: the row reads the role the solve recorded"
+        );
+        roles.push(role);
+    }
+    let count = |want: MateRole| roles.iter().filter(|&&role| role == want).count();
+    assert_eq!(
+        (count(MateRole::Determining), count(MateRole::Declaring)),
+        (3, 1),
+        "the premise: three seats place a child and one closes the loop: {roles:?}"
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
 /// What a row downstream of a refused mate says, spelled from the
 /// mate's id alone: the mate as the document speaks it.
 fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {

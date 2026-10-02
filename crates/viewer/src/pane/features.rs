@@ -237,8 +237,8 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
                     ui.label(comparison);
                 }
             }
-            // Its reason is a sentence, drawn under the row.
-            Some(Readout::Unavailable(_)) | None => {}
+            // Each is a sentence, drawn under the row.
+            Some(Readout::Unavailable(_) | Readout::Role(_)) | None => {}
         },
         RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
             ui.label(toned(row.status.badge(), theme, row.tone()));
@@ -248,7 +248,8 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
 
 /// **Every line drawn under a row**, in order: a failure's
 /// ([`failure_lines`]), why a measure has no value or an assertion no
-/// verdict, and the node's standing caveat. Answers the node a click
+/// verdict, what a mate did in the solve, and the node's standing
+/// caveat. Answers the node a click
 /// selects, as [`failure_lines`] does.
 fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
     let mut clicked = failure_lines(ui, row, theme);
@@ -256,6 +257,7 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         Some(Readout::Unavailable(reason)) => {
             advisory_line(ui, row.depth, &reason.to_string(), theme);
         }
+        Some(Readout::Role(role)) => advisory_line(ui, row.depth, &role.to_string(), theme),
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
@@ -1031,6 +1033,40 @@ mod tests {
         let line = find(&painted, note);
         assert_under(find(&painted, "Mate 000000000007"), line);
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
+    }
+
+    /// **A mate's row paints what it did in the solve under it, in the
+    /// kernel's sentence**, quietly and with no badge: whether it
+    /// placed its child or only declares, then its standing note.
+    ///
+    /// Red if `lines_under` drops `Readout::Role`, re-spells the
+    /// kernel's sentence, draws it loud or off its place under the row,
+    /// or if `row_result` draws it beside the row as well.
+    #[test]
+    fn a_mate_rows_role_paints_the_kernels_sentence_under_it() {
+        use pncad::document::MateRole;
+
+        const NOTE: &str = "the standing note";
+        for role in [MateRole::Determining, MateRole::Declaring] {
+            let sentence = role.to_string();
+            let row = TreeRow {
+                status: RowStatus::Ok,
+                note: Some(NOTE.to_owned()),
+                readout: Some(Readout::Role(role)),
+                ..placer_refused_row(None)
+            };
+            let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+                feature_row_drawn(ui, &row, theme)
+            });
+            let line = find(&painted, &sentence);
+            assert_under(find(&painted, "Mate 000000000007"), line);
+            assert_eq!(line.ink, Some(voices.weak), "{role:?}: said quietly");
+            assert_eq!(
+                texts(&painted),
+                vec!["Mate 000000000007", sentence.as_str(), NOTE],
+                "{role:?}: the row, its role, its note, and no badge"
+            );
+        }
     }
 
     /// The verdict `id` landed, from the evaluation itself.

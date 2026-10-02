@@ -41,7 +41,8 @@
 //! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
 //! drawn as the chrome spells any computed value, or the kernel's typed
 //! reason it has none; what an assertion found of it ([`Asserted`]);
-//! and that a boolean, or a side of a split, holds no material.
+//! that a boolean, or a side of a split, holds no material; and
+//! whether a mate placed its child or only declares ([`MateRole`]).
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -183,7 +184,7 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr, Label,
-    MateFault, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
+    MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
     ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
@@ -380,17 +381,18 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
-            Some(Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_)) | None => {
-                self.status.tone()
-            }
+            Some(
+                Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_) | Readout::Role(_),
+            )
+            | None => self.status.tone(),
         }
     }
 }
 
 /// **What an `Ok` value says**, on its own row: a measure's value or
 /// the kernel's reason it has none, an assertion's verdict over that
-/// value, and a value that holds no material where the node could
-/// have made some.
+/// value, a value that holds no material where the node could have
+/// made some, and what a mate did in the solve.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Readout {
     /// The value, as a quantity: spelled when the row is DRAWN
@@ -407,6 +409,9 @@ pub enum Readout {
     /// holds no material. A legal value, and the one a consumer
     /// refuses as its input, so the row it came from says so.
     Empty(Emptiness),
+    /// A mate's role in the solve: it placed its child, or it only
+    /// declares a contact. Its `Display` is the kernel's sentence.
+    Role(MateRole),
 }
 
 /// **Which part of a value holds no material**, and its phrase.
@@ -843,7 +848,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
 /// whether there is one. `None` for a payload whose `Ok` is the whole
 /// of it: a body, a datum, a profile, a pattern's instances (its
 /// count is authored, and the words of any refusal state it), a
-/// declaration, a mate.
+/// declaration, a gauge.
 fn readout_of(
     doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
@@ -870,13 +875,13 @@ fn readout_of(
             }
             (SplitSide::Body(_), SplitSide::Body(_)) => None,
         },
+        ValuePayload::Mate(role) => Some(Readout::Role(*role)),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_)
         | ValuePayload::Gauge => None,
     }
 }
