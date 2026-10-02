@@ -5284,7 +5284,7 @@ fn at_infinity_side<T: Decide>(
             diag,
         }
     })?;
-    // The closed-form volume is exact: one sign, read at both ends. An
+    // The closed form carries no pad: one sign, read at both ends. An
     // `Outer` boundary leaves infinity outside its material, a `Void`
     // one inside.
     use crate::props::{BracketEnd, ShellRole};
