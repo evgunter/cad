@@ -197,3 +197,12 @@ and the `node.rs` doc and the slip rows reverse if Ev rules otherwise.
 The merge of main conflicted in `topo/src/lib.rs` re-exports
 (`ShellOrientation` beside PR 3874's `lineage_root` rename); the
 orchestrator resolved it and checked that it compiles.
+
+## 2026-10-02 — next dispatch
+
+`a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand`
+dispatched on `fuse/corrupt-operand-edge-contact` (cloud session). The
+lane reproduces the refusal through the public door first, because the
+original probe carried records by hand. It fixes the refusal at its
+source and raises the row to P0 if the door reproduces it. Review tier
+is decided when the PR shows what the fix is.

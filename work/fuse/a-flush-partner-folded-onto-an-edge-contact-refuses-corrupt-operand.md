@@ -2,10 +2,11 @@
 id: a-flush-partner-folded-onto-an-edge-contact-refuses-corrupt-operand
 kind: issue
 title: A union whose accumulator already holds a non-manifold edge contact refuses CorruptOperand { operand: B } when a flush partner folds onto it
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P1
 cost: M
+branch: fuse/corrupt-operand-edge-contact
 ---
 
 
