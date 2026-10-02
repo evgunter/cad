@@ -54,4 +54,4 @@ S-MATE's charter names the torus declared-Rest lane explicitly, and `carrier_eq.
 The torus × torus G1 rim is declarable as `BooleanCoincidence::Seam`,
 and the lily's chain fixture verifies under it. The union still stops at
 the crossing layer, on `a-torus-seam-graze-needs-the-rim-root-deflated`
-and cleave's `a-torus-meridian-lying-on-a-torus-is-unsettled`.
+and `a-torus-meridian-lying-on-a-torus-is-unsettled`.

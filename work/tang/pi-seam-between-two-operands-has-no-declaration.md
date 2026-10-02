@@ -76,7 +76,7 @@ Outcomes:
   (`seam_senses_aligned`).
 - The lily's stem chain verifies as a seam and stops at the crossing
   layer, on two pieces filed as
-  `a-torus-seam-graze-needs-the-rim-root-deflated` and cleave's
+  `a-torus-seam-graze-needs-the-rim-root-deflated` and
   `a-torus-meridian-lying-on-a-torus-is-unsettled`.
 
 Also filed:

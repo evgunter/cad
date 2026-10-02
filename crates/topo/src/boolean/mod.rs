@@ -676,9 +676,12 @@ fn strut_certifies_side(parent: geom::SurfaceKind, partner: geom::SurfaceKind) -
 }
 
 /// **Which verified seams certify a GLOBAL side** (C4's seam source).
-/// A verified seam certifies that the two carriers are tangent, senses
-/// aligned, along the whole locus; the cover needs the parent's carrier
-/// in one closed side of the partner's everywhere. Tangency along a
+/// C4's cover records an edge's endpoints "only when the edge's parent
+/// carrier is certified to lie in one closed side of that carrier", and
+/// a verified seam is a source of that certificate exactly where it
+/// certifies it. A verified seam says the two carriers are tangent,
+/// senses aligned, along the whole locus. The cover needs more: the
+/// parent's carrier in one closed side of the partner's everywhere. Tangency along a
 /// curve fixes the geometry enough that this holds for these kinds:
 ///
 /// - **plane, cylinder and sphere among themselves**: a plane tangent

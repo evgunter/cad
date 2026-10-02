@@ -9,7 +9,7 @@ opened: 2026-10-02
 
 ## What
 
-Found by TANG's seam lane (`tang/pi-seam`). The lily's stem chain,
+The lily's stem chain,
 declared `Seam` on its walls and `Rest` on its junction discs, refuses
 `CurvedPierceUnsupported` in the B ∪ A order
 (`crates/sweep/tests/mate7a_torus_rest.rs`,
@@ -28,3 +28,15 @@ that case `Unsettled` (the arm's own comment says no anchor can put it
 definitely off). A meridian is closed-form: its plane contains the
 axis, its centre is on the centre circle, and its radius is the minor
 radius. So a `LiesOn` rung for it is decidable.
+
+## Not the same cell as `germ_circle_torus`'s seam rows
+
+`crates/sweep/tests/germ_circle_torus.rs` pins the lily's EQUATOR seams:
+coaxial circles crossing the partner torus's carrier, decided by the
+certified roots
+(`the_lily_seams_cross_each_others_carriers_only_outside_the_windows`).
+This row is about a MERIDIAN lying on the carrier identically, which is
+the `F ≡ 0` branch those roots never reach.
+
+The lily's stem: `torus-declared-rest-lane-banked` item 3. The sibling
+piece is `a-torus-seam-graze-needs-the-rim-root-deflated`.

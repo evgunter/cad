@@ -37,3 +37,6 @@ verified seam as the licence for the double root at the rim end. It
 would deflate that root and certify the remaining roots as it does
 any other's. That is an edge-local certificate, sound where the global
 side is not.
+
+The lily's stem: `torus-declared-rest-lane-banked` item 3. The sibling
+piece is `a-torus-meridian-lying-on-a-torus-is-unsettled`.
