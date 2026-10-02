@@ -349,3 +349,22 @@ extent", not a new decision. The one input class that moves
 tour is byte-identical. The lane also reported three tests on main that
 fail under `--all-features`, which CI never runs; they are filed with
 PR 3823's state-sync.
+
+## 2026-10-02 — the abutting equal-radius rim builds (PR 3823) (TANG orchestrator)
+
+- **Review.** A concurrent dual review (H); both reviews returned
+  APPROVE-WITH-FIXES with no MAJOR, so nothing enters the tally. Then
+  came the fix pass of the union, a delta review (APPROVE-WITH-FIXES),
+  and fix pass 2. Two merges of main moved the ground under the unit:
+  - REACH's PR 3657 brought `Continuation` and the sense bit at every
+    door, so the dumbbell, peg and stacked-tube rows build declared
+    `Continuation`;
+  - PR 3795's typed pair doors became the base of the one verification
+    door.
+- **Closed.** The P0 row, and REACH's stacked-rods row.
+- **Filed.** Four TANG rows (the turned lens, half-band order
+  dependence, seam-ruling rim, leftover valence-2 vertices).
+- **Filed on CIW** with this state-sync: three tests fail on main under
+  `--all-features`, and no CI leg runs them that way.
+- **Next.** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
+  is dispatched now that the cover rungs have landed.

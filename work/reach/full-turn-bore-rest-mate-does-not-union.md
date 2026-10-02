@@ -2,7 +2,8 @@
 id: full-turn-bore-rest-mate-does-not-union
 kind: issue
 title: A declared cylindrical Rest on a full-turn bore does not union - a ruling fragment with both ends past the bore keeps the frontier, the zip cannot pair one bore face with three shaft walls, and vtxfac has no curved pierced carrier
-status: review
+status: closed
+closed: 2026-10-02
 opened: 2026-10-01
 refs: [full-period-wall-has-no-containment-verdict]
 branch: reach/fullturn-bore-mate
@@ -76,3 +77,24 @@ which refuses `UnpairedLooseEnds` without it). The flush mate's door was
 the REST zip's patch pairing (one bore face against three shaft walls),
 and an off-seam azimuth's was `vtxfac`'s coplanar lump on a curved
 pierced face.
+
+## Closed (2026-10-02, PR 3814)
+
+A shaft in a full-turn bore unions at any azimuth and in either operand
+order, under a declared cylindrical `Rest`. Two changes did it:
+- **The empty-boundary certificate.** The declared arms read a pair of
+  ends that both lie `Elsewhere` as wholly outside the face only when
+  the edge's interior is certified not to meet the face's boundary
+  (`carrier_cross`). An edge lying on the face's carrier is asked that
+  question first.
+- **Twins on the other solid's carrier.** The REST zip mints each chord
+  on the carrier of the other solid's corresponding edge, so the two
+  patches divide their faces alike in both operand orders.
+
+The dual review (DR-42) found no wrong body. The delta review checked
+640 unions across azimuths, spans, scales and poses, and found 0 wrong.
+
+What remains is filed:
+- the blind shaft;
+- the twinless split-bore vertex;
+- the reflexive gate rows, whose reasons are stated at their sites.
