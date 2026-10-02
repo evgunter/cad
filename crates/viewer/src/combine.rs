@@ -845,6 +845,33 @@ pub fn duplicate_step(
     Ok((width + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP))
 }
 
+impl DuplicateFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| doc.spoken(node.id());
+        match self {
+            Self::NoValue { standing, .. } => Self::NoValue {
+                held: held_by(&standing, doc),
+                standing,
+            },
+            Self::NotOneBody { input } => Self::NotOneBody {
+                input: again(input),
+            },
+            Self::Unmeasured { input, error } => Self::Unmeasured {
+                input: again(input),
+                error,
+            },
+            Self::NoExtent { input } => Self::NoExtent {
+                input: again(input),
+            },
+            unspoken @ (Self::NotLanded | Self::Stale) => unspoken,
+        }
+    }
+}
+
 /// How far `points` spread along `direction` (normalized here): the
 /// largest projection less the smallest. `None` for no points or a
 /// zero direction.

@@ -820,11 +820,37 @@ pub fn acts(op: &SessionOp) -> bool {
 /// `frame_status(&[], ops, refusal)`, which is the same answer and
 /// cannot be asked of a frame with news without weighing it.
 fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> RankedVerdict {
+    // A refusal on the line is a sentence made once; the next batch that
+    // acts retires it, so its labels stay fresh only while every op that
+    // changes a label answers `acts` true (`crates/viewer/README.md`).
     match (ops.iter().any(acts), refusal) {
         (_, Some(refusal)) => RankedVerdict::Show(refusal_message(refusal)),
         (true, None) => RankedVerdict::Clear,
         (false, None) => RankedVerdict::Keep,
     }
+}
+
+/// **The batch's refusal as the line will say it**: spoken again from
+/// `doc`, the committed document the batch leaves
+/// ([`Refusal::respoken`]), so a rename later in the same batch is the
+/// label it says — unless an op in the batch replaced the document
+/// (`Open`, `NewDocument`), whose ids say nothing about the refusal's,
+/// and then it stands as it was raised.
+#[must_use]
+pub fn batch_refusal(
+    refusal: Option<Refusal>,
+    ops: &[SessionOp],
+    doc: &Doc<ProfileProgram>,
+) -> Option<Refusal> {
+    let refusal = refusal?;
+    let replaced = ops
+        .iter()
+        .any(|op| matches!(op, SessionOp::Open(_) | SessionOp::NewDocument { .. }));
+    Some(if replaced {
+        refusal
+    } else {
+        refusal.respoken(doc)
+    })
 }
 
 /// **A [`Refusal`] as the line carries it** — the one place a refusal

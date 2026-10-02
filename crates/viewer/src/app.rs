@@ -1214,6 +1214,7 @@ impl ViewerApp {
                 }
             }
         }
+        let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the

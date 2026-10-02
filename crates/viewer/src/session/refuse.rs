@@ -438,6 +438,60 @@ pub enum Refusal {
 }
 
 impl Refusal {
+    /// **This refusal with every node it names spoken again from
+    /// `doc`** — a later version of the document it was raised in, so
+    /// a label changed since the raise is the one it says.
+    ///
+    /// **Within one document's history an id names one node.** An id
+    /// is the head of the document's mint chain at the insert that
+    /// minted it (`editor_core::mint`), and the chain is a digest of
+    /// every minting edit before it: two versions that part from one
+    /// value — an undo, then a different insert — mint different ids
+    /// from there on, so an id one version holds is either the same
+    /// node in a later version or absent from it (`node <tag>`). That
+    /// is what makes re-speaking from a later version sound, and it is
+    /// why a document an `Open` or a `New` replaced is never `doc`
+    /// here: another document's chain says nothing about these ids.
+    ///
+    /// [`Self::Edit`] is the kernel door's sentence, spoken at that
+    /// door ([`EditError`] holds its nodes spoken), and stays as the
+    /// door said it (`work/emit/edit-error-respeaks-from-a-later-version.md`).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| doc.spoken(node.id());
+        match self {
+            Self::NoSuchSlot { node, slot } => Self::NoSuchSlot {
+                node: again(node),
+                slot,
+            },
+            Self::WrongNodeKind { node, wanted } => Self::WrongNodeKind {
+                node: again(node),
+                wanted,
+            },
+            Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
+            Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
+            Self::Display(fault) => Self::Display(fault.respoken(doc)),
+            Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
+            unspoken @ (Self::DrivenByExpression { .. }
+            | Self::NoSuchParam(_)
+            | Self::ParamNotANumber { .. }
+            | Self::ParamExists { .. }
+            | Self::EmptyName
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::Parse(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo { .. }
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }) => unspoken,
+        }
+    }
+
     /// **The parse error, when the refusal is the expression door's
     /// parse refusal** — the text an author typed did not parse, so
     /// nothing reached the document and the typed source is still the
@@ -891,6 +945,16 @@ impl RefusedBoolean {
         })
     }
 
+    /// This refusal with its nodes spoken from `doc`, a later version of
+    /// the document it was judged in ([`Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        Self {
+            held: held_by(&self.refused, doc),
+            ..self
+        }
+    }
+
     /// The finding the kernel refused: the pair and the class a
     /// declaration of it asserts.
     pub fn finding(&self) -> &FlushFinding {
@@ -1128,6 +1192,25 @@ pub enum FaceFrameFault {
 }
 
 impl FaceFrameFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in ([`Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::NotOneBody { at } => Self::NotOneBody {
+                at: doc.spoken(at.id()),
+            },
+            Self::Unresolved { error, .. } => {
+                let held = held_by(&error, doc);
+                Self::Unresolved { error, held }
+            }
+            unspoken @ (Self::NoFace
+            | Self::NotLanded
+            | Self::NotPlanar { .. }
+            | Self::NotDrawn) => unspoken,
+        }
+    }
+
     /// **How loud the datum form draws this fault** — the salience a
     /// surface reads off the value, as
     /// [`crate::session::Standing::tone`] reads it off a selection.
@@ -1337,16 +1420,17 @@ mod refused_boolean {
 
     use super::RefusedBoolean;
     use crate::generation::Generation;
-    use crate::test_support::{boss_on_block, evaluated_insert};
+    use crate::test_support::{boss_on_block, inserted_and_evaluated};
 
     /// The boss scene's union refusal as the kernel raised it, handed
-    /// to `with` — its evaluation lives only as long as this call.
+    /// to `with` beside the document the union was evaluated in — its
+    /// evaluation lives only as long as this call.
     fn with_refusal<R>(
         with: impl FnOnce(&Doc<ProfileProgram>, &NodeErrorKind, [RecipeNodeId; 2]) -> R,
     ) -> R {
         let tol = Tol::witness();
         let (doc, block, boss) = boss_on_block("refused-boolean", tol);
-        let (eval, union) = evaluated_insert(
+        let (judged, eval, union) = inserted_and_evaluated(
             &doc,
             Node::Boolean {
                 op: BooleanOp::Union,
@@ -1359,7 +1443,7 @@ mod refused_boolean {
         let kind = &crate::tree::own_error(union, &eval)
             .expect("the plain union fails on its own")
             .kind;
-        with(&doc, kind, [block, boss])
+        with(&judged, kind, [block, boss])
     }
 
     /// **A pair the attempt already declares is not offered again**: the

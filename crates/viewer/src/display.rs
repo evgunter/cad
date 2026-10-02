@@ -247,6 +247,48 @@ impl core::fmt::Display for AdmissionFault {
 
 impl core::error::Error for AdmissionFault {}
 
+impl AdmissionFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| doc.spoken(node.id());
+        match self {
+            Self::NoSuchNode { node } => Self::NoSuchNode { node: again(node) },
+            Self::NotAnInstance { node } => Self::NotAnInstance { node: again(node) },
+            Self::MateConstrained { instance, mates } => Self::MateConstrained {
+                instance: again(instance),
+                mates: mates.into_iter().map(again).collect(),
+            },
+            Self::FusedGeometry {
+                instance,
+                root,
+                others,
+            } => Self::FusedGeometry {
+                instance: again(instance),
+                root: again(root),
+                others: others.into_iter().map(again).collect(),
+            },
+        }
+    }
+}
+
+impl DisplayFault {
+    /// This fault with its nodes spoken from `doc`
+    /// ([`AdmissionFault::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::Admission(fault) => Self::Admission(fault.respoken(doc)),
+            unspoken @ (Self::NonRigidFrame { .. }
+            | Self::NoFreeMove
+            | Self::FreeMoveInFlight
+            | Self::WrongFreeMove) => unspoken,
+        }
+    }
+}
+
 impl From<AdmissionFault> for DisplayFault {
     fn from(fault: AdmissionFault) -> Self {
         Self::Admission(fault)

@@ -354,6 +354,33 @@ impl core::fmt::Display for MateToolError {
 
 impl core::error::Error for MateToolError {}
 
+impl MateToolError {
+    /// This refusal with its nodes spoken from `doc`, a later version of
+    /// the document the tool read ([`crate::session::Refusal::respoken`]):
+    /// the panel's line ([`MateToolState::line`]) speaks the session's
+    /// document, and a refusal drawn beside it speaks the same one.
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::NotAnInstancePick { side, node } => Self::NotAnInstancePick {
+                side,
+                node: doc.spoken(node.id()),
+            },
+            Self::SamePick { head } => Self::SamePick {
+                head: doc.spoken(head.id()),
+            },
+            Self::Frame { side, error, .. } => {
+                let held = held_by(&error, doc);
+                Self::Frame { side, error, held }
+            }
+            unspoken @ (Self::NotTwoPicks
+            | Self::PickIsNotAFace { .. }
+            | Self::ClassRefused { .. }
+            | Self::TableRefused { .. }) => unspoken,
+        }
+    }
+}
+
 /// What the tool holds: none, one, or two picks — the two sequential
 /// picks of the ruling, as a value.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

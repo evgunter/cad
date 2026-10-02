@@ -717,9 +717,12 @@ impl ViewerBehavior<'_> {
                                 self.push_labelled(MATE_NOUN, proposal.op());
                                 close = true;
                             }
+                            // Said from the document the panel's
+                            // line speaks, so a rename that has
+                            // not landed reads the same in both.
                             Err(error) => {
                                 self.notices.push(frame::tool_news(
-                                    ToolKind::Mate.says(&error),
+                                    ToolKind::Mate.says(&error.respoken(self.session.doc())),
                                     frame::Retold::Again,
                                 ));
                             }

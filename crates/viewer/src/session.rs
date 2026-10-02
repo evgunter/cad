@@ -1305,7 +1305,7 @@ impl DocSession {
                 // `Assembly`, and a document with no gate to run never
                 // gave it away.
                 let (at_rest, body) = if assembly_shaped {
-                    let (verdict, kept) = badge(assemble_gathered(product, self.tol));
+                    let (verdict, kept) = badge(doc, assemble_gathered(product, self.tol));
                     (Some(verdict), kept)
                 } else {
                     (None, Some(Arc::new(product.body.into_body())))
@@ -3155,15 +3155,19 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 
 /// One A5 verdict as the badge that shows it — the gate's own
 /// vocabulary either way: a certification with its minted count, or
-/// the typed refusal rendered by its own `Display` — **and the
-/// aggregate the gate hands back with it**.
+/// the typed refusal with its nodes spoken from `doc`, the landed
+/// document the gate judged — **and the aggregate the gate hands back
+/// with it**.
 ///
 /// The gate CONSUMES the product it judges. A certification returns
 /// the same body on its `Assembly` and a refusal returns nothing, so
 /// the body is an `Option` here for the same reason
 /// [`Gathered::body`] is one, and this is the one place that fact is
 /// read off the gate's own result type.
-fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
+fn badge(
+    doc: &Doc<ProfileProgram>,
+    verdict: Result<Assembly<f64>, AssemblyError>,
+) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
     match verdict {
         Ok(assembly) => (
             AtRestBadge::Certified {
@@ -3173,7 +3177,7 @@ fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<
         ),
         Err(refusal) => (
             AtRestBadge::Refused {
-                message: refusal.to_string(),
+                message: refusal.spoken(doc),
             },
             None,
         ),

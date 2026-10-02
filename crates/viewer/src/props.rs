@@ -1348,6 +1348,26 @@ impl core::fmt::Display for SlotUnitFault {
 
 impl core::error::Error for SlotUnitFault {}
 
+impl SlotUnitFault {
+    /// This fault with its node spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::NoExpression { node, slot } => Self::NoExpression {
+                node: doc.spoken(node.id()),
+                slot,
+            },
+            Self::NotALiteral { node, slot } => Self::NotALiteral {
+                node: doc.spoken(node.id()),
+                slot,
+            },
+            unspoken @ Self::Dimension { .. } => unspoken,
+        }
+    }
+}
+
 #[cfg(test)]
 mod written_tests {
     use super::{in_written, no_reading, written, written_text};
