@@ -8,6 +8,7 @@ priority: P1
 cost: M
 design: true
 refs: [layer3-recipenodeid-aliases-across-rewinds, sibling-branches-mint-one-node-id-for-different-nodes]
+needs_ev: true
 ---
 
 
