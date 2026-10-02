@@ -449,7 +449,8 @@ pub enum SplitError {
     /// instance the split would leave behind has nothing to be placed
     /// as.
     UnplacedAlone {
-        /// The unplaced group the cut holds first, by its root.
+        /// The unplaced group of the cut's first node, in document
+        /// order, by its root.
         group: SpokenNode,
     },
     /// **A mate would start placing** (A4): it reads a kept instance on
@@ -517,11 +518,12 @@ pub enum SplitError {
         name: SpokenName,
         /// A node the name derives from that the part document has
         /// no copy of — the id the part-side rewrite could not map,
-        /// or, from the precondition below, the lowest-numbered
-        /// derivation node outside the cut. For a nested name it is a
-        /// node inside one of `name`'s path segments, not `name`'s
-        /// own minting node, so `name` alone does not say which node
-        /// reaches out.
+        /// or, from the precondition below, the earliest derivation
+        /// node outside the cut in document order (a deleted one, which
+        /// has no place in it, after every live one). For a nested name
+        /// it is a node inside one of `name`'s path segments, not
+        /// `name`'s own minting node, so `name` alone does not say
+        /// which node reaches out.
         missing: SpokenNode,
     },
     /// A remainder-side name derives from BOTH sides of the cut, so it
@@ -2197,7 +2199,7 @@ pub fn split(
     // space lives in an unplaced group's own.
     let mut in_world = false;
     let mut first_own = None;
-    for &id in cut {
+    for &id in doc.order().iter().filter(|id| cut.contains(id)) {
         match spaces.space.get(&id) {
             Some(crate::mate::Space::World) => in_world = true,
             Some(crate::mate::Space::Own { group, .. }) => {
@@ -2337,6 +2339,7 @@ pub fn split(
     // `Carrier` is walked here without being remembered into this
     // site — only its SIDE has to be decided, which is what the two
     // arms below say.
+    let placed = doc.positions();
     for carrier in doc.name_carriers() {
         match carrier {
             NameCarrier::Payload { node, name } => {
@@ -2345,7 +2348,8 @@ pub fn split(
                 }
                 let outside = derivation_nodes(name)
                     .into_iter()
-                    .find(|id| !cut.contains(id));
+                    .filter(|id| !cut.contains(id))
+                    .min_by_key(|id| (placed.get(id).copied().unwrap_or(usize::MAX), *id));
                 if let Some(missing) = outside {
                     return Err(SplitError::PartNameReachesRemainder {
                         node: doc.spoken(node),

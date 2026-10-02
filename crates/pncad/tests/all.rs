@@ -6594,6 +6594,92 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     }
 }
 
+/// **Both unplaced refusals list in document order, not id order**: a
+/// sub-assembly whose instances after the first are unplaced lists them
+/// as it holds them, and an outer document instancing it several times
+/// lists the groups below by the instance each arrived through, in the
+/// outer document's order, and within one instance in the
+/// sub-assembly's. Each document takes instances until its ids do not
+/// run in document order, so a list in id order would differ.
+#[test]
+fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
+    use pncad::document::{DocEdit, RecipeNodeId, Unplaced};
+    let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
+    let dir = WsDir::new("place-step-order");
+    let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-step-order-part");
+    let (mut sub, ids) = (3..12)
+        .map(|n| asm2a_assembly("place-step-order-sub", doc_ref, n))
+        .find(|(_, ids)| !ascending(&ids[1..]))
+        .expect("some instance count puts the unplaced ids out of document order");
+    let unplaced = &ids[1..];
+    for &instance in unplaced {
+        sub = pncad::document::apply(
+            &sub,
+            &DocEdit::SetOffset {
+                instance,
+                offset: None,
+            },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("an offset clears")
+        .doc;
+    }
+    dir.write(
+        "sub.pncad",
+        &pncad::document::save(&sub, &[], Tol::witness()).expect("saves"),
+    );
+    let sub_ref = pncad::document::DocRef {
+        id: sub.id(),
+        pin: pncad::document::content_pin(&sub, Tol::witness()).expect("pin"),
+    };
+    let (outer, outer_ids) = (2..12)
+        .map(|n| asm2a_assembly("place-step-order-outer", sub_ref, n))
+        .find(|(_, ids)| !ascending(ids))
+        .expect("some instance count puts the outer ids out of document order");
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let opts = StepOptions::default();
+
+    let ev_sub = asm2a_eval(&sub, &ws);
+    match pncad::export::export_document_step(&ev_sub, &sub, &opts, Tol::witness()) {
+        Err(pncad::export::ExportError::Unplaced { parts }) => assert_eq!(
+            parts,
+            unplaced
+                .iter()
+                .map(|&i| (i, i, Unplaced::NoOffset))
+                .collect::<Vec<_>>(),
+            "the unplaced parts, as the sub-assembly holds them"
+        ),
+        other => panic!("the sub-assembly refuses its unplaced parts: {other:?}"),
+    }
+
+    let ev = asm2a_eval(&outer, &ws);
+    let of = sub.id();
+    let expected: Vec<pncad::document::CarriedUnplaced> = outer_ids
+        .iter()
+        .flat_map(|&through| {
+            unplaced
+                .iter()
+                .map(move |&group| pncad::document::CarriedUnplaced {
+                    route: pncad::document::Route {
+                        through,
+                        of,
+                        via: Vec::new(),
+                    },
+                    group,
+                    cause: Unplaced::NoOffset,
+                })
+        })
+        .collect();
+    match pncad::export::export_document_step(&ev, &outer, &opts, Tol::witness()) {
+        Err(pncad::export::ExportError::UnplacedBelow { groups }) => assert_eq!(
+            groups, expected,
+            "the groups below, by the outer instance, then as the sub-assembly holds them"
+        ),
+        other => panic!("the outer document refuses naming the groups below: {other:?}"),
+    }
+}
+
 /// The three consistency checks D1 puts on a stored arc.
 const CONSISTENCY: [&str; 3] = ["arc_start_on_carrier", "arc_landing", "arc_sweep_range"];
 

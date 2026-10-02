@@ -526,6 +526,7 @@ pub(crate) fn split(
     let store = resolver.map(super::store::Workspace::resolver);
     let out = d::split(&doc.inner, &set, part_id, tol, store.as_ref())
         .map_err(|err| split_err(py, &err))?;
+    let node_map = pairs_in_order(&out.node_map, &out.part);
     Ok(SplitOutcome {
         remainder: out.remainder,
         part: out.part,
@@ -534,11 +535,7 @@ pub(crate) fn split(
         part_edits: out.part_edits,
         part_maintenance: out.part_maintenance,
         instance: NodeId(out.instance),
-        node_map: out
-            .node_map
-            .into_iter()
-            .map(|(a, b)| (NodeId(a), NodeId(b)))
-            .collect(),
+        node_map,
         step_map: out.step_map,
     })
 }
@@ -775,7 +772,8 @@ impl InlineOutcome {
             .collect()
     }
 
-    /// Part node → its id in the spliced document.
+    /// Part node → its id in the spliced document, as pairs in the
+    /// spliced document's order.
     #[getter]
     fn node_map(&self) -> Vec<(NodeId, NodeId)> {
         self.node_map.clone()
@@ -791,6 +789,20 @@ impl InlineOutcome {
     fn __repr__(&self) -> String {
         format!("InlineOutcome({} edit(s))", self.edits.len())
     }
+}
+
+/// A node map as the pairs Python reads, in the order the mapped-to
+/// document holds the nodes: a `NodeId` has no order a caller can
+/// read, so the list's own order is the one it gets.
+fn pairs_in_order(map: &d::NodeMap, doc: &d::ProfileDoc) -> Vec<(NodeId, NodeId)> {
+    let to = doc.positions();
+    let mut pairs: Vec<(d::RecipeNodeId, d::RecipeNodeId)> =
+        map.iter().map(|(&a, &b)| (a, b)).collect();
+    pairs.sort_by_key(|&(a, b)| (to.get(&b).copied().unwrap_or(usize::MAX), a));
+    pairs
+        .into_iter()
+        .map(|(a, b)| (NodeId(a), NodeId(b)))
+        .collect()
 }
 
 /// Splice a referenced document back in, replacing the instantiate
@@ -816,15 +828,12 @@ pub(crate) fn inline(
     let tol = Tol::witness();
     let store = resolver.resolver();
     let out = d::inline(&doc.inner, instance.0, &store, tol).map_err(|err| inline_err(py, &err))?;
+    let node_map = pairs_in_order(&out.node_map, &out.doc);
     Ok(InlineOutcome {
         doc: out.doc,
         edits: out.edits,
         maintenance: out.maintenance,
-        node_map: out
-            .node_map
-            .into_iter()
-            .map(|(a, b)| (NodeId(a), NodeId(b)))
-            .collect(),
+        node_map,
         step_map: out.step_map,
     })
 }

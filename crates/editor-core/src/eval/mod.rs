@@ -198,12 +198,16 @@ impl<T: Decide> Evaluation<T> {
 
     /// **Every unplaced group in a document below this one** (A9,
     /// A11 (2)), routed through the instance it arrived by
-    /// ([`crate::CarriedUnplaced`]), once each, in node order: what
+    /// ([`crate::CarriedUnplaced`]), once each, in [`Self::order`]: what
     /// the parts' world products leave out, which a door writing one
     /// world must refuse over.
     pub fn all_unplaced_below(&self) -> Vec<crate::assembly::CarriedUnplaced> {
         let mut out: Vec<crate::assembly::CarriedUnplaced> = Vec::new();
-        for row in self.unplaced_below.values().flatten() {
+        let rows = self
+            .order
+            .iter()
+            .filter_map(|id| self.unplaced_below.get(id));
+        for row in rows.flatten() {
             if !out.contains(row) {
                 out.push(row.clone());
             }

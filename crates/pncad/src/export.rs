@@ -65,8 +65,8 @@ pub enum ExportError {
     /// live in an unplaced group's own space — each with its group,
     /// by its root, and why nothing places it.
     Unplaced {
-        /// Every unplaced part the export would have to write, in node
-        /// order: the node, its group's root, and the cause.
+        /// Every unplaced part the export would have to write, in
+        /// document order: the node, its group's root, and the cause.
         parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)>,
     },
     /// **Unplaced groups in a part below** (A9, A11 (2)): a part
@@ -74,7 +74,8 @@ pub enum ExportError {
     /// unplaced groups out, so writing it would write the part without
     /// them. Each group with the route it arrived by and its cause.
     UnplacedBelow {
-        /// Every such group, once each, in node order.
+        /// Every such group, once each, in the order the evaluation
+        /// carried them up (`Evaluation::unplaced_below`).
         groups: Vec<CarriedUnplaced>,
     },
 }
@@ -234,16 +235,19 @@ pub fn export_document_step(
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    let parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)> = evaluation
-        .unplaced
+    let parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)> = doc
+        .order()
         .iter()
-        .filter(|(node, _)| {
+        .filter(|&&node| {
             matches!(
-                doc.node(**node),
+                doc.node(node),
                 Some(editor_core::Node::InstantiatePart { .. })
             )
         })
-        .map(|(&node, &(group, cause))| (node, group, cause))
+        .filter_map(|&node| {
+            let &(group, cause) = evaluation.unplaced.get(&node)?;
+            Some((node, group, cause))
+        })
         .collect();
     if !parts.is_empty() {
         return Err(ExportError::Unplaced { parts });
