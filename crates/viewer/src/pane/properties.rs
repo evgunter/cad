@@ -1527,6 +1527,8 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
 
+    use crate::test_support::spoken;
+
     const NODE: RecipeNodeId = RecipeNodeId(test_utils::refusal::tagged(4));
 
     fn thickness() -> ParamName {
@@ -1605,9 +1607,15 @@ mod tests {
     /// The fault a fused instance's display doors refuse with.
     fn fused() -> AdmissionFault {
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(test_utils::refusal::tagged(0)),
-            root: RecipeNodeId(test_utils::refusal::tagged(2)),
-            others: vec![RecipeNodeId(test_utils::refusal::tagged(1))],
+            instance: spoken(
+                RecipeNodeId(test_utils::refusal::tagged(0)),
+                Some("InstantiatePart"),
+            ),
+            root: spoken(RecipeNodeId(test_utils::refusal::tagged(2)), Some("Union")),
+            others: vec![spoken(
+                RecipeNodeId(test_utils::refusal::tagged(1)),
+                Some("InstantiatePart"),
+            )],
         }
     }
 
@@ -1631,8 +1639,9 @@ mod tests {
         // Planted, not compared with another reading of the fault.
         assert!(
             painted.contains(
-                "instance 000000000000's geometry is fused into node 000000000002 together with instance(s) 000000000001 — \
-                 a display operation cannot address it separately"
+                "InstantiatePart 000000000000's geometry is fused into Union 000000000002 \
+                 together with InstantiatePart 000000000001 — a display operation cannot \
+                 address it separately"
             ),
             "{painted}"
         );

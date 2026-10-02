@@ -468,7 +468,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == hub_i && !mates.is_empty()
+                if instance.id() == hub_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -526,8 +526,11 @@ fn the_windmill_story() {
             instance,
             mates,
         }))) => {
-            assert_eq!(instance, hub_i);
-            assert!(mates.contains(&seat_mate), "the refusal names the mate");
+            assert_eq!(instance.id(), hub_i);
+            assert!(
+                mates.iter().any(|mate| mate.id() == seat_mate),
+                "the refusal names the mate"
+            );
         }
         other => panic!("expected the mate-constrained refusal, got {other:?}"),
     }
@@ -616,7 +619,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == sail_a && !mates.is_empty()
+                if instance.id() == sail_a && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -697,7 +700,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == sail_b && !mates.is_empty()
+                if instance.id() == sail_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \

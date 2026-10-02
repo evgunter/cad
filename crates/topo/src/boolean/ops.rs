@@ -1052,7 +1052,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
                 face,
                 key: fd.surface,
                 surface,
-                bbox: boxes::face_box(body, face, pad)?,
+                bbox: boxes::face_box(body, face, pad, band)?,
             })
         })
         .collect()
