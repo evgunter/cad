@@ -1810,10 +1810,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             .into_iter()
             .map(|p| {
                 let sb = SceneBody::plain(p.name, p.color, p.body);
-                // At 5e-3 the round bodies' meshes fall 1.2% (the
-                // lantern) to 4.5% (the foot) short of their exact
-                // volumes, and the near-flat blades' under 0.1%.
-                if p.name.starts_with("lily_leaf") || p.name.starts_with("lily_sepal") {
+                // At 5e-3 the curved bodies' meshes fall about 1% (the
+                // lantern, the lens-section leaves) to 4.5% (the foot)
+                // short of their exact volumes, and the lofted blades,
+                // whose sections are straight, under 0.1%.
+                if p.name == "lily_leaf_a" || p.name.starts_with("lily_sepal") {
                     sb
                 } else {
                     sb.finer(2e-3)
