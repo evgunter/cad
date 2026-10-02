@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};

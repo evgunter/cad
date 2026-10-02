@@ -2607,7 +2607,7 @@ mod tests {
             lens.as_ref().map(|_| ()),
             Err(&TessellateError::MeridianFreeCurvedFace {
                 face,
-                surface: geom_brep::SurfaceKind::Sphere,
+                surface: geom::SurfaceKind::Sphere,
             }),
             "two Rim-classified oblique arcs and nothing else"
         );

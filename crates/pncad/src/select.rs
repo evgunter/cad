@@ -88,8 +88,8 @@
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
+    CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
     NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, PieceRole, PieceRun,
     ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg,

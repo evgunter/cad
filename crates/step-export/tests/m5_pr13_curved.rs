@@ -991,7 +991,7 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
                 // not the cylinder wall one face later. Either way the
                 // refusal is typed and names the geometry; the exact
                 // kind is pinned so a change in walk order is visible.
-                assert_eq!(kind, "circle", "at eps = {eps}");
+                assert_eq!(kind, "circle curve", "at eps = {eps}");
             }
             other => panic!("expected CurvedShellClassification at {eps}, got {other:?}"),
         }
@@ -1028,7 +1028,7 @@ fn hollow_ring_hits_the_curved_shell_gate() {
     match step_string(&ring.body, &StepOptions::default(), tol) {
         Err(StepExportError::CurvedShellClassification { kind, .. }) => {
             // The classifier meets the torus wall's surface first.
-            assert_eq!(kind, "torus");
+            assert_eq!(kind, "torus surface");
         }
         other => panic!("expected the standing curved-shell gate, got {other:?}"),
     }

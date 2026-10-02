@@ -1607,8 +1607,8 @@ pub(crate) fn every_euler_op_error_once()
             edge: ek,
             half_edge: he,
             error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
-                chart: geom_brep::SurfaceKind::Torus,
-                carrier: geom_brep::CurveKind::Circle,
+                chart: geom::SurfaceKind::Torus,
+                carrier: geom::CurveKind::Circle,
                 class: geom_brep::UncoveredClass::TorusGeneralCircle,
             },
         },

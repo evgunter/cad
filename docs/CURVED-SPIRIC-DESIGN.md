@@ -390,12 +390,12 @@ configuration, and that is the honest shape.
   exactness, not on principle: the closed form exists, needs no
   ring work, and evaluates to rounding.
 - **(c3) `Pcurve::General` at the Fitted grade** — a fitted chart
-  image on an exact carrier. Same blocker as (c2)
-  (`run_fitted_checks` routes a torus chart to `certify_rung3`, whose
-  torus operand poisons), and the envelope statement on a periodic
-  analytic chart is `OnLocusHull`, the carrier's incidence with the
-  chart — which for an exact carrier says nothing a residual check
-  does not already say.
+  image on an exact carrier. The fitted lane does not take it:
+  `run_fitted_checks` admits a rung-3 carrier, whose certificate goes
+  to `certify_rung3` (a torus operand poisons, the (c2) blocker), and
+  an exact `Curve3::Circle` on a SPHERE chart only (its Hermite bound,
+  `MapResidualHermite`); a spiric carrier has no fitted class and
+  refuses at check 1.
 
 ## 6. The pinch half — independent, with the reason
 

@@ -185,8 +185,16 @@ certificate over a parameter box. Where no closed form exists, the
 certificate falls back to the displacement at the shared schedule plus
 a between-samples envelope: hull-bounded for fitted images on NURBS
 charts, and only the carrier's incidence with the chart surface
-(`OnLocusHull`) for a fitted image on a periodic analytic chart, where
-`S ∘ P` is transcendental. No UV-space tolerance appears in
+(`OnLocusHull`) for a fitted image over a rung-3 carrier on a periodic
+analytic chart, where `S ∘ P` is transcendental. A sphere's general
+circle (neither polar nor meridian) has no closed form either, but its
+envelope still bounds the whole span: its image is a piecewise quintic
+Hermite interpolant of the circle's chart image, and the envelope
+(`MapResidualHermite`) bounds `|S(P(t)) − C(t)|` as the circle's
+distance from the sphere, plus per span the image's control distance
+from the Hermite data and the Hermite remainder, through the chart
+map's derivative bound (`geom_brep::sphere_circle`); its schedule stays
+in the certified statement. No UV-space tolerance appears in
 any certified statement; the chart's stretch is the lever arm. Domain
 validity is part of the certificate: one branch pinned at the start (a
 τ jump is unrepresentable in `Harmonic`'s `α + β·t`; the branch per face

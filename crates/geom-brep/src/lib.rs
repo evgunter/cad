@@ -75,6 +75,7 @@ pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
 pub mod recourse;
+mod sphere_circle;
 pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;
@@ -113,12 +114,11 @@ pub use implicit::{
     min_radius_of_curvature,
 };
 pub use intersect::{
-    CoaxialEvidence, ConeCylinderSection, CurveKind, CylinderSphereSection, EqualCylinderSection,
-    PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
-    RadiusEvidence, Rung, SectionError, SectionRadius, SphereSphereSection, SurfaceKind,
-    cone_cylinder_section, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
-    plane_cylinder_section, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section,
+    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
+    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
+    Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};

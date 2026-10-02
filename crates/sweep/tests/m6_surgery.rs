@@ -11,7 +11,7 @@
 use core::f64::consts::PI;
 
 use crate::common::approx::band;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;

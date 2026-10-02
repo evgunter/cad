@@ -459,7 +459,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     match &e {
         NodeErrorKind::Shell(inner) => match **inner {
             ShellError::OpenFaceRingUnsupported { kind, .. } => {
-                assert_eq!(kind, geom_brep::SurfaceKind::Sphere);
+                assert_eq!(kind, geom::SurfaceKind::Sphere);
             }
             ref other => panic!("expected the ring gate on the belly, got {other:?}"),
         },

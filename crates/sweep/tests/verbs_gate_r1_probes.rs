@@ -225,8 +225,8 @@ fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_frame() {
     let err =
         topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no join arm");
     let BooleanError::GermFrameUnsupported {
-        a_kind: geom_brep::SurfaceKind::Torus,
-        b_kind: geom_brep::SurfaceKind::Plane,
+        a_kind: geom::SurfaceKind::Torus,
+        b_kind: geom::SurfaceKind::Plane,
         ..
     } = err
     else {
@@ -390,7 +390,7 @@ fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
             matches!(
                 err,
                 BooleanError::CurvedPairUnsupported {
-                    kind: geom_brep::SurfaceKind::Cone,
+                    kind: geom::SurfaceKind::Cone,
                     ..
                 }
             ),
