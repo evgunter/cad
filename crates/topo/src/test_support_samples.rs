@@ -192,9 +192,11 @@ fn contain_errors() -> Vec<ContainError> {
         ContainError::Escalated(diag()),
         ContainError::RayExhausted,
         ContainError::Corrupt,
-        ContainError::ArcLoopUnsupported {
+        ContainError::Uncrossable(crate::splitting::Uncrossable {
             r#loop: LoopKey::default(),
-        },
+            edge: crate::entity::EdgeKey::default(),
+            carrier: crate::splitting::UncrossableCarrier::Spiric,
+        }),
     ]
 }
 

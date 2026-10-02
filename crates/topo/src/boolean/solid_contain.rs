@@ -323,9 +323,16 @@ pub enum PointInSolidError {
     /// curve, so the loop is answered only where no crossing could
     /// matter — a hit definitely outside a ball holding the whole loop
     /// is a miss — and refused inside that ball.
+    ///
+    /// Its own arm rather than [`Self::Loop`], because this door names
+    /// the FACE a probe met, as its curved-face siblings do, and the
+    /// census and the shell witness read it with them as a face kind
+    /// the door does not serve rather than as a point too close to call.
     EdgeCarrierUnsupported {
         /// The planar face whose outline the walk cannot cross.
         face: FaceKey,
+        /// The loop, and the edge no ray got past.
+        cause: crate::splitting::Uncrossable,
     },
     /// A ray's hit on a `Cylinder` wall face could land inside it, and
     /// the wall's outline is outside the class the walk reads exactly
@@ -491,12 +498,13 @@ impl core::fmt::Display for PointInSolidError {
                  (parallels and meridians), or let its faces together cover the whole \
                  torus"
             ),
-            Self::EdgeCarrierUnsupported { .. } => write!(
+            Self::EdgeCarrierUnsupported { cause, .. } => write!(
                 f,
                 "cannot tell what is inside the solid: a test ray met a flat face \
-                 bounded by a spline or torus-section edge, near enough that the edge \
-                 decides, and that outline cannot be crossed exactly. The solid itself is fine. Recourse: test a \
-                 point farther from that face"
+                 bounded by a {} edge, near enough that the edge decides, and that \
+                 outline cannot be crossed exactly. The solid itself is fine. Recourse: \
+                 test a point farther from that face",
+                cause.carrier.word()
             ),
             Self::WallOutlineUnsupported { .. } => write!(
                 f,
@@ -3452,8 +3460,12 @@ pub(crate) fn point_in_face<T: Decide>(
         return Ok(Some(false));
     }
     let region = |lk| -> Result<LoopContainment, PointInSolidError> {
-        point_in_carrier_loop(body, lk, normal, p, band)?
-            .ok_or(PointInSolidError::EdgeCarrierUnsupported { face })
+        point_in_carrier_loop(body, lk, normal, p, band).map_err(|e| match e {
+            PointInLoopError::Uncrossable(cause) => {
+                PointInSolidError::EdgeCarrierUnsupported { face, cause }
+            }
+            e => PointInSolidError::Loop(e),
+        })
     };
     match region(f.outer)? {
         LoopContainment::Out => return Ok(Some(false)),
