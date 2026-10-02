@@ -329,3 +329,27 @@ PR 3824's fix pass is in, at head `1913437ac`, green.
   - Ruling: the scene uses the order that builds and pins the other as a live wall, filed on JOIN. Intersection is commutative in meaning, and choosing the order is a user's free choice. It is honest because it is disclosed and pinned.
   - New row: `show/projectbox-offsets-by-sixteenths-to-dodge-coincidence` (the projectbox still decouples by 1/16).
 - **Merge-order note:** `tools/tess-lint/tests/baseline_census.rs` is now re-pinned by five open PRs (3792, 3816, 3824, 3834, 3836). They merge in sequence, each re-deriving the pins on the merged tree.
+
+## 2026-10-02 — rocker reviewed (MERGE WITH FIXES); census pins precomputed
+
+PR 3834 review results:
+- The closed form A(r) checks against a brute-force area integral.
+- The `RingClearance` refusal is confirmed false: with a slot of length 2.0, every r up to 0.49 carves. The threshold is 0.3097, not ≈0.32.
+- The wire selector row and the tquery co-surface row are the same class but different asks. The wire row becomes the one GS-Q2 Convex/Reflex demand row, naming both call sites.
+
+The fix pass also covers:
+- positional loop reads, which are the class the keyhole broke once;
+- one crease localiser shared across Rust and Python;
+- the closed form ported with its wrap restored and its source cited;
+- metering the rendered body.
+
+The review precomputed the `baseline_census.rs` pins after 3792, 3816, 3824 and 3834 all merge. The deltas are per scene and disjoint, so they sum:
+- rows 1603
+- all_pairs 29,663
+- triangles 427,890
+- nurbs_triangles 333,508
+- sized 92
+- sized_scenes 16
+- at_bound 13
+
+3836 (letterforms: rows −52, triangles −200, pairs −1398) composes on top. Each merge re-runs tess-lint on its merge commit regardless.
