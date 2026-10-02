@@ -4745,7 +4745,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             MustCarryRefusal::InBand(source) => BlendError::Escalated {
                 site: BlendSite::Link { edge: link },
                 decision: BlendDecision::ContactSecondOrder,
-                source,
+                source: source.diag(),
             },
             MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),

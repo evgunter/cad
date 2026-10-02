@@ -84,10 +84,13 @@ chart form `∇φ·e⊥ / ‖chart stretch‖`. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 The tube says nothing about a disjoint component at other `e`-levels;
-that is C3's exhaustiveness obligation, a separate theorem. A straddling
-enclosure is a genuine sliver of the operand pair and escalates
-(`ssi_tube_transversality`, `SsiError::TubeStraddles`), never a
-retry. Hull bounds are an entry requirement: no schedule-max-only
+that is C3's exhaustiveness obligation, a separate theorem. Refusal
+is typed, never a retry loop: an enclosure that does not clear the
+band at any rung escalates (`ssi_tube_transversality`,
+`SsiError::TubeStraddles`). Two branches passing within the band of
+each other is a genuine sliver of the operand pair, and escalation is
+correct for it, F6's ladder speaking. The enclosure's own remaining
+slack can straddle too, and escalates the same way. Hull bounds are an entry requirement: no schedule-max-only
 certificate ever reaches an at-rest body, and the tube is required for
 every fitted `Intersection`, not only where several branches were found.
 The witness is `carrier(mid)`, minted from the cache the schedule sees.

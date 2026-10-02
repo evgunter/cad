@@ -296,6 +296,8 @@ mod msolve7_member_residue;
 mod msolve8_levered_clash;
 #[path = "msolve9_from_face.rs"]
 mod msolve9_from_face;
+#[path = "on_verdict_rows.rs"]
+mod on_verdict_rows;
 #[path = "onb_seam_class_interval.rs"]
 mod onb_seam_class_interval;
 #[path = "onb_wall_normal_census.rs"]
