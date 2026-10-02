@@ -2,7 +2,7 @@
 id: ignored-sym-receipt-rows-drifted-red-on-main-unattributed
 kind: issue
 title: The ignored SYM receipt rows (pad's rule-F differential, SYM-11 past the ceiling) were red on main with the drift unattributed
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P1
 cost: D

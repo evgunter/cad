@@ -318,3 +318,53 @@ PR 3733 and is filed on PCERT's slate.
   change.
 - **Held:** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
   follows it, because both edit `reduce.rs`'s cover rungs.
+
+## 2026-10-02 — a pinch union builds one body in every member order (PR 3796) (TANG orchestrator)
+
+Review tier: a single full review, then two delta reviews; each round was
+APPROVE-WITH-FIXES. The first found M1: the weld fired on a section
+face. Its fix reads the weld site from lineage. The second asked that
+the weld's fusions be recorded on both sides and that merge chains be
+followed in one place (`zip::survivor`). The third left one gap that
+cannot be reached: no record a boolean produces cites a weld's keys,
+which the unit row now says. Closes the unit row and TESS's census
+sibling. Filed out of it: WIRE's dropped operand records, and TESS's
+non-manifold doubled edge. The m1 strut row stays open with a second
+witness. Merging main moved one fixture: REACH's continuation rule now
+refuses `(slab − p1) − p2`, so X is cut once as `slab − (p1 ∪ p2)`.
+
+## 2026-10-02 — the declared door reads one margin over the consumed extent (PR 3795) (TANG orchestrator)
+
+Review tier: a single full review, then two delta reviews, each
+APPROVE-WITH-FIXES with no MAJOR. The first found the bridge at about
+2·Kε (two margins decided apart) and `Contradicted` read off an upper
+bound. The second found three more: the merge's extent ball did not
+enclose its faces, so a 900·Kε corner glued; the escalation text
+reported a margin inside the band when it was past it; and the
+declared sum reached the undeclared corner sites. C4's `Rest` sentence
+is reworded in the PR, as text that moved with the code. The orchestrator
+ruled it a sharper reading of "definitely distinct ... at the consumed
+extent", not a new decision. The one input class that moves
+(contradicted → escalated) is named in the PR body for Ev to see. The
+tour is byte-identical. The lane also reported three tests on main that
+fail under `--all-features`, which CI never runs; they are filed with
+PR 3823's state-sync.
+
+## 2026-10-02 — the abutting equal-radius rim builds (PR 3823) (TANG orchestrator)
+
+- **Review.** A concurrent dual review (H); both reviews returned
+  APPROVE-WITH-FIXES with no MAJOR, so nothing enters the tally. Then
+  came the fix pass of the union, a delta review (APPROVE-WITH-FIXES),
+  and fix pass 2. Two merges of main moved the ground under the unit:
+  - REACH's PR 3657 brought `Continuation` and the sense bit at every
+    door, so the dumbbell, peg and stacked-tube rows build declared
+    `Continuation`;
+  - PR 3795's typed pair doors became the base of the one verification
+    door.
+- **Closed.** The P0 row, and REACH's stacked-rods row.
+- **Filed.** Four TANG rows (the turned lens, half-band order
+  dependence, seam-ruling rim, leftover valence-2 vertices).
+- **Filed on CIW** with this state-sync: three tests fail on main under
+  `--all-features`, and no CI leg runs them that way.
+- **Next.** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
+  is dispatched now that the cover rungs have landed.

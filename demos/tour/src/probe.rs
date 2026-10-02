@@ -212,13 +212,9 @@ pub fn run(out: Option<String>, tol: Tol) {
         u,
         "bossplate",
         || {
-            // Contact-free transverse curved boolean: plain tier 3 (the 3′
-            // census is exact-on-planar; see the stop's routing note).
+            // Routed the way the stop routes it (`crate::declares_no_contacts`).
             let bb = bossplate::build::<Probe>(tol);
-            let contact_free = bb.contacts.vv.is_empty()
-                && bb.contacts.a_on_b.is_empty()
-                && bb.contacts.b_on_a.is_empty();
-            vec![if contact_free {
+            vec![if crate::declares_no_contacts(&bb.contacts) {
                 plain("bossplate", bb.body)
             } else {
                 seamed("bossplate", bb)

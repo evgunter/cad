@@ -1412,6 +1412,7 @@ mod tests {
     use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, SitedRef};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
+    use topo::BooleanCoincidence;
 
     test_utils::f6_variants! {
         /// **The document's name carriers**, welded to [`Carrier`] by
@@ -1522,7 +1523,7 @@ mod tests {
                         SitedRef::at_mint(first.clone()),
                         SitedRef::at_mint(second.clone()),
                     ),
-                    ContactClass::Rest,
+                    BooleanCoincidence::REST,
                 )],
             },
         );
@@ -1534,7 +1535,7 @@ mod tests {
                         SitedRef::at_mint(third.clone()),
                         SitedRef::at_mint(third.clone()),
                     ),
-                    ContactClass::Tangent,
+                    BooleanCoincidence::TANGENT,
                 )],
             },
         );

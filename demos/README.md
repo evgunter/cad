@@ -59,8 +59,9 @@ page is mostly about.
 | `budfillet` | the *Calochortus* bud as a bored solid of revolution, with three arms of the coaxial curved-support family rolled in ONE `fillet_edges` call: sphere×cone at the mouth, cone×plane at the lip, cylinder×plane at the bore's base. Off the sheet on its own stated grounds — at montage scale the fillets barely move the silhouette, so the evidence is numbers a picture cannot fake |
 | `tiltedcut` | a cylinder with **CUT engraved in its cap** — three glyphs of lines and arcs, each extruded and subtracted as a blind pocket whose volume is its **closed-form area × depth** — then cut by a tilted plane: the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r), the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and each half's volume is a **certified quadrature enclosure** asserted to bracket πr²H/2 (less the pockets above). Four live wall probes: the lettering on the elliptical section face, on a cap after the cut, and a C with one arc per side all refuse |
 | `bossplate` | a three-arc cylindrical boss unioned into a plate — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge, the claim no other scene makes |
+| `snowman` | **two coaxial balls of revolution under every boolean, and the union's waist rolled**: a 0.3 ball below and a 0.2 head above, centres 0.4 apart, each one `revolve` of a semicircle sketched in one plane. Four bodies in one cell under one camera: the union with its waist `fillet_edges`-rolled at r = 0.05 into an exact TORUS band (`BlendArm::SphereSphereTorus` — the ball rides at R + r from both centres, so the spine is a level circle), the plain union beside it, the bottom ball with the head subtracted (a spherical bite), and the lens they share. Every volume meets a closed form to a relative 1e-12 (the radii are a person's, so none is bit-exact): the two caps the radical plane cuts, and for the rolled union the band's ΔV by Pappus on its meridian section, `π∮ρ²dy` over three arcs. The waist is selected BY DESCRIPTION, and the description is ambiguous: `(Sphere, Sphere)` names the waist arcs and every seam meridian of both balls, and with no crease or convexity atom (GS-Q2) the scene separates them through `rim_of`'s `CoSurface` refusal — filed as `tquery/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam`. Coaxial is what a snowman is and what builds; the scene's tests pin the poses beside it under every op — a head moved 0.05 off the axis along x or z refuses `SectionNotPolar` (`reach/tilted-sphere-pair-section-refuses-at-the-polar-gate`), and one spun 0.9 rad about it refuses `SectionArcWindow { NoChartedRun }` (`tang/pierce-ring-has-no-join-arm`) |
 | `tube_along_arc` | **the tube door, with its intent parameters STORED rather than reconstructed**: a ring-torus tube built from spine centre / axis / reference direction / major radius / angular window / minor radius. A `revolve` reaches the same walls but RECONSTRUCTS the tube radius from the profile's bulge arcs; this door keeps what it was given, and the scene asserts `minor_radius.to_bits()` against the authored value on **both** half-tube walls. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census, sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀) |
-| `lofts` | **the first NURBS-walled render, and its minimal pair, in one cell**: three polyline quad sections — squares at the ends, a NON-AFFINE trapezoid between — skinned at v-degree 2, so the four walls are genuinely curved degree-1×2 NURBS patches. `loft_prism` (z = 0/1/2) is the corpus fixture verbatim (`step-export/tests/common/mod.rs::loft_prism`, `editor-core/tests/corpus/loft_prism.rs`, `sweep/tests/m6_loft_body.rs`); volume DERIVED exactly: V = 8 + 8d/3 = 9 m³ (d = 0.375). `nonuniform_loft` stands beside it as the minimal pair — the SAME sections, the SAME 2 m height, ONLY the middle placement moved to z = 0/0.15/2 (the corpus fixture keeps 0/1/3, whose bulge peaks at 48.8% of height with half-width 1.415 against the prism's 50%/1.375: the same silhouette rescaled, so the scene leads the corpus). The chord-length parameterization (t = 3√29/(3√29 + √5701) ≈ 0.1763) makes the degree-2 skin OVERSHOOT: bulge half-width 1.646 — wider than any authored section — at 32.6% of height; derived V = 8 + 0.25/(t(1−t)) = 9.7219 m³ exactly. **Why one cell and not two**: `compose_montage.py` trims and scales every cell independently, so as two panels the pair reads at two different scales and the silhouette comparison — the whole content of a minimal pair — is distorted by the composer. One frame gives them one camera and one scale; the second body is placed 4 m along +x, which is a rigid motion of the whole loft and leaves every derivation invariant |
+| `lofts` | **the first NURBS-walled render, and its minimal pair, in one cell**: three polyline quad sections — squares at the ends, a NON-AFFINE trapezoid between — skinned at v-degree 2, so the four walls are genuinely curved degree-1×2 NURBS patches. `loft_prism` (z = 0/1/2) is the corpus fixture verbatim (`step-export/tests/common/mod.rs::loft_prism`, `editor-core/tests/corpus/loft_prism.rs`, `sweep/tests/m6_loft_body.rs`); volume DERIVED exactly: V = 8 + 8d/3 = 9 m³ (d = 0.375). `nonuniform_loft` stands beside it as the minimal pair — the SAME sections, the SAME 2 m height, ONLY the middle placement moved to z = 0/0.15/2 (the corpus fixture keeps 0/1/3, whose bulge peaks at 48.8% of height with half-width 1.415 against the prism's 50%/1.375: the same silhouette rescaled, so the scene leads the corpus). The chord-length parameterization (t = 3√29/(3√29 + √5701) ≈ 0.1763) makes the degree-2 skin OVERSHOOT: bulge half-width 1.646 — wider than any authored section — at 32.6% of height; derived V = 8 + 0.25/(t(1−t)) = 9.7219 m³ exactly. **Why one cell and not two**: `compose_montage.py` trims and scales every cell independently, so as two panels the pair reads at two different scales and the silhouette comparison — the whole content of a minimal pair — is distorted by the composer. One frame gives them one camera and one scale; the second body is placed 4 m along +x, which is a rigid motion of the whole loft and leaves every derivation invariant. `twisted_loft` (8 m along +x) is the third thing the cell shows a loft reading from its author: the prism's sections at the prism's placements (every vertex checked bitwise against the prism's), with ONLY the top square's corners listed from the second. A loft joins corners by where each loop starts, so strut k runs c_k → c_(k+1) — a quarter turn by correspondence alone — and the walls become ruled twists. The twist moves the chord-averaged middle parameter to t = (√73/(√73+5√17) + √73/(√73+√329))/2 ≈ 0.3066 (asked of `loft_parameters` and pinned); derived V = 16/3 + (8t + d(1 + 12t − 10t²))/(30t²(1−t)²) ≈ 8.1764 m³ against the prism's 9 |
 | `hollowring` | the one-call hollow ring — a holed profile fully revolved, two shells out of one `revolve` |
 | `hollowelbow` | the windowed hollow elbow — `tube_along_arc_hollow` over an arc window: a wall, and an open bore |
 | `hollowtorus` | the full-period hollow tube — `TubeWindow::Full`, where the inner traversal closes and enters as a REVERSED cavity shell through the shared void-insertion door |
@@ -79,10 +80,10 @@ page is mostly about.
 | `crosslap` | cross-lap joint, assembled: two half-depth-notched beams (each a boolean result), UNIONED through the declared planar REST zip; the undeclared mate's typed refusal stays narrated |
 | `crosslap_exploded` | the same joint exploded via `transform_rigid`, with re-minted witnesses |
 | `twopeg` | **the declared CYLINDRICAL contact**: two 6×4×1 plates located on each other by a mating plane and two peg-in-hole fits — plate P is the plate ∪ two three-arc pegs; plate Q is ONE extrude of a profile whose two circular INNER LOOPS are the bores, genus 2 by construction. So P is a boolean result and the mate is a boolean of one boolean. Three declared `Rest` contacts (one planar, two cylindrical) unlock the zip; UNDECLARED the mate still refuses at the coincidence door, and that contrast is narrated live. Volume is EXACTLY additive against a closed form — vol(P) + vol(Q) = (24 + π/2) + (24 − π/2) = 48, bitwise — and full engagement removes every cylindrical patch, so the finished body carries no cylinder face at all: each peg survives as a rim circle, an inner ring on the plate's top. ONE cell carries both framings — the mated body and, beside it, the same two parts apart with Q lifted, so the three contacts are visible before the union makes them interior |
-| `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — the longest sequential boolean chain — and beside it in the SAME cell the first `topo::split`, that body cut by a tilted plane and the halves pulled apart, a machinist's section. The cell takes the SECTION's camera: the box is a box from any azimuth, the section is only a section from one |
+| `projectbox` | enclosure: cavity + 6 vent through-slots + 4 round floor bosses + 4 through-bores down the bosses — the longest sequential boolean chain — and beside it in the SAME cell the first `topo::split`, that body cut by a tilted plane through two bored bosses and the halves pulled apart, a machinist's section: each half's boss sections are single faces ringed by their bores, and `topo::plane_section` reads the same regions back against the closed-form areas. The cell takes the SECTION's camera: the box is a box from any azimuth, the section is only a section from one |
 | `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's organic subject and a deliberate stress test. The **ROOTSTOCK** is the plant's one JOIN: a corm revolved with a coaxial cylindrical socket authored into its meridian, and the stem's foot standing in it, glued on two declared `Rest` contacts of which one is CYLINDRICAL. The **stem** is torus-segment tubes from the tube door, walked by a turtle so consecutive arcs are **G1 by construction**, carrying the AUTHORED `minor_radius` rather than a bulge-arc reconstruction of it. The **lantern** is a sphere zone from `revolve(Full)`, with a conical mouth below and a neck cone above cut at the arch tube's own radius — its rim IS that tube's terminal meridian circle, so flower and stem meet on one shared circle rather than crossing. The **bud** is that same meridian said three times PARTIALLY: pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally. The **blades** are the fitted pieces, a B-spline wall through exact spine points — the SWEPT ones hold one width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the LOFTED ones do both, because `loft_body` takes sections and placements as separate lists, so the long basal leaf runs rectangle to wide diamond to small diamond while turning about its own spine, and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Blade sections are straight lines today; restoring the lanceolate arcs is outstanding work on this stop and no longer gated on the kernel, since the span meter's rational arm landed (`sweep`'s `cert5_offgrid_knot_rational` rows pin rational walls with off-grid knots). Everything ELSE is set beside its neighbour rather than welded, and the stop is followed by **live wall probes** that attempt the joins and shapes a plant actually wants and assert each typed refusal, panicking if one ever retires |
-| `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder plus two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards, which is the better construction for coaxial supports and the one `fillet_edges` cannot make. The **top loop** is two thin elbows, `revolve(Partial)` of the annular section, 270° over the top and 90° turning back onto the axis — two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights, which is geometry and not a kernel limit. The three bodies MEET on coincident annular faces and NONE can be joined: the boolean operand gate is per-face-kind and PAIR-scoped (M5 PR 9), so what disqualifies a join is a kind with no arm on a pair whose boxes may meet — and here the cone and torus faces really do reach the other operand, so each join refuses on a named germ pair (Cone × Plane, under union at the operand gate and under subtract at the revert roster). The self-intersection an immersed Klein bottle must have is left un-trimmed for the same reason. Rendered SEE-THROUGH (the manifest's per-body `transparency`) from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **live wall probes**, one of which used to pin a DEFECT rather than an absence — `mesh::planar`'s banked sub-floor chart residue, which this bulb's annular cap is what hit. That case is CLOSED (issue 555): the projection writes the chart frame's structurally-zero far-point coordinate and floors every chart coordinate at spade's `MIN_ALLOWED_VALUE`, so wall 7 no longer pins a refusal — it re-runs the four flare-angle x rim-radius cells that used to refuse and requires all four to mesh |
-| `heatsink5/7/9` | **the recipe layer**: ONE document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `PlacedUnion`; each re-eval recomputes exactly 2 nodes and reuses 4 (counted in the caption); stable names survive the edits. The WHOLE part is in the document — `PlacedUnion(fin, Linear{count})` fuses the fins into one body and a `Boolean(Union)` folds them into the base, so the two recomputed nodes are the group and the union below it while everything upstream of the edited slot is reused by content key. The fins overlap the base by 1/16 rather than sitting flush, which is what a real extruded heat sink does not do: flush bases are a declared contact the scene does not yet author. Montage cell RETIRED in favour of `impeller12` below, which says the same thing about a relation rather than a number; all three counts keep their standalone renders |
+| `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder plus two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards, which is the better construction for coaxial supports and the one `fillet_edges` cannot make. The **top loop** is ONE `sweep_body` of the annular section along its whole U-turn spine — a 270° arc over the top and a 90° arc turning back onto the axis, joined tangent and interpolated as one curve (two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights) — drawn in the plane `path_start_frame` hands out at the spine's start. Its section is spelled as four quarter arcs per wall (`circle_split`) rather than `circle`, whose lofted semicircle walls the mesher refuses, and its 13 stations at skin degree 2 sit inside a measured neighbourhood of settings that pass tier 3 and mesh at every ε row; its rational walls make its volume a certified bracket, asserted to hold Pappus's A·L. The two bodies MEET on annular faces, each loop cap turned ~1e-4 m off the bulb's rim by its spine's end tangent, and they cannot be joined: union refuses the loop's NURBS edges at the operand gate, and subtract refuses the bulb's cone flare against a planar cap at the revert roster, which also leaves un-trimmed the self-intersection an immersed Klein bottle must have. Rendered SEE-THROUGH (the manifest's per-body `transparency`) from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **live wall probes**, one of which used to pin a DEFECT rather than an absence — `mesh::planar`'s banked sub-floor chart residue, which this bulb's annular cap is what hit. That case is CLOSED (issue 555): the projection writes the chart frame's structurally-zero far-point coordinate and floors every chart coordinate at spade's `MIN_ALLOWED_VALUE`, so wall 7 no longer pins a refusal — it re-runs the four flare-angle x rim-radius cells that used to refuse and requires all four to mesh |
+| `heatsink5/7/9` | **the recipe layer**: ONE document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `PlacedUnion`; each re-eval recomputes exactly 2 nodes and reuses 7 (counted in the caption); stable names survive the edits. The WHOLE part is in the document — the base plate's twelve edges rounded by a `Fillet` (r = 1/32), `PlacedUnion(fin, Linear{count})` fusing the fins into one body, and a `Boolean(Union)` folding them into the rounded base — so the two recomputed nodes are the group and the union, and everything upstream of the edited slot, the fillet included, is reused by content key. Volume is the rounded plate's closed form (twelve bands of r²(1 − π/4) per unit length, eight octant corners of r³(1 − π/6)) plus n fins, gated 1e-9. The fins are sunk 1/16 into the base, not flush, and the scene narrates why live: flush fins with their five feet declared as `Rest` contacts build at the closed form, but the count edit makes `Instance(5)` flush with nothing declaring it (a correct refusal), and no edit extends a live union's declaration (`work/recipe/declared-pairs-are-a-booleans-own-payload.md`). The door that exists, deleting the union and its `Declare` and re-adding both after re-detecting, is measured building at 7 fins; it costs four edits and a new union node, so the scene does not take it. One wall runs live: the base is rounded before the union, not after, because on the unioned part the fins' feet are rectangular rings of the top face, which the fillet's ring check refuses (`work/band/fillet-support-ring-must-be-a-circle.md`). r = 1/32, not 1/16: at 1/16 the ninth fin's wall stands on the end band's tangent line and the union refuses (`work/hone/a-wall-flush-with-a-fillets-tangent-line-refuses-the-pierce.md`). Montage cell held by `impeller12` below, which says the same thing about a relation rather than a number; all three counts keep their standalone renders |
 | `impeller6/8/12` | **the recipe layer's CIRCULAR rule: one parameter, TWO slots**. A 24-gon hub, one blade, and a `PlacedUnion` that places the blade about the hub's own `Datum::Axis` and fuses the group into ONE body, folded into the hub by a `Boolean(Union)` beside it. What separates this from `heatsink` above is that the blade COUNT and the angular STEP are not independent: the count is `blades` and the step is `360 deg / scalar(blades)`, both reading the SAME document parameter, so the tour's 6 → 8 → 12 is one `SetDocParamValue` each time and the blades still close the circle. A comb's count and spacing genuinely are independent; a wheel's are not, and the recipe layer can say which it is. Each edit recomputes exactly 2 nodes and reuses 7. The three volumes are EXACTLY linear in the count, and the reason is a constraint the scene chose on purpose: 6, 8 and 12 all divide the hub's 24 facets, so every blade meets the faceted hub at a clocking the hub repeats at. 5 blades (72°, not a multiple of 15°) breaks that linearity at 8e-5 relative — measured, and the faceted hub's own asymmetry showing up in a number. The hub is a PRISM rather than a cylinder because a box leaving a cylinder through its wall refuses to union — past the pierce door now, at the join (`SectionArcWindow`, `work/tang/pierce-ring-has-no-join-arm`) — so a ROUND hub cannot have a blade unioned into it at all: that is a library finding the scene is shaped around rather than hiding |
 | `bench` | **the assembly layer**: an assembly document — `post.pncad` + `shelf.pncad` → three pinned `InstantiatePart`s → two `Mate`s solved constructively → the A10 product gather — and beside it in the same cell the same parts flat-packed, through a linear pattern over explicit frames |
 
@@ -157,9 +158,15 @@ against Pappus on the MESH instead — kite area times the centroid's arc
 length, against a **two-sided** band, since exact agreement would mean no
 real mesh was measured.
 
-One typed refusal remains as a named frontier, and no tour body is in it:
-a multi-shell **curved** solid, whose outward/void classification has no
-closed form yet (`CurvedShellClassification`).
+One typed refusal remains as a named frontier: a multi-shell **curved**
+solid, whose shells the writer classifies outward or void with planar
+closed forms only (`CurvedShellClassification`;
+`work/export/step-export-reclassifies-shell-roles-with-its-own-planar-flux.md`).
+Five tour bodies are in it, each declared at the body with
+`SceneBody::step_at_frontier` and exported with a null `step`: four
+hollow ones, `hollowring` (`ring`), `hollowtorus` (`tubewall`),
+`torusvessel` and `fivewall`, and one of disjoint lumps, `cutaway_above`
+(`projectbox`), whose cut frees two bored boss tops.
 
 ## Rendering the montages
 
@@ -174,29 +181,41 @@ reproduce on any box. A locally-drawn frame carries this box's GL
 stack, **will** differ byte-wise, and must never be committed; the guard below and `check_render_provenance.py`
 enforce the commit side.
 
-**You do not need to render at all — CI does it and commits the result.**
-Every CI run on a pushed branch renders every lane (ci.yml's
-`renders` job calls `render.yml`), and a lane that no longer matches what
-the code renders is **re-baselined for you**:
+**You do not render locally — CI does it and commits the result.** A
+PR's CI run renders nothing (`ci.yml` calls no render lane; `nightly.yml`
+renders every lane over `main` and commits what drifted). A ready PR
+that moves frames asks for them with **`[render]` as a word of its head
+commit's subject line**:
 
 ```sh
-git push        # CI renders; a lane that differs posts a neutral ("!")
-                #   drift check naming the cells
-# merge the PR  # main's own run commits the new cells
-git pull        # on main, the frames are there
+git commit -m "scene: widen the bracket [render]"
+git push        # ci.yml's `render tag` step dispatches render.yml on the
+                #   branch; a lane that differs is committed back to it
+                #   with a neutral ("!") check naming the cells and
+                #   [skip ci]: the PR's CI ran on the tagged commit,
+                #   alongside the render, and gates the merge
+git pull        # the frames are on your branch: look at them
 ```
 
-**If the render is what you intended, the drift check is a pass.** It
-needs no re-run and no second commit. Re-run only if something *else* in
-the run failed. To see the cells before merging, take the run's artifact
-with `local-scripts/render-hosted.sh`.
+The tag counts only in the subject, delimited by whitespace, of the PR's
+head commit, read on a `pull_request` run: `[render]` in a commit body,
+or glued to other text, does not fire, and a later push without it
+renders nothing. A draft renders nothing; marking it ready re-reads the
+tag. The bot's re-baseline commit cannot ask again. A PR from a fork cannot be rendered this way (its run's
+token can neither dispatch nor push to the fork); the step says so in a
+warning.
 
-**PRs report; `main` commits.** A bot commit onto a PR branch becomes the
-PR's head, and a `GITHUB_TOKEN` push triggers no run of its own — so the
-PR would show that one check and nothing else, with every green check
-stranded on the parent commit. The recursion guard and that blank slate
-are the same fact, so the commit happens on `main` instead. Same rule the
-rebuild-latency history follows.
+The head goes **red** rather than carrying only neutral checks when the
+render cannot vouch for it: a push to the branch while the render runs
+makes the lanes commit nothing and post a failing `render refused` check
+(push again with the tag), and lanes that did not all succeed after one
+committed, or a check on that which could not finish, post a failing
+`render incomplete` check.
+
+**If the render is what you intended, the neutral check is a pass.** It
+needs no re-run and no second commit. A drifting lane commits only when
+the run has a branch to write; a dispatch aimed at a bare SHA reports the
+drift instead.
 
 A re-baseline has two causes and they want different reactions — the
 geometry changed (these cells are the new truth; check they look like
@@ -211,24 +230,24 @@ succeeded, so a wedge is reported as a wedge and never as drift.
 
 `.github/workflows/render.yml` runs the render lanes on GitHub runners
 and hands each one back as a run artifact. It has **two entry points over
-one pipeline**: `workflow_call`, which is where your frames come from,
-and `workflow_dispatch`, for a tree CI has not seen or a re-render at a
-different scene budget.
+one pipeline**: `workflow_call`, the nightly's render of `main`, and
+`workflow_dispatch`, which the `[render]` tag fires and which
+`render-hosted.sh` fires where `gh` can dispatch.
 
 ```sh
-local-scripts/render-hosted.sh --on-demand            # a tree CI has not rendered
+local-scripts/render-hosted.sh                        # dispatch, wait, install
 local-scripts/render-hosted.sh --lane wild --verify   # prove the artifact path is byte-exact
 local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
 local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
-**Render on demand only when CI has not covered it** — an unpushed
-branch, no CI run yet, or a deliberate re-render at a different scene
-budget. Dispatching when CI has already rendered the same tree renders it
-twice, which is why it is a flag rather than the default. Those runs
-re-baseline too, so they also end in a `git pull`; the exception is a
-dispatch aimed at a bare SHA, which has no branch to commit to and
-reports the drift with the install command instead.
+The script dispatches on every call except `--run`, and needs a `gh`
+allowed to dispatch workflows; a token that cannot (an agent's
+integration token answers 403) uses the `[render]` tag instead. A branch
+the tag already rendered needs no second dispatch: `git pull` has the
+cells. Dispatched runs re-baseline, so they also end in a `git pull`;
+the exception is a dispatch aimed at a bare SHA, which has no branch to
+commit to and reports the drift with the install command instead.
 
 `render-hosted.sh` **refuses** if your local HEAD is not what
 `origin/<branch>` points at — the runner checks out the pushed tree and
@@ -857,9 +876,8 @@ the draws moved.
   legend.
 * **The teal is drawn only at the ε it was measured at.** `0.111` is a
   default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
-  measured); why it moves is not established — the wall's refusal is
-  a poisoned margin, not a quantity a band classifies — so at another
-  ε it is a different box, and `chaintol` (`demo-tour certified`)
+  measured; why is `chaintol`'s header, "What sets the wall"), so at
+  another ε it is a different box, and `chaintol` (`demo-tour certified`)
   declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
   the frontier where the legend would have gone and draws no band. A
   run at another ε where the box happens to certify anyway is

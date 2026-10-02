@@ -51,3 +51,12 @@ Common brief at a lane-private path; it points at
 `docs/prompts/implementer-discipline.md` by path. Review tier for all
 three: single Opus review, style lane plus the unit's claims (each
 moves an oracle and a frame; none is architectural).
+
+## 2026-10-02 — snowman in review; the render door
+
+`snowman-cell` is PR 3787, green, in single Opus review. Its lane found
+that agents cannot dispatch `render.yml` (`403 Resource not accessible
+by integration`), so the frames are unrendered. Ev approved a commit-tag
+trigger in chat: `render-on-a-commit-tag` is dispatched (single Opus
+review; crosses into CIW's workflows, announced there). Scene PRs hold
+until their frames are looked at, through that door once it lands.

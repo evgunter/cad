@@ -501,19 +501,9 @@ fn nurbs_tighten(
 ) -> Result<usize, TessellateError> {
     let (t0, t1) = params;
     let span = t1 - t0;
-    let edge = body
-        .get_edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    for hek in [edge.he_plus, edge.he_minus] {
-        let he = body
-            .get_half_edge(hek)
-            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
-        let lp = body
-            .get_loop(he.parent_loop)
-            .ok_or(TessellateError::MissingEntity {
-                what: "parent loop",
-            })?;
-        let fk = lp.face;
+    let sides = sides_of(body, ek)?;
+    for side in [sides.plus, sides.minus] {
+        let (hek, fk) = (side.half_edge, side.face);
         let surface = adjacent_surface(body, fk)?;
         // The UV step schedule is a statement about the chart, so both
         // spline kinds take it — an approximating surface's chart is
@@ -768,26 +758,27 @@ fn adjacent_surface(
         })
 }
 
+/// An edge's two sides, each lookup's miss named as the tessellator
+/// names it.
+fn sides_of(body: &Body<f64>, ek: EdgeKey) -> Result<topo::EdgeSides, TessellateError> {
+    topo::readback::edge_sides(body, ek).map_err(|what| TessellateError::MissingEntity {
+        what: match what {
+            topo::DanglingRef::Entity(topo::EntityId::Edge(_)) => "edge",
+            topo::DanglingRef::Entity(topo::EntityId::HalfEdge(_)) => "half-edge",
+            topo::DanglingRef::Entity(topo::EntityId::Loop(_)) => "parent loop",
+            _ => "face",
+        },
+    })
+}
+
 /// The (≤ 2 distinct) faces adjacent to an edge.
 fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, TessellateError> {
-    let edge = body
-        .get_edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    let mut out = Vec::with_capacity(2);
-    for hek in [edge.he_plus, edge.he_minus] {
-        let he = body
-            .get_half_edge(hek)
-            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
-        let lp = body
-            .get_loop(he.parent_loop)
-            .ok_or(TessellateError::MissingEntity {
-                what: "parent loop",
-            })?;
-        if !out.contains(&lp.face) {
-            out.push(lp.face);
-        }
-    }
-    Ok(out)
+    let (plus, minus) = sides_of(body, ek)?.faces();
+    Ok(if plus == minus {
+        vec![plus]
+    } else {
+        vec![plus, minus]
+    })
 }
 
 #[cfg(test)]
