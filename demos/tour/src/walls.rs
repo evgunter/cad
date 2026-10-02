@@ -41,3 +41,35 @@ pub fn wall<T, E: core::fmt::Debug>(
         ),
     }
 }
+
+/// A wall whose refusal is pinned to the default ε and every tighter
+/// one, and whose PASS is asserted at a looser one: for a refusal
+/// against a target derived from ε (the quadrature's reporting target
+/// `1024·ε`, say), which a loose enough ε clears. Both ends are
+/// asserted, so the wall reds if it moves at either.
+///
+/// ε is compared through `Tol::eps` against `DEFAULT_EPS`, the same
+/// spelling `mcchain::certified_box_applies` uses.
+#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
+pub fn wall_from_default_eps<T, E: core::fmt::Debug>(
+    scene: &str,
+    n: u32,
+    what: &str,
+    outcome: Result<T, E>,
+    pinned: impl FnOnce(&E) -> bool,
+    retire: &str,
+    tol: pncad::geom_core::Tol,
+) {
+    let eps = tol.eps();
+    if eps > pncad::tolerance::DEFAULT_EPS {
+        if let Err(e) = outcome {
+            panic!(
+                "wall {n} ({what}) refuses at ε = {eps:e}, looser than the default: \
+                 {e:?} — the wall MOVED; re-derive it"
+            );
+        }
+        println!("   wall {n} — {what}: passes at ε = {eps:e}; refused at the default ε");
+        return;
+    }
+    wall(scene, n, what, outcome, pinned, retire);
+}

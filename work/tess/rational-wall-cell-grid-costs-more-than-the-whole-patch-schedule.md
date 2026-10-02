@@ -47,6 +47,10 @@ its curvature, is what the triangles pay for. A polynomial wall's
 cells are its raw knot spans (six on the kite leaves these replaced),
 which is why the floor never showed.
 
+Related: `work/chord/C23.md` asks whether `RATIONAL_CERT_SPLITS` and
+`geom`'s `RATIONAL_METER_SPLITS` are one schedule at 16 — the same
+constant whose cell count is this row's floor.
+
 ## What would close it
 
 Not this lane's to choose. Two shapes the numbers suggest: let the

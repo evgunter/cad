@@ -4,12 +4,12 @@ kind: issue
 title: check 7 refuses QuadratureBudget at the reporting target on a rational blade whose volume sign is not in doubt
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P0
 ---
 
 Met while giving the tour lily's blades lanceolate sections
 (`demos/tour/src/lily.rs`, SHOW unit `lily-lanceolate-blade-sections`).
-Pinned live there as walls 14 and 15 of `lily::wall_probes`.
+Pinned live there as walls 15 and 16 of `lily::wall_probes`.
 
 ## What
 
@@ -78,22 +78,68 @@ headline:
   with the sign settling at round 0 on a coarse enclosure, and the
   refusing rows being the ones whose sign did not settle there.
 
-## Where to look (hypothesis, not measured)
+## Why P0
 
-The refusal carries `rounds: 1` and the REPORTING target. If check 7's
-sign walk reaches the per-face lane's after-round-0 budget exit before
-its own sign has settled, the exit is answering "can the last round
-reach 1024·ε" — the reporting question — on behalf of a caller that
-only needed the sign. The teapot's spout (`demos/tour/src/teapot.rs`)
-is the contrast: `mass_properties` refuses it after round 0 at
-ε = 1e-12, and tier 3 admits it, its sign settled at the round the
-chase stops on. On the lily's blades the same exit fires inside the
-gate.
+A normal verb fails on normal geometry: a loft, or a cubic sweep, of
+an arc section is refused tier 3 at the DEFAULT ε. And it breaks the
+invariant `crates/topo/src/validate.rs`'s module doc states ("What
+check 7 costs, and what it cannot refuse", ≈260-273).
+
+## It is a regression of a retired refusal
+
+`work/export/rational-patch-flux-quadrature-budget.md`'s premise
+correction (2026-09-17) records this very refusal — `QuadratureBudget`
+on a rational wall at check 7 — as RETIRED by TCOST-K3's check-7 SIGN
+certificate (PR #1703). On these bodies it is back.
+
+## The mechanism (traced by the PR 3838 review, measured)
+
+- `topo::props::sign_walk` runs round 0 of each face lane. The lane
+  then asks `last_round_refuses` (`geom-brep` `props/quad.rs` ≈2964,
+  called from `rational_patch_face` ≈3463) whether the schedule's LAST
+  round can reach the REPORTING target `1024·ε`. On these walls it
+  cannot, and the lane answers `Open { refusal }`.
+- `topo::props::face_flux` turns that answer into `open_at = None`:
+  the face is never refined again. The walk's sum is left at its
+  round-0 width, which straddles zero, and the walk ends
+  `Uncomputable` — the `VolumeUncomputable { QuadratureBudget }` above.
+- At ε = 1e-6 the same body settles positive at round 3. The sign
+  needed three more rounds; the reporting-target question cut them off.
+
+So the sign walk is stopped by a question only the reporting caller
+asks.
+
+## The class
+
+The same round-0 exit sits in all three patch lanes `sign_walk`
+reaches:
+
+- `rational_patch_face` (`props/quad.rs` ≈3463) — this row's bodies;
+- `nurbs_patch_face_rounds` (≈3856);
+- `trimmed_patch_face_rounds` (≈5101).
+
+Each answers the reporting question inside the sign walk.
+
+## A second consequence: tighter ε reads worse
+
+The exit also freezes `measure()`'s fallback BRACKET at round 0. The
+lily's degree-2 swept leaves pass the gate at every ε, but at
+ε = 1e-12 the bracket `measure()` hands back is about 1.5% wide —
+roughly 100× wider than the default-ε number's pad. Tightening ε buys
+a worse answer.
+
+## Position sensitivity
+
+The cubic swept leaf's refusal width grows with its distance from the
+origin: 1.9e-5, 2.7e-5, 2.1e-4, 2.8e-3 from the origin out to 10 m,
+and at 10 m it refuses even at ε = 1e-6. That is the shape
+`work/quad/quadrature-interval-floor-grows-with-the-body-past-the-band.md`
+records for the interval floor; the two want reading together.
 
 ## Reproduce
 
 `cargo test --release --bin demo-tour the_wall_list_still_stands`
-in `demos/tour` runs walls 14 and 15. Neither refuses at
+in `demos/tour` runs walls 15 and 16. Neither refuses at
 ε = 1e-6 (both blades pass the gate there), so the walls are
 pinned at the default ε and tighter, and assert the pass at 1e-6.
 

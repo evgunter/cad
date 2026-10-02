@@ -88,10 +88,10 @@
 //! live wall rather than a choice.** The same lens on the long leaf
 //! and the sepals skins and meshes, and then tier 3 refuses it:
 //! check 7's quadrature gives up at the reporting target on a solid
-//! whose sign is not in doubt (probe 15). The swept leaves carry the
+//! whose sign is not in doubt (probe 16). The swept leaves carry the
 //! lens because their skin is fitted at degree 2 along the path; at
 //! the cubic fit the lofted blades use, the swept lens refuses the
-//! same way (probe 14).
+//! same way (probe 15).
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -654,6 +654,12 @@ fn bud<S: Scalar>(
 /// both leaves, so each lateral wall skins one rational Bézier span
 /// across and carries no interior crease. The margins are the
 /// section's only corners.
+///
+/// It is not the lofted blades' [`Section`] said with arcs: that one is
+/// an eight-vertex ring because a loft matches segment to segment and
+/// its sections morph rectangle to diamond on one vertex budget, where
+/// this is two segments carried rigid down a sweep. Folding the two
+/// waits on the lofted blades taking a lens (probe 16).
 #[derive(Clone, Copy, Debug)]
 struct Lance {
     /// Chord length, margin to margin — the blade's width.
@@ -695,11 +701,7 @@ impl Lance {
     /// `R²(θ − sin θ)/2` for its own radius `R` and turn `θ`.
     #[cfg(test)]
     fn area(self) -> f64 {
-        let seg = |h: f64| {
-            let (r, th) = self.segment(h);
-            0.5 * r * r * (th - th.sin())
-        };
-        seg(self.ridge) + seg(self.keel)
+        self.segment_area(self.ridge) + self.segment_area(self.keel)
     }
 
     /// The section centroid's signed height above the chord (toward
@@ -710,12 +712,19 @@ impl Lance {
     fn centroid_rise(self) -> f64 {
         let moment = |h: f64| {
             let (r, th) = self.segment(h);
-            let area = 0.5 * r * r * (th - th.sin());
             let rise =
                 4.0 * r * (0.5 * th).sin().powi(3) / (3.0 * (th - th.sin())) - r * (0.5 * th).cos();
-            area * rise
+            self.segment_area(h) * rise
         };
         (moment(self.ridge) - moment(self.keel)) / self.area()
+    }
+
+    /// The circular segment between the chord and the arc rising `h`:
+    /// `R²(θ − sin θ)/2`.
+    #[cfg(test)]
+    fn segment_area(self, h: f64) -> f64 {
+        let (r, th) = self.segment(h);
+        0.5 * r * r * (th - th.sin())
     }
 
     /// The radius and turn of the arc through both margins rising `h`
@@ -731,7 +740,7 @@ impl Lance {
 }
 
 /// A swept leaf's numbers — [`leaf`]'s arguments bar `up`, which is
-/// world `z` for both — named once because probe 14 and the Pappus
+/// world `z` for both — named once because probe 15 and the Pappus
 /// rows rebuild the same blades.
 #[derive(Clone, Copy, Debug)]
 struct SweptLeaf {
@@ -843,7 +852,7 @@ const LEAF_STATIONS: usize = 9;
 /// The swept leaf skin's fit degree along the path. Quadratic, and
 /// that is a wall's doing: the lens's arcs make every lateral wall
 /// rational, and at the cubic fit [`BLADE_V_DEGREE`] the gate refuses
-/// the blade (probe 14).
+/// the blade (probe 15).
 const LEAF_V_DEGREE: usize = 2;
 /// The lofted blades' skin fit degree along the path.
 const BLADE_V_DEGREE: usize = 3;
@@ -889,7 +898,7 @@ fn leaf<S: Scalar>(
 }
 
 /// [`leaf`] at a chosen skin degree, with the refusal surfaced, so
-/// probe 14 can sweep the same blade at the cubic fit and ask the
+/// probe 15 can sweep the same blade at the cubic fit and ask the
 /// gate about it.
 #[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
 fn try_leaf<S: Scalar>(
@@ -2080,47 +2089,21 @@ fn wall<T, E: core::fmt::Debug>(
     crate::walls::wall("lily", n, what, outcome, pinned, retire);
 }
 
-/// Walls 14 and 15: a lanceolate blade the gate refuses on the
-/// quadrature's REPORTING budget. The refusal is the reporting target's,
-/// `1024·ε`, so it is pinned at the default ε and every tighter one;
-/// at a looser ε the target clears the round-0 width and the same
-/// blade certifies, which is asserted rather than skipped, so a wall
-/// that moved at either end reds.
-fn budget_wall(
-    n: u32,
-    what: &str,
-    outcome: Result<(), Vec<pncad::topo::ValidationError>>,
-    retire: &str,
-    tol: Tol,
-) {
-    let eps = tol.get().eps;
-    if eps > pncad::tolerance::DEFAULT_EPS {
-        assert!(
-            outcome.is_ok(),
-            "wall {n} ({what}) refuses at ε = {eps:e}, looser than the default: \
-             {outcome:?} — the wall moved; re-derive it"
-        );
-        println!("   wall {n} — {what}: certifies at ε = {eps:e}; refused at the default ε");
-        return;
-    }
-    wall(
-        n,
-        what,
-        outcome,
-        |e| {
-            matches!(
-                e[..],
-                [pncad::topo::ValidationError::VolumeUncomputable {
-                    source: pncad::topo::MassPropsError::Face {
-                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
-                        ..
-                    },
-                    ..
-                }]
-            )
-        },
-        retire,
-    );
+/// Walls 15 and 16 pin one refusal: a lanceolate blade the gate
+/// refuses on the quadrature's REPORTING budget (`1024·ε`). Through
+/// [`crate::walls::wall_from_default_eps`], since the refusal is the
+/// reporting target's and a looser ε clears it.
+fn reporting_budget_refusal(e: &[pncad::topo::ValidationError]) -> bool {
+    matches!(
+        e[..],
+        [pncad::topo::ValidationError::VolumeUncomputable {
+            source: pncad::topo::MassPropsError::Face {
+                source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                ..
+            },
+            ..
+        }]
+    )
 }
 
 /// The lily's frontier, run live: every shape the plant WANTED and the
@@ -2524,7 +2507,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          claim about what a cylindrical mate needs beside it",
     );
 
-    // 14. The swept leaves at the cubic skin. The lens's arcs make
+    // 15. The swept leaves at the cubic skin. The lens's arcs make
     //     every lateral wall rational, and at the degree the lofted
     //     blades are fitted at, tier 3 refuses the blade: check 7's
     //     quadrature stops after round 0 against the REPORTING target
@@ -2544,28 +2527,32 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     )
     .expect("the cubic leaf sweeps")
     .body;
-    budget_wall(
-        14,
+    crate::walls::wall_from_default_eps(
+        "lily",
+        15,
         "fit the lanceolate swept leaf's skin at the cubic degree the lofted \
          blades use, and validate it",
         pncad::topo::validate_geometric_certificate(&cubic, tol).map(|_| ()),
+        |e: &Vec<_>| reporting_budget_refusal(e),
         "fit the swept leaves at BLADE_V_DEGREE",
         tol,
     );
 
-    // 15. The lofted blades with the swept leaves' lens. They skin,
+    // 16. The lofted blades with the swept leaves' lens. They skin,
     //     validate at tiers 1-2 and mesh; tier 3 refuses them as it
-    //     refuses probe 14's cubic. Measured on the long leaf at 5, 9,
+    //     refuses probe 15's cubic. Measured on the long leaf at 5, 9,
     //     17 and 33 stations and degrees 2 and 3, and with each arc
     //     split in two; on the three sepals, about 2.7 m out, at the
     //     scene's 13 stations and at 33. Every one of those refuses but
     //     three, which admit a bracket about 2.5x wide; none certifies
     //     a number. So the lofted blades keep their straight
     //     kite-and-rectangle sections.
-    budget_wall(
-        15,
+    crate::walls::wall_from_default_eps(
+        "lily",
+        16,
         "loft the long basal leaf with lanceolate sections, and validate it",
         try_lofted_lance::<S>(tol),
+        |e: &Vec<_>| reporting_budget_refusal(e),
         "give the long leaf and the sepals lanceolate sections",
         tol,
     );
@@ -3266,10 +3253,16 @@ mod review_probes {
         // centre of curvature, so its arc is len + |curl|·rise.
         //
         // Two readings against it. The kernel's own certified volume
-        // must CONTAIN it, give or take 1e-6 of it: the spine is a cubic
-        // through nine exact points of the circle, not the circle, and
-        // that is what separates the two (measured 4.4e-7 and 3.3e-8 at
-        // the default ε, each inside the pad). And the mesh must fall
+        // must CONTAIN it — and a containment is only evidence when the
+        // certificate is narrow, so its width is held under
+        // `BRACKET_CEILING` of Pappus, a tenth of the mesh's own
+        // deficit below: a closed form off by more than that is
+        // excluded. At the default ε the full widths are 1.4e-4 and
+        // 8.2e-5 of it, Pappus sitting inside each. At 1e-6 the pad,
+        // and at 1e-12 the round-0 bracket
+        // (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`),
+        // are wider than the ceiling, and the row says so rather than
+        // counting a wide bracket as agreement. And the mesh must fall
         // SHORT of it by between 3e-3 and 6e-3: every chord across the
         // convex lens cuts inside it, and the inscribed deficit measured
         // 4.3e-3 and 5.0e-3 at δ = 2e-3. A mesh that met Pappus would
@@ -3283,6 +3276,7 @@ mod review_probes {
         // which is exactly what a loft stops being. What pins the
         // lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
+        const BRACKET_CEILING: f64 = 5e-4;
         for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
             let pappus = leaf.section.area()
                 * leaf
@@ -3300,11 +3294,18 @@ mod review_probes {
                 }) => (e.volume_lo, e.volume_hi),
                 Err(e) => panic!("{name}: no certified volume: {e}"),
             };
-            let slack = 1e-6 * pappus;
-            assert!(
-                lo - slack <= pappus && pappus <= hi + slack,
-                "{name}: Pappus {pappus} outside the certified [{lo}, {hi}]"
-            );
+            if hi - lo <= BRACKET_CEILING * pappus {
+                assert!(
+                    lo <= pappus && pappus <= hi,
+                    "{name}: Pappus {pappus} outside the certified [{lo}, {hi}]"
+                );
+            } else {
+                println!(
+                    "{name}: certified [{lo:e}, {hi:e}] is {:.1e} of Pappus wide, past \
+                     the {BRACKET_CEILING:e} ceiling at this ε — not evidence, not asserted",
+                    (hi - lo) / pappus
+                );
+            }
             let m = pncad::mesh::tessellate(b, 2e-3, Tol::witness()).expect("tessellate");
             let short = (pappus - signed_volume(&m)) / pappus;
             assert!(
