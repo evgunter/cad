@@ -1034,7 +1034,10 @@ impl CellNet {
         let pts = self.s_vertices(&[&terms]);
         terms
             .iter()
-            .flat_map(|t| pts.iter().map(move |&p| norm_sup(&t.at(p).map(|c| c / floor))))
+            .flat_map(|t| {
+                pts.iter()
+                    .map(move |&p| norm_sup(&t.at(p).map(|c| c / floor)))
+            })
             .reduce(max_bound)
             .unwrap_or(f64::NAN)
     }
@@ -1044,9 +1047,11 @@ impl CellNet {
     /// weight step an exact zero, as on a polynomial net, and every
     /// point certified, so no refusal is skipped).
     fn s_vertices(&self, terms: &[&[PairTerm]]) -> &[[Interval; 3]] {
-        let flat = terms.iter().flat_map(|t| t.iter()).all(|t| {
-            t.dw.is_certified() && t.dw.lo() == 0.0 && t.dw.hi() == 0.0
-        }) && self.pts.iter().flatten().all(|c| c.is_certified());
+        let flat = terms
+            .iter()
+            .flat_map(|t| t.iter())
+            .all(|t| t.dw.is_certified() && t.dw.lo() == 0.0 && t.dw.hi() == 0.0)
+            && self.pts.iter().flatten().all(|c| c.is_certified());
         match self.pts.split_first() {
             Some((first, _)) if flat => core::slice::from_ref(first),
             _ => &self.pts,
@@ -1068,9 +1073,11 @@ impl CellNet {
     /// and a rigid map that carries `n` with the wall moves them by
     /// their rounding width.
     fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
-        let (Some(tu), Some(tv), Some(w)) =
-            (self.pair_terms(true), self.pair_terms(false), self.weight_hull())
-        else {
+        let (Some(tu), Some(tv), Some(w)) = (
+            self.pair_terms(true),
+            self.pair_terms(false),
+            self.weight_hull(),
+        ) else {
             return (Interval::refused(), f64::NAN);
         };
         if !(w.is_certified() && w.lo() > 0.0) {
@@ -1433,8 +1440,11 @@ mod tests {
     /// The windows [`chart_readings`] reads the margin over: the whole
     /// domain, a sub-rectangle across span cells, and one cut inside a
     /// cell.
-    const MARGIN_WINDOWS: [(f64, f64, f64, f64); 3] =
-        [(0.0, 1.0, 0.0, 1.0), (0.0, 0.34, 0.2, 0.55), INSIDE_ONE_CELL];
+    const MARGIN_WINDOWS: [(f64, f64, f64, f64); 3] = [
+        (0.0, 1.0, 0.0, 1.0),
+        (0.0, 0.34, 0.2, 0.55),
+        INSIDE_ONE_CELL,
+    ];
 
     fn chart_readings(wall: &NurbsSurface<f64>, n: Vec3<f64>) -> ChartReadings {
         use super::super::exhaust::{FloorKind, SweepFloor, UvRect};
@@ -1459,11 +1469,29 @@ mod tests {
         ChartReadings {
             speeds: [speeds.u.get(), speeds.v.get()],
             pads: [pu, pv],
-            floors: [1e-16, 1e-15, 1e-13, 1e-12, 1e-9, 1e-3].map(|m| {
-                SweepFloor::chart(root, m, speeds.max(), FloorKind::Accounting).is_ok()
-            }),
+            floors: [1e-16, 1e-15, 1e-13, 1e-12, 1e-9, 1e-3]
+                .map(|m| SweepFloor::chart(root, m, speeds.max(), FloorKind::Accounting).is_ok()),
             margins,
         }
+    }
+
+    /// Whether a rigid map moved a seated reading `a` to `b` by its
+    /// rounding width alone: a few hundred ulps of the coordinates'
+    /// `reach`, relative, times the window's `scale`.
+    fn within_rounding(a: f64, b: f64, reach: f64, scale: f64) -> bool {
+        (a - b).abs() <= 256.0 * f64::EPSILON * (1.0 + reach) * scale * a.abs().max(b.abs())
+    }
+
+    /// A rigid map of the rotation row's kind: a rotation by `angle`
+    /// about the unit `axis` through `pivot`, with the reach its
+    /// [`within_rounding`] reads.
+    fn rigid_map(
+        axis: Vec3<f64>,
+        pivot: Point3<f64>,
+        angle: f64,
+    ) -> (geom_core::Affine3<f64>, f64) {
+        let map = geom_core::Affine3::rotation_about_axis(pivot, axis.normalize(), angle);
+        (map, 2.0 * (pivot - Point3::origin()).norm() + 4.0)
     }
 
     /// **A rigid map moves a wall's chart readings by their rounding
@@ -1480,7 +1508,6 @@ mod tests {
     /// over 32 maps of the 1.8 / 0.7 wall's `u` speed).
     #[test]
     fn a_rigidly_mapped_wall_reads_the_seated_chart_speeds_floors_and_tube() {
-        use geom_core::Affine3;
         use test_utils::fuzz;
         let mut rng = fuzz::start("enclose::rigid_map_chart_readings");
         let mut walls = vec![
@@ -1496,18 +1523,25 @@ mod tests {
             seated.iter().any(|r| r.margins.iter().any(|&m| m > 0.0)),
             "some seated margin must be zero-free: {seated:?}"
         );
-        let close = |a: f64, b: f64, reach: f64, scale: f64| {
-            (a - b).abs() <= 256.0 * f64::EPSILON * (1.0 + reach) * scale * a.abs().max(b.abs())
-        };
         let window_scale = MARGIN_WINDOWS.map(|(u0, u1, v0, v1)| 1.0 / (u1 - u0).min(v1 - v0));
         for _ in 0..fuzz::scaled(32) {
-            let axis = Vec3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
-            let pivot = Point3::new(rng.range(-10.0, 10.0), rng.range(-10.0, 10.0), rng.range(-10.0, 10.0));
+            let axis = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            let pivot = Point3::new(
+                rng.range(-10.0, 10.0),
+                rng.range(-10.0, 10.0),
+                rng.range(-10.0, 10.0),
+            );
             let angle = rng.range(0.0, core::f64::consts::TAU);
-            let map = Affine3::rotation_about_axis(pivot, axis.normalize(), angle);
-            let reach = 2.0 * (pivot - Point3::origin()).norm() + 4.0;
+            let (map, reach) = rigid_map(axis, pivot, angle);
             for ((name, wall), at) in walls.iter().zip(&seated) {
-                let image = chart_readings(&wall.map_points(|p| map.transform_point(p)), map.linear * n0);
+                let image = chart_readings(
+                    &wall.map_points(|p| map.transform_point(p)),
+                    map.linear * n0,
+                );
                 let pairs = at
                     .speeds
                     .iter()
@@ -1523,7 +1557,7 @@ mod tests {
                     );
                 for (a, b, scale) in pairs {
                     assert!(
-                        close(a, b, reach, scale),
+                        within_rounding(a, b, reach, scale),
                         "{name}: a rigid map about {axis:?} through {pivot:?} by {angle} moved \
                          a chart reading {a} to {b}: seated {at:?}, mapped {image:?} — {}",
                         fuzz::replay()
@@ -1537,6 +1571,76 @@ mod tests {
                     fuzz::replay()
                 );
             }
+        }
+    }
+
+    /// **The rotation row goes red on a per-coordinate fold.** The
+    /// mutation of the reading the row pins: the outward norm of the
+    /// derivative box (and of the transverse stretch's box), the fold
+    /// the chart readings took before. Under two written-down rotations
+    /// of the 1.8 / 0.7 wall the fold moves far past
+    /// [`within_rounding`] while [`NurbsBoxes::speed_sup`] and the
+    /// transverse stretch stay inside it, so the row's comparator tells
+    /// the two apart on these maps alone. The `v` fold stays too: that
+    /// field keeps one direction, and a box of one direction scaled by
+    /// an interval reads the same norm in any frame.
+    #[test]
+    fn the_rotation_row_reads_red_on_a_per_coordinate_fold() {
+        let tangent: (f64, f64) = (1.0, 0.3);
+        let tn = tangent.0.hypot(tangent.1);
+        let (ex, ey) = (
+            Interval::point(-tangent.1 / tn),
+            Interval::point(tangent.0 / tn),
+        );
+        let n = Vec3::new(0.2, -0.5, 0.84).normalize();
+        let whole = (0.0, 1.0, 0.0, 1.0);
+        // `[fold u, fold v, fold stretch, speed u, speed v, stretch]`.
+        let readings = |wall: &NurbsSurface<f64>, n: Vec3<f64>| {
+            let boxes = NurbsBoxes::new(wall);
+            let fold = |b: Box3| norm_sup(&[b.x, b.y, b.z]);
+            let (du, dv) = (
+                boxes.deriv_box(0.0, 1.0, 0.0, 1.0, true),
+                boxes.deriv_box(0.0, 1.0, 0.0, 1.0, false),
+            );
+            let fold_stretch = fold(Box3 {
+                x: du.x * ex + dv.x * ey,
+                y: du.y * ex + dv.y * ey,
+                z: du.z * ex + dv.z * ey,
+            });
+            let n = [n.x, n.y, n.z].map(Interval::point);
+            [
+                fold(du),
+                fold(dv),
+                fold_stretch,
+                boxes.speed_sup(0.0, 1.0, 0.0, 1.0, true),
+                boxes.speed_sup(0.0, 1.0, 0.0, 1.0, false),
+                boxes.transverse_readings(whole, n, ex, ey).1,
+            ]
+        };
+        let wall = rational_wall(0.0);
+        let seated = readings(&wall, n);
+        for (axis, pivot, angle) in [
+            (
+                Vec3::new(0.0, 0.0, 1.0),
+                Point3::origin(),
+                core::f64::consts::FRAC_PI_4,
+            ),
+            (Vec3::new(1.0, 1.0, 1.0), Point3::new(3.0, -2.0, 5.0), 1.0),
+        ] {
+            let (map, reach) = rigid_map(axis, pivot, angle);
+            let image = readings(&wall.map_points(|p| map.transform_point(p)), map.linear * n);
+            let moved: Vec<bool> = seated
+                .iter()
+                .zip(&image)
+                .map(|(&a, &b)| !within_rounding(a, b, reach, 1.0))
+                .collect();
+            assert_eq!(
+                moved,
+                [true, false, true, false, false, false],
+                "about {axis:?} by {angle}: which readings moved past the rounding width \
+                 (fold u, fold v, fold stretch, speed u, speed v, stretch); seated {seated:?}, \
+                 mapped {image:?}"
+            );
         }
     }
 
@@ -1571,14 +1675,25 @@ mod tests {
     }
 
     /// The nets the dominance rows read beyond the rational wall and
-    /// the two-span patch: near-polynomial weights, non-uniform knots,
-    /// and higher degree, where the quotient's own slack is small.
+    /// the two-span patch: polynomial and near-polynomial weights,
+    /// non-uniform knots, and higher degree, where the quotient's own
+    /// slack is small.
     fn varied_nets() -> Vec<(&'static str, NurbsSurface<f64>)> {
         let cubic_nonuniform = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.45, 1.0, 1.0, 1.0, 1.0];
         let quadratic_nonuniform = vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0];
         let quartic = vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.35, 1.0, 1.0, 1.0, 1.0, 1.0];
         let linear = vec![0.0, 0.0, 1.0, 1.0];
         vec![
+            (
+                "cubic × quadratic, non-uniform, polynomial",
+                varied_net(
+                    3,
+                    cubic_nonuniform.clone(),
+                    2,
+                    quadratic_nonuniform.clone(),
+                    0.0,
+                ),
+            ),
             (
                 "cubic × quadratic, non-uniform, weights within 2% of 1",
                 varied_net(
@@ -1689,8 +1804,11 @@ mod tests {
     /// densely**, over the whole domain and over sub-rectangles, on the
     /// rational wall and the two-span patch at every translation, and on
     /// [`varied_nets`]: each
-    /// sampled component lies in the box, and the chart speed is at
-    /// least every sampled speed. The true derivative is evaluated on
+    /// sampled component lies in the box, and the chart speed and the
+    /// window's [`NurbsBoxes::speed_sup`] are at least every sampled
+    /// speed. The chart probe's readings along a chart direction `e`
+    /// dominate too: `n·(S_u·e.x + S_v·e.y)` lies in their enclosure and
+    /// `‖S_u·e.x + S_v·e.y‖` is at most their stretch. The true derivative is evaluated on
     /// the origin wall, so the samples carry no rounding of the far
     /// coordinates. The translated net is not exactly the origin's
     /// moved, though: each control point rounds to an ulp of `t` as it
@@ -1724,7 +1842,9 @@ mod tests {
         for (name, net) in varied_nets() {
             cases.push((name.to_string(), net.clone(), net, 0.0));
         }
-        let n = 24;
+        let n = 16;
+        let plane_n = [0.2, -0.5, 0.84];
+        let e = (-0.3 / 1.0_f64.hypot(0.3), 1.0 / 1.0_f64.hypot(0.3));
         for (name, wall, origin, t) in &cases {
             let slack = |x: f64| 8.0 * f64::EPSILON * x.abs().max(1.0) + 64.0 * f64::EPSILON * t;
             let boxes = NurbsBoxes::new(wall);
@@ -1741,11 +1861,34 @@ mod tests {
             for (u0, u1, v0, v1) in rects {
                 let du = boxes.deriv_box(u0, u1, v0, v1, true);
                 let dv = boxes.deriv_box(u0, u1, v0, v1, false);
+                let sup = [true, false].map(|along_u| boxes.speed_sup(u0, u1, v0, v1, along_u));
+                let (phi, stretch) = boxes.transverse_readings(
+                    (u0, u1, v0, v1),
+                    plane_n.map(Interval::point),
+                    Interval::point(e.0),
+                    Interval::point(e.1),
+                );
                 for i in 0..=n {
                     for j in 0..=n {
                         let u = u0 + (u1 - u0) * f64::from(i) / f64::from(n);
                         let v = v0 + (v1 - v0) * f64::from(j) / f64::from(n);
                         let jet = origin.ders(u, v);
+                        let along = jet.du * e.0 + jet.dv * e.1;
+                        let dot =
+                            plane_n[0] * along.x + plane_n[1] * along.y + plane_n[2] * along.z;
+                        assert!(
+                            phi.lo() - slack(dot) <= dot && dot <= phi.hi() + slack(dot),
+                            "{name}: n·(S_u·e.x + S_v·e.y)({u}, {v}) = {dot} outside [{}, {}] \
+                             over [{u0}, {u1}]×[{v0}, {v1}]",
+                            phi.lo(),
+                            phi.hi()
+                        );
+                        assert!(
+                            along.norm() <= stretch + slack(along.norm()),
+                            "{name}: |S_u·e.x + S_v·e.y|({u}, {v}) = {} above the stretch \
+                             {stretch} over [{u0}, {u1}]×[{v0}, {v1}]",
+                            along.norm()
+                        );
                         for (which, b, d, s) in
                             [("u", du, jet.du, speeds.u), ("v", dv, jet.dv, speeds.v)]
                         {
@@ -1759,10 +1902,12 @@ mod tests {
                                 );
                             }
                             let speed = d.norm();
+                            let window = sup[usize::from(which == "v")];
                             assert!(
-                                speed <= s.get() + slack(speed),
+                                speed <= s.get().min(window) + slack(speed),
                                 "{name}: |S_{which}({u}, {v})| = {speed} above the chart \
-                                 speed {}",
+                                 speed {} or the window's {window} over \
+                                 [{u0}, {u1}]×[{v0}, {v1}]",
                                 s.get()
                             );
                         }

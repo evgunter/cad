@@ -846,7 +846,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
                 super::TubeDegeneracy::PcurveTangentUnusable,
             ));
         }
-        let Some(margin) = chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (tx, ty, tn))? else {
+        let Some(margin) = chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (tx, ty, tn))?
+        else {
             return Ok(None);
         };
         if margin < worst {
