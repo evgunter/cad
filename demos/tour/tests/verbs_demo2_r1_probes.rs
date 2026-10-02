@@ -10,8 +10,8 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::prelude::SurfaceKind;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 
