@@ -99,13 +99,10 @@ use pncad::geom::Surface;
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
 
-use crate::plate::{CERTIFIABLE_FRACTION, Plate, RADIUS, SPACING, WEB, plate};
-
-/// The study the machinist writes down: ±0.05 mm on the hole spacing.
-const SPACING_HALF_WIDTH: f64 = 5.0e-5;
-/// …and σ = 0.01 mm on each radius. Same two numbers as the tolerance
-/// cell's stop 1, because it is the same study.
-const RADIUS_SIGMA: f64 = 1.0e-5;
+use crate::plate::{
+    CERTIFIABLE_FRACTION, Plate, RADIUS, RADIUS_SIGMA, SPACING, SPACING_HALF_WIDTH, WEB, WEB_BOUND,
+    plate,
+};
 
 /// Metres to millimetres, for every printed number.
 const MM: f64 = 1e3;
@@ -229,7 +226,7 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
 ///
 /// Returns the SVG so the caller owns where it lands.
 pub fn narration(tol: Tol) -> String {
-    let base = plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB - 1.0e-4, tol);
+    let base = plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
     let config = McConfig {
         samples: DEFAULT_SAMPLES,

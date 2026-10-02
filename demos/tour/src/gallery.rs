@@ -13,9 +13,14 @@
 //! # Which scenes are here, and which are not
 //!
 //! The document-authored scenes are the ones that build a `Doc` and
-//! evaluate it: **bracket, checks, ring, diefillet, heatsink, teapot**, plus
-//! **assembly**, whose documents are a workspace of several files and
-//! are written by that scene's own store. The rest of the tour drives
+//! evaluate it: **bracket, checks, ring, diefillet, heatsink, teapot,
+//! impeller, plate, chain**, plus **assembly**, whose documents are a
+//! workspace of several files and are written by that scene's own
+//! store. `plate` is the document the tolerance and plate-density
+//! cells share, and `chain` the one the chain-density and certified
+//! chain cells share, at its four links. Saving is not drawing: the
+//! denotation table below says which of these the viewer cannot draw
+//! as their scene means, and why. The rest of the tour drives
 //! the kernel API directly and has no document to save; they join the
 //! gallery as they are re-authored, which is per-scene library work
 //! and independent of the GUI.
@@ -45,6 +50,9 @@ pub fn run(dir: Option<String>, tol: Tol) {
         ("diefillet", crate::diefillet::gallery_document(tol)),
         ("heatsink", crate::heatsink::gallery_document(tol)),
         ("teapot", crate::teapot::gallery_document(tol)),
+        ("impeller", crate::impeller::gallery_document(tol)),
+        ("plate", crate::plate::gallery_document(tol)),
+        ("chain", crate::chain::gallery_document(tol)),
     ] {
         write_one(&dir, name, &doc, tol);
         written += 1;
@@ -139,6 +147,7 @@ fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use pncad::document::{ChecksError, ProductErrorKind};
     use pncad::topo::mass_properties;
 
     /// What one gallery scene is expected to PRODUCE.
@@ -147,9 +156,18 @@ mod tests {
         doc: ProfileDoc,
         /// Product roots. One, unless the scene has a reason.
         roots: usize,
-        /// Separation findings, and why any of them are there.
-        separation: usize,
+        /// What the advisory registry answers, and why.
+        report: Report,
         why: &'static str,
+    }
+
+    /// The registry's answer over one gallery document.
+    enum Report {
+        /// It ran, with this many separation findings.
+        Separation(usize),
+        /// The product gather refused, so no resident that reads the
+        /// product ran — and the viewer draws no product either.
+        ProductRefused(ProductErrorKind),
     }
 
     /// **A gallery document must denote what its scene means, or say
@@ -182,7 +200,7 @@ mod tests {
                 name: "bracket",
                 doc: crate::bracket::gallery_document(tol),
                 roots: 1,
-                separation: 0,
+                report: Report::Separation(0),
                 why: "one extrude, one root: the split and the chamfer live in the scene's wall \
                       probe, not in the document",
             },
@@ -190,7 +208,7 @@ mod tests {
                 name: "checks",
                 doc: crate::checks::gallery_document(tol),
                 roots: 1,
-                separation: 0,
+                report: Report::Separation(0),
                 why: "one root; its connectedness finding is the scene's own subject \
                       and is not a separation one",
             },
@@ -198,14 +216,14 @@ mod tests {
                 name: "ring",
                 doc: crate::ring::gallery_document(tol),
                 roots: 1,
-                separation: 0,
+                report: Report::Separation(0),
                 why: "one revolve, one root",
             },
             Shape {
                 name: "diefillet",
                 doc: crate::diefillet::gallery_document(tol),
                 roots: 1,
-                separation: 0,
+                report: Report::Separation(0),
                 why: "the composed die alone — the blank is a narration body and \
                       `gallery_document` deletes it, which is what this row guards",
             },
@@ -213,7 +231,7 @@ mod tests {
                 name: "heatsink",
                 doc: crate::heatsink::gallery_document(tol),
                 roots: 1,
-                separation: 0,
+                report: Report::Separation(0),
                 why: "one root, and nothing in the document interpenetrates: the base \
                       is rounded by a Fillet, the fin group is a PlacedUnion, and a \
                       Boolean folds the group into the rounded base, so the whole part \
@@ -223,7 +241,7 @@ mod tests {
                 name: "teapot",
                 doc: crate::teapot::gallery_document(tol),
                 roots: 4,
-                separation: 4,
+                report: Report::Separation(4),
                 why: concat!(
                     "FOUR roots, because the teapot is four solids and the operand ",
                     "gate has no arm for either join. FOUR findings over the six ",
@@ -236,6 +254,42 @@ mod tests {
                     "nothing about — spout/handle and lid/handle — are the ones the ",
                     "box rule PROVED apart. No mate is authored, so nothing declares ",
                     "the gap the render shows",
+                ),
+            },
+            Shape {
+                name: "impeller",
+                doc: crate::impeller::gallery_document(tol),
+                roots: 1,
+                report: Report::Separation(0),
+                why: "the union of the hub and the blade group, at the scene's first count; \
+                      the group is a PlacedUnion, so its six blades are one body",
+            },
+            Shape {
+                name: "plate",
+                doc: crate::plate::gallery_document(tol),
+                roots: 2,
+                report: Report::Separation(0),
+                why: concat!(
+                    "TWO roots, the blank's extrude and the web assertion, and the ",
+                    "product is the BLANK: a six-face slab with no holes. The two ",
+                    "hole extrudes exist only as the web measure's references, and ",
+                    "nothing subtracts them, so the document denotes the study's ",
+                    "numbers and not the two-hole plate it is about ",
+                    "(work/show/the-plate-document-never-cuts-its-holes.md)",
+                ),
+            },
+            Shape {
+                name: "chain",
+                doc: crate::chain::gallery_document(tol),
+                roots: 9,
+                report: Report::ProductRefused(ProductErrorKind::PlacedUnderTwoRoots),
+                why: concat!(
+                    "NINE roots — four placed bars, five placed pins — and no ",
+                    "product: one bar extrude, placed by each link's joint stack, ",
+                    "is one body under four transform roots, which the gather ",
+                    "refuses because a transform mints no name; its recourse, a ",
+                    "union, would weld a mechanism's links together ",
+                    "(work/wire/one-shape-placed-n-times-has-no-product.md)",
                 ),
             },
         ];
@@ -255,27 +309,47 @@ mod tests {
                 shape.name,
                 shape.why
             );
-            let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol)
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "{}: the registry refused: {}",
+            let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol);
+            match (&shape.report, report) {
+                (Report::Separation(want), Ok(report)) => {
+                    let separation = report
+                        .findings
+                        .iter()
+                        .filter(|finding| finding.check == CheckId::Separation)
+                        .count();
+                    assert_eq!(
+                        separation,
+                        *want,
+                        "{}: separation findings ({}) — {}",
                         shape.name,
-                        error.spoken(&shape.doc)
-                    )
-                });
-            let separation = report
-                .findings
-                .iter()
-                .filter(|finding| finding.check == CheckId::Separation)
-                .count();
-            assert_eq!(
-                separation,
-                shape.separation,
-                "{}: separation findings ({}) — {}",
-                shape.name,
-                shape.why,
-                report.spoken(&shape.doc)
-            );
+                        shape.why,
+                        report.spoken(&shape.doc)
+                    );
+                }
+                (
+                    Report::ProductRefused(want),
+                    Err(ChecksError::Product {
+                        refusal: Some(refusal),
+                    }),
+                ) => assert_eq!(
+                    refusal.kind(),
+                    *want,
+                    "{}: the gather's refusal ({})",
+                    shape.name,
+                    shape.why
+                ),
+                (_, Ok(report)) => panic!(
+                    "{}: the registry ran, but this row expects the gather to refuse ({}) — {}",
+                    shape.name,
+                    shape.why,
+                    report.spoken(&shape.doc)
+                ),
+                (_, Err(error)) => panic!(
+                    "{}: the registry refused: {}",
+                    shape.name,
+                    error.spoken(&shape.doc)
+                ),
+            }
         }
     }
 

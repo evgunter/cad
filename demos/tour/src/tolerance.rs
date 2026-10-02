@@ -180,7 +180,7 @@ use pncad::analysis::{
 use pncad::document::{ProfileDoc, RecipeNodeId};
 use pncad::geom_core::Tol;
 
-use crate::plate::{Plate, WEB, plate};
+use crate::plate::{Plate, RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB, WEB_BOUND, plate};
 
 /// The hull's padding below and above the true range over the
 /// certified leaves at stop 1's budget (512 leaves, 193 certified),
@@ -248,13 +248,13 @@ pub fn narration(tol: Tol) {
 /// **Stop 1 — the study a user actually has.** ±0.05 mm on the
 /// spacing, σ = 0.01 mm on each radius.
 fn real_study(tol: Tol) {
-    let bound = WEB - 1.0e-4;
+    let bound = WEB_BOUND;
     let Plate {
         doc,
         measure,
         assertion,
         ..
-    } = plate(5.0e-5, 1.0e-5, bound, tol);
+    } = plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     println!(
         "   the real study: web nominal {:.4} mm, asserted >= {:.4} mm, over ±0.05 mm of \

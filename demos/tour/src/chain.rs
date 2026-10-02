@@ -348,6 +348,13 @@ pub struct Chain {
     pub pins: Vec<RecipeNodeId>,
 }
 
+/// The study's document at [`LINKS`] links, as the GUI opens it: the
+/// one [`crate::mcchain`] replays and [`crate::chaintol`]'s last row
+/// certifies.
+pub fn gallery_document(tol: Tol) -> ProfileDoc {
+    chain(LINKS, JOINT_SIGMA, POSITION_BOUND, tol).doc
+}
+
 /// The chain document at `links` links, with `joint_sigma` on every
 /// joint and `bound` on the tip's position.
 ///
