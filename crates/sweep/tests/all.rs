@@ -663,23 +663,17 @@ mod rim_of_rows_interval;
 #[path = "rim_of_r1_probes.rs"]
 mod rim_of_r1_probes;
 
-#[path = "rim_of_r1_probes_interval.rs"]
-mod rim_of_r1_probes_interval;
+#[path = "rim_of_structural_review_probes.rs"]
+mod rim_of_structural_review_probes;
 
-#[path = "r2_rim_interval_probes.rs"]
-mod r2_rim_interval_probes;
-
+#[path = "fillet_h6_cap_rim.rs"]
+mod fillet_h6_cap_rim;
 #[path = "n3r1_d31.rs"]
 mod n3r1_d31;
 #[path = "n3r1_prune.rs"]
 mod n3r1_prune;
 #[path = "n3r2_d31_bitid.rs"]
 mod n3r2_d31_bitid;
-#[path = "r2_rim_corpus_probes.rs"]
-mod r2_rim_corpus_probes;
-
-#[path = "fillet_h6_cap_rim.rs"]
-mod fillet_h6_cap_rim;
 
 #[path = "review_blend_e2_r1_probes.rs"]
 mod review_blend_e2_r1_probes;

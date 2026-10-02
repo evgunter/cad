@@ -10,19 +10,19 @@
 //! surfaces, and the same circle read with one surface on both sides.
 //!
 //! The fixture is a spherical cap closed by its own disc: a unit sphere
-//! cut at `z = 1/2`, the rim circle stated ONCE and split into two
-//! half-arcs, so the two arcs' stored carriers are the same value bit
-//! for bit and the door's exact match has nothing to round.
+//! cut at `z = 1/2`, the rim circle split into two half-arcs between
+//! the sphere and the disc.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-use std::collections::BTreeSet;
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
 use topo::query::rim_of;
-use topo::{Body, CurveKind, EdgeKey, EntityId, FaceSurface, MefSite, MevSite, RimError, query};
+use topo::{
+    Body, CurveKind, DanglingRef, EdgeKey, EntityId, FaceSurface, MefSite, MevSite, RimBreak,
+    RimError, query,
+};
 
 use crate::common;
 
@@ -60,6 +60,16 @@ fn rim_circle() -> Curve3<f64> {
     Curve3::Circle {
         center: Point3::new(0.0, 0.0, RIM_Z),
         axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: rim_r(),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// [`rim_circle`] wound the other way: parameter `t` is at azimuth `-t`.
+fn rim_circle_reversed() -> Curve3<f64> {
+    Curve3::Circle {
+        center: Point3::new(0.0, 0.0, RIM_Z),
+        axis: Vec3::new(0.0, 0.0, -1.0),
         radius: rim_r(),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
@@ -126,10 +136,8 @@ fn capped() -> (Body<f64>, EdgeKey, EdgeKey) {
 ///
 /// Both directions of the claim in one row, because they are one fact:
 /// the door returns every arc of the rim and only those; it starts at
-/// the seed; it runs the seed carrier's positive parameter direction
-/// (the second arc is the one that continues from the seed's `he_plus`
-/// END, which is where that parameter increases to); and the two seeds'
-/// answers are rotations of each other. Repeated calls agree (D9).
+/// the seed; and the two seeds' answers are rotations of each other.
+/// Repeated calls agree (D9).
 #[test]
 fn either_arc_names_the_whole_rim_and_the_two_answers_are_rotations() {
     let (body, a, b) = capped();
@@ -138,23 +146,6 @@ fn either_arc_names_the_whole_rim_and_the_two_answers_are_rotations() {
     let from_b = rim_of(&body, b).expect("and so does the other arc");
     assert_eq!(from_a, vec![a, b], "the seed first, then what follows it");
     assert_eq!(from_b, vec![b, a], "a rotation of the same cycle");
-
-    // The order is the seed carrier's, not the arena's: arc two starts
-    // (or ends) where arc one's `he_plus` ends, and `he_plus`-forward IS
-    // increasing carrier parameter.
-    let ends = |k: EdgeKey| {
-        let e = body.get_edge(k).unwrap();
-        (
-            body.get_half_edge(e.he_plus).unwrap().start,
-            body.half_edge_end(e.he_plus).unwrap(),
-        )
-    };
-    let (_, a_end) = ends(a);
-    let (b_start, b_end) = ends(b);
-    assert!(
-        b_start == a_end || b_end == a_end,
-        "the next arc continues from where the seed's parameter runs to"
-    );
 
     assert_eq!(rim_of(&body, a).unwrap(), from_a, "same body, same answer");
     assert_eq!(from_a.len(), 2, "not vacuous: the rim really is split");
@@ -179,21 +170,16 @@ fn one_surface_on_both_sides_refuses_co_surface() {
     );
 }
 
-/// **A closed chain that leaves matched arcs unused is not one rim.**
+/// **Two rims on one surface pair: each seed answers its own.**
 ///
-/// The guard R2's mutant found unrowed: dropping
-/// `ordered.len() == matched.len()` from the walk left the whole tree
-/// green, because nothing in the corpus has two components on one
-/// circle between one surface pair. This body does. Two 2-cycles —
-/// `a`, `b` across `V0`/`V1` and `c`, `d` across `V2`/`V3` — sit on
-/// the SAME stored circle (bit for bit: one `rim_circle()` value
-/// throughout) between the SAME two surface KEYS
+/// Two 2-cycles — `a`, `b` across `V0`/`V1` and `c`, `d` across
+/// `V2`/`V3` — lie between the SAME two surface KEYS
 /// ([`FaceSurface::Shared`] is what lets a second component reuse
-/// them). The walk from `a` closes after two arcs with two more still
-/// matched, and the door refuses rather than handing back the half it
-/// happened to walk.
+/// them). Membership is the chain through the seed, so the edges of the
+/// other component are another rim and not a refusal: a plane through
+/// a torus, or a cylinder through a sphere, has two.
 #[test]
-fn a_chain_that_closes_leaving_matched_arcs_unused_refuses() {
+fn two_chains_on_one_surface_pair_are_two_rims() {
     let tol = Tol::witness();
     let (mut body, a, b) = capped();
     let sphere = body.get_face(query::all_faces(&body)[0]).unwrap().surface;
@@ -241,28 +227,91 @@ fn a_chain_that_closes_leaving_matched_arcs_unused_refuses() {
         .unwrap()
         .edge;
 
-    let all: BTreeSet<EdgeKey> = [a, b, c, d].into_iter().collect();
-    for (seed, closes_with) in [(a, [a, b]), (c, [c, d])] {
+    for (seed, rim) in [(a, [a, b]), (b, [b, a]), (c, [c, d]), (d, [d, c])] {
+        assert_eq!(
+            rim_of(&body, seed),
+            Ok(rim.to_vec()),
+            "the seed answers its own chain on the shared pair"
+        );
+    }
+}
+
+/// **Four edges of the pair at one vertex refuse `NotOneRim`, naming
+/// it as a branch.** A second 2-cycle `c`, `d` is grown from the cap's
+/// `V0` into the sphere face and closed on a fresh face sharing the
+/// disc's surface key, so every one of `a`, `b`, `c`, `d` lies between
+/// the sphere and the disc and all four meet at `V0`. No seed can pick
+/// one chain there, and each refuses naming `V0`.
+#[test]
+fn four_edges_of_the_pair_at_one_vertex_refuse_as_a_branch() {
+    let tol = Tol::witness();
+    let (mut body, a, b) = capped();
+    let faces = query::all_faces(&body);
+    let (sphere_face, plane_face) = (faces[0], faces[1]);
+    let plane = body.get_face(plane_face).unwrap().surface;
+    let v0 = body
+        .get_half_edge(body.get_edge(a).unwrap().he_plus)
+        .unwrap()
+        .start;
+    let face_of = |body: &Body<f64>, he| {
+        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    let at_v0_on_sphere = [a, b]
+        .iter()
+        .flat_map(|&k| {
+            let e = body.get_edge(k).unwrap();
+            [e.he_plus, e.he_minus]
+        })
+        .find(|&he| {
+            body.get_half_edge(he).unwrap().start == v0 && face_of(&body, he) == sphere_face
+        })
+        .expect("a sphere-side half-edge leaves V0");
+    let quarter = core::f64::consts::FRAC_PI_2;
+    let c = body
+        .mev(
+            MevSite::Fan {
+                he1: at_v0_on_sphere,
+                he2: at_v0_on_sphere,
+            },
+            point_at(quarter),
+            EdgeCurveSpec::arc_of_circle(rim_circle(), 0.0, quarter).unwrap(),
+            tol,
+        )
+        .unwrap()
+        .edge;
+    let ce = body.get_edge(c).unwrap();
+    let (c_back, c_fwd) = (ce.he_minus, ce.he_plus);
+    let d = body
+        .mef(
+            MefSite::Chords {
+                he1: c_fwd,
+                he2: c_back,
+            },
+            // `V0 → V2` the long way round: the opposite winding.
+            EdgeCurveSpec::arc_of_circle(rim_circle_reversed(), 0.0, 3.0 * quarter).unwrap(),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap()
+        .edge;
+
+    for seed in [a, b, c, d] {
         match rim_of(&body, seed) {
-            Err(RimError::NotOneRim { arcs, gap }) => {
+            Err(RimError::NotOneRim { walked, at, how }) => {
+                assert_eq!(at, v0, "from {seed:?}: the walk stops at V0");
                 assert_eq!(
-                    arcs.iter().copied().collect::<BTreeSet<_>>(),
-                    all,
-                    "all four arcs matched: one circle, one surface pair"
+                    how,
+                    RimBreak::Branches,
+                    "from {seed:?}: four ends meet there"
                 );
-                let unused: Vec<EdgeKey> = arcs
-                    .iter()
-                    .copied()
-                    .filter(|k| !closes_with.contains(k))
-                    .collect();
-                assert_eq!(
-                    unused.len(),
-                    2,
-                    "the walk closed after {closes_with:?} with {unused:?} still matched"
-                );
-                assert!(gap.is_finite(), "the payload names a real parameter: {gap}");
+                assert_eq!(walked[0], seed, "the walk starts at the seed");
             }
-            other => panic!("a second component on one circle is not one rim, got {other:?}"),
+            other => panic!("from {seed:?}: a branch is not one rim, got {other:?}"),
         }
     }
 }
@@ -287,7 +336,9 @@ fn a_line_and_a_dangling_key_refuse_typed() {
     let gone = EdgeKey::default();
     assert_eq!(
         rim_of(body, gone),
-        Err(RimError::NotIntact(EntityId::Edge(gone))),
+        Err(RimError::NotIntact(DanglingRef::Entity(EntityId::Edge(
+            gone
+        )))),
         "a key naming nothing is an intactness fault, never a panic"
     );
 }
