@@ -593,11 +593,13 @@ fn arc_sample<T: Real>(t0: T, t1: T, k: usize) -> T {
 /// `geom::Curve3::ellipse` refuses unless `major > minor > 0`; tier 3
 /// (`geom::Curve3::representability_margins`) certifies each positive
 /// but not their order, so an ellipse stored with `minor > major`
-/// passes it; and a struct literal, or a carrier re-minted through
-/// `Body::set_edge_curve`, checks neither, so a negative semi-axis with
-/// its `u_ref` flipped (the same locus) reaches a reader too
-/// (`loop_winding`'s conic term reads them the same way). Nothing here
-/// assumes either: the
+/// passes it; and certification (`crate::certify`'s span meter, the
+/// smaller SIGNED semi-axis) refuses a non-positive semi-axis but meters
+/// either order. Only a struct literal that skips all three — a carrier
+/// re-minted through `Body::set_edge_curve` and never certified — can
+/// carry a negative semi-axis with its `u_ref` flipped (the same
+/// locus) to a reader (`loop_winding`'s conic term reads them the same
+/// way). Nothing here assumes either: the
 /// harmonic algebra is sign-general (it reads the vectors `major·û` and
 /// `minor·v̂`), and every bound reads the MAGNITUDES through
 /// [`Conic::speed_lo`] and [`Conic::speed_hi`]:

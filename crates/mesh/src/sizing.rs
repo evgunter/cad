@@ -413,8 +413,10 @@ pub(crate) fn curvature_step(delta_s: f64, m: f64) -> f64 {
 }
 
 /// The per-chord parameter step for chord deviation ≤ `delta_s` on an
-/// ellipse with semi-axes `major > minor` (M5 PR 5), capped at
-/// [`MAX_ANGULAR_STEP`].
+/// ellipse with semi-axes `major` and `minor` in either order and sign
+/// (M5 PR 5; the stored semi-axes carry no order, `geom_brep::Conic`),
+/// capped at [`MAX_ANGULAR_STEP`]. Below, `major` and `minor` name the
+/// larger and the smaller MAGNITUDE.
 ///
 /// Certified-conservative from [`curvature_step`]: over a parameter
 /// span φ the arc length is `L ≤ major·φ` (`|dP/dθ| ≤ major`) and the
@@ -424,6 +426,7 @@ pub(crate) fn curvature_step(delta_s: f64, m: f64) -> f64 {
 /// sagitta near `major = minor` — conservative is the promised
 /// direction.
 pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
+    let (major, minor) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
     let r_eff = major * (major / minor) * (major / minor);
     cap_angular(curvature_step(delta_s, r_eff))
 }
@@ -637,6 +640,41 @@ pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError>
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **[`ellipse_step`] reads the semi-axes as magnitudes in either
+    /// order.** An ellipse stored with `minor` the larger, or a negative
+    /// semi-axis, is the same locus; read as stored the step was taken
+    /// against far less than the true `sup|C″|` (or was `NaN`). Every
+    /// stored frame steps as the ordered one does, and the step keeps
+    /// the measured chord deviation of the whole ellipse within
+    /// `delta_s`.
+    #[test]
+    fn the_ellipse_step_reads_its_semi_axes_in_any_stored_frame() {
+        let delta_s = 1e-4;
+        let (a, b) = (3.0_f64, 0.5_f64);
+        let ordered = ellipse_step(delta_s, a, b);
+        for (major, minor) in [(b, a), (-a, b), (a, -b), (-b, -a)] {
+            let got = ellipse_step(delta_s, major, minor);
+            assert!(
+                (got - ordered).abs() <= 1e-15 * ordered,
+                "({major}, {minor}): step {got} against the ordered {ordered}"
+            );
+        }
+        let p = |t: f64| (a * t.cos(), b * t.sin());
+        let mut worst = 0.0_f64;
+        let mut t = 0.0;
+        while t < core::f64::consts::TAU {
+            let (p0, p1) = (p(t), p(t + ordered));
+            for k in 1..32 {
+                let s = t + ordered * f64::from(k) / 32.0;
+                let (q, w) = (p(s), (p1.0 - p0.0, p1.1 - p0.1));
+                let cross = (q.0 - p0.0) * w.1 - (q.1 - p0.1) * w.0;
+                worst = worst.max(cross.abs() / w.0.hypot(w.1));
+            }
+            t += ordered;
+        }
+        assert!(worst <= delta_s, "a chord deviates {worst} past {delta_s}");
+    }
 
     /// **[`Eps`]'s band edges, pinned at the type rather than at each
     /// caller.** Three of the four operations differ ONLY here, so the

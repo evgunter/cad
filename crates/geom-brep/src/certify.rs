@@ -2212,21 +2212,24 @@ fn run_checks<T: Decide>(
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
             }
         }
-        // Ellipse spans are metered at the SMALLER semi-axis magnitude —
-        // the conservative meter (|dP/dθ| ≥ min(|a|, |b|), so the span
-        // times it is a certified lower bound on the child's arc length:
-        // a span this gate accepts as forward is truly forward, and
+        // Ellipse spans are metered at the SMALLER semi-axis — the
+        // conservative meter (|dP/dθ| ≥ min(a, b), so the span times it
+        // is a certified lower bound on the child's arc length: a span
+        // this gate accepts as forward is truly forward, and
         // near-threshold spans escalate rather than sneak through). The
-        // semi-axes carry no order and no sign (`Conic`); for a frame
-        // stored in the ordinary order the meter is `minor` itself. The
+        // semi-axes' ORDER is not this gate's to decide (`Conic`); for a
+        // frame stored in the ordinary order the meter is `minor`. The
         // same winding bound applies: the 8kτ sample-alias argument is
         // about the parameter period, which the ellipse shares with the
         // circle. A spiric's speed floor is its MINOR radius
         // (`|dP/dv| ≥ r`, the variant docs) and its period is the same
         // 2π, so it takes this arm at that meter.
-        Curve3::Ellipse { major, minor, .. } => {
-            span_at_floor(major.abs().min(minor.abs()))?;
-        }
+        // The floor is the smaller SIGNED semi-axis: a frame stored in
+        // either order is metered at its smaller magnitude, and a
+        // non-positive semi-axis makes the floor non-positive, so the
+        // span is refused (`IntervalNotForward`) — this gate does not
+        // admit a signed frame; tier 3 refuses one on its value too.
+        Curve3::Ellipse { major, minor, .. } => span_at_floor(major.min(*minor))?,
         Curve3::Spiric { minor_radius, .. } => span_at_floor(*minor_radius)?,
         Curve3::Line { .. } => {
             forward(Margin::of(span))?;

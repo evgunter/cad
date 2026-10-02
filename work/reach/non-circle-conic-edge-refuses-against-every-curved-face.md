@@ -130,3 +130,12 @@ without it. PR 3801 landed first; its section-pass route replaced this
 branch's carrier arm for sphere × cylinder pairs
 (`reconcile-sphere-cylinder-scan-arm-with-3801`), and the straddling
 pose that arm refused now builds.
+
+### The engraved section face, after (fix pass 4)
+
+SHOW's `tiltedcut` walls, measured on this branch: the U into the upper
+half's section face builds at its closed-form volume (tier 3); the C
+into the lower half's refuses `Containment(VolumeUncertified)`, the
+at-infinity probe, one door past the rim. Recorded on
+`work/show/tiltedcut-engraved-face.md`; the walls are re-derived in
+`demos/tour/src/curvedcut.rs`.

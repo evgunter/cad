@@ -72,3 +72,27 @@ which is `minor`/`major` exactly for a frame in the ordinary order:
 
 The ordering itself is still decided only by the constructor; this
 item's question (whether tier 3 should decide it) is unchanged.
+
+### More readers (REACH, PR 3805 fix pass 4)
+
+- `topo::split` (the split's interiority meter) and
+  `topo::splitting::classify::conic_plane_crossing_roots` (the crossing
+  root's end meter) took `InfSpeed::new(minor)`: with `minor > major`
+  stored that OVER-states the speed floor, so a root 5e-10 m of arc from
+  an end read 5e-7 m and was certified interior
+  (`a_crossing_at_an_end_is_metered_at_the_smaller_semi_axis`, red on
+  the old read). Both now read `min(|major|, |minor|)`.
+- `mesh::sizing::ellipse_step` assumed `major > minor`: swapped, its
+  `R_eff` was far below the true bound (7776× for semi-axes 3 and 0.5,
+  a step √7776 ≈ 88× too long before the angular cap), and a negative
+  `major` gave `NaN` (taken as the angular cap). It now orders the magnitudes
+  (`the_ellipse_step_reads_its_semi_axes_in_any_stored_frame`).
+- **The certify gate is not widened.** Before PR 3805 its span meter was
+  `InfSpeed::new(minor)`, so an ellipse stored with a negative `minor`
+  was refused `IntervalNotForward` (incidentally); reading
+  `min(|major|, |minor|)` admitted it (measured: the plane ∩ leaning
+  cylinder ellipse with `minor = −1` certified). Ruled in review: the
+  meter is now the smaller SIGNED semi-axis, so either order meters and
+  a non-positive semi-axis — `minor` or `major` — is refused
+  (`ellipse_signed_semi_axis_gate`). Whether a swapped or signed frame
+  should be normalised at the mint stays this item's question.
