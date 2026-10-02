@@ -267,7 +267,20 @@ pub(crate) fn sectioned_beside(
         .expect("place the below half beside the box");
     (
         vec![
-            SceneBody::plain("cutaway_above", [0.40, 0.60, 0.72], above),
+            // The plane frees the two bored bosses' tops: this half is
+            // one solid of three outer shells, and the STEP writer's
+            // shell classifier reads no circle edge.
+            SceneBody::plain("cutaway_above", [0.40, 0.60, 0.72], above).step_at_frontier(
+                |e| {
+                    matches!(
+                        e,
+                        pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                    )
+                },
+                "the writer classifies curved shells now \
+                 (work/export/step-export-reclassifies-shell-roles-with-its-own-planar-flux.md): \
+                 this half's three shells are all outer, so it exports; drop this pin",
+            ),
             SceneBody::plain("cutaway_below", [0.78, 0.60, 0.35], below),
         ],
         note,
