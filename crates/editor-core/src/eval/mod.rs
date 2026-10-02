@@ -327,9 +327,19 @@ impl NodeStanding {
 /// with no value.
 pub(crate) struct RootStanding(NodeStanding);
 
+impl crate::spoken::Say for RootStanding {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        write!(f, "root {}", crate::spoken::Said(&self.0, by))
+    }
+}
+
 impl core::fmt::Display for RootStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "root {}", self.0)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
     }
 }
 

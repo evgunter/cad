@@ -318,6 +318,32 @@ impl Speaker<'_> {
     pub(crate) fn name(self, name: &StableName) -> SpokenName {
         SpokenName::new(name.clone(), self.node(name.node))
     }
+
+    /// The node `id` where the sentence knows what it is: by its tag
+    /// under `noun` (`mate <tag>`), or as the document holds it.
+    pub(crate) fn node_as(self, id: RecipeNodeId, noun: &'static str) -> NodeAs {
+        match self {
+            Self::Tag => NodeAs::Tag(noun, id),
+            Self::Doc(doc) => NodeAs::Spoken(doc.speak(id)),
+        }
+    }
+}
+
+/// [`Speaker::node_as`]'s answer.
+pub(crate) enum NodeAs {
+    /// `<noun> <tag>`.
+    Tag(&'static str, RecipeNodeId),
+    /// As the document holds it.
+    Spoken(SpokenNode),
+}
+
+impl fmt::Display for NodeAs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Tag(noun, id) => write!(f, "{noun} {id}"),
+            Self::Spoken(node) => write!(f, "{node}"),
+        }
+    }
 }
 
 /// A value whose sentence a [`Speaker`] says.

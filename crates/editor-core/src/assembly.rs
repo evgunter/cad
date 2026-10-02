@@ -463,7 +463,7 @@ impl crate::spoken::Say for Attribution {
             write!(
                 f,
                 "{}'s declared {} contact, {}",
-                by.node(m.mate),
+                by.node_as(m.mate, "mate"),
                 m.class.name(),
                 relation.name()
             )
@@ -494,7 +494,6 @@ impl core::fmt::Display for Attribution {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
     }
 }
-
 
 // One at-rest finding through the document layer's one sink
 // ([`crate::finding`]): the attribution is the subject, the kernel's
@@ -630,7 +629,7 @@ impl crate::spoken::Say for MintRefusal {
             } => write!(
                 f,
                 "{}'s {} reference ({} {}) does not name a face of the product: {}",
-                by.node(*mate),
+                by.node_as(*mate, "mate"),
                 side.name(),
                 name.kind.article(),
                 by.name(name),
@@ -640,7 +639,7 @@ impl crate::spoken::Say for MintRefusal {
                 f,
                 "{}'s class {} has no at-rest kernel record — {why}; the record is \
                  not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
-                by.node(*mate),
+                by.node_as(*mate, "mate"),
                 class.name()
             ),
         }
@@ -813,7 +812,6 @@ impl core::fmt::Display for RefusedRef {
     }
 }
 
-
 impl crate::spoken::Say for AssemblyError {
     fn say(
         &self,
@@ -838,10 +836,7 @@ impl crate::spoken::Say for AssemblyError {
                     "assembly: this document did not mint {} of its own mate(s)",
                     refusals.len()
                 )?;
-                crate::finding::render_lines(
-                    f,
-                    refusals.iter().map(|r| crate::spoken::Said(r, by)),
-                )
+                crate::finding::render_lines(f, refusals.iter().map(|r| crate::spoken::Said(r, by)))
             }
             // Each row is spelled in the ids of the document below
             // that refused it, so it is said by its tags.

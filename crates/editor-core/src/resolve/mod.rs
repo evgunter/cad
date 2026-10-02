@@ -712,7 +712,6 @@ impl core::fmt::Display for GroupCutters {
     }
 }
 
-
 /// What [`Diagnosis::Upstream`] found upstream of the minting node —
 /// the three with-history lanes, each carrying the node it is AT,
 /// since that node is by construction not one the name mentions.
@@ -797,7 +796,6 @@ impl core::fmt::Display for UpstreamCause {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
     }
 }
-
 
 impl Diagnosis {
     /// The total fallback, honest about its limits: the recorded
@@ -1001,7 +999,6 @@ impl core::fmt::Display for RecipeEditRef {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
     }
 }
-
 
 /// The recorded tie a reference ran into (N2's tie mark, as evidence).
 #[derive(Debug, Clone, PartialEq)]

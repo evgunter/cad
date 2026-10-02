@@ -326,7 +326,12 @@ impl crate::spoken::Say for SelectRefusal {
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         let named = |f: &mut core::fmt::Formatter<'_>, name: &StableName| {
-            write!(f, "the {} minted by {}", name.kind.noun(), by.node(name.node))
+            write!(
+                f,
+                "the {} minted by {}",
+                name.kind.noun(),
+                by.node(name.node)
+            )
         };
         match self {
             Self::InBand {

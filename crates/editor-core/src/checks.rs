@@ -792,10 +792,16 @@ impl ChecksError {
     }
 }
 
-impl fmt::Display for ChecksError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl crate::spoken::Say for ChecksError {
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         match self {
-            Self::Root(standing) => write!(f, "checks: {}", standing.of_root()),
+            Self::Root(standing) => {
+                write!(
+                    f,
+                    "checks: {}",
+                    crate::spoken::Said(&standing.of_root(), by)
+                )
+            }
             Self::Band { error } => write!(f, "checks: {error}"),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
@@ -804,6 +810,22 @@ impl fmt::Display for ChecksError {
             ),
             Self::Product { reason, .. } => write!(f, "checks: {reason}"),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl fmt::Display for ChecksError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+    }
+}
+
+impl ChecksError {
+    /// **The refusal as the frame holding the checked document says
+    /// it**: a root as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 

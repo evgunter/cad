@@ -978,3 +978,110 @@ fn a_report_rendered_from_another_document_fails_loud() {
     };
     let _ = render_sensitivity(&entry, &other);
 }
+
+/// **A selection door's refusal holds ids and is spoken by the frame**
+/// that holds the evaluated document. The pick, select and resolve
+/// doors read an evaluation alone, so their refusals keep the bare id
+/// (their own `Display` says the tag), and `spoken` says each node as
+/// the document holds it when the sentence is made: a rename after the
+/// raise is heard, and a node the document no longer holds is `node
+/// <tag>`.
+#[test]
+fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
+    use editor_core::{
+        Cmp, EntityKind, NamePat, NodePick, NodePickError, NodeStanding, Resolution, RunCtx,
+        SelectRefusal, Selector, resolve, select, select_where,
+    };
+
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-select", tol);
+    let (doc, [frame, _, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, frame, Some("sketch plane"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let eval = |doc: &ProfileDoc| {
+        evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
+    };
+    let ev = eval(&doc);
+    let (f, e) = (tag(frame.0), tag(extrude.0));
+
+    let pick = NodePick::build(&ev, frame, 0, 0.1, tol).expect_err("a frame draws no body");
+    assert_eq!(pick, NodePickError::NotABody { node: frame });
+    assert!(
+        pick.to_string()
+            .starts_with(&format!("pick: node {f}'s value is not body-denoting")),
+        "{pick}"
+    );
+    assert!(
+        pick.spoken(&doc).starts_with(&format!(
+            "pick: Datum frame \"sketch plane\" ({f})'s value is not body-denoting"
+        )),
+        "{}",
+        pick.spoken(&doc)
+    );
+    let renamed = set_label(doc.clone(), frame, Some("top plane"));
+    assert!(
+        pick.spoken(&renamed)
+            .starts_with(&format!("pick: Datum frame \"top plane\" ({f})'s")),
+        "a refusal raised before a rename speaks the label as it stands: {}",
+        pick.spoken(&renamed)
+    );
+
+    let from_extrude = [editor_core::GeomPred::DatumDistance {
+        datum: extrude,
+        cmp: Cmp::Approx,
+        value: fixture::len(0.0),
+    }];
+    let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
+    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.param_env(), tol)
+        .expect_err("an extrude is not a datum");
+    assert!(matches!(refusal, SelectRefusal::NotADatum { datum, .. } if datum == extrude));
+    assert!(
+        refusal.spoken(&doc).starts_with(&format!(
+            "select: the query measures from Extrude \"base plate\" ({e}), which produced"
+        )),
+        "{}",
+        refusal.spoken(&doc)
+    );
+
+    let poisoned = NodeStanding::Poisoned {
+        node: extrude,
+        through: frame,
+    };
+    assert_eq!(
+        poisoned.spoken(&doc),
+        format!(
+            "Extrude \"base plate\" ({e}) is poisoned by the failure at Datum frame \"sketch \
+             plane\" ({f}), so it has no value — the repair is upstream, at Datum frame \
+             \"sketch plane\" ({f})"
+        )
+    );
+    assert!(
+        poisoned
+            .to_string()
+            .starts_with(&format!("node {e} is poisoned by the failure at node {f}")),
+        "{poisoned}"
+    );
+
+    let wall = select(&ev, extrude, &faces)
+        .into_iter()
+        .next()
+        .expect("the extrude names its faces");
+    let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: extrude });
+    let Resolution::Failed(failure) = resolve(
+        RunCtx {
+            doc: &gone,
+            eval: &eval(&gone),
+        },
+        &wall,
+    ) else {
+        panic!("a name whose minting node was deleted does not resolve");
+    };
+    assert_eq!(
+        failure.error.spoken(&gone),
+        format!(
+            "the face name minted by node {e} is stranded: its minting node is no longer in \
+             the document (node {e} was deleted) — the repair is an explicit rebind"
+        ),
+        "a node the document no longer holds is said by its tag"
+    );
+}
