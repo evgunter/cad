@@ -5,18 +5,23 @@
 //!
 //! A ladder that pins a carrier's position at a PIVOT and its
 //! direction by an angle reads a relative tilt θ as a displacement of
-//! at most `θ · |x − pivot|` at a consumed point `x`, on top of what
-//! the position datum reads at the pivot.
-//! [`ExtentBall::lever_from`] is the supremum of `|x − pivot|` over
-//! the ball, so a tilt levered there that reads inside the band stands
-//! inside the band everywhere the ball covers. The tightest such lever
-//! reads the position datum at the pivot nearest the ball's centre
-//! ([`ExtentBall::foot_on`] for an axis), where the lever is little
-//! more than the ball's radius.
+//! at most `θ · |x − pivot|` at a consumed point `x`, ON TOP OF what
+//! the position datum reads at the pivot. [`ExtentBall::lever_from`] is
+//! the supremum of `|x − pivot|` over the ball, so the displacement at
+//! every point the ball covers is at most the position datum plus the
+//! tilt levered there: a reader that bridges a residue decides that
+//! SUM, never the two terms one at a time (each just inside the band
+//! would sum to nearly twice it). The tightest lever reads the position
+//! datum at the pivot nearest the ball's centre ([`ExtentBall::foot_on`]
+//! for an axis), where the lever is little more than the ball's radius.
 //!
 //! An extent that UNDER-states the consumed region makes a tilt read
 //! smaller than it is, which is the wrong-answer direction, so every
-//! constructor here encloses: a looser ball only refuses more.
+//! constructor here encloses: a looser ball only escalates more. The
+//! converse does not hold — a ball says nothing about where the
+//! consumed region actually reaches, so a displacement read at its far
+//! side is an upper bound only, and never evidence that a consumed
+//! point stands that far off.
 //!
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
@@ -68,6 +73,12 @@ impl<T: Real> ExtentBall<T> {
     #[must_use]
     pub fn center(self) -> Point3<T> {
         self.center
+    }
+
+    /// The ball's radius: its lever from its own centre.
+    #[must_use]
+    pub fn radius(self) -> T {
+        self.radius
     }
 
     /// The farthest the ball reaches from `pivot`: the lever arm at

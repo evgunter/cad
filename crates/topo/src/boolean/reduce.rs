@@ -623,7 +623,11 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             faces: [f1, f2],
             offset,
         };
-        match super::plane_eq::plane_eq_typed(&p1, &p2, id, arm, band) {
+        let extent = super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+            geom_core::Point3::origin(),
+            arm,
+        ));
+        match super::plane_eq::plane_eq_typed(&p1, &p2, id, &extent, band) {
             Ok(super::PlaneRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
@@ -647,6 +651,9 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // Unreachable with `declared: false`; kept typed.
             Err(LadderRefusal::Refused(super::PlaneEqError::Contradicted { fact, .. })) => {
                 return Err(BooleanError::DeclarationContradicted { fact });
+            }
+            Err(LadderRefusal::Refused(super::PlaneEqError::Unsettled { diag })) => {
+                return Err(super::unsettled_rest(diag));
             }
         }
     }

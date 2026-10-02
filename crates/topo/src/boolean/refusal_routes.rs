@@ -2767,14 +2767,20 @@ mod tests {
 
     /// A declared pair of `c1` and `c2`, verified by the real rung
     /// (`carrier_eq`, which `recl` and `vtxfac` call and `plane_eq`
-    /// serves for planes): the contradiction it raises.
+    /// serves for planes) over a metre about the origin, with points on
+    /// `c1` known: the contradiction it raises.
     fn contradicted(c1: CarrierDesc<f64>, c2: CarrierDesc<f64>) -> (Contradiction, Indeterminate) {
         let id = PlaneIdentity {
             s1: None,
             s2: None,
             declared: true,
         };
-        match crate::boolean::carrier_eq(&c1, &c2, id, 1.0, band()) {
+        let on = crate::boolean::carrier_eq::points_on(&c1);
+        let extent = crate::boolean::ConsumedExtent {
+            on: [&on, &[]],
+            ..crate::boolean::ConsumedExtent::arm(1.0)
+        };
+        match crate::boolean::carrier_eq(&c1, &c2, id, &extent, band()) {
             Err(CarrierEqError::Contradicted { fact, diag }) => (fact, diag),
             other => panic!("a declared pair this far apart contradicts: {other:?}"),
         }
@@ -3041,8 +3047,14 @@ mod tests {
                 let (p1, p2) = planes(sign);
                 for id in [DECLARED, PlaneIdentity::NONE] {
                     let label = format!("arm {arm:e}, facing {sign}, declared {}", id.declared);
-                    let err = oriented_plane_eq(&p1, &p2, id, arm, b)
-                        .expect_err("an orientation margin this small refuses");
+                    let err = oriented_plane_eq(
+                        &p1,
+                        &p2,
+                        id,
+                        &crate::boolean::ConsumedExtent::arm(arm),
+                        b,
+                    )
+                    .expect_err("an orientation margin this small refuses");
                     let PlaneEqError::Escalated {
                         rung: PlaneRung::Orientation,
                         diag,
@@ -3118,8 +3130,17 @@ mod tests {
             for sign in [1.0, -1.0] {
                 let label = format!("chord {chord:e}, facing {sign}");
                 let (p1, p2) = planes(sign);
-                let verdict =
-                    declared_pair_verdict(oriented_plane_eq(&p1, &p2, DECLARED, chord, b), f1, f2);
+                let verdict = declared_pair_verdict(
+                    oriented_plane_eq(
+                        &p1,
+                        &p2,
+                        DECLARED,
+                        &crate::boolean::ConsumedExtent::arm(chord),
+                        b,
+                    ),
+                    f1,
+                    f2,
+                );
                 let err = match verdict {
                     Ok(glued) => {
                         assert!(
@@ -3507,8 +3528,14 @@ mod tests {
             (bent, 1.0, PlaneRung::Parallel),
             (flat, (z + e) / 2.0, PlaneRung::Orientation),
         ] {
-            let err = oriented_plane_eq(&flat, &p2, PlaneIdentity::NONE, chord, b)
-                .expect_err("the gate's rung refuses");
+            let err = oriented_plane_eq(
+                &flat,
+                &p2,
+                PlaneIdentity::NONE,
+                &crate::boolean::ConsumedExtent::arm(chord),
+                b,
+            )
+            .expect_err("the gate's rung refuses");
             let PlaneEqError::Escalated { rung: got, diag } = err else {
                 panic!("{rung:?}: an escalation: {err:?}");
             };

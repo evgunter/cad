@@ -263,11 +263,23 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let tangent = match (
                 surface(piercing_body, s.face),
                 surface(pierced_body, contact.face),
-                declared
-                    .reach_of(piercing, s.face, pierced_op, contact.face)
-                    .or_else(|| {
-                        super::rest::pair_reach(piercing_body, s.face, pierced_body, contact.face)
-                    }),
+                match class {
+                    Some(_) => {
+                        Some(declared.reach_of(piercing, s.face, pierced_op, contact.face)?)
+                    }
+                    // An undeclared pair's extent, read mid-operation:
+                    // a face whose box no longer reads offers no
+                    // `Tangent` (`work/tang/the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op.md`).
+                    None => super::rest::pair_extent(
+                        piercing_body,
+                        s.face,
+                        pierced_body,
+                        contact.face,
+                        band,
+                    )
+                    .ok()
+                    .map(|extent| extent.reach),
+                },
             ) {
                 (Some(a), Some(b), Some(reach)) => {
                     geom_brep::tangent_locus(a, b, reach, band).is_ok()
@@ -334,11 +346,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 Coincide::TangentSide,
                 &[],
             );
-            let reach = declared
-                .reach_of(piercing, s.face, pierced_op, contact.face)
-                .ok_or(BooleanError::ClassificationInvariant {
-                    what: "declared-Tangent face pair has no readable extent",
-                })?;
+            let reach = declared.reach_of(piercing, s.face, pierced_op, contact.face)?;
             let lump = super::sectors::tangent_lump(
                 &s_sector, &s_pierced, reach, n_pierced, p, op, piercing, s.face, s.arm, read, band,
             )?;
@@ -425,38 +433,53 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             s2: g2.as_ref(),
             declared: declared_rest,
         };
-        let rel =
-            match super::carrier_eq::carrier_eq(&sector_carrier, &pierced_carrier, id, s.arm, band)
-            {
-                Ok(super::PlaneRelation::Distinct) => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "geometrically coplanar sector with definitely-distinct plane",
-                    });
-                }
-                Ok(rel) => rel,
-                // In band, unreachable here: `bool_sector_coplanar` read
-                // this same margin (the two normals' cross, at `s.arm`)
-                // zero above for an undeclared pair, and a declared `Rest`
-                // pair's rung bridges it. The door is `recl`'s, which
-                // reaches it at another arm.
-                Err(PlaneEqError::Escalated { rung, diag }) => {
-                    return Err(BooleanError::plane_identity(
-                        rung,
-                        declared.on_pair_door((piercing, s.face, pierced_op, contact.face)),
-                        diag,
-                    ));
-                }
-                Err(PlaneEqError::Undeclared { diag, relation }) => {
-                    return Err(BooleanError::UndeclaredCoincidence {
-                        diag,
-                        pair: [(piercing, s.face), (pierced_op, contact.face)],
-                        relation,
-                    });
-                }
-                Err(PlaneEqError::Contradicted { fact, .. }) => {
-                    return Err(BooleanError::DeclarationContradicted { fact });
-                }
-            };
+        // A declared pair reads as the door read it at rest, over both
+        // faces; an undeclared one at the sector's arm.
+        let extent = if declared_rest {
+            declared.consumed(piercing, s.face, pierced_op, contact.face)?
+        } else {
+            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+                geom_core::Point3::origin(),
+                s.arm,
+            ))
+        };
+        let rel = match super::carrier_eq::carrier_eq(
+            &sector_carrier,
+            &pierced_carrier,
+            id,
+            &extent,
+            band,
+        ) {
+            Ok(super::PlaneRelation::Distinct) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "geometrically coplanar sector with definitely-distinct plane",
+                });
+            }
+            Ok(rel) => rel,
+            // In band, unreachable here: `bool_sector_coplanar` read
+            // this same margin (the two normals' cross, at `s.arm`)
+            // zero above for an undeclared pair, and a declared `Rest`
+            // pair's rung bridges it. The door is `recl`'s, which
+            // reaches it at another arm.
+            Err(PlaneEqError::Escalated { rung, diag }) => {
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    declared.on_pair_door((piercing, s.face, pierced_op, contact.face)),
+                    diag,
+                ));
+            }
+            Err(PlaneEqError::Undeclared { diag, relation }) => {
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(piercing, s.face), (pierced_op, contact.face)],
+                    relation,
+                });
+            }
+            Err(PlaneEqError::Contradicted { fact, .. }) => {
+                return Err(BooleanError::DeclarationContradicted { fact });
+            }
+            Err(PlaneEqError::Unsettled { diag }) => return Err(super::unsettled_rest(diag)),
+        };
         if lump_keeps_one(op, rel) {
             covered.push(match piercing {
                 Operand::A => (s.face, contact.face),

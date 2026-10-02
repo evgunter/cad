@@ -649,7 +649,7 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
         ..BooleanDeclarations::none()
     };
     let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = DeclaredPairs::build(&decls, one);
+    let declared = DeclaredPairs::measured(&decls, one, &x, &y, band())?;
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -1208,7 +1208,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         ..BooleanDeclarations::none()
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = DeclaredPairs::build(&decls, one);
+    let declared = DeclaredPairs::measured(&decls, one, &pa.body, &pb.body, band())?;
     resolve_edge_edge(
         &records,
         &[sector(z, x, fa), sector(x, z, fa)],
@@ -2219,6 +2219,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "SelfCheck::CarrierLadder",
         1,
     ),
+    ("mod.rs", "unsettled_rest", "Coincide::Contact", 1),
     (
         "mod.rs",
         "verify_tangent_declaration",

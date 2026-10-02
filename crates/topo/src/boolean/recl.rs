@@ -132,7 +132,17 @@ pub(super) fn require_same<T: Decide>(
         s2: g2.as_ref(),
         declared: declared_rest,
     };
-    match super::carrier_eq::carrier_eq(&c1, &c2, id, arm, band) {
+    // A declared pair reads as the door read it at rest, over both
+    // faces; an undeclared one at the corner's arm.
+    let extent = if declared_rest {
+        declared.consumed(o1, s1.face, o2, s2.face)?
+    } else {
+        super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+            geom_core::Point3::origin(),
+            arm,
+        ))
+    };
+    match super::carrier_eq::carrier_eq(&c1, &c2, id, &extent, band) {
         Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
@@ -152,6 +162,7 @@ pub(super) fn require_same<T: Decide>(
         Err(PlaneEqError::Contradicted { fact, .. }) => {
             Err(BooleanError::DeclarationContradicted { fact })
         }
+        Err(PlaneEqError::Unsettled { diag }) => Err(super::unsettled_rest(diag)),
     }
 }
 
@@ -822,11 +833,12 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 .ok_or(BooleanError::ClassificationInvariant {
                                     what: "edge-edge site lost its point",
                                 })?;
-                            let reach = declared
-                                .reach_of(own_op, own_sec.face, other_op, other_sec.face)
-                                .ok_or(BooleanError::ClassificationInvariant {
-                                    what: "declared-Tangent face pair has no readable extent",
-                                })?;
+                            let reach = declared.reach_of(
+                                own_op,
+                                own_sec.face,
+                                other_op,
+                                other_sec.face,
+                            )?;
                             super::sectors::tangent_lump(
                                 &s_own,
                                 &s_other,
@@ -1248,7 +1260,8 @@ mod tests {
             };
             let one = crate::boolean::verify_declared_contacts(a.0, b.0, &decls, band)
                 .expect("the door verifies the declaration");
-            let declared = DeclaredPairs::build(&decls, one);
+            let declared = DeclaredPairs::measured(&decls, one, a.0, b.0, band)
+                .expect("the declared faces' extents read");
             resolve_edge_edge(
                 &records,
                 &corner(a.1),
@@ -1516,7 +1529,8 @@ mod tests {
             };
             let one = crate::boolean::verify_declared_contacts(&b1, &b2, &decls, band)
                 .expect("the door verifies the declaration");
-            let declared = DeclaredPairs::build(&decls, one);
+            let declared = DeclaredPairs::measured(&decls, one, &b1, &b2, band)
+                .expect("the declared faces' extents read");
             require_same(
                 &b1,
                 Operand::A,

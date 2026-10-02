@@ -528,6 +528,10 @@ impl MergeCoplanarError {
                 decision: MergeDecision::DeclaredPlanes(rung),
                 diag,
             },
+            PlaneEqError::Unsettled { diag } => Self::Escalated {
+                decision: MergeDecision::DeclaredReach,
+                diag,
+            },
             // Unreachable with `declared: true`; refuse loudly anyway.
             PlaneEqError::Undeclared { diag, .. } => Self::Escalated {
                 decision: MergeDecision::DeclaredOffset,
@@ -599,6 +603,11 @@ pub enum MergeDecision {
     /// it never escalates this; kept typed for the refusal that would
     /// be a kernel defect.
     DeclaredOffset,
+    /// Whether a declared pair's planes stay within the band across the
+    /// extent the rung reads them over: their displacement's upper
+    /// bound stands past the band and its lower bound does not
+    /// (`carrier_eq::CarrierEqError::Unsettled`).
+    DeclaredReach,
     /// Which way a loop of the merged face winds about its normal,
     /// which decides the outline among its loops.
     LoopWinding,
@@ -615,6 +624,10 @@ impl MergeDecision {
             }
             Self::DeclaredPlanes(rung @ (PlaneRung::Parallel | PlaneRung::Norm)) => rung.subject(),
             Self::DeclaredOffset => "whether the two declared planes lie apart",
+            Self::DeclaredReach => {
+                "whether the two declared planes stay within the tolerance of \
+                                    one another across the faces"
+            }
             Self::LoopWinding => "which way a loop of the merged face winds about its normal",
         }
     }
@@ -633,6 +646,9 @@ impl MergeDecision {
             Self::DeclaredPlanes(PlaneRung::Parallel | PlaneRung::Norm) | Self::DeclaredOffset => {
                 Unsized::Defect.recourse(arm, Reading::Build)
             }
+            // The displacement is a bound over a ball enclosing the
+            // faces, not a reading of them.
+            Self::DeclaredReach => Unsized::LastResort.recourse(arm, Reading::Build),
             Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
         }
     }
@@ -2143,7 +2159,19 @@ impl<T: Decide> Body<T> {
                 origin: o2,
                 normal: plane_outward_normal(face2, n2).vec(),
             };
-            return declared_pair_verdict(oriented_plane_eq(&p1, &p2, id, arm, band), f1, f2);
+            // The offsets read at the origin and the angular data at the
+            // shared edge's chord, as ever; the faces' vertices are the
+            // points known to be consumed, so a face standing definitely
+            // off the other's plane contradicts the declaration. A
+            // boundary that does not walk knows no point, which only
+            // leaves a lie unsettled rather than contradicted.
+            let on = |f| crate::boolean::rest::face_witnesses(self, f).unwrap_or_default();
+            let (on1, on2) = (on(f1), on(f2));
+            let extent = crate::boolean::ConsumedExtent {
+                reach: geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm),
+                on: [&on1, &on2],
+            };
+            return declared_pair_verdict(oriented_plane_eq(&p1, &p2, id, &extent, band), f1, f2);
         }
         Ok(false)
     }

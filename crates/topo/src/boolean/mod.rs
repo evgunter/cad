@@ -101,7 +101,7 @@ pub use refusal_routes::{
     NeighbourOffset, PlaneRung, RestZipFrontier, SectionRadius, SectorRung, SelfCheck, Settling,
     SphereQuestion, TorusConvention, WallRung,
 };
-mod rest;
+pub(crate) mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
 mod shell_witness;
@@ -126,7 +126,7 @@ use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
 use crate::validate::ValidationError;
 
-pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
+pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, ConsumedExtent, carrier_eq};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
@@ -147,7 +147,10 @@ pub use reduce::{SweepStrategy, SweepTrace};
 // arm in one function, shared by the REST lane's verify-at-use and
 // the detector's candidate-generation mode BY CONSTRUCTION.
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
-pub use rest::{carrier_pair_relation, carrier_pair_verdict, face_carrier, flush_pair_relation};
+pub use rest::{
+    PairFace, PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+    flush_pair_relation,
+};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,
@@ -573,8 +576,10 @@ pub(crate) struct DeclaredPairs<T: Real> {
     /// carrier, `(A face, B face)`.
     one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
     /// Each declared pair's consumed extent, measured on the operands
-    /// at rest ([`rest::pair_reach`]), `(A face, B face)`.
-    reach: std::collections::BTreeMap<(FaceKey, FaceKey), geom_brep::ExtentBall<T>>,
+    /// at rest ([`rest::pair_extent`]), `(A face, B face)`. Every
+    /// declared pair has one: the production constructor
+    /// ([`Self::measured`]) refuses a pair whose extent does not read.
+    extent: std::collections::BTreeMap<(FaceKey, FaceKey), rest::PairExtent<T>>,
 }
 
 impl<T: Real> Default for DeclaredPairs<T> {
@@ -582,28 +587,76 @@ impl<T: Real> Default for DeclaredPairs<T> {
         Self {
             map: std::collections::BTreeMap::new(),
             one_carrier: std::collections::BTreeSet::new(),
-            reach: std::collections::BTreeMap::new(),
+            extent: std::collections::BTreeMap::new(),
         }
     }
 }
 
+/// The refusal of a declared face whose consumed extent cannot be read
+/// ([`rest::PairUnread::Extent`]), at rest: an input condition, named
+/// by the operand whose face it is.
+pub(crate) fn unreadable_extent(face: rest::PairFace) -> BooleanError {
+    BooleanError::InvalidDeclaration {
+        operand: match face {
+            rest::PairFace::First => Operand::A,
+            rest::PairFace::Second => Operand::B,
+        },
+        what: "declared face's consumed extent cannot be read (its box has no claim to make, \
+               or its boundary cannot be walked)",
+    }
+}
+
+/// A declared `Rest` pair whose displacement over its consumed extent
+/// is neither bridged nor contradicted
+/// ([`carrier_eq::CarrierEqError::Unsettled`]).
+pub(crate) fn unsettled_rest(diag: Indeterminate) -> BooleanError {
+    BooleanError::coincidence(
+        Coincide::Contact,
+        DeclarationRead::Spent(ContactClass::Rest),
+        diag,
+    )
+}
+
 impl<T: Decide> DeclaredPairs<T> {
-    /// Records each declared pair's consumed extent on the operands
-    /// `a` and `b` at rest. Mid-operation a face is a piece of its
-    /// rest self, so that ball still encloses it, while its own box
-    /// may no longer read (null scaffolding on its boundary).
-    pub(crate) fn measured(mut self, a: &Body<T>, b: &Body<T>) -> Self {
-        self.reach = self
-            .map
-            .keys()
-            .filter_map(|&(fa, fb)| rest::pair_reach(a, fa, b, fb).map(|ball| ((fa, fb), ball)))
-            .collect();
-        self
+    /// The declared pairs of `decls`, with the `Rest` pairs the door
+    /// verified as one carrier, each pair's consumed extent measured on
+    /// the operands `a` and `b` at rest. Mid-operation a face is a
+    /// piece of its rest self, so that extent still encloses it, while
+    /// its own box may no longer read (null scaffolding on its
+    /// boundary).
+    ///
+    /// # Errors
+    ///
+    /// [`unreadable_extent`] for a declared face whose extent does not
+    /// read.
+    pub(crate) fn measured(
+        decls: &BooleanDeclarations,
+        one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+        a: &Body<T>,
+        b: &Body<T>,
+        band: Band,
+    ) -> Result<Self, BooleanError> {
+        let extent = decls
+            .coincident_faces
+            .iter()
+            .map(|d| {
+                rest::pair_extent(a, d.a, b, d.b, band)
+                    .map(|extent| ((d.a, d.b), extent))
+                    .map_err(unreadable_extent)
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
+            extent,
+            ..Self::unmeasured(decls, one_carrier)
+        })
     }
 }
 
 impl<T: Real> DeclaredPairs<T> {
-    pub(crate) fn build(
+    /// The index alone, every extent unmeasured: a fixture for the rows
+    /// that read classes, never a door's (a declared pair's extent
+    /// there is [`Self::consumed`]'s invariant refusal).
+    fn unmeasured(
         decls: &BooleanDeclarations,
         one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
     ) -> Self {
@@ -614,25 +667,71 @@ impl<T: Real> DeclaredPairs<T> {
                 .map(|d| ((d.a, d.b), d.class))
                 .collect(),
             one_carrier,
-            reach: std::collections::BTreeMap::new(),
+            extent: std::collections::BTreeMap::new(),
         }
     }
 
-    /// The (operand-tagged) declared pair's consumed extent, as
-    /// [`Self::measured`] recorded it.
+    /// [`Self::unmeasured`], for the rows that read classes only.
+    #[cfg(test)]
+    pub(crate) fn build(
+        decls: &BooleanDeclarations,
+        one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+    ) -> Self {
+        Self::unmeasured(decls, one_carrier)
+    }
+
+    /// The `(A face, B face)` key of an operand-tagged pair, and whether
+    /// the tags ran B-then-A. `None` for a same-operand pair, which is
+    /// never declared here (operand-internal coplanarity is the
+    /// producing op's merge, not this op's).
+    fn key(
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Option<((FaceKey, FaceKey), bool)> {
+        match (o1, o2) {
+            (Operand::A, Operand::B) => Some(((f1, f2), false)),
+            (Operand::B, Operand::A) => Some(((f2, f1), true)),
+            _ => None,
+        }
+    }
+
+    /// The (operand-tagged) declared pair's consumed extent, its faces
+    /// in the order asked, as [`Self::measured`] recorded it.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::ClassificationInvariant`] for a pair with no
+    /// measured extent: every declared pair has one, so a miss is a
+    /// pair the caller took for declared that is not.
+    pub(crate) fn consumed(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Result<carrier_eq::ConsumedExtent<'_, T>, BooleanError> {
+        Self::key(o1, f1, o2, f2)
+            .and_then(|(key, swapped)| Some(self.extent.get(&key)?.consumed(swapped)))
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a declared face pair's consumed extent was not measured at rest",
+            })
+    }
+
+    /// The ball of [`Self::consumed`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consumed`].
     pub(crate) fn reach_of(
         &self,
         o1: Operand,
         f1: FaceKey,
         o2: Operand,
         f2: FaceKey,
-    ) -> Option<geom_brep::ExtentBall<T>> {
-        match (o1, o2) {
-            (Operand::A, Operand::B) => self.reach.get(&(f1, f2)),
-            (Operand::B, Operand::A) => self.reach.get(&(f2, f1)),
-            _ => None,
-        }
-        .copied()
+    ) -> Result<geom_brep::ExtentBall<T>, BooleanError> {
+        Ok(self.consumed(o1, f1, o2, f2)?.reach)
     }
 
     /// Whether the (operand-tagged) pair is a `Rest` declaration the
@@ -644,17 +743,11 @@ impl<T: Real> DeclaredPairs<T> {
         o2: Operand,
         f2: FaceKey,
     ) -> bool {
-        match (o1, o2) {
-            (Operand::A, Operand::B) => self.one_carrier.contains(&(f1, f2)),
-            (Operand::B, Operand::A) => self.one_carrier.contains(&(f2, f1)),
-            _ => false,
-        }
+        Self::key(o1, f1, o2, f2).is_some_and(|(key, _)| self.one_carrier.contains(&key))
     }
 
     /// The class the (operand-tagged) face pair is declared under, if
-    /// any. Same-operand pairs are never declared here
-    /// (operand-internal coplanarity is the producing op's merge, not
-    /// this op's).
+    /// any.
     pub(crate) fn class_of(
         &self,
         o1: Operand,
@@ -662,11 +755,7 @@ impl<T: Real> DeclaredPairs<T> {
         o2: Operand,
         f2: FaceKey,
     ) -> Option<ContactClass> {
-        match (o1, o2) {
-            (Operand::A, Operand::B) => self.map.get(&(f1, f2)).copied(),
-            (Operand::B, Operand::A) => self.map.get(&(f2, f1)).copied(),
-            _ => None,
-        }
+        Self::key(o1, f1, o2, f2).and_then(|(key, _)| self.map.get(&key).copied())
     }
 
     /// Whether the pair is declared as the CONFORMAL class — the
@@ -2644,7 +2733,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     let one_carrier = verify_declared_contacts(a_operand, b_operand, decls, band)?;
-    let declared = DeclaredPairs::build(decls, one_carrier).measured(a_operand, b_operand);
+    let declared = DeclaredPairs::measured(decls, one_carrier, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
@@ -2897,12 +2986,14 @@ fn verify_rest_declaration<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    // A carrier kind the ladder cannot describe: `validate_
-    // declarations` has already had its say about which kinds this
-    // op accepts, so there is nothing left to add here — and nothing
-    // for the identity rung to read.
-    let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
-        return Ok(false);
+    let outcome = match rest::carrier_pair_relation(a, fa, b, fb, true, band) {
+        Ok(outcome) => outcome,
+        Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
+        // A carrier kind the ladder cannot describe: `validate_
+        // declarations` has already had its say about which kinds this
+        // op accepts, so there is nothing left to add here — and
+        // nothing for the identity rung to read.
+        Err(rest::PairUnread::OutsideInventory) => return Ok(false),
     };
     match outcome {
         Ok(
@@ -2928,6 +3019,7 @@ fn verify_rest_declaration<T: Decide>(
                 diag,
             ))
         }
+        Err(carrier_eq::CarrierEqError::Unsettled { diag }) => Err(unsettled_rest(diag)),
         // Unreachable with `declared: true`; refuse loudly anyway.
         Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
@@ -2940,7 +3032,8 @@ fn verify_rest_declaration<T: Decide>(
 }
 
 /// The conformal screen's carrier ladder contradicting a pair it ran
-/// undeclared, which no verdict on an undeclared pair is: the kernel's
+/// undeclared, or leaving it unsettled — verdicts only a declared
+/// reading gives, which no verdict on an undeclared pair is: the kernel's
 /// own check ([`SelfCheck::CarrierLadder`]).
 fn screen_contradiction(diag: Indeterminate) -> BooleanError {
     BooleanError::Escalated {
@@ -2982,7 +3075,14 @@ fn verify_tangent_declaration<T: Decide>(
         class: ContactClass::Tangent,
     };
     // 1. The conformal screen (detector posture).
-    if let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, false, band) {
+    let screen = match rest::carrier_pair_relation(a, fa, b, fb, false, band) {
+        Ok(outcome) => Some(outcome),
+        Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
+        // No description to compare: the witness lane below answers
+        // for the kinds it holds.
+        Err(rest::PairUnread::OutsideInventory) => None,
+    };
+    if let Some(outcome) = screen {
         match outcome {
             Ok(CarrierRelation::Distinct) => {}
             // One carrier, structurally: conformal contact is Rest.
@@ -3022,7 +3122,10 @@ fn verify_tangent_declaration<T: Decide>(
                 ));
             }
             // Unreachable with `declared: false`; refuse loudly anyway.
-            Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
+            Err(
+                carrier_eq::CarrierEqError::Contradicted { diag, .. }
+                | carrier_eq::CarrierEqError::Unsettled { diag },
+            ) => {
                 return Err(screen_contradiction(diag));
             }
         }
@@ -3051,9 +3154,9 @@ fn verify_tangent_declaration<T: Decide>(
         };
     let (sa, sense_a) = face_of(a, fa, Operand::A)?;
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
-    let reach = rest::pair_reach(a, fa, b, fb).ok_or(BooleanError::ClassificationInvariant {
-        what: "declared-Tangent face pair has no readable extent",
-    })?;
+    let reach = rest::pair_extent(a, fa, b, fb, band)
+        .map_err(unreadable_extent)?
+        .reach;
     let (origin, dir) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
         Ok(geom_brep::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
