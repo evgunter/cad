@@ -288,8 +288,8 @@ fn certificate_refused(e: &PcurveMintError) -> bool {
 /// **An uncovered strut masks no certificate either.** A covered strut
 /// whose refusal the band cannot decide — a parallel tilted off the
 /// torus's axis — stands on the same wall as the uncovered oblique
-/// strut. Tilted 2e-9, it refuses in its derivation (`ChartWinding`);
-/// tilted 1e-9 at the second corner, its image derives and only its
+/// strut. Tilted 2ε, it refuses in its derivation (`ChartWinding`);
+/// tilted ε at the second corner, its image derives and only its
 /// certificate refuses (`Envelope`), which an excused face once left
 /// unread. The face is excused only when every refusal is not owed,
 /// and the covered strut's is one of its refusals, so tier 3 names it,
@@ -299,7 +299,9 @@ fn certificate_refused(e: &PcurveMintError) -> bool {
 fn an_uncovered_strut_masks_no_refused_certificate() {
     let (f, _, _) = verdicts(None, None);
     assert!(f.is_empty(), "the bare wall is clean: {f:?}");
-    for (g, c, tilt) in [(1, 0, 2e-9), (0, 1, 2e-9), (0, 1, 1e-9), (2, 1, 1e-9)] {
+    let eps = tol().eps();
+    for (g, c, k) in [(1, 0, 2.0), (0, 1, 2.0), (0, 1, 1.0), (2, 1, 1.0)] {
+        let tilt = k * eps;
         let mut body = torus_quarter();
         let (wall, cycle) = torus_wall(&body);
         let p = start_point(&body, cycle[c]);
