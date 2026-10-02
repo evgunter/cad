@@ -39,4 +39,4 @@ sentence, and the row's own line does not wrap. A refused mate is a `Failed` nod
 `tree_badges::a_mate_row_reads_whether_it_placed_its_child` (a loop of
 two shelves on two posts; every mate's row carries the solve's role,
 three `Determining` and one `Declaring`) and
-`pane::features::tests::a_mate_rows_role_paints_the_kernels_sentence_under_it`.
+`pane::features::tests::a_mate_rows_role_and_standing_note_paint_under_it`.
