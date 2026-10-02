@@ -1,0 +1,110 @@
+=== eps 1e-9
+D1 eps=1e-9 zero=1e-9 escalate=1e-8
+D1 s=1e0 3mm·s cube ΔV=2.7e-8: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 0.5×old-allowance ΔV=2e-8: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 0.99×old-allowance ΔV=3.96e-8: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 1.01×old-allowance ΔV=4.0400000000000004e-8: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 2×old-allowance ΔV=8e-8: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 100×old-allowance ΔV=4e-6: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 1000000×old-allowance ΔV=4e-2: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D2 flush pairs found: 5
+D2 copies=1: ∩ 2.00000000000000039e-1
+D2 copies=100: ∩ 2.00000000000000039e-1
+D2 copies=10000: ∩ 2.00000000000000039e-1
+D3 V/A -0.5 zero (target -5e-10, stored -5.000000146146099e-10): ∩ PASS | ∖ PASS
+D3 V/A -0.99 zero (target -9.9e-10, stored -9.900000025666404e-10): ∩ PASS | ∖ PASS
+D3 V/A -1.01 zero (target -1.01e-9, stored -1.010000004381448e-9): ∩ PASS | ∖ PASS
+D3 V/A -0.99 esc (target -9.9e-9, stored -9.900000378502426e-9): ∩ PASS | ∖ PASS
+D3 V/A -1.01 esc (target -1.0100000000000001e-8, stored -1.0100000420302364e-8): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -1.1 esc (target -1.1000000000000001e-8, stored -1.1000000496713836e-8): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -2 esc (target -2e-8, stored -2.0000001598724932e-8): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -1e3 esc (target -1e-5, stored -1.0000400023993204e-5): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D4 standing θ=-2ε gap=7.60e-12: RestZipUnsupported empty +0.00e0 +2.78e-17
+D4 standing θ=-1.5ε gap=5.70e-12: RestZipUnsupported empty +0.00e0 +4.16e-17
+D4 standing θ=-1.2ε gap=4.56e-12: -1.74e-12 empty +0.00e0 +1.39e-17
+D4 standing θ=-0.5ε gap=1.90e-12: -7.28e-13 empty +0.00e0 +2.78e-17
+D4 standing θ=+0.5ε gap=1.90e-12: REFUSE[vol(A ∪ B) ≤ vol(A) + vol(B)] empty +0.00e0 +2.78e-17
+D4 standing θ=+1.2ε gap=4.56e-12: REFUSE[vol(A ∪ B) ≤ vol(A) + vol(B)] empty +0.00e0 +2.78e-17
+D4 standing θ=+1.5ε gap=5.70e-12: RestZipUnsupported empty +0.00e0 +1.39e-17
+D4 standing θ=+2ε gap=7.60e-12: RestZipUnsupported empty +0.00e0 +2.78e-17
+D4 sunk θ=-2ε gap=7.60e-12: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=-1.5ε gap=5.70e-12: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=-1.2ε gap=4.56e-12: +0.00e0 REFUSE[vol(A ∩ B) ≤ vol(B)] REFUSE[vol(A ∖ B) ≥ vol(A) − vol(B)] empty
+D4 sunk θ=-0.5ε gap=1.90e-12: +0.00e0 REFUSE[vol(A ∩ B) ≤ vol(B)] REFUSE[vol(A ∖ B) ≥ vol(A) − vol(B)] empty
+D4 sunk θ=+0.5ε gap=1.90e-12: +0.00e0 -7.26e-13 +7.27e-13 empty
+D4 sunk θ=+1.2ε gap=4.56e-12: +0.00e0 -1.74e-12 +1.74e-12 empty
+D4 sunk θ=+1.5ε gap=5.70e-12: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=+2ε gap=7.60e-12: +0.00e0 JoinDesync JoinDesync empty
+=== eps 1e-6
+D1 eps=1e-6 zero=1e-6 escalate=9.999999999999999e-6
+D1 s=1e0 3mm·s cube ΔV=2.7e-8: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 0.5×old-allowance ΔV=1.9999999999999998e-5: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 0.99×old-allowance ΔV=3.9599999999999994e-5: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 1.01×old-allowance ΔV=4.04e-5: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 2×old-allowance ΔV=7.999999999999999e-5: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 100×old-allowance ΔV=4e-3: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D2 flush pairs found: 5
+D2 copies=1: ∩ 2.00000000000000039e-1
+D2 copies=100: ∩ 2.00000000000000039e-1
+D2 copies=10000: ∩ 2.00000000000000039e-1
+D3 V/A -0.5 zero (target -5e-7, stored -5.000009999896223e-7): ∩ PASS | ∖ PASS
+D3 V/A -0.99 zero (target -9.9e-7, stored -9.90003920429551e-7): ∩ PASS | ∖ PASS
+D3 V/A -1.01 zero (target -1.0099999999999999e-6, stored -1.010004080420464e-6): ∩ PASS | ∖ PASS
+D3 V/A -0.99 esc (target -9.899999999999998e-6, stored -9.900392063305193e-6): ∩ PASS | ∖ PASS
+D3 V/A -1.01 esc (target -1.01e-5, stored -1.0100408064732625e-5): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -1.1 esc (target -1.1e-5, stored -1.1000484031938994e-5): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -2 esc (target -1.9999999999999998e-5, stored -2.000160019202881e-5): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -1e3 esc (target -9.999999999999998e-3, stored -1.0425853527691929e-2): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D4 standing θ=-2ε gap=7.60e-9: RestZipUnsupported empty +0.00e0 +2.78e-17
+D4 standing θ=-1.5ε gap=5.70e-9: RestZipUnsupported empty +0.00e0 +1.39e-17
+D4 standing θ=-1.2ε gap=4.56e-9: -1.74e-9 empty +0.00e0 +2.78e-17
+D4 standing θ=-0.5ε gap=1.90e-9: -7.26e-10 empty +0.00e0 +1.39e-17
+D4 standing θ=+0.5ε gap=1.90e-9: REFUSE[vol(A ∪ B) ≤ vol(A) + vol(B)] empty +0.00e0 +2.78e-17
+D4 standing θ=+1.2ε gap=4.56e-9: REFUSE[vol(A ∪ B) ≤ vol(A) + vol(B)] empty +0.00e0 +2.78e-17
+D4 standing θ=+1.5ε gap=5.70e-9: RestZipUnsupported empty +0.00e0 +4.16e-17
+D4 standing θ=+2ε gap=7.60e-9: RestZipUnsupported empty +0.00e0 +2.78e-17
+D4 sunk θ=-2ε gap=7.60e-9: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=-1.5ε gap=5.70e-9: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=-1.2ε gap=4.56e-9: +0.00e0 REFUSE[vol(A ∩ B) ≤ vol(B)] REFUSE[vol(A ∖ B) ≥ vol(A) − vol(B)] empty
+D4 sunk θ=-0.5ε gap=1.90e-9: +0.00e0 REFUSE[vol(A ∩ B) ≤ vol(B)] REFUSE[vol(A ∖ B) ≥ vol(A) − vol(B)] empty
+D4 sunk θ=+0.5ε gap=1.90e-9: +0.00e0 -7.26e-10 +7.26e-10 empty
+D4 sunk θ=+1.2ε gap=4.56e-9: +0.00e0 -1.74e-9 +1.74e-9 empty
+D4 sunk θ=+1.5ε gap=5.70e-9: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=+2ε gap=7.60e-9: +0.00e0 JoinDesync JoinDesync empty
+=== eps 1e-12
+D1 eps=1e-12 zero=1e-12 escalate=1e-11
+D1 s=1e0 3mm·s cube ΔV=2.7e-8: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 0.5×old-allowance ΔV=2e-11: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 0.99×old-allowance ΔV=3.96e-11: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 1.01×old-allowance ΔV=4.04e-11: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 2×old-allowance ΔV=8e-11: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 100×old-allowance ΔV=3.9999999999999994e-9: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D1 s=1e0 1000000×old-allowance ΔV=3.9999999999999996e-5: ∩ refuse[vol(A ∩ B) ≤ vol(A)] | ∖ refuse[vol(A ∖ B) ≤ vol(A)] | ∪(thin) refuse[vol(A ∪ B) ≥ vol(A)]
+D2 flush pairs found: 5
+D2 copies=1: ∩ 2.00000000000000039e-1
+D2 copies=100: ∩ 2.00000000000000039e-1
+D2 copies=10000: ∩ 2.00000000000000039e-1
+D3 V/A -0.5 zero (target -5e-13, stored -4.999889391409392e-13): ∩ PASS | ∖ PASS
+D3 V/A -0.99 zero (target -9.9e-13, stored -9.900136266377883e-13): ∩ PASS | ∖ PASS
+D3 V/A -1.01 zero (target -1.01e-12, stored -1.009997641081201e-12): ∩ PASS | ∖ PASS
+D3 V/A -0.99 esc (target -9.9e-12, stored -9.899997488852639e-12): ∩ PASS | ∖ PASS
+D3 V/A -1.01 esc (target -1.01e-11, stored -1.0100004166754862e-11): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -1.1 esc (target -1.1e-11, stored -1.1000006461743205e-11): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -2 esc (target -2e-11, stored -2.000000165640742e-11): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D3 V/A -1e3 esc (target -1e-8, stored -1.0000000413240184e-8): ∩ refuse[vol(A ∩ B) ≥ 0] | ∖ refuse[vol(A ∖ B) ≥ 0]
+D4 standing θ=-2ε gap=7.60e-15: RestZipUnsupported empty +0.00e0 +4.16e-17
+D4 standing θ=-1.5ε gap=5.70e-15: RestZipUnsupported empty +0.00e0 +4.16e-17
+D4 standing θ=-1.2ε gap=4.56e-15: -3.55e-15 empty +0.00e0 +1.39e-17
+D4 standing θ=-0.5ε gap=1.90e-15: -3.55e-15 empty +0.00e0 +4.16e-17
+D4 standing θ=+0.5ε gap=1.90e-15: -1.78e-15 empty +0.00e0 +2.78e-17
+D4 standing θ=+1.2ε gap=4.56e-15: -1.78e-15 empty +0.00e0 +4.16e-17
+D4 standing θ=+1.5ε gap=5.70e-15: RestZipUnsupported empty +0.00e0 +2.78e-17
+D4 standing θ=+2ε gap=7.60e-15: RestZipUnsupported empty +0.00e0 +1.39e-17
+D4 sunk θ=-2ε gap=7.60e-15: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=-1.5ε gap=5.70e-15: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=-1.2ε gap=4.56e-15: +0.00e0 REFUSE[vol(A ∩ B) ≤ vol(B)] -3.55e-15 empty
+D4 sunk θ=-0.5ε gap=1.90e-15: +0.00e0 REFUSE[vol(A ∩ B) ≤ vol(B)] -3.55e-15 empty
+D4 sunk θ=+0.5ε gap=1.90e-15: +0.00e0 -7.08e-16 +0.00e0 empty
+D4 sunk θ=+1.2ε gap=4.56e-15: +0.00e0 -1.73e-15 +0.00e0 empty
+D4 sunk θ=+1.5ε gap=5.70e-15: +0.00e0 JoinDesync JoinDesync empty
+D4 sunk θ=+2ε gap=7.60e-15: +0.00e0 JoinDesync JoinDesync empty

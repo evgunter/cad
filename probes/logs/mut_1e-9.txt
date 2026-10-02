@@ -1,0 +1,30 @@
+=== MUTANT skip eps=1e-9
+        FAIL [   0.180s] (11/39) topo boolean::ops::tests::volume_backstop_passes_a_closed_form_rounding_tie
+        FAIL [   0.187s] (36/39) topo::all contact9_side_codes::a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex
+        FAIL [   0.305s] ( 6/39) sweep::all reach_continuation::declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect
+     Summary [   2.982s] 39 tests run: 36 passed, 3 failed, 4066 skipped
+error: test run failed
+=== MUTANT widen1e-10 eps=1e-9
+        FAIL [   0.187s] (37/39) topo::all door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound
+     Summary [   2.988s] 39 tests run: 38 passed, 1 failed, 4066 skipped
+error: test run failed
+=== MUTANT widen1e-7 eps=1e-9
+        FAIL [   0.142s] (12/39) topo boolean::ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area
+        FAIL [   0.241s] (37/39) topo::all door_backstop_settled_residue::a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound
+        FAIL [   1.217s] (11/39) sweep::all reach_volume_backstop::a_planted_union_result_short_by_less_than_the_reporting_pads_refuses
+        FAIL [   2.200s] (38/39) sweep::all reach_volume_backstop::planted_subtraction_results_refuse_down_to_the_stated_resolution
+     Summary [   3.416s] 39 tests run: 35 passed, 4 failed, 4066 skipped
+error: test run failed
+=== MUTANT plusv_exact eps=1e-9
+        FAIL [   0.206s] (10/39) topo boolean::ops::tests::volume_backstop_reads_the_sign_against_the_band
+     Summary [   2.908s] 39 tests run: 38 passed, 1 failed, 4066 skipped
+error: test run failed
+=== MUTANT plusv_drop eps=1e-9
+        FAIL [   0.189s] ( 8/39) topo boolean::ops::tests::volume_backstop_joint_and_sign_arms
+        FAIL [   0.200s] (16/39) topo boolean::ops::tests::volume_backstop_reads_the_sign_against_the_band
+     Summary [   3.103s] 39 tests run: 37 passed, 2 failed, 4066 skipped
+error: test run failed
+=== MUTANT nolift eps=1e-9
+error: command `/root/.rustup/toolchains/1.97.0-x86_64-unknown-linux-gnu/bin/cargo test --no-run --message-format json-render-diagnostics --package topo --package sweep` exited with code 101
+error: could not compile `topo` (lib) due to 4 previous errors
+error[E0599]: no method named `to_f64` found for type parameter `T` in the current scope

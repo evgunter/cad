@@ -1,0 +1,43 @@
+DS eps=1e-9
+DS s=1e-3 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.33e-15
+DS s=1e-3 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.76e-15
+DS s=1e-3 th=0.3 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 3.74e-15
+DS s=1e-3 th=0.3 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 4.50e-15
+DS s=1e0 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 1.94e-15
+DS s=1e0 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.05e-15
+DS s=1e0 th=0.3 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 3.39e-15
+DS s=1e0 th=0.3 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 4.16e-15
+DS s=1e3 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.36e-15
+DS s=1e3 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.59e-15
+DS s=1e3 th=0.3 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 3.78e-15
+DS s=1e3 th=0.3 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 4.52e-15
+DS eps=1e-6
+DS s=1e-3 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.33e-15
+DS s=1e-3 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.76e-15
+DS s=1e-3 th=0.3 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 3.74e-15
+DS s=1e-3 th=0.3 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 4.50e-15
+DS s=1e0 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 1.94e-15
+DS s=1e0 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.05e-15
+DS s=1e0 th=0.3 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 3.39e-15
+DS s=1e0 th=0.3 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 4.16e-15
+DS s=1e3 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.36e-15
+DS s=1e3 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.59e-15
+DS s=1e3 th=0.3 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 3.78e-15
+DS s=1e3 th=0.3 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 4.52e-15
+DS eps=1e-12
+DS s=1e-3 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.33e-15
+DS s=1e-3 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.76e-15
+DS s=1e-3 th=0.3 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 3.74e-15
+DS s=1e-3 th=0.3 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 4.50e-15
+DS s=1e0 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 1.94e-15
+DS s=1e0 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.05e-15
+DS s=1e0 th=0.3 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 3.39e-15
+DS s=1e0 th=0.3 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 4.16e-15
+DS s=1e3 th=0 sunk: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.36e-15
+DS s=1e3 th=0 top: δ=0 PASS | δ=1.4e-8·s refuse | δ=4e-9·s refuse | δ=1e-12·s refuse | smallest refused δ/s 2.59e-15
+thread 'delta3844_sweep::ds_rounded_stack_thickened' (3629) panicked at crates/sweep/tests/delta3844_sweep.rs:32:23:
+test delta3844_sweep::ds_rounded_stack_thickened ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1920 filtered out; finished in 2.73s
+        FAIL [   2.748s] (1/1) sweep::all delta3844_sweep::ds_rounded_stack_thickened
+        FAIL [   2.748s] (1/1) sweep::all delta3844_sweep::ds_rounded_stack_thickened
+error: test run failed
