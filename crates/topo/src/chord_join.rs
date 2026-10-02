@@ -240,23 +240,24 @@ pub enum SplitJoinError {
         /// Diagnostics.
         diag: Indeterminate,
     },
-    /// A completed section polygon bounds zero area — the zero-area
-    /// residue (rule (b) adjudication record): no degenerate body is
-    /// ever emitted.
+    /// A completed section polygon bounds zero area: no degenerate body
+    /// is ever emitted.
     ///
     /// A run reaches it two ways: a below-side PINCH (pieces meeting
     /// at a tip line on the NEGATIVE side of the run's plane normal,
     /// where the ch. 14 insertion mints no vertex copies), and a
-    /// one-sided TANGENCY (the plane touches the solid along an edge
-    /// or at a point, and the contact's null edges close a polygon of
-    /// their own). Since M3 PR 6a (D7) the public
+    /// one-sided GRAZE of a curved face (the plane tangent to a
+    /// cylinder's wall, whose contact closes a polygon of its own). A
+    /// plane tangent along a convex edge does not reach it: rule (b)
+    /// classifies that edge with its material, and the contact mints
+    /// nothing. Since M3 PR 6a (D7) the public
     /// [`crate::splitting::split`] consumes this refusal as the pinch
     /// trigger and reruns under the mirrored plane — where pinched
     /// fans are ABOVE runs and mint their copies — so a pinch's
     /// success is orientation-independent. The rerun cannot tell a
-    /// tangency from a pinch, so it reruns a tangency too; a tangency
-    /// alone refuses again there, and one whose contact meets a real
-    /// section refuses [`Self::SectionSpur`]. The error surfaces from
+    /// graze from a pinch, so it reruns a graze too; a graze alone
+    /// refuses again there, and one whose contact meets a real section
+    /// refuses [`Self::SectionSpur`]. The error surfaces from
     /// [`crate::splitting::split`] when the mirror run also refuses,
     /// and from the join lane directly (e.g.
     /// [`crate::splitting::plane_section`], which has no sides to
@@ -267,10 +268,10 @@ pub enum SplitJoinError {
     },
     /// A completed section polygon of positive area carries a SPUR: its
     /// loop runs out along a straight edge the plane only touches and
-    /// straight back. The spur is a one-sided tangency's contact joined
+    /// straight back. The spur is a one-sided graze's contact joined
     /// into a real section's polygon instead of closing one of its own;
     /// it would leave a zero-width slit in both halves, with two copies
-    /// of every vertex along it on one side. Refused, as the tangency
+    /// of every vertex along it on one side. Refused, as the graze
     /// standing alone is ([`Self::DegenerateSection`]); no degenerate
     /// body is ever emitted.
     SectionSpur {
@@ -478,14 +479,14 @@ impl SplitJoinError {
             ),
             Self::DegenerateSection { .. } => write!(
                 f,
-                "a section is degenerate: it bounds zero area (a one-sided tangency), so \
-                 one side has no real material. Recourse: {recourse}"
+                "a section is degenerate: it bounds zero area, where the plane only \
+                 grazes a face (a one-sided tangency) or pinches the solid. Recourse: \
+                 {recourse}"
             ),
             Self::SectionSpur { .. } => write!(
                 f,
-                "the plane touches the solid along an edge — within the sliver band of it, \
-                 or exactly tangent to it — while cutting it elsewhere; a grazing contact \
-                 is refused, and an exact tangency would need to be declared. Recourse: \
+                "the plane only touches the solid along a line while cutting it elsewhere, \
+                 and the section would run out along that line and back. Recourse: \
                  {recourse}"
             ),
             Self::RingHoming(e) => match e {
@@ -2528,7 +2529,7 @@ impl ChordJoiner {
     /// new half `h2` with up to two chord edges; the minted chord
     /// edges come back (the boolean joining records their germ — M3
     /// PR 5).
-    pub(crate) fn join<T: Decide>(
+    pub(crate) fn join<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
         h1: HalfEdgeKey,
@@ -3447,16 +3448,11 @@ mod tests {
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
 
-        // The spur arm carries the same recourse. It names a declaration
-        // only as what an EXACT tangency would need (Ev, 2026-09-24),
-        // not as a lever the join offers, and it does not claim the
-        // zero area its section does not have.
+        // The spur arm carries the same recourse, and it does not claim
+        // the zero area its section does not have.
         let msg = SplitJoinError::SectionSpur { face }.to_string();
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
-        assert!(
-            msg.contains("exact tangency would need to be declared"),
-            "{msg}"
-        );
+        assert!(!msg.contains("declare"), "{msg}");
         assert!(!msg.contains("zero area"), "{msg}");
 
         let msg = SplitJoinError::Escalated {

@@ -187,6 +187,7 @@ pub mod offset_nappe;
 pub mod offset_together;
 pub mod param_source;
 pub mod pcurves;
+pub(crate) mod policy_lane;
 pub mod props;
 pub mod provenance;
 pub mod query;
@@ -339,7 +340,7 @@ pub mod test_support {
     /// # Errors
     ///
     /// The reduction's or the join's refusal.
-    pub fn split_through_the_join<T: geom_core::Decide>(
+    pub fn split_through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
         operand: &Body<T>,
         plane: &crate::SplitPlane<T>,
         tol: geom_core::Tol,

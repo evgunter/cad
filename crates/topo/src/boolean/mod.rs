@@ -2742,7 +2742,7 @@ impl std::error::Error for BooleanError {}
 ///
 /// [`BooleanError`] — see each variant; the first failure wins and the
 /// operands are never mutated (the clones are dropped).
-pub fn boolean_reduce<T: Decide + Bounds>(
+pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
@@ -2760,7 +2760,7 @@ pub fn boolean_reduce<T: Decide + Bounds>(
 ///
 /// [`BooleanError`] — including [`BooleanError::InvalidDeclaration`]
 /// for payloads that do not resolve against the operands.
-pub fn boolean_reduce_declared<T: Decide + Bounds>(
+pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
@@ -2795,7 +2795,7 @@ pub fn boolean_reduce_declared<T: Decide + Bounds>(
 /// [`BooleanError`] — the same gates and sweep refusals as
 /// [`boolean_reduce`].
 #[cfg(feature = "sweep-testing")]
-pub fn sweep_traces<T: Decide + Bounds>(
+pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     strategy: SweepStrategy,
@@ -2814,7 +2814,7 @@ pub fn sweep_traces<T: Decide + Bounds>(
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
-pub fn sweep_traces_with_pad<T: Decide + Bounds>(
+pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     strategy: SweepStrategy,
@@ -2973,7 +2973,7 @@ pub(crate) fn through_the_join(
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
 /// bit-equality. Reached via [`boolean_op_with`] for full ops.
-pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
+pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
