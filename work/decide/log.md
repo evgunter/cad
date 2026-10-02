@@ -849,3 +849,33 @@ tangencies), so the item now says where its look starts.
 - E6 moves;
 - PATHS lands `an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`,
   after which DECIDE measures its tier effect on `props/sign-hull`.
+
+## 2026-10-02 — DECIDE is not idle: two rows are live; the gated rows are parked and deferred
+
+The idle call of 2026-10-01 missed two rows.
+- **`the-decision-read-answers-theorems-the-must-carry-stations-would-prove`**
+  (P2), filed 2026-10-01 by LINALG's merge of `main` into
+  `props/sign-hull`. The decision read answers 32 of the pad's and 16 of
+  the bracket's zero forms `sign_gated`, ahead of the value-free folds its
+  contract orders it behind. It is DECIDE's charter, and it is the next
+  unit.
+- **`the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`**
+  (P1). It waits on a question for Ev (whether to re-aim the `none` rung)
+  that was never put.
+
+Ev, in chat, 2026-10-02: DECIDE does not close or re-home into SYM. It
+stays open and becomes `blocked` once only gated rows remain. Done now:
+- `declared-tangency-needs-the-registered-identity-door` is **parked** on
+  ROUND's `fillet-tangency-is-not-the-constructors-node`;
+- `revolve-carriers-state-only-the-rim` is **deferred** under ERROR-DESIGN
+  E6, since no measured document is bounded by it;
+- the program is `active` while this orchestrator holds it.
+
+Still dispatchable after the two live rows:
+- `rule-g-trades-sixteen-…` and `the-exact-quotient-re-keys-…` (P2),
+  which move no measured document;
+- `the-brackets-fillet-decisions-owe-a-structural-look` and
+  `rule-gs-magnitude-door-never-asks-rule-c` (P3).
+
+They are run, or deferred on Ev's say-so, before the program can read
+`blocked`.
