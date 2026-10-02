@@ -1285,4 +1285,57 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.diag.margin, geom_core::MarginDiag::INVALID);
     }
+
+    /// **A cylinder's gradient enclosure that reaches zero poisons the
+    /// wedge.** The point and the cylinder's axis are enclosed apart,
+    /// each `±δ` across the radial direction, as two images of one
+    /// widened rigid map are: the radial vector `p − origin` is then
+    /// enclosed `r ± 2δ` wide, and once `2δ ≥ r` the enclosures admit
+    /// a point on the axis, where no tangent plane exists. `sin θ`
+    /// divides by `|∇F|`, whose enclosure then reaches zero, so the
+    /// margin is undefined (`Trv`) rather than straddling: a reading
+    /// escalation at `"dihedral_wedge"` with an INVALID margin. Below
+    /// half the radius the same pair is a definite corner.
+    #[test]
+    fn a_cylinder_gradient_reaching_zero_poisons_the_wedge() {
+        use geom_core::Interval;
+        let i = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let pt = |x: f64, y: Interval| Point3::new(Interval::from_f64(x), y, Interval::zero());
+        let unit = |x: f64, y: f64, z: f64| {
+            Vec3::new(
+                Interval::from_f64(x),
+                Interval::from_f64(y),
+                Interval::from_f64(z),
+            )
+        };
+        let r = 1.0;
+        let wedge = |delta: f64| {
+            let cyl = Surface::Cylinder {
+                origin: pt(0.0, i(-delta, delta)),
+                axis: unit(0.0, 0.0, 1.0),
+                radius: Interval::from_f64(r),
+                u_ref: unit(1.0, 0.0, 0.0),
+            };
+            let cap = Surface::Plane {
+                origin: pt(0.0, Interval::zero()),
+                normal: unit(0.0, 0.0, -1.0),
+                u_ref: unit(1.0, 0.0, 0.0),
+            };
+            let p = pt(0.0, i(r - delta, r + delta));
+            classify_dihedral(&cap, &cyl, p, Interval::from_f64(2.0 * r), band())
+        };
+        assert_eq!(
+            wedge(0.49 * r).unwrap(),
+            DihedralClass::Transverse,
+            "2δ = 0.98 r: the radial enclosure excludes zero"
+        );
+        let err = wedge(0.51 * r).unwrap_err();
+        assert_eq!(err.rung, LeverRung::Reading, "{err:?}");
+        assert_eq!(err.diag.predicate, Some("dihedral_wedge"), "{err:?}");
+        assert_eq!(
+            err.diag.margin,
+            geom_core::MarginDiag::INVALID,
+            "2δ = 1.02 r: the radial enclosure reaches zero: {err:?}"
+        );
+    }
 }
