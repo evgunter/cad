@@ -3694,6 +3694,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::SeveredGauge": "SplitError.variant",
     "SplitError::TwoAnchors": "SplitError.variant",
     "SplitError::DeadGaugeReference": "SplitError.variant",
+    "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UnplacedAlone": "SplitError.variant",
     "SplitError::WouldStartPlacing": "SplitError.variant",
     "SplitError::PlacingMateLeft": "SplitError.variant",

@@ -1253,7 +1253,7 @@ fn the_mate_placed_recourse_followed_inlines_in_place() {
             let said = e.to_string();
             let editor_core::InlineError::MatePlaced {
                 instance,
-                root,
+                host_root: root,
                 mates,
                 ..
             } = e
@@ -1376,9 +1376,9 @@ fn the_compound_door_refuses_a_regauge_that_would_start_a_declaring_mate_placing
 /// same document up to node ids, and no world pose moves.
 #[test]
 fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
-    let p = parts("r1-needs-gauge");
+    let p = parts("minted-vs-hand");
     let o = p.opts();
-    let sub = ProfileDoc::empty(DocumentId::derive("r1-needs-gauge-sub"), Tol::witness());
+    let sub = ProfileDoc::empty(DocumentId::derive("minted-vs-hand-sub"), Tol::witness());
     let (sub, _) = insert(sub, Node::instantiate_part(p.base));
     let (sub, s2) = insert(sub, Node::instantiate_part(p.base));
     let sub = set_offset(
@@ -1392,7 +1392,7 @@ fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
         resolver: with_resolver(store.clone()).resolver,
         ..o
     };
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-needs-gauge"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("minted-vs-hand"), Tol::witness());
     let (doc, h) = insert(doc, Node::instantiate_part(sub_ref));
     let offset = Placement::literal(
         &Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [2.0, 5.0, 0.0], band()).unwrap(),

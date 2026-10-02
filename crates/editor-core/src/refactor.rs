@@ -38,12 +38,12 @@
 //! its instances and the mates holding them, nothing else — HOISTS its
 //! root's offset onto the instance and lands the root at the empty
 //! chain in the part, the shape a reusable part wants; any other cut
-//! moves verbatim and the instance sits at the empty offset, each cut
+//! moves verbatim and the instance sits at the empty chain, each cut
 //! gauge carried with a parent that leaves the cut landing on the
 //! part's world. Neither computes a frame: an offset is moved as the
 //! chain it is.
 //!
-//! [`inline`] is the inverse. At the empty offset the part's content
+//! [`inline`] is the inverse. At the empty chain the part's content
 //! lands on the instance's gauge verbatim; a part that is one group
 //! rooted at the empty chain on its world has its root take the
 //! instance's offset; any other part lands on a gauge minted under the
@@ -207,8 +207,10 @@ impl InlineError {
 /// order, except that a gauge among them is moved up to just before the
 /// first of them whose gauge reference names it, its own parent first.
 /// `SetGauge` may put a node on a gauge inserted after it, so document
-/// order alone does not give this. A gauge has no inputs and carries no
-/// name, so moving it earlier strands nothing.
+/// order alone does not give this. A gauge reads nothing but its parent
+/// and carries no name, so moving it earlier strands nothing: the
+/// destructuring below breaks the build if a gauge gains a field, and
+/// the assertion fails loud if one ever reads a node or a name.
 fn gauges_first(source: &ProfileDoc, olds: &[RecipeNodeId]) -> Vec<RecipeNodeId> {
     fn visit(
         source: &ProfileDoc,
@@ -223,6 +225,19 @@ fn gauges_first(source: &ProfileDoc, olds: &[RecipeNodeId]) -> Vec<RecipeNodeId>
         if let Some(g) = source.node(id).and_then(Node::gauge_ref)
             && held.contains(&g)
         {
+            let Some(
+                gauge @ Node::Gauge {
+                    parent: _,
+                    placement: _,
+                },
+            ) = source.node(g)
+            else {
+                unreachable!("a live gauge reference names a gauge; the doors refuse any other")
+            };
+            debug_assert!(
+                gauge.inputs().is_empty() && gauge.payload_names().is_empty(),
+                "a gauge moved ahead reads no node and carries no name"
+            );
             visit(source, held, seen, out, g);
         }
         out.push(id);
@@ -245,10 +260,12 @@ fn gauges_first(source: &ProfileDoc, olds: &[RecipeNodeId]) -> Vec<RecipeNodeId>
 /// the edit after its insert, so a refusal raised while a later node is
 /// carried speaks the carried ones with their labels.
 ///
-/// A gauge reference is rewritten by `regauge` over the map built so
-/// far: `olds` is carried in its order with each carried gauge moved
-/// up to just before the first node that sits on it
-/// ([`gauges_first`]), so its new id is already there. `settle` then
+/// A gauge reference to a gauge `carried_gauge` answers for maps to its
+/// carried id, and every other — the world included — to `world`, the
+/// gauge the source's world becomes in `target`. `olds` is carried in
+/// its order with each carried gauge moved up to just before the first
+/// node that sits on it ([`gauges_first`]), so that id is already in
+/// the map. `settle` then
 /// adjusts the carried node by its old id — the one offset a hoist or
 /// an inline's sugar rewrites.
 ///
@@ -276,8 +293,9 @@ fn carry<E>(
     olds: &[RecipeNodeId],
     target: &mut Recording,
     (tol, reach): (Tol, &dyn crate::mate::MateReach),
-    (regauge, settle): (
-        impl Fn(Option<RecipeNodeId>, &NodeMap) -> Result<Option<RecipeNodeId>, RemapMiss>,
+    (world, carried_gauge, settle): (
+        Option<RecipeNodeId>,
+        impl Fn(RecipeNodeId) -> bool,
         impl Fn(RecipeNodeId, &mut Node<ProfileProgram>),
     ),
     edit: impl Fn(EditError) -> E,
@@ -299,7 +317,14 @@ fn carry<E>(
                     if p.ids.iter().flatten().any(|s| *s == step))
             }),
         };
-        let regauge = |g: Option<RecipeNodeId>| regauge(g, &node_map);
+        let regauge = |g: Option<RecipeNodeId>| match g {
+            Some(g) if carried_gauge(g) => node_map
+                .get(&g)
+                .copied()
+                .map(Some)
+                .ok_or(RemapMiss::Input(g)),
+            _ => Ok(world),
+        };
         let mut carried = match remap_node(node, &node_map, &step_map, &regauge) {
             Ok(carried) => carried,
             Err(RemapMiss::Name { name, missing }) if forward(&missing) => {
@@ -519,6 +544,16 @@ pub enum SplitError {
         /// The deleted gauge it names.
         gauge: SpokenNode,
     },
+    /// **The cut holds no material**: no cut node that is a root of the
+    /// document denotes a body — the cut is gauges, datums, profiles,
+    /// mates, declarations or measures alone — so the part would have
+    /// no body and the instance the split leaves behind would evaluate
+    /// to nothing (A4: split-then-evaluate equals the unsplit
+    /// evaluation).
+    NoMaterial {
+        /// The cut's first node, in document order.
+        node: SpokenNode,
+    },
     /// **The cut is unplaced material alone** (A4): every geometric
     /// node in it lives in an unplaced group's own space, so the
     /// instance the split would leave behind has nothing to be placed
@@ -730,6 +765,12 @@ impl core::fmt::Display for SplitError {
                     node
                 ))
             ),
+            Self::NoMaterial { node } => write!(
+                f,
+                "split: nothing the cut holds denotes a body (it begins at {node}), so the \
+                 instance the split leaves behind would evaluate to nothing. {}",
+                Recourse("add to the cut the instances or geometry that make its material")
+            ),
             Self::UnplacedAlone { group } => write!(
                 f,
                 "split: everything the cut holds lives in the own space of the group rooted at \
@@ -747,7 +788,7 @@ impl core::fmt::Display for SplitError {
             Self::MateFrameCrosses { mate, side } => write!(
                 f,
                 "split: {m}'s {} side reads a cut instance that is not, in the new part, \
-                 its group's root at the empty offset on the part's world, so its frame would \
+                 its group's root at the empty chain on the part's world, so its frame would \
                  mean another place. {}",
                 side.name(),
                 Recourse(&format!("delete {m}, then split", m = mate)),
@@ -1027,15 +1068,20 @@ pub enum InlineError {
     MatePlaced {
         /// The instance.
         instance: SpokenNode,
-        /// Its group's root.
-        root: SpokenNode,
+        /// Its group's root in the host.
+        host_root: SpokenNode,
         /// The placing mates that read it, in document order: deleting
         /// them leaves it a group of its own.
         mates: Vec<SpokenNode>,
         /// The part's root, spoken from the referenced document, when
-        /// its offset off the empty chain is all that keeps the part
-        /// from being one such group.
+        /// the part is one group and only that root's offset, or the
+        /// gauges in [`Self::MatePlaced::part_gauges`], keep it from
+        /// being one such group.
         part_root: Option<Box<SpokenNode>>,
+        /// The part's gauges, all on its root's chain, innermost first,
+        /// spoken from the referenced document: empty unless
+        /// `part_root` is set and its group sits on a gauge.
+        part_gauges: Vec<SpokenNode>,
     },
     /// **The instance is unplaced** (A11 (2)): nothing places its
     /// group, so there is no frame to splice its part in.
@@ -1049,8 +1095,8 @@ pub enum InlineError {
     /// offset** (A4): it was stated in the instance's gauge, and the
     /// member would sit in the minted gauge's frame.
     MovedMemberOffset {
-        /// The member.
-        instance: SpokenNode,
+        /// The host member, an instance the inlined one placed.
+        member: SpokenNode,
     },
     /// **The referenced document holds a gauge reference to a deleted
     /// gauge**, which has no node in the host to land on.
@@ -1061,7 +1107,7 @@ pub enum InlineError {
     /// **A mate side would change coordinates across the seam** (A4's
     /// frame rule): a host mate reads the instance through a face of
     /// an inner instance that is not its part group's root at the
-    /// empty offset on the part's world — or of no instance at all —
+    /// empty chain on the part's world — or of no instance at all —
     /// so the frame it is authored in would mean another place once it
     /// reads the spliced node.
     MateFrameCrosses {
@@ -1211,25 +1257,44 @@ impl core::fmt::Display for InlineError {
             ),
             Self::MatePlaced {
                 instance,
-                root,
+                host_root,
                 mates,
                 part_root,
+                part_gauges,
             } => {
                 write!(
                     f,
-                    "inline: {i} is not its group's root, {r} is, and its mates \
-                     place it relative to that root; only a part that is one group at the \
-                     empty offset on its world can take its place, and its part is not. ",
+                    "inline: {i} is not its group's root, {r} is: its mates place it, and only a \
+                     part that is one group at the empty chain on its world can take its \
+                     place. ",
                     i = instance,
-                    r = root
+                    r = host_root
                 )?;
                 if let Some(part_root) = part_root {
+                    if part_gauges.is_empty() {
+                        return write!(
+                            f,
+                            "{}",
+                            Recourse(&format!(
+                                "in the referenced document, set {part_root}'s offset to the \
+                                 empty chain (SetOffset), point {i} at that version \
+                                 (UpdateReference), then inline",
+                                i = instance
+                            ))
+                        );
+                    }
+                    let gauges = part_gauges
+                        .iter()
+                        .map(|g| g.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     return write!(
                         f,
                         "{}",
                         Recourse(&format!(
-                            "in the referenced document, set {part_root}'s offset to the empty \
-                             chain (SetOffset), point {i} at that version (UpdateReference), \
+                            "in the referenced document, put {part_root}'s group on the world \
+                             at the empty chain (SetGauge, SetOffset), delete {gauges} \
+                             (DeleteNode), point {i} at that version (UpdateReference), \
                              then inline",
                             i = instance
                         ))
@@ -1256,15 +1321,15 @@ impl core::fmt::Display for InlineError {
                 instance,
                 Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
-            Self::MovedMemberOffset { instance } => write!(
+            Self::MovedMemberOffset { member } => write!(
                 f,
-                "inline: {i} moves onto the gauge the inline mints, and the offset it carries \
+                "inline: {m} moves onto the gauge the inline mints, and the offset it carries \
                  was stated in the instance's gauge, so it would not hold there. {}",
                 Recourse(&format!(
-                    "clear {i}'s offset (SetOffset), then inline",
-                    i = instance
+                    "clear {m}'s offset (SetOffset), then inline",
+                    m = member
                 )),
-                i = instance
+                m = member
             ),
             Self::PartDeadGauge { node } => write!(
                 f,
@@ -1281,7 +1346,7 @@ impl core::fmt::Display for InlineError {
             Self::MateFrameCrosses { mate, side } => write!(
                 f,
                 "inline: {m}'s {} side would read an inner node that is not its part \
-                 group's root at the empty offset on the part's world, so its frame would mean \
+                 group's root at the empty chain on the part's world, so its frame would mean \
                  another place. {}",
                 side.name(),
                 Recourse(&format!("delete {m}, then inline", m = mate)),
@@ -1784,7 +1849,7 @@ fn remap_face(name: &FaceName, map: &NodeMap, steps: &StepMap) -> Result<FaceNam
 /// after the severed-edge check — surfaced as the edit layer's own
 /// unresolved-input refusal rather than assumed away) or a referenced
 /// name.
-pub(crate) enum RemapMiss {
+enum RemapMiss {
     /// An unmapped DAG input.
     Input(RecipeNodeId),
     /// A name whose local ids the map lacks, and the FIRST such id.
@@ -1839,7 +1904,7 @@ fn remap_rule(
 /// # Errors
 ///
 /// The first [`RemapMiss`].
-pub(crate) fn remap_node(
+fn remap_node(
     node: &Node<ProfileProgram>,
     map: &NodeMap,
     steps: &StepMap,
@@ -2146,6 +2211,39 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
 
 // ---- Split ----
 
+/// **Whether a node, as a root, denotes a body** — what a product
+/// gathers. A datum, a profile, a gauge, a mate, a declaration, a
+/// measure and an assertion denote none. Exhaustive, so a new node
+/// kind is classified here.
+fn denotes_a_body(node: &Node<ProfileProgram>) -> bool {
+    match node {
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Gauge { .. }
+        | Node::Mate { .. }
+        | Node::Declare { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => false,
+        Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::InstantiatePart { .. } => true,
+    }
+}
+
 /// Cuts `cut` out of `doc` into a new document under `part_id` (the
 /// caller's identity — [`DocumentId::derive`] for deterministic
 /// callers, the document layer's `random_document_id` for interactive
@@ -2423,7 +2521,7 @@ pub fn split(
     // instances and the mates holding it together, nothing else — and
     // the instance left behind takes the root's offset while the part
     // lands the root at the empty chain (A4). Every other cut moves
-    // verbatim, and the instance left behind sits at the empty offset.
+    // verbatim, and the instance left behind sits at the empty chain.
     //
     // WHOLENESS is not a condition here — the torn-group precondition
     // above already refused every partial group, so a group reached by
@@ -2664,14 +2762,8 @@ pub fn split(
             // A gauge reference leaving the cut lands on the anchor,
             // which is the part's world; one inside it lands on the
             // gauge's image.
-            |g: Option<RecipeNodeId>, node_map: &NodeMap| match g {
-                Some(g) if cut.contains(&g) => node_map
-                    .get(&g)
-                    .copied()
-                    .map(Some)
-                    .ok_or(RemapMiss::Input(g)),
-                _ => Ok(None),
-            },
+            None,
+            |g: RecipeNodeId| cut.contains(&g),
             // The hoist lands the root at the empty chain.
             |old: RecipeNodeId, node: &mut Node<ProfileProgram>| {
                 if let (Some((_, root)), Node::InstantiatePart { offset, .. }) = (hoisted, node)
@@ -2693,6 +2785,18 @@ pub fn split(
             RemapMiss::Name { name, missing } => SplitError::reaches(doc, old, &name, missing),
         },
     )?;
+    // A cut whose roots denote no body leaves an instance of nothing:
+    // asked once the cut has carried, so a cut whose names cannot cross
+    // is told that first.
+    if !in_order
+        .iter()
+        .any(|&id| doc.roots().contains(&id) && doc.node(id).is_some_and(denotes_a_body))
+        && let Some(&first) = in_order.first()
+    {
+        return Err(SplitError::NoMaterial {
+            node: doc.spoken(first),
+        });
+    }
     // Witness DATA copies VERBATIM while node ids remap: sound because
     // a witness datum is sketch-self-relative — it selects among the
     // owning profile's own solution branches and embeds no other
@@ -2912,7 +3016,7 @@ pub fn split(
 /// **How an inlined part's content lands in the host** (A4).
 enum Landing {
     /// On the instance's gauge, as it is: the instance sat at the
-    /// empty offset.
+    /// empty chain.
     Verbatim,
     /// On the instance's gauge, with the part's one root taking the
     /// instance's place: `offset`, which is `None` for a mate-placed
@@ -3055,34 +3159,33 @@ pub fn inline(
             && at_the_empty_chain(id)
     };
     // "One such group" (A4): the part is one placed group, holding no
-    // gauge, whose members carry no offset beside its root's — the
-    // group whose root can take the instance's place. `rooted_at` asks
-    // where that root sits.
-    let has_gauge = part
-        .order()
-        .iter()
-        .any(|&id| matches!(part.node(id), Some(Node::Gauge { .. })));
-    let one_group = |rooted_at: &dyn Fn(RecipeNodeId) -> bool| match part_groups.as_slice() {
+    // gauge, whose members carry no offset beside its root's, rooted at
+    // the empty chain on its world — the group whose root can take the
+    // instance's place. `one_group` is the same without the last two
+    // conditions.
+    let one_group = match part_groups.as_slice() {
         [(members, root, None)]
-            if !has_gauge
-                && rooted_at(*root)
-                && members.iter().all(|&m| {
-                    m == *root
-                        || matches!(
-                            part.node(m),
-                            Some(Node::InstantiatePart { offset: None, .. })
-                        )
-                }) =>
+            if members.iter().all(|&m| {
+                m == *root
+                    || matches!(
+                        part.node(m),
+                        Some(Node::InstantiatePart { offset: None, .. })
+                    )
+            }) =>
         {
             Some(*root)
         }
         _ => None,
     };
-    let one_such_group = one_group(&part_root_at_empty);
+    let has_gauge = part
+        .order()
+        .iter()
+        .any(|&id| matches!(part.node(id), Some(Node::Gauge { .. })));
+    let one_such_group = one_group.filter(|&r| !has_gauge && part_root_at_empty(r));
     // How the content lands (A4). Placed by its mates, the instance is
     // inlined only over one such group, whose root takes its place: its
     // offset, `None` or a checked one, on its gauge. As its group's
-    // root at offset `o`: at the empty offset the content lands on `g`
+    // root at offset `o`: at the empty chain the content lands on `g`
     // verbatim; over one such group the root takes `o` on `g`; any
     // other part lands on a minted gauge under `g` holding `o`.
     let landing = if host_root == instance {
@@ -3123,22 +3226,30 @@ pub fn inline(
                     && crate::mate::places(doc, x.instance, y.instance)
             })
             .collect();
-        // Where only the part root's offset keeps it from being one
-        // such group, the refusal names that remedy.
-        let off_the_empty_chain = one_group(&|_| true).filter(|&r| !at_the_empty_chain(r));
+        // Where the part is one group and only its root's offset or the
+        // gauges its group sits on keep it from being one such group —
+        // every gauge of the part is on the root's chain — the refusal
+        // names that remedy.
+        let remedy = one_group.and_then(|r| {
+            let chain = crate::mate::solve::gauge_chain(&part, part.node(r)?.gauge_ref()).ok()?;
+            let every_gauge_on_it = part.order().iter().all(|&id| {
+                !matches!(part.node(id), Some(Node::Gauge { .. })) || chain.contains(&id)
+            });
+            every_gauge_on_it.then_some((r, chain))
+        });
         return Err(InlineError::MatePlaced {
             instance: doc.spoken(instance),
-            root: doc.spoken(host_root),
+            host_root: doc.spoken(host_root),
             mates: mates.into_iter().map(|m| doc.spoken(m)).collect(),
-            part_root: off_the_empty_chain.map(|r| Box::new(part.spoken(r))),
+            part_root: remedy.as_ref().map(|(r, _)| Box::new(part.spoken(*r))),
+            part_gauges: remedy
+                .map(|(_, chain)| chain.into_iter().map(|g| part.spoken(g)).collect())
+                .unwrap_or_default(),
         });
     };
     // Plain recipe geometry sits on no gauge, so it splices in place
     // only where the instance sits at the world's origin.
-    let at_the_origin = host_gauge.is_none() && host_root == instance && {
-        matches!(held, Some(o) if o.steps.is_empty())
-    };
-    if !at_the_origin {
+    if !(host_gauge.is_none() && matches!(landing, Landing::Verbatim)) {
         for &root in part.roots() {
             if !matches!(
                 part.node(root),
@@ -3167,7 +3278,7 @@ pub fn inline(
         )
     }) {
         return Err(InlineError::MovedMemberOffset {
-            instance: doc.spoken(member),
+            member: doc.spoken(member),
         });
     }
     // The frame rule and the fold rule (A4), over every host mate side
@@ -3326,15 +3437,9 @@ pub fn inline(
         (tol, &reach),
         (
             // The part's world is the instance's gauge, or the minted
-            // one.
-            |g: Option<RecipeNodeId>, node_map: &NodeMap| match g {
-                None => Ok(world),
-                Some(g) => node_map
-                    .get(&g)
-                    .copied()
-                    .map(Some)
-                    .ok_or(RemapMiss::Input(g)),
-            },
+            // one; every gauge of the part is carried.
+            world,
+            |_: RecipeNodeId| true,
             // The part's root takes the instance's place.
             |old: RecipeNodeId, node: &mut Node<ProfileProgram>| {
                 if let (Landing::Root { root, offset }, Node::InstantiatePart { offset: held, .. }) =

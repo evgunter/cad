@@ -726,6 +726,11 @@ class SplitError(PncadError):
     param: Optional[str]
     name: Optional[str]
     id: Optional[str]
+    gauge: Optional[NodeId]
+    """`severed_gauge`: the cut gauge, `node` the kept node on it.
+    `dead_gauge_reference`: the deleted gauge, `node` the cut gauge or
+    instance whose chain names it. `no_material`: `node` is the cut's
+    first node."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
@@ -744,6 +749,18 @@ class InlineError(PncadError):
     root: Optional[NodeId]
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
+    host_root: Optional[NodeId]
+    """`mate_placed`: the root of the instance's group in the host
+    (`node` is the instance)."""
+    part_root: Optional[NodeId]
+    """`mate_placed`: the part's root, in the referenced document's ids,
+    when the part is one group and only that root's offset, or the
+    gauges in `part_gauges`, keep it from being one group at the empty
+    chain on its world; `None` otherwise."""
+    part_gauges: Optional[list[NodeId]]
+    """`mate_placed`: the part's gauges on its root's chain, innermost
+    first, which the remedy deletes (empty when only the offset is
+    wrong). `moved_member_offset` names the moved member in `node`."""
 
 class UpdateError(PncadError):
     """A whole-document pin update produced no edit list.
@@ -6344,14 +6361,15 @@ def split(
     disagrees): a cut instance votes its gauge and a cut gauge its
     parent, unless that reference stays inside the cut, and a cut root
     that is no instance votes the world. A kept instance or gauge on a
-    cut gauge refuses (`severed_gauge`, its `consumer` the kept node
-    and its `input` the gauge). A placing mate never crosses: a cut that leaves behind the
+    cut gauge refuses (`severed_gauge`, its `node` the kept node
+    and its `gauge` the gauge). A placing mate never crosses: a cut that leaves behind the
     mate placing its group refuses (`placing_mate_left`). A cut that is exactly one placed
     group HOISTS its root's offset onto that instance and lands the
-    root at the empty offset in the part; any other cut moves
+    root at the empty chain in the part; any other cut moves
     verbatim, each cut gauge carried, one whose parent leaves the cut
     on the part's world. A dead gauge reference refuses
-    (`dead_gauge_reference`), as do a cut of unplaced
+    (`dead_gauge_reference`), as do a cut that holds no body
+    (`no_material`), a cut of unplaced
     material alone (`unplaced_alone`), a hoisted member's further
     offset (`hoisted_member_offset`), and a kept mate that would start
     placing (`would_start_placing`), whose cut side would change
@@ -6385,9 +6403,9 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     version on disk. Pure — `doc` is untouched. Raises InlineError,
     typed.
 
-    Where the content lands (A4): at the instance's empty offset, on
+    Where the content lands (A4): with the instance at the empty chain, on
     its gauge as it is; over a part that is one group at the empty
-    offset on its world, with that group's root taking the instance's
+    chain on its world, with that group's root taking the instance's
     offset; over any other part, on a gauge minted under the instance's
     gauge holding its offset, onto which the members the instance placed
     move (one carrying a further offset refuses `moved_member_offset`).

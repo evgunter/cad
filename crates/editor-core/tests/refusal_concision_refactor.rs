@@ -45,7 +45,7 @@ test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
-        UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
+        NoMaterial, UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
         HoistedMemberOffset, UncutParamReference, PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
@@ -101,6 +101,9 @@ fn split_refusals() -> Vec<SplitError> {
         SplitError::DeadGaugeReference {
             node: s(4, "InstantiatePart"),
             gauge: s(1, "Gauge"),
+        },
+        SplitError::NoMaterial {
+            node: s(1, "Gauge"),
         },
         SplitError::UnplacedAlone {
             group: s(2, "InstantiatePart"),
@@ -186,22 +189,31 @@ fn inline_refusals() -> Vec<InlineError> {
         },
         InlineError::MatePlaced {
             instance: s(4, "InstantiatePart"),
-            root: s(2, "InstantiatePart"),
+            host_root: s(2, "InstantiatePart"),
             mates: vec![s(7, "Mate")],
             part_root: None,
+            part_gauges: Vec::new(),
         },
         InlineError::MatePlaced {
             instance: s(4, "InstantiatePart"),
-            root: s(2, "InstantiatePart"),
+            host_root: s(2, "InstantiatePart"),
             mates: vec![s(7, "Mate")],
             part_root: Some(Box::new(s(1, "InstantiatePart"))),
+            part_gauges: Vec::new(),
+        },
+        InlineError::MatePlaced {
+            instance: s(4, "InstantiatePart"),
+            host_root: s(2, "InstantiatePart"),
+            mates: vec![s(7, "Mate")],
+            part_root: Some(Box::new(s(1, "InstantiatePart"))),
+            part_gauges: vec![s(6, "Gauge")],
         },
         InlineError::Unplaced {
             instance: s(4, "InstantiatePart"),
             cause: Unplaced::NoOffset,
         },
         InlineError::MovedMemberOffset {
-            instance: s(5, "InstantiatePart"),
+            member: s(5, "InstantiatePart"),
         },
         InlineError::PartDeadGauge {
             node: s(3, "Extrude"),

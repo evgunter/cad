@@ -2398,6 +2398,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::SeveredGauge { .. } => "severed_gauge",
         SplitError::TwoAnchors { .. } => "two_anchors",
         SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
+        SplitError::NoMaterial { .. } => "no_material",
         SplitError::UnplacedAlone { .. } => "unplaced_alone",
         SplitError::WouldStartPlacing { .. } => "would_start_placing",
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",

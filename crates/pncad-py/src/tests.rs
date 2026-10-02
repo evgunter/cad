@@ -5819,6 +5819,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_frame_crosses",
             "name_on_dropped_step",
             "name_straddles_cut",
+            "no_material",
             "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
