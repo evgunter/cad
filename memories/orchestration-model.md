@@ -126,11 +126,13 @@ Ev's standing instructions for implementation work:
   SIGN issue bodies you file.
 - **Channel to Ev**: "Asking Ev" in `CLAUDE.md`. Watch 👍 reactions
   only on comments you explicitly requested sign-off on.
-- **A commit that touches only docs or comments on an already-green
-  head merges immediately, without a fresh CI run** (Ev, 2026-08-27;
-  scope corrected 2026-09-21) — including a merge commit whose conflict
-  resolution touched only those. A commit that reaches code re-earns
-  the gate.
+- **A commit that touches only docs, comments or renders on an
+  already-green head merges immediately, without a fresh CI run** (Ev,
+  2026-08-27; scope corrected 2026-09-21; renders added 2026-10-02) —
+  including a merge commit whose conflict resolution touched only those.
+  A render is `render.yml`'s own `render(<lane>)` commit, `[skip ci]` on
+  a branch whose `[render]` commit is the green one. A commit that
+  reaches code re-earns the gate.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch, **LAST, after every review is delivered** (an experiment row

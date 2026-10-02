@@ -68,6 +68,7 @@
 
 mod arcs;
 pub(crate) mod boxes;
+mod carrier_cross;
 pub mod carrier_eq;
 mod circle_cylinder;
 mod circle_roots;
@@ -205,6 +206,13 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         "split_conic_root_order" => CrossingDecision::Order.subject(),
         "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
+        "bool_carrier_cross_in_span"
+        | "bool_carrier_cross_transverse"
+        | "bool_carrier_cross_line_meets_circle"
+        | "bool_carrier_cross_circles_apart"
+        | "bool_carrier_cross_circles_nested"
+        | "bool_carrier_cross_plane_offset"
+        | "bool_carrier_cross_concentric" => CrossingDecision::OnEdge.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"

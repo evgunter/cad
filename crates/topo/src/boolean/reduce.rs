@@ -1432,11 +1432,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// typed frontier refusal. The middle case is a decision and not a
 /// remainder: a shared carrier is covered by several faces per side, so
 /// an endpoint outside THIS face's window is a site some sibling face
-/// holds, and the sweep reaches that pair on its own visit. A pair with
-/// NO recorded endpoint still refuses — an overlap lying wholly inside
-/// this face's window, with both endpoints beyond it, is an incidence
-/// this arm cannot see, and it stays loud rather than becoming a silent
-/// no-event.
+/// holds, and the sweep reaches that pair on its own visit.
+///
+/// **An edge lying ON the carrier is asked about its interior first**
+/// ([`interior`]): where it crosses `face`'s boundary between
+/// its ends — a shaft's seam ruling passing a full-turn bore's rim, a
+/// rim arc passing the partner's seam ruling — the crossing is split
+/// and recorded as a pierce landing on that boundary. With the interior
+/// certified clear, a pair with both ends `Elsewhere` lies wholly
+/// outside the face and is no event; without that certificate (a
+/// `Tangent`-covered arc, which only touches the carrier) it still
+/// refuses, since an overlap inside this face's window with both
+/// endpoints beyond it would be an incidence this arm cannot see.
 ///
 /// UNDECLARED incidences unlock no RECORDING they did not already have
 /// — the recording door only widens what a verified declaration
@@ -1651,7 +1658,8 @@ pub(super) fn curved_face_arm<T: Decide>(
             // and the harmonic one has no torus form. Reading the
             // certificate first is what lets a coincident pair reach
             // the one-sided cover rung at all.
-            let clearance = if on_declared_shared_carrier(x, x_is, edge, face, declared) {
+            let on_carrier = on_declared_shared_carrier(x, x_is, edge, face, declared);
+            let clearance = if on_carrier {
                 Ok(Sign::Zero)
             } else {
                 conic_clearance(&surface, &conic, curve.params(), band).ok_or_else(frontier)?
@@ -1700,23 +1708,25 @@ pub(super) fn curved_face_arm<T: Decide>(
                 //
                 // The HEIGHT source has no neighbour to appeal to, so the
                 // widening does NOT rest on one existing. What carries
-                // them is the **nothing-recorded guard** below: a pair
-                // whose every on-carrier endpoint came back `Elsewhere`
-                // records nothing and keeps the frontier, whatever the
-                // source. So an all-`Out` pair is exactly as loud as it
-                // was, and only a pair that ALREADY placed an endpoint
-                // on this face — i.e. one with a real, recorded
-                // incidence here — is allowed to stop treating its
-                // other end's absence as a failure.
+                // it is the **interior question**, asked before either
+                // end: an arc lying on the carrier that crosses this
+                // face's boundary between its ends is split there
+                // ([`interior`]), and only an arc whose
+                // interior is certified clear of the boundary reads an
+                // all-`Elsewhere` pair as lying wholly outside the face
+                // ([`Placement::declared`]).
                 //
-                // Still keeping the door, unchanged: a no-verdict
-                // endpoint ([`Placement::Undecided`]), and the pair
-                // where nothing was recorded — an arc whose interior
-                // crosses this face's window with both endpoints
-                // outside it is a real incidence this arm cannot see,
-                // and it must stay loud rather than become a silent
-                // no-event.
+                // Still keeping the door: a no-verdict endpoint
+                // ([`Placement::Undecided`]); a boundary the interior
+                // question has no closed form for; and an arc that only
+                // touches the carrier (a `Tangent` cover, no carrier
+                // identity) with nothing recorded, whose interior this
+                // arm cannot see.
                 Ok(Sign::Zero) if covered => {
+                    let inside = interior(on_carrier, y, x_is, face, &curve, band, frontier)?;
+                    if let Interior::Crossing(event) = inside {
+                        return Ok(event);
+                    }
                     let side = |p: Point3<T>| {
                         decide(
                             "bool_vertex_face_side",
@@ -1742,11 +1752,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                             Sign::Negative => return Err(frontier()),
                         }
                     }
-                    return if Placement::records_the_pair(ends) {
-                        Ok(CurvedEvent::Recorded)
-                    } else {
-                        Err(frontier())
-                    };
+                    return Placement::declared(ends, inside.clear()).ok_or_else(frontier);
                 }
                 // **The circle × sphere, × cylinder and × torus root
                 // lanes.** An arc the enclosures could not clear against
@@ -1856,23 +1862,29 @@ pub(super) fn curved_face_arm<T: Decide>(
         // stated at [`geom_brep::tangent_locus`]. A NEGATIVE partner is
         // a genuine crossing — never the covered posture. Uncovered
         // keeps both frontier doors verbatim.
+        // Both ends on the carrier. Where the carrier identity puts the
+        // line ON it (a parent face verified as `face`'s carrier), its
+        // interior is asked before its ends; a `Tangent`-covered line has
+        // no such certificate and keeps the ends-only rule. No pose reds
+        // this gate forced open: a covered line with both ends on a curved
+        // carrier IS one of its rulings (a `Tangent` cover's line lies in
+        // the tangent plane, which meets a cylinder or a cone only along
+        // that ruling), so the boundary question would be well-posed
+        // without the certificate too. The gate asks for the certificate
+        // anyway, rather than reading "on the carrier" off a pair of ends.
         (Sign::Zero, Sign::Zero) if covered => {
             debug_assert!(
                 on_line,
                 "a covered circle keeps the frontier at the circle rung"
             );
+            let on_carrier = on_declared_shared_carrier(x, x_is, edge, face, declared);
+            let inside = interior(on_carrier, y, x_is, face, &curve, band, frontier)?;
+            if let Interior::Crossing(event) = inside {
+                return Ok(event);
+            }
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-            // An endpoint the containment door cannot decide keeps the
-            // frontier door; an endpoint it places definitely OUT of
-            // this face is eventless here (the circle rung above
-            // carries the argument), and a pair with nothing recorded
-            // keeps the door.
-            if Placement::records_the_pair([Some(hu), Some(hv)]) {
-                Ok(CurvedEvent::Recorded)
-            } else {
-                Err(frontier())
-            }
+            Placement::declared([Some(hu), Some(hv)], inside.clear()).ok_or_else(frontier)
         }
         (Sign::Zero, Sign::Positive) if covered => {
             debug_assert!(
@@ -1880,11 +1892,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                 "a covered circle keeps the frontier at the circle rung"
             );
             let h = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
-            if Placement::records_the_pair([Some(h), None]) {
-                Ok(CurvedEvent::Recorded)
-            } else {
-                Err(frontier())
-            }
+            Placement::declared([Some(h), None], false).ok_or_else(frontier)
         }
         (Sign::Positive, Sign::Zero) if covered => {
             debug_assert!(
@@ -1892,11 +1900,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                 "a covered circle keeps the frontier at the circle rung"
             );
             let h = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-            if Placement::records_the_pair([Some(h), None]) {
-                Ok(CurvedEvent::Recorded)
-            } else {
-                Err(frontier())
-            }
+            Placement::declared([Some(h), None], false).ok_or_else(frontier)
         }
         // **One endpoint ON the surface, the other definitely off it.**
         // This is the shape a wall crossing LEAVES behind: the split
@@ -2243,6 +2247,54 @@ fn on_declared_shared_carrier<T: Decide>(
     .into_iter()
     .flatten()
     .any(|pf| declared.verified_one_carrier(x_is, pf, x_is.other(), face))
+}
+
+/// What the declared arms know of an edge's interior against `face`.
+enum Interior<T: geom_core::Real> {
+    /// It crosses `face`'s boundary there: a pierce landing on that
+    /// boundary, split and recorded by the caller like any other.
+    Crossing(CurvedEvent<T>),
+    /// Certified: the interior meets `face`'s boundary nowhere, so the
+    /// endpoints' placements are the pair's whole incidence.
+    Clear,
+    /// Not asked: the edge has no certificate that it lies ON the
+    /// carrier, so the boundary question has no subject.
+    Unseen,
+}
+
+impl<T: geom_core::Real> Interior<T> {
+    /// Whether [`Placement::declared`] may read an all-`Elsewhere` pair
+    /// as lying outside the face.
+    fn clear(&self) -> bool {
+        matches!(self, Self::Clear)
+    }
+}
+
+/// The declared arms' interior question, asked only of an edge the
+/// carrier-identity rung puts ON `face`'s carrier (`on_carrier`): where
+/// it crosses `face`'s boundary strictly inside its span
+/// ([`super::carrier_cross`]). A carrier pair with no closed form keeps
+/// the frontier door.
+fn interior<T: Decide>(
+    on_carrier: bool,
+    y: &Body<T>,
+    x_is: Operand,
+    face: FaceKey,
+    curve: &geom_brep::EdgeCurve<T>,
+    band: Band,
+    frontier: impl Fn() -> BooleanError,
+) -> Result<Interior<T>, BooleanError> {
+    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
+    if !on_carrier {
+        return Ok(Interior::Unseen);
+    }
+    match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
+        BoundaryCrossing::At { t, p, at } => {
+            Ok(Interior::Crossing(CurvedEvent::Pierce { t, p, at }))
+        }
+        BoundaryCrossing::Clear => Ok(Interior::Clear),
+        BoundaryCrossing::Unread => Err(frontier()),
+    }
 }
 
 /// An arc of `x` lying on `face`'s carrier, as [`lying_on`] reads it.
@@ -2942,28 +2994,45 @@ pub(super) enum Placement {
 }
 
 impl Placement {
-    /// **The declared rungs' one rule**, in one place because all four
-    /// of them apply it: given each of an edge's endpoints as
+    /// **The declared rungs' one rule**, in one place because all of
+    /// them apply it: given each of an edge's endpoints as
     /// `Some(placement)` when the residual put it ON the carrier and
     /// `None` when it is honestly not this arm's business (definitely
     /// clear, or the arm has only one on-carrier end), does this pair
-    /// record an event, or keep the typed frontier?
+    /// record an event, have none here, or keep the typed frontier
+    /// (`None`)?
     ///
-    /// Two conditions, both necessary:
-    ///
-    /// - **no `Undecided`** — an endpoint the containment door could
-    ///   not place leaves the pair unknown, and unknown keeps the door;
-    /// - **at least one `Recorded`** — a pair whose on-carrier ends all
-    ///   came back `Elsewhere` has placed nothing on this face, so it
-    ///   keeps the door too. That is what stops an overlap lying wholly
-    ///   inside this face's window, with both ends beyond it, from
-    ///   turning into a silent no-event.
-    ///
-    /// `Elsewhere` therefore never carries a pair on its own; it only
-    /// stops being fatal beside a sibling end that WAS recorded.
-    fn records_the_pair(ends: [Option<Self>; 2]) -> bool {
-        !ends.iter().flatten().any(|p| *p == Self::Undecided)
-            && ends.iter().flatten().any(|p| *p == Self::Recorded)
+    /// - **any `Undecided`** keeps the door: an endpoint the containment
+    ///   door could not place leaves the pair unknown. Only the truth
+    ///   table below holds this end to end: `Undecided` needs an
+    ///   on-carrier end on a face whose trim the chart door declines (a
+    ///   ringed face) while every boundary edge is a line or a circle
+    ///   (anything else answers `Unread` first), and the one such bore
+    ///   tried — a collar less a partial-revolve wedge — refuses
+    ///   `Join(SectionArcWindow{NoChartedRun})` before any mate;
+    /// - **any `Recorded`** records;
+    /// - **every on-carrier end `Elsewhere`** has placed nothing on this
+    ///   face. That is no event only when `interior_clear` — the arm
+    ///   certified the span's interior meets this face's boundary
+    ///   nowhere ([`interior`]), so a span with both ends
+    ///   outside the face lies wholly outside it. Without that
+    ///   certificate it keeps the door: an overlap lying wholly inside
+    ///   this face's window, with both ends beyond it, must not turn
+    ///   into a silent no-event.
+    fn declared<T: geom_core::Real>(
+        ends: [Option<Self>; 2],
+        interior_clear: bool,
+    ) -> Option<CurvedEvent<T>> {
+        let on = ends.iter().flatten();
+        if on.clone().any(|p| *p == Self::Undecided) {
+            None
+        } else if on.clone().any(|p| *p == Self::Recorded) {
+            Some(CurvedEvent::Recorded)
+        } else if interior_clear {
+            Some(CurvedEvent::None)
+        } else {
+            None
+        }
     }
 
     /// **The undeclared `NoInterior` arms' one rule** — the mixed-sign
@@ -2979,10 +3048,10 @@ impl Placement {
     /// - otherwise keeps the typed door (`None`): an `Undecided` end is
     ///   not evidence of absence.
     ///
-    /// Unlike [`Self::records_the_pair`], an all-`Elsewhere` pair is
-    /// eventless rather than refused: that rule's nothing-recorded guard
-    /// exists for an on-carrier edge overlapping the window, which the
-    /// distinct certified roots behind `NoInterior` exclude here.
+    /// An all-`Elsewhere` pair is eventless here, as it is under
+    /// [`Self::declared`] with a clear interior: the distinct certified
+    /// roots behind `NoInterior` exclude an on-carrier edge overlapping
+    /// the window.
     fn undeclared_no_interior<T: geom_core::Real>(
         ends: [Option<Self>; 2],
     ) -> Option<CurvedEvent<T>> {
@@ -3115,7 +3184,7 @@ fn vertex_on_curved_face_at<T: Decide>(
     ))
 }
 
-fn esc(e: ContainError, operand: Operand) -> BooleanError {
+pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
     match e {
         ContainError::Escalated(diag) => BooleanError::Escalated {
             decision: BooleanDecision::Containment,
@@ -3377,6 +3446,33 @@ mod undeclared_rule_rows {
         ];
         for (ends, want) in rows {
             assert_eq!(rule(ends), want, "{ends:?}");
+        }
+    }
+
+    /// **The declared rule**: an `Undecided` end always keeps the door,
+    /// and an all-`Elsewhere` pair is no event only beside a certified
+    /// clear interior.
+    #[test]
+    fn the_declared_rule_reads_all_elsewhere_by_the_interior_certificate() {
+        use Placement::{Elsewhere as E, Recorded as R, Undecided as U};
+        let declared =
+            |ends: [Option<Placement>; 2], clear| match Placement::declared::<f64>(ends, clear) {
+                Some(CurvedEvent::Recorded) => "record",
+                Some(CurvedEvent::None) => "none",
+                Some(CurvedEvent::Pierce { .. }) => panic!("the rule never pierces"),
+                None => "door",
+            };
+        let rows = [
+            ([Some(R), Some(E)], "record", "record"),
+            ([Some(R), Some(U)], "door", "door"),
+            ([Some(E), Some(E)], "door", "none"),
+            ([Some(E), Some(U)], "door", "door"),
+            ([Some(R), None], "record", "record"),
+            ([None, Some(E)], "door", "none"),
+        ];
+        for (ends, unseen, clear) in rows {
+            assert_eq!(declared(ends, false), unseen, "{ends:?}, interior unseen");
+            assert_eq!(declared(ends, true), clear, "{ends:?}, interior clear");
         }
     }
 }
