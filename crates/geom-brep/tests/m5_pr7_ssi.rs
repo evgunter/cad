@@ -3516,8 +3516,7 @@ fn trace_unresolved(what: &str, r: Result<geom_brep::SsiOutcome, SsiError>) -> (
     assert!(
         shown.contains("the surfaces touch at a point")
             && shown.contains("runs within the tolerance of the domain's boundary")
-            && shown
-                .contains("Recourse: if the surfaces meet along a curve longer than the tolerance")
+            && shown.contains("Recourse: for a curve longer than the tolerance")
             && !shown.contains("kernel defect"),
         "{what}: {shown}"
     );
@@ -3652,5 +3651,73 @@ fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
             (margin - delta).abs() < 1.0e-2 * delta.abs(),
             "δ = {delta:e}: the open end read {margin:e} m"
         );
+    }
+}
+
+/// **A spent step budget ends by the rung that held the steps short.**
+///
+/// - Curvature: the planted fixture at a thousand times its size, at
+///   ε = 1e-12. The fit's between-sample rung `(ε/κ³)^¼` binds, which no
+///   extent or domain lengthens, so it ends in the last resort, as the
+///   fit's sample budget does.
+/// - Cap: the substrate wall traced from its seed with a feature extent
+///   of 1e-4 m, whose `SSI_STEP_MAX` share caps every step far below
+///   the curvature rung at ε = 1e-9. The extent is the lever.
+///
+/// Both run at a band of their own, so the rung under test does not
+/// move with the run's ε.
+#[test]
+fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::StepBound;
+    let s = 1000.0;
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: s,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let cylinder = Surface::Cylinder {
+        origin: Point3::new(0.03 * s, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.08 * s,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let domain = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 1.5 * s,
+        extent: 2.0 * s,
+        floor_scale: 1.0,
+    };
+    match ssi::cylinder_sphere_ssi(&cylinder, &sphere, domain, band_at(1e-12)) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Curvature, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("held short by the curvature against the tolerance")
+                    && shown.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
+                "{shown}"
+            );
+        }
+        other => panic!("the scaled planted fixture: expected the step budget, got {other:?}"),
+    }
+
+    let domain = SsiDomain {
+        extent: 1e-4,
+        ..wall_domain()
+    };
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), domain, 1e-9, band_at(1e-9)) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Cap, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("held short by the feature extent or the domain")
+                    && shown
+                        .contains("Recourse: name a feature extent near the size of the feature"),
+                "{shown}"
+            );
+        }
+        other => panic!("the capped wall trace: expected the step budget, got {other:?}"),
     }
 }

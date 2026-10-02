@@ -428,6 +428,20 @@ pub enum StepFault {
     DoesNotMove,
 }
 
+/// Which rung held most of a march's steps short
+/// ([`SsiError::StepBudget`]): the one a caller's knobs reach, or the
+/// one only the tolerance does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepBound {
+    /// The curvature rungs: the fit's between-sample budget, which
+    /// shrinks with ε, or the relative heuristic on the curvature
+    /// itself. No extent or domain lengthens these steps.
+    Curvature,
+    /// The cap: a fraction of the feature extent, or the domain's
+    /// diagonal.
+    Cap,
+}
+
 /// How a traced branch ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BranchEnd {
@@ -554,6 +568,7 @@ where
     let mut min_sigma = f64::INFINITY;
     let mut left_start = false;
     let mut steps = 0usize;
+    let mut curvature_bound = 0usize;
 
     while steps < ctx.max_steps {
         // ---- 1. the local decomposition ----
@@ -622,13 +637,13 @@ where
         }
 
         // ---- 4./5. the step ----
-        let (dx, h_meters) = match mode {
+        let (dx, h_meters, bound) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
                 let h = [step_cap / speed, ctx.diagonal()]
                     .into_iter()
                     .fold((SSI_IDEALIZED_STEP * ctx.extent) / speed, Real::min);
-                (scale(&d1, h), h * speed)
+                (scale(&d1, h), h * speed, StepBound::Cap)
             }
             StepperMode::Realized => {
                 let b2 = sys.rhs2(&x, &d1);
@@ -683,15 +698,21 @@ where
                 } else {
                     f64::INFINITY
                 };
-                let h_max = step_cap / speed;
-                let h = [h_cub, h_fit, h_max, ctx.diagonal()]
-                    .into_iter()
-                    .fold(h_quad, Real::min);
+                let h_curve = [h_cub, h_fit].into_iter().fold(h_quad, Real::min);
+                let h_cap = Real::min(step_cap / speed, ctx.diagonal());
+                let h = Real::min(h_curve, h_cap);
+                // Bookkeeping for the budget's refusal only: a poisoned
+                // `h` reaches the step guard below whichever rung is named.
+                let bound = if h_curve < h_cap {
+                    StepBound::Curvature
+                } else {
+                    StepBound::Cap
+                };
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
                     *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
                 }
-                (step, h * speed)
+                (step, h * speed, bound)
             }
         };
 
@@ -736,6 +757,9 @@ where
         };
         next = refined;
         steps += 1;
+        if bound == StepBound::Curvature {
+            curvature_bound += 1;
+        }
 
         // ---- ssi_branch_open_end ----
         let inside = domain_margin(&next, &ctx, sys, &x);
@@ -823,6 +847,11 @@ where
     Err(SsiError::StepBudget {
         mode: mode.name(),
         budget: ctx.max_steps,
+        bound: if 2 * curvature_bound > steps {
+            StepBound::Curvature
+        } else {
+            StepBound::Cap
+        },
     })
 }
 

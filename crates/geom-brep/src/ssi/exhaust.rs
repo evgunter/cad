@@ -477,9 +477,10 @@ impl core::fmt::Display for FloorRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let (meters, width) = (self.meters, self.width);
         write!(f, "the {} ", self.floor.name())?;
-        match self.lane {
-            ExhaustLane::R3 => write!(f, "{meters:e} m")?,
-            ExhaustLane::Chart { speed } => {
+        match (self.lane, self.fault) {
+            // A metre floor that is no length has no chart width to state.
+            (ExhaustLane::R3, _) | (_, FloorFault::NotALength) => write!(f, "{meters:e} m")?,
+            (ExhaustLane::Chart { speed }, _) => {
                 write_chart_length(f, width, speed, RateClause::From { meters })?;
             }
         }
