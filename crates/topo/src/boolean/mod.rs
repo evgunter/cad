@@ -2302,6 +2302,22 @@ fn meeting_recourse(kind: &str) -> String {
     )
 }
 
+impl core::fmt::Display for Corruption {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Structure { errors } => write!(
+                f,
+                "it fails {} of the kernel's structural checks, so the Boolean refuses it",
+                errors.len()
+            ),
+            Self::Vertex { vertex } => write!(
+                f,
+                "the neighbourhood of vertex {vertex:?} could not be walked"
+            ),
+        }
+    }
+}
+
 impl core::fmt::Display for BooleanError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2620,23 +2636,11 @@ impl core::fmt::Display for BooleanError {
             }
             Self::CorruptOperand {
                 operand,
-                corruption: Corruption::Vertex { vertex },
+                corruption,
             } => write!(
                 f,
-                "the neighbourhood of vertex {vertex:?} in the {} operand could not be \
-                 walked (a broken body)",
+                "the {} operand is a broken body: {corruption}",
                 operand_word(*operand)
-            ),
-            Self::CorruptOperand {
-                operand,
-                corruption: Corruption::Structure { errors },
-            } => write!(
-                f,
-                "the {} operand is a broken body ({} structural finding(s), first: {:?}), \
-                 so the Boolean refuses it",
-                operand_word(*operand),
-                errors.len(),
-                errors.first()
             ),
             Self::CrossingInsertion {
                 operand, source, ..
