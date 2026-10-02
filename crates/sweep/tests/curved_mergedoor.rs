@@ -6,8 +6,10 @@
 //! declaration it has no rung for, and the door RECORDS it as a
 //! `SkippedMerge` carrying `DeclaredCarrierUnsupported` — visible in
 //! `BooleanNaming::merge_skipped`, never an `InvalidDeclaration` refusal
-//! blaming the caller. Scenes A, B, C, D and F reach that record and
-//! ship an honest body; scene E stops at the reduction.
+//! blaming the caller. Scenes A, B, C and D reach that record and
+//! ship an honest body; scene E stops at the reduction, and scene F's
+//! aligned walls declared `Rest` are contradicted at the declaration
+//! door.
 //!
 //! Scenes A–D are `mate2_common`'s; scene D's plate/peg builders are
 //! copied from `r1_probes_m9_3` (private there).
@@ -174,33 +176,6 @@ fn carrier_records(outcome: &topo::MergeCoplanarOutcome) -> Vec<&SkippedMerge> {
                 s.reason,
                 MergeCoplanarError::DeclaredCarrierUnsupported { .. }
             )
-        })
-        .collect()
-}
-
-/// The surviving r = 0.5 faces: `(face, sense)` in face-arena order.
-fn bore_radius_faces(body: &Body<f64>) -> Vec<(topo::FaceKey, bool)> {
-    walls_at(body, BORE_R)
-        .into_iter()
-        .map(|f| (f, body.get_face(f).unwrap().sense))
-        .collect()
-}
-
-fn face_of(body: &Body<f64>, he: topo::HalfEdgeKey) -> topo::FaceKey {
-    body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
-        .unwrap()
-        .face
-}
-
-/// Edges shared by two DISTINCT faces of `set`, as `(edge, f1, f2)`.
-fn shared_edges(
-    body: &Body<f64>,
-    set: &[topo::FaceKey],
-) -> Vec<(topo::EdgeKey, topo::FaceKey, topo::FaceKey)> {
-    body.edges()
-        .filter_map(|(ek, e)| {
-            let (f1, f2) = (face_of(body, e.he_plus), face_of(body, e.he_minus));
-            (f1 != f2 && set.contains(&f1) && set.contains(&f2)).then_some((ek, f1, f2))
         })
         .collect()
 }
@@ -901,14 +876,12 @@ fn rendered_skip_names_the_door_not_the_declaration() {
 
 /// Row 7 (E, F): two equal pegs stacked end to end. With only the
 /// caps declared (E) the reduction refuses `CurvedPierceUnsupported`.
-/// With every wall pair declared too (F) the mate REACHES this door:
-/// the union is exact and honest, the nine wall pairs are recorded as
-/// one cylinder pair, and six wall faces survive — all of one sense,
-/// each lower sector meeting its upper across the z = 1 rim (three
-/// CROSS-key shared edges, beside the seam edges each ring's sectors
-/// already share). That is the curved declared rung's consumer (shape
-/// 2), at the door today; the arm that would glue it is a successor's,
-/// and this record is what shows the pair waiting for it.
+/// With every wall pair declared `Rest` too (F) the declaration door
+/// contradicts the walls: they are one cylinder with ALIGNED senses, a
+/// continuation (C4), and aligned senses contradict `Rest` at every
+/// door. The build returns with the `Continuation` seat
+/// (`work/tang/pi-seam-between-two-operands-has-no-declaration.md`;
+/// `work/reach/cosurface-disjoint-curved-walls-refuse.md`).
 #[test]
 fn stacked_equal_pegs_same_sense_walls() {
     let lo = peg_at(0.0, 0.0, 1.0);
@@ -934,35 +907,24 @@ fn stacked_equal_pegs_same_sense_walls() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
-    let bb = union_honest("F", &lo, &hi, &both);
-    let v = volume(&bb.body);
+    let err = topo::union_with(&lo, &hi, &both, Tol::witness())
+        .expect_err("F: aligned walls declared Rest are a false claim");
+    let BooleanError::ContactContradicted {
+        declaration,
+        margin,
+        ..
+    } = err
+    else {
+        panic!("F: the declaration door contradicts the walls: {err:?}");
+    };
     assert!(
-        (v - core::f64::consts::FRAC_PI_2).abs()
-            <= 4.0 * f64::EPSILON * core::f64::consts::FRAC_PI_2,
-        "F: two unit-height r = 1/2 pegs: {v}"
+        is_cylinder(&lo, declaration.a) && is_cylinder(&hi, declaration.b),
+        "F: a wall pair: {declaration:?}"
     );
-    assert_cylinder_records("F", &bb);
-    let faces = bore_radius_faces(&bb.body);
     assert_eq!(
-        faces.len(),
-        6,
-        "F: both walls survive, split at z = 1: {faces:?}"
-    );
-    assert!(
-        faces.iter().all(|&(_, s)| s == faces[0].1),
-        "F: one sense throughout — a continuation, not a slit: {faces:?}"
-    );
-    let keys: Vec<_> = faces.iter().map(|&(f, _)| f).collect();
-    let cross: Vec<_> = shared_edges(&bb.body, &keys)
-        .into_iter()
-        .filter(|&(_, f1, f2)| {
-            bb.body.get_face(f1).unwrap().surface != bb.body.get_face(f2).unwrap().surface
-        })
-        .collect();
-    assert_eq!(
-        cross.len(),
-        3,
-        "F: each lower sector meets its upper across the z = 1 rim: {cross:?}"
+        margin.predicate,
+        Some("contact_rest_senses_opposed"),
+        "F: on the sense bit"
     );
 }
 

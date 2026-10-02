@@ -2859,9 +2859,30 @@ fn verify_rest_declaration<T: Decide>(
         return Ok(false);
     };
     match outcome {
-        Ok(
-            carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
-        ) => Ok(true),
+        Ok(carrier_eq::CarrierRelation::SameOpposite) => Ok(true),
+        // C4: aligned senses contradict `Rest` at every door. On a
+        // curved carrier the aligned pair is a continuation, which
+        // `Rest` cannot stand in for.
+        Ok(carrier_eq::CarrierRelation::SameOriented) if curved_face(a, fa) => {
+            Err(BooleanError::ContactContradicted {
+                declaration: crate::contact::DeclaredContact {
+                    a: fa,
+                    b: fb,
+                    class: ContactClass::Rest,
+                },
+                steer: None,
+                fact: None,
+                margin: Indeterminate {
+                    margin: MarginDiag::INVALID,
+                    band,
+                    // Display-only: the senses are an exact bit, so no
+                    // `decide` ran (the `contact_verify` precedent).
+                    predicate: Some("contact_rest_senses_opposed"),
+                    terminal_sliver: false,
+                },
+            })
+        }
+        Ok(carrier_eq::CarrierRelation::SameOriented) => Ok(true),
         Ok(carrier_eq::CarrierRelation::Distinct) => Ok(false),
         Err(carrier_eq::CarrierEqError::Contradicted { fact, diag }) => {
             Err(BooleanError::ContactContradicted {
@@ -2891,6 +2912,13 @@ fn verify_rest_declaration<T: Decide>(
             })
         }
     }
+}
+
+/// Whether `face`'s carrier is curved (anything but a plane).
+fn curved_face<T: Decide>(body: &Body<T>, face: FaceKey) -> bool {
+    body.get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .is_some_and(|s| !matches!(s, geom::Surface::Plane { .. }))
 }
 
 /// The conformal screen's carrier ladder contradicting a pair it ran

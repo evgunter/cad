@@ -496,6 +496,34 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_on_its_own_carrier() {
             "stacked, discs {class:?}, order 1: against the tube's wall"
         );
     }
+    // With its walls declared `Rest` too, the stacked pair is
+    // contradicted at the declaration door: one cylinder with aligned
+    // senses is a continuation, and aligned senses contradict `Rest` at
+    // every door. It builds once the `Continuation` seat does
+    // (`work/tang/pi-seam-between-two-operands-has-no-declaration.md`;
+    // `work/reach/cosurface-disjoint-curved-walls-refuse.md`).
+    let (wt, ws) = (
+        faces_of(&tube, SurfaceKind::Cylinder),
+        faces_of(&stacked, SurfaceKind::Cylinder),
+    );
+    for (order, x, y, dx, dy, fx, fy) in [
+        (0, &tube, &stacked, &cap_t, &cap_s, &wt, &ws),
+        (1, &stacked, &tube, &cap_s, &cap_t, &ws, &wt),
+    ] {
+        let mut d = declared(dx, dy, ContactClass::Rest);
+        d.coincident_faces
+            .extend(declared(fx, fy, ContactClass::Rest).coincident_faces);
+        let err = topo::union_with(x, y, &d, Tol::witness())
+            .expect_err("aligned walls declared Rest are a false claim");
+        let BooleanError::ContactContradicted { margin, .. } = &err else {
+            panic!("stacked, walls declared Rest, order {order}: contradicted: {err:?}");
+        };
+        assert_eq!(
+            margin.predicate,
+            Some("contact_rest_senses_opposed"),
+            "stacked, order {order}: on the sense bit"
+        );
+    }
     let cone = frustum_on_the_cap();
     let cap_c = planes_at_z(&cone, H);
     for class in [None, Some(ContactClass::Rest)] {

@@ -27,13 +27,13 @@
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
-//! a declared coincident torus pair now passes the crossing layer —
-//! the carrier-identity rung reads the verified `Rest` declaration
-//! before the sampled clearance, whose `±charge` about an identically
-//! zero residual would read definitely negative — and stops at the
-//! no-crossings fallback's section pass, on the coincident pair's
-//! tangency. The peg seated in its socket goes further: its union
-//! builds, through the declared-REST zip.
+//! the peg seated in its socket builds its union through the
+//! declared-REST zip, and its ∖ and ∩ stop at the section pass. Two
+//! coincident full tori are one carrier with ALIGNED senses, a
+//! continuation (C4), so a `Rest` claim on them is contradicted at the
+//! declaration door; they return with the `Continuation` seat
+//! (`work/tang/pi-seam-between-two-operands-has-no-declaration.md`;
+//! `work/reach/cosurface-disjoint-curved-walls-refuse.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -362,44 +362,38 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
     );
 }
 
-/// **Where the lane stops once the gate is past, held still.** Two
-/// coincident full tori, every wall pair declared `Rest`.
-///
-/// The seam meridians ride the other torus's carrier, where the
-/// residual is identically zero and the sampled enclosure is `±charge`
-/// about it — a one-sidedness margin of `−charge` that reads
-/// definitely negative (or in-band, at a loose eps), so the circle rung
-/// used to take its frontier before the declared cover behind it was
-/// ever consulted. The carrier-identity rung now reads the verified
-/// `Rest` declaration FIRST: the edge bounds a face on the other face's
-/// carrier, so its clearance is zero by that certificate, and the
-/// declared cover takes the endpoint posture.
-///
-/// What stops the lane now is the no-crossings fallback's section pass:
-/// no crossing cuts either torus, and a coincident coaxial pair is the
-/// tangent row of the torus × torus classification (the tube circles
-/// coincide, so the nesting margin is zero) — exactly the case the
-/// vertex probe cannot decide (every vertex it would probe lies on the
-/// other torus), so the pass refuses typed before the probe runs. The property is the one
-/// this row has always held: a coincident torus pair never reaches a
-/// body it cannot justify.
+/// **Two coincident full tori declared `Rest` are contradicted.** The
+/// pair is one carrier with aligned senses: a continuation, not a
+/// contact, and C4's `Rest` table refuses aligned senses at every door.
+/// The declaration door says so before any classification runs. The
+/// build returns with the `Continuation` seat
+/// (`work/tang/pi-seam-between-two-operands-has-no-declaration.md`;
+/// `work/reach/cosurface-disjoint-curved-walls-refuse.md`).
 #[test]
-fn the_admitted_torus_lane_stops_at_the_section_pass() {
+fn two_coincident_tori_declared_rest_are_contradicted() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("a coincident torus pair still has no classification verdict");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-        panic!(
-            "the declared coincident pair passes the crossing layer and stops at \
-             the section pass: {err:?}"
-        );
+        .expect_err("an aligned pair declared Rest is a false claim");
+    assert_aligned_rest_contradicted("coincident pair, A ∪ B", &err);
+}
+
+/// `err` is the declaration door contradicting a torus `Rest` claim by
+/// its aligned senses.
+fn assert_aligned_rest_contradicted(label: &str, err: &BooleanError) {
+    let BooleanError::ContactContradicted {
+        declaration,
+        margin,
+        ..
+    } = err
+    else {
+        panic!("{label}: the declaration door contradicts the aligned pair: {err:?}");
     };
-    // The tangency sentence (R-tan): the coincident tube circles are the
-    // torus × torus classification's zero nesting margin.
-    assert!(
-        what.contains("tangent or near-tangent carriers"),
-        "the pass refuses the coincident pair as a tangency: {what}"
+    assert_eq!(declaration.class, ContactClass::Rest, "{label}: the class");
+    assert_eq!(
+        margin.predicate,
+        Some("contact_rest_senses_opposed"),
+        "{label}: on the sense bit"
     );
 }
 
@@ -583,8 +577,9 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
 /// is on the roster, so a torus pair under a subtract or an intersect
 /// reaches the same doors as under a union, in both operand orders:
 ///
-/// - the declared socket and peg, and the declared coincident pair,
-///   stop at the no-crossings section pass on the tangency (R-tan);
+/// - the declared socket and peg stop at the no-crossings section pass
+///   on the tangency (R-tan); the coincident pair declared `Rest` is
+///   contradicted at the declaration door (aligned senses);
 /// - the declared chain routes to the seam, the declared kissing pair
 ///   to the unbuilt cusp family;
 /// - undeclared, each pair refuses at the crossing layer (escalated
@@ -616,7 +611,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         &b,
         &wall_declarations(&a, &b, TUBE, ContactClass::Rest),
     ) {
-        tangency(&format!("coincident pair, {op}"), &r.expect_err(op));
+        assert_aligned_rest_contradicted(&format!("coincident pair, {op}"), &r.expect_err(op));
     }
     let (a, b) = (segment_a(), segment_b());
     for (op, r) in subtract_both_orders_and_intersect(

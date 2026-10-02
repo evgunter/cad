@@ -58,13 +58,15 @@ on ZIP's slate. Loosening its facing test alone reaches
 
 ## Measured (TANG, 2026-10-02, branch `tang/abutting-rim`)
 
-Both handles BUILD there, through the declared-REST zip, at tier 3 and
-at exactly the two halves' volumes (torus 14.697464134831963, cylinder
-14.41991027997715). The zip now matches germs along circle arcs both
-operands carry between two sites before its straight-chord test, and a
-segment names its two arcs, so the joint circle's two semicircles are two
-seams (`rest.rs`, `arcs_along`). Five curved merge groups are skipped and
-shipped, as DESIGN's output rule says of a curved group. JOIN-2's plan
-replaces `enumerate_segments` with the join's segments; this is the
-interim, and the rows in `germ_torus_doors.rs` are re-pinned to the
-bodies.
+The dumbbell's waists (torus) and handles (cylinder) are one carrier
+with ALIGNED senses: a continuation, which `Rest` cannot state (C4). PR
+3823 makes the declaration door contradict such a `Rest` claim, so the
+declared dumbbell now refuses `ContactContradicted` before the join, and
+`germ_torus_doors.rs` pins that. Before the door enforced the sense bit,
+the same branch built both handles through the declared-REST zip at
+tier 3, at exactly the two halves' volumes (torus 14.697464134831963,
+cylinder 14.41991027997715): the zip matches the joint circle's two
+semicircles as arcs (`rest.rs`, `arcs_along`). So the loose ends this row
+names are past once the dumbbell can be declared `Continuation`
+(`work/tang/pi-seam-between-two-operands-has-no-declaration.md`). JOIN-2's
+plan replaces `enumerate_segments` with the join's segments.

@@ -42,3 +42,12 @@ locus with the sense bit reversed; opposed senses contradict it; it is
 routed by the material wedge and zipped as the smooth seam carrying
 `TangentIntersection`. It is a cover source in C4's one-sided-cover
 list.
+
+## Rows waiting on the `BooleanCoincidence` seat (TANG, PR 3823)
+
+The declaration door now contradicts `Rest` on an aligned curved pair,
+so the continuations that used to build under a `Rest` stand-in refuse
+until the seat carries `Continuation`. The list is in
+`work/reach/cosurface-disjoint-curved-walls-refuse.md`, "Aligned curved
+walls declared `Rest` are contradicted". The dumbbell's joint and the
+stacked tube are the ones to re-pin as builds.

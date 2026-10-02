@@ -163,14 +163,28 @@ code, and Ev ruled for it on 2026-10-01 ("sounds good!"): a continuation
 is an aligned one-carrier pair whether its faces abut or overlap, and an
 undeclared one refuses in every op.
 
-## A stacked cylinder with its walls declared `Rest` builds (TANG, 2026-10-02)
+## Aligned curved walls declared `Rest` are contradicted (TANG, 2026-10-02)
 
-Measured on branch `tang/abutting-rim`: a tube of radius 1 over
-`z ∈ [0, 2]` unioned with one over `z ∈ [2, 3]`, the end discs and the
-two walls declared `Rest`. The walls' senses are ALIGNED, which C4
-says contradicts `Rest`, but the declaration door accepts it (this row's
-"read two ways"). On main the union refused `Join(UnpairedLooseEnds)`;
-there the declared-REST zip matches the rim's semicircles as arcs and
-the union builds, at tier 3 and at `3π`, with three curved merge groups
-skipped. `BooleanCoincidence::Continuation` is not in the code yet, so
-it could not be measured declared so.
+Branch `tang/abutting-rim` (PR 3823) makes the declaration door enforce
+C4's sense bit for curved carriers: a `Rest` claim on a one-carrier pair
+with ALIGNED senses refuses `ContactContradicted`
+(`contact_rest_senses_opposed`). Before that the door accepted it, and
+the PR's arc matching in the declared-REST zip built such pairs: a tube
+of radius 1 over `z ∈ [0, 2]` unioned with one over `z ∈ [2, 3]`, discs
+and walls declared `Rest`, built at tier 3 and `3π`. Main refused it
+`Join(UnpairedLooseEnds)`. The rows that now pin the refusal, and that
+come back here as builds once `BooleanCoincidence::Continuation` is in
+the code:
+
+- `sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`
+  `a_cap_abutting_on_the_rim_refuses_at_a_graze_or_on_its_own_carrier`
+  (the stacked tube);
+- `sweep/tests/curved_mergedoor.rs` `stacked_equal_pegs_same_sense_walls`
+  (scene F, which built on main through the merge door's skip record);
+- `sweep/tests/germ_torus_doors.rs`
+  `the_waists_declared_rest_are_contradicted_by_their_aligned_senses` and
+  `subtract_and_intersect_refuse_where_union_does` (the dumbbell, torus
+  and cylinder handles);
+- `sweep/tests/mate7a_torus_rest.rs`
+  `two_coincident_tori_declared_rest_are_contradicted` and
+  `subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does`.

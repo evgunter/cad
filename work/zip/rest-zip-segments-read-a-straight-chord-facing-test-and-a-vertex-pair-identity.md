@@ -43,7 +43,9 @@ needed for an abutting rim (a dome on a tube): `enumerate_segments`
 first matches a germ pair along a circle arc each operand carries from
 one site to the other, leaving along the germ (`arcs_along`), and the
 `Segment` carries those two arcs, which `realize_seam` uses in place of
-`fan_edge_between`. The straight-chord test still matches every other
-pair. The dumbbell builds. JOIN-2's plan (the zip reads the join's
+`fan_edge_between`. The arc pass is not limited to arcs the straight
+test cannot pair: it also pairs the straight-seam peg fixtures' circle
+seams, with unchanged outcomes (ignoring `bool_arc_ahead` turns 19 rows
+red). The straight-chord test matches every pair no arc does. JOIN-2's plan (the zip reads the join's
 segments) would replace both; whether this row closes on that branch or
 on JOIN-2 is the owner's call.
