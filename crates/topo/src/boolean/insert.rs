@@ -362,8 +362,8 @@ pub(super) fn strut_facing(
 /// face's outward `normal`. A cosine orders two angles from `e_dir`
 /// only within one half-turn, and a reflex sector reaches past it, so
 /// each germ is first placed in the half-turn it lies in: the near one
-/// (angle in `[0, π)`, `(g × e)·n > 0`, or `g` along `e`) or the far one
-/// (`[π, 2π)`). A germ in the near half-turn is the closer; within the
+/// (angle in `[0, π)`: `(g × e)·n > 0`, or `g` along `e`) or the far one
+/// (`[π, 2π)`: `(g × e)·n < 0`, or `g` against `e`). A germ in the near half-turn is the closer; within the
 /// near one the larger cosine is, within the far one the smaller.
 ///
 /// Every comparand is a displacement levered at `arm`, the shorter of
@@ -381,7 +381,13 @@ fn strut_order<T: Decide>(
         match crate::validate::decide("bool_strut_order", side, band).map_err(refuse)? {
             Sign::Positive => Ok(false),
             Sign::Negative => Ok(true),
-            Sign::Zero => Ok(!super::sectors::direction_sense(g, e_dir, arm, band)?),
+            Sign::Zero => {
+                let along = Margin::levered(g.dot(e_dir), arm);
+                Ok(
+                    crate::validate::decide("bool_strut_order", along, band).map_err(refuse)?
+                        == Sign::Negative,
+                )
+            }
         }
     };
     let (far0, far1) = (far(germs.0)?, far(germs.1)?);
