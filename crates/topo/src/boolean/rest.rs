@@ -200,6 +200,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 
     // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
+    eprintln!("REST past enumerate+vcorr, segments={}", segments.len());
     undo_struts(&mut red)?;
 
     // Pierce-ring vertices: ring vertex → host face, per operand.
@@ -223,7 +224,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?;
     let Some(a_seam) = a_seam else {
-        return Ok(None);
+        eprintln!("REST-EXIT a_seam none"); return Ok(None);
     };
     let b_seam = realize_seam(
         &mut red.b,
@@ -233,18 +234,18 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?;
     let Some(b_seam) = b_seam else {
-        return Ok(None);
+        eprintln!("REST-EXIT b_seam none"); return Ok(None);
     };
 
     // ---- 5. Patch discovery + cross-mate pairing. ----
     let Some(a_patch) = patch_faces(&red.a, &a_seam, &a_rest)? else {
-        return Ok(None);
+        eprintln!("REST-EXIT a_patch none"); return Ok(None);
     };
     let Some(b_patch) = patch_faces(&red.b, &b_seam, &b_rest)? else {
-        return Ok(None);
+        eprintln!("REST-EXIT b_patch none"); return Ok(None);
     };
     if a_patch.len() != b_patch.len() {
-        return Ok(None);
+        eprintln!("REST-EXIT patch len"); return Ok(None);
     }
     let pairs = pair_patches(&red.a, &red.b, &a_patch, &b_patch, &vcorr)?;
 
@@ -488,10 +489,16 @@ fn enumerate_segments<T: Decide>(
                 // band — class (c)).
                 let f1 = germs[i].dir.dot(chord);
                 let f2 = germs[j].dir.dot(-chord);
-                if decide("bool_join_facing", Margin::of(f1), band).map_err(escalate)?
-                    != Sign::Positive
-                    || decide("bool_join_facing", Margin::of(f2), band).map_err(escalate)?
+                if std::env::var_os("CAD_JOIN_PROBE").is_some() {
+                    eprintln!("  FACING {i}->{j} f1={f1:?} f2={f2:?}");
+                }
+                let skip_facing = std::env::var_os("CAD_REST_LOOSE").is_some()
+                    && decide("bool_join_facing", Margin::of(germs[i].dir.dot(germs[j].dir)), band).map_err(escalate)? == Sign::Positive;
+                if !skip_facing
+                    && (decide("bool_join_facing", Margin::of(f1), band).map_err(escalate)?
                         != Sign::Positive
+                        || decide("bool_join_facing", Margin::of(f2), band).map_err(escalate)?
+                            != Sign::Positive)
                 {
                     continue;
                 }
@@ -521,6 +528,24 @@ fn enumerate_segments<T: Decide>(
             b_u: bu,
             b_v: bv,
         });
+    }
+    if std::env::var_os("CAD_JOIN_PROBE").is_some() {
+        eprintln!("REST-ENUM segments={} germs={}", segments.len(), germs.len());
+        for s in &segments {
+            eprintln!(
+                "  SEG A {:?}->{:?} pts {:?} -> {:?}",
+                s.a_u,
+                s.a_v,
+                red.a.get_vertex(s.a_u).and_then(|v| red.a.get_point(v.point)),
+                red.a.get_vertex(s.a_v).and_then(|v| red.a.get_point(v.point))
+            );
+        }
+        for g in &germs {
+            eprintln!(
+                "  GERM pair={} used={} at ({:?},{:?},{:?}) dir ({:?},{:?},{:?})",
+                g.pair, g.used, g.point.x, g.point.y, g.point.z, g.dir.x, g.dir.y, g.dir.z
+            );
+        }
     }
     if germs.iter().any(|g| !g.used) {
         return Ok(None); // leftover germs: not a pure REST seam

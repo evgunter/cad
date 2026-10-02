@@ -371,6 +371,21 @@ pub(super) fn bool_connect<T: Decide>(
 
     // Fixpoint (module docs).
     while let Some(m) = find_match(&open, red, &sa, &sb, band)? {
+        if std::env::var_os("CAD_JOIN_PROBE").is_some() {
+            let g = open[m.entry].a[m.entry_slot].0;
+            let h = open[m.cand].a[m.cand_slot].0;
+            eprintln!(
+                "  MATCH {:?}[{}] {} -> {:?}[{}] {} on A:{} B:{}",
+                open[m.entry].a_edge,
+                m.entry_slot,
+                red.a.get_half_edge(g.he).map(|x| probe_pt(&red.a, x.start)).unwrap_or_default(),
+                open[m.cand].a_edge,
+                m.cand_slot,
+                red.a.get_half_edge(h.he).map(|x| probe_pt(&red.a, x.start)).unwrap_or_default(),
+                probe_surf(&red.a, g.a_face),
+                probe_surf(&red.b, g.b_face)
+            );
+        }
         let (ea, ra) = (
             open[m.entry].a[m.entry_slot].0.he,
             open[m.cand].a[m.cand_slot].0.he,
@@ -623,6 +638,31 @@ pub(super) fn bool_connect<T: Decide>(
         .map(|r| r.a.iter().filter(|(_, u)| !u).count())
         .sum();
     if leftovers != 0 {
+        if std::env::var_os("CAD_JOIN_PROBE").is_some() {
+            let used: Vec<(EdgeKey, [bool; 2])> = open
+                .iter()
+                .flat_map(|r| [(r.a_edge, [r.a[0].1, r.a[1].1]), (r.b_edge, [r.b[0].1, r.b[1].1])])
+                .collect();
+            probe_dump(red, &used, "leftover");
+            for r in &open {
+                for s in 0..2 {
+                    if !r.a[s].1 {
+                        let g = r.a[s].0;
+                        let gb = r.b[s].0;
+                        eprintln!(
+                            "  LOOSE rec a_edge={:?} b_edge={:?} slot {s}: A he_start={} dir=({:?},{:?},{:?}) | B he_start={} | pair A:{} B:{}",
+                            r.a_edge,
+                            r.b_edge,
+                            red.a.get_half_edge(g.he).map(|h| probe_pt(&red.a, h.start)).unwrap_or("<gone>".into()),
+                            g.dir.x, g.dir.y, g.dir.z,
+                            red.b.get_half_edge(gb.he).map(|h| probe_pt(&red.b, h.start)).unwrap_or("<gone>".into()),
+                            probe_surf(&red.a, g.a_face),
+                            probe_surf(&red.b, g.b_face)
+                        );
+                    }
+                }
+            }
+        }
         return Err(BooleanError::Join(SplitJoinError::UnpairedLooseEnds {
             count: leftovers,
         }));
@@ -632,6 +672,80 @@ pub(super) fn bool_connect<T: Decide>(
         a_fragments: sa.joiner.take_fragments(),
         b_fragments: sb.joiner.take_fragments(),
     })
+}
+
+// ---- join/inface-probe instrument (measurement only) ----
+fn probe_surf<T: Decide>(body: &Body<T>, f: FaceKey) -> String {
+    let Some(fd) = body.get_face(f) else {
+        return format!("{f:?}=<gone>");
+    };
+    match body.get_surface(fd.surface) {
+        Some(geom::Surface::Plane { origin, normal, .. }) => format!(
+            "{f:?}=Plane(o=({:?},{:?},{:?}) n=({:?},{:?},{:?}))",
+            origin.x, origin.y, origin.z, normal.x, normal.y, normal.z
+        ),
+        Some(s) => format!("{f:?}={:?}", geom_brep::SurfaceKind::of(s)),
+        None => format!("{f:?}=<nosurf>"),
+    }
+}
+fn probe_pt<T: Decide>(body: &Body<T>, v: VertexKey) -> String {
+    match crate::readback::vertex_point(body, v) {
+        Ok(p) => format!("({:?},{:?},{:?})", p.x, p.y, p.z),
+        Err(_) => "<gone>".into(),
+    }
+}
+pub(super) fn probe_dump<T: Decide>(
+    red: &BooleanReduction<T>,
+    used: &[(EdgeKey, [bool; 2])],
+    tag: &str,
+) {
+    if std::env::var_os("CAD_JOIN_PROBE").is_none() {
+        return;
+    }
+    eprintln!(
+        "PROBE[{tag}] op={:?} contacts: vv={} a_on_b={} b_on_a={}",
+        red.op,
+        red.contacts.vv.len(),
+        red.contacts.a_on_b.len(),
+        red.contacts.b_on_a.len()
+    );
+    for c in &red.contacts.vv {
+        eprintln!("  vv A{} B{}", probe_pt(&red.a, c.a), probe_pt(&red.b, c.b));
+    }
+    for c in &red.contacts.a_on_b {
+        eprintln!("  AonB A{} on {}", probe_pt(&red.a, c.vertex), probe_surf(&red.b, c.face));
+    }
+    for c in &red.contacts.b_on_a {
+        eprintln!("  BonA B{} on {}", probe_pt(&red.b, c.vertex), probe_surf(&red.a, c.face));
+    }
+    for p in &red.null_pairs {
+        eprintln!("  pair {:?} a_edge={:?} b_edge={:?}", p.site, p.a_edge, p.b_edge);
+    }
+    for r in &red.null_edges {
+        let body = match r.operand {
+            Operand::A => &red.a,
+            Operand::B => &red.b,
+        };
+        let u = used.iter().find(|(e, _)| *e == r.edge).map(|(_, u)| *u);
+        eprintln!(
+            "  null {:?} {:?} at {} dangling={} open_used={:?}",
+            r.operand,
+            r.edge,
+            probe_pt(body, r.at_vertex),
+            r.dangling,
+            u
+        );
+        for (i, g) in r.germs.iter().enumerate() {
+            eprintln!(
+                "    germ[{i}] dir=({:?},{:?},{:?}) A:{} B:{}",
+                g.dir.x,
+                g.dir.y,
+                g.dir.z,
+                probe_surf(&red.a, g.a_face),
+                probe_surf(&red.b, g.b_face)
+            );
+        }
+    }
 }
 
 /// `scanjoin`, germ form (module docs): among all candidate/entry slot
@@ -687,8 +801,20 @@ fn find_match<T: Decide>(
                 for &es in &slots(&e.a) {
                     let ega = e.a[es].0;
                     let e_he = ega.he;
-                    if ega.a_face != rga.a_face || ega.b_face != rga.b_face {
+                    let loose = std::env::var_os("CAD_JOIN_LOOSE").is_some();
+                    if (!loose && ega.a_face != rga.a_face) || ega.b_face != rga.b_face {
                         continue;
+                    }
+                    if std::env::var_os("CAD_JOIN_PROBE").is_some()
+                        && ega.a_face != rga.a_face
+                    {
+                        eprintln!(
+                            "  LOOSE-CAND e{:?}[{es}] up={} r{:?}[{cs}] up={}",
+                            e.a_edge,
+                            sa.is_up(&red.a, e_he)?,
+                            rec.a_edge,
+                            sa.is_up(&red.a, r_he)?
+                        );
                     }
                     if sa.is_up(&red.a, e_he)? == sa.is_up(&red.a, r_he)? {
                         continue;

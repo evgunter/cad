@@ -746,6 +746,25 @@ fn three_face_cylinder() -> Body<f64> {
 /// verbatim for both. That stop is not a torus door
 /// (`work/zip/dumbbell-joint-union-leaves-four-loose-ends`).
 #[test]
+fn zz_probe_dumbbell() {
+    for handle in [Handle::Cylinder, Handle::Torus] {
+        let (a, b) = (half(1.0, handle), half(-1.0, handle));
+        for (name, body) in [("A", &a), ("B", &b)] {
+            for (e, _) in body.edges() {
+                let ed = body.get_edge(e).unwrap();
+                let s = body.get_half_edge(ed.he_plus).unwrap().start;
+                let t = body.get_half_edge(ed.he_minus).unwrap().start;
+                let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                eprintln!("EDGE {name} {e:?} {:?} -> {:?}", p(s), p(t));
+            }
+        }
+        eprintln!("=== {handle:?}");
+        let r = t2(handle);
+        eprintln!("RESULT {handle:?}: {:?}", r.err());
+    }
+}
+
+#[test]
 fn the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control() {
     for handle in [Handle::Torus, Handle::Cylinder] {
         let err = t2(handle).expect_err("the dumbbell's joint does not zip yet");

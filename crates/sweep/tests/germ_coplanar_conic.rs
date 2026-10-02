@@ -234,6 +234,15 @@ type Row = (
 );
 
 #[test]
+fn zz_probe_whole_strut() {
+    let fx = fixtures().into_iter().find(|f| f.name == "whole tube strut in the box top").unwrap();
+    eprintln!("=== subtract");
+    eprintln!("RESULT subtract: {:?}", topo::subtract(&fx.a, &fx.b, Tol::witness()).err());
+    eprintln!("=== union");
+    eprintln!("RESULT union: {:?}", topo::union(&fx.a, &fx.b, Tol::witness()).err());
+}
+
+#[test]
 fn every_op_refuses_or_answers_its_closed_form() {
     let band = Band::linear(Tol::witness()).unwrap();
     let tol = Tol::witness();

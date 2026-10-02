@@ -730,8 +730,11 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
             return Err(super::sectors::bisector_zero_refusal(band));
         }
+        let mixed_out = std::env::var_os("CAD_VTXFAC_MIXED_OUT").is_some();
         entries[k].class = match (prev, next) {
             (SideCode::Out, SideCode::Out) => SideCode::Out,
+            (SideCode::In, SideCode::In) => SideCode::In,
+            _ if mixed_out && entries[k].is_edge => SideCode::Out,
             _ => SideCode::In,
         };
     }

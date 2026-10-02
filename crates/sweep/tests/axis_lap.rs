@@ -122,6 +122,88 @@ fn assert_sound(body: &Body<f64>, expect: f64, what: &str) {
 /// next is the edge-in-face class, which the planar diamond in the same
 /// pose refuses identically.
 #[test]
+fn zz_probe_diamond_lap() {
+    let e = cut(&diamond(), ACROSS, (0.0, 1.0), LAP);
+    eprintln!("RESULT diamond: {:?}", e.err());
+}
+
+#[test]
+fn zz_probe_diamond_flat() {
+    let e = cut(&diamond(), ACROSS, (0.0, 1.0), FLAT);
+    eprintln!("RESULT diamond flat: {:?}", e.err());
+}
+
+#[test]
+fn zz_probe_diamond_lap_neg() {
+    let e = cut(&diamond(), ACROSS, (-1.0, 0.0), LAP);
+    eprintln!("RESULT diamond neg: {:?}", e.err());
+}
+
+#[test]
+fn zz_probe_diamond_lap_ops() {
+    let b = brick(ACROSS, (0.0, 1.0), LAP, tol());
+    eprintln!("=== union");
+    eprintln!("RESULT union: {:?}", topo::union(&diamond(), &b, tol()).err());
+    eprintln!("=== intersect");
+    eprintln!("RESULT intersect: {:?}", topo::intersect(&diamond(), &b, tol()).err());
+}
+
+#[test]
+fn zz_probe_sound() {
+    let dv = 2.0 * R * R * LEN;
+    let rv = PI * R * R * LEN;
+    let b = brick(ACROSS, (0.0, 1.0), LAP, tol());
+    let body = |r: Result<topo::BooleanResult<f64>, BooleanError>| {
+        r.map(|r| r.body().expect("a body").body.clone())
+    };
+    let rows: Vec<(&str, Result<Body<f64>, BooleanError>, f64)> = vec![
+        ("diamond-y+", cut(&diamond(), ACROSS, (0.0, 1.0), LAP), dv - 0.25),
+        ("diamond-y-", cut(&diamond(), ACROSS, (-1.0, 0.0), LAP), dv - 0.25),
+        ("rod-y+", cut(&rod(), ACROSS, (0.0, 1.0), LAP), rv - PI * R * R / 2.0),
+        ("rod-y-", cut(&rod(), ACROSS, (-1.0, 0.0), LAP), rv - PI * R * R / 2.0),
+        ("diamond-union", body(topo::union(&diamond(), &b, tol())), dv + 3.0 - 0.25),
+        ("diamond-intersect", body(topo::intersect(&diamond(), &b, tol())), 0.25),
+        ("rod-union", body(topo::union(&rod(), &b, tol())), rv + 3.0 - PI * R * R / 2.0),
+        ("rod-intersect", body(topo::intersect(&rod(), &b, tol())), PI * R * R / 2.0),
+    ];
+    for (name, r, want) in rows {
+        match r {
+            Err(e) => eprintln!("SOUND {name}: refused {e:?}"),
+            Ok(b) => {
+                let cert = topo::validate_geometric_certificate(&b, tol());
+                let v = topo::mass_properties(&b, tol()).map(|m| m.volume);
+                eprintln!("SOUND {name}: cert={:?} vol={v:?} want={want}", cert.as_ref().err());
+                if let Err(errs) = cert {
+                    for e in errs {
+                        if let topo::ValidationError::PlanarBoundaryResidual { face, edge } = e {
+                            let fd = b.get_face(face).unwrap();
+                            eprintln!("   face surf {:?}", b.get_surface(fd.surface));
+                            let ed = b.get_edge(edge).unwrap();
+                            let p = |h| {
+                                let v = b.get_half_edge(h).unwrap().start;
+                                *b.get_point(b.get_vertex(v).unwrap().point).unwrap()
+                            };
+                            eprintln!(
+                                "   edge {:?} -> {:?} curve {:?}",
+                                p(ed.he_plus),
+                                p(ed.he_minus),
+                                b.get_curve_geom(ed.curve)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn zz_probe_rod_lap() {
+    let e = cut(&rod(), ACROSS, (0.0, 1.0), LAP);
+    eprintln!("RESULT rod: {:?}", e.err());
+}
+
+#[test]
 fn axis_lap_refuses_where_its_planar_twin_does() {
     for y in [(0.0, 1.0), (-1.0, 0.0)] {
         for (name, body) in [("rod", rod()), ("diamond", diamond())] {
