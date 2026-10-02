@@ -213,10 +213,12 @@ impl core::fmt::Display for IdAnswer {
     }
 }
 
-/// A name as a sentence about two DIFFERING answers says it: kind and
-/// minting node ([`Speaker::name`]), then the role path
-/// ([`Disagreement`]'s sentence says why both halves).
-struct NameAndPath<'a>(&'a StableName, Speaker<'a>);
+/// **A name as a sentence that must tell two names apart says it**:
+/// kind and minting node ([`Speaker::name`]), then the role path
+/// ([`Disagreement`]'s sentence says why both halves). The one spelling
+/// of a name that two answers could otherwise share; the tie
+/// `crate::frame::pick_refusal` reports says its faces this way too.
+pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
 
 impl core::fmt::Display for NameAndPath<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

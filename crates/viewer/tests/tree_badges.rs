@@ -651,7 +651,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         node: bench.post_a,
         body: 0,
     };
-    match BlendTool::new().load_all_edges(target, ev, &index) {
+    match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the blend loader");
         }

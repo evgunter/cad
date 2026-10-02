@@ -839,7 +839,12 @@ impl ViewerBehavior<'_> {
             self.tools,
             self.drafts,
         );
-        *self.held_edges_refused = composed.edges().held_refused.clone();
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        *self.held_edges_refused = composed
+            .edges()
+            .held_refused
+            .clone()
+            .map(|refused| frame::Spelled::in_landed(refused, landed));
         // **The three lanes this pane composes itself**, each as the
         // value that owns the display seam's rule
         // ([`marks::LegLane`]) rather than as a bare `Vec` each block
@@ -1809,7 +1814,7 @@ mod tests {
     /// nothing* against a ray that named a face, and as silent
     /// agreement against a ray that named nothing. The two rows below
     /// each ask one of those cursors. The ray's names come back as the
-    /// landed document speaks them.
+    /// landed document speaks them, role path included.
     fn unassigned_id_news(
         wanted: impl Fn(&[StableName]) -> bool,
     ) -> (u32, Vec<StableName>, Vec<String>, Option<frame::Message>) {
@@ -1868,7 +1873,7 @@ mod tests {
         let news = cursor_news(&index, question, answer, log.outstanding(), true);
         let spoken = from_ray
             .iter()
-            .map(|name| landed.spoken_name(name).to_string())
+            .map(|name| idpass::NameAndPath(name, pncad::document::Speaker::of(landed)).to_string())
             .collect();
         (unassigned, from_ray, spoken, news)
     }
@@ -1901,16 +1906,15 @@ mod tests {
             .zip(spoken.first())
             .expect("the helper returns the one-face answer it was asked for");
         assert!(
-            said.contains("Extrude"),
-            "the face's minter is said as the landed document holds it: {said}"
+            said.contains("Extrude") && said.ends_with(&format!("({:?})", named.path)),
+            "the face's minter is said as the landed document holds it, then its path: {said}"
         );
         assert_eq!(
             news.expect("an unassigned id against a named face is a disagreement")
                 .text(),
             format!(
                 "picking paths disagree at the cursor: id buffer id {id}, \
-                 which no patch of this picture draws, ray {said} ({:?})",
-                named.path
+                 which no patch of this picture draws, ray {said}"
             ),
         );
     }

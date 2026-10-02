@@ -35,7 +35,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Speaker};
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Say, Speaker};
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, DuplicateTool, PartTool, PatternTool, SplitTool, TransformTool};
@@ -259,26 +259,33 @@ pub enum ToolNotice {
     },
 }
 
-impl core::fmt::Display for ToolNotice {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// The mate and seated arms say the node their event snapshotted when
+/// the pick was held (`SpokenNode`), so the speaker reaches the blend
+/// arm alone, whose event holds bare ids.
+impl Say for ToolNotice {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
             Self::Mate(event) => ToolKind::Mate.says(event),
-            Self::Blend(event) => ToolKind::Blend.says(event),
+            Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
         };
         f.write_str(&said)
     }
 }
 
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ToolNotice {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
 impl ToolNotice {
-    /// **The sentence the line shows**: the blend tool's nodes said
-    /// from `landed`, the landed document its picks and loads were read
-    /// off, and by their tags with nothing landed.
+    /// **The sentence the line shows**: each bare id said from
+    /// `landed`, the landed document the tool's picks and loads were
+    /// read off, and by its tag with nothing landed.
     pub fn said(&self, landed: Option<&Doc<ProfileProgram>>) -> String {
-        match (self, landed) {
-            (Self::Blend(event), Some(doc)) => ToolKind::Blend.says(&Said(event, Speaker::of(doc))),
-            _ => self.to_string(),
-        }
+        Said(self, landed.map_or(Speaker::TAG, Speaker::of)).to_string()
     }
 }
 
@@ -538,7 +545,7 @@ impl Tools {
                 }
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
-                        notices.extend(tool.pick(edge).map(ToolNotice::Blend));
+                        notices.extend(tool.pick(doc, edge).map(ToolNotice::Blend));
                     }
                 }
                 Some(OpenTool::Revolve(tool)) => {

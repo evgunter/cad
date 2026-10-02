@@ -1647,9 +1647,13 @@ impl ViewerBehavior<'_> {
         };
         crate::widgets::message(ui, ToolKind::Blend.says(&"pick the edges to blend"));
         crate::widgets::message_toned(ui, FREEZE_NOTE, &self.theme, Tone::Advisory);
-        ui.weak(match target {
-            Some(target) => format!("{count} edges picked on {target}"),
-            None => "no edges picked yet".to_owned(),
+        ui.weak(match (target, self.session.landed_pair()) {
+            (Some(target), Some((landed, _))) => format!(
+                "{count} edges picked on {}",
+                Said(&target, Speaker::of(landed))
+            ),
+            (Some(target), None) => format!("{count} edges picked on {target}"),
+            (None, _) => "no edges picked yet".to_owned(),
         });
         self.all_edges_row(ui, target);
         ui.horizontal(|ui| {
@@ -1716,7 +1720,7 @@ impl ViewerBehavior<'_> {
         let event = self
             .tools
             .blend_mut()
-            .and_then(|tool| tool.load_all_edges(target, eval, index));
+            .and_then(|tool| tool.load_all_edges(target, landed, eval, index));
         if let Some(event) = event {
             self.notices
                 .push(frame::tool_notice(&ToolNotice::Blend(event), Some(landed)));

@@ -171,7 +171,11 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // which is the keep-last defect the batch policy already exists to
     // stop for refusals.
     let second = frame::tool_notice(
-        &ToolNotice::Blend(BlendEvent::TargetLost { target, edges: 6 }),
+        &ToolNotice::Blend(BlendEvent::TargetLost {
+            target,
+            node: pncad::document::SpokenNode::absent(target.node),
+            edges: 6,
+        }),
         None,
     );
     let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
@@ -1320,13 +1324,50 @@ fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
         body: 0,
     };
     let refused = unnamed_on(target);
-    let badge = frame::held_edges_badge(Some(&refused), None).expect("a refusal badges");
+    let spelled = frame::Spelled {
+        doc: None,
+        value: refused.clone(),
+    };
+    let badge = frame::held_edges_badge(Some(&spelled), None).expect("a refusal badges");
     let line = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::EdgesUnnamed { refused }),
         None,
     );
     assert_eq!(badge.subject(), frame::Subject::Document);
     assert_eq!(line.subject(), badge.subject());
+}
+
+/// **A held-edge refusal speaks its node only from the document it is
+/// spelled in.** The viewport made it last frame; an `Open` since then
+/// lands another document, which may hold the same id as another node,
+/// so the badge says the tag there rather than that document's label.
+#[test]
+fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let (landed, _) = session.landed_pair().expect("landed");
+    let refused = unnamed_on(viewer::blend::BlendTarget {
+        node: extrude,
+        body: 0,
+    });
+    let label = |spelled: &frame::Spelled<pickindex::EdgeNamesRefused>| {
+        frame::held_edges_badge(Some(spelled), Some(landed))
+            .expect("a refusal badges")
+            .label()
+            .to_owned()
+    };
+    let own = label(&frame::Spelled::in_landed(refused.clone(), Some(landed)));
+    assert!(
+        own.contains(&landed.spoken(extrude).to_string()) && own.contains("Extrude"),
+        "spoken from the document it is spelled in: {own}"
+    );
+    let other: Doc<ProfileProgram> = Doc::empty_derived("another", tol);
+    let foreign = label(&frame::Spelled::in_landed(refused.clone(), Some(&other)));
+    assert_eq!(
+        foreign,
+        format!("held edges: the mark may leave some out — {refused}"),
+        "a refusal spelled in another document is said by its tags"
+    );
 }
 
 /// **The profiles badge counts, in agreeing words, and says it is the
@@ -1876,7 +1917,9 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     );
 
     let text = frame::pick_refusal(&refusal, landed).text().to_owned();
-    let rendered = |name: &StableName| format!("{} ({:?})", landed.spoken_name(name), name.path);
+    let rendered = |name: &StableName| {
+        idpass::NameAndPath(name, pncad::document::Speaker::of(landed)).to_string()
+    };
     assert!(
         text.contains("minted by Extrude"),
         "each tied face's minter is said as the landed document holds it: {text}"
@@ -3567,7 +3610,11 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         ),
         (
             "blend: the target lost",
-            ToolNotice::Blend(BlendEvent::TargetLost { target, edges: 4 }),
+            ToolNotice::Blend(BlendEvent::TargetLost {
+                target,
+                node: pncad::document::SpokenNode::absent(target.node),
+                edges: 4,
+            }),
             frame::Retold::Never,
         ),
         (

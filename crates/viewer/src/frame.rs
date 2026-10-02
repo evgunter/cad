@@ -229,9 +229,9 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Doc, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
-    PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, Said,
-    SlotId, Speaker,
+    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName,
+    ParseError, PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId,
+    ResolveFault, Said, SlotId, Speaker,
 };
 use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
@@ -2089,7 +2089,7 @@ pub fn pick_refusal(error: &PickError, doc: &Doc<ProfileProgram>) -> Message {
     };
     let tied: Vec<String> = hits
         .iter()
-        .map(|hit| format!("{} ({:?})", by.name(&hit.name), hit.name.path))
+        .map(|hit| crate::idpass::NameAndPath(&hit.name, by).to_string())
         .collect();
     Message::new(
         Subject::Document,
@@ -2640,6 +2640,40 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
     })
 }
 
+/// **A value whose ids are spelled in one document, carried past the
+/// frame that made it.** Ids are not document-scoped, so the frame that
+/// draws it speaks its nodes only from that document
+/// ([`Spelled::speaker`]); by its tag from any other, or when no
+/// document was landed where it was made.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Spelled<T> {
+    /// The document whose ids `value` is spelled in.
+    pub doc: Option<DocumentId>,
+    /// The value.
+    pub value: T,
+}
+
+impl<T> Spelled<T> {
+    /// `value`, spelled in `landed`, the landed document where it was
+    /// made.
+    pub fn in_landed(value: T, landed: Option<&Doc<ProfileProgram>>) -> Self {
+        Self {
+            doc: landed.map(Doc::id),
+            value,
+        }
+    }
+
+    /// Who says `value`'s nodes when `landed` is the landed document
+    /// now: that document if it is the one `value` is spelled in, the
+    /// tag otherwise.
+    pub fn speaker<'a>(&self, landed: Option<&'a Doc<ProfileProgram>>) -> Speaker<'a> {
+        match landed {
+            Some(doc) if self.doc == Some(doc.id()) => Speaker::of(doc),
+            Some(_) | None => Speaker::TAG,
+        }
+    }
+}
+
 /// **What the chrome badges about a held edge set whose body the index
 /// cannot wholly name**, and `None` while it can, or while nothing is
 /// held.
@@ -2653,20 +2687,20 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
 /// on, so [`Tone::Advisory`]; its subject is the document's
 /// (`SeamSubject for EdgeNamesRefused` says why).
 ///
-/// Its node is said from `landed`, the landed document the index that
-/// drew the marks was built against, and by its tag with nothing
-/// landed.
+/// The refusal was made by the last frame's viewport, so its node is
+/// said from `landed` only while that is the document it is spelled in
+/// ([`Spelled`]): an `Open` between the two frames would otherwise say
+/// one document's id as another's node.
 pub fn held_edges_badge(
-    refused: Option<&EdgeNamesRefused>,
+    refused: Option<&Spelled<EdgeNamesRefused>>,
     landed: Option<&Doc<ProfileProgram>>,
 ) -> Option<Badge> {
-    let by = landed.map_or(Speaker::TAG, Speaker::of);
     refused.map(|refused| {
         Badge::read(
             EdgeNamesRefused::SUBJECT,
             format!(
                 "held edges: the mark may leave some out — {}",
-                Said(refused, by)
+                Said(&refused.value, refused.speaker(landed))
             ),
             Tone::Advisory,
         )
