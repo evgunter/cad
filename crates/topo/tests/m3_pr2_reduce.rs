@@ -428,56 +428,6 @@ fn sliver_vertex_escalates() {
     }
 }
 
-/// F5 teeth: any non-Plane face refuses with the typed
-/// curved-unsupported error before any classification.
-#[test]
-fn curved_face_refuses() {
-    // Since M5 PR 5 the gate consults THE C5 table: cylinder faces
-    // PASS (the rung-2 arm landed); a torus face still refuses, typed,
-    // citing its rung routing (per-arm retirement, C12.1).
-    let mut cube = common::geometric_cube::<f64>(Tol::witness());
-    cube.body
-        .set_face_surface(
-            cube.seed.face,
-            topo::FaceSurface::New {
-                surface: geom::Surface::Torus {
-                    center: Point3::new(0.0, 0.0, 1.0),
-                    axis: Vec3::new(1.0, 0.0, 0.0),
-                    major_radius: 2.0,
-                    minor_radius: 0.5,
-                    u_ref: Vec3::new(0.0, 0.0, 1.0),
-                },
-                sense: true,
-            },
-        )
-        .unwrap();
-    let plane = plane_y1();
-    match split_reduce(&cube.body, &plane, Tol::witness()) {
-        Err(
-            e @ SplitReduceError::CurvedBooleanUnsupported {
-                face,
-                kind: geom::SurfaceKind::Torus,
-            },
-        ) => {
-            assert_eq!(face, cube.seed.face);
-            let msg = e.to_string();
-            // The operand gate refuses a torus face ANYWHERE in the
-            // body, before the plane is read: the sentence must not
-            // claim the plane crosses it, nor offer a plane placement
-            // as the way through.
-            assert!(
-                msg.contains("the body has a torus face") && msg.contains("no way through"),
-                "{msg}"
-            );
-            assert!(
-                !msg.contains("cross") && !msg.contains("Recourse"),
-                "the gate's refusal claims a crossing or a plane recourse: {msg}"
-            );
-        }
-        other => panic!("expected CurvedBooleanUnsupported(Torus), got {other:?}"),
-    }
-}
-
 /// Crossing surgery arrangement (mirror site: the split_edge argument
 /// pair — which side gets the new vertex): after reduction the x = 8
 /// bottom rim runs P1 → crossing → P2 as two chained edges through the

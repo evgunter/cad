@@ -225,6 +225,7 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   the split's finish and `plane_section` both read. The ring-vs-ring
   guard is split-only. Filed `plane-section-polygons-drop-their-arcs`
   (P2).
+- LINALG filed `a-strut-bearing-operand-passes-the-boolean-gates-and-refuses-at-the-join` on our slate. Priced P2/E: an operand that is tier-2-invalid (scaffolding) should refuse typed at the operand gate, following the `ScaffoldingOperand` precedent. That is the obvious answer, not a fork.
 - Witness ladders merged (PR 3716) after a full review and one fix
   pass. There is one cell-dimension ladder (`complex_side`) with one
   "inconclusive" rule, and first-decisive applies to both callers.
@@ -244,3 +245,37 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   more evidence for that row and a door that sees them. (TQUERY
   orchestrator)
 - 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+- Mint doors merged (PR 3720), unit 2 of the NURBS-lane design, after
+  a full review and a fix pass that was interrupted by the usage outage
+  and resumed. `topo::policy_lane` is the one place the lane is read
+  from the policy, and it returns `ByPolicy { NoLane, Refused }`, so no
+  door can pass the lack on as a certification failure. Every topo edge
+  mint and re-certify reads it (`set_edge_curve`, `split_edge`,
+  `kev_describing`, `mev`/`mef`/`mekr`/rings, the re-chart, the
+  re-basing gates). Each refuses `NurbsLaneUnsupported` typed at a
+  dual, and the twin doors are deleted. TOPO's
+  `euler-rebased-run-recertifies-through-the-plain-door` closed with
+  it. Filed `work/ciw/local-rustdoc-with-the-gate-flags-fails-where-the-hosted-gate-passes`.
+- 2026-10-02: resumed after a usage-limit outage (about 22 h idle).
+  - The mint-doors fix pass and the tangency review died mid-task and
+    are resumed.
+  - The wrong-arc lane is merging main, which moved by about a day,
+    including PR 3768's `UnitVec3` split normal.
+  - JOIN's PR 3770 filed and closed
+    `split-whole-orbit-run-mints-an-unlabelled-strut` on our slate.
+    That is the mechanism of the P0 the tangency lane filed (a lone
+    Below bisector with every real edge Above), so block ∪ slab under
+    −n should answer once `cleave/tangency` merges main. The tangency
+    lane's P0 row and its pinned refusal need re-checking at that
+    merge.
+- Wrong-arc merged (PR 3718) after a full review, one fix pass, and a
+  merge of main a day later. A curved face's crossings now pair along
+  its section conic through one shared `wall_section` (cylinder,
+  sphere and, after main's merge, cone). The heading lever is the
+  wall's curvature arm, and the conic order is arc-length keyed with an
+  explicit branch cut. The section-rings fallback no longer fires on
+  the tilted-cut poses; a guard row pins that.
+- Wrong-arc merged (PR 3718). Wave 4 dispatched: `cleave/carrier-walk` (P1; it may also take the spiric/spline crossing-row P2; single full review) and `cleave/strut-gate` (P2/E; orchestrator's read or style review). `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, `design: true`, filed by another program) waits for a designer pair.
+- Re-homed `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` to REACH (curved-operand refusals are its charter); noted on REACH's log.
+- Mint doors merged (PR 3720) after a merge of main. Dispatched `cleave/far-plane` (P2, single full review).
+- Tangency (PR 3726) adjudicated after its fix pass: split derives the tangent side (Ev's ruling, PR 3642); the reviewer's rows are folded in, `Convexity` is retired for `classify_dihedral`, and the smooth-edge safety default is documented. Row `split-cannot-declare-an-exact-tangency-with-its-target` closed; `split-refuses-a-convex-graze-of-a-curved-wall` filed as follow-up.
