@@ -56,7 +56,7 @@ use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::{Revolution, revolve};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, ContactClass, FaceContainment, FaceKey,
+    Body, BooleanDeclarations, BooleanError, ContactClass, EulerOpError, FaceContainment, FaceKey,
     FacePairDeclaration, SplitJoinError,
 };
 
@@ -735,28 +735,43 @@ fn three_face_cylinder() -> Body<f64> {
 // Door 4, the sector walk, and where the union stops.
 // -------------------------------------------------------------------
 
-/// **Past every torus door, the union stops where the cylinder-handled
-/// dumbbell stops.** The torus-waisted union used to refuse
-/// `CurvedBooleanUnsupported { kind: Torus }` at the sector walk; with
-/// the torus arm it reaches the chord join, and the chord join refuses
-/// `UnpairedLooseEnds { count: 4 }` — the answer the SAME dumbbell with
-/// a straight cylinder handle gets, under the same declarations. The
-/// declared-REST zip that takes over a refused declared union declines
-/// both at its segment enumeration, so the join's refusal surfaces
-/// verbatim for both. That stop is not a torus door
-/// (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
+/// **Past every torus door, the union stops in the join, as the
+/// cylinder-handled dumbbell does.** The torus-waisted union used to
+/// refuse `CurvedBooleanUnsupported { kind: Torus }` at the sector walk;
+/// with the torus arm it reaches the chord join. The joint's seam
+/// semicircles are edges of both halves, and each section segment along
+/// one names that edge on both operands at both of its ends, so the
+/// join matches them. The torus handle then stops at the match's
+/// section frame, which has no torus×plane arm; the straight cylinder
+/// handle, under the same declarations, stops in its first chord: no
+/// germ record at the seam's edge-edge sites folds the seam into the In
+/// run, so the two ends of a segment put their null edges into
+/// different flanks, and the chord's two halves are on two faces
+/// (`NotSameFace`). The declared-REST zip that takes over a refused
+/// declared union does not get past either. Neither stop is a torus
+/// door (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
 #[test]
 fn the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control() {
-    for handle in [Handle::Torus, Handle::Cylinder] {
-        let err = t2(handle).expect_err("the dumbbell's joint does not zip yet");
-        assert!(
-            matches!(
-                err,
-                BooleanError::Join(SplitJoinError::UnpairedLooseEnds { count: 4 })
-            ),
-            "{handle:?}: {err:?}"
-        );
-    }
+    let err = t2(Handle::Torus).expect_err("the dumbbell's joint does not zip yet");
+    assert!(
+        matches!(
+            err,
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom_brep::SurfaceKind::Torus,
+                b_kind: geom_brep::SurfaceKind::Plane,
+                ..
+            }
+        ),
+        "torus: {err:?}"
+    );
+    let err = t2(Handle::Cylinder).expect_err("the dumbbell's joint does not zip yet");
+    assert!(
+        matches!(
+            err,
+            BooleanError::Join(SplitJoinError::Euler(EulerOpError::NotSameFace { .. }))
+        ),
+        "cylinder: {err:?}"
+    );
 }
 
 // -------------------------------------------------------------------

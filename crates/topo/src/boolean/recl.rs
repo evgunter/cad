@@ -14,10 +14,12 @@
 //!   membership rule subsuming the angular sort and the Table I tie
 //!   rules — see `resolve_edge_edge`).
 //!
-//! Germ attribution (deterministic, symmetric): a crossing along an
-//! on-edge is recorded on the flanking sector holding the on-bound as
-//! its START (in both solids for edge-edge), with the On code rewritten
-//! to the transition partner of the sector's other bound.
+//! Germ attribution: a crossing along an on-edge is recorded on the
+//! flanking sector the one fold rule
+//! ([`super::sectors::fold_on_bound`]) makes the transition — the
+//! on-bound joins the In run, so the germ goes on the flanker whose
+//! other bound reads Out — with the On code rewritten to the transition
+//! partner of that other bound.
 //!
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
@@ -169,10 +171,14 @@ fn cancel_uniform(r: &mut PairRecord) {
 /// Each coincident pair whose lump keeps one copy of the region is
 /// pushed onto `covered` as `(A face, B face)`
 /// (`BooleanReduction::covered`), and each edge of the kept copy's face
-/// that runs into the dropped copy's onto `held`.
+/// that runs into the dropped copy's onto `held`. `first_read` holds the codes
+/// as first read, parallel to `records`, which the germ loci are derived
+/// from ([`super::sectors::germ_locus`]); a declared-`Tangent` record's
+/// is overwritten with its second-order reading.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_sectors<T: Decide>(
     records: &mut [PairRecord],
+    first_read: &mut [PairRecord],
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
@@ -281,6 +287,11 @@ pub(super) fn recl_sectors<T: Decide>(
             rec.sa = ca;
             rec.sb = cb;
             cancel_uniform(rec);
+            // The first-order reading of a tangent pair is all On; its
+            // second-order one is the first that decides anything, and
+            // the germ loci are read from it.
+            first_read[i].sa = ca;
+            first_read[i].sb = cb;
             continue;
         }
         let rel = require_same(
@@ -891,23 +902,25 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             return Ok(None);
         }
     }
-    // The one fold rule: the germ goes on the record whose rewrite puts
-    // both on-bounds in the In run, which is the record whose other
-    // bounds both read Out ([`mark_germ`]).
     let held: Vec<usize> = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)]
         .into_iter()
         .filter_map(|(a, b)| find_on_record(records, a, b))
         .collect();
-    let folds_in = |r: &PairRecord| {
-        [r.sa, r.sb].into_iter().all(|c| match on_bound(c) {
-            Some(true) => c.1 == SideCode::Out,
-            Some(false) => c.0 == SideCode::Out,
-            None => false,
-        })
+    // The one fold rule: the germ goes on a record whose rewrite
+    // ([`mark_germ`]) puts the common edge in the In run — its other
+    // bound reads Out — in both solids if one does, else in A, else in
+    // B. Only where no record folds the edge In on either side does the
+    // flanking order decide.
+    let folds_in = |c: (SideCode, SideCode)| match on_bound(c) {
+        Some(true) => c.1 == SideCode::Out,
+        Some(false) => c.0 == SideCode::Out,
+        None => false,
     };
-    held.iter()
-        .copied()
-        .find(|&g| folds_in(&records[g]))
+    let pick =
+        |want: &dyn Fn(&PairRecord) -> bool| held.iter().copied().find(|&g| want(&records[g]));
+    pick(&|r| folds_in(r.sa) && folds_in(r.sb))
+        .or_else(|| pick(&|r| folds_in(r.sa)))
+        .or_else(|| pick(&|r| folds_in(r.sb)))
         .or(held.first().copied())
         .map(Some)
         .ok_or(BooleanError::ClassificationInvariant {

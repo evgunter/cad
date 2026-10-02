@@ -2631,9 +2631,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
         // The codes as first read, which the germ loci are derived from.
-        let raw = records.clone();
+        let mut raw = records.clone();
         recl::recl_sectors(
             &mut records,
+            &mut raw,
             &a_sectors,
             &b_sectors,
             &a,

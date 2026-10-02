@@ -301,11 +301,14 @@ fn the_re_posed_cup_merges_identically() {
 
 /// **The boolean after the merge, MEASURED.** The merge was the
 /// precondition F7 was asking for, and with it satisfied the subtract
-/// walks past that gate, past the crossing layer, and stops at the
-/// join: `UnpairedLooseEnds { count: 4 }`. That is this row's whole
-/// content — it records where the cup's boolean actually stands, and
-/// the boundary it names belongs to the join, not to the coplanar pair
-/// this unit repaired.
+/// walks past that gate, past the crossing layer, and past the join
+/// (the cup's seam edges lie in the cutter's face `z = 0`, and each
+/// section segment along one names that edge at both of its ends), and
+/// stops measuring the result's volume: the cutter notches a wall
+/// half-cylinder along two rulings and an arc, which has no volume
+/// measurement (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
+/// That is this row's whole content — it records where the cup's
+/// boolean actually stands.
 ///
 /// The crossing layer's door it used to stop at was the cutter's edge
 /// `x = 0.02, y = 0.1` (along `z`) against the cup's half-cylinder
@@ -315,18 +318,25 @@ fn the_re_posed_cup_merges_identically() {
 /// negative (`SpanVerdict::Elsewhere`), and the sibling half `9v1`
 /// records the crossing on its own visit.
 #[test]
-fn the_boolean_after_the_merge_reaches_the_join() {
+fn the_boolean_after_the_merge_passes_the_join() {
     let tol = Tol::witness();
     let (cup, _) = merge_the_cup(teapot_cup(tol), tol);
     let out = topo::boolean::subtract(&cup, &cutter(tol), tol);
     assert!(
         matches!(
             out,
-            Err(topo::BooleanError::Join(
-                topo::SplitJoinError::UnpairedLooseEnds { count: 4 }
-            ))
+            Err(topo::BooleanError::VolumeUnmeasured {
+                operand: None,
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::NotIsoRectangle {
+                        what: "props_rim_level"
+                    },
+                    ..
+                },
+            })
         ),
-        "the merged cup clears F7 and the crossing layer and stops at the join, got {:?}",
+        "the merged cup clears F7, the crossing layer and the join, and stops at the \
+         notched wall's volume, got {:?}",
         out.map(|_| "Ok")
     );
 }

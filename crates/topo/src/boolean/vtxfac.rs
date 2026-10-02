@@ -39,15 +39,15 @@
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
-//! `(Out,·,Out) → Out`, mixed → `In`. This deliberately DIVERGES from
-//! the split lane's F4 table (`BOB → ABOVE`): the split must mint
-//! copies to keep the two pieces' fans representable, but a boolean
-//! tangential contact is a *legal 3′ touching* (edge-on-face, both
-//! flanking faces the same side) already carried by the declared
-//! contact records — TOG Table II rows 5/9 (`(In,In)`/`(Out,Out)` ⇒
-//! no intersection) confirm no crossing is recorded. Mixed keeps the
-//! In side (both witnesses' choice for the split analogue). Flagged in
-//! the PR report for ratification.
+//! `(Out,·,Out) → Out`, mixed → `In`, the one fold rule
+//! ([`super::sectors::fold_on_bound`]) the vertex-vertex attribution
+//! shares. This deliberately DIVERGES from the split lane's F4 table
+//! (`BOB → ABOVE`): the split must mint copies to keep the two pieces'
+//! fans representable, but a boolean tangential contact is a *legal 3′
+//! touching* (edge-on-face, both flanking faces the same side) already
+//! carried by the declared contact records — TOG Table II rows 5/9
+//! (`(In,In)`/`(Out,Out)` ⇒ no intersection) confirm no crossing is
+//! recorded.
 
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -483,7 +483,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // Germ facings (F9 data): the run's two boundary transitions are
     // its germs; both lie in the pierced face's TANGENT plane at `p`,
     // so the germ's face pair = (transition sector's face, pierced
-    // face) in operand order. Parity: the class after crossing forward
+    // face) in operand order, and its loci are the transition sector's
+    // cell and the pierced face. Parity: the class after crossing forward
     // — Out at the run's start germ, In at its end germ (site-shared
     // with the ring strut below).
     // Every run's germs are read before any run is minted: a mint moves
@@ -500,7 +501,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     };
     let run_germs = runs
         .iter()
-        .map(|run| Ok((germ_of((run.0 + n - 1) % n)?, germ_of((run.0 + run.1 - 1) % n)?)))
+        .map(|run| {
+            Ok((
+                germ_of((run.0 + n - 1) % n)?,
+                germ_of((run.0 + run.1 - 1) % n)?,
+            ))
+        })
         .collect::<Result<Vec<_>, BooleanError>>()?;
     let mut run_edges = Vec::new();
     for (run, &(start_germ, end_germ)) in runs.iter().zip(&run_germs) {

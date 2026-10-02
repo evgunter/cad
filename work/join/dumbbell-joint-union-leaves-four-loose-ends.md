@@ -55,3 +55,24 @@ The REST zip declines first, for two reasons of its own:
 `rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
 on ZIP's slate. Loosening its facing test alone reaches
 `RestZipUnsupported { ParallelSeamEdges }`.
+
+## Measured (JOIN-1, 2026-10-02, branch `join/1-germ-locus`)
+
+With germs naming their per-operand locus, each seam semicircle is
+`OnEdge` on both halves at both `(±0.3, 0, 0)` sites, so the join now
+matches the two segments. It stops further on, differently per handle:
+
+- the TORUS handle at the match's section frame:
+  `GermFrameUnsupported { a_kind: Torus, b_kind: Plane }` (no torus×plane
+  frame arm; this refusal is not one the REST zip retries);
+- the CYLINDER handle in its first chord: `Join(Euler(NotSameFace))`.
+  These are edge-edge sites, and no germ record there folds the seam
+  into the In run on either operand, so the record falls back to the
+  flanking (orbit) order and the two ends put their null edges into
+  different flanks. Ordering the flanks by membership instead (the
+  flanker outside the other wedge first) makes the cylinder chord both
+  segments and stop at role resolution (`JoinDesync`: "neither section
+  loop's regions hold a decisive witness"), but moved twelve other rows,
+  so JOIN-1 did not ship it.
+
+Re-pinned by the same test.

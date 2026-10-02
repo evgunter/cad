@@ -253,6 +253,16 @@ pub enum SplitJoinError {
         /// How many halves remained.
         count: usize,
     },
+    /// A closed section loop has ONE site: a closed curve of one solid
+    /// (a circle edge, or a face's closed section) lies in a face of the
+    /// other and meets nothing else of it, so the one vertex on it holds
+    /// both ends of the loop. The join pairs ends at two distinct sites
+    /// and has no arm that closes a loop on itself; refused typed, before
+    /// the loose ends are counted.
+    SingleSiteSectionLoop {
+        /// How many such loops.
+        count: usize,
+    },
     /// A section loop mixed above copies with below-side vertices —
     /// the joining invariant (heads join heads, tails join tails)
     /// failed (kernel bug, loudly).
@@ -461,6 +471,13 @@ impl SplitJoinError {
                  not close into section polygons. An edge leaving a vertex tangent to the \
                  surface it is read against, whose side is then read to finite order, can \
                  cause this; otherwise it is a kernel defect"
+            ),
+            Self::SingleSiteSectionLoop { count } => write!(
+                f,
+                "{count} section loop(s) close through a single vertex: a closed curve of \
+                 one solid lies in a face of the other and meets nothing else of it, and a \
+                 loop joined at one site is not built. {}",
+                geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopMixed { face } => write!(
                 f,
@@ -1626,7 +1643,9 @@ fn skip_adjacent_chord<T: Decide>(
 ) -> Result<bool, SplitJoinError> {
     match segment {
         SegmentEdge::Is(edge) => {
-            let between = body.get_half_edge(between).ok_or_else(|| corrupt_he(between))?;
+            let between = body
+                .get_half_edge(between)
+                .ok_or_else(|| corrupt_he(between))?;
             Ok(edge == Some(between.edge))
         }
         SegmentEdge::InPlane => match between_edge_in_plane(body, lane, between, band)? {

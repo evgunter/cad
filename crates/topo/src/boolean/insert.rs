@@ -66,11 +66,8 @@ pub(super) fn insert_null_pairs<T: Decide>(
     declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
-    let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) = records
-        .iter()
-        .zip(raw)
-        .filter(|(r, _)| r.intersect)
-        .unzip();
+    let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) =
+        records.iter().zip(raw).filter(|(r, _)| r.intersect).unzip();
     let mut out = InsertOut {
         edges: Vec::new(),
         pairs: Vec::new(),

@@ -616,6 +616,28 @@ pub(super) fn bool_connect<T: Decide>(
         }
     }
 
+    // ---- A closed section loop with one site: a record whose two
+    // germs name one locus on both operands along a conic can only
+    // match itself, which the join does not do (a self-matching record
+    // would see the adjacency skip fire both ways and retire a real face
+    // as the null face). Refused typed before the loose ends are
+    // counted. ----
+    let mut single_site = 0;
+    for r in &open {
+        let [(g0, used0), (g1, used1)] = r.a;
+        if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
+            continue;
+        }
+        if germ_section_frame(red, &g0, band)?.is_some() {
+            single_site += 1;
+        }
+    }
+    if single_site != 0 {
+        return Err(BooleanError::Join(SplitJoinError::SingleSiteSectionLoop {
+            count: single_site,
+        }));
+    }
+
     // ---- Role resolution, deferred to quiescence: mid-join the
     // region faces are not yet final (an operand face pierced by TWO
     // polygons still spans both seams while the first completes), so
@@ -808,7 +830,11 @@ fn locus_at_site<T: Decide>(
             .map(|d| d.start)
             .ok_or(desync("germ half no longer resolves"))
     };
-    let site = [start(he)?, body.half_edge_end(he).ok_or(desync("germ half no longer resolves"))?];
+    let site = [
+        start(he)?,
+        body.half_edge_end(he)
+            .ok_or(desync("germ half no longer resolves"))?,
+    ];
     let e = body
         .get_edge(edge)
         .ok_or(desync("an OnEdge germ's edge no longer resolves"))?;

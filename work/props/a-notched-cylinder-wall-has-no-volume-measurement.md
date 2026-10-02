@@ -43,3 +43,14 @@ cylinder quadrature lane, which reads stored harmonic pcurves and
 does not need a conic trim. The dispatch is by carrier kind today
 (C5, "never a runtime fallback"), so the second wants a structural
 test of the outline rather than a retry on refusal.
+
+## Measured (JOIN-1, 2026-10-02, branch `join/1-germ-locus`)
+
+A second witness: the merged teapot cup minus
+`brick((0.02, 0.2), (-0.01, 0.1), (0, 0.3))`
+(`crates/sweep/tests/verbs_1031b_arcwind.rs`
+`the_boolean_after_the_merge_passes_the_join`). Once the join pairs
+the section segments that run along the cup's seam edges, the subtract
+builds and refuses
+`VolumeUnmeasured { operand: None, source: Face { source: NotIsoRectangle { what: "props_rim_level" } } }`
+on a wall half-cylinder the cutter notches along two rulings and an arc.

@@ -12,7 +12,7 @@
 //! coincident tangent planes (two per solid, cosurface via the
 //! declared rung), the two end records of one segment can resolve
 //! that ambiguity onto different face pairs, and the germ-identity
-//! match (face pairs agree) then never fires — the typed
+//! match then never fires — the typed
 //! `Join(UnpairedLooseEnds)` / `JoinDesync` refusals (and, for
 //! curved-adjacent seams the join has no section arm for, its typed
 //! per-kind refusal).
@@ -26,11 +26,13 @@
 //! unchanged first; this lane consumes its RECORDS:
 //!
 //! 1. **Segments**: the null-pair germ records are matched into seam
-//!    segments by the SAME mutual-facing/nearest tests as the join
-//!    (`bool_join_chord` / `bool_join_facing` / `bool_join_nearest` —
-//!    reused predicate funnels, no new numeric predicate), with the
-//!    ambiguous face-pair identity dropped. Incomplete matching ⇒
-//!    not this frontier (the original join refusal stands).
+//!    segments through the join's predicate funnels (`bool_join_chord`
+//!    / `bool_join_facing` / `bool_join_nearest` — no new numeric
+//!    predicate), but not by the join's tests: this lane compares no
+//!    germ identity and reads facing along the straight chord only,
+//!    where the join compares the germs' loci and, on a conic locus,
+//!    rotational senses. Incomplete matching ⇒ not this frontier (the
+//!    original join refusal stands).
 //! 2. **Lane door**: every declared face pair is verified through
 //!    [`super::oriented_plane_eq`]'s declared rung — a false
 //!    declaration refuses [`BooleanError::ContactContradicted`]
@@ -422,10 +424,10 @@ fn patch_discards<T: Decide>(
 // 1. Segment enumeration.
 // ---------------------------------------------------------------
 
-/// Matches the germ records into seam segments — [`super::join`]'s
-/// mutual-facing/nearest tests with the (REST-ambiguous) face-pair
-/// identity dropped. `None`: matching did not complete — not this
-/// lane's frontier.
+/// Matches the germ records into seam segments: the nearest pair of
+/// germs at distinct sites facing each other along the straight chord,
+/// with no germ identity compared (module docs, step 1). `None`:
+/// matching did not complete — not this lane's frontier.
 fn enumerate_segments<T: Decide>(
     red: &BooleanReduction<T>,
     band: Band,
