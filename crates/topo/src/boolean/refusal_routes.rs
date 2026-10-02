@@ -1115,6 +1115,9 @@ pub enum RestZipFrontier {
     ChordBetweenIsolatedPierces,
     /// A seam chord's endpoint recurs on its host face's boundary.
     ChordEndpointRevisited,
+    /// The other part's edge a chord stands for has no certified line
+    /// or circle carrier to mint the chord on.
+    TwinCarrierUnsupported,
     /// A contact patch's boundary vertex has no partner across the seam.
     PatchVertexUnmatched,
     /// The two contact patches' face cycles do not match across the
@@ -1151,6 +1154,9 @@ impl RestZipFrontier {
             Self::ChordEndpointRevisited => {
                 "seam chord endpoint revisited by its host face boundary"
             }
+            Self::TwinCarrierUnsupported => {
+                "seam chord's counterpart edge has no certified line or circle carrier"
+            }
             Self::PatchVertexUnmatched => "patch boundary vertex without a seam correspondent",
             Self::PatchCyclesIncongruent => "patch face cycles not congruent across the mate",
             Self::HoleVertexUnmatched => "ring boundary vertex without a seam correspondent",
@@ -1185,6 +1191,7 @@ impl RestZipFrontier {
             | Self::ChordEndpointAbsent
             | Self::ChordBetweenIsolatedPierces
             | Self::ChordEndpointRevisited
+            | Self::TwinCarrierUnsupported
             | Self::PatchVertexUnmatched
             | Self::PatchCyclesIncongruent
             | Self::SlitFaceHoles

@@ -88,3 +88,19 @@ Both designers lean A2 and are unsure. A1 is the reversible minimum.
   - `add_boolean` becomes a plain commit (no judge, no `evaluate_beside`, no `RefusedBoolean` generation rule).
   - A contact refusal shows on the boolean's own row with a Declare control that records the edit.
   - This row and `the-boolean-door-evaluates-its-boolean-twice` close together.
+
+## Evidence: a count edit makes the union flush (SHOW, 2026-10-02)
+
+`demos/tour/src/heatsink.rs` (`flush_fins`, narrated live on every
+tour run and in the tour's test suite). Five fins flush on a rounded
+plate, a `PlacedUnion` group, the five feet declared through
+`find_flush_candidates` + `declare_node`, one `Boolean(Union)`: builds
+at the closed-form volume. `SetStructuralParam` 5 → 7 makes the union
+refuse `UndeclaredContact` on `Instance(5)`. This row's fallback then
+works as written: `DeleteNode` the union, `DeleteNode` its `Declare`,
+re-detect (seven pairs), insert a new `Declare` and a new union. The
+re-added union builds at the closed-form volume of 7 fins, recomputing
+2 nodes and reusing 8. Cost: four edits per count step, and a union
+under a new id. That scene's subject is one edit recomputing only what
+is downstream of it, so it keeps its fins sunk 1/16 into the plate
+instead and waits on `declared-pairs-are-a-booleans-own-payload`.
