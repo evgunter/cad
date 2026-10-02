@@ -22,7 +22,7 @@
 //! lattice operations.
 
 use geom::Surface;
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Bounds, Point3, Real, Vec3, is_finite_length};
 
 /// A closed ball `|x − center| ≤ radius` enclosing a consumed region
 /// (module docs).
@@ -85,6 +85,18 @@ impl<T: Real> ExtentBall<T> {
         origin + axis * (self.center - origin).dot(axis)
     }
 
+    /// The ball, if it reads: `None` where its centre or radius is
+    /// poison or infinite (a box with no claim to make), whose lever
+    /// would meter nothing.
+    #[must_use]
+    pub fn readable(self) -> Option<Self> {
+        let c = self.center;
+        [c.x, c.y, c.z, self.radius]
+            .into_iter()
+            .all(is_finite_length)
+            .then_some(self)
+    }
+
     /// The ball enclosing the box `[lo, hi]`: its centre, out to a
     /// corner.
     #[must_use]
@@ -113,6 +125,39 @@ impl<T: Real> ExtentBall<T> {
             | Surface::Nurbs(_)
             | Surface::Approx(_) => None,
         }
+    }
+}
+
+impl<T: Real + Bounds> ExtentBall<T> {
+    /// The ball at `f64`, still enclosing every realization of this
+    /// one: centred at the midpoint of the centre's brackets, its
+    /// radius the radius's upper end plus the brackets' full widths.
+    /// At `f64` the brackets are points and the ball is itself.
+    #[must_use]
+    pub fn bracketed(self) -> ExtentBall<f64> {
+        let c = self.center;
+        let mid = |x: T| 0.5 * x.lo() + 0.5 * x.hi();
+        let width = Vec3::new(
+            c.x.hi() - c.x.lo(),
+            c.y.hi() - c.y.lo(),
+            c.z.hi() - c.z.lo(),
+        );
+        ExtentBall::new(
+            Point3::new(mid(c.x), mid(c.y), mid(c.z)),
+            self.radius.hi() + width.norm(),
+        )
+    }
+}
+
+impl ExtentBall<f64> {
+    /// This ball at the scalar `U` ([`Self::bracketed`]'s way back).
+    #[must_use]
+    pub fn lift<U: Real>(self) -> ExtentBall<U> {
+        let c = self.center;
+        ExtentBall::new(
+            Point3::new(U::from_f64(c.x), U::from_f64(c.y), U::from_f64(c.z)),
+            U::from_f64(self.radius),
+        )
     }
 }
 

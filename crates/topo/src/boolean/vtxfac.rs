@@ -263,7 +263,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let tangent = match (
                 surface(piercing_body, s.face),
                 surface(pierced_body, contact.face),
-                super::rest::pair_reach(piercing_body, s.face, pierced_body, contact.face),
+                declared
+                    .reach_of(piercing, s.face, pierced_op, contact.face)
+                    .or_else(|| {
+                        super::rest::pair_reach(piercing_body, s.face, pierced_body, contact.face)
+                    }),
             ) {
                 (Some(a), Some(b), Some(reach)) => {
                     geom_brep::tangent_locus(a, b, reach, band).is_ok()
@@ -330,7 +334,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 Coincide::TangentSide,
                 &[],
             );
-            let reach = super::rest::pair_reach(piercing_body, s.face, pierced_body, contact.face)
+            let reach = declared
+                .reach_of(piercing, s.face, pierced_op, contact.face)
                 .ok_or(BooleanError::ClassificationInvariant {
                     what: "declared-Tangent face pair has no readable extent",
                 })?;

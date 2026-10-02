@@ -822,17 +822,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 .ok_or(BooleanError::ClassificationInvariant {
                                     what: "edge-edge site lost its point",
                                 })?;
-                            let reach = super::rest::pair_reach(
-                                own_body,
-                                own_sec.face,
-                                other_body,
-                                other_sec.face,
-                            )
-                            .ok_or(
-                                BooleanError::ClassificationInvariant {
+                            let reach = declared
+                                .reach_of(own_op, own_sec.face, other_op, other_sec.face)
+                                .ok_or(BooleanError::ClassificationInvariant {
                                     what: "declared-Tangent face pair has no readable extent",
-                                },
-                            )?;
+                                })?;
                             super::sectors::tangent_lump(
                                 &s_own,
                                 &s_other,

@@ -609,14 +609,17 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<ExtentBall<T>> 
 /// faces ([`face_ball`]), since the verdict is consumed on each — the
 /// lever arm of [`super::carrier_eq::at_consumed_extent`] and of
 /// [`geom_brep::tangent_locus`]. `None` where either face cannot be
-/// enclosed.
+/// enclosed. Read on the operands at rest: mid-operation, a face whose
+/// boundary carries null scaffolding has no box to read, and the
+/// sites there take the declared pair's extent from
+/// [`super::DeclaredPairs::reach_of`].
 pub(crate) fn pair_reach<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
 ) -> Option<ExtentBall<T>> {
-    ExtentBall::enclosing(&[face_ball(a, fa)?, face_ball(b, fb)?])
+    ExtentBall::enclosing(&[face_ball(a, fa)?, face_ball(b, fb)?])?.readable()
 }
 
 /// The face's **oriented carrier description** — the curved

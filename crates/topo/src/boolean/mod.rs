@@ -567,6 +567,9 @@ pub(crate) struct DeclaredPairs {
     /// The `Rest` pairs the declaration door's carrier ladder called ONE
     /// carrier, `(A face, B face)`.
     one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+    /// Each declared pair's consumed extent, measured on the operands
+    /// at rest ([`rest::pair_reach`]), `(A face, B face)`.
+    reach: std::collections::BTreeMap<(FaceKey, FaceKey), geom_brep::ExtentBall<f64>>,
 }
 
 impl DeclaredPairs {
@@ -581,7 +584,40 @@ impl DeclaredPairs {
                 .map(|d| ((d.a, d.b), d.class))
                 .collect(),
             one_carrier,
+            reach: std::collections::BTreeMap::new(),
         }
+    }
+
+    /// Records each declared pair's consumed extent on the operands
+    /// `a` and `b` at rest. Mid-operation a face is a piece of its
+    /// rest self, so that ball still encloses it, while its own box
+    /// may no longer read (null scaffolding on its boundary).
+    pub(crate) fn measured<T: Decide + Bounds>(mut self, a: &Body<T>, b: &Body<T>) -> Self {
+        self.reach = self
+            .map
+            .keys()
+            .filter_map(|&(fa, fb)| {
+                rest::pair_reach(a, fa, b, fb).map(|ball| ((fa, fb), ball.bracketed()))
+            })
+            .collect();
+        self
+    }
+
+    /// The (operand-tagged) declared pair's consumed extent, as
+    /// [`Self::measured`] recorded it.
+    pub(crate) fn reach_of<T: Real>(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Option<geom_brep::ExtentBall<T>> {
+        match (o1, o2) {
+            (Operand::A, Operand::B) => self.reach.get(&(f1, f2)),
+            (Operand::B, Operand::A) => self.reach.get(&(f2, f1)),
+            _ => None,
+        }
+        .map(|ball| ball.lift())
     }
 
     /// Whether the (operand-tagged) pair is a `Rest` declaration the
@@ -2526,7 +2562,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     let one_carrier = verify_declared_contacts(a_operand, b_operand, decls, band)?;
-    let declared = DeclaredPairs::build(decls, one_carrier);
+    let declared = DeclaredPairs::build(decls, one_carrier).measured(a_operand, b_operand);
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;

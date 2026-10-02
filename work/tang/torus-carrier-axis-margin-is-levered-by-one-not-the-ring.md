@@ -75,7 +75,13 @@ torus's and the sphere's own ball; otherwise the ball around
 re-anchors each kind's datum nearest the ball's centre and returns the
 arm (plane: the radius; cylinder: from the foot on the second axis;
 torus: `R + r` from its centre), and `tangent_locus` takes the same
-ball. Red-then-green rows: `rest::lever_rows` (torus, cylinder),
+ball. The ball is measured once, on the operands at rest
+(`DeclaredPairs::measured`), and the mid-operation sites (`insert`,
+`recl`, `vtxfac`) read it from there via `DeclaredPairs::reach_of`:
+mid-operation, a face whose boundary carries null scaffolding has no
+readable box (filed as
+`work/contact/census-face-reach-returns-a-nan-box-for-an-unclaimable-boundary-edge.md`).
+Red-then-green rows: `rest::lever_rows` (torus, cylinder),
 `contact9_side_codes::a_declared_plane_tilt_is_read_across_the_faces`
 (10 m plane) and `locus::tests::the_axis_row_reads_the_tilt_across_the_extent`
 (the DEV-1 row). Moved: the coplanar-sector declaration row in
