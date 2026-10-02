@@ -43,8 +43,10 @@ use geom_core::Tol;
 /// once per pierce it fused.
 pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 
-/// The vertex `v` survives as through the fusions `(dead, kept)`,
-/// in the order they were made.
+/// The vertex `v` survives as through the fusions `(dead, kept)`, in
+/// the order they were made: the one reading of a fusion list. Every
+/// writer appends a row as its kev runs, so a key is dead from its row
+/// on and no later row names it.
 pub(super) fn survivor(merges: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
     merges
         .iter()

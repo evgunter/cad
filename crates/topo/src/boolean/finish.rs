@@ -70,6 +70,9 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     /// The A-side pinch welds' vertex fusions `(dead, kept)`, result
     /// keys.
     pub weld_merges_a: Vec<(VertexKey, VertexKey)>,
+    /// The B-side pinch welds' vertex fusions, B-clone keys: they ran
+    /// before the graft, so a dead key has no result key.
+    pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -401,6 +404,7 @@ pub(super) fn setopfinish<T: Decide>(
         weld_fragments_a: a_welds.fragments,
         weld_fragments_b: b_welds.fragments,
         weld_merges_a: a_welds.merges,
+        weld_merges_b: b_welds.merges,
     })
 }
 

@@ -1336,7 +1336,7 @@ fn name_boolean_vertices<T: Decide>(
         .iter()
         .flat_map(|g| g.edges.iter().map(move |&e| (e, (&g.base, g.from_tie))))
         .collect();
-    // Zip fusions: kept key → dead partners (a fused vertex may owe
+    // Weld and zip fusions: kept key → dead partners (a fused vertex may owe
     // its operand identity to a DEAD partner's key — e.g. a B corner
     // vertex fused into an A-side crossing key on a shared plane).
     let mut fused: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
