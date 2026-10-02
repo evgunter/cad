@@ -2,9 +2,8 @@
 id: pcurve-envelope-escalates-at-interval-on-a-wide-arc
 kind: issue
 title: the pcurve envelope check escalates at the Interval scalar on a wide shallow arc, so extrude refuses a cell it built before it minted
-status: closed
+status: open
 opened: 2026-10-01
-closed: 2026-10-02
 ---
 
 Found by PCERT's `pcert/at-rest-rows-mandatory` (pcurve rows mandatory
@@ -37,16 +36,47 @@ stated so its enclosure does not scale with the radius (a relative or
 factored form), or whether a wide arc at the certified scalar is an
 honest refusal. Re-baselined, not fixed, on that branch.
 
-## Closed
+## Restated, then reopened
 
-Closed by `pcert/certificate-incidence-fidelity`. On a periodic chart,
-check 4 is now the carrier's incidence with the chart plus the stored
-image's fidelity to the image re-derived from it
-(`EnvelopeStatement::MapResidualClosedForm`). Neither term pushes an
-angle back through `sin`/`cos`, so the enclosure no longer grows with
-the arc's radius. The grid's census is main's again at 1e-9,
-`(54, 6, 0, 0)`. At 1e-12 it is `(26, 22, 12, 0)`: main's nine
-Euler-gate refusals, plus three cells at `off = 1000` whose wall rows
-escalate at check 3's `MapResidual` samples. No cell refuses at the
-envelope. Those three belong to check 3's standing, which is on
-`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`.
+**What the restatement did** (`pcert/certificate-incidence-fidelity`,
+PR 3812, part 1). On a periodic chart check 4 became the carrier's
+incidence with the chart plus the stored image's fidelity to the image
+re-derived from it (`EnvelopeStatement::MapResidualClosedForm`).
+Neither term pushes an angle back through `sin`/`cos`, so the
+envelope's enclosure stopped growing with the arc's radius. The grid's
+census was main's again at 1e-9, `(54, 6, 0, 0)`.
+
+**This issue was closed on that measurement, and it should not have
+been** (PR 3812's review R2): at 1e-12 one cell, `off = 1000, l = 1e-3,
+b = 0.5`, still refused at `Envelope`.
+
+**Then the frame was metered** (the review's other MAJOR). The lemma
+assumes an orthonormal frame, and over a box nothing enforced it, so
+check 4 now adds `EnvelopeTerm::Frame`: the stored chart's distance from
+its Gram–Schmidt twin, bounded in the frame's invariants
+(`‖axis‖² − 1`, `‖u_ref‖² − 1`, `axis·u_ref`) and levered by the radius
+and the image's axial reach. The wide-arc cells' wall cylinder carries
+the rim normalised at `Interval` as its `u_ref`, so `u_ref·u_ref − 1`
+encloses a few ulps. Times the `6.25e4` m radius that is about `6e-10`
+m, and the envelope's sum (`[0, 1.37e-9]` at 1e-9) escalates. The true
+defect of a rounded unit vector is `R·2⁻⁵³`, about `7e-12` m here; the
+enclosure is what the interval scalar can certify of it.
+
+The census at the head of the fix pass is:
+
+| ε | census | what moved |
+|---|---|---|
+| 1e-6 | `(51, 9, 0, 0)` | unchanged |
+| 1e-9 | `(51, 6, 3, 0)` | the three `l = 50, b = 1e-4` cells, one at each offset, at `Envelope` |
+| 1e-12 | `(24, 22, 14, 0)` | five extrude refusals past main's nine |
+
+So the issue's subject (a wide shallow arc's wall refused at
+`Envelope` over the `Interval` scalar) occurs again, for a sounder
+reason. Two ways out:
+
+- tighten what the interval scalar can say of a normalised vector's
+  norm, so `u·u − 1` of a rounded unit vector encloses its true
+  `2⁻⁵²`-scale defect rather than the dependency-widened one; or
+- have the extrude store a frame whose unit-ness is exact at every
+  scalar (for example, the rim and its norm kept apart, and the
+  normalisation done where the chart is read).

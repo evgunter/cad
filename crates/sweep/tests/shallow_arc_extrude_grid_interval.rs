@@ -17,6 +17,20 @@
 //! `Envelope` at this scalar, the far placement's rounding over a box
 //! as narrow as one ulp
 //! (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
+//!
+//! **Since check 4 meters the chart's frame** (`EnvelopeTerm::Frame`,
+//! PCERT's PR 3812 fix pass), the three `l = 50, b = 1e-4` cells (a wall
+//! radius of `6.25e4` m) refuse at the extrude again at 1e-9, one at
+//! each offset, and five cells refuse there at 1e-12. Their wall
+//! cylinder's `u_ref` is the rim normalised at `Interval`, whose
+//! `u_ref·u_ref − 1` encloses a few ulps; times the radius that is
+//! about `6e-10` m, and the envelope's sum (`[0, 1.37e-9]`) no longer
+//! decides inside the band. The true defect of a rounded unit vector is
+//! `R·2⁻⁵³` (`7e-12` m here); the enclosure is what the interval scalar
+//! can certify of it, and since the envelope is the whole certified
+//! statement over a box the premise is metered rather than assumed
+//! (`work/pctail/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
+//! reopened).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Interval, Point2, Real, Tol};
@@ -68,8 +82,8 @@ fn the_shallow_arc_grid_census_is_mains_at_every_eps_row() {
     // (certifies, profile refuses, extrude refuses, geometry refuses)
     let want: (usize, usize, usize, usize) = match eps {
         1e-6 => (51, 9, 0, 0),
-        1e-9 => (54, 6, 0, 0),
-        1e-12 => (28, 22, 10, 0),
+        1e-9 => (51, 6, 3, 0),
+        1e-12 => (24, 22, 14, 0),
         _ => return,
     };
     let mut got = (0, 0, 0, 0);

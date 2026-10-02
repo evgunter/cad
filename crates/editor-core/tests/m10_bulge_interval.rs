@@ -80,17 +80,31 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// certificate; the re-measure is
 /// `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`'s.
 ///
-/// **The loop walk's literal branch** (`geom_brep::whole_periods`)
-/// moves three of those rows on both spellings. `pcurve_envelope` goes
-/// 2/0/0/10 -> 8/0/0/4: the stored azimuth is `α + k·τ` with `k` a
-/// constant, so the fidelity term is the zero polynomial on six more
-/// rows. `pcurve_fidelity_branch` goes 3/0/0/9 -> 0/0/0/24. Its
-/// branch is now two sign decisions per row at the half-period marks
-/// in place of one `floor`, and each is definite, read off the value.
-/// `pcurve_loop_continuity` goes 9/0/0/9 -> 9/0/4/5: with no `floor`
-/// node between them, four joints' two ends go through the door.
-/// The walk's own branch decisions are a new row,
-/// `pcurve_loop_branch` 0/0/0/18: definite, read off the value.
+/// **PCERT's incidence-and-fidelity unit (PR 3812) moved seven of the
+/// `pcurve_*` rows**, on both spellings. Against the pins it replaced:
+///
+/// - `pcurve_chart_azimuth_frame` 6/0/0/14 -> 12/0/0/26,
+///   `pcurve_chart_orientation` 0/0/0/6 -> 0/0/0/12 and
+///   `pcurve_chart_radial_moving` 8/0/0/6 -> 14/0/0/12: check 4
+///   re-derives each row's image (on the chart's orthonormal twin,
+///   which on these literal frames is the frame itself), so the
+///   derivation's decisions are taken twice.
+/// - `pcurve_map_residual` 0/0/28/98 -> 0/0/18/0: on a harmonic row the
+///   schedule is check 4's cross-check, run on the witness lane and not
+///   at this scalar; what is left is the rows of the lanes that keep
+///   their schedule.
+/// - `pcurve_envelope` 0/0/2/10 -> 8/0/0/4: incidence plus fidelity in
+///   place of the image pushed through the chart, and, with the loop
+///   walk's branch a literal `k` (`geom_brep::whole_periods`), the
+///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
+///   of its twelve rows.
+/// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
+///   sign decisions per row at the half-period marks, definite, read
+///   off the value.
+/// - `pcurve_loop_branch` is new, 0/0/0/18: the walk's own branch
+///   decisions, definite.
+/// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
+///   node between them, four joints' two ends go through the door.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
@@ -188,12 +202,14 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// (`m10_bulge_renders.txt` carries the form uncut). Nothing else on
 /// the boss, either D-tab or either control moves.
 ///
-/// **The loop walk's literal branch** moves three rows, as on the
-/// D-tab: `pcurve_envelope` 3/0/0/9 -> 6/6/0/0, every one decided by
-/// the form (six theorems, six gated on a sign);
-/// `pcurve_fidelity_branch` 3/0/0/9 -> 0/0/0/24, two definite sign
-/// decisions per row; `pcurve_loop_continuity` 9/0/0/9 -> 9/0/6/3;
-/// and the walk's own `pcurve_loop_branch` is new, 0/0/0/18.
+/// **PCERT's incidence-and-fidelity unit (PR 3812)** moves the same
+/// seven `pcurve_*` rows as on the D-tab, for the same reasons; the
+/// boss's own numbers: `pcurve_map_residual` 0/0/37/89 -> 0/0/18/0,
+/// `pcurve_envelope` 0/0/3/9 -> 6/6/0/0 (every one decided by the
+/// form, six theorems and six gated on a sign), the three derivation
+/// rows doubled, `pcurve_fidelity_branch` new at 0/0/0/24,
+/// `pcurve_loop_branch` new at 0/0/0/18, and `pcurve_loop_continuity`
+/// 9/0/0/9 -> 9/0/6/3.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
