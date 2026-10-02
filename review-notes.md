@@ -36,3 +36,6 @@ Running notes; restart-safe. Delta under review: 21b7f289..be0732270 net of main
 - mate7a peg eps ladder (head): builds sound+additive+operand for eps 1e-12..2e-7; JoinDesync "neither section loop's regions..." for 3e-7..2e-6. JoinDesync Display = "A/B lockstep invariant violated ... (kernel bug or corrupt reduction)" on a legal declared input. Filed issue says only 1e-6, no threshold.
 - curved_mergedoor C/D: union_honest asserts no operand; patched on review branch -> all Ok at 1e-9 and 1e-6. PR body says each such row asserts operand: false for curved_mergedoor.
 - the_peg_collar_unions_are_operands: green --ignored at 1e-12/1e-9/1e-6, 0.02s; still #[ignore] with stale reason.
+- seatfw row a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier: name/doc say frontier, now builds; accepts Failed OR Ok -> cannot pin the new build.
+- review-branch-only edits: join1_r1_probes outcome operand column; mate7a + curved_mergedoor verdict prints.
+- DONE: target dir and main tree deleted.
