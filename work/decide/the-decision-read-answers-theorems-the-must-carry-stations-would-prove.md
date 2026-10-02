@@ -73,17 +73,27 @@ form that is a GATED zero it did three things:
 
 A second mode also walked read-free at every gated NON-zero early form,
 and printed any decision that walk proves. Such a decision would be a
-theorem the read costs outright. The runs:
+theorem the read costs outright.
+
+**The tree.** Every number below is from `8b640cded`: this branch with
+`origin/main` merged in. `props/sign-hull` had been merged into `main`
+as `dc39bce95`. Every run was first taken on the branch's original base
+`494d477ef` and then re-taken on the merged tree. The attribution, the
+shape and the candidates' restorations read the same on both trees.
+What differs is `main`'s own `registered`/`numeric` move, which is
+re-baselined in the pins' notes (bracket `144 / 783 → 146 / 781`, pad
+`150 / 1002 → 148 / 1004`), and the timings, given per tree below. The
+runs:
 - **the bracket**: `m10_9_pins_interval`'s replay (`replay_counts` at
   `certifies_at = 3.870e2·ε`, ε = 1e-9, dev), shipped
-  `1105 / 21 / 144 / 783`, read shut `1121 / 0 / 144 / 788`. Its
+  `1105 / 21 / 146 / 781`, read shut `1121 / 0 / 146 / 786`. Its
   nominal split, `m10_10_splits_at_the_nominal_under_a_rule_set` with
   `CAD_M10_10_DOCS=r2_filleted_bracket` and `CAD_M10_10_RULES` set to
   `shipped` and then `no_reads`.
 - **the pad**: the release leaf instrument,
   `m10_10_leaf_cost_with_and_without_the_algebra` with
   `CAD_M10_10_DOCS=r2_rounded_pad`, `CAD_M10_10_COLUMNS=rules`. That is
-  one whole-box leaf at `1e2·ε`. It reads `893 / 34 / 150 / 1002`, the
+  one whole-box leaf at `1e2·ε`. It reads `893 / 34 / 148 / 1004`, the
   same receipt the pin reads at `2.083e3·ε`.
 
 ### Which predicates, which nodes
@@ -156,20 +166,21 @@ reached. They read `sign_gated` shipped and refuse with the read shut.
 ### The answers, and what each costs
 
 Pad leaf, release, `CAD_M10_10_TAKES=3`, best of 3, the `rules` and
-`ON + the ladder` columns. Each candidate is a trial patch on this base.
+`ON + the ladder` columns. Each candidate is a trial patch on the tree
+named.
 
-| candidate | pad receipt | bracket replay | pad leaf, rules / ladder |
-| --- | --- | --- | --- |
-| none (the base) | 893 / 34 / 150 / 1002 | 1105 / 21 / 144 / 783 | 25.565 / 34.421 s |
-| (a) a product with a zero factor carries that factor's gate alone | **925 / 2 / 150 / 1002** | **1121 / 5 / 144 / 783** | 25.988 / 35.993 s |
-| (b) an early gated zero is re-walked with the read shut, and is a theorem if that walk proves it | 925 / 2 / 150 / 1002 | (not run) | 26.272 / 35.470 s |
+| candidate | pad receipt | bracket replay | pad leaf, rules / ladder, `8b640cded` | the same, `494d477ef` |
+| --- | --- | --- | --- | --- |
+| none (the base) | 893 / 34 / 148 / 1004 | 1105 / 21 / 146 / 781 | 26.613 / 35.633 s | 25.565 / 34.421 s |
+| (a) a product with a zero factor carries that factor's gate alone | **925 / 2 / 148 / 1004** | **1121 / 5 / 146 / 781** | 27.178 / 35.970 s | 25.988 / 35.993 s |
+| (b) an early gated zero is re-walked with the read shut, and is a theorem if that walk proves it | 925 / 2 / 148 / 1004 | (not run) | 26.718 / 35.471 s | 26.272 / 35.470 s |
 
 - **(a) restores all 48.** It moves no `numeric`, `registered` or
   value: the form is the same zero polynomial and only its flag
-  changes. Its cost is one boolean per zero product. The three columns
-  differ by about 1.5 s on the ladder column, which is noise between
-  single best-of-3 sets, not the flag. Phase 2 re-measures before and
-  after back to back.
+  changes. Its cost is one boolean per zero product. The columns
+  differ by at most 0.6 s on the merged tree, and by 1.6 s on the
+  ladder column on the original base. That is noise between single
+  best-of-3 sets, not the flag. Phase 2 re-measures before and after.
 - **(b) restores the same 32 on the pad.** It costs a second early walk
   over every gated-zero decision's DAG, in a memo of its own, to
   recover a label the flag lost. The propagation that lost it stays in
