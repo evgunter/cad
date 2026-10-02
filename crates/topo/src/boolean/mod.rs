@@ -2708,9 +2708,9 @@ impl core::fmt::Display for BooleanError {
                     operand_word(*operand)
                 )?;
                 match orientation {
-                    ShellOrientation::Unpaired { face } => write!(
+                    ShellOrientation::Unpaired { .. } => write!(
                         f,
-                        "but its face {face:?} is not built from or declared coincident \
+                        "but one of its faces is not built from or declared coincident \
                          with a face of the other. Recourse: declare which face of the \
                          other it lies on"
                     ),
