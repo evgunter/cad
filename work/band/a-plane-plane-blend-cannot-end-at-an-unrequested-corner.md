@@ -49,7 +49,7 @@ named-and-not-implemented, and the ruled sibling's end geometry (FILLET-H7,
 the transverse cut-off) took Ev's ruling on PR 1736. What a planar band's
 end IS at an oblique end face, and what the patch at a sharp chain turn
 is, are the same kind of decision: weigh them first with one Opus and
-one Fable designer (`docs/prompts/designer.md`), then Ev if it is his
+one Fable designer (`docs/prompts/designer.md`), then Ev if it is Ev's
 call.
 
 A chamfer's end at a planar end face is one candidate that needs no new
