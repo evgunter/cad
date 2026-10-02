@@ -178,7 +178,7 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 ///
 /// [`SectionError`]: [`SectionError::Split`] passes the reduce and join
 /// stages' refusals through unchanged — in particular a zero-area
-/// section (a curved face's graze) REFUSES (`DegenerateSection`,
+/// section (a curved face's concave graze) REFUSES (`DegenerateSection`,
 /// exactly as [`super::split`] does) rather than reporting a
 /// degenerate trace.
 pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(

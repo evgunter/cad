@@ -331,7 +331,7 @@ pub fn classify_neighborhood<T: Decide>(
     }
 
     rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
-    rules::apply_rule_b(body, vertex, &mut entries, band)?;
+    rules::apply_rule_b(body, plane, vertex, &mut entries, band)?;
     Ok(entries)
 }
 

@@ -1,8 +1,10 @@
 //! A plane along an edge of a curved operand: an in-plane line edge
 //! between a plane and a cylinder (convex on a D-shaped bar, reflex on a
-//! D-shaped hole), and the concave graze of a round hole, whose
-//! refusal is correct only so long as it is not replaced by an answer
-//! that puts the hole on the wrong side.
+//! D-shaped hole); the convex graze of a cylinder and of a cone, which
+//! lands the body whole on its material's side; and the concave graze
+//! of a round hole and of a conical socket, whose refusal is correct
+//! only so long as it is not replaced by an answer that puts the hole
+//! on the wrong side.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Point3, Tol, Vec3};
@@ -115,11 +117,10 @@ fn a_plane_along_a_reflex_flat_to_wall_edge_cuts_through() {
 }
 
 /// A round hole grazed from inside, at a ruling (y = 0.5) and at its
-/// seam (x = 0.5): material on both sides. These refuse today. A rule
-/// (b) that sent the graze's bisector duplicate or smooth seam with its
-/// neighbours instead returns CLOSED halves with the hole on the wrong
-/// side under one orientation (10 and 5.21 for 9.21 and 6), so the row
-/// holds any answer to the true volumes and lets a refusal pass.
+/// seam (x = 0.5): material on both sides, and the hole's piece meets
+/// the cut face along a knife edge the split cannot declare, so these
+/// refuse (`wedge_end_doors` pins that refusal). The row holds any
+/// answer to the true volumes and lets a refusal pass.
 #[test]
 fn a_concave_graze_never_answers_with_the_hole_on_the_wrong_side() {
     let hole_area = std::f64::consts::PI / 4.0;
@@ -150,29 +151,196 @@ fn a_concave_graze_never_answers_with_the_hole_on_the_wrong_side() {
 
 /// A cylinder grazed from outside, along a ruling (y = 0.5, the cap
 /// rims' straight-sector duplicates) and along its seam (x = 0.5, a
-/// smooth edge): all its material is on one side, yet the graze refuses
-/// at the join's zero-area net, because rule (b) sends both entries
-/// across by default (`splitting/rules.rs`). This row and the concave
-/// graze above hold that default from both sides: a flip answers here
-/// and turns the concave row red. It flips with
-/// `work/cleave/split-refuses-a-convex-graze-of-a-curved-wall.md`.
+/// smooth edge): its wall bends into its material, so all of it lies on
+/// the material side and the whole cylinder lands there, under either
+/// orientation of the plane. The section the plane makes is empty.
 #[test]
-fn a_convex_graze_of_a_cylinder_refuses_on_area() {
+fn a_convex_graze_of_a_cylinder_lands_it_whole() {
     let disc = extruded(vec![vec![((-0.5, 0.0), 1.0), ((0.5, 0.0), 1.0)]]);
+    let v = std::f64::consts::PI / 4.0;
     for (o, n) in [((0.0, 0.5), (0.0, 1.0)), ((0.5, 0.0), (1.0, 0.0))] {
         for s in [1.0, -1.0] {
             let label = format!("at {o:?}, s = {s}");
-            let r = split(&disc, &plane(o, (s * n.0, s * n.1)), Tol::witness());
+            let p = plane(o, (s * n.0, s * n.1));
+            let section = topo::splitting::plane_section(&disc, &p, Tol::witness())
+                .unwrap_or_else(|e| panic!("{label}: section: {e:?}"));
+            assert!(section.regions.is_empty(), "{label}: a section");
+            let r = split(&disc, &p, Tol::witness()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            let want = if s > 0.0 {
+                (None, Some(v))
+            } else {
+                (Some(v), None)
+            };
+            let got = (volume(&label, &r.above), volume(&label, &r.below));
             assert!(
-                matches!(
-                    r,
-                    Err(topo::SplitError::Join(
-                        topo::SplitJoinError::DegenerateSection { .. }
-                    ))
-                ),
-                "{label}: {:?}",
-                r.map(|r| (r.above.body().is_some(), r.below.body().is_some()))
+                close(got.0, want.0) && close(got.1, want.1),
+                "{label}: {got:?}, want {want:?}"
             );
+        }
+    }
+}
+
+/// A convex graze beside a real cut: a U whose left arm ends in an arc
+/// of bulge 1/2 over its unit top (apex at y = 2.25) and whose right
+/// arm stands to y = 3, split by y = 2.25. The plane touches the arc's
+/// apex and cuts the right arm; the contact adds nothing to the
+/// section, so the right arm's top, 1 × 0.75, is the one piece across
+/// it, and the circular segment stays below.
+#[test]
+fn a_convex_graze_beside_a_real_cut_adds_nothing_to_the_section() {
+    let b = 0.5f64;
+    let u = extruded(vec![vec![
+        ((0.0, 0.0), 0.0),
+        ((3.0, 0.0), 0.0),
+        ((3.0, 3.0), 0.0),
+        ((2.0, 3.0), 0.0),
+        ((2.0, 1.0), 0.0),
+        ((1.0, 1.0), 0.0),
+        ((1.0, 2.0), b),
+        ((0.0, 2.0), 0.0),
+    ]]);
+    // The segment over a unit chord: angle 4·atan(b), radius
+    // (1 + b²)/(4b).
+    let (angle, radius) = (4.0 * b.atan(), (1.0 + b * b) / (4.0 * b));
+    let segment = radius * radius * (angle - angle.sin()) / 2.0;
+    let (top, rest) = (0.75, 6.0 + segment - 0.75);
+    for s in [1.0, -1.0] {
+        let label = format!("s = {s}");
+        let r = split(&u, &plane((0.5, 2.0 + b / 2.0), (0.0, s)), Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        let want = if s > 0.0 { (top, rest) } else { (rest, top) };
+        let got = (volume(&label, &r.above), volume(&label, &r.below));
+        assert!(
+            close(got.0, Some(want.0)) && close(got.1, Some(want.1)),
+            "{label}: {got:?}, want {want:?}"
+        );
+    }
+}
+
+/// A body of revolution about y: `pts` is the x–y profile, revolved a
+/// full turn.
+fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
+    use crate::revolve_common::{axis_y, validated};
+    use profile::RawLoop;
+    let lp = profile::ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
+    sweep::revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        sweep::Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
+}
+
+/// The plane tangent to the cone `ρ = r0 + slope·y` along its ruling at
+/// azimuth `u` (a unit x–z direction), with its normal `s ·` the cone's
+/// outward gradient `u − slope·ŷ`.
+fn cone_tangent(r0: f64, slope: f64, u: (f64, f64), s: f64) -> SplitPlane<f64> {
+    let n = Vec3::new(s * u.0, -s * slope, s * u.1);
+    topo::test_support::split_plane(
+        Point3::new(r0 * u.0, 0.0, r0 * u.1),
+        n / n.norm(),
+        Tol::witness(),
+    )
+}
+
+/// The four azimuths a cone row is grazed at: the revolve's seam (+x),
+/// its far side, and the two between, where no edge runs.
+const AZIMUTHS: [(f64, f64); 4] = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
+
+/// A cone frustum grazed from outside along a ruling, narrowing and
+/// widening upward (the two nappes of the stored cone), at its seam and
+/// away from it: the wall bends into its material, so the whole frustum,
+/// `7π/12`, lands on the material side.
+#[test]
+fn a_convex_graze_of_a_cone_lands_it_whole() {
+    let v = 7.0 * std::f64::consts::PI / 12.0;
+    for (name, body, r0, slope) in [
+        (
+            "narrowing",
+            revolved(&[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0), (0.0, 1.0)]),
+            1.0,
+            -0.5,
+        ),
+        (
+            "widening",
+            revolved(&[(0.0, 0.0), (0.5, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+            0.5,
+            0.5,
+        ),
+    ] {
+        for u in AZIMUTHS {
+            for s in [1.0, -1.0] {
+                let label = format!("{name}, u = {u:?}, s = {s}");
+                let r = split(&body, &cone_tangent(r0, slope, u, s), Tol::witness())
+                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                let want = if s > 0.0 {
+                    (None, Some(v))
+                } else {
+                    (Some(v), None)
+                };
+                let got = (volume(&label, &r.above), volume(&label, &r.below));
+                assert!(
+                    close(got.0, want.0) && close(got.1, want.1),
+                    "{label}: {got:?}, want {want:?}"
+                );
+            }
+        }
+    }
+}
+
+/// A conical socket grazed from inside: a cylinder of radius 3 with the
+/// narrowing frustum's cone as a through hole, and the plane tangent to
+/// the hole's wall along a ruling. Material lies on both sides. Every
+/// slice at height y is the disc of radius 3 cut by a chord at the
+/// hole's radius `c = 1 − y/2`, tangent to the hole, so the side the
+/// hole is not on holds `∫ 9·acos(c/3) − c·√(9 − c²) dy` and the rest
+/// is the other side's. As the round hole above, the row holds any
+/// answer to those volumes and lets a refusal pass.
+#[test]
+fn a_concave_graze_of_a_cone_never_answers_with_the_hole_on_the_wrong_side() {
+    use std::f64::consts::PI;
+    let body = revolved(&[(1.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.5, 1.0)]);
+    let segment = |y: f64| {
+        let c = 1.0 - y / 2.0;
+        9.0 * (c / 3.0).acos() - c * (9.0 - c * c).sqrt()
+    };
+    // Composite Simpson; the integrand is smooth on [0, 1].
+    let m = 2000;
+    let h = 1.0 / f64::from(m);
+    let beyond = (0..=m)
+        .map(|i| {
+            let w = if i == 0 || i == m {
+                1.0
+            } else if i % 2 == 1 {
+                4.0
+            } else {
+                2.0
+            };
+            w * segment(f64::from(i) * h)
+        })
+        .sum::<f64>()
+        * h
+        / 3.0;
+    let rest = 9.0 * PI - 7.0 * PI / 12.0 - beyond;
+    for u in AZIMUTHS {
+        for s in [1.0, -1.0] {
+            let label = format!("u = {u:?}, s = {s}");
+            // The hole's gradient points into the material, so `s = 1`
+            // puts the far segment Above.
+            let want = if s > 0.0 {
+                (beyond, rest)
+            } else {
+                (rest, beyond)
+            };
+            if let Ok(r) = split(&body, &cone_tangent(1.0, -0.5, u, s), Tol::witness()) {
+                let got = (volume(&label, &r.above), volume(&label, &r.below));
+                assert!(
+                    close(got.0, Some(want.0)) && close(got.1, Some(want.1)),
+                    "{label}: {got:?}, want {want:?}"
+                );
+            }
         }
     }
 }

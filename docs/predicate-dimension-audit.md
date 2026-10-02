@@ -319,6 +319,8 @@ which is what actually moves the number.
 | enters.rs:95 | enters_material | cos(unit,unit) × arm | m | OK |
 | enters.rs:141 | tangent_sector_order2_arm | caller arm | m | OK |
 | enters.rs:153 | tangent_sector_order2 | normal curvature (1/m) × arm²/2 | m | OK |
+| enters.rs `bends_into_material` | wall_bend_order2_arm | caller arm | m | OK |
+| enters.rs `bends_into_material` | wall_bend_order2 | mean normal curvature (1/m), folded to the material side, × arm²/2 | m | OK |
 | newell.rs:165 | newell_plane_residual | (p−centroid)·n̂ | m | OK |
 | certify.rs:849/858 | interval_span_forward/winding (Circle) | span × radius / (τ−span) × radius, through `Margin::metered` | m | OK. The radius IS the carrier's own parameter rate (`|dP/dθ| = r` exactly), the same number `pcurve_cache::param_rate` mints as an `InfSpeed` for a circle, so this crossing goes through the metric door like the Nurbs arm two rows down. Exact ⇒ inf, and both claims here are *definitely apart* (a forward span, headroom to one period), which is the inf side |
 | certify.rs:872/877 | interval_span_forward/winding (Ellipse) | span × minor, through `Margin::metered` | m | OK. `|dP/dθ| ≥ minor`, so the minor semi-axis is a certified LOWER bound on the ellipse's own parameter rate — an `InfSpeed`, the same mint `param_rate` and `splitting::classify` make for the same kind. Conservative in the direction a forward claim needs |

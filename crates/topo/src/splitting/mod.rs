@@ -690,12 +690,12 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// mirror's distinct failure is not reported), at the cost of up to
 /// three pipeline runs.
 ///
-/// **The rerun also receives one-sided grazes of curved faces.** A
-/// plane tangent to a cylinder's wall closes a zero-area polygon too,
-/// and the refusal cannot say which of the two it is, so the mirrored
-/// run is tried for both. (A plane tangent along a convex edge never
-/// gets here: rule (b) classifies the edge with its material.) A graze
-/// alone refuses again there. A graze whose contact meets a real
+/// **The rerun also receives concave grazes of curved faces.** A
+/// plane tangent to a hole's wall from inside closes a zero-area
+/// polygon too, and the refusal cannot say which of the two it is, so
+/// the mirrored run is tried for both. (A plane tangent along a convex
+/// edge, or to a convex wall, never gets here: rule (b) classifies the
+/// entry with its material.) A graze alone refuses again there. A graze whose contact meets a real
 /// section elsewhere would, in the mirrored run, join that contact into
 /// the real section's loop as a zero-width spur of positive net area —
 /// a success with a slit in both halves — and the join refuses it
@@ -714,7 +714,7 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the degenerate section/side refusals of a curved face's
-/// one-sided graze (no degenerate body is ever emitted), and
+/// concave graze (no degenerate body is ever emitted), and
 /// [`SplitFinishError::SectionCusp`] from either run. Each run gates
 /// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
 /// mirrored run whose side is not a closed solid surfaces the direct
