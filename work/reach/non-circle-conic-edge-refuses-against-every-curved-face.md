@@ -2,11 +2,12 @@
 id: non-circle-conic-edge-refuses-against-every-curved-face
 kind: issue
 title: An ellipse (or spiric, or NURBS) edge refuses against a curved face it does not even meet - no clearance or root lane for the carrier
-status: review
+status: closed
 opened: 2026-10-01
 refs: [line-edge-crossing-a-sphere-face-has-no-root-lane, sphere-union-sphere-refuses-though-the-section-is-closed-form]
 branch: reach/conic-edge-curved-face
 pr: 3805
+closed: 2026-10-02
 ---
 
 Found by the `reach-snowman` lane's sweep of the crossing layer's
@@ -139,3 +140,19 @@ into the lower half's refuses `Containment(VolumeUncertified)`, the
 at-infinity probe, one door past the rim. Recorded on
 `work/show/tiltedcut-engraved-face.md`; the walls are re-derived in
 `demos/tour/src/curvedcut.rs`.
+
+## Closed (2026-10-02, PR 3805)
+
+An ellipse edge against a sphere or a cylinder face is now decided, not
+refused. `geom_brep::Conic` carries the residual harmonics, and
+`boolean::ellipse_roots` answers the ellipse cells on the shared root
+cores. The ladder's frame carries the carrier's speed in `[b, a]`;
+delta review 3 measured 0 wrong among 12,931 certified roots. The
+certify gate meters `min(|major|, minor)`: a negative minor semi-axis
+refuses as it did before this PR. The bodies this unblocks build:
+a ball or a rod held inside the drum within reach of the rim, and the
+tour's tiltedcut U on the upper section face (tier 3; volume from the
+closed form). Each op past the rim stops at its next door, and every
+one of those doors is filed (above). The C on the lower face refuses
+`Containment(VolumeUncertified)` and is re-pinned there; it is
+recorded for SHOW on `work/show/tiltedcut-engraved-face.md`.

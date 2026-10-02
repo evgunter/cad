@@ -2,12 +2,13 @@
 id: reconcile-sphere-cylinder-scan-arm-with-3801
 kind: issue
 title: Reconcile #3805's sphere × cylinder extent-scan arm with #3801, which hands those pairs to the section pass
-status: review
+status: closed
 pr: 3805
 opened: 2026-10-02
 priority: P1
 cost: E
 refs: [non-circle-conic-edge-refuses-against-every-curved-face, sphere-straddling-a-cylinder-carrier-refuses-at-the-extent-scan, ball-inside-a-two-sphere-body-refuses-at-the-extent-scan]
+closed: 2026-10-02
 ---
 
 
@@ -62,3 +63,8 @@ carrier, now builds there and is kept as a row (closing
 `sphere-straddling-a-cylinder-carrier-refuses-at-the-extent-scan`). The
 conic rows (`conic_edge_curved_face`) pass on the merged route at the
 three ε.
+
+## Closed (2026-10-02, PR 3805)
+
+As in the outcome above: #3801's section-pass route, merged in, carries
+these pairs, and the straddling pose is a row that builds.

@@ -2,12 +2,13 @@
 id: sphere-straddling-a-cylinder-carrier-refuses-at-the-extent-scan
 kind: issue
 title: A ball straddling a cylinder wall's carrier, clear of the wall face, refuses FallbackExtentUnsupported at the extent scan
-status: review
+status: closed
 pr: 3805
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [ball-inside-a-two-sphere-body-refuses-at-the-extent-scan, non-circle-conic-edge-refuses-against-every-curved-face]
+closed: 2026-10-02
 ---
 
 Found by the REACH lane for the ellipse rim
@@ -51,3 +52,8 @@ in both orders, tier 3, against `¾·π·0.35²·1.3` and `4π·0.05³/3`:
 `a_ball_straddling_a_notched_walls_carrier_builds` (which replaces the
 refusal row this item named). The carrier-only certificate this item
 was filed against is gone.
+
+## Closed (2026-10-02, PR 3805)
+
+As in the outcome above: #3801's section-pass route, merged in, carries
+these pairs, and the straddling pose is a row that builds.
