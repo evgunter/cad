@@ -2,7 +2,7 @@
 id: DECIDE-9
 kind: unit
 title: "the decision read answers theorems: keep it behind every form that settles"
-status: dispatched
+status: review
 opened: 2026-10-02
 priority: P2
 cost: M

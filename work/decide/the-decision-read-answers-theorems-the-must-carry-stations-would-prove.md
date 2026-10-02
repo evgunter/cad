@@ -80,7 +80,7 @@ theorem the read costs outright.
 as `dc39bce95`. Every run was first taken on the branch's original base
 `494d477ef` and then re-taken on the merged tree. The attribution, the
 shape and the candidates' restorations read the same on both trees.
-What differs is `main`'s own `registered`/`numeric` move, which is
+What differs is `main`'s own `registered`/`numeric` move, which `main`
 re-baselined in the pins' notes (bracket `144 / 783 → 146 / 781`, pad
 `150 / 1002 → 148 / 1004`), and the timings, given per tree below. The
 runs:
@@ -218,3 +218,79 @@ that does not depend on an operand whose gate it carries.
   `Form::mul` and in `combine`'s `copysign` arm printed nothing on the
   bracket replay or the pad leaf. Filed as
   `work/decide/form-mul-carries-the-gate-of-a-factor-a-zero-annihilates`.
+
+## What Phase 2 changed (DECIDE-9)
+
+The tree is `8b640cded` plus this unit.
+
+- **`geom_core::sym`'s `combine`, the early zero arm.** A product is
+  zero whatever its other factor is worth, so it carries the AND of
+  its zero factors' gates. One ungated zero factor makes the product a
+  theorem. A sum still carries both gates.
+- **`combine`'s `copysign`.** A zero first argument folds to zero,
+  carrying that argument's gate alone. It is asked before rule F's two
+  arms, which reach the same zero carrying the sign argument's gate
+  too.
+- **The docs.** The module header's "The decision read",
+  `SymRules::decision_read` and its rules-table row now state the
+  ordering the code keeps: behind every value-free fold AT ITS NODE.
+  Above the node, a value built from the arm carries the arm's gate,
+  and a zero that does not depend on the arm does not. The table row
+  no longer says `sign_gated` "where it fires": the read fires inside
+  each of the 48, and they are theorems.
+
+**The invariant, shown.** All on the merged tree. Shipped first, read
+shut second, as theorem / gated / registered / numeric:
+
+| run | before | after | read shut |
+| --- | --- | --- | --- |
+| pad, `replay_counts` at `2.083e3·ε` (release, `m10_9_the_pad_at_both_rule_f_dials`; the gating row reads the same `symbolic_zero`) | 893 / 34 / 148 / 1004, frozen 2510 | **925 / 2 / 148 / 1004**, frozen 2510 | — |
+| pad, release leaf instrument at `1e2·ε` | 893 / 34 / 148 / 1004 | 925 / 2 / 148 / 1004 | 925 / 0 / 148 / 1006 |
+| bracket, replay at `3.870e2·ε` (dev) | 1105 / 21 / 146 / 781 | **1121 / 5 / 146 / 781** | 1121 / 0 / 146 / 786 |
+
+- Every decision the read-free walk proves is a theorem with the read
+  on: 925 and 1121.
+- `sign_gated` keeps 2 on the pad and 5 on the bracket. Those are the
+  `line_span` reads, which the hook found non-zero read-free and which
+  the top rung did not settle. With the read shut they are `numeric`
+  (pad 1004 + 2 = 1006, bracket 781 + 5 = 786).
+- `registered`, `numeric` and `frozen` do not move on either document.
+- The plate, the annulus and the link keep their `measured_studies`
+  pins (`m10_9_no_registrant_lies_on_any_measured_document` passes
+  unchanged for them). The segment boss and the link keep
+  `sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`'s rows.
+  `m10_10_pins_interval`'s per-predicate splits pass unchanged.
+
+**Pins re-baselined.**
+- `m10_9_pins_interval`: the pad's `symbolic_zero` 893 → 925 and the
+  bracket's 1105 → 1121, with their notes.
+- `m10_9_the_pad_at_both_rule_f_dials` (ignored):
+  `(893, 34, 150, 1002, 2577)` → `(925, 2, 148, 1004, 2510)`. Of that
+  move, `registered`, `numeric` and `frozen` are `main`'s: this row on
+  the merged tree before this unit reads `(893, 34, 148, 1004, 2510)`.
+- `sym_9_retry_interval`: the bracket `[1105, 21, 146, 781]` →
+  `[1121, 5, 146, 781]` without the ladder, and `[1105, 21, 152, 775]`
+  → `[1121, 5, 152, 775]` with it. The drive's receipt
+  `[1121, 5, 152, 775, 6]` and `[1121, 5, 146, 781, 0]`. `retried` 6
+  either way.
+- `sym_root_rows::a_zero_factor_times_a_read_factor`: the two shapes,
+  `sign_gated` → `theorem`.
+
+**Leaf cost.** Pad, release, best of 3, merged tree, two interleaved
+sets:
+
+| column | before, set 1 / set 2 | after, set 1 / set 2 |
+| --- | --- | --- |
+| `algebra ON (rules)` | 26.613 / 26.141 s | 27.362 / 26.846 s |
+| `ON + the ladder` | 35.633 / 35.765 s | 36.005 / 36.022 s |
+
+The rules column reads +0.70 to +0.75 s after (2.7 %) in both sets. The
+same column differs by 0.47 s between the two "before" sets. The change
+adds one boolean per zero product and one zero test per `copysign`, and
+nothing here attributes the 0.7 s to it.
+
+**Not this unit's.** `sym11_the_exact_channel_never_contradicts_past_the_ceiling`
+(ignored, re-taken by hand at each SYM unit's close) pins the pad's
+`symbolic_zero` past the ceiling at 885 and `registered` at 128. That
+was stale before this unit (`registered` has read 148 at the pin's own
+scale since `main`'s copied arc carriers), and it was not re-taken here.

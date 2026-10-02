@@ -614,8 +614,14 @@ fn a_zero_factor_times_a_read_factor() {
     fn z(x: Sym<Interval>) -> Sym<Interval> {
         x.sqrt().powi(2) - x
     }
-    // `(shape, shipped, read shut)`.
-    let shapes: [(&str, fn() -> Sym<Interval>, &str, &str); 5] = [
+    /// `(shape, its build, shipped, read shut)`.
+    type Shape = (
+        &'static str,
+        fn() -> Sym<Interval>,
+        &'static str,
+        &'static str,
+    );
+    let shapes: [Shape; 5] = [
         (
             "Z · min(x, 3)",
             || {
