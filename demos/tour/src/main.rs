@@ -51,6 +51,7 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod bossplate;
+mod bracket;
 mod bud;
 mod chain;
 mod chaintol;
@@ -984,7 +985,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
-         split/inline, the update door) --"
+         gauges, split/inline, the update door) --"
     );
     for stop in assembly::stops(work, tol) {
         visit(&stop);

@@ -13,7 +13,7 @@
 //! # Which scenes are here, and which are not
 //!
 //! The document-authored scenes are the ones that build a `Doc` and
-//! evaluate it: **checks, ring, diefillet, heatsink, teapot**, plus
+//! evaluate it: **bracket, checks, ring, diefillet, heatsink, teapot**, plus
 //! **assembly**, whose documents are a workspace of several files and
 //! are written by that scene's own store. The rest of the tour drives
 //! the kernel API directly and has no document to save; they join the
@@ -39,6 +39,7 @@ pub fn run(dir: Option<String>, tol: Tol) {
     println!("demo-document gallery → {}", dir.display());
     let mut written = 0usize;
     for (name, doc) in [
+        ("bracket", crate::bracket::gallery_document(tol)),
         ("checks", crate::checks::gallery_document(tol)),
         ("ring", crate::ring::gallery_document(tol)),
         ("diefillet", crate::diefillet::gallery_document(tol)),
@@ -177,6 +178,14 @@ mod tests {
     fn each_gallery_document_denotes_its_scene_or_says_why_not() {
         let tol = Tol::witness();
         let shapes = [
+            Shape {
+                name: "bracket",
+                doc: crate::bracket::gallery_document(tol),
+                roots: 1,
+                separation: 0,
+                why: "one extrude, one root: the split and the chamfer live in the scene's wall \
+                      probe, not in the document",
+            },
             Shape {
                 name: "checks",
                 doc: crate::checks::gallery_document(tol),

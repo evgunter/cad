@@ -4734,7 +4734,7 @@ pub(crate) enum PlusVVerdict {
 /// [`crate::props::ShellRole::decided_at`] gives it: the high end under
 /// `positive_volume` first, and the low end under
 /// `positive_volume_enclosure` only when the high end decides nothing.
-fn plus_v_read<T: geom_core::Decide>(
+pub(crate) fn plus_v_read<T: geom_core::Decide>(
     enclosure: crate::props::VolumeEnclosure<T>,
     band: Band,
 ) -> Option<crate::props::ShellRole> {
