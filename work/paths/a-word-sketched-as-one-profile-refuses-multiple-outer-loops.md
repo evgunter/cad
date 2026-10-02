@@ -4,6 +4,8 @@ kind: issue
 title: A word sketched as one profile refuses MultipleOuterLoops, so each glyph is its own profile, extrude and boolean
 status: open
 opened: 2026-10-02
+priority: P3
+cost: M
 ---
 
 

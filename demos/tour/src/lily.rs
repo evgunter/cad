@@ -13,7 +13,7 @@
 //! booleans**. This stop is the honest intersection of the two, and
 //! every place the intersection is empty is pinned by
 //! [`wall_probes`] — a live, fail-loud record of what the kernel
-//! refused, in the `curvedcut::pin_frontier` style: each probe
+//! refused, in the [`crate::walls::wall`] style: each probe
 //! ASSERTS its refusal and panics with instructions if the refusal
 //! ever retires.
 //!
@@ -1903,7 +1903,7 @@ fn ball<S: Scalar>(c: Point3<f64>, r: f64, tol: Tol) -> Body<S> {
 ///   probe that only pinned "some error" would stay green while the
 ///   frontier moved underneath it, and the findings list would quietly
 ///   become fiction (review MINOR-1);
-/// - success → panic with instructions, the `curvedcut::pin_frontier`
+/// - success → panic with instructions, the [`crate::walls::wall`]
 ///   retire-on-closure contract.
 fn wall<T, E: core::fmt::Debug>(
     n: u32,

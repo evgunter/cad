@@ -20,11 +20,11 @@
 //! **Walls.** The lettering belongs on the elliptical section face (an
 //! oval nameplate), the natural order is cut first and engrave after,
 //! and the natural C has one arc per side. None of the three builds;
-//! [`walls`] attempts each every run.
+//! [`walls`] attempts each every run, the section face on both halves.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_1_SQRT_2, PI};
+use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, polygon, v3, validated};
 use pncad::geom_core::{OrthoFrame, Tol};
@@ -76,84 +76,77 @@ fn lettering<S: Scalar>(tol: Tol) -> [Glyph<S>; 3] {
 
 /// The C's centre and its outer and inner radii.
 const C_ARCS: (f64, f64, f64) = (-0.5, 0.25, 0.15);
+/// Half the C's opening, about +x from its centre (rad).
+const C_GAP: f64 = PI / 4.0;
 
-/// C: the annular sector about (−0.5, 0) between radii 0.25 and 0.15,
-/// open over the quarter turn facing +x, so it sweeps θ = 3π/2 and
-/// encloses (θ/2)(0.25² − 0.15²).
-///
-/// Each side is drawn as two arcs meeting tangent at the C's leftmost
-/// point: the same side as one arc ([`c_one_arc_per_side`]) cuts no
-/// pocket (`work/zip/an-engraved-annular-sector-refuses-seam-orientation.md`,
-/// wall 4 in [`walls`]).
-fn glyph_c<S: Scalar>(tol: Tol) -> Glyph<S> {
+/// How the C's two sides are drawn.
+#[derive(Clone, Copy)]
+enum Sides {
+    /// One arc per side: the spelling a user writes first.
+    OneArc,
+    /// Each side as two arcs meeting tangent at the C's leftmost point.
+    SplitAtApex,
+}
+
+/// The C's outline: the annular sector about [`C_ARCS`]'s centre
+/// between its two radii, open over 2·[`C_GAP`] facing +x, with its
+/// sides drawn per `sides`.
+fn c_outline<S: Scalar>(sides: Sides, tol: Tol) -> ConstructedLoop<S> {
     let (cx, ro, ri) = C_ARCS;
-    let s = FRAC_1_SQRT_2;
-    let outline = Open
-        .at(p2::<S>(cx + ro * s, ro * s))
-        .arc_to(
-            Center {
-                c: p2(cx, 0.0),
-                winding: ArcSweep::Ccw,
-                p: p2(cx - ro, 0.0),
-            },
-            tol,
-        )
-        .expect("the C's outer arc, to its leftmost point")
-        .tangent()
-        .tangent_arc_to(p2(cx + ro * s, -ro * s), tol)
-        .expect("and on round to its lower end")
-        .line_to(p2(cx + ri * s, -ri * s), tol)
-        .expect("its lower terminal")
-        .arc_to(
-            Center {
-                c: p2(cx, 0.0),
-                winding: ArcSweep::Cw,
-                p: p2(cx - ri, 0.0),
-            },
-            tol,
-        )
-        .expect("the C's inner arc, to its leftmost point")
-        .tangent()
-        .tangent_arc_to(p2(cx + ri * s, ri * s), tol)
-        .expect("and on round to its upper end")
-        .line_to(Start, tol)
-        .expect("its upper terminal closes the C")
-        .into();
-    Glyph {
-        name: "C",
-        outline,
-        area: 0.75 * PI * (ro * ro - ri * ri),
+    let at = |r: f64, a: f64| p2::<S>(cx + r * a.cos(), r * a.sin());
+    let about = |winding, p| Center {
+        c: p2(cx, 0.0),
+        winding,
+        p,
+    };
+    let (start, outer_end) = (at(ro, C_GAP), at(ro, -C_GAP));
+    let (inner_start, inner_end) = (at(ri, -C_GAP), at(ri, C_GAP));
+    match sides {
+        Sides::OneArc => Open
+            .at(start)
+            .arc_to(about(ArcSweep::Ccw, outer_end), tol)
+            .expect("the C's outer arc")
+            .line_to(inner_start, tol)
+            .expect("its lower terminal")
+            .arc_to(about(ArcSweep::Cw, inner_end), tol)
+            .expect("the C's inner arc")
+            .line_to(Start, tol)
+            .expect("its upper terminal closes the C")
+            .into(),
+        Sides::SplitAtApex => Open
+            .at(start)
+            .arc_to(about(ArcSweep::Ccw, p2(cx - ro, 0.0)), tol)
+            .expect("the C's outer arc, to its leftmost point")
+            .tangent()
+            .tangent_arc_to(outer_end, tol)
+            .expect("and on round to its lower end")
+            .line_to(inner_start, tol)
+            .expect("its lower terminal")
+            .arc_to(about(ArcSweep::Cw, p2(cx - ri, 0.0)), tol)
+            .expect("the C's inner arc, to its leftmost point")
+            .tangent()
+            .tangent_arc_to(inner_end, tol)
+            .expect("and on round to its upper end")
+            .line_to(Start, tol)
+            .expect("its upper terminal closes the C")
+            .into(),
     }
 }
 
-/// The C as a user writes it first: one arc per side.
-fn c_one_arc_per_side(tol: Tol) -> ConstructedLoop<f64> {
-    let (cx, ro, ri) = C_ARCS;
-    let s = FRAC_1_SQRT_2;
-    Open.at(p2(cx + ro * s, ro * s))
-        .arc_to(
-            Center {
-                c: p2(cx, 0.0),
-                winding: ArcSweep::Ccw,
-                p: p2(cx + ro * s, -ro * s),
-            },
-            tol,
-        )
-        .expect("the C's outer arc")
-        .line_to(p2(cx + ri * s, -ri * s), tol)
-        .expect("its lower terminal")
-        .arc_to(
-            Center {
-                c: p2(cx, 0.0),
-                winding: ArcSweep::Cw,
-                p: p2(cx + ri * s, ri * s),
-            },
-            tol,
-        )
-        .expect("the C's inner arc")
-        .line_to(Start, tol)
-        .expect("its upper terminal closes the C")
-        .into()
+/// C: the annular sector of [`c_outline`], sweeping θ = 2π − 2·[`C_GAP`]
+/// and enclosing (θ/2)(r_o² − r_i²).
+///
+/// Its sides are split at the apex: drawn as one arc each, the C cuts
+/// no pocket (`work/zip/an-engraved-annular-sector-refuses-seam-orientation.md`,
+/// wall 4 in [`walls`]).
+fn glyph_c<S: Scalar>(tol: Tol) -> Glyph<S> {
+    let (_, ro, ri) = C_ARCS;
+    let sweep = 2.0 * PI - 2.0 * C_GAP;
+    Glyph {
+        name: "C",
+        outline: c_outline(Sides::SplitAtApex, tol),
+        area: sweep / 2.0 * (ro * ro - ri * ri),
+    }
 }
 
 /// U: two 0.1 × 0.3 stems over x ∈ ±[0.1, 0.2], joined below
@@ -235,7 +228,19 @@ pub struct Cut<S: Scalar> {
     /// The half on the section normal's side: it carries the
     /// engraved cap.
     pub above: Body<S>,
+    /// The half against the section normal, unengraved.
     pub below: Body<S>,
+}
+
+/// `body` split by the plane tilted [`PHI`] through mid-height, as
+/// (above, below).
+fn tilted_cut<S: Scalar>(body: &Body<S>, tol: Tol) -> (Body<S>, Body<S>) {
+    let plane = split_plane(p3(0.0, 0.0, H / 2.0), v3(PHI.sin(), 0.0, PHI.cos()), tol);
+    let result = split(body, &plane, tol).expect("the tilted cut splits the cylinder");
+    let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {
+        panic!("the section plane crosses the wall: both sides must be bodies");
+    };
+    (above, below)
 }
 
 /// Engraves the cap, then cuts the cylinder by the tilted plane
@@ -257,15 +262,10 @@ pub fn build<S: Scalar>(tol: Tol) -> Cut<S> {
         };
         stages.push(pocketed);
     }
-    let engraved = stages.last().expect("three pockets were cut");
-    let plane = split_plane(p3(0.0, 0.0, H / 2.0), v3(PHI.sin(), 0.0, PHI.cos()), tol);
-    let result = split(engraved, &plane, tol).expect("the tilted cut splits the cylinder");
-    let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
-        panic!("the section plane crosses the wall: both sides must be bodies");
-    };
+    let (above, below) = tilted_cut(stages.last().expect("three pockets were cut"), tol);
     Cut {
-        above: above.clone(),
-        below: below.clone(),
+        above,
+        below,
         stages,
     }
 }
@@ -327,9 +327,15 @@ fn pocket_narration(stages: &[Body<f64>], tol: Tol) -> (f64, String) {
         );
         m.volume
     };
+    let glyphs = lettering::<f64>(tol);
+    assert_eq!(
+        stages.len(),
+        glyphs.len() + 1,
+        "one stage per glyph after the bare cylinder"
+    );
     let mut total = 0.0;
     let mut lines = Vec::new();
-    for (g, pair) in lettering::<f64>(tol).iter().zip(stages.windows(2)) {
+    for (g, pair) in glyphs.iter().zip(stages.windows(2)) {
         let removed = volume(&pair[0]) - volume(&pair[1]);
         let exact = g.area * DEPTH;
         let err = (removed - exact).abs();
@@ -350,11 +356,32 @@ fn pocket_narration(stages: &[Body<f64>], tol: Tol) -> (f64, String) {
     (total, lines.join("; "))
 }
 
+/// Whether `e` is the curved pierce arm refusing `body`'s `Ellipse`
+/// section rim.
+fn ellipse_pierce(body: &Body<f64>, e: &BooleanError) -> bool {
+    let BooleanError::CurvedPierceUnsupported {
+        operand: Operand::A,
+        edge,
+        ..
+    } = e
+    else {
+        return false;
+    };
+    matches!(
+        body.get_edge(*edge)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(|g| g.certified())
+            .map(|c| c.carrier()),
+        Some(Curve3::Ellipse { .. })
+    )
+}
+
 /// The lettering where it was wanted, attempted live.
 fn walls(cut: &Cut<f64>, tol: Tol) {
     // The section face's own frame: u along the ellipse's major axis,
-    // v along its minor, so u × v is the section normal; the sketch
-    // sits DEPTH inside the lower half.
+    // v along its minor, so u × v is the section normal. The sketch
+    // sits DEPTH below the section, so the tool straddles it and sinks
+    // DEPTH into either half.
     let n = (PHI.sin(), 0.0, PHI.cos());
     let section = || {
         sketch_frame(
@@ -369,46 +396,42 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     crate::walls::wall(
         "tilted cut",
         1,
-        "engrave the C into the elliptical section face",
+        "engrave the C into the lower half's elliptical section face",
         try_subtract(below, &c, tol),
-        |e| match e {
-            BooleanError::CurvedPierceUnsupported {
-                operand: Operand::A,
-                edge,
-                ..
-            } => matches!(
-                below
-                    .get_edge(*edge)
-                    .and_then(|e| below.get_curve_geom(e.curve))
-                    .and_then(|g| g.certified())
-                    .map(|c| c.carrier()),
-                Some(Curve3::Ellipse { .. })
-            ),
-            _ => false,
-        },
+        |e| ellipse_pierce(below, e),
         "move the lettering onto the section face (the oval nameplate) and retire \
-         walls 1 to 3",
+         walls 1 and 2",
     );
-    let t = tool(section(), glyph_t::<f64>(tol).outline, tol);
+    // The arc-bearing glyphs (C, U, a disc) refuse here on either half's
+    // section face at every pose tried: offsets (0, 0), (0.3, 0.2) and
+    // (−0.2, −0.3) in the face's frame, depths 0.02, 0.05 and 0.2. A
+    // lines-only glyph depends on the pose and the half: on the lower
+    // half a square and the T refuse `Containment(VolumeUncertified)`
+    // at all nine poses, while on the upper half a square cuts at 8 of
+    // 9 and the T at offset (−0.2, −0.3) for depths 0.02 and 0.05, each
+    // at its closed-form volume.
+    let above = &cut.above;
+    let u = tool(section(), glyph_u::<f64>(tol).outline, tol);
     crate::walls::wall(
         "tilted cut",
         2,
-        "engrave the T, lines only, into the elliptical section face",
-        try_subtract(below, &t, tol),
-        |e| {
-            matches!(
-                e,
-                BooleanError::Containment(PointInSolidError::VolumeUncertified)
-            )
-        },
-        "re-run wall 1: with this door open, only the ellipse pierce stands",
+        "engrave the U into the upper half's elliptical section face",
+        try_subtract(above, &u, tol),
+        |e| ellipse_pierce(above, e),
+        "move the lettering onto the section face (the oval nameplate) and retire \
+         walls 1 and 2",
     );
-    let c_under = tool(level(-DEPTH), glyph_c::<f64>(tol).outline, tol);
+    // The order the scene would adopt: cut first, then engrave the
+    // upper half's top cap. Every glyph tried refuses the same way on
+    // either half's round cap after the cut — C, U, T, a square and a
+    // disc, at depths 0.02, 0.05 and 0.2.
+    let (bare_above, _) = tilted_cut(&cut.stages[0], tol);
+    let c_cap = tool(level(H - DEPTH), glyph_c::<f64>(tol).outline, tol);
     crate::walls::wall(
         "tilted cut",
         3,
-        "engrave the C into the lower half's round cap, after the cut",
-        try_subtract(below, &c_under, tol),
+        "engrave the C into the upper half's round cap, after the cut",
+        try_subtract(&bare_above, &c_cap, tol),
         |e| {
             matches!(
                 e,
@@ -417,14 +440,14 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
         },
         "engrave the cap after the cut, the natural order, and retire this probe",
     );
-    let c_whole = tool(level(H - DEPTH), c_one_arc_per_side(tol), tol);
+    let c_whole = tool(level(H - DEPTH), c_outline(Sides::OneArc, tol), tol);
     crate::walls::wall(
         "tilted cut",
         4,
         "engrave the C drawn with one arc per side into the cylinder's cap",
         try_subtract(&cut.stages[0], &c_whole, tol),
         |e| matches!(e, BooleanError::SeamOrientation { .. }),
-        "draw glyph_c with one arc per side and retire this probe",
+        "draw glyph_c with Sides::OneArc and retire this probe",
     );
 }
 
@@ -447,6 +470,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "extrude(disc); per glyph: extrude(lines + arcs) -> subtract (blind \
               pocket); topo::split(tilted plane); exact Curve3::Ellipse section \
               carriers; pcurve trim loops + certified quadrature",
+        // The inner arcs (radius 0.1 to 0.15) want 2e-3, and the one
+        // scene-wide delta spends it on the whole cylinder too
+        // (`work/show/a-tour-scene-meshes-every-body-at-one-delta.md`).
         delta: 2e-3,
         note: Some(format!(
             "cutting a cylinder at an angle produces an ellipse, and this kernel \

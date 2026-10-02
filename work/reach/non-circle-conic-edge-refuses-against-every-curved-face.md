@@ -60,7 +60,10 @@ blind pocket 0.05 deep whose outline lies strictly inside the ellipse
 (its leftmost point 0.30 short of the rim along the major axis). `subtract(lower half, tool)` refuses
 `CurvedPierceUnsupported { operand: A, .. }` with the edge the half's
 `Ellipse` rim and the face one of the tool's cylinder walls, an
-ellipse × cylinder pair whose carriers never meet. The probe asserts
-the rim is an `Ellipse` and panics when the subtraction builds or
-refuses otherwise. A lines-only glyph on the same face gets past this
-door and stops at `work/contact/at-infinity-probe-measures-in-closed-form-only.md`.
+ellipse × cylinder pair whose carriers never meet. The U and a disc
+refuse the same way, on either half's section face, at every pose the
+review tried (offsets (0, 0), (0.3, 0.2), (−0.2, −0.3); depths 0.02,
+0.05, 0.2). Walls 1 (C, lower half) and 2 (U, upper half) assert the
+rim is an `Ellipse` and panic when the subtraction builds or refuses
+otherwise. Lines-only glyphs get past this door and are
+pose-dependent: `work/contact/at-infinity-probe-measures-in-closed-form-only.md`.

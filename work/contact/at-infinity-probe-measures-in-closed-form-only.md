@@ -43,16 +43,25 @@ reporting midpoint.
 
 ## Also met: blind pockets in a tilted-cut cylinder (SHOW, 2026-10-02)
 
-The `tiltedcut` scene (`demos/tour/src/curvedcut.rs`, walls 2 and 3
-of `walls`) cuts a cylinder (r 1, height 2.5) by the plane through
-`(0, 0, 1.25)` with normal `(sin 0.3, 0, cos 0.3)` and engraves its
-lower half, a 0.05-deep blind pocket per glyph, each tool straddling
-the face it cuts:
+The `tiltedcut` scene (`demos/tour/src/curvedcut.rs`) cuts a cylinder
+(r 1, height 2.5) by the plane through `(0, 0, 1.25)` with normal
+`(sin 0.3, 0, cos 0.3)` and engraves blind pockets into the halves,
+each tool straddling the face it cuts. Knobs varied: glyph (C, U, T,
+a square, a disc), depth (0.02, 0.05, 0.2) and, on the section face,
+offset in the face's frame ((0, 0), (0.3, 0.2), (−0.2, −0.3)).
 
-- a T, lines only, into the elliptical section face;
-- a C (two concentric arcs, two lines) into the round bottom cap.
-
-Both refuse `Containment(VolumeUncertified)`; on the unsplit cylinder's
-cap the same glyphs cut at their closed-form volumes. The scene engraves
-the cap before cutting, and each wall panics when its subtraction
-builds or refuses otherwise.
+- **Round caps, after the cut.** Every glyph refuses
+  `Containment(VolumeUncertified)` on both halves' caps at every depth,
+  a plain square included. On the unsplit cylinder's cap the same
+  glyphs cut at their closed-form volumes, so the scene engraves
+  before cutting; wall 3 of `curvedcut::walls` pins the upper half's
+  top cap.
+- **Elliptical section face, lines-only glyphs.** Pose-dependent. On
+  the lower half a square and the T refuse `VolumeUncertified` at all
+  nine poses (the T at offset (0.3, 0.2) crosses the rim and stops at
+  the curved pierce arm instead). On the upper half a square cuts at
+  8 of 9 poses and the T at offset (−0.2, −0.3) for depths 0.02 and
+  0.05, each at its closed-form volume; the rest refuse
+  `VolumeUncertified`.
+- Arc-bearing glyphs on the section face stop earlier, at the curved
+  pierce arm (`work/reach/non-circle-conic-edge-refuses-against-every-curved-face.md`).
