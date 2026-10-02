@@ -4,7 +4,7 @@ kind: issue
 title: The selection vocabulary cannot say 'the crease between two spheres': AdjacentKinds(Sphere, Sphere) also names every seam meridian, and only rim_of's CoSurface refusal separates them
 status: open
 opened: 2026-10-02
-refs: [edge-side-surfaces-have-no-door, seed-finder-home-reads-only-the-y-station, 3787]
+refs: [3803, seed-finder-home-reads-only-the-y-station, 3787]
 priority: P3
 cost: M
 ---
@@ -97,3 +97,7 @@ seam IS reachable. `Selector.of(NamePat.of_kind(Edge).seg(SegPat.tag(SegTag.Seam
 names exactly the two waist arcs. That is the same op-record reading
 argued against above, spelled as a structural selector, so the
 argument stands but its second bullet does not.
+
+## Re-homed at TQUERY's close (2026-10-02)
+
+Moved from `work/tquery/` by `git mv`, id and body unchanged, when TQUERY closed (`docs/doc-ledger/tquery-leaves-the-tracker.md`). The kernel read it needs has landed: `topo::readback::edge_sides` (PR 3803), so "the two sides rest on different surface keys" is `edge_sides(..).is_ok_and(|s| s.plus.surface != s.minus.surface)`. What remains is the selection atom (`GeomPred`, `crates/editor-core/src/names/geompred.rs`) and the vocabulary in `docs/SELECT-DESIGN.md` GS-Q2, both WIRE's ground.

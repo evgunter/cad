@@ -348,7 +348,7 @@ pub struct KvfsResult {
     pub killed_surface: Option<SurfaceKey>,
     /// The vertex's point (dead key), if killing the vertex orphaned it
     /// and it was removed; `None` if another vertex still references it
-    /// (never, with M1's per-vertex minting — the scan is the rule).
+    /// (an op's copies of one vertex share its point, `Body::mev_null`).
     pub killed_point: Option<PointKey>,
 }
 
@@ -775,9 +775,10 @@ impl<T: Decide> Body<T> {
     ///
     /// A killed null edge moves nothing because its two vertices hold
     /// one point: [`Body::mev_null`] mints them so, and both re-basing
-    /// gates refuse to move one end of one. Nothing else enforces it,
-    /// and the doors that write vertex points (`replace_face`,
-    /// `offset_*`) take tier-2-valid bodies, which hold no null edge.
+    /// gates refuse to move one end of one. The doors that move
+    /// vertices (`replace_face`, `offset_*`, through
+    /// `Body::move_vertices`) take tier-2-valid bodies, which hold no
+    /// null edge.
     ///
     /// A merge that moves nothing, or moves its members within band,
     /// goes through `kev_describing(he, &[], tol)`
