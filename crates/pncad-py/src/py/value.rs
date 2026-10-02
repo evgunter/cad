@@ -282,12 +282,16 @@ fn poisoning(
                     .into_any(),
             ));
             fields.push(("inner_kind", inner_kind(py, &error.kind)));
-            format!("{standing}; the failure there: {}", error.spoken(doc))
+            format!(
+                "{}; the failure there: {}",
+                standing.spoken(doc),
+                error.spoken(doc)
+            )
         }
         None => {
             fields.push(("kind", py.None().into_any()));
             fields.push(("inner_kind", py.None().into_any()));
-            standing.to_string()
+            standing.spoken(doc)
         }
     };
     let err = typed_err(
@@ -1228,6 +1232,12 @@ pub(crate) struct Evaluation {
 }
 
 impl Evaluation {
+    /// The document this evaluation is of: the one a refusal raised
+    /// from it speaks its nodes from.
+    pub(crate) fn doc(&self) -> &d::ProfileDoc {
+        &self.doc
+    }
+
     /// The (document, evaluation) pair and the memo over it, as the
     /// arguments [`crate::product_memo`]'s doors take.
     pub(crate) fn gathered<T>(
@@ -1287,7 +1297,7 @@ impl Evaluation {
                 _,
             ) => eval_err(
                 py,
-                standing.to_string(),
+                standing.spoken(&self.doc),
                 EvalReason::Standing(standing),
                 *node,
             ),
@@ -1428,7 +1438,7 @@ impl Evaluation {
             tol,
         ) {
             Ok(found) => names(py, found),
-            Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
+            Err(refusal) => Err(super::select::select_refusal(py, &refusal, &self.doc)),
         }
     }
 
@@ -1460,7 +1470,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::face_frame(&self.inner, node.0, &name)
             .map(super::readback::Pose)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **Where is the edge I selected?** — the named edge's certified
@@ -1482,7 +1492,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::edge_frame(&self.inner, node.0, &name)
             .map(super::readback::Pose)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **Where is the vertex I selected?** — the named vertex's
@@ -1499,7 +1509,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::vertex_position(&self.inner, node.0, &name)
             .map(lengths)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **What KIND of surface carries the face I selected?** — the
@@ -1529,7 +1539,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::face_carrier_kind(&self.inner, node.0, &name)
             .map(super::select::surface_kind)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **How does this name resolve — uniquely, or as a tie?** The
@@ -1552,7 +1562,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::denotation(&self.inner, node.0, &name)
             .map(super::readback::Denotation)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **Does this STORED name still denote, in THIS evaluation?** —
@@ -1588,6 +1598,7 @@ impl Evaluation {
                 },
                 &name,
             ),
+            &self.doc,
         )
     }
 
@@ -1665,7 +1676,7 @@ impl Evaluation {
                 .into_iter()
                 .map(super::flush::FlushFinding)
                 .collect()),
-            Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
+            Err(refusal) => Err(super::select::select_refusal(py, &refusal, &self.doc)),
         }
     }
 
@@ -1758,7 +1769,7 @@ impl Evaluation {
             uncertainty_m: uncertainty.map(|u| u.0.meters()).or(defaults.uncertainty_m),
         };
         pncad::export::step_for_node(&self.inner, node.0, &options, tol)
-            .map_err(|err| export_err(py, *node, &err))
+            .map_err(|err| export_err(py, *node, &err, &self.doc))
     }
 
     /// Whether `node`'s value lives in an **unplaced group's own
@@ -1786,8 +1797,13 @@ impl Evaluation {
 /// cause [`crate::tags::unplaced_tag`]'s word, and a group in a part
 /// below as `(instance, root, cause)`, the instance it arrived through
 /// and its root in the part's own ids. The message is the door's own
-/// `Display`.
-fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) -> PyErr {
+/// sentence, its nodes spoken from the evaluated document.
+fn export_err(
+    py: Python<'_>,
+    node: NodeId,
+    err: &pncad::export::ExportError,
+    doc: &d::ProfileDoc,
+) -> PyErr {
     use pncad::export::ExportError as E;
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -1854,7 +1870,7 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
             }
         }
     }
-    typed_err(py, ErrorClass::Export, err.to_string(), &fields)
+    typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
 
 /// **A boundary-graph census**: what one region contributes to the
