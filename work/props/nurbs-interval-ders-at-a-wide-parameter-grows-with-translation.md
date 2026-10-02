@@ -36,7 +36,7 @@ At `u ∈ [0, 1]` it reads `[−∞, ∞]` at every translation. The thin rows a
 
 The SSI chart enclosure had the same shape and was fixed by reading
 each derivative coefficient as a difference of control points
-(`NurbsBoxes::cell_homogeneous_deriv`). A grep for `.ders(` /
+(`NurbsBoxes::cell_quotient_numerator`). A grep for `.ders(` /
 `ders_in_span(` at an `Interval` hull in `crates/*/src` found no
 caller passing a non-thin parameter, but generic `T` call sites
 instantiated at `Interval` by a caller cannot be told apart by grep.

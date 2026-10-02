@@ -642,7 +642,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// slices — are the total spelling for reads the differencing
     /// ladder shifts by one index, where the shift, not the window,
     /// decides the bound.
-    fn cell_homogeneous_deriv(
+    fn cell_quotient_numerator(
         &self,
         win: SurfaceWindow<'_, T>,
         along_u: bool,
@@ -732,7 +732,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
     /// the quotient rule `S_d = (A_d − S·w_d)/w` evaluated entirely on
     /// hulls, per span cell, with `S` in that cell's point box
-    /// ([`NurbsBoxes::cell_homogeneous_deriv`] gives the numerator's
+    /// ([`NurbsBoxes::cell_quotient_numerator`] gives the numerator's
     /// form). Refused when the weight hull touches zero (interval
     /// arithmetic refuses the divisor), the net is malformed, or the
     /// window has a NaN or inverted end.
@@ -750,7 +750,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 let Some(win) = self.surface.window(su, sv) else {
                     continue;
                 };
-                let (num, w) = self.cell_homogeneous_deriv(win, along_u, self.cell_point_box(win));
+                let (num, w) = self.cell_quotient_numerator(win, along_u, self.cell_point_box(win));
                 let d = Box3 {
                     x: num.x / w,
                     y: num.y / w,
@@ -1029,9 +1029,157 @@ mod tests {
         }
     }
 
+    /// A net of degree `pu × pv` over the given clamped knots: a curved
+    /// sheet, with weights `1 + spread·((3i + 2j) mod 5 − 2)/2`, so
+    /// `spread` near 0 is nearly polynomial and larger is strongly
+    /// rational.
+    fn varied_net(
+        pu: usize,
+        ku: Vec<f64>,
+        pv: usize,
+        kv: Vec<f64>,
+        spread: f64,
+    ) -> NurbsSurface<f64> {
+        let ku = geom_core::spline::KnotVector::clamped(ku, pu).expect("clamped u");
+        let kv = geom_core::spline::KnotVector::clamped(kv, pv).expect("clamped v");
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let mut control = Vec::with_capacity(nu * nv);
+        let mut weights = Vec::with_capacity(nu * nv);
+        for iu in 0..nu {
+            for iv in 0..nv {
+                let (a, b) = (iu as f64, iv as f64);
+                control.push(Point3::new(
+                    0.4 * a + 0.05 * b * b,
+                    0.5 * b + 0.1 * a * a,
+                    0.2 * ((iu * 7 + iv * 3) % 5) as f64 - 0.3 * a,
+                ));
+                weights.push(1.0 + spread * (((3 * iu + 2 * iv) % 5) as f64 - 2.0) / 2.0);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).expect("valid net")
+    }
+
+    /// The nets the dominance rows read beyond the rational wall and
+    /// the two-span patch: near-polynomial weights, non-uniform knots,
+    /// and higher degree, where the quotient's own slack is small.
+    fn varied_nets() -> Vec<(&'static str, NurbsSurface<f64>)> {
+        let cubic_nonuniform = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.45, 1.0, 1.0, 1.0, 1.0];
+        let quadratic_nonuniform = vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0];
+        let quartic = vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.35, 1.0, 1.0, 1.0, 1.0, 1.0];
+        let linear = vec![0.0, 0.0, 1.0, 1.0];
+        vec![
+            (
+                "cubic × quadratic, non-uniform, weights within 2% of 1",
+                varied_net(
+                    3,
+                    cubic_nonuniform.clone(),
+                    2,
+                    quadratic_nonuniform.clone(),
+                    0.02,
+                ),
+            ),
+            (
+                "cubic × quadratic, non-uniform, weights 0.7 to 1.3",
+                varied_net(3, cubic_nonuniform, 2, quadratic_nonuniform, 0.3),
+            ),
+            (
+                "quartic × linear, weights within 10% of 1",
+                varied_net(4, quartic.clone(), 1, linear.clone(), 0.1),
+            ),
+            (
+                "quartic × linear, weights 0.4 to 1.6",
+                varied_net(4, quartic, 1, linear, 0.6),
+            ),
+        ]
+    }
+
+    /// **The quotient numerator box holds the true numerator, with no
+    /// quotient slack in between.** `S_d = (A_d − S·w_d)/w`, so the
+    /// numerator at a parameter is `S_d·w`, read here from `ders` and
+    /// from the weight function evaluated as a polynomial net. Each
+    /// span cell's numerator box, assembled over that cell's own point
+    /// box, must contain it at a dense grid of the cell's parameters
+    /// (ends included, where the numerator is a single pair's term),
+    /// and so must the box assembled with `S` pinned to the sample's
+    /// own point. The slack is the f64 rounding of `ders` and of the
+    /// product.
+    #[test]
+    fn the_quotient_numerator_box_holds_the_sampled_numerator() {
+        let mut nets = varied_nets();
+        nets.push(("rational wall", rational_wall(0.0)));
+        nets.push(("two-span patch", multiplicity_2_patch()));
+        let n = 16;
+        for (name, s) in &nets {
+            // The weight function as a polynomial net: `x` carries `w`.
+            let wnet: Vec<Point3<f64>> = s
+                .weights()
+                .iter()
+                .map(|w| Point3::new(*w, 0.0, 0.0))
+                .collect();
+            let wsurf = NurbsSurface::new(
+                s.knots_u().clone(),
+                s.knots_v().clone(),
+                wnet,
+                vec![1.0; s.weights().len()],
+            )
+            .expect("the weight net");
+            let boxes = NurbsBoxes::new(s);
+            let (ku, kv) = (s.knots_u(), s.knots_v());
+            for su in ku.first_span()..=ku.last_span() {
+                for sv in kv.first_span()..=kv.last_span() {
+                    let Some(win) = s.window(su, sv) else {
+                        continue;
+                    };
+                    let (ua, ub) = (ku.knots()[su], ku.knots()[su + 1]);
+                    let (va, vb) = (kv.knots()[sv], kv.knots()[sv + 1]);
+                    for along_u in [true, false] {
+                        let (num, _) =
+                            boxes.cell_quotient_numerator(win, along_u, boxes.cell_point_box(win));
+                        // A cell's far end belongs to the next span (`ders`
+                        // reads the span starting there), so it is sampled
+                        // only where it is the domain's end.
+                        let iu_end = if ub == ku.domain().1 { n } else { n - 1 };
+                        let jv_end = if vb == kv.domain().1 { n } else { n - 1 };
+                        for i in 0..=iu_end {
+                            for j in 0..=jv_end {
+                                let u = ua + (ub - ua) * f64::from(i) / f64::from(n);
+                                let v = va + (vb - va) * f64::from(j) / f64::from(n);
+                                let jet = s.ders(u, v);
+                                let w = wsurf.eval(u, v).x;
+                                let d = if along_u { jet.du } else { jet.dv };
+                                // The same form with `S` pinned to this
+                                // parameter's own point: no point-box slack
+                                // is left for a wrong pair term to hide in.
+                                let (thin, _) = boxes.cell_quotient_numerator(
+                                    win,
+                                    along_u,
+                                    Box3::between(jet.point, jet.point),
+                                );
+                                for (which, b) in [("cell box", num), ("S pinned", thin)] {
+                                    for (c, x) in [(b.x, d.x * w), (b.y, d.y * w), (b.z, d.z * w)] {
+                                        let slack = 32.0 * f64::EPSILON * x.abs().max(1.0);
+                                        assert!(
+                                            c.lo() - slack <= x && x <= c.hi() + slack,
+                                            "{name}: numerator ({which}, along_u = {along_u}) \
+                                             {x} at ({u}, {v}) outside [{}, {}] on cell \
+                                             ({su}, {sv})",
+                                            c.lo(),
+                                            c.hi()
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// **The derivative box dominates the true derivative, sampled
     /// densely**, over the whole domain and over sub-rectangles, on the
-    /// rational wall at every translation and on the two-span patch: each
+    /// rational wall and the two-span patch at every translation, and on
+    /// [`varied_nets`]: each
     /// sampled component lies in the box, and the chart speed is at
     /// least every sampled speed. The true derivative is evaluated on
     /// the origin wall (a translation does not move it), so the samples
@@ -1054,6 +1202,9 @@ mod tests {
         for t in TRANSLATIONS {
             let shifted = patch.map_points(|p| Point3::new(p.x + t, p.y + t, p.z + t));
             cases.push((format!("two-span patch at {t} m"), shifted, patch.clone()));
+        }
+        for (name, net) in varied_nets() {
+            cases.push((name.to_string(), net.clone(), net));
         }
         let n = 24;
         for (name, wall, origin) in &cases {
