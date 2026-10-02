@@ -254,7 +254,8 @@ mod consumer_census {
     ///
     /// The scenes run for their effect on the census: the cross-lap's
     /// declared mate, the table's four corner-aligned legs, the
-    /// letterforms' two declared intersects and the A x Z. The plant's
+    /// letterforms' two declared intersects, the A x Z and the project
+    /// box's four bosses. The plant's
     /// own four pairs — the stem glue, the leaf sheath, the socket and
     /// the flower weld — are measured in `lily`'s probe module instead,
     /// beside the walls they belong to, because running the whole
@@ -281,5 +282,15 @@ mod consumer_census {
                  change, not a detector change: {declared:?}"
             );
         }
+        // The k-th boss (from 0) brings its cap-on-floor contact and
+        // its top's coplanarity with the k bosses already standing:
+        // 4 + (0 + 1 + 2 + 3) planar pairs.
+        let _ = crate::projectbox::build::<f64>(tol);
+        assert_eq!(
+            census::drain(),
+            [(Some(SurfaceKind::Plane), Some(SurfaceKind::Plane)); 10],
+            "the project box's boss unions: a cap-on-floor pair per boss, plus each top \
+             against the tops before it"
+        );
     }
 }

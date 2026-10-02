@@ -93,7 +93,7 @@ def slab(doc, x, y, z):
 # `NORMAL`): a mirror, so a change there is made here by hand.
 PROJECTBOX_BOSS_AXES = [(0.625, 0.625), (0.625, 1.375), (2.375, 0.625), (2.375, 1.375)]
 PROJECTBOX_BOSS_R = 0.1875
-PROJECTBOX_BOSS_Z = (0.1875, 0.875)
+PROJECTBOX_BOSS_Z = (0.25, 0.875)
 PROJECTBOX_BORE_R = 0.09375
 PROJECTBOX_CUT_THROUGH = (2.375, 1.0, 0.53)
 PROJECTBOX_CUT_NORMAL = (0.75, 0.1875, 1.0)
@@ -112,7 +112,8 @@ def rod(doc, cx, cy, r, z):
 
 def projectbox(doc):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
-    — cavity, six vent slots, four round bosses, and a through-bore
+    — cavity, six vent slots, four round bosses standing on the floor
+    (each union declaring its cap-on-floor contact), and a through-bore
     down each boss and out through the floor. Shared by the
     volume-oracle row and the `cutaway` row, which splits exactly
     this body."""
@@ -127,7 +128,8 @@ def projectbox(doc):
             )
     for cx, cy in PROJECTBOX_BOSS_AXES:
         boss = rod(doc, cx, cy, PROJECTBOX_BOSS_R, PROJECTBOX_BOSS_Z)
-        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss))
+        decl = doc.declare_all(evaluate(doc).find_flush_candidates(body, boss))
+        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss, declare=decl))
     for cx, cy in PROJECTBOX_BOSS_AXES:
         bore = rod(doc, cx, cy, PROJECTBOX_BORE_R, (-0.125, PROJECTBOX_BOSS_Z[1] + 0.25))
         body = doc.insert(Node.boolean(BooleanOp.Subtract, body, bore))
@@ -208,10 +210,8 @@ class TestDie(unittest.TestCase):
 
 class TestProjectbox(unittest.TestCase):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): the
-    longest boolean chain in the tour, 15 ops. Its own
-    design rule — no two operand planes coincide anywhere in the chain,
-    every offset in 1/16 steps — is exactly what makes it authorable
-    without a declaration door."""
+    longest boolean chain in the tour, 15 ops, the bosses' unions
+    through the detect/declare protocol."""
 
     def test_projectbox_matches_the_closed_form_oracle(self):
         doc = Doc()
