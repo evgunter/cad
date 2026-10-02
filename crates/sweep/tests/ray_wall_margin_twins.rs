@@ -8,8 +8,10 @@
 //! `bool_ray_cylinder_disc` (the half-chord's depth) — and both are
 //! asserted to FIRE, so the pin cannot go vacuous. A planar-only body
 //! (`topo`'s `rim_dim_boolean_twins`) never reaches either, nor the
-//! face boxes' cylinder axis read (`bool_box_cylinder_axis`), which the
-//! same pipe boring a plate pins beside them.
+//! face boxes' cylinder axis read (`bool_box_cylinder_axis`) or the
+//! germ plane normal a plane × cylinder join reads
+//! (`bool_germ_plane_normal`), which the same pipe boring a plate pins
+//! beside them.
 //!
 //! **CI EXECUTES THIS SUITE**: it is rostered in
 //! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`). By hand:
@@ -133,10 +135,10 @@ fn the_wall_arms_margins_scale_linearly_with_the_model() {
     );
 }
 
-/// The `bool_box_cylinder_axis` margins a subtract records when a pipe
-/// of radius `scale` (`z ∈ [−2, 2]·scale`) bores a `4 × 4 × 1` plate,
-/// everything scaled with it.
-fn box_axis_margins(scale: f64) -> Vec<f64> {
+/// The margins `subtract` records under `name` when a pipe of radius
+/// `scale` (`z ∈ [−2, 2]·scale`) bores a `4 × 4 × 1` plate, everything
+/// scaled with it.
+fn bore_margins(scale: f64, name: &str) -> Vec<f64> {
     let tol = Tol::witness();
     let s = |v: f64| Probe(v * scale);
     let at = |z: f64| SketchPlane::new(Affine3::translation(Vec3::new(s(0.0), s(0.0), s(z))));
@@ -168,28 +170,31 @@ fn box_axis_margins(scale: f64) -> Vec<f64> {
     topo::subtract(&plate, &pipe, tol).expect("the pipe bores the plate");
     k_stats::take_samples()
         .iter()
-        .filter(|s| s.predicate == "bool_box_cylinder_axis")
+        .filter(|s| s.predicate == name)
         .map(|s| s.margin)
         .collect()
 }
 
-/// **A cylinder face's axis length is decided at the model's scale.**
-/// The axis is unit at rest, a pure number; levered by the radius its
-/// slab swings it by, every margin is `scale`, and so `1e3` apart
-/// between the twins. The bare norm reads `1` at both.
+/// **The bore's two carrier-direction reads are decided at the model's
+/// scale.** A cylinder face's axis (`bool_box_cylinder_axis`) and a
+/// plate face's normal where the join sections the wall
+/// (`bool_germ_plane_normal`) are unit at rest, pure numbers. The axis
+/// is levered by the radius its slab swings it by, and the normal by
+/// the joined germ sites' reach from the plate face's origin, which
+/// here is the radius too. So every margin is `scale`, and they sit
+/// `1e3` apart between the twins; the bare norm reads `1` at both.
 #[test]
-fn the_box_cylinder_axis_margin_is_the_radius_at_both_scales() {
-    for scale in [1e-3, 1.0] {
-        let margins = box_axis_margins(scale);
-        assert!(
-            !margins.is_empty(),
-            "the bore boxes the pipe's wall at {scale:e}"
-        );
-        for m in &margins {
-            assert!(
-                ((m - scale) / scale).abs() < 1e-12,
-                "at {scale:e} an axis margin {m:e} is not the radius: {margins:?}"
-            );
+fn the_bores_carrier_directions_are_levered_by_the_radius_at_both_scales() {
+    for name in ["bool_box_cylinder_axis", "bool_germ_plane_normal"] {
+        for scale in [1e-3, 1.0] {
+            let margins = bore_margins(scale, name);
+            assert!(!margins.is_empty(), "the bore decides {name} at {scale:e}");
+            for m in &margins {
+                assert!(
+                    ((m - scale) / scale).abs() < 1e-12,
+                    "at {scale:e} a {name} margin {m:e} is not the radius: {margins:?}"
+                );
+            }
         }
     }
 }

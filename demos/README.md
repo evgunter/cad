@@ -75,7 +75,7 @@ page is mostly about.
 | `die` | 21 pip pockets across all six faces, 21 sequential Seamed subtracts, exact volume after every op |
 | `table` | tabletop ∪ 4 corner-straddling legs; coplanar-touching and inset-overlap variants attempted and narrated live |
 | `silhouette` | **first `intersect`**: one solid whose z-shadow is an H and x-shadow is a T, both letters filling one 2×3×3 block — the T's stem spans exactly the H's bar band, so the flush contacts are DECLARED; undeclared, the same operands' typed `UndeclaredCoincidence` refusal is narrated first. V = 17/4 exactly |
-| `silhouette3` | a blocky **C** prism along +y ∩ the H×T solid — intersect-of-intersect, boolean-of-boolean, contacts declared; all three shadows are the whole letter. V = 11/4 exactly. Built C ∩ (H×T): the order (H×T) ∩ C refuses `JoinDesync`, a live wall probe (`work/join/declared-flush-intersect-refuses-in-one-operand-order.md`) |
+| `silhouette3` | a blocky **C** prism along +y ∩ the H×T solid — intersect-of-intersect, boolean-of-boolean, contacts declared; all three shadows are the whole letter. V = 11/4 exactly. Built C ∩ (H×T), and the order (H×T) ∩ C is checked to build the same volume (it refused `JoinDesync` before JOIN-1, `work/join/declared-flush-intersect-refuses-in-one-operand-order.md`) |
 | `az` | the A×Z silhouette intersect (#93's letter pair): counter-hole A (a true inner loop) × Z, both drawn in one block with their flush contacts declared; genus 4, volume gated on the exact oracle 38627/14336 |
 | `crosslap` | cross-lap joint, assembled: two half-depth-notched beams (each a boolean result), UNIONED through the declared planar REST zip; the undeclared mate's typed refusal stays narrated |
 | `crosslap_exploded` | the same joint exploded via `transform_rigid`, with re-minted witnesses |
@@ -867,18 +867,23 @@ the draws moved.
   each joint's measured lateral range dimensioned on it; the tip panel
   is 48 px/mm on the target pin and the asserted 1 mm position band.
 * **The certified half is on the sheet, unlike the plate's.** The
-  widest box that certifies this chain whole is 0.111 of the study —
-  not `7.81e-7` — so the enclosure per joint is millimetre-scale and
-  DRAWS. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
+  widest box that certifies this chain whole is `6.751e-8` of the study
+  since the extrude closes with the pcurve mint (PCERT): the placed
+  rows' angular comparisons are the wall. Before the mint it was
+  `0.111`, a millimetre-scale enclosure per joint, and the follow-on
+  `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`
+  restores that. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
   across the chain (the worst-case lever sum, every joint at its own
   extreme at once) while the advisory σ grows `1 : 2.24 : 3.74 : 5.48`
   (the quadrature sum). E11's trade, in one picture. Along the chain
   the enclosure is microns, so the box draws as a line and is widened
   to a 5 px floor to be visible at all; the true number is in the
   legend.
-* **The teal is drawn only at the ε it was measured at.** `0.111` is a
-  default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
-  measured; why is `chaintol`'s header, "What sets the wall"), so at
+* **The teal is drawn only at the ε it was measured at.** `6.751e-8` is a
+  default-ε measurement and the box MOVES with ε (`6.747e-5` at `1e-6`,
+  measured: the wall is an enclosure escalating against the band; before
+  the mint it was `0.111` against `0.1083`, for the reason `chaintol`'s
+  header, "What sets the wall", gives), so at
   another ε it is a different box, and `chaintol` (`demo-tour certified`)
   declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
   the frontier where the legend would have gone and draws no band. A

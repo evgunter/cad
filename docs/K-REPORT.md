@@ -1070,15 +1070,17 @@ box lanes.
 name added.** `bool_germ_plane_normal`, `bool_box_cylinder_axis` and
 `props_torus_axis` decide the length of a carrier's unit-at-rest
 direction, a pure number, and read it against the length band through
-`Margin::norm3`, so their margins read 1 at every model scale and
-`rim_dim_boolean_twins` reds on the first. They now mint through
-`UnitVec3::levered`, the norm times an arm the direction is consumed
-over: a lower bound on the germ section's reach from the plane's
+`Margin::norm3`, so their margins read 1 at every model scale. They
+now mint through `UnitVec3::levered`, the norm times an arm the
+direction is consumed over: a lower bound on the germ section's reach from the plane's
 origin, the cylinder's radius, the anchor meridian's reach from the
 torus centre. Each margin is now a length of the model's scale; none
 lands near the band for a carrier the at-rest rule admits. The door
 decides its arm first, a length, under `unit_direction_arm`, so that
-name gains one sample beside each of the three.
+name gains one sample beside each of the three. Each name has a
+linearity twin that reds on the bare norm: `ray_wall_margin_twins`'s
+plane × cylinder bore pins the first two, `rim_dim_scale_twins` the
+third.
 
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare

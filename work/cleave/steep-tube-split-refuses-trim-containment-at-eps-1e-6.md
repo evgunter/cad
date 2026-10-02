@@ -27,3 +27,11 @@ The split's pcurve certificate reads trim containment in band at this ε
 (margin −3.06e-6 against ε = 1e-6). The row passes at 1e-9. The
 per-PR gate runs the 1e-6 row only for eps-sensitive crates the diff
 touches, so this reds the nightly, not every PR.
+
+## Owed
+
+Measure what the −3.06e-6 is. It is the split pcurve's trim-containment
+margin at the first sample (`HalfEdgeKey(24v1)` at `flip false`,
+`18v1` at `flip true`). Decide whether it is a real overshoot of the
+trimmed window whose size tracks ε, or a certifier margin that does not
+scale. Then fix the code, or state the row's ε premise.

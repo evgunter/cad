@@ -138,7 +138,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
 pub(crate) use contain::loop_circle;
-pub use discard::{DiscardRow, HeldEdge, fragment_root};
+pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -148,6 +148,7 @@ pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, orient
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
+pub use shell_witness::ShellOrientation;
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and
@@ -910,6 +911,20 @@ impl<T: Real> DeclaredPairs<T> {
             .is_some_and(BooleanCoincidence::is_one_carrier)
     }
 
+    /// The pairs the declaration door verified one carrier, each with
+    /// the relation its class demands: a `Rest` contact opposed, a
+    /// continuation aligned (rung 2 of the coincidence ladder).
+    pub(crate) fn settled(&self) -> impl Iterator<Item = SettledPair> + '_ {
+        self.verified.one_carrier.iter().filter_map(|&(a, b)| {
+            let relation = match self.map.get(&(a, b))? {
+                BooleanCoincidence::Contact(ContactClass::Rest) => CarrierRelation::SameOpposite,
+                BooleanCoincidence::Continuation => CarrierRelation::SameOriented,
+                BooleanCoincidence::Contact(ContactClass::Tangent) => return None,
+            };
+            Some(SettledPair { a, b, relation })
+        })
+    }
+
     /// Whether the pair is declared `Tangent`.
     pub(crate) fn declares_tangent(
         &self,
@@ -962,22 +977,40 @@ fn tangent_struts<T: Real>(
     out
 }
 
+/// The cell of one operand a section germ lies in. A germ ray running
+/// along a real edge of the operand lies in both faces that edge
+/// bounds, so a face does not name it; the edge does. The sweep splits
+/// an edge at every crossing, so both ends of a section segment along
+/// an edge name the same key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Locus {
+    /// Inside this face, off every edge of it.
+    InFace(FaceKey),
+    /// Along this edge.
+    OnEdge(crate::entity::EdgeKey),
+}
+
 /// The **germ** a null-edge half faces (F9 as data, PR 5): every
 /// surviving crossing record — a section-polygon edge emanating from
 /// the classified vertex — lies on the intersection line of one A-face
 /// and one B-face, and each null edge's two halves are spliced facing
-/// its two germs. The joining step matches halves across sites by this
-/// identity (same face pair, opposite record parity — the book's
-/// he1↔he2 "opposite roles" test carried as data), never by slot
-/// position or dynamic face lookups.
+/// its two germs. The joining step matches halves across sites by the
+/// germ's per-operand [`Locus`] (equal on both operands, opposite record
+/// parity — the book's he1↔he2 "opposite roles" test carried as data),
+/// never by slot position or dynamic face lookups.
 #[derive(Clone, Copy, Debug)]
 pub struct HalfGerm<T: Real> {
     /// The half-edge facing this germ.
     pub he: crate::entity::HalfEdgeKey,
-    /// The A-body face whose plane carries the germ line.
+    /// The A-body face whose carrier the join's chord lanes section
+    /// against: the face of the sector the germ was attributed to.
     pub a_face: FaceKey,
-    /// The B-body face whose plane carries the germ line.
+    /// The B-body face, likewise.
     pub b_face: FaceKey,
+    /// The cell of A the germ lies in: the germ's identity on A.
+    pub a_locus: Locus,
+    /// The cell of B the germ lies in.
+    pub b_locus: Locus,
     /// The germ's outgoing direction along the line (unit; points away
     /// from the site toward the polygon edge's other end) — the datum
     /// the joining's mutual-facing test decides on (`bool_join_facing`).
@@ -1094,6 +1127,24 @@ pub struct BooleanReduction<T: Real> {
     /// verified one carrier with opposed senses: the REST-contact pairs
     /// the declared-REST lane patches, read rather than re-verified.
     pub(crate) rest_contacts: Vec<(FaceKey, FaceKey)>,
+    /// Every cross-operand face pair the coincidence ladder settled ONE
+    /// carrier on the operands at rest, by shared recipe source (rung 1)
+    /// or a verified declaration (rung 2), sorted and deduplicated. No
+    /// pair here was inferred from values. The whole-shell `On` verdict
+    /// reads these (`shell_witness::on_verdict`).
+    pub(crate) coincident: Vec<SettledPair>,
+}
+
+/// A cross-operand face pair the coincidence ladder settled one
+/// carrier, with its orientation ([`BooleanReduction`]'s `coincident`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SettledPair {
+    /// The A face, in A's keys.
+    pub(crate) a: FaceKey,
+    /// The B face, in B's keys.
+    pub(crate) b: FaceKey,
+    /// `SameOriented` or `SameOpposite`, never `Distinct`.
+    pub(crate) relation: CarrierRelation,
 }
 
 impl<T: Real> BooleanReduction<T> {
@@ -1315,8 +1366,8 @@ pub enum BooleanError {
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,
-        /// The loop no walk expresses at the point.
-        r#loop: crate::entity::LoopKey,
+        /// The loop, and the edge no ray got past.
+        cause: crate::splitting::Uncrossable,
     },
     /// An operand is well-formed but not a closed solid at rest: tier 2
     /// ([`crate::validate_closed`]) refuses it for construction
@@ -1843,7 +1894,10 @@ pub enum BooleanError {
     /// — its vertices, its edges' midpoints, an interior point of each
     /// planar face — decides which side of that boundary the shell lies
     /// on: each lies ON it or too near it to say (`shell_witness`'s
-    /// module docs). Two operands that are one body reach this.
+    /// module docs). A shell whose every witness lies ON the other
+    /// boundary is asked the `On` question instead, and answers or
+    /// refuses [`BooleanError::CoincidentShell`]; this is the in-band
+    /// arm.
     ShellWitnessExhausted {
         /// The operand whose shell was probed.
         operand: Operand,
@@ -1856,6 +1910,20 @@ pub enum BooleanError {
         /// The first in-band reading: evidence about one witness, not
         /// the cause, which is that none decided.
         first_in_band: Option<PointInSolidError>,
+    },
+    /// A shell every witness of which lies ON the other operand's
+    /// boundary, which the settled coincidence pairs do not certify
+    /// as lying on one shell of the other operand
+    /// (`shell_witness::on_verdict`): it has a face with no settled
+    /// pair, its pairs disagree on orientation, or no shell of the
+    /// other operand is covered back by it and reads `On` in turn.
+    CoincidentShell {
+        /// The operand whose shell was probed.
+        operand: Operand,
+        /// The shell, in that operand's working copy.
+        shell: ShellKey,
+        /// What the settled pairs said about orientation.
+        orientation: ShellOrientation,
     },
     /// The containment fallback / uncut-component probe refused (F8).
     Containment(PointInSolidError),
@@ -2057,6 +2125,8 @@ pub enum BooleanErrorKind {
     TornComponent,
     /// [`BooleanError::ShellWitnessExhausted`].
     ShellWitnessExhausted,
+    /// [`BooleanError::CoincidentShell`].
+    CoincidentShell,
     /// [`BooleanError::Containment`].
     Containment,
     /// [`BooleanError::Revert`].
@@ -2230,6 +2300,7 @@ impl BooleanError {
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
+            Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
             Self::Containment(_) => BooleanErrorKind::Containment,
             Self::Revert(_) => BooleanErrorKind::Revert,
             Self::SeamOrientation { .. } => BooleanErrorKind::SeamOrientation,
@@ -2391,12 +2462,12 @@ impl core::fmt::Display for BooleanError {
             // No operand is named, for the same reason as above: some
             // raise sites carry the operand of the edge being placed, not
             // of the face whose loop has no walk.
-            Self::ArcLoopContainmentUnsupported { .. } => write!(
+            Self::ArcLoopContainmentUnsupported { cause, .. } => write!(
                 f,
                 "the Boolean cannot yet tell what lies inside a flat face whose outline \
-                 has a spiric or spline edge near the point it asked about, so it \
-                 refuses rather than guess. Recourse: model the outline with lines, \
-                 circles or ellipses"
+                 has a {} edge near the point it asked about, so it refuses rather than \
+                 guess. Recourse: model the outline with lines, circles or ellipses",
+                cause.carrier.word()
             ),
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
@@ -2681,24 +2752,45 @@ impl core::fmt::Display for BooleanError {
                 on_boundary,
                 in_band,
                 ..
+            } => write!(
+                f,
+                "the solids do not cross, and none of the {} points tried on the {} \
+                 solid (corners, edge middles, flat-face interiors) tells whether it \
+                 is inside the other: {on_boundary} lie on the other's boundary, \
+                 {in_band} too near it to tell. Recourse: if they nearly touch, move \
+                 them clearly together or apart",
+                on_boundary + in_band,
+                operand_word(*operand)
+            ),
+            Self::CoincidentShell {
+                operand,
+                orientation,
+                ..
             } => {
                 write!(
                     f,
-                    "the solids do not cross, and none of the {} points tried on the {} \
-                     solid (corners, edge middles, flat-face interiors) tells whether it \
-                     is inside the other: {on_boundary} lie on the other's boundary",
-                    on_boundary + in_band,
+                    "every point tried on a closed surface of the {} solid lies on the \
+                     other's boundary, ",
                     operand_word(*operand)
                 )?;
-                if *in_band == 0 {
-                    write!(f, ". Recourse: if the two are one body, use it once")
-                } else {
-                    write!(
+                match orientation {
+                    ShellOrientation::Unpaired { .. } => write!(
                         f,
-                        ", {in_band} too near it to tell. Recourse: if the two are one \
-                         body, use it once; if they nearly touch, move them clearly \
-                         together or apart"
-                    )
+                        "but one of its faces is neither built from nor declared \
+                         coincident with a face of the other. If that face lies on one, \
+                         declare the pair; if it does not (a curved face the Boolean \
+                         cannot probe inside), this is a kernel frontier"
+                    ),
+                    ShellOrientation::Mixed => write!(
+                        f,
+                        "but some of its faces face the same way as the other's faces \
+                         they lie on and some the opposite way (kernel frontier)"
+                    ),
+                    ShellOrientation::Same | ShellOrientation::Opposite => write!(
+                        f,
+                        "but the faces it lies on are not one closed surface of the other \
+                         lying back on it (kernel frontier)"
+                    ),
                 }
             }
             // The payload does not say which operand was being tested, so
@@ -3027,7 +3119,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // The scan is `Decide`-only; its boxes are built here, at the
     // driver the 2026-07-29 amendment ratified to read brackets.
     let pad = boxes::sweep_pad(band);
-    reduce::refuse_undeclared_continuations(
+    let mut coincident = reduce::refuse_undeclared_continuations(
         a_operand,
         b_operand,
         &declared,
@@ -3036,6 +3128,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         |body, face| boxes::face_box(body, face, pad, band),
         |body, edge| boxes::edge_box(body, edge, pad),
     )?;
+    coincident.extend(declared.settled());
+    coincident.sort_by_key(|p| (p.a, p.b));
+    coincident.dedup();
 
     // The reduction carves both operand clones through the Euler
     // operators; tier 1 is paid once per clone at the end of the
@@ -3109,8 +3204,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        // The codes as first read, which the germ loci are derived from.
+        let mut raw = records.clone();
         recl::recl_sectors(
             &mut records,
+            &mut raw,
             &a_sectors,
             &b_sectors,
             &a,
@@ -3123,6 +3221,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         )?;
         recl::recl_edges(
             &mut records,
+            &mut raw,
             &a_sectors,
             &b_sectors,
             &a,
@@ -3132,7 +3231,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             band,
         )?;
         let out = insert::insert_null_pairs(
-            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &declared, band,
+            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &raw, &declared, band,
         )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
@@ -3163,6 +3262,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             .collect(),
         held,
         rest_contacts,
+        coincident,
     })
 }
 
@@ -4158,7 +4258,11 @@ mod tests {
             },
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
-                r#loop: crate::entity::LoopKey::default(),
+                cause: crate::splitting::Uncrossable {
+                    r#loop: crate::entity::LoopKey::default(),
+                    edge,
+                    carrier: crate::splitting::UncrossableCarrier::Spiric,
+                },
             },
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
@@ -4290,9 +4394,14 @@ mod tests {
             BooleanError::ShellWitnessExhausted {
                 operand: Operand::B,
                 shell: ShellKey::default(),
-                on_boundary: 26,
-                in_band: 0,
+                on_boundary: 20,
+                in_band: 6,
                 first_in_band: None,
+            },
+            BooleanError::CoincidentShell {
+                operand: Operand::A,
+                shell: ShellKey::default(),
+                orientation: ShellOrientation::Unpaired { face },
             },
             BooleanError::Containment(
                 crate::boolean::solid_contain::PointInSolidError::RayExhausted,
@@ -4395,6 +4504,7 @@ mod tests {
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
+                BooleanErrorKind::CoincidentShell => "CoincidentShell",
                 BooleanErrorKind::Containment => "Containment",
                 BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::SeamOrientation => "SeamOrientation",

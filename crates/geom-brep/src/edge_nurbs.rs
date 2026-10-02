@@ -745,17 +745,17 @@ pub const PXN_FIT_SAMPLES: u32 = 33;
 /// the algebraic route already banked with #264's envelope findings.
 pub const PXN_IMAGE_DEGREE: usize = 1;
 
-/// The wall refined so the uniqueness tube can localize.
+/// The wall refined to [`PXN_WALL_SPANS`] spans per direction before the
+/// hull and tube limbs run.
 ///
-/// The tube's chart enclosures read `NurbsBoxes` derivative boxes,
-/// which are **cell-granular**: a box narrower than a knot span still
-/// reports that whole span's derivative variation. A one-span quarter
-/// cylinder therefore reports the derivative swinging through 90° no
-/// matter how far the tube ladder halves its radius, and the enclosure
-/// straddles zero forever — a resolution artifact of the operand's
-/// knot structure, not a sliver of the pair. Knot refinement is exact
-/// in ℝ (the surface's locus and parameterization are unchanged), so
-/// spending it here buys localization for free.
+/// The hull limb's composite is hulled per span, so finer spans tighten
+/// it. The tube's chart derivative boxes (`NurbsBoxes::deriv_box`) cut
+/// each span cell to the tube window and meet that with the whole
+/// cell's box, so they localize below a span on their own. Whether the
+/// tube still gains anything from this refinement is unmeasured
+/// (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
+/// Knot refinement is exact in ℝ (the surface's locus and
+/// parameterization are unchanged).
 ///
 /// Already-fine patches are returned unchanged, and a refusing knot
 /// algebra falls back to the original — a coarser enclosure can only

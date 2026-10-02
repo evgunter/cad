@@ -387,7 +387,7 @@ which is what actually moves the number.
 | props/curved.rs (`side_on_meridian`) | props_sphere_side_meridian / props_sphere_side_plane / props_sphere_side_roots / props_sphere_side_half / props_sphere_side_order | a point's distance from the polar axis; `√(a² + b²)` and `k·(C − c)`; `√(a² + b²) − |d|`; a point's offset across the axis; a height difference (all m) | m | OK |
 | props/curved.rs (`side_on_meridian`) | props_sphere_side_in_arc / props_sphere_side_enter | a parameter gap (rad) levered by the circle radius; the cosine of the loop's left direction against the walk, levered by R | m | OK |
 | props/curved.rs (`torus_meridian_orient`: `UnitVec3::levered`, then `OrthoFrame::from_aim_and_reference`) | props_torus_axis / props_meridian_radial | the torus axis's norm (a unit-at-rest carrier field, a pure number) levered by the anchor meridian's reach from the torus centre, `\|c − centre\| + r` / `Margin::norm3` of the anchor meridian centre's offset from the axis (m) | m / m | FIXED (was the axis's bare norm against the length band, which reads differently at every model scale) |
-| boolean/join.rs (germ-plane read: `UnitVec3::levered` of a plane germ's carrier normal) | bool_germ_plane_normal | the normal's norm (a unit-at-rest carrier field, a pure number) levered by a lower bound on the reach the section consumes it over: the ball through the two joined germ sites, from the plane's origin (`ExtentBall::lever_from`) | m | FIXED (was the bare norm against the length band; `rim_dim_boolean_twins` pins it) |
+| boolean/join.rs (germ-plane read: `UnitVec3::levered` of a plane germ's carrier normal) | bool_germ_plane_normal | the normal's norm (a unit-at-rest carrier field, a pure number) levered by a lower bound on the reach the section consumes it over: the ball through the two joined germ sites, from the plane's origin (`ExtentBall::lever_from`) | m | FIXED (was the bare norm against the length band; `sweep`'s `ray_wall_margin_twins` pins it on a plane × cylinder bore) |
 | boolean/boxes.rs (`face_box_rule`'s cylinder read: `UnitVec3::levered` of the carrier's axis) | bool_box_cylinder_axis | the axis's norm (a unit-at-rest carrier field, a pure number) levered by the radius, the arm `slab_extent` swings it by | m | FIXED (was the bare norm against the length band) |
 | props/curved.rs (`require_band_opposite`, the rimless arm's coplanar branch, after `props_band_coplanar` has put every meridian on one great circle) | props_band_opposite | at each junction of the loop, the chord between the unit traversal tangent arriving (arc i's traversal end) and the one departing (arc i+1's traversal start), × R — the distance between the two arcs' departure points scaled to the sphere radius | m | OK (added by the BOOL-5 fix pass, issue 542 / S-BOOL. Lever R, the run's linear band. Zero at every junction ⇒ the loop runs its great circle once, the two-band face, `Δu = π`; Positive ⇒ the loop reverses there — two arcs on one half-plane, a slit of no width or the ball less a slit — typed refusal; in-band escalates. Coplanarity alone cannot tell opposite half-planes from coincident ones, and the coincident pair is reachable through `revolve` because its angle door levers at the profile's `r_max` while the coplanar decide levers at the face's R. Stated at the junction rather than as the chord between the two arcs' departure directions so that a great circle split at ordinary points or into more than two arcs — CERT-1's rows — keeps measuring; for two pole-to-pole arcs the two readings coincide) |
 | props/curved.rs (`sphere_wedge_azimuth`, the rimless arm's wedge branch, reached when `props_band_coplanar` is definitely nonzero) | props_wedge_azimuth | the signed azimuth `φ = atan2(d_B·I_A, d_B·d_A)` (rad) from meridian A's half-plane into the face's interior direction `I_A = ν·f_A·n_A` (sense bit × forward bit × carrier axis) to meridian B's half-plane, × R — the equatorial arc between the two meridian planes on the face's side, signed by whether it is the short one | m | OK (added with the rim-free spherical wedge arm, issue 542 / S-BOOL. Lever R, the run's linear band. Positive ⇒ `Δu = φ`, Negative ⇒ `Δu = φ + 2π`, Zero ⇒ `DegenerateFace` (coincident meridians), in-band escalates. The Zero/in-band outcomes are the arm's D2 floor rather than a door, unreachable by the factor K: the arm is entered only on `R·|sin φ| ≥ escalate = K·zero` under `props_band_coplanar` at the same band and lever, and `|φ| ≥ |sin φ|`, so `R·|φ|` is at least K coincidence widths above the Zero edge — a typed refusal kept because the inventory states every outcome, not a rounding window. The `atan2` is safe here where the pole helper forbids it: its branch cut is the opposite-half-plane pair, which the coplanar decide has just excluded by at least the escalate width at R) |
@@ -975,6 +975,24 @@ Flagged, NOT fixed here (dispositions):
   quantity, same arms (`chart_u_arm`, `v_meter`), same dimension — the
   row two tables up covers it, and the population grows rather than
   splitting.
+
+- **F20** (added by PCERT's incidence-and-fidelity unit, PR 3812)
+  `geom-brep/src/pcurve_cache.rs` `schedule_residuals` under
+  `Record::CrossCheck`: check 3's samples on a `Harmonic` row,
+  `|S(P(tᵢ)) − C(tᵢ)|` in metres. The comparand is a length, so the
+  `Margin::of` door fits it dimensionally; what keeps it off the logged
+  doors is WHERE it runs. Since C4 (Ev, PR 3781) the envelope is the
+  whole certified statement on a harmonic row, and the schedule is its
+  cross-check, run on the witness lane (`f64`, `Sym<f64>`) and not at an
+  exact-witness scalar, whether a point or a box. The
+  driver replays a leaf at the point witness and at the box scalar and
+  compares the two verdict vectors row for row, so a logged
+  cross-check would put rows in the witness's vector that the leaf's
+  cannot have (measured: every probe refused). **Carried as
+  `k_stats::check_unlogged(.., "F20")`**, the same door as F18; a
+  sample over the band still refuses the certificate, and the witness
+  build with it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
+  does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

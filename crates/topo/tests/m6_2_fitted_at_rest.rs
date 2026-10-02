@@ -117,6 +117,59 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
     );
 }
 
+/// **A producer's closing mint carries the fitted row.** The mint has no
+/// route to this face's rung-3 carrier (the closed-form door names the
+/// class uncovered), so it cannot re-derive the face; it carries the
+/// rows the face held, re-certified through their own door, rather than
+/// drop a certificate. Through the whole-body mint and through a rigid
+/// map — which ends with that mint — the rows stay `Fitted` and tier 3
+/// reads the body clean. Red if the mint goes back to leaving the face
+/// rowless and excused.
+#[test]
+fn a_producers_closing_mint_carries_the_fitted_row() {
+    let Some(built) = fixture::build::<f64>() else {
+        vacuity::stood_down(
+            &format!(
+                "M6-2 rung-3 carry through the mint, eps = {:e}",
+                Tol::witness().get().eps
+            ),
+            "the cylinder×sphere fixture stood down on the SSI door's typed \
+             FitSampleBudget refusal at this ε. THIS RUN ASSERTS NOTHING about \
+             whether the mint carries a fitted row",
+        );
+        return;
+    };
+    let band = Band::linear(Tol::witness()).unwrap();
+    let image = |b: &topo::Body<f64>, he| {
+        b.pcurve(he)
+            .map(|c| format!("{:?} {:?}", c.params(), c.pcurve()))
+    };
+    let mut minted = built.body.clone();
+    topo::mint_pcurves(&mut minted, Tol::witness()).unwrap();
+    for he in [built.he_plus, built.he_minus] {
+        assert!(image(&built.body, he).is_some());
+        assert_eq!(
+            image(&minted, he),
+            image(&built.body, he),
+            "the mint carries the row as it was"
+        );
+    }
+    let findings = topo::pcurves::validate_pcurves(&minted, band);
+    assert!(findings.is_empty(), "{findings:?}");
+    let moved = topo::transform_rigid(
+        &built.body,
+        &geom_core::Affine3::translation(geom_core::Vec3::new(0.25, -0.5, 1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
+    for he in [built.he_plus, built.he_minus] {
+        let carried = moved.pcurve(he).expect("the mapped body keeps the row");
+        assert!(matches!(carried.pcurve(), Pcurve::Fitted(_)));
+    }
+    let findings = topo::pcurves::validate_pcurves(&moved, band);
+    assert!(findings.is_empty(), "{findings:?}");
+}
+
 // **RETIRED (2026-08-13 test-time audit):
 // `a_corrupted_fitted_cache_fails_the_at_rest_pass`.** It built this
 // file's cyl×sphere fixture at `f64`, attached `fixture::foreign_cache`
