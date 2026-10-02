@@ -377,8 +377,8 @@ fn subdivided_rim_blends_as_one_band_as_built() {
 fn a_union_of_flush_cubes_fillets_its_split_rims_as_one_band() {
     let t = Tol::witness();
     let (ca, cb) = (cube_at(0.0, 0.0, 0.0, 1.0), cube_at(1.0, 0.0, 0.0, 1.0));
-    // The touching pair, and the four pairs of coplanar sides the
-    // union's merge stage glues once declared.
+    // The touching pair (`Rest`), and the four pairs of coplanar sides
+    // (continuations) the union's merge stage glues once declared.
     let x1 = |p: Point3<f64>| p.x == 1.0;
     let mut decls = topo::BooleanDeclarations::none();
     decls.coincident_faces.push(topo::FacePairDeclaration::rest(
@@ -392,10 +392,12 @@ fn a_union_of_flush_cubes_fillets_its_split_rims_as_one_band() {
         |p| p.z == 1.0,
     ];
     for side in sides {
-        decls.coincident_faces.push(topo::FacePairDeclaration::rest(
-            face_on(&ca, side),
-            face_on(&cb, side),
-        ));
+        decls
+            .coincident_faces
+            .push(topo::FacePairDeclaration::continuation(
+                face_on(&ca, side),
+                face_on(&cb, side),
+            ));
     }
     let r = topo::union_with(&ca, &cb, &decls, t).expect("flush cubes union");
     let body = &r.body().expect("non-empty").body;

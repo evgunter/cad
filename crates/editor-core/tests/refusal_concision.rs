@@ -381,7 +381,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(ContactClass::Tangent),
+                    topo::DeclarationRead::Spent(topo::BooleanCoincidence::TANGENT),
                 ),
                 diag: enclosed,
             },
@@ -446,7 +446,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(ContactClass::Tangent),
+                    topo::DeclarationRead::Spent(topo::BooleanCoincidence::TANGENT),
                 ),
                 diag: in_band,
             },

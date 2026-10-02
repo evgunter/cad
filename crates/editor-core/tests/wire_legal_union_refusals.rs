@@ -14,13 +14,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
+use crate::docm7_union_declare::{
+    block, declared_union, declared_union_classed, failure, flush_pairs, run,
+};
 use crate::docm8_flat_merged::split_fixture;
 use crate::fixture::{fname, wall};
 
 use editor_core::{
-    CapEnd, Diagnosis, FoldConsumption, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    ResolveError, RoleSeg, SitedRef,
+    BooleanCoincidence, CapEnd, Diagnosis, FoldConsumption, NamingError, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, ResolveError, RoleSeg, SitedRef,
 };
 use geom_core::Tol;
 
@@ -175,6 +177,17 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
     out
 }
 
+/// Each wall pair as the continuation it is: the fixtures' walls carry
+/// on into one another with aligned senses.
+fn continuations(
+    pairs: &[(SitedRef, SitedRef)],
+) -> Vec<((SitedRef, SitedRef), BooleanCoincidence)> {
+    pairs
+        .iter()
+        .map(|p| (p.clone(), BooleanCoincidence::Continuation))
+        .collect()
+}
+
 /// Runs the declared union of `members` in every order and checks the
 /// outcomes against `want`, one line per order: an order that fuses
 /// must reach `fused_volume`, and an order that refuses must refuse with a
@@ -187,7 +200,7 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 fn every_order(
     doc: &ProfileDoc,
     members: &[(&str, RecipeNodeId)],
-    pairs: &[(SitedRef, SitedRef)],
+    pairs: &[((SitedRef, SitedRef), BooleanCoincidence)],
     fused_volume: f64,
     want: &[(&str, Seen)],
 ) {
@@ -200,7 +213,7 @@ fn every_order(
                 .collect::<Vec<_>>()
                 .join(",");
             let order: Vec<RecipeNodeId> = o.iter().map(|&k| members[k].1).collect();
-            let (docx, union, _) = declared_union(doc.clone(), &order, pairs.to_vec());
+            let (docx, union, _) = declared_union_classed(doc.clone(), &order, pairs.to_vec());
             let ev = run(&docx);
             let outcome = match failure(&ev, union) {
                 None => {
@@ -278,7 +291,7 @@ fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold
     every_order(
         &doc,
         &[("a", a), ("s", s), ("big", big)],
-        &pairs,
+        &continuations(&pairs),
         AREA_OVERLAP_VOLUME,
         &[
             ("a,s,big", Fused),
@@ -297,11 +310,17 @@ fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold
 fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contact() {
     use Seen::{Fused, SeamVertex, Split};
     let doc = ProfileDoc::empty_derived("wire_fold_contact_4", Tol::witness());
-    let (doc, [a, s, big], mut pairs) = area_overlap_fixture(doc);
+    let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
     let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
+    // `p` rests on `a`'s top cap: the two caps face each other, a
+    // `Rest` contact.
+    let mut pairs = continuations(&pairs);
     pairs.push((
-        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(p, fname(p, RoleSeg::Cap(CapEnd::Start))),
+        (
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(p, fname(p, RoleSeg::Cap(CapEnd::Start))),
+        ),
+        BooleanCoincidence::REST,
     ));
     every_order(
         &doc,
@@ -350,7 +369,7 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
     every_order(
         &doc,
         &[("a", a), ("c", c), ("s", s), ("big", big)],
-        &pairs,
+        &continuations(&pairs),
         5.34,
         &[
             ("a,c,s,big", Fused),

@@ -405,6 +405,24 @@ fn plane_ladder<T: Decide>(
     }
 }
 
+/// **Which way two faces' outward normals point, as a door reads it
+/// for the declaration it offers**: the orientation rung's own question
+/// (`bool_plane_orient`, the cosine levered at `arm`), asked of a pair
+/// whose parallelism a rung could not decide. `None` where the sign is
+/// not definite: the senses are unread, and no class is offered on them.
+pub(crate) fn senses<T: Decide>(
+    n1: Vec3<T>,
+    n2: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Option<PlaneRelation> {
+    match decide("bool_plane_orient", Margin::levered(n1.dot(n2), arm), band) {
+        Ok(Sign::Positive) => Some(PlaneRelation::SameOriented),
+        Ok(Sign::Negative) => Some(PlaneRelation::SameOpposite),
+        Ok(Sign::Zero) | Err(_) => None,
+    }
+}
+
 /// The parallelism rung's refusal of a norm that read definitely
 /// negative: poisoned input, with no margin to report.
 pub(crate) fn unreadable_norm(band: Band) -> PlaneEqError {
