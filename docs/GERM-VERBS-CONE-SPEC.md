@@ -154,7 +154,7 @@ names its raising site.
 | `vtxfac.rs` pierce normal: `face_outward_normal_at` → `Ok(None)` (`face_normal.rs` :217), refused at `vtxfac.rs` :136 | R | `CurvedBooleanUnsupported`, the pierced face a cone |
 | `sector_face.rs` `sector_face` (:209) | R | `SectorFaceError::Unsupported` |
 | `vtxfac.rs` :225 and :244, `recl.rs` `carrier_of` (:51), both through `rest::face_carrier` (:557) → `None` | R | `CurvedBooleanUnsupported` |
-| `sectors.rs` `tangent_lump` (:437), through `rest::tangent_locus` (:759) → `Unsupported` | R | `CurvedBooleanUnsupported` |
+| `sectors.rs` `tangent_lump` (:437), through `geom_brep::tangent_locus` → `Unsupported` | R | `CurvedBooleanUnsupported` |
 | `join.rs` germ-pair dispatch `(a_s, b_s) =>` (:456) | R | `CurvedBooleanUnsupported { kind: Cone }` (P5, P7). Every pair with a cone face, the plane × cone pair included. |
 | `join.rs` `pair_section_frame` `_ => NoArm` (:943) | R | `GermFrameUnsupported` |
 | `chord_join.rs` `bool_planar_chord_spec` wall `_ =>` (:1447) | R | `SectionInvariant`; unreachable behind the join |

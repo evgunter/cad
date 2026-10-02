@@ -615,7 +615,7 @@ fn at_departure<T: Decide>(
 /// zero and the margin is the departure's own normal curvature (the
 /// trilean's documented planar reading, reached bit-identically).
 /// The transverse direction comes from the DEV-1 closed-form locus
-/// ([`super::rest::tangent_locus`], the same rows the door's witness
+/// ([`geom_brep::tangent_locus`], the same rows the door's witness
 /// derivation runs): the descent exists exactly where the witness
 /// lane reaches, and nowhere else.
 ///
@@ -639,7 +639,7 @@ pub(super) fn tangent_lump<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
+    use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
     let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
         Ok(TangentLocus::Line { dir, .. }) => dir,
         Err(TangentLocusError::Escalated(diag)) => {
@@ -788,6 +788,50 @@ pub(super) fn within<T: Decide>(
     } else {
         t1 != Sign::Negative && t2 != Sign::Negative
     })
+}
+
+/// The sector's bounds that are edges of its face, with their unit
+/// directions: `end` is `s.he`'s edge, `start` the next orbit
+/// half-edge's. A subdivision bisector is no edge.
+pub(super) fn bound_edges<T: Decide>(
+    body: &Body<T>,
+    s: &BoolSector<T>,
+) -> Result<Vec<(crate::entity::EdgeKey, Vec3<T>)>, BooleanError> {
+    let edge = |he| {
+        body.get_half_edge(he)
+            .map(|h| h.edge)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a sector's half-edge no longer resolves",
+            })
+    };
+    let mut out = Vec::new();
+    if s.end_edge() {
+        out.push((edge(s.he)?, s.end));
+    }
+    if s.start_edge() {
+        let orbit = body
+            .vertex_orbit(s.he)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a sector's vertex orbit does not walk",
+            })?;
+        out.push((edge(orbit[1 % orbit.len()])?, s.start));
+    }
+    Ok(out)
+}
+
+/// Whether `dir`, coplanar with `s`, runs into its face: within the
+/// sector and along neither of its bounds that is an edge of the face.
+pub(super) fn runs_into<T: Decide>(
+    s: &BoolSector<T>,
+    dir: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    if !within(s, dir, false, DeclarationRead::Moot, band)? {
+        return Ok(false);
+    }
+    Ok(!(s.start_edge() && parallel_same(dir, s.start, arm, band)?
+        || s.end_edge() && parallel_same(dir, s.end, arm, band)?))
 }
 
 /// Same-direction parallelism of two bound directions (unit-ish).

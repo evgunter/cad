@@ -451,6 +451,35 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     }
 }
 
+/// With the symbolic tier on, the driver refuses the dumbbell up front
+/// and speaks the clearance measure from the driven document.
+#[test]
+fn the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node() {
+    let f = dumbbell();
+    let (doc, _) = fixture::step(
+        f.doc,
+        DocEdit::SetLabel {
+            node: f.measure,
+            label: Some(editor_core::Label::new("neck gap").expect("a valid label")),
+        },
+    );
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let refusal = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect_err("the symbolic tier has no clearance lane");
+    let editor_core::DriveRefusal::SymbolicClearanceUnsupported { node } = &refusal else {
+        panic!("expected SymbolicClearanceUnsupported, got {refusal:?}");
+    };
+    assert_eq!(*node, doc.spoken(f.measure));
+    assert!(
+        refusal.to_string().starts_with(&format!(
+            "Measure \"neck gap\" ({}) is a `min_clearance`, whose engine has no lane at \
+             the symbolic identity tier",
+            test_utils::refusal::tag(f.measure.0)
+        )),
+        "{refusal}"
+    );
+}
+
 /// **Row 4b**: a pairing the wedge rule empties refuses typed.
 ///
 /// One face against ITSELF: a face is never at a distance from itself,
@@ -576,7 +605,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
         "the goldening form records the forfeit: {}",
         report.serialize()
     );
-    let human = report.render(&analyzed);
+    let human = report.render(&f.doc, &analyzed);
     assert!(
         human.contains("UNAVAILABLE") && human.contains("still gates"),
         "the human form says the column forfeited AND that the gate stands: {human}"

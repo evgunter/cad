@@ -173,11 +173,6 @@ strict_map_section!(
     "witness node"
 );
 strict_map_section!(
-    /// The A11 cluster-placement registry.
-    placements,
-    "placement node"
-);
-strict_map_section!(
     /// The node-label store.
     labels,
     "label node"

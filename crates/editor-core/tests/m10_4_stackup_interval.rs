@@ -41,8 +41,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::{
-    Chamber, PairingViolation, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal,
-    StackupRefusal, Unavailable, sensitivities, stackup,
+    Chamber, DivergedAt, LiftRefusal, PairingViolation, Rss, Sensitivity, SensitivityOutcome,
+    SensitivityRefusal, StackupRefusal, Unavailable, sensitivities, stackup,
 };
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
@@ -444,6 +444,50 @@ fn the_two_hole_plate_stackup() {
         report.worst_case.leaves
     );
 
+    // The human form opens on the measure, spoken from the document
+    // the stackup was taken of (a relabel keeps its identity).
+    let labelled = push(
+        &doc,
+        &DocEdit::SetLabel {
+            node: measure,
+            label: Some(editor_core::Label::new("web").expect("a valid label")),
+        },
+    );
+    let rendered = report.render(&labelled, &analyzed);
+    assert_eq!(
+        rendered.lines().next(),
+        Some(
+            format!(
+                "stackup of Measure \"web\" ({})",
+                test_utils::refusal::tag(measure.0)
+            )
+            .as_str()
+        ),
+        "{rendered}"
+    );
+
+    // The goldening form prints a sensitivity's nodes by full id, never
+    // the tag and never a spoken node.
+    let mut unliftable = report.clone();
+    unliftable.per_param[0].sensitivity = SensitivityOutcome::Unliftable {
+        node: measure,
+        refusal: LiftRefusal::PinnedSection {
+            section: assertion,
+            param: name("hole_r"),
+        },
+    };
+    let golden = unliftable.serialize();
+    assert!(
+        golden.contains(&format!(
+            "sensitivity=unliftable at node {}: hole_r feeds the section of node {}, which \
+             stays f64",
+            measure.full(),
+            assertion.full()
+        )),
+        "{golden}"
+    );
+    assert!(!golden.contains("Measure "), "{golden}");
+
     // The nominal: the plate's own formula, 2·0.30 − 2·0.2.
     assert!(
         (report
@@ -466,6 +510,7 @@ fn the_two_hole_plate_stackup() {
         .per_param
         .iter()
         .map(|p| Sensitivity {
+            document: doc.id(),
             param: p.param.clone(),
             outcome: p.sensitivity.clone(),
         })
@@ -783,22 +828,43 @@ fn the_pairing_hook_is_red_capable_on_a_stale_build() {
     let fresh = sensitivities(&doc, measure, Some(&handed), None, false, Tol::witness());
     assert!(fresh.is_ok(), "{fresh:?}");
 
-    // Stale by a parameter edit: the radius cone re-keys.
-    let edited = push(
-        &doc,
-        &DocEdit::SetDocParamValue {
-            name: name("hole_r"),
-            value: DocParamValue::Continuous(0.21),
-        },
+    // Stale by a parameter edit: the radius cone re-keys. The edited
+    // document is relabelled too, so a node spoken from `doc` instead
+    // would say no label.
+    let edited = fixture::label_every_node(
+        push(
+            &doc,
+            &DocEdit::SetDocParamValue {
+                name: name("hole_r"),
+                value: DocParamValue::Continuous(0.21),
+            },
+        ),
+        "edited",
     );
-    match sensitivities(&edited, measure, Some(&handed), None, false, Tol::witness()) {
-        Err(SensitivityRefusal::Pairing(PairingViolation::ContentKey {
-            node,
-            handed,
-            rebuilt,
-        })) => {
+    match &sensitivities(&edited, measure, Some(&handed), None, false, Tol::witness()) {
+        Err(SensitivityRefusal::Pairing(
+            violation @ PairingViolation::ContentKey {
+                node,
+                handed,
+                rebuilt,
+            },
+        )) => {
             assert_ne!(handed, rebuilt);
-            assert!(edited.node(node).is_some());
+            assert_eq!(
+                node.label().map(editor_core::Label::as_str),
+                Some("edited"),
+                "spoken from the edited document: {node}"
+            );
+            assert_eq!(*node, edited.spoken(node.id()));
+            assert_eq!(
+                violation.to_string(),
+                format!(
+                    "the paired f64 evaluation is STALE at {node}: its content key is not \
+                     the document's own build's, so differentiating now would report a \
+                     sensitivity of a build nobody validated"
+                )
+            );
+            assert!(node.to_string().contains("\"edited\""), "{node}");
         }
         other => panic!("a stale handed build must be a ContentKey violation: {other:?}"),
     }
@@ -977,11 +1043,13 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(
-                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                refs,
-            )
-            .expect("indices in range"),
+            node: Box::new(
+                Node::measure(
+                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                    refs,
+                )
+                .expect("indices in range"),
+            ),
         },
     );
     let unsupported = *doc.order().last().expect("inserted");
@@ -996,7 +1064,9 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     }
     assert_eq!(
         sensitivities(&doc, plate_node, None, None, false, Tol::witness()).err(),
-        Some(SensitivityRefusal::NotAMeasure { node: plate_node })
+        Some(SensitivityRefusal::NotAMeasure {
+            node: doc.spoken(plate_node)
+        })
     );
 }
 
@@ -1056,17 +1126,21 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
     assert!(!verdict.certified().is_empty());
 
     // A value edit the box cannot see: the nominal moves, the offsets
-    // do not.
-    let edited = push(
-        &doc,
-        &DocEdit::SetDocParamValue {
-            name: name("hole_r"),
-            value: DocParamValue::Continuous(0.21),
-        },
+    // do not. Relabelled too, so a node spoken from `doc` instead would
+    // say no label.
+    let edited = fixture::label_every_node(
+        push(
+            &doc,
+            &DocEdit::SetDocParamValue {
+                name: name("hole_r"),
+                value: DocParamValue::Continuous(0.21),
+            },
+        ),
+        "edited",
     );
     let edited_box = analyzed_box(&edited, &AnalysisPolicy::default());
     assert_eq!(editor_core::ParamBox::of(&edited_box), *verdict.root());
-    match sensitivities(
+    match &sensitivities(
         &edited,
         measure,
         None,
@@ -1074,13 +1148,32 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
         false,
         Tol::witness(),
     ) {
-        Err(SensitivityRefusal::VerdictNotOfThisBuild {
-            node,
-            recorded,
-            replayed,
-            ..
-        }) => {
-            assert!(edited.node(node).is_some());
+        Err(
+            refusal @ SensitivityRefusal::VerdictNotOfThisBuild {
+                node,
+                recorded,
+                replayed,
+                ..
+            },
+        ) => {
+            let DivergedAt::Replayed(spoken) = node else {
+                panic!("the edited document's replay holds the node: {node:?}");
+            };
+            assert_eq!(
+                *spoken,
+                edited.spoken(node.id()),
+                "a node the replay holds is spoken from the document asked about"
+            );
+            assert_eq!(
+                spoken.label().map(editor_core::Label::as_str),
+                Some("edited")
+            );
+            assert!(
+                refusal
+                    .to_string()
+                    .contains(&format!("a different content key at {spoken} — ")),
+                "{refusal}"
+            );
             assert_ne!(recorded, replayed);
         }
         other => panic!("a stale verdict must be refused by content: {other:?}"),
@@ -1103,19 +1196,34 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
     // A foreign document with the SAME names, nominals and
     // distributions — only the hole spacing differs.
     let (other, other_measure, _) = plate_spaced(0.35, Some(uniform(half)), Some(uniform(half)));
+    let other = fixture::label_every_node(other, "foreign");
     let other_box = analyzed_box(&other, &AnalysisPolicy::default());
     assert_eq!(editor_core::ParamBox::of(&other_box), *verdict.root());
-    assert!(matches!(
-        sensitivities(
-            &other,
-            other_measure,
-            None,
-            Some(&verdict),
-            false,
-            Tol::witness()
-        ),
-        Err(SensitivityRefusal::VerdictNotOfThisBuild { .. })
-    ));
+    match &sensitivities(
+        &other,
+        other_measure,
+        None,
+        Some(&verdict),
+        false,
+        Tol::witness(),
+    ) {
+        Err(refusal @ SensitivityRefusal::VerdictNotOfThisBuild { node, .. }) => {
+            // The record names a node of the document the drive ran
+            // on; it is said by tag as the record's, never looked up
+            // in the foreign document.
+            let DivergedAt::Recorded(id) = node else {
+                panic!("the foreign replay parts from the record at the record's node: {node:?}");
+            };
+            assert!(
+                refusal.to_string().contains(&format!(
+                    "a different content key at the drive record's node {id} — "
+                )),
+                "{refusal}"
+            );
+            assert!(!refusal.to_string().contains("foreign"), "{refusal}");
+        }
+        other => panic!("a foreign verdict must be refused by content: {other:?}"),
+    }
     assert!(matches!(
         stackup(
             &other,

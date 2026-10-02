@@ -486,12 +486,7 @@ fn the_annotation_edit_saves_replays_and_loads() {
             distribution: None,
         },
     ];
-    let text = save(
-        &snapshot,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("a legal log saves");
+    let text = save(&snapshot, edits.as_ref(), Tol::witness()).expect("a legal log saves");
     assert!(
         text.contains("SetDocParamDistribution") && text.contains("\"distribution\""),
         "the wire form is the derive's, symbol and all"
@@ -500,7 +495,7 @@ fn the_annotation_edit_saves_replays_and_loads() {
     assert_eq!(loaded.edits.len(), 3, "the log round-tripped");
     assert_eq!(
         loaded.edits,
-        editor_core::LoggedEdit::bare_all(&edits),
+        edits.to_vec(),
         "each edit round-tripped, payload and all"
     );
     assert!(
@@ -534,8 +529,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
         &[DocEdit::SetDocParamDistribution {
             name: p("wall"),
             distribution: Some(sigma()),
-        }
-        .into()],
+        }],
         Tol::witness(),
     )
     .expect("the legal log saves");
@@ -586,7 +580,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
         assert_eq!(
             Doc::replay(
                 DocumentId::derive("edit-doc-param-distribution"),
-                &editor_core::LoggedEdit::bare_all(&log),
+                &log.to_vec(),
                 Tol::witness()
             )
             .expect_err("replay refuses"),
@@ -602,7 +596,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
             }
             other => panic!("load refused with {other:?}, not EditReplay"),
         }
-        match save(&doc, &[direct.into()], Tol::witness()).expect_err("save refuses") {
+        match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
             PersistError::EditReplay { error, .. } => assert_eq!(error, want, "save's refusal"),
             other => panic!("save refused with {other:?}"),
         }
@@ -630,13 +624,7 @@ fn a_non_finite_offset_on_the_edit_refuses_at_the_persistence_door() {
             hi: 0.0,
         }),
     }];
-    match save(
-        &doc,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect_err("save refuses")
-    {
+    match save(&doc, edits.as_ref(), Tol::witness()).expect_err("save refuses") {
         PersistError::NonFinite { site } => {
             let shown = format!("{site:?}");
             assert!(

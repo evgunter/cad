@@ -30,7 +30,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 
-use crate::common::{ang, edited, inserted, len, scl, tempdir, xy_frame};
+use crate::common::{ang, edited, inserted, len, row_of, scl, tempdir, xy_frame};
 use viewer::evalseam::EvalDone;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
@@ -466,20 +466,11 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows));
     assert!(matches!(
-        &rows
-            .iter()
-            .find(|row| row.id == extrude)
-            .expect("the extrude has a row")
-            .status,
+        &row_of(&rows, extrude).status,
         RowStatus::Failed { .. }
     ));
     for id in [child, grandchild] {
-        match &rows
-            .iter()
-            .find(|row| row.id == id)
-            .expect("the descendant has a row")
-            .status
-        {
+        match &row_of(&rows, id).status {
             RowStatus::Poisoned { through, message } => {
                 assert_eq!(
                     *through, extrude,
@@ -521,8 +512,7 @@ fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
             expr: len(0.013),
         },
     ];
-    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
-        .expect("the log replays");
+    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert!(!history.can_redo(), "the cursor opens at the tip");
     assert!(history.can_undo());
     assert!(history.undo().is_some());

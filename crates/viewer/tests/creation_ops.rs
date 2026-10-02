@@ -1207,7 +1207,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue
-/// `work/author/add-profile-mints-no-frame.md` carries.
+/// `work/authtail/drawing-on-a-picked-face-is-a-two-form-trip.md` carries.
 #[test]
 fn a_boss_is_authored_on_a_picked_face() {
     let tol = Tol::witness();

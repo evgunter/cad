@@ -313,5 +313,5 @@ on a chart with a singular apex.
   #3685 reddened `r1_pxn_probes`. REACH fixed it in PR 3737, reviewed
   single.
 
-The dual-review row (DR-34) rides this PR's last commit.
+The dual-review row (DR-36) rides this PR's last commit.
 — (REACH orchestrator)

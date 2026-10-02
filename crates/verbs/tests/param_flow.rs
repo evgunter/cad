@@ -128,7 +128,7 @@ fn no_flow_row_repeats_a_field() {
 /// Which role families a record actually filled.
 fn minted(rec: &BlendNaming) -> BTreeSet<RoleFamily> {
     let mut out = BTreeSet::new();
-    if !rec.blends.is_empty() {
+    if !rec.blends.is_empty() || !rec.joined_blends.is_empty() {
         out.insert(RoleFamily::Blends);
     }
     if !rec.corners.is_empty() {
