@@ -1521,3 +1521,11 @@ Filed:
 - `work/census/prose-census-finds-sentence-impls-by-their-trait-names` (P4)
 
 **Ruling (mine): `product-refusals-speak-the-node` is not a fork.** PR 3760's pattern settles it. `ProductError` keeps ids and gains `Say`, and `PartFault::PartProduct` holds the error rather than a pre-rendered string. The ruling is recorded on the row and dispatched.
+
+## 2026-10-02 — the viewer's own refusal types speak the node at the raise (viewer-refusals-speak-the-node)
+
+`Refusal`'s node arms, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError` and `HeldRefusal` hold `SpokenNode`, built from the document the raising door holds; a kernel `Say` value they carry keeps its `HeldNodes`.
+
+**Ruling (implementer): a kept refusal is not a fork.** The status line is a string made once, and any batch that acts clears it; `SetLabel` acts, so a rename retires a refusal that said the old label. Recorded on the row.
+
+**Split:** `viewer-pick-path-refusals-speak-the-node`, `viewer-panes-speak-the-kernel-refusals-they-draw`, `viewer-product-badge-speaks-the-node` (parked on 3794). **Filed on vnews:** `a-withdrawn-cause-can-carry-the-list-mark-inside-a-label` (P4).
