@@ -159,6 +159,7 @@ pub(crate) fn first_too_deep(body: &str) -> Option<TooDeep> {
 }
 
 /// How deep `body` nests, in brackets.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn deepest(body: &str) -> usize {
     opens(body).map(|(depth, _)| depth).max().unwrap_or(0)
 }
