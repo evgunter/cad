@@ -33,7 +33,7 @@ use crate::common;
 use common::{ang, len, len3, plate_index, scl3, session_insert};
 use pncad::document::{
     Dimension, Doc, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId,
-    SlotId,
+    Said, SlotId, Speaker,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -90,11 +90,11 @@ fn all_edge_names(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
 /// narrowing.
 fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Option<BlendEvent> {
     let index = plate_index(session);
-    let eval = session.evaluation().expect("the inline seam landed");
+    let (doc, eval) = session.landed_pair().expect("the inline seam landed");
     tools
         .blend_mut()
         .expect("the blend tool is open")
-        .load_all_edges(target, eval, &index)
+        .load_all_edges(target, doc, eval, &index)
 }
 
 /// The whole body of a node, as the blend tool's target.
@@ -451,12 +451,18 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert_eq!(notices.len(), 1, "one notice for the whole set");
     let ToolNotice::Blend(BlendEvent::TargetLost {
         target: lost,
+        node,
         edges,
     }) = &notices[0]
     else {
         panic!("expected a lost target, got {notices:?}");
     };
     assert_eq!(lost.node, target);
+    assert_eq!(
+        node.kind(),
+        Some("Extrude"),
+        "the lost node is said as the document held it when it was picked: {node}"
+    );
     assert_eq!(*edges, BOX_EDGES);
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None);
@@ -647,11 +653,11 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
         assert!(outcome.committed.is_empty(), "nothing was authored");
         assert!(
             matches!(
-                outcome.refusal,
+                &outcome.refusal,
                 Some(Refusal::WrongNodeKind {
                     node,
                     wanted: NodeKindWanted::Body
-                }) if node == profile
+                }) if node.id() == profile
             ),
             "expected a body-seat refusal, got {:?}",
             outcome.refusal
@@ -1062,6 +1068,7 @@ fn the_strand_check_is_not_asked_without_an_answer() {
         .expect("the blend tool is open")
         .load_all_edges(
             whole(target),
+            session.doc(),
             session.evaluation().expect("the inline seam landed"),
             &index,
         );
@@ -1076,8 +1083,9 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     assert_eq!(
         refused.map(|event| event.to_string()),
         Some(format!(
-            "{} has no edges to select: {standing}",
-            whole(target)
+            "{} has no edges to select: {}",
+            whole(target),
+            Said(&standing, Speaker::TAG.about(target))
         )),
     );
     assert_eq!(

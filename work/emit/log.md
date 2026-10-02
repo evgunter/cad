@@ -1522,6 +1522,13 @@ Filed:
 
 **Ruling (mine): `product-refusals-speak-the-node` is not a fork.** PR 3760's pattern settles it. `ProductError` keeps ids and gains `Say`, and `PartFault::PartProduct` holds the error rather than a pre-rendered string. The ruling is recorded on the row and dispatched.
 
+## 2026-10-02 — the viewer's own refusal types speak the node at the raise (viewer-refusals-speak-the-node)
+
+`Refusal`'s node arms, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError` and `HeldRefusal` hold `SpokenNode`, built from the document the raising door holds; a kernel `Say` value they carry keeps its `HeldNodes`.
+
+**Ruling (implementer, revised in review): a kept refusal is not a fork.** The status line is a sentence made once, at the end of its batch (`frame::batch_refusal` speaks the refusal again from the document the batch leaves, unless it replaced the document; `Refusal::Edit` excepted, filed as `edit-error-respeaks-from-a-later-version`), and any batch that acts clears it; `SetLabel` acts, so a rename retires a refusal that said the old label. Recorded on the row.
+
+**Split:** `viewer-pick-path-refusals-speak-the-node`, `viewer-panes-speak-the-kernel-refusals-they-draw`, `viewer-product-badge-speaks-the-node` (carried by this PR once 3794 merged), `edit-error-respeaks-from-a-later-version`. **Filed on vnews:** `a-withdrawn-cause-can-carry-the-list-mark-inside-a-label` (P4).
 ## 2026-10-02 — product refusals speak the node (PR 3794)
 
 **Shape.** Built on PR 3760's pattern:
@@ -1540,3 +1547,78 @@ Filed:
 **Filed:** `separation-unavailable-carries-the-kernel-refusal-shared`.
 
 **CI.** The test job went red on #3733's `circle_image_envelope`, which was missing from geom-core's `bounds_census` roster and was red on every merge ref. The lane added the roster line, classing it as `Selection` with two refusal gates.
+
+## 2026-10-02 — viewer refusals speak the node, part 1 (PR 3806)
+
+**What changed.**
+- The viewer's own refusal types now hold a `SpokenNode` built at the raise: `Refusal`, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError`, `HeldRefusal` and `RefusedBoolean`.
+- Kernel errors carry `HeldNodes` beside them.
+- These also speak: the at-rest badge, the product badge and `NoProduct`.
+
+**Kept refusal (ruled by the lane, not a fork).** The status line is a sentence made once, and the next accepted act retires it. The review found two holes, both fixed:
+- A refusal and a rename in one batch: `frame::batch_refusal` now re-speaks the batch's refusal from the document the batch leaves.
+- A stale mate-tool label: it is now spoken from the session document. Ids are stable within one document's history, which the mint check verifies.
+
+The rule is now stated in the viewer README.
+
+**Not fixed: `Refusal::Edit`.** `EditError` stores its nodes already spoken, so it cannot re-speak them. Filed as `edit-error-respeaks-from-a-later-version`.
+
+**Main formatting.** Main was red on fmt in `crates/sweep/tests/run_walls_built.rs` (from `ea80b402fc`). This PR carried the fix, so main is green again.
+
+**Filed:**
+- `viewer-pick-path-refusals-speak-the-node`
+- `viewer-panes-speak-the-kernel-refusals-they-draw`
+- the vnews in-band-mark issue, now covering `•` and the `"; "` join
+
+## 2026-10-02 — viewer pick-path refusals speak the node (PR 3821)
+
+**What changed**
+- These types keep bare ids and gain `Say`: `PickIndexError`, `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`, `BlendTarget`, `BlendEvent`, `IdAnswer`, `Disagreement`.
+- Each is spoken where it is drawn, from `DocSession::landed_pair`.
+- A forwarded sentence says "this node" through `about`.
+
+**Review fixes**
+- The blend panel line is spoken.
+- `frame::Spelled<T>` carries a cross-frame value's `DocumentId`. It speaks only in that document and says the tag otherwise; this closes the held-edges badge's speaking one document's id in another after an `Open`.
+- A gated-evaluator test proves the landed document is the one spoken.
+- `TargetLost` speaks from a `SpokenNode` snapshot taken at pick time, as seats and the mate tool do.
+- `NameAndPath` is the one home for "name with path".
+- `ToolNotice` gets `Say`, with an exhaustive match.
+- Five open items are re-cited.
+- The `names-render-a-faces-leaf-role-in-words` premise is corrected: Ev's ruling must also reach `Speaker::name` / `SaidName`.
+
+**README** The viewer README's channel section now states the pick-path rule and the landed lag.
+
+**Still open in the labels unit**
+- `viewer-panes-speak-the-kernel-refusals-they-draw`
+- `edit-error-respeaks-from-a-later-version`
+- P3/P4 residue rows
+
+## 2026-10-02 — viewer panes speak the kernel refusals they draw (PR 3827)
+
+**Done**
+- `standing_verdict` now speaks `ResolveError` from the landed document.
+- `indeterminate_wording` now takes a `Speaker`.
+- A gated-evaluator test shows the verdict says the landed label while a rename has not landed.
+- Sweep: no other kernel `Say` value is drawn by tag. The blind spots each have a row.
+
+**Split off as a design question**
+- `a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` (P3, `design: true`). No frame holds a resolved part.
+- The options are:
+  - (a) re-resolve the part at landing;
+  - (b) the fault carries the part;
+  - (c) retire the part speakers;
+  - (d) a `HeldNodes` snapshot taken inside the nested evaluation. Labels are pinned content.
+
+**Filed**
+- `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
+- The check-root button note, added to `check-findings-speak-their-root-by-tag`.
+
+**State of the labels unit:** every door and viewer surface now speaks. Open residue:
+- `edit-error-respeaks-from-a-later-version` (P3)
+- the part design row (P3)
+- the selected-node snapshot row (P3)
+- `a-cluster-act-speaks-its-gauges-by-tag`
+- `check-findings-speak-their-root-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- the earlier P3/P4 label rows

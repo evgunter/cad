@@ -31,3 +31,7 @@ Seed the demos row from the crates the demos depend on (the way the
 `topo` row is `seeded topo`), or at least from the crates whose public
 doors the tour calls; or state in the discipline that a kernel door
 change runs the tour suite before push. Weigh against the row's cost.
+
+## Evidence: the same gap for a tree-wide reader (2026-10-02)
+
+PR 3821 (`51f0b1f29`, `crates/viewer/src/idpass.rs` `NameAndPath`) gated `PKGS=viewer`, so `pncad-py`'s `prose_census` (which reads every crate's source and depends on none of them) never ran; main went red on `every_site_this_census_cannot_decide_is_named_with_its_reason` and the next PR whose closure held `pncad-py` (3803) heard it. That is the cost `work/ciw/latency-cut.md` accepted when it dropped the read reach ("the other seven a PR hears about when it touches their crate, or from the nightly"); main's push runs only prime the cache, so main reads green meanwhile. Fixed by `tquery/prose-census-idpass`.

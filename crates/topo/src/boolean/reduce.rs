@@ -317,11 +317,11 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             .faces()
             .map(|(key, f)| {
                 let kind = surface_of(other, f)?.kind();
-                Ok((key, kind, super::boxes::face_box(other, key, pad)?))
+                Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
             })
             .collect::<Result<_, BooleanError>>()?;
         for (face, kind) in offenders {
-            let boxed = super::boxes::face_box(body, face, pad)?;
+            let boxed = super::boxes::face_box(body, face, pad, band)?;
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box) && !covered(operand, face, other_face) {
                     return Ok(Some(UnsupportedPair {
@@ -568,21 +568,16 @@ pub(super) fn gate_maximal_faces<T: Decide>(
     operand: Operand,
     band: Band,
 ) -> Result<(), BooleanError> {
-    for (edge_key, edge) in body.edges() {
-        let (Some(f1), Some(f2)) = (
-            body.face_of_half_edge(edge.he_plus),
-            body.face_of_half_edge(edge.he_minus),
-        ) else {
+    for (edge_key, _) in body.edges() {
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
+        let (f1, f2) = sides.faces();
         if f1 == f2 {
             continue; // seam/strut inside one face: not a coplanar PAIR
         }
-        let (k1, k2) = (
-            body.get_face(f1).map(|f| f.surface),
-            body.get_face(f2).map(|f| f.surface),
-        );
-        if k1.is_some() && k1 == k2 {
+        let (k1, k2) = sides.surfaces();
+        if k1 == k2 {
             // Same-key CURVED adjacency is the CANONICAL maximal form
             // (M5 PR 9, C12.5): a periodic wall cannot be one face
             // without its parameterization cut, so two half-walls
@@ -590,8 +585,8 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // exactly what a maximal-faced curved operand looks like
             // (the cosurface merge itself KEEPS such a cut). Only the
             // PLANAR same-key pair is the F7 defect.
-            let planar = k1
-                .and_then(|k| body.get_surface(k))
+            let planar = body
+                .get_surface(k1)
                 .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }));
             if planar {
                 return Err(BooleanError::NonMaximalFaces {
@@ -681,6 +676,7 @@ fn face_tree<T: Decide + Bounds>(
     faces: &[FaceKey],
     knobs: &SweepKnobs,
     pad: f64,
+    band: Band,
 ) -> Result<bvh::Bvh, BooleanError> {
     let mut face_boxes = Vec::with_capacity(faces.len());
     for &f in faces {
@@ -698,7 +694,7 @@ fn face_tree<T: Decide + Bounds>(
                 max_z: f64::NEG_INFINITY,
             }
         } else {
-            boxes::face_box(y, f, pad)?
+            boxes::face_box(y, f, pad, band)?
         });
     }
     Ok(bvh::Bvh::build(&face_boxes))
@@ -751,13 +747,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     // unconditional and the brute-force arm below does not exist.
     #[cfg(feature = "sweep-testing")]
     let tree: Option<bvh::Bvh> = match strategy {
-        SweepStrategy::Realized => Some(face_tree(y, &faces, knobs, pad)?),
+        SweepStrategy::Realized => Some(face_tree(y, &faces, knobs, pad, band)?),
         SweepStrategy::Idealized => None,
     };
     #[cfg(not(feature = "sweep-testing"))]
     let tree: bvh::Bvh = {
         let SweepStrategy::Realized = strategy;
-        face_tree(y, &faces, knobs, pad)?
+        face_tree(y, &faces, knobs, pad, band)?
     };
     let mut worklist: std::collections::VecDeque<(EdgeKey, usize)> =
         x.edges().map(|(k, _)| (k, 0)).collect();
