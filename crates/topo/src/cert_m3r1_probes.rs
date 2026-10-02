@@ -3,7 +3,7 @@
 //!
 //! A reviewer probe, adopted. In-crate because the corruption route needs
 //! `Body::surfaces` (`pub(crate)`): the wall is replaced UNDER its own key
-//! after its four edges were attached through the lane door, so the stored
+//! after its four edges were attached through the lane, so the stored
 //! certificates no longer hold and nothing else about the body moves.
 //! `set_face_surface` cannot do it — `FaceSurface::New` mints a fresh key
 //! and the description keeps the old surface alive.
@@ -58,7 +58,7 @@ fn nurbs_wall(bow: f64) -> Surface<f64> {
 
 /// The unit cube with its front wall restated as a described NURBS and
 /// the wall's four edges re-described as plane × NURBS `Intersection`s
-/// through the lane door (M7-8). Returns the wall's surface key and the
+/// through the lane (M7-8). Returns the wall's surface key and the
 /// four edge keys.
 fn m7_8_cube() -> (
     Body<f64>,
@@ -124,7 +124,7 @@ fn m7_8_cube() -> (
             param_start: 0.0,
             param_end: 1.0,
         };
-        body.set_edge_curve_nurbs_lane(edge_key, spec, Tol::witness())
+        body.set_edge_curve(edge_key, spec, Tol::witness())
             .unwrap_or_else(|e| {
                 panic!("the plane x flat-NURBS edge attaches through the lane: {e:?}")
             });
@@ -181,7 +181,7 @@ fn six_doors(body: &Body<f64>) -> [String; 6] {
 }
 
 /// **A corrupt plane × NURBS wall at `f64`: which at-rest door catches
-/// it.** The wall's four edges certified through the lane door at attach
+/// it.** The wall's four edges certified through the lane at attach
 /// time; the wall then bows 0.05 under its own key, so every one of those
 /// certificates is false. Check 2 is the check that re-derives them.
 ///

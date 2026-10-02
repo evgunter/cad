@@ -180,28 +180,29 @@ pub fn run(out: Option<String>, tol: Tol) {
         || vec![plain("chute", bodies::chute(tol).0)],
         tol,
     );
-    // The fillet gates are reified K-funnel predicates (S2's seven),
-    // so the rocker's six filleted corners get their own sweep group.
+    // The fillet gates are reified K-funnel predicates (S2's seven, and
+    // the 3-D blend battery), so the rocker's profile corners and its
+    // keyhole creases get their own sweep group.
     sweep(
         s,
         t,
         u,
         "rocker",
-        || vec![plain("rocker", rocker::rocker(tol))],
+        || vec![plain("rocker", rocker::build(tol).1)],
         tol,
     );
-    // The PR 11 flip: the tilted cut joined the standard ladder, so
-    // its quadrature-lane predicates (props_quad_*) record here too.
+    // The tilted cut's quadrature-lane predicates (props_quad_*)
+    // record here too.
     sweep(
         s,
         t,
         u,
         "tiltedcut",
         || {
-            let (above, below) = curvedcut::build::<Probe>(tol);
+            let cut = curvedcut::build::<Probe>(tol);
             vec![
-                plain("tiltedcut_above", above),
-                plain("tiltedcut_below", below),
+                plain("tiltedcut_above", cut.above),
+                plain("tiltedcut_below", cut.below),
             ]
         },
         tol,
@@ -212,13 +213,9 @@ pub fn run(out: Option<String>, tol: Tol) {
         u,
         "bossplate",
         || {
-            // Contact-free transverse curved boolean: plain tier 3 (the 3′
-            // census is exact-on-planar; see the stop's routing note).
+            // Routed the way the stop routes it (`crate::declares_no_contacts`).
             let bb = bossplate::build::<Probe>(tol);
-            let contact_free = bb.contacts.vv.is_empty()
-                && bb.contacts.a_on_b.is_empty()
-                && bb.contacts.b_on_a.is_empty();
-            vec![if contact_free {
+            vec![if crate::declares_no_contacts(&bb.contacts) {
                 plain("bossplate", bb.body)
             } else {
                 seamed("bossplate", bb)
@@ -256,7 +253,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         u,
         "letterforms",
         || {
-            let (two, three) = letterforms::build(tol);
+            let (two, three, _) = letterforms::build(tol);
             vec![seamed("silhouette", two), seamed("silhouette3", three)]
         },
         tol,

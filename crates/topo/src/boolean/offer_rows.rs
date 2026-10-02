@@ -260,7 +260,10 @@ cases! {
         Valued => turned_wedge(2, true, 200.0, 5.0, 1.0, -D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
-    tangent_screen_of_a_tilted_block: "Coincidence(Planes)", D / 4.0, Public,
+    // The tilt, `D/4` a metre, levered at the declared pair's extent:
+    // the ball around both faces' 3 m × 3 m footprint, `1.5·√2`.
+    tangent_screen_of_a_tilted_block: "Coincidence(Planes)",
+        D / 4.0 * 1.5 * core::f64::consts::SQRT_2, Public,
         Withdrawn(Because::Refuses("UnsupportedDeclarationClass")) =>
         tilted_block_declared_tangent();
     membership_along_a_curved_flank: "Coincidence(CurvedFlankSense)", D, Door::Site(
@@ -592,7 +595,8 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         (0.0, 1.0),
         tol,
     );
-    let declared = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     let mut acc = ContactAcc::default();
     curved_face_arm(
         &x,
@@ -646,7 +650,7 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
         ..BooleanDeclarations::none()
     };
     let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = DeclaredPairs::from_verified(&decls, one);
+    let declared = DeclaredPairs::build(&decls, one, &x, &y, band())?;
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -813,7 +817,8 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         intersect: true,
     }];
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
-    let declared = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     resolve_edge_edge(
         &records,
         &corner(fca),
@@ -1205,7 +1210,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         ..BooleanDeclarations::none()
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = DeclaredPairs::from_verified(&decls, one);
+    let declared = DeclaredPairs::build(&decls, one, &pa.body, &pb.body, band())?;
     resolve_edge_edge(
         &records,
         &[sector(z, x, fa), sector(x, z, fa)],
@@ -1247,7 +1252,8 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
         arm,
     };
-    let declared = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     super::super::recl::require_same(
         &pa.body,
         Operand::A,
@@ -2131,6 +2137,12 @@ fn top_level_fn(line: &str) -> Option<String> {
 /// decision, mentions)`.
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
+        "carrier_cross.rs",
+        "escalated",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
         "circle_cylinder.rs",
         "-",
         "BooleanDecision::ArcCylinderRoots",
@@ -2223,6 +2235,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "SelfCheck::CarrierLadder",
         1,
     ),
+    ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
     (
         "mod.rs",
         "verify_tangent_declaration",
@@ -2282,6 +2295,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    (
+        "reduce.rs",
+        "arc_chain_reaches",
+        "Coincide::EdgeOnCurvedFace",
+        1,
+    ),
     (
         "reduce.rs",
         "curved_face_arm",
@@ -2347,7 +2366,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
     (
         "reduce.rs",
-        "vertex_on_curved_face",
+        "vertex_on_curved_face_at",
         "BooleanDecision::VertexOnVertex",
         1,
     ),

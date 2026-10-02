@@ -111,7 +111,7 @@ fn depth3_chain<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -
 /// Slab across the tube's midriff, z ∈ [1.375, 2.375] — every plane
 /// value distinct from every operand plane (general position, no
 /// declarations involved).
-fn slab<T: Decide + geom_core::CertifiedBounds>() -> Body<T> {
+fn slab<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
     brick::<T>((-1.0, 5.0), (-1.0, 5.0), (1.375, 2.375), Tol::witness())
 }
 
@@ -358,7 +358,7 @@ mod interval {
 /// hole `(1.5, 2.5)²`: spine `x ∈ [1.625, 1.8125]`, `y ∈ [1.625,
 /// 1.9375]`, three teeth reaching to `x = 2.375`. Area
 /// 0.1875×0.3125 + 3×(0.5625×0.0625) = 21/128 = 0.1640625.
-fn comb<T: Decide + geom_core::CertifiedBounds>() -> Body<T> {
+fn comb<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
     prism_z::<T>(
         &[
             (1.625, 1.625),

@@ -43,7 +43,7 @@ pub(super) struct MeridianChain {
 /// is what it returns; each caller's `?` lifts it through its own
 /// `From<EulerOpError>`.
 #[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
-pub(super) fn build_chain<T: Decide>(
+pub(super) fn build_chain<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     frame: &AxisFrame<T>,
     r#loop: LoopKey,
