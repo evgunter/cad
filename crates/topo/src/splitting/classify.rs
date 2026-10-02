@@ -268,8 +268,8 @@ pub(super) fn classify_vertices<T: Decide>(
 ///    Positive ⇒ two distinct roots `φ ± acos(−D/R)`; Zero ⇒ the
 ///    plane grazes the carrier's extremum — ONE (double) root, whose
 ///    insertion (if in-span) leaves a same-side ON contact for the
-///    sector adjudication (rule (b)'s AOA/BOB — the established graze
-///    net); in-band ⇒ typed escalation (F6).
+///    sector classification (the established graze net); in-band ⇒
+///    typed escalation (F6).
 /// 2. Each root, translated into `[t₀, t₀ + τ)`, is classified
 ///    against the span by `split_conic_crossing_root` — the two
 ///    margins `(t − t₀)·meter` and `(t₁ − t)·meter` (meters at the
@@ -620,7 +620,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
 ///   same-side endpoints with a belly crossing the plane twice get
 ///   BOTH crossing vertices; an ON endpoint with one interior
 ///   crossing gets it; grazes land as single ON contacts for the
-///   rule (b) adjudication. Two roots split the parent then its
+///   sector classification. Two roots split the parent then its
 ///   trailing child (ascending — the second root lives on the child's
 ///   span).
 /// - **Spiric and spline carriers** have no crossing lane. One passes
