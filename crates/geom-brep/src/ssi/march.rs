@@ -530,7 +530,8 @@ pub(crate) trait TransversalityData<const N: usize> {
 /// other in-band trilean, [`SsiError::StepUnusable`] when the step
 /// minted from the march speed cannot be taken,
 /// [`SsiError::SeedRefinementFailed`] when the seed will not settle
-/// onto the locus, and [`SsiError::StepRefinementFailed`] when a step
+/// onto the locus, [`SsiError::SeedOffDomain`] when it settles outside
+/// the domain, and [`SsiError::StepRefinementFailed`] when a step
 /// from the locus will not settle back onto it.
 pub(crate) fn march<const M: usize, const N: usize, S>(
     sys: &S,
@@ -546,6 +547,27 @@ where
 {
     let mut x = newton_refine(sys, seed, ctx.tol)
         .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
+    // The seed is decided inside the domain before it is marched, by
+    // the decision every marched state gets. Min-norm Newton moves a
+    // seed across the domain's boundary as readily as a step, and a
+    // seed outside is no state to march from: `push_boundary` bisects
+    // toward it as the inside end and finds nothing, and the fit reads
+    // a chart evaluated off its domain. A seed decided outside is no
+    // branch, as one that will not settle is: the branch it lies on
+    // is reached by another seed or the accounting pass refuses its
+    // cell at the floor. A seed in the band's zero is on the boundary,
+    // where a marched end may be too, and is marched.
+    let margin = domain_margin(&x, &ctx, sys, &x);
+    match decide("ssi_branch_open_end", Margin::of(margin), band) {
+        Ok(Sign::Positive | Sign::Zero) => {}
+        Ok(Sign::Negative) => {
+            return Err(SsiError::SeedOffDomain {
+                mode: mode.name(),
+                margin,
+            });
+        }
+        Err(diag) => return Err(TraceDecision::BranchOpenEnd.escalated(diag)),
+    }
     let seed_state = x;
     let mut states = vec![x];
     let mut prev_tangent: Option<[f64; N]> = None;
@@ -1619,5 +1641,53 @@ mod tests {
         assert!(r.reach <= 1.0 + 1.0e-12, "{r:?}");
         let tol = MarchTol::from_band(band, r).unwrap();
         assert_eq!(tol.settling(), SSI_NEWTON_TOL * band.zero());
+    }
+
+    /// **A seed is decided inside the domain where it settles, before it
+    /// is marched.** The locus is the `x` axis, and the seed `(0, ½, 0)`
+    /// lies inside every domain below; Newton settles it to the origin,
+    /// at `y = 0`. The `y` face of the domain is placed so the settled
+    /// seed is definitely outside (no branch, naming its margin), in the
+    /// band's escalation zone (the open end escalates), on the face
+    /// (marched), and inside (marched). The `x` faces sit a few
+    /// idealized steps from the origin so a marched seed ends.
+    #[test]
+    fn a_seed_that_settles_outside_the_domain_is_no_branch() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let run = |y_lo: f64| {
+            let mut ctx = unit_ctx(band);
+            ctx.domain[0] = [-0.01, 0.01];
+            ctx.domain[1] = [y_lo, 1.0];
+            march(
+                &sys,
+                [0.0, 0.5, 0.0],
+                ctx,
+                StepperMode::Idealized,
+                1.0,
+                band,
+                SSI_STEP_MAX,
+            )
+        };
+        match run(0.1) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => {
+                assert!(
+                    (margin + 0.1).abs() < 1.0e-12,
+                    "outside by 0.1 m: {margin:e}"
+                );
+            }
+            other => panic!("outside: expected no branch, got {other:?}"),
+        }
+        match run(5.0e-9) {
+            Err(SsiError::Escalated {
+                decision: TraceDecision::BranchOpenEnd,
+                ..
+            }) => {}
+            other => panic!("in the escalation zone: expected the open end, got {other:?}"),
+        }
+        for y_lo in [0.0, -0.1] {
+            let t = run(y_lo).unwrap_or_else(|e| panic!("y ≥ {y_lo}: the seed is marched: {e}"));
+            assert_eq!(t.states[0], [0.0; 3], "y ≥ {y_lo}: the settled seed");
+        }
     }
 }

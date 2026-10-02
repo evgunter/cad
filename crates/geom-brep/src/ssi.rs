@@ -375,6 +375,16 @@ pub enum SsiError {
         /// Which stepper.
         mode: &'static str,
     },
+    /// Newton refinement settled a seed onto the surface pair at a state
+    /// decided outside the march domain. The seed is then no branch,
+    /// which the accounting pass decides was or was not a miss.
+    SeedOffDomain {
+        /// Which stepper.
+        mode: &'static str,
+        /// The settled state's signed distance to the domain, in metres
+        /// (negative: outside).
+        margin: f64,
+    },
     /// A step from a state already on the locus would not settle back
     /// onto the surface pair, so the march lost the branch it was
     /// tracing.
@@ -694,6 +704,12 @@ impl core::fmt::Display for SsiError {
                 "ssi: Newton refinement would not settle a {mode} seed onto the \
                  surface pair"
             ),
+            Self::SeedOffDomain { mode, margin } => write!(
+                f,
+                "ssi: Newton refinement settled a {mode} seed onto the surface pair \
+                 {:e} m outside the march domain",
+                -margin
+            ),
             Self::StepRefinementFailed { mode, step_meters } => write!(
                 f,
                 "ssi: a {mode} step of {step_meters:e} m from a state on the locus would \
@@ -904,6 +920,7 @@ impl SsiError {
             | Self::CellBudget { .. }
             | Self::StepBudget { .. }
             | Self::SeedRefinementFailed { .. }
+            | Self::SeedOffDomain { .. }
             | Self::StepRefinementFailed { .. }
             | Self::TubeLadderEmpty { .. }
             | Self::TubeProbeSilent { .. }
@@ -1682,11 +1699,11 @@ pub fn cylinder_sphere_ssi(
         }
         let trace = match march_both::<2, 3, _>(&sys, state, ctx, StepperMode::Realized, band) {
             Ok(t) => t,
-            // A seed that will not settle is not a branch; the
-            // subdivision's accounting pass is what decides whether
-            // that was a miss. Every other refusal propagates, a march
+            // A seed that will not settle, or settles outside the
+            // domain, is not a branch; the subdivision's accounting
+            // pass is what decides whether that was a miss. Every other refusal propagates, a march
             // that lost its branch mid-trace included.
-            Err(SsiError::SeedRefinementFailed { .. }) => continue,
+            Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
             Err(e) => return Err(e),
         };
         let branch = finish_r3(&sys, &trace, a, b, &domain, ctx.tol, band)?;
@@ -1932,8 +1949,8 @@ pub fn plane_nurbs_ssi(
         let trace = match march_both::<3, 4, _>(&sys, state, ctx, StepperMode::Realized, band) {
             Ok(t) => t,
             // As in `cylinder_sphere_ssi`: only a seed that will not
-            // settle is no branch.
-            Err(SsiError::SeedRefinementFailed { .. }) => continue,
+            // settle inside the domain is no branch.
+            Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
             Err(e) => return Err(e),
         };
         let branch = finish_r4(&sys, &trace, plane, &wall_op, &domain, ctx.tol, band)?;
