@@ -1637,6 +1637,39 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
     // door, and an in-band clearance escalates (two-tolerance on the
     // arm, definite ones included). Ellipse/NURBS carriers keep the M5
     // unconditional door.
+    let side = |p: Point3<T>| {
+        decide(
+            "bool_vertex_face_side",
+            Margin::of(geom_brep::implicit_residual(&surface, p)),
+            band,
+        )
+    };
+    // **An uncovered arc with an end ON the carrier is never asked its
+    // clearance.** Its residual is exactly zero at that end, so its true
+    // one-sidedness margin is at most zero and the clearance can never
+    // read `Positive`, the one answer that returns early. Every other
+    // answer an uncovered arc against these kinds can get (`Zero`,
+    // `Negative`, escalated) falls through to the endpoint arms below.
+    // So asking would decide nothing. What it would RECORD is the
+    // sampled enclosure's own chord-dip charge, read as `−charge` about
+    // that zero end: a margin of the enclosure, not of the geometry,
+    // ε-independent and micrometres small, which the K telemetry reads as
+    // a feature crowding its floor. That is the split fragment of a
+    // carved sphere's meridian, ending on the cut. The endpoint sides
+    // are therefore decided first, here, and handed to the endpoint arms
+    // rather than decided twice. A held escalation surfaces where it
+    // always did, in those arms. It is dropped only when the clearance
+    // reads definitely clear, which an in-band end cannot let happen.
+    let early_ends = (!covered
+        && matches!(curve.carrier(), geom::Curve3::Circle { .. })
+        && matches!(
+            surface,
+            geom::Surface::Torus { .. }
+                | geom::Surface::Sphere { .. }
+                | geom::Surface::Cylinder { .. }
+        ))
+    .then(|| (side(pu), side(pv)));
+    let end_on_carrier = matches!(early_ends, Some((Ok(Sign::Zero), _) | (_, Ok(Sign::Zero))));
     match *curve.carrier() {
         geom::Curve3::Line { .. } => {}
         geom::Curve3::Circle {
@@ -1644,7 +1677,10 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             axis,
             radius,
             u_ref,
-        } => {
+        } => 'clearance: {
+            if end_on_carrier {
+                break 'clearance;
+            }
             // **The carrier-identity rung, consulted FIRST.** An edge
             // bounding a face whose carrier the door verified to BE
             // `face`'s carrier lies on `face`'s carrier identically, so
@@ -1812,13 +1848,6 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         }
         _ => return Err(frontier()),
     }
-    let side = |p: Point3<T>| {
-        decide(
-            "bool_vertex_face_side",
-            Margin::of(geom_brep::implicit_residual(&surface, p)),
-            band,
-        )
-    };
     // The one-sided cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
@@ -1826,8 +1855,10 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         let which = Coincide::VertexOnCurvedFace;
         BooleanError::coincidence(which, read(which), diag)
     };
-    let s1 = side(pu).map_err(on_face)?;
-    let s2 = side(pv).map_err(on_face)?;
+    let (s1, s2) = match early_ends {
+        Some((s1, s2)) => (s1.map_err(on_face)?, s2.map_err(on_face)?),
+        None => (side(pu).map_err(on_face)?, side(pv).map_err(on_face)?),
+    };
     match (s1, s2) {
         // The one-sided cover rung: a covered line with endpoint(s) ON
         // the carrier takes the planar sweep's endpoint posture — the
