@@ -175,3 +175,26 @@ inherited from main (`work/props/thread-count-digest-moved-on-main-loft-area-pad
 PRs 3746, 3747 and 3748 all fail it identically, and none of them
 changes kernel code. Merged over it, annotated on the PR, per the
 inherited-red rule.
+
+## 2026-10-02 — DEV-1 circle arm: the pair converges; `[ev]` PR on the rim licence (TANG orchestrator)
+
+The designer pair reconciled over four rounds and two measurements
+(PR 3746). The record is in `docs/DESIGN-FORK-LOG.md` row 39.
+
+- **`#974` is re-scoped by the orchestrator, with no ruling.** Both
+  designers agree, and nothing ratified changes:
+  `dev1-cylinder-sphere-circle-locus-arm` is now the circle loci in
+  general form, parked behind `declared-cusps-second-order-wedge-arm`
+  (the kiss-edge consumer).
+- **Two questions go to Ev** on branch `tang/ev-rim-licence`:
+  - Q1: narrow C4's one-sided-cover sentence to touches, so an edge
+    lying identically on a carrier is an ON event when every parent
+    surface is decided distinct. This frees the transverse rim.
+  - Q2: `BooleanCoincidence::Seam` for a G1 seam between two operands.
+  `a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`
+  and the new `pi-seam-between-two-operands-has-no-declaration` carry
+  `needs_ev`.
+
+While Ev decides, the transverse rim's implementation pieces are not
+blocked on the ruling's text and can be prepared: the circle × cylinder
+cell (in flight), and a curved edge-edge event at the rim.

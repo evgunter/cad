@@ -1,12 +1,13 @@
 ---
 id: a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall
 kind: issue
-title: Two solids abutting on an equal-radius rim refuse CurvedPierceUnsupported whatever the corner, even with their end discs declared Rest: a declared planar mate never licenses its rim edge against the partner's curved wall
+title: Two solids abutting on an equal-radius rim refuse whatever the corner: C4's cover sentence holds back the transverse rim, and two curved incidence events are unbuilt
 status: open
 opened: 2026-10-01
 priority: P0
 cost: H
 design: true
+needs_ev: true
 ---
 
 
@@ -46,3 +47,28 @@ is "structural or declared, never inferred from values"? This is the
 DEV-1 circle-arm pair's seam-licence fork
 (`dev1-cylinder-sphere-circle-locus-arm`), widened by this measurement
 from π seams to every rim abutment.
+
+## 2026-10-02 — what the designer pair found
+
+The row's first framing, that "a declared mate never licenses its rim",
+is the wrong question for two of the three corners:
+
+- **Transverse corner (the dome).** No licence is needed. The rim
+  circle lies identically on the partner's wall (a certified
+  `Constant`, not a band root). That is an ON event under D1's
+  reduction trilean, as `Coincide::EdgeOnPlane` already records a curved
+  edge lying in a partner's plane. C4's one-sided-cover sentence
+  ("an edge lying on, or touching …") covers it by its letter, and
+  `curved_face_arm`'s undeclared `(Zero, Zero)`/`Constant` arm keeps the
+  frontier for that reason. The `[ev]` PR on branch
+  `tang/ev-rim-licence` narrows the sentence to touches. After that the
+  dome needs two unbuilt pieces: the circle × cylinder "lies on" cell
+  (in flight on `tang/circle-cylinder-crossing`), and a curved edge-edge
+  coincidence event at the rim.
+- **Same carrier (the stacked cylinder).** This needs `Continuation`
+  declared on its walls, which exists. The measurement declared only
+  the discs. Re-measure it with the walls declared as well.
+- **π seam (the hemisphere).** The edges leaving the rim graze the
+  partner tangentially (double roots), so C4's graze sentence requires a
+  declaration or structure. That is
+  `pi-seam-between-two-operands-has-no-declaration`.
