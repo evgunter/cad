@@ -257,8 +257,12 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
             loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
             ids: Vec::new(),
         };
-        let held = sketch::held_program(node, &program, &ParamEnv::default())
-            .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
+        let held = sketch::held_program(
+            pncad::document::SpokenNode::absent(node),
+            &program,
+            &ParamEnv::default(),
+        )
+        .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
         let back = lowered(&held, MM);
         assert!(
             sketch::is_committed(&program, &back, &sketch::kept_in_place(&program)),
@@ -536,7 +540,7 @@ fn a_driven_argument_refuses_to_load() {
             let HeldRefusal::Driven { node, slots } = &refusal else {
                 unreachable!("matched above")
             };
-            assert_eq!(*node, profile);
+            assert_eq!(node.id(), profile);
             assert_eq!(slots.as_slice(), &[(slot, "side".to_owned())]);
             let said = refusal.to_string();
             assert!(said.contains("side"), "{said}");
@@ -652,7 +656,7 @@ fn editing_a_non_profile_refuses_wrong_kind() {
         ids: Vec::new(),
     });
     assert!(
-        matches!(out.refusal, Some(Refusal::WrongNodeKind { node, .. }) if node == plane),
+        matches!(&out.refusal, Some(Refusal::WrongNodeKind { node, .. }) if node.id() == plane),
         "{:?}",
         out.refusal
     );
@@ -693,7 +697,7 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
         loops: lowered(&held, Notation::CANONICAL),
     });
     assert!(
-        matches!(out.refusal, Some(Refusal::ProfileEditStale { node }) if node == profile),
+        matches!(&out.refusal, Some(Refusal::ProfileEditStale { node }) if node.id() == profile),
         "{:?}",
         out.refusal
     );

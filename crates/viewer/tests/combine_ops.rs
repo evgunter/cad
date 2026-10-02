@@ -261,9 +261,9 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
             });
             assert!(
                 matches!(
-                    refused.refusal,
+                    &refused.refusal,
                     Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                        if node == wrong
+                        if node.id() == wrong
                 ),
                 "{:?}",
                 refused.refusal
@@ -362,9 +362,9 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Plane })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -376,8 +376,8 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
     });
     assert!(
         matches!(
-            refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node == plane
+            &refused.refusal,
+            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node.id() == plane
         ),
         "{:?}",
         refused.refusal
@@ -453,9 +453,9 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             let refused = session.perform(op);
             assert!(
                 matches!(
-                    refused.refusal,
+                    &refused.refusal,
                     Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                        if node == wrong
+                        if node.id() == wrong
                 ),
                 "{:?}",
                 refused.refusal
@@ -611,8 +611,8 @@ fn the_pattern_door_spells_its_count_structurally() {
     });
     assert!(
         matches!(
-            refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Axis }) if node == body
+            &refused.refusal,
+            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Axis }) if node.id() == body
         ),
         "{:?}",
         refused.refusal
@@ -1511,7 +1511,11 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                     seat.name(),
                     seat.wants(),
                 );
-                assert_eq!(node, wrong(seat.wants()), "it names the node it refused");
+                assert_eq!(
+                    node.id(),
+                    wrong(seat.wants()),
+                    "it names the node it refused"
+                );
             }
             other => panic!(
                 "the {} seat took a {:?} without refusing: {other:?}",
@@ -3206,8 +3210,8 @@ fn duplicating_a_several_body_value_is_refused() {
     let out = session.perform(SessionOp::Duplicate { input: placed });
     assert!(
         matches!(
-            out.refusal,
-            Some(Refusal::Duplicate(DuplicateFault::NotOneBody { input })) if input == placed
+            &out.refusal,
+            Some(Refusal::Duplicate(DuplicateFault::NotOneBody { input })) if input.id() == placed
         ),
         "{:?}",
         out.refusal
@@ -3242,12 +3246,15 @@ fn duplicating_a_failed_body_says_its_standing() {
         panic!("a duplicate refusal, got {:?}", out.refusal);
     };
     assert!(
-        matches!(fault, DuplicateFault::NoValue(carried) if *carried == standing),
+        matches!(fault, DuplicateFault::NoValue { standing: carried, .. } if *carried == standing),
         "{fault:?}"
     );
     assert_eq!(
         fault.to_string(),
-        format!("there is no body to copy: {standing}")
+        format!(
+            "there is no body to copy: {}",
+            pncad::document::spoken_by(&standing, session.committed_doc())
+        )
     );
     assert!(session.committed_doc().bit_eq(&before), "nothing committed");
 }

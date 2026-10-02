@@ -25,7 +25,7 @@ use common::asm;
 use pncad::document::NodeStanding;
 use pncad::document::{
     CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Expr, Frame, Node, ParamName,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
@@ -217,9 +217,9 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
     );
     let dashes = frame::tool_news(
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(tagged(3)),
-            root: RecipeNodeId(tagged(9)),
-            others: vec![RecipeNodeId(tagged(5))],
+            instance: SpokenNode::absent(RecipeNodeId(tagged(3))),
+            root: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            others: vec![SpokenNode::absent(RecipeNodeId(tagged(5)))],
         }
         .to_string(),
         frame::Retold::Again,
@@ -338,19 +338,25 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
 fn every_cause() -> Vec<AdmissionFault> {
     vec![
         AdmissionFault::NoSuchNode {
-            node: RecipeNodeId(tagged(4)),
+            node: SpokenNode::absent(RecipeNodeId(tagged(4))),
         },
         AdmissionFault::NotAnInstance {
-            node: RecipeNodeId(tagged(5)),
+            node: SpokenNode::absent(RecipeNodeId(tagged(5))),
         },
         AdmissionFault::MateConstrained {
-            instance: RecipeNodeId(tagged(6)),
-            mates: vec![RecipeNodeId(tagged(7)), RecipeNodeId(tagged(8))],
+            instance: SpokenNode::absent(RecipeNodeId(tagged(6))),
+            mates: vec![
+                SpokenNode::absent(RecipeNodeId(tagged(7))),
+                SpokenNode::absent(RecipeNodeId(tagged(8))),
+            ],
         },
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(tagged(9)),
-            root: RecipeNodeId(tagged(10)),
-            others: vec![RecipeNodeId(tagged(11)), RecipeNodeId(tagged(12))],
+            instance: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            root: SpokenNode::absent(RecipeNodeId(tagged(10))),
+            others: vec![
+                SpokenNode::absent(RecipeNodeId(tagged(11))),
+                SpokenNode::absent(RecipeNodeId(tagged(12))),
+            ],
         },
     ]
 }
@@ -388,8 +394,8 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
     assert_eq!(
         covered.len(),
         cause_ordinal(&AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(tagged(1)),
-            root: RecipeNodeId(tagged(2)),
+            instance: SpokenNode::absent(RecipeNodeId(tagged(1))),
+            root: SpokenNode::absent(RecipeNodeId(tagged(2))),
             others: vec![],
         }) + 1,
         "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
@@ -3152,10 +3158,14 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
             superseded.cause
         )
     };
-    assert_eq!(*instance, bench.post_b, "the fault names the same instance");
     assert_eq!(
-        mates,
-        &vec![landed],
+        instance.id(),
+        bench.post_b,
+        "the fault names the same instance"
+    );
+    assert_eq!(
+        mates.iter().map(|mate| mate.id()).collect::<Vec<_>>(),
+        vec![landed],
         "and names the mate that landed, which is what the line then reads"
     );
 
@@ -3186,7 +3196,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     };
     assert!(
         message.text().contains(&format!(
-            "instance {}",
+            "InstantiatePart {}",
             test_utils::refusal::tag(bench.post_b.0)
         )),
         "the line names which of the user's placements went: {message}"
@@ -3240,10 +3250,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert_eq!(
         line.text(),
         format!(
-            "instance {post} is mate-constrained (mate node(s) {mate_node}): its pose is \
+            "InstantiatePart {post} is mate-constrained (Mate {mate_node}): its pose is \
              mate-derived, so the free-move probe refuses — delete the mate(s) if free \
              relative motion is intended \u{2022} free move: a committed placement was \
-             discarded — instance {post} is mate-constrained (mate node(s) {mate_node}): its \
+             discarded — InstantiatePart {post} is mate-constrained (Mate {mate_node}): its \
              pose is mate-derived, so the free-move probe refuses — delete the mate(s) if \
              free relative motion is intended"
         )
@@ -3572,7 +3582,7 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
     let gone = |node: u64| Withdrawn {
         instance: RecipeNodeId(tagged(node)),
         cause: AdmissionFault::NoSuchNode {
-            node: RecipeNodeId(tagged(node)),
+            node: SpokenNode::absent(RecipeNodeId(tagged(node))),
         },
     };
     let report = PruneReport {

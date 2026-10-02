@@ -499,3 +499,52 @@ fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
         "the rename moves the label and nothing else the row says"
     );
 }
+
+/// **A refusal on the status line speaks its node as the document held
+/// it when the door refused, and the rename that would make that stale
+/// retires the line.** The line is a sentence made once; a rename is an
+/// act the document accepts, so the frame that performs it clears the
+/// refusal rather than leaving the old label on screen. Red if the
+/// refusal says the node by its tag alone, or if a rename leaves the
+/// line standing.
+#[test]
+fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("viewer-node-labels-refusal", tol);
+    let doc = relabelled(&doc, extrude, "plate", tol);
+    let mut session = DocSession::inline(doc, tol);
+    let refused_op = SessionOp::AddExtrude {
+        profile: extrude,
+        distance: common::len(0.01),
+    };
+    let refusal = session
+        .perform(refused_op.clone())
+        .refusal
+        .expect("an extrude is not a profile");
+    let mut line = match viewer::frame::frame_status(&[], &[refused_op], Some(&refusal)) {
+        viewer::frame::RankedVerdict::Show(message) => Some(message),
+        other => panic!("a refusal shows: {other:?}"),
+    };
+    let said = line
+        .as_ref()
+        .map(|m| m.text().to_owned())
+        .unwrap_or_default();
+    assert!(
+        said.starts_with(&format!(
+            "Extrude \"plate\" ({}) is not a profile",
+            tag(extrude.0)
+        )),
+        "{said}"
+    );
+
+    let rename = SessionOp::SetLabel {
+        node: extrude,
+        label: Some(label("slab")),
+    };
+    assert!(session.perform(rename.clone()).refusal.is_none());
+    viewer::frame::apply(&mut line, viewer::frame::frame_status(&[], &[rename], None));
+    assert_eq!(
+        line, None,
+        "the rename retires the line that said the old label"
+    );
+}

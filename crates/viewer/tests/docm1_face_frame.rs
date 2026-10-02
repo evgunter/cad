@@ -299,11 +299,16 @@ fn the_gate_carries_the_interrogation_refusal() {
         node: cube,
         body: 0,
     };
-    assert_eq!(
-        face_frame_seat(session.landed_pair(), Some(&picked)),
-        Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::NoSuchName
-        })
+    let seat = face_frame_seat(session.landed_pair(), Some(&picked));
+    assert!(
+        matches!(
+            seat,
+            Err(FaceFrameFault::Unresolved {
+                error: InterrogateError::NoSuchName,
+                ..
+            })
+        ),
+        "{seat:?}"
     );
 }
 
@@ -369,10 +374,10 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
         node: split,
         body: 0,
     };
-    assert_eq!(
-        face_frame_seat(session.landed_pair(), Some(&picked)),
-        Err(FaceFrameFault::NotOneBody { at: split }),
-        "the form declines it"
+    let seat = face_frame_seat(session.landed_pair(), Some(&picked));
+    assert!(
+        matches!(&seat, Err(FaceFrameFault::NotOneBody { at }) if at.id() == split),
+        "the form declines it: {seat:?}"
     );
     let refused = session.perform(SessionOp::AddDatum {
         datum: DatumSpec::FaceFrame {
@@ -383,11 +388,11 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
     });
     assert!(
         matches!(
-            refused.refusal,
+            &refused.refusal,
             Some(Refusal::WrongNodeKind {
                 node,
                 wanted: NodeKindWanted::Body
-            }) if node == split
+            }) if node.id() == split
         ),
         "and so does the op door, if the form is bypassed: {:?}",
         refused.refusal
@@ -439,10 +444,10 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
         node: placed,
         body: 0,
     };
-    assert_eq!(
-        face_frame_seat(session.landed_pair(), Some(&picked)),
-        Err(FaceFrameFault::NotOneBody { at: placed }),
-        "the transform's value is several bodies"
+    let seat = face_frame_seat(session.landed_pair(), Some(&picked));
+    assert!(
+        matches!(&seat, Err(FaceFrameFault::NotOneBody { at }) if at.id() == placed),
+        "the transform's value is several bodies: {seat:?}"
     );
 }
 
@@ -481,11 +486,15 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
         session.committed_doc().node(cube).is_none(),
         "the document no longer holds the node the pick names"
     );
-    assert_eq!(
-        face_frame_seat(session.landed_pair(), Some(&picked)),
-        Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::Standing(NodeStanding::NotInDocument { node: cube }),
-        }),
-        "the face is gone, and that is what it is told"
+    let seat = face_frame_seat(session.landed_pair(), Some(&picked));
+    assert!(
+        matches!(
+            &seat,
+            Err(FaceFrameFault::Unresolved {
+                error: InterrogateError::Standing(NodeStanding::NotInDocument { node }),
+                ..
+            }) if *node == cube
+        ),
+        "the face is gone, and that is what it is told: {seat:?}"
     );
 }

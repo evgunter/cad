@@ -78,7 +78,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use pncad::document::{Doc, Frame, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Frame, Node, ProfileProgram, RecipeNodeId, SpokenNode};
 use pncad::geom_core::Vec3;
 
 use crate::g1;
@@ -171,23 +171,24 @@ pub enum AdmissionFault {
     /// clause; a sentence at the affordance would be one fact spelled
     /// twice in one pane.
     NoSuchNode {
-        /// The id named.
-        node: RecipeNodeId,
+        /// The id named, said by its tag (`node <tag>`).
+        node: SpokenNode,
     },
     /// The node is not an `InstantiatePart`, so it has no per-instance
     /// display state to set.
     NotAnInstance {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it.
+        node: SpokenNode,
     },
     /// The instance participates in a mate, so its pose is
     /// mate-derived and the free-move probe refuses (G3: the probe is
     /// for completely-unconstrained instances only).
     MateConstrained {
-        /// The instance.
-        instance: RecipeNodeId,
-        /// Every mate node naming it, document order.
-        mates: Vec<RecipeNodeId>,
+        /// The instance, as the document held it.
+        instance: SpokenNode,
+        /// Every mate node naming it, document order, as the document
+        /// held them.
+        mates: Vec<SpokenNode>,
     },
     /// The instance's geometry is FUSED into a drawn product together
     /// with other instances' (a boolean or placed union consumes
@@ -197,12 +198,14 @@ pub enum AdmissionFault {
     /// accepted-and-inert: an op that cannot take effect must say so
     /// (G3's honesty rule).
     FusedGeometry {
-        /// The instance named.
-        instance: RecipeNodeId,
-        /// The drawn root its geometry is fused into.
-        root: RecipeNodeId,
-        /// The other instances fused into the same root.
-        others: Vec<RecipeNodeId>,
+        /// The instance named, as the document held it.
+        instance: SpokenNode,
+        /// The drawn root its geometry is fused into, as the document
+        /// held it.
+        root: SpokenNode,
+        /// The other instances fused into the same root, as the
+        /// document held them.
+        others: Vec<SpokenNode>,
     },
 }
 
@@ -210,19 +213,18 @@ impl core::fmt::Display for AdmissionFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NoSuchNode { node } => {
-                write!(f, "node {} is not in the document", node)
+                write!(f, "{node} is not in the document")
             }
             Self::NotAnInstance { node } => {
-                write!(f, "node {} is not a part instance", node)
+                write!(f, "{node} is not a part instance")
             }
             Self::MateConstrained { instance, mates } => {
                 let list: Vec<String> = mates.iter().map(ToString::to_string).collect();
                 write!(
                     f,
-                    "instance {} is mate-constrained (mate node(s) {}): its pose is \
-                     mate-derived, so the free-move probe refuses — delete the mate(s) if \
-                     free relative motion is intended",
-                    instance,
+                    "{instance} is mate-constrained ({}): its pose is mate-derived, so the \
+                     free-move probe refuses — delete the mate(s) if free relative motion is \
+                     intended",
                     list.join(", ")
                 )
             }
@@ -234,10 +236,8 @@ impl core::fmt::Display for AdmissionFault {
                 let list: Vec<String> = others.iter().map(ToString::to_string).collect();
                 write!(
                     f,
-                    "instance {}'s geometry is fused into node {} together with instance(s) {} — \
-                     a display operation cannot address it separately",
-                    instance,
-                    root,
+                    "{instance}'s geometry is fused into {root} together with {} — a display \
+                     operation cannot address it separately",
                     list.join(", ")
                 )
             }
@@ -379,8 +379,12 @@ pub fn instance_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(
         // is keyed on this variant, and a new kind has none until G3
         // gives it some.
         Some(Node::InstantiatePart { .. }) => Ok(()),
-        Some(_) => Err(AdmissionFault::NotAnInstance { node }),
-        None => Err(AdmissionFault::NoSuchNode { node }),
+        Some(_) => Err(AdmissionFault::NotAnInstance {
+            node: doc.spoken(node),
+        }),
+        None => Err(AdmissionFault::NoSuchNode {
+            node: doc.spoken(node),
+        }),
     }
 }
 
@@ -495,9 +499,13 @@ pub fn drawn_targets(
         }
         if instances.len() > 1 {
             return Err(AdmissionFault::FusedGeometry {
-                instance,
-                root,
-                others: instances.into_iter().filter(|&i| i != instance).collect(),
+                instance: doc.spoken(instance),
+                root: doc.spoken(root),
+                others: instances
+                    .into_iter()
+                    .filter(|&i| i != instance)
+                    .map(|i| doc.spoken(i))
+                    .collect(),
             });
         }
         targets.insert(root);
@@ -534,7 +542,10 @@ pub fn free_move_check(
     if mates.is_empty() {
         Ok(())
     } else {
-        Err(AdmissionFault::MateConstrained { instance, mates })
+        Err(AdmissionFault::MateConstrained {
+            instance: doc.spoken(instance),
+            mates: mates.into_iter().map(|mate| doc.spoken(mate)).collect(),
+        })
     }
 }
 

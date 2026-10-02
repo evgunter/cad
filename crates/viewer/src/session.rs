@@ -234,7 +234,10 @@ fn driver_of(
     let row = props::slot_rows(doc, node)
         .into_iter()
         .find(|row| row.slot == slot)
-        .ok_or(Refusal::NoSuchSlot { node, slot })?;
+        .ok_or_else(|| Refusal::NoSuchSlot {
+            node: doc.spoken(node),
+            slot,
+        })?;
     Ok((row.driver, row.value.ok()))
 }
 
@@ -2478,7 +2481,9 @@ impl DocSession {
         // person meant. Compared by value, so a unit rewrite since the
         // load does not refuse.
         if current != base {
-            return Err(Refusal::ProfileEditStale { node });
+            return Err(Refusal::ProfileEditStale {
+                node: doc.spoken(node),
+            });
         }
         let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
         let unchanged = sketch::is_committed(current, &loops, &ids);
@@ -2570,9 +2575,14 @@ impl DocSession {
         let resolver = self.run_resolver();
         let memo = self.memo_under(&resolver);
         let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
-        if let Some(refused) =
-            RefusedBoolean::read(&judged, node, (op, [a, b]), declare, self.generation)
-        {
+        if let Some(refused) = RefusedBoolean::read(
+            &staged.doc,
+            &judged,
+            node,
+            (op, [a, b]),
+            declare,
+            self.generation,
+        ) {
             return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
         }
         self.record_run(staged)
@@ -2704,7 +2714,7 @@ impl DocSession {
         let step = match self.landed_pair() {
             None => Err(DuplicateFault::NotLanded),
             Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((_, eval)) => combine::duplicate_step(eval, input, self.tol),
+            Some((doc, eval)) => combine::duplicate_step(doc, eval, input, self.tol),
         };
         let step = match step {
             Ok(step) => step,
@@ -2779,10 +2789,14 @@ impl DocSession {
     /// wrong-kind refuse the same arm, because both mean "there is
     /// nothing of that kind there to consume".
     fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
-        if admits(self.committed_doc().node(node), wanted) {
+        let doc = self.committed_doc();
+        if admits(doc.node(node), wanted) {
             Ok(())
         } else {
-            Err(Refusal::WrongNodeKind { node, wanted })
+            Err(Refusal::WrongNodeKind {
+                node: doc.spoken(node),
+                wanted,
+            })
         }
     }
 

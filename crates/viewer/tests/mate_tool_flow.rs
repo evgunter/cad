@@ -123,7 +123,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     tool.pick(session.doc(), post_top.clone());
     assert!(matches!(
         tool.proposal(doc, eval, asm::seat_choice()),
-        Err(MateToolError::SamePick { head }) if head == bench.post_b
+        Err(MateToolError::SamePick { head }) if head.id() == bench.post_b
     ));
 
     // A vanished pick refuses typed when asked WITHOUT a reconcile
@@ -471,7 +471,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
             Err(MateToolError::NotAnInstancePick {
                 side: MateSide::A,
                 node
-            }) if node == fused
+            }) if node.id() == fused
         ),
         "a boolean is not a pass-through"
     );
@@ -901,13 +901,13 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     }
 }
 
-/// **A refusal about a pick names its node by the tag the panel shows.**
-/// The mate panel says a held pick is the face of the node as the
-/// document speaks it, and the two refusals that name a picked node
-/// reach the status line on the frame the panel still shows that pick;
-/// a refusal carries no document, so it names the node by the same tag.
+/// **A refusal about a pick names its node as the panel does.** The
+/// mate panel says a held pick is the face of the node as the document
+/// speaks it, and the two refusals that name a picked node reach the
+/// status line on the frame the panel still shows that pick, spoken
+/// from the same document.
 #[test]
-fn a_mate_refusal_names_the_picked_node_by_the_tag_the_panel_shows() {
+fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     let tol = pncad::geom_core::Tol::witness();
     let (doc, node) = viewer::test_support::inserted(
         &pncad::document::Doc::empty_derived("mate-refusal", tol),
@@ -932,13 +932,16 @@ fn a_mate_refusal_names_the_picked_node_by_the_tag_the_panel_shows() {
     assert_eq!(
         MateToolError::NotAnInstancePick {
             side: MateSide::A,
-            node,
+            node: doc.spoken(node),
         }
         .to_string(),
-        format!("pick a is on node {tag}, which is not a part instance or a copy of one")
+        format!("pick a is on Datum frame {tag}, which is not a part instance or a copy of one")
     );
     assert_eq!(
-        MateToolError::SamePick { head: node }.to_string(),
-        format!("both picks name the same member (head: node {tag}); a mate relates a pair")
+        MateToolError::SamePick {
+            head: doc.spoken(node)
+        }
+        .to_string(),
+        format!("both picks name the same member (head: Datum frame {tag}); a mate relates a pair")
     );
 }

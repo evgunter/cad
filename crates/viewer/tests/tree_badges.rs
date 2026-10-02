@@ -619,17 +619,18 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     match viewer::session::face_frame_seat(Some((doc, ev)), Some(&face)) {
         Err(FaceFrameFault::Unresolved {
             error: InterrogateError::Standing(standing),
+            ..
         }) => assert_eq!(standing, post_a, "the sketch-on-face seat"),
         other => panic!("the seat refuses on the standing, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, bench.post_a, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, bench.post_a, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
         }
         other => panic!("the duplicate door refuses post_a, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, boolean, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, boolean, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, two_hop, "the duplicate door, the boolean");
         }
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),

@@ -2886,7 +2886,7 @@ mod tests {
     use super::*;
 
     use bvh::Aabb;
-    use pncad::document::{NodeStanding, RecipeNodeId};
+    use pncad::document::{NodeStanding, RecipeNodeId, SpokenNode};
     use pncad::prelude::{EntityKind, StableName};
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
@@ -3335,10 +3335,18 @@ mod tests {
         Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::MateConstrained {
-                instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
+                instance: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(instance)),
+                    Some("InstantiatePart"),
+                ),
                 mates: mates
                     .iter()
-                    .map(|&mate| RecipeNodeId(test_utils::refusal::tagged(mate)))
+                    .map(|&mate| {
+                        crate::test_support::spoken(
+                            RecipeNodeId(test_utils::refusal::tagged(mate)),
+                            Some("Mate"),
+                        )
+                    })
                     .collect(),
             },
         }
@@ -3353,12 +3361,10 @@ mod tests {
         // line instead of to the notices is erased by its own cause.
         let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
-            notice.contains("instance 000000000007"),
-            "the notice names which of the user's placements went — here in \
-             the part-instance vocabulary, because the MateConstrained arm's \
-             subject is an instance. That is `AdmissionFault`'s per-arm rule \
-             and not a promise the notice makes across all of them; the \
-             absent-node arm says `node N` and is right to: {notice}"
+            notice.contains("InstantiatePart 000000000007"),
+            "the notice names which of the user's placements went, as the \
+             document speaks it — the absent-node arm says `node N` and is \
+             right to: {notice}"
         );
 
         let acting = [SessionOp::Undo];
@@ -3393,8 +3399,14 @@ mod tests {
         // sentence names the mates AND the remedy, and neither string
         // is written here — both come from `AdmissionFault`'s `Display`.
         let cause = AdmissionFault::MateConstrained {
-            instance: RecipeNodeId(test_utils::refusal::tagged(3)),
-            mates: vec![RecipeNodeId(test_utils::refusal::tagged(5))],
+            instance: crate::test_support::spoken(
+                RecipeNodeId(test_utils::refusal::tagged(3)),
+                Some("InstantiatePart"),
+            ),
+            mates: vec![crate::test_support::spoken(
+                RecipeNodeId(test_utils::refusal::tagged(5)),
+                Some("Mate"),
+            )],
         };
         let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
         assert!(
@@ -3412,7 +3424,7 @@ mod tests {
         let gone = superseded_text(&[Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: RecipeNodeId(test_utils::refusal::tagged(4)),
+                node: SpokenNode::absent(RecipeNodeId(test_utils::refusal::tagged(4))),
             },
         }])
         .expect("news");
@@ -3432,9 +3444,18 @@ mod tests {
         let fused = Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(3)),
             cause: AdmissionFault::FusedGeometry {
-                instance: RecipeNodeId(test_utils::refusal::tagged(3)),
-                root: RecipeNodeId(test_utils::refusal::tagged(8)),
-                others: vec![RecipeNodeId(test_utils::refusal::tagged(5))],
+                instance: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(3)),
+                    Some("InstantiatePart"),
+                ),
+                root: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(8)),
+                    Some("Union"),
+                ),
+                others: vec![crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(5)),
+                    Some("InstantiatePart"),
+                )],
             },
         };
         let notice = dropped_hide_text(core::slice::from_ref(&fused)).expect("news");
@@ -3482,15 +3503,24 @@ mod tests {
         let fused = |instance: u64, other: u64| Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::FusedGeometry {
-                instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
-                root: RecipeNodeId(test_utils::refusal::tagged(8)),
-                others: vec![RecipeNodeId(test_utils::refusal::tagged(other))],
+                instance: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(instance)),
+                    Some("InstantiatePart"),
+                ),
+                root: crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(8)),
+                    Some("Union"),
+                ),
+                others: vec![crate::test_support::spoken(
+                    RecipeNodeId(test_utils::refusal::tagged(other)),
+                    Some("InstantiatePart"),
+                )],
             },
         };
         let gone = Withdrawn {
             instance: RecipeNodeId(test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: RecipeNodeId(test_utils::refusal::tagged(4)),
+                node: SpokenNode::absent(RecipeNodeId(test_utils::refusal::tagged(4))),
             },
         };
 
@@ -3534,9 +3564,9 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             instance 000000000003 is mate-constrained (mate node(s) 000000000005): its pose is \
-             mate-derived, so the free-move probe refuses — delete the mate(s) if \
-             free relative motion is intended"
+             InstantiatePart 000000000003 is mate-constrained (Mate 000000000005): its pose \
+             is mate-derived, so the free-move probe refuses — delete the mate(s) if free \
+             relative motion is intended"
         );
 
         let two = [constrained(3, &[5]), constrained(11, &[5])];
