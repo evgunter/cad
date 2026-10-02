@@ -1,7 +1,7 @@
 //! Tier 3's check 10 through the public doors: a solid's shells bound
 //! winding number 0 or 1 everywhere.
 //!
-//! Every body here is built by kernel verbs — `subtract`, `shell`, the
+//! Every body here is built by kernel verbs — `subtract`, the
 //! graft doors and `Body::move_shells_to_new_solid` — never by hand, so
 //! each row is a claim about bodies a caller can actually make.
 //!
@@ -226,25 +226,20 @@ fn disjoint_outer_shells_under_one_solid_certify() {
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
 }
 
-/// **An `Outer` island inside a `Void` of its own solid** — the
-/// hollow-operand subtraction's product: `+1 - 1 + 1 = 1` inside the
-/// island, so the island is material and the body is valid. How the
-/// island is GROUPED is the boolean's output convention, not an at-rest
-/// invalidity.
+/// **An `Outer` island inside a `Void` of its own solid** — a cube
+/// grafted into the cavity of a hollow one, onto its solid: `+1 - 1 + 1
+/// = 1` inside the island, so the island is material and the body is
+/// valid. How the island is GROUPED is an output convention (the
+/// boolean files it as a solid of its own), not an at-rest invalidity.
 #[test]
 fn an_island_inside_a_void_of_its_own_solid_certifies() {
-    let hollow_operand = topo::shell(
-        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), tol()),
-        0.25,
-        tol(),
-    )
-    .expect("the small box shells")
-    .body;
-    let body = cut(
-        &brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), tol()),
-        &hollow_operand,
-    );
+    let mut body = hollow(0.0, 6.0, 1.0);
     let solid = only_solid(&body);
+    graft_onto(
+        &mut body,
+        solid,
+        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), tol()),
+    );
     assert_eq!(shells_of(&body, solid, ShellRole::Outer).len(), 2);
     assert_eq!(shells_of(&body, solid, ShellRole::Void).len(), 1);
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));

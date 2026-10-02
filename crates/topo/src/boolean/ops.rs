@@ -28,7 +28,15 @@
 //!   insertion itself is [`super::voids::insert_void`] — the shared
 //!   void-insertion door every cavity is born through (this fallback,
 //!   the holed full revolve, and `shell`'s sealed hollow), with this
-//!   fallback's probe verdicts as the door's containment evidence.
+//!   fallback's probe verdicts as the door's containment evidence. A
+//!   hollow B's cavities land as islands inside the void B leaves, each
+//!   filed as a solid of its own (below).
+//!
+//! **Every island a solid of its own** (`boolean::islands`): whatever
+//! the kind, a component standing inside a cavity of another moves out
+//! of the solid the combine door grafted it under, at the one point
+//! every result path passes before its gate. Components side by side
+//! stay under one solid.
 //!
 //! When operand boundaries do not intersect, classification falls back
 //! to per-shell containment against the pristine other operand: the
@@ -161,7 +169,9 @@ pub enum BooleanResultKind {
 /// run — pinned by the PR 6a acceptance suite).
 #[derive(Debug)]
 pub struct BooleanBody<T: Real> {
-    /// The result body: one solid, possibly multi-shell.
+    /// The result body: one solid, possibly multi-shell, plus one solid
+    /// per island — material standing inside a cavity of another
+    /// component (`boolean::islands`).
     pub body: Body<T>,
     /// How it was produced.
     pub kind: BooleanResultKind,
@@ -579,7 +589,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
     body.sweep_and_close();
-    let body = finished;
+    let mut body = finished;
+    super::islands::file_islands(&mut body, band, tol)?;
     gate(&body)?;
     #[cfg(feature = "door-tier3-meter")]
     let meter = super::door_meter::Meter::start(metered_from);
@@ -3240,6 +3251,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 &KeyView::Graft(&graft),
                 &desc,
             );
+            super::islands::file_islands(&mut body, band, tol)?;
             gate(&body)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
@@ -3299,6 +3311,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut contacts = remap_contacts(&body, contacts, a_view, b_view, &desc);
     remap_carried(&mut contacts, &body, decls, &a_view, &b_view, &desc);
+    super::islands::file_islands(&mut body, band, tol)?;
     gate(&body)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {

@@ -115,6 +115,8 @@ mod geometric_cube;
 mod graft_disjoint;
 #[path = "h14_census_deferrals.rs"]
 mod h14_census_deferrals;
+#[path = "hollow_island.rs"]
+mod hollow_island;
 #[path = "interval_body.rs"]
 mod interval_body;
 #[path = "issue86_double_subtract.rs"]

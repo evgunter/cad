@@ -264,27 +264,25 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 // Claim 5: is `OperandOuterShells { outer != 1 }` reachable?
 // ---------------------------------------------------------------------
 
-/// **The PR's own §5 body, handed to the verb.** `subtract(box 6³,
-/// shell(box 2³, 0.25))` yields ONE solid with THREE shells that
-/// classify to two `Outer` and one `Void` — the island inside B's
-/// cavity filed as a shell of A's solid. The verb refuses it typed,
-/// so the variant is reachable from the public doors and is not dead
-/// code. (R2's row; R1's `r1p5` measured the same body.)
+/// **Two `Outer` shells under one solid, handed to the verb.** A cube
+/// grafted into the cavity of a hollow box, onto its solid, yields ONE
+/// solid with THREE shells that classify to two `Outer` and one `Void`.
+/// The verb refuses it typed, so the variant is reachable from the
+/// public doors and is not dead code. The boolean no longer makes that
+/// shape: `subtract(box 6³, shell(box 2³, 0.25))` files the island
+/// inside B's cavity as a solid of its own, which the verb then shells
+/// solid by solid.
 #[test]
-fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
+fn r2_an_island_under_its_walls_solid_reaches_operand_outer_shells() {
     let tol = Tol::witness();
-    let inner = topo::shell(
-        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
-        0.25,
-        tol,
+    let mut body = hollow_box();
+    let solid = body.solids().next().expect("one solid").0;
+    topo::graft_disjoint_all_onto_keyed(
+        &mut body,
+        &[solid],
+        &brick((-0.25, 0.25), (-0.25, 0.25), (-0.25, 0.25), Tol::witness()),
     )
-    .expect("the small box shells")
-    .body;
-    let body = cut(
-        "hollow inner box",
-        &brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness()),
-        &inner,
-    );
+    .expect("the island grafts onto the wall's solid");
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(body.shells().count(), 3, "three shells in it");
     let roles = topo::classify_shells(&body, tol).expect("classifies");
@@ -296,6 +294,25 @@ fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
         matches!(e, topo::ShellError::OperandOuterShells { outer: 2, .. }),
         "expected OperandOuterShells {{ outer: 2 }}, got {e}"
     );
+
+    let inner = topo::shell(
+        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+        0.25,
+        tol,
+    )
+    .expect("the small box shells")
+    .body;
+    let cut_body = cut(
+        "hollow inner box",
+        &brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness()),
+        &inner,
+    );
+    assert_eq!(
+        cut_body.solids().count(),
+        2,
+        "the island is a solid of its own"
+    );
+    topo::shell(&cut_body, 0.05, tol).expect("each solid shells");
 }
 
 // ---------------------------------------------------------------------

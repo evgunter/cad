@@ -5158,6 +5158,29 @@ fn at_infinity_side<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
+    // An `Outer` boundary leaves infinity outside its material, a `Void`
+    // one inside.
+    Ok(match selection_role(body, faces, band, tol)? {
+        crate::props::ShellRole::Outer => SolidContainment::Out,
+        crate::props::ShellRole::Void => SolidContainment::In,
+    })
+}
+
+/// The role of the closed boundary `faces` select, read off the one
+/// closed-form signed volume [`point_in_solid_faces`] falls back to when
+/// no ray crosses: `Outer` where it is definitely positive, `Void` where
+/// definitely negative, [`PointInSolidError::ZeroVolumeBody`] where the
+/// sign is undecided.
+///
+/// # Errors
+///
+/// [`PointInSolidError`] — the at-infinity read's refusals.
+pub(crate) fn selection_role<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+) -> Result<crate::props::ShellRole, PointInSolidError> {
     // Closed-form lane: this door is `T: Decide` and holds no
     // quadrature lane, so an obliquely trimmed face refuses here
     // (`work/contact/at-infinity-probe-measures-in-closed-form-only`).
@@ -5209,17 +5232,11 @@ fn at_infinity_side<T: Decide>(
             diag,
         }
     })?;
-    // The closed form carries no pad: one sign, read at both ends. An
-    // `Outer` boundary leaves infinity outside its material, a `Void`
-    // one inside.
+    // The closed form carries no pad: one sign, read at both ends.
     use crate::props::{BracketEnd, ShellRole};
-    match ShellRole::decided_at(BracketEnd::Low, sign)
+    ShellRole::decided_at(BracketEnd::Low, sign)
         .or_else(|| ShellRole::decided_at(BracketEnd::High, sign))
-    {
-        Some(ShellRole::Outer) => Ok(SolidContainment::Out),
-        Some(ShellRole::Void) => Ok(SolidContainment::In),
-        None => Err(PointInSolidError::ZeroVolumeBody),
-    }
+        .ok_or(PointInSolidError::ZeroVolumeBody)
 }
 
 #[cfg(test)]

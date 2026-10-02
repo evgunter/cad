@@ -85,6 +85,7 @@ mod door_meter;
 pub(crate) use contain::ContainErrorKind;
 mod finish;
 pub(crate) mod insert;
+mod islands;
 mod join;
 mod ops;
 pub(crate) mod section_cert;
