@@ -2,10 +2,13 @@
 id: ssi-a-seed-refined-off-the-chart-is-marched
 kind: issue
 title: ssi: a seed Newton settles outside the march domain is marched from, and its out-of-chart state reaches the fit
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: E
+closed: 2026-10-02
+pr: 3864
+branch: ssi/seed-in-domain
 ---
 
 
@@ -54,3 +57,15 @@ marched state gets, before it is marched. A seed decided outside is no
 branch, as one that will not settle is. Its cell is still accounted
 for, because the exhaustiveness pass refuses at the floor any cell no
 tube covers. Pin the d = 1 and d = 2 rows.
+
+## Closed
+
+`march` now decides the settled seed with `ssi_branch_open_end` before
+it marches it. A seed decided outside refuses `SsiError::SeedOffDomain`,
+which both doors treat as no branch. A seed in the zero band is
+marched, and one in the escalation zone escalates. PR 3864 has the
+before and after table. The cut still refuses at d = 1–3 for other
+causes: `plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps` at
+ε 1e-6, and causes 4 and 2 of
+`plane-nurbs-ssi-does-not-certify-a-curved-dome` at 1e-9 and 1e-12.
+`a_seed_settled_off_the_walls_chart_is_no_branch` pins those refusals.
