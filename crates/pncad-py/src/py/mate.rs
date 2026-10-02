@@ -1017,16 +1017,21 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> P
 }
 
 /// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
-/// fault as `MateError`, and the two placement refusals as the
-/// `EvaluationError` the instance's own row would carry.
+/// fault as `MateError`, spoken from `solved`, the document the solve
+/// recorded it over; and the two placement refusals as the
+/// `EvaluationError` the instance's own row would carry, spoken from
+/// `doc`, the document the placement door read them off.
 fn pose_err(
     py: Python<'_>,
     instance: NodeId,
     refusal: &d::PoseRefusal,
-    doc: &Arc<d::ProfileDoc>,
+    solved: &Arc<d::ProfileDoc>,
+    doc: &d::ProfileDoc,
 ) -> PyErr {
     let kind = match refusal {
-        d::PoseRefusal::Mate(fault) => return mate_err(py, fault, &Voice::Doc(Arc::clone(doc))),
+        d::PoseRefusal::Mate(fault) => {
+            return mate_err(py, fault, &Voice::Doc(Arc::clone(solved)));
+        }
         d::PoseRefusal::Unplaced { group, cause, .. } => d::NodeErrorKind::Unplaced {
             group: *group,
             cause: *cause,
@@ -1036,15 +1041,16 @@ fn pose_err(
             error: error.clone(),
         },
     };
-    let err = super::value::refused(py, instance, &kind, refusal.spoken(&**doc), None);
-    super::value::with_carried(py, err, kind.carried_chain(), Some(&**doc))
+    let err = super::value::refused(py, instance, &kind, refusal.spoken(doc), None);
+    super::value::with_carried(py, err, kind.carried_chain(), Some(doc))
 }
 
 /// The document's solved poses: each instance's pose relative to its
 /// group root, each mate's role, and the per-node refusals.
 ///
-/// It keeps the document it solved, which its faults' words are spoken
-/// from.
+/// It keeps a copy of the document as it solved it: a fault is the
+/// solve's, recorded over that version, so its words are spoken from it
+/// even after the document is edited.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct SolvedPoses(d::SolvedPoses, Arc<d::ProfileDoc>);
 
@@ -1122,7 +1128,7 @@ impl SolvedPoses {
         self.0
             .placement(&doc.inner, instance.0)
             .map(Frame)
-            .map_err(|refusal| pose_err(py, *instance, &refusal, &self.1))
+            .map_err(|refusal| pose_err(py, *instance, &refusal, &self.1, &doc.inner))
     }
 
     fn __repr__(&self) -> String {

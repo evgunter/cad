@@ -1266,19 +1266,21 @@ fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding
         .node_error(level.node)
         .expect("the part's own tree draws the level's node failed");
     assert_eq!(
-        level.line_in_part(&inner),
+        level.line_in_part(&inner, Tol::witness()),
         inner_own.spoken(&inner),
         "a frame holding the part draws the level as the part's own tree does"
     );
     assert!(
-        level.line_in_part(&inner).contains("\"inner held\""),
+        level
+            .line_in_part(&inner, Tol::witness())
+            .contains("\"inner held\""),
         "{}",
-        level.line_in_part(&inner)
+        level.line_in_part(&inner, Tol::witness())
     );
     let editor_core::NodeErrorKind::Part { fault, doc_ref } = &error.kind else {
         panic!("the instance refuses on its part: {error:?}");
     };
-    let fault_spoken = fault.spoken(doc_ref, &inner);
+    let fault_spoken = fault.spoken(doc_ref, &inner, Tol::witness());
     assert!(
         fault_spoken.starts_with(&format!("the part's {} failed", inner.spoken(level.node))),
         "the part's fault speaks its node from the part: {fault_spoken}"
@@ -1293,29 +1295,95 @@ fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding
     );
 }
 
-/// A part's fault and level are spoken only from the part their ids are
-/// numbered in.
-#[test]
-#[should_panic(expected = "its node ids would name another document's nodes")]
-fn a_part_fault_is_never_spoken_from_another_document() {
+/// An outer document holding one instance of a contradicted stand:
+/// the part, another version of it (a label moved), the outer document
+/// its evaluation and the failed instance.
+fn a_failed_part(
+    id: &str,
+) -> (
+    ProfileDoc,
+    ProfileDoc,
+    ProfileDoc,
+    editor_core::Evaluation<f64>,
+    RecipeNodeId,
+) {
     let mut store = PartStore::default();
-    let (cube, cube_body) = store.insert_part(cube_part("speak-d-cube"), Tol::witness());
+    let (cube, cube_body) = store.insert_part(cube_part(&format!("{id}-cube")), Tol::witness());
     let inner = contradicted(
         cube,
         cube_body,
-        "speak-d-inner",
+        &format!("{id}-inner"),
         "inner held",
         "inner added",
     );
-    let inner_ref = store.insert(inner, Tol::witness());
-    let outer = ProfileDoc::empty(DocumentId::derive("speak-d-outer"), Tol::witness());
+    let inner_ref = store.insert(inner.clone(), Tol::witness());
+    let (relabelled, _) = step(
+        inner.clone(),
+        DocEdit::SetLabel {
+            node: inner.order()[2],
+            label: Some(editor_core::Label::new("inner moved").expect("a valid label")),
+        },
+    );
+    let outer = ProfileDoc::empty(DocumentId::derive(&format!("{id}-outer")), Tol::witness());
     let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
     let ev = run(&outer, &with_resolver(store));
-    let error = ev.node_error(instance).expect("the part has no body");
+    (inner, relabelled, outer, ev, instance)
+}
+
+/// The part fault of a failed part instance, with its reference.
+fn part_fault(error: &editor_core::NodeError) -> (&editor_core::PartFault, &DocRef) {
     let editor_core::NodeErrorKind::Part { fault, doc_ref } = &error.kind else {
-        panic!("{error:?}");
+        panic!("the instance refuses on its part: {error:?}");
     };
-    let _ = fault.spoken(doc_ref, &outer);
+    (fault, doc_ref)
+}
+
+/// A part's fault is spoken only from the part its ids are numbered in.
+#[test]
+#[should_panic(expected = "is rendered from document")]
+fn a_part_fault_is_never_spoken_from_another_document() {
+    let (_, _, outer, ev, instance) = a_failed_part("speak-d");
+    let error = ev.node_error(instance).expect("the part has no body");
+    let (fault, doc_ref) = part_fault(error);
+    let _ = fault.spoken(doc_ref, &outer, Tol::witness());
+}
+
+/// ... and only from the version its reference pins: another version
+/// may hold its ids under other labels.
+#[test]
+#[should_panic(expected = "rendered from another version")]
+fn a_part_fault_is_never_spoken_from_another_version_of_the_part() {
+    let (inner, relabelled, _, ev, instance) = a_failed_part("speak-f");
+    let error = ev.node_error(instance).expect("the part has no body");
+    let (fault, doc_ref) = part_fault(error);
+    assert!(
+        fault
+            .spoken(doc_ref, &inner, Tol::witness())
+            .contains("the part's"),
+        "the pinned version speaks"
+    );
+    let _ = fault.spoken(doc_ref, &relabelled, Tol::witness());
+}
+
+/// A carried level in a part is spoken only from that part ...
+#[test]
+#[should_panic(expected = "is rendered from document")]
+fn a_carried_level_is_never_spoken_from_another_document() {
+    let (_, _, outer, ev, instance) = a_failed_part("speak-g");
+    let error = ev.node_error(instance).expect("the part has no body");
+    let level = error.kind.carried_chain().next().expect("the part's level");
+    let _ = level.line_in_part(&outer, Tol::witness());
+}
+
+/// ... at the version its reference pins.
+#[test]
+#[should_panic(expected = "rendered from another version")]
+fn a_carried_level_is_never_spoken_from_another_version_of_the_part() {
+    let (inner, relabelled, _, ev, instance) = a_failed_part("speak-h");
+    let error = ev.node_error(instance).expect("the part has no body");
+    let level = error.kind.carried_chain().next().expect("the part's level");
+    let _ = level.line_in_part(&inner, Tol::witness());
+    let _ = level.line_in_part(&relabelled, Tol::witness());
 }
 
 /// **A mate the edit door refuses speaks the nodes its fault names** as

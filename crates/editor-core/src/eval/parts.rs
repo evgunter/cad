@@ -384,14 +384,22 @@ impl PartFault {
     /// **The fault as a frame holding the resolved part says it**: each
     /// node as `part` holds it now. Its node ids are the part's, so
     /// `part` is the document the instance's reference names, at the
-    /// version it pins; no other document can say them.
+    /// version it pins; no other document can say them. `tol` is the
+    /// tolerance the pin is computed under, the one the part was
+    /// resolved at.
     ///
     /// # Panics
     ///
-    /// When `part` is not the document `doc_ref` names.
+    /// When `part` is not the document `doc_ref` names, at the version
+    /// it pins.
     #[must_use]
-    pub fn spoken<P>(&self, doc_ref: &DocRef, part: &crate::doc::Doc<P>) -> String {
-        crate::spoken::assert_taken_of("the part fault", doc_ref.id, part);
+    pub fn spoken(
+        &self,
+        doc_ref: &DocRef,
+        part: &crate::ProfileDoc,
+        tol: geom_core::Tol,
+    ) -> String {
+        crate::spoken::assert_pinned("the part fault", doc_ref, part, tol);
         crate::spoken::spoken_by(self, part)
     }
 }

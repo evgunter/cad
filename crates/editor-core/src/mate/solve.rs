@@ -114,6 +114,19 @@ pub enum Unplaced {
     },
 }
 
+impl Unplaced {
+    /// **The cause's class word**, for a machine channel: the one
+    /// spelling the clearance goldening form and the bindings' tag both
+    /// read.
+    #[must_use]
+    pub const fn word(&self) -> &'static str {
+        match self {
+            Self::NoOffset => "no_offset",
+            Self::DeadGauge { .. } => "dead_gauge",
+        }
+    }
+}
+
 impl core::fmt::Display for Unplaced {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

@@ -21,7 +21,12 @@
 //!   one a door raised from an evaluation alone): its `Display` says
 //!   each node by tag ([`Speaker::TAG`]), and its `spoken(doc)` says
 //!   each as the document of the frame handing it out holds it
-//!   ([`Speaker::of`]).
+//!   ([`Speaker::of`]). A door that holds the document and carries
+//!   such a value whole keeps the nodes its words name as
+//!   [`HeldNodes`] ([`held_by`]), and says them back with no document
+//!   at hand ([`Speaker::held`]). Inside a line that already names a
+//!   node ([`Speaker::about`]), that node reads `this <noun>`, so no
+//!   sentence names it twice.
 //! - [`FullId`] — every bit of the id, for a machine channel (a
 //!   binding's `repr`, a goldened report) where two ids must never
 //!   print alike.
@@ -396,9 +401,16 @@ impl<'a> Speaker<'a> {
         }
     }
 
-    /// The node `id`, said.
+    /// The node `id`, said: `this node` when it is the node the
+    /// enclosing sentence is about ([`Speaker::about`]).
     #[must_use]
-    pub fn node(self, id: RecipeNodeId) -> SpokenNode {
+    pub fn node(self, id: RecipeNodeId) -> impl fmt::Display + use<> {
+        NodeAs("node", (self.subject != Some(id)).then(|| self.spoken(id)))
+    }
+
+    /// The node `id` as this speaker's document holds it, its subject
+    /// or not.
+    fn spoken(self, id: RecipeNodeId) -> SpokenNode {
         match self.doc {
             None => SpokenNode::absent(id),
             Some(doc) => doc.speak(id),
@@ -418,7 +430,7 @@ impl<'a> Speaker<'a> {
     /// the node the enclosing sentence is about ([`Speaker::about`]).
     #[must_use]
     pub fn node_as(self, id: RecipeNodeId, noun: &'static str) -> impl fmt::Display {
-        let said = (self.subject != Some(id)).then(|| self.node(id));
+        let said = (self.subject != Some(id)).then(|| self.spoken(id));
         NodeAs(noun, said)
     }
 }
@@ -433,7 +445,8 @@ impl<N: fmt::Display> fmt::Display for SaidName<'_, N> {
     }
 }
 
-/// [`Speaker::node_as`]'s answer: `None` for the sentence's subject.
+/// [`Speaker::node`]'s and [`Speaker::node_as`]'s answer: `None` for
+/// the sentence's subject.
 struct NodeAs(&'static str, Option<SpokenNode>);
 
 impl fmt::Display for NodeAs {
@@ -486,6 +499,31 @@ pub(crate) fn assert_taken_of<P>(what: &str, taken_of: crate::DocumentId, doc: &
          node ids would name another document's nodes",
         taken_of.0,
         doc.id().0
+    );
+}
+
+/// **A part's ids are spoken only from the version its reference
+/// pins**: the document `doc_ref` names, by its id and its content pin.
+/// Another version of the part may hold the same id as another node,
+/// or under another label.
+///
+/// # Panics
+///
+/// When `part` is not that document at that version, or its pin does
+/// not compute.
+pub(crate) fn assert_pinned(
+    what: &str,
+    doc_ref: &crate::ident::DocRef,
+    part: &crate::program::ProfileDoc,
+    tol: geom_core::Tol,
+) {
+    assert_taken_of(what, doc_ref.id, part);
+    let pin = crate::persist::content_pin(part, tol).ok();
+    assert!(
+        pin == Some(doc_ref.pin),
+        "{what} is in part {:032x} at the version its reference pins, and is rendered from \
+         another version of it ({pin:?}); its node ids would name another document's nodes",
+        doc_ref.id.0
     );
 }
 

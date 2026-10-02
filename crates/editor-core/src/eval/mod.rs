@@ -2727,27 +2727,29 @@ impl CarriedLevel<'_> {
     }
 
     /// **The level of a part, spoken from the part**, for a frame that
-    /// holds the resolved part `part` (the version its reference pins,
-    /// so its labels are the ones the refusal was raised under).
+    /// holds the resolved part `part`: the version its reference pins,
+    /// so its labels are the ones the refusal was raised under. `tol` is
+    /// the tolerance the pin is computed under, the one the part was
+    /// resolved at.
     ///
     /// # Panics
     ///
     /// When the level is not in a part, or `part` is not the document
-    /// its reference names: its node ids would name another
-    /// document's nodes.
+    /// its reference names at the version it pins: its node ids would
+    /// name another document's nodes.
     #[must_use]
-    pub fn line_in_part<P>(&self, part: &Doc<P>) -> String {
+    pub fn line_in_part(&self, part: &crate::ProfileDoc, tol: Tol) -> String {
         let in_part = match self.document {
-            CarriedIn::Part(doc_ref) => Some(doc_ref.id),
+            CarriedIn::Part(doc_ref) => Some(doc_ref),
             CarriedIn::ThisDocument => None,
         };
         assert!(
-            in_part == Some(part.id()),
-            "a carried level in {in_part:?} (`None`: the outermost document, spoken by \
-             `line_in`) is rendered from part {:?}; its node ids would name another \
-             document's nodes",
-            part.id()
+            in_part.is_some(),
+            "a carried level in the outermost document is spoken by `line_in`, never from a part"
         );
+        if let Some(doc_ref) = in_part {
+            crate::spoken::assert_pinned("the carried level", doc_ref, part, tol);
+        }
         self.refusal
             .line_at(self.node, crate::spoken::Speaker::of(part))
     }

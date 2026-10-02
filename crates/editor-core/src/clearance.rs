@@ -824,9 +824,9 @@ impl SelectionRefusal {
             Self::NotAFace { name } => format!("not_a_face {name}"),
             Self::AcrossSpaces { group, cause } => {
                 let cause = match cause {
-                    crate::mate::Unplaced::NoOffset => "no_offset".to_owned(),
+                    crate::mate::Unplaced::NoOffset => cause.word().to_owned(),
                     crate::mate::Unplaced::DeadGauge { gauge } => {
-                        format!("dead_gauge={}", gauge.full())
+                        format!("{}={}", cause.word(), gauge.full())
                     }
                 };
                 format!("across_spaces group={} {cause}", group.full())
