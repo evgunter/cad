@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P0
 cost: H
 branch: recipe/extrude-depth-and-side
+pr: 3912
 ---
 
 
@@ -39,7 +40,7 @@ The viewer half is AUTHOR's `the-create-pane-has-no-extrude-side`, which is bloc
 
 Filed by the AUTHOR orchestrator on Ev's ruling.
 
-## Built (2026-10-02, PR PRNUM)
+## Built (2026-10-02, PR 3912)
 
 - **Kernel.** `sweep::ExtrudeSide { Along, Against }` and `Extrusion::Distance { depth, side }`. The door decides the depth through `extrusion_normal_component`, as before: `Zero` stays `DegenerateExtrusion` (so does an ε-small negative), a definite negative is the new `ExtrudeError::NegativeDepth { side }`, and the side alone picks `±n`. Its sentence names the recourse: "write the depth without its minus sign and set the side to against the sketch normal" (or along), meets `test_utils::refusal::problems`, and the recourse followed builds (`extrude_acceptance::a_negative_depth_refuses_naming_the_other_side`). `verbs::Verb::Extrude` carries the pair.
 - **Node, edit, persistence.** `Node::Extrude { profile, distance, side }`; `side` persists as `"along"`/`"against"` through `persist::kernel_wire::extrude_side` and is a required field, so a document from before refuses `Unreadable` naming `side` (the schema bump). The structural edit is its own arm, `DocEdit::SetExtrudeSide { node, side }`, refusing `SetExtrudeSideOnNonExtrude` on another kind; the corpus's `kitchen_sink` exercises it. `pncad-py`: `ExtrudeSide`, `Node.extrude(profile, distance, side=ExtrudeSide.Along)`, `DocEdit.set_extrude_side`, the tags `negative_depth` and `set_extrude_side_on_non_extrude`, stubs and a python row.
