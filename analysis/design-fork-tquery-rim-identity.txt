@@ -1,0 +1,4 @@
+fork: rim-of-compares-point-bits-in-production-where-no-gate-looks (TQUERY)
+dispatched: 2026-10-02
+byte: 254
+mapping: A=opus B=fable
