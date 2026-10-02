@@ -116,3 +116,24 @@ mutation-checked. Rulings:
 - **One rounded-box closed form serves `diefillet` and `heatsink`.**
 - **Wall matchers are tightened, and their `contains(...)` looseness is swept
   tour-wide.**
+
+## 2026-10-02 — klein: the one-body loop builds but cannot ship yet
+
+PR 3792 is green and in single Opus review. The one-body loop sweep
+builds, but every natural section fails tier 3 or the mesh:
+
+| Section | Tier 3 | Mesh |
+|---|---|---|
+| `circle` | refuses `QuadratureBudget` | refuses (the known C0 crease) |
+| `circle_split(4)` | passes | refuses `CertificateExceeded` |
+| `circle_split(8)` | passes | refuses `CertificateExceeded` |
+
+The scene therefore keeps its two elbows. Walls 5 and 8 pin the two
+refusals, and the lane filed a QUAD row and a TESS row.
+
+Ruling: the PR lands on review for the walls, the spine bug fix and the
+filings. The unit then PARKS on the two filed rows rather than closing,
+because its subject (adopt the sweep) is unchanged and simply waits.
+
+Watch item for the review: the klein wall suite grew from 4 s to 59 s
+on CI.
