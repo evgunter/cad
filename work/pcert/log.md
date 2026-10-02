@@ -430,3 +430,23 @@ Signed (PCERT orchestrator).
   - The Hermite constant, the Cauchy step and the chart factor hold.
   - Check 4's glue is unsound for foreign images: per-end branch choice (a span winding a whole turn certifies), no image-domain check, and `max` where the derivation sums.
   - The fix list went to the implementer.
+
+## 2026-10-02 — Ev rules on 3781; 3759 adjudicated; 3733 delta pass
+
+- **[ev] PR 3781, merged as c0b9b35.** Ev took (i): C4 leads with the closed-form envelope as the whole statement, with the schedule as the fallback where no closed form exists. Two rounds of rewording came from Ev's comments. The unit `pcurve-certificate-states-incidence-and-fidelity` now builds both parts.
+- **3759 dual review adjudicated.**
+  - R1's report reached me only as its session transcript. R1 declined to post on a cross-session go-ahead, so its findings were taken from the draft summary, with probes on `pcert/review-3759-r1`.
+  - Bilateral findings:
+    - the undisclosed widening reds;
+    - the untested half-minted window (M1 / p5);
+    - masking by the first uncovered edge;
+    - merge-faces re-mint dropping rows.
+  - R1 only: wrong-branch rows silent on a complete face; "no decision was lost" is false (shallow-arc 54→51).
+  - R2 only:
+    - M6;
+    - the C4 exemption, and `DESIGN.md:489`;
+    - stale prose;
+    - `cert_m3r1`'s filter_map;
+    - the AtRestPolicy overclaim.
+  - All of it went to the implementer as one list. The widening rows are not re-baselined.
+- **3733.** The delta fix pass is green at d0f1fe6. The round-2 delta verification is dispatched.
