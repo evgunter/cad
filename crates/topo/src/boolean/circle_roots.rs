@@ -821,7 +821,7 @@ mod subdivision_guard_rows {
         let samples: Vec<f64> = (0..=n)
             .map(|k| residual(-PI + 2.0 * PI * f64::from(k) / f64::from(n)))
             .collect();
-        crate::boolean::ellipse_roots::oracle::sign_changes(&samples)
+        crate::boolean::conic_oracle::sign_changes(&samples)
     }
 
     fn sine(s1: f64) -> Harmonics<f64> {

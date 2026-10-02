@@ -4836,7 +4836,7 @@ mod clearance_rows {
     use core::f64::consts::FRAC_PI_2;
 
     use super::conic_clearance;
-    use crate::boolean::ellipse_roots::oracle::unit;
+    use crate::boolean::conic_oracle::{distance_from_anchor, unit};
     use geom_core::{Band, Point3, Sign, Vec3};
     use test_utils::fuzz;
 
@@ -4890,6 +4890,76 @@ mod clearance_rows {
         assert!(
             !matches!(got, Some(Ok(Sign::Positive))),
             "a crossing 2.71e-11 m deep certified clear: {got:?}"
+        );
+    }
+
+    /// **A short arc a thousand kilometres out is charged its samples'
+    /// rounding.** The third delta review's pin: an ellipse stored with
+    /// `major = −0.556`, `minor = 1.02`, centred 1000 km out, an arc of
+    /// ±3e-4 rad about its vertex, against a 0.118 m ball, at ε = 1e-12.
+    /// The ball was placed 2.1e-11 m off by its nominal, but its stored
+    /// centre rounds at that distance's ulp, and the true least distance
+    /// of the STORED geometry is −5.3e-12 m — in band. On an arc that
+    /// short the chord-dip charge is negligible, so the arc enclosure's
+    /// margin is its samples' own: read without their rounding charge
+    /// (`geom_brep::conic_arc_residual_range`'s `sample_rounding`), the
+    /// rung certified the touch clear.
+    #[test]
+    fn a_short_arc_far_out_is_charged_its_samples_rounding() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let axis = Vec3::new(
+            -0.331_547_126_719_510_5,
+            -0.144_826_239_786_666_6,
+            0.932_256_329_039_010_6,
+        );
+        let center = Point3::new(
+            -793_186.577_792_401_4,
+            241_909.440_601_441_78,
+            -783_085.727_290_743_7,
+        );
+        let (major, minor) = (-0.556_277_953_009_113_9, 1.019_942_477_711_699_2);
+        let u_ref = Vec3::new(
+            -0.346_444_852_811_330_7,
+            -0.900_421_850_752_487_9,
+            -0.263_090_202_493_364_96,
+        );
+        let e = geom::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        };
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let s = geom::Surface::Sphere {
+            center: Point3::new(
+                -793_187.576_342_526_2,
+                241_909.907_376_568_15,
+                -783_086.009_900_933_8,
+            ),
+            radius: 0.117_972_233_474_760_74,
+            axis,
+            u_ref: (x - axis * x.dot(axis)).normalize(),
+        };
+        let vertex: f64 = 4.712_388_980_384_69;
+        let (sv, cv) = vertex.sin_cos();
+        let least = distance_from_anchor(&s, |anchor| {
+            (center - anchor) + u_ref * (major * cv) + axis.cross(u_ref) * (minor * sv)
+        });
+        assert!(
+            least.abs() <= 1e-11,
+            "the pose is a touch in band: {least:e}"
+        );
+        let conic = geom_brep::Conic::of(&e).unwrap();
+        let got = conic_clearance(
+            &s,
+            &conic,
+            (4.712_088_980_384_689_5, 4.712_688_980_384_69),
+            band,
+        );
+        assert!(
+            !matches!(got, Some(Ok(Sign::Positive))),
+            "a touch {least:e} m off certified clear: {got:?}"
         );
     }
 
@@ -5017,33 +5087,7 @@ mod clearance_rows {
                 let from = |anchor: Point3<f64>| {
                     (center - anchor) + u_ref * (major * cv) + n.cross(u_ref) * (minor * sv)
                 };
-                let least = match s {
-                    geom::Surface::Sphere {
-                        center: c, radius, ..
-                    } => from(c).norm() - radius,
-                    geom::Surface::Cylinder {
-                        origin,
-                        axis,
-                        radius,
-                        ..
-                    } => {
-                        let q = from(origin);
-                        (q - axis * q.dot(axis)).norm() - radius
-                    }
-                    geom::Surface::Torus {
-                        center: c,
-                        axis,
-                        major_radius,
-                        minor_radius,
-                        ..
-                    } => {
-                        let q = from(c);
-                        let h = q.dot(axis);
-                        let rho = (q - axis * h).norm();
-                        (rho - major_radius).hypot(h) - minor_radius
-                    }
-                    _ => unreachable!("the three kinds drawn"),
-                };
+                let least = distance_from_anchor(&s, from);
                 if certified {
                     if kind == 2 {
                         torus_clear += 1;

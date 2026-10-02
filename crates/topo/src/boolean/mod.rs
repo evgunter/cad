@@ -76,6 +76,9 @@ mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;
 pub mod contact_verify;
+// The conic rows' shared test oracles (test builds only).
+#[cfg(test)]
+mod conic_oracle;
 mod contain;
 mod discard;
 mod ellipse_roots;
