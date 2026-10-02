@@ -9,7 +9,7 @@ cost: H
 ---
 
 
-**Ruled by Ev on #3551 (2026-10-01).** The decision record is AUTHOR's closed row `a-negative-extrude-distance-probes-as-valid` (`git show RECOVERSHA:work/author/a-negative-extrude-distance-probes-as-valid.md`), its "A depth and a side" and "Ruled" sections. The designers' reports are on #3551. Fork-log row 22.
+**Ruled by Ev on #3551 (2026-10-01).** The decision record is AUTHOR's closed row `a-negative-extrude-distance-probes-as-valid` (`git show 29b8874a1:work/author/a-negative-extrude-distance-probes-as-valid.md`), its "A depth and a side" and "Ruled" sections. The designers' reports are on #3551. Fork-log row 22.
 
 ## What to build
 

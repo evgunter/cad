@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P3
 cost: M
-refs: [a-close-refused-on-its-geometry-draws-nothing, a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at, a-last-leg-no-close-can-follow-is-dropped]
+refs: [a-last-leg-no-close-can-follow-is-dropped]
 ---
 
 

@@ -7,7 +7,7 @@ opened: 2026-09-30
 priority: P2
 cost: M
 design: true
-refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist, no-docedit-splices-a-deleted-node]
+refs: [no-docedit-splices-a-deleted-node]
 blocked_on: [declared-pairs-are-a-booleans-own-payload]
 ---
 
@@ -52,7 +52,7 @@ anything is built. `needs_ev` is not set yet.
 
 ## Declaring a contact on a live boolean (2026-09-30)
 
-Two designers weighed this together with `the-boolean-door-evaluates-its-boolean-twice`. Their evidence is in AUTHOR's log (`git show RECOVERSHA:work/author/log.md`) (2026-09-30, "boolean-judge fork").
+Two designers weighed this together with `the-boolean-door-evaluates-its-boolean-twice`. Their evidence is in AUTHOR's log (`git show 29b8874a1:work/author/log.md`) (2026-09-30, "boolean-judge fork").
 
 **Most booleans are mid-chain, not leaves.** A boolean stops being a leaf as soon as anything takes it as an input, and a sketch frame on one of its faces is such an input (`Datum::FaceFrame { at }`). So after the boss-on-face gesture the union is already mid-chain. An upstream edit to any finished model is this row's case.
 

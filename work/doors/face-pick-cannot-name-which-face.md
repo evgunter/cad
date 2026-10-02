@@ -6,7 +6,7 @@ status: parked
 opened: 2026-09-21
 priority: P1
 cost: D
-refs: [add-profile-mints-no-frame, 2955]
+refs: [2955]
 blocked_on: [names-render-a-faces-leaf-role-in-words]
 ---
 
@@ -114,7 +114,7 @@ question asked of the offer's pair instead of the add-datum pick.
 
 ## Which face, in words (2026-09-30)
 
-Two designers weighed this independently and reached the same final state in their first reports. Evidence: AUTHOR's log (`git show RECOVERSHA:work/author/log.md`), 2026-09-30, "face-naming fork".
+Two designers weighed this independently and reached the same final state in their first reports. Evidence: AUTHOR's log (`git show 29b8874a1:work/author/log.md`), 2026-09-30, "face-naming fork".
 
 **Two premises above are wrong.**
 - **Words for a face already exist.** `editor_core::resolve::role_words` (private, with `piece_words` and `descent_leaf`, PR #3205) renders every `RoleSeg` exhaustively ("the end cap", "the side wall over the leg of the profile step …"). `Cutter`'s `Display` already puts one in a sentence a person reads.

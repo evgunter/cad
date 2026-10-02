@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-21
 priority: P3
 cost: D
-refs: [add-profile-mints-no-frame]
 ---
 
 ## What

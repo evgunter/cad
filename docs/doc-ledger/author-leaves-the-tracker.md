@@ -55,6 +55,7 @@ AUTHOR covered what the GUI could not author: the doors a person needs to build 
 - Citations of moved rows are rewritten to the new paths in code, docs and other programs' rows.
 - In code, the two comments naming a closed row now name the new AUTHTAIL row.
 - Process-doc citations of closed AUTHOR rows and of `work/author/log.md` are left to dangle, per the docs-ledger convention, except where a live row reads one as its decision record. Those (RECIPE's three ruled rows and its plan, and the DOORS rows) now carry the recovery command.
+- **Eighteen `refs:` entries and one `parent:` named closed AUTHOR rows, and were dropped.** They were on DOORS's and AUTHTAIL's own rows, and on CHROME, MSOLVE, PATHS, PROPS, ROUND, VACUITY, VGEOM and ZIP. Their targets are recoverable below.
 - Other programs' `keep_out` prose that names AUTHOR is left as written. Read "AUTHOR's" there as DOORS's for the rulings' viewer halves, and as AUTHTAIL's for everything else.
 
-Recover with `git show RECOVERSHA:work/author/<file>`, using `plan.md`, `log.md`, `program.md` or an item id.
+Recover with `git show 29b8874a1:work/author/<file>`, using `plan.md`, `log.md`, `program.md` or an item id.

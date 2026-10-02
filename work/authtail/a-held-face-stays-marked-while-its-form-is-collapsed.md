@@ -7,7 +7,6 @@ opened: 2026-09-30
 priority: P3
 cost: M
 design: true
-refs: [held-face-pick-is-invisible-in-the-viewport]
 ---
 
 

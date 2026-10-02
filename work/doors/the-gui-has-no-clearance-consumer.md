@@ -7,7 +7,6 @@ opened: 2026-09-30
 priority: P1
 cost: H
 design: true
-parent: the-gui-shows-no-measure-value-and-no-clearance
 blocked_on: [clearance-refusal-names-one-face-twice-across-bodies]
 ---
 

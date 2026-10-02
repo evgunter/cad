@@ -279,7 +279,7 @@ Other programs' rows and logs also cite closed EDIT rows. They are history, not 
 
 ## AUTHOR's closed rows (added 2026-10-02, at AUTHOR's exit)
 
-AUTHOR closed on 2026-10-02 (`docs/doc-ledger/author-leaves-the-tracker.md`). Citations of its live rows were rewritten to their new homes in DOORS and AUTHTAIL. The two code comments that named a closed AUTHOR row as a residue's carrier now name AUTHTAIL's `drawing-on-a-picked-face-is-a-two-form-trip`. One shipped-doc citation of a closed row is left dangling. It is recoverable at `RECOVERSHA`:
+AUTHOR closed on 2026-10-02 (`docs/doc-ledger/author-leaves-the-tracker.md`). Citations of its live rows were rewritten to their new homes in DOORS and AUTHTAIL. The two code comments that named a closed AUTHOR row as a residue's carrier now name AUTHTAIL's `drawing-on-a-picked-face-is-a-two-form-trip`. One shipped-doc citation of a closed row is left dangling. It is recoverable at `29b8874a1`:
 
 | citing file | cited row |
 | --- | --- |
