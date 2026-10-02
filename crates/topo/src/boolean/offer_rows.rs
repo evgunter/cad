@@ -533,7 +533,7 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
     } else {
         (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt()
     };
-    let read = DeclarationRead::Spent(ContactClass::Tangent);
+    let read = DeclarationRead::Spent(BooleanCoincidence::TANGENT);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -595,7 +595,8 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         (0.0, 1.0),
         tol,
     );
-    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     let mut acc = ContactAcc::default();
     curved_face_arm(
         &x,
@@ -649,7 +650,7 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
         ..BooleanDeclarations::none()
     };
     let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = DeclaredPairs::measured(&decls, one, &x, &y, band())?;
+    let declared = DeclaredPairs::build(&decls, one, &x, &y, band())?;
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -816,7 +817,8 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         intersect: true,
     }];
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
-    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     resolve_edge_edge(
         &records,
         &corner(fca),
@@ -905,7 +907,7 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
         -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
     };
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
-    let read = DeclarationRead::Spent(ContactClass::Tangent);
+    let read = DeclarationRead::Spent(BooleanCoincidence::TANGENT);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -1208,7 +1210,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         ..BooleanDeclarations::none()
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = DeclaredPairs::measured(&decls, one, &pa.body, &pb.body, band())?;
+    let declared = DeclaredPairs::build(&decls, one, &pa.body, &pb.body, band())?;
     resolve_edge_edge(
         &records,
         &[sector(z, x, fa), sector(x, z, fa)],
@@ -1250,7 +1252,8 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
         arm,
     };
-    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     super::super::recl::require_same(
         &pa.body,
         Operand::A,
@@ -1816,6 +1819,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::UnderflowedSectorChord
         | BooleanErrorKind::DeclarationContradicted
         | BooleanErrorKind::ContactContradicted
+        | BooleanErrorKind::ContinuationContradicted
         | BooleanErrorKind::UnsupportedDeclarationClass
         | BooleanErrorKind::RimSeamNotDeclarable
         | BooleanErrorKind::RimCuspArmUnbuilt
@@ -2295,7 +2299,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "curved_face_arm",
         "Coincide::VertexOnCoveredFace",
-        2,
+        1,
     ),
     (
         "reduce.rs",
@@ -2341,7 +2345,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 4),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
     (
         "reduce.rs",
         "vertex_on_curved_face",

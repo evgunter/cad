@@ -401,10 +401,6 @@ pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
 /// its reasons.
 #[must_use]
 pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
-    let surface_of = |he| -> Option<topo::SurfaceKey> {
-        let l = body.get_half_edge(he)?.parent_loop;
-        Some(body.get_face(body.get_loop(l)?.face)?.surface)
-    };
     let near = |x: T, want: f64| (x.lo() - want).abs() < 1e-9 && (x.hi() - want).abs() < 1e-9;
     body.edges()
         .filter_map(|(k, e)| {
@@ -415,7 +411,8 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
             if !near(radius, rim_r) || !near(center.y, rim_y) {
                 return None;
             }
-            (surface_of(e.he_plus)? != surface_of(e.he_minus)?).then_some(k)
+            let sides = topo::readback::edge_sides(body, k).ok()?;
+            (sides.plus.surface != sides.minus.surface).then_some(k)
         })
         .collect()
 }

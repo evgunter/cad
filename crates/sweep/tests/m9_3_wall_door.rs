@@ -54,9 +54,10 @@ fn cyl_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
         .collect()
 }
 
-/// Every bore-wall × peg-wall pair declared under `class`.
+/// Every bore-wall × peg-wall pair declared under `class`, beside the
+/// peg ends flush with the plate's faces, which are continuations.
 fn wall_declarations(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(a, b);
     for &fa in &cyl_faces(a) {
         for &fb in &cyl_faces(b) {
             decls
@@ -79,7 +80,10 @@ fn wall_declarations(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> Boole
 fn undeclared_touching_curved_pair_still_refuses_typed() {
     let bored = bored_plate();
     let peg = cyl(0.0, 1.0, 0.5);
-    let err = topo::union(&bored, &peg, Tol::witness())
+    // The peg's ends are flush with the plate's faces — continuations,
+    // declared; the wall pair is not.
+    let flush = crate::mate2_common::continuations(&bored, &peg);
+    let err = topo::union_with(&bored, &peg, &flush, Tol::witness())
         .expect_err("an undeclared exactly-filling peg must refuse");
     // The SAME typed refusal, at the SAME site, as before this unit
     // opened the declared rung: the sweep's curved frontier door on
@@ -132,41 +136,20 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
             // this row was the measured refusal before the
             // conventional-arc lane existed).
             //
-            // **Re-expressed at PCURVE P-1b.** "Conventionally
-            // described" was the `MappedCurve` variant; U2 collapsed
-            // the conventional forms into one chart image, so the
-            // variant is gone. What the row is actually about survives
-            // untouched and is asserted directly: the rim is NOT
-            // intrinsically described — the coplanar pair cannot
-            // support an Intersection citation, and a stale one is
-            // exactly the `JoinDesync` defect this row exists for —
-            // and the chart it names is one of the two coplanar PLANES
-            // it lies between, which is what "conventionally, on the
-            // unchanged circle carrier" meant.
-            let mut rims = 0;
-            for (_, e) in b.body.edges() {
-                let Some(c) = b.body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-                    continue;
-                };
-                if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
-                    rims += 1;
-                    let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
-                        panic!(
-                            "a coplanar-adjacent rim is conventionally described: {:?}",
-                            c.description()
-                        );
-                    };
-                    assert!(!chart.seam, "a cap rim is not its chart's seam");
-                    assert!(
-                        matches!(
-                            b.body.get_surface(chart.surface),
-                            Some(geom::Surface::Plane { .. })
-                        ),
-                        "the chart is one of the two coplanar planar caps"
-                    );
-                }
-            }
-            assert_eq!(rims, 6, "two rim circles of three arcs each survive");
+            // The peg's ends are flush with the plate's faces —
+            // declared continuations the union merges — so no rim
+            // circle survives between two coplanar faces.
+            let rims = b
+                .body
+                .edges()
+                .filter(|(_, e)| {
+                    b.body
+                        .get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                })
+                .count();
+            assert_eq!(rims, 0, "the flush peg ends merge into the plate's faces");
         }
         Ok(BooleanResult::Empty) => panic!("a filled plate cannot be empty"),
         // PR-B: the zip's band closure landed — the union SUCCEEDS

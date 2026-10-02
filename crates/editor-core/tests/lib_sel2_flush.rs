@@ -25,9 +25,9 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, ContactClass, DeclareError, EvalOptions, FlushRung, Node,
-    NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal, ValuePayload,
-    declare, declare_all, evaluate, find_flush_candidates,
+    BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EvalOptions, FlushRung,
+    Node, NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal,
+    ValuePayload, declare, declare_all, evaluate, find_flush_candidates,
 };
 use topo::{PlaneRelation, mass_properties};
 
@@ -98,7 +98,7 @@ fn resting_contact_is_one_same_opposite_finding() {
     let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 1, "{findings:?}");
     let f = &findings[0];
-    assert_eq!(f.class, ContactClass::Rest);
+    assert_eq!(f.class, BooleanCoincidence::REST);
     assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite);
     assert_eq!(f.evidence.rung, FlushRung::DecidedCoincident);
     // Names, never keys — and each side names its OWN node's face,
@@ -110,7 +110,7 @@ fn resting_contact_is_one_same_opposite_finding() {
 
 /// Flush WALLS (corner-table shape): a post overlapping a slab with
 /// three shared outer wall planes plus the shared floor — every
-/// finding is the merge-stage flavor, `SameOriented`.
+/// finding is `SameOriented`, so every class is a continuation.
 #[test]
 fn flush_walls_are_same_oriented_findings() {
     let (doc, slab) = box_at(
@@ -126,7 +126,7 @@ fn flush_walls_are_same_oriented_findings() {
     // x = 0, y = 0, y = 1 walls, and the two z = 0 floors.
     assert_eq!(findings.len(), 4, "{findings:?}");
     for f in &findings {
-        assert_eq!(f.class, ContactClass::Rest);
+        assert_eq!(f.class, BooleanCoincidence::Continuation);
         assert_eq!(f.evidence.relation, PlaneRelation::SameOriented, "{f:?}");
     }
 }
@@ -201,7 +201,7 @@ fn detect_declare_boolean_round_trip() {
             // candidate declaration in the detector's own value shape,
             // built from what the raise site held (no re-detection on
             // the error path).
-            NodeErrorKind::UndeclaredContact { finding, diag, .. } => {
+            NodeErrorKind::UndeclaredCoincidence { finding, diag, .. } => {
                 // Exactly-on contact: the verifier's decided-zero
                 // encoding, on the verify door's own site.
                 assert!(diag.margin.is_invalid(), "{diag:?}");

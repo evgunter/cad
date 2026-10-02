@@ -49,8 +49,8 @@ use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
 use topo::{
-    Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
-    DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, VfContact, VvContact,
+    Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, DATUM_UNIT_NORM,
+    FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
 use super::anchor::{self, ProfilePre, ProfileValue};
@@ -3072,7 +3072,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// Each pair of members whose closed boxes meet
 /// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`, handed
 /// only the declared pairs between `m` and `n`. An undeclared touching
-/// contact refuses `UndeclaredContact` through [`union_refusal`]; a
+/// contact refuses `UndeclaredCoincidence` through [`union_refusal`]; a
 /// contradicted declaration refuses as the pair boolean does. A pair
 /// carrying a declaration is run whatever its boxes: the declaration is
 /// a claim to verify, and verifying it here keeps the verdict
@@ -3193,7 +3193,7 @@ fn drop_consumed<'n>(bucket: Vec<SidedPair<'n>>, acc_table: &NameTable) -> Vec<S
 
 /// One declared pair as the recipe carries it: the two SITED
 /// entities and the contact class the author claimed for them.
-type DeclaredPair = ((SitedRef, SitedRef), ContactClass);
+type DeclaredPair = ((SitedRef, SitedRef), topo::BooleanCoincidence);
 
 /// One declared pair as the shared resolver takes it: each side's
 /// name in the table of the operand its SITE picked, and the class.
@@ -3205,7 +3205,7 @@ type DeclaredPair = ((SitedRef, SitedRef), ContactClass);
 type SidedPair<'n> = (
     (topo::Operand, SidedName<'n>),
     (topo::Operand, SidedName<'n>),
-    ContactClass,
+    topo::BooleanCoincidence,
 );
 
 /// One side's name on its way to the shared resolver, and whether
@@ -3554,12 +3554,12 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 ///
 /// Every member pair that can touch was judged before the fold
 /// ([`judge_pairwise_contact`]), so a step that refuses
-/// `UndeclaredContact` or `UndeclarableContact` would tell a caller to
+/// `UndeclaredCoincidence` or `UndeclarableContact` would tell a caller to
 /// declare a contact the judgement already passed. Every other refusal
 /// passes through.
 fn fold_step_refusal(refused: NodeErrorKind) -> NodeErrorKind {
     match refused {
-        NodeErrorKind::UndeclaredContact { .. } | NodeErrorKind::UndeclarableContact { .. } => {
+        NodeErrorKind::UndeclaredCoincidence { .. } | NodeErrorKind::UndeclarableContact { .. } => {
             NodeErrorKind::Naming(names::NamingError::Emission {
                 what: UNION_FOLD_CONTACT_VERDICT,
             })
@@ -3605,7 +3605,7 @@ fn union_refusal<T: geom_core::Bounds>(
     err: verbs::VerbError<T>,
 ) -> NodeErrorKind {
     let refused = refusal_menu((id, a_table), (id, b_table), err);
-    let NodeErrorKind::UndeclaredContact {
+    let NodeErrorKind::UndeclaredCoincidence {
         finding,
         merged: _,
         diag,
@@ -3649,7 +3649,7 @@ fn union_refusal<T: geom_core::Bounds>(
             what: UNION_REFUSAL_FOREIGN,
         });
     };
-    NodeErrorKind::UndeclaredContact {
+    NodeErrorKind::UndeclaredCoincidence {
         finding: Box::new(names::FlushFinding {
             pair: (sa, sb),
             class,
@@ -3753,7 +3753,7 @@ const UNION_REFUSAL_FOREIGN: &str =
 
 /// The refusal-menu lift (register R3, LIB-PYG5; SELECT-DESIGN §3d):
 /// a kernel [`topo::BooleanError::UndeclaredCoincidence`] becomes
-/// [`NodeErrorKind::UndeclaredContact`] carrying the raise site's
+/// [`NodeErrorKind::UndeclaredCoincidence`] carrying the raise site's
 /// face pair as the detector's own [`names::FlushFinding`] shape,
 /// keys resolved through the OPERANDS' name tables. NOTHING is
 /// re-detected and no decide runs on this error path (SEL2). Every
@@ -3801,19 +3801,31 @@ fn refusal_menu<T: geom_core::Bounds>(
             relation,
         });
     };
-    NodeErrorKind::UndeclaredContact {
+    // The class comes from the one place a finding's class is minted,
+    // off the relation the refusal carries: an opposed pair is a `Rest`
+    // contact, an aligned one a continuation. A `Distinct` relation is
+    // no finding (`topo::flush::finding` refuses it as a kernel
+    // defect), so the kernel's own refusal is kept, unmasked, exactly
+    // as for a key that resolves to no name.
+    let Ok(finding) = topo::flush::finding(
+        (na, nb),
+        names::FlushEvidence {
+            relation,
+            // Shared-source pairs never refuse Undeclared (rung 1
+            // answers Ok), so this is always the geometric rung.
+            rung: names::FlushRung::DecidedCoincident,
+        },
+    ) else {
+        return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
+            diag,
+            pair,
+            relation,
+        });
+    };
+    NodeErrorKind::UndeclaredCoincidence {
         // Filled only by [`union_refusal`].
         merged: Box::new((Vec::new(), Vec::new())),
-        finding: Box::new(names::FlushFinding {
-            pair: (na, nb),
-            class: names::ContactClass::Rest,
-            evidence: names::FlushEvidence {
-                relation,
-                // Shared-source pairs never refuse Undeclared (rung 1
-                // answers Ok), so this is always the geometric rung.
-                rung: names::FlushRung::DecidedCoincident,
-            },
-        }),
+        finding: Box::new(finding),
         diag,
     }
 }
@@ -3905,6 +3917,11 @@ fn resolve_declarations<'n>(
             );
             unsupported((k1.kind(), k2.kind()))
         };
+        // A carried row is a CONTACT; a continuation is a relation
+        // between two faces and has no vertex reading, so a vertex step
+        // declared as one is an unsupported pair (the one check, read by
+        // both vertex arms).
+        let vertex_class = class.contact();
         match step {
             DeclaredStep::CrossFaces(sides) => {
                 let (a, b) = sides.a_then_b(k1, k2);
@@ -3915,6 +3932,9 @@ fn resolve_declarations<'n>(
                     .push(FacePairDeclaration::new(fa, fb, class));
             }
             DeclaredStep::SameVv(side) => {
+                let Some(class) = vertex_class else {
+                    return Err(unsupported((n1.kind, n2.kind)));
+                };
                 let (Some(va), Some(vb)) = (k1.vertex(), k2.vertex()) else {
                     return Err(broke("same-operand vertex-vertex"));
                 };
@@ -3925,6 +3945,9 @@ fn resolve_declarations<'n>(
                 });
             }
             DeclaredStep::SameVf(side, roles) => {
+                let Some(class) = vertex_class else {
+                    return Err(unsupported((n1.kind, n2.kind)));
+                };
                 let (v, f) = roles.vertex_then_face(k1, k2);
                 let (Some(vertex), Some(face)) = (v.vertex(), f.face()) else {
                     return Err(broke("same-operand vertex-face"));
@@ -4647,7 +4670,7 @@ mod route_tests {
     use crate::resolve::{Diagnosis, FoldConsumption, ResolveError};
     use crate::{DocEdit, ProfileDoc};
     use geom_core::Tol;
-    use topo::{ContactClass, Operand};
+    use topo::{BooleanCoincidence, Operand};
 
     /// A live document and `n` live node ids standing in for a union's
     /// members, plus one more for the union itself.
@@ -4712,8 +4735,8 @@ mod route_tests {
         )
     }
 
-    fn pair(a: SitedRef, b: SitedRef) -> ((SitedRef, SitedRef), ContactClass) {
-        ((a, b), ContactClass::Rest)
+    fn pair(a: SitedRef, b: SitedRef) -> ((SitedRef, SitedRef), BooleanCoincidence) {
+        ((a, b), BooleanCoincidence::REST)
     }
 
     /// **The routing reads the SITE, not the name's minting node.**
@@ -4953,7 +4976,7 @@ mod route_tests {
         (
             (a.0, SidedName::Rewritten(a.1)),
             (b.0, SidedName::Rewritten(b.1)),
-            ContactClass::Rest,
+            BooleanCoincidence::REST,
         )
     }
 

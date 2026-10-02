@@ -321,7 +321,11 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         },
     )
     .unwrap();
-    let err = topo::union(&a, &b, Tol::witness())
+    // The coaxial walls left on one carrier are declared as what the
+    // detector finds them to be, so the op reaches its crossing layer.
+    let found = topo::flush::find_flush_candidates(&a, &b, Tol::witness()).unwrap();
+    let flush = topo::flush::declare_all(&found);
+    let err = topo::union_with(&a, &b, &flush, Tol::witness())
         .expect_err("a NURBS wall has no crossing layer in this build");
     assert!(
         matches!(err, BooleanError::CurvedBooleanUnsupported { .. }),

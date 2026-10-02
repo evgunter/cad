@@ -39,8 +39,8 @@
 //! not carry `test_support_impl`'s `debug_assertions` arm.
 //!
 //! The family is here **whole**, which is that rule's family clause and
-//! not its narrowest-home clause: `geometric_cube`,
-//! `describe_as_intersections` and `face_surface_of_he` are what
+//! not its narrowest-home clause: `geometric_cube` and
+//! `describe_as_intersections` are what
 //! `crate::cert_m3r1_probes` names from `src/`, and the builders,
 //! bundles and assertions they share a vocabulary with travel with
 //! them rather than being split across two homes.
@@ -663,18 +663,6 @@ pub fn brick<T: geom_core::Decide>(
     .body
 }
 
-/// The surface carried by the face `he` bounds — the one step both
-/// [`describe_as_intersections`] and every caller that has to name an
-/// edge's two adjacent surfaces walks: [`Body::face_of_half_edge`] and
-/// then that face's surface key.
-pub fn face_surface_of_he<T: Real>(
-    body: &Body<T>,
-    he: crate::entity::HalfEdgeKey,
-) -> crate::geometry::SurfaceKey {
-    let face = body.face_of_half_edge(he).unwrap();
-    body.get_face(face).unwrap().surface
-}
-
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
 /// D6): describes every definitely-transverse edge as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the
@@ -690,8 +678,9 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: 
     let band = Band::linear(tol).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
-        let s1 = face_surface_of_he(body, edge.he_plus);
-        let s2 = face_surface_of_he(body, edge.he_minus);
+        let (s1, s2) = crate::readback::edge_sides(body, edge_key)
+            .unwrap()
+            .surfaces();
         let start = body.get_half_edge(edge.he_plus).unwrap().start;
         let end = body.half_edge_end(edge.he_plus).unwrap();
         let p0 = *body

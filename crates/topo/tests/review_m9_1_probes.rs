@@ -14,9 +14,9 @@ use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::{
-    Body, CarrierDesc, CarrierEqError, CarrierRelation, ContactClass, ContactRecords,
-    ContactRefusal, ContactVerdict, CurveContact, FacePairDeclaration, PatchContact,
-    ValidationError, carrier_eq, validate_pseudomanifold,
+    Body, BooleanCoincidence, CarrierDesc, CarrierEqError, CarrierRelation, ContactClass,
+    ContactRecords, ContactRefusal, ContactVerdict, CurveContact, FacePairDeclaration,
+    PatchContact, ValidationError, carrier_eq, validate_pseudomanifold,
 };
 
 fn band() -> Band {
@@ -445,12 +445,24 @@ fn probe_declared_pair_direction_still_normalized() {
         topo::union_with(&a, &b, &decls, Tol::witness()).is_ok(),
         "declared flush pair verifies through the map exactly as through the set"
     );
-    // Class mint honesty: every declaration built by the old helpers
-    // is Rest, spelled out — no silent default hides in the map.
-    assert!(
+    // Class mint honesty: the helper spells each class from the sense
+    // the verifier decided — the mating plane is the one opposed pair
+    // (Rest), the four stacked walls are continuations — so no silent
+    // default hides in the map.
+    let count = |class| {
         decls
             .coincident_faces
             .iter()
-            .all(|d| d.class == ContactClass::Rest)
+            .filter(|d| d.class == class)
+            .count()
+    };
+    assert_eq!(
+        (
+            count(BooleanCoincidence::REST),
+            count(BooleanCoincidence::Continuation)
+        ),
+        (1, 4),
+        "{:?}",
+        decls.coincident_faces
     );
 }
