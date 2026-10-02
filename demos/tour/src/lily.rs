@@ -2080,6 +2080,49 @@ fn wall<T, E: core::fmt::Debug>(
     crate::walls::wall("lily", n, what, outcome, pinned, retire);
 }
 
+/// Walls 14 and 15: a lanceolate blade the gate refuses on the
+/// quadrature's REPORTING budget. The refusal is the reporting target's,
+/// `1024·ε`, so it is pinned at the default ε and every tighter one;
+/// at a looser ε the target clears the round-0 width and the same
+/// blade certifies, which is asserted rather than skipped, so a wall
+/// that moved at either end reds.
+fn budget_wall(
+    n: u32,
+    what: &str,
+    outcome: Result<(), Vec<pncad::topo::ValidationError>>,
+    retire: &str,
+    tol: Tol,
+) {
+    let eps = tol.get().eps;
+    if eps > pncad::tolerance::DEFAULT_EPS {
+        assert!(
+            outcome.is_ok(),
+            "wall {n} ({what}) refuses at ε = {eps:e}, looser than the default: \
+             {outcome:?} — the wall moved; re-derive it"
+        );
+        println!("   wall {n} — {what}: certifies at ε = {eps:e}; refused at the default ε");
+        return;
+    }
+    wall(
+        n,
+        what,
+        outcome,
+        |e| {
+            matches!(
+                e[..],
+                [pncad::topo::ValidationError::VolumeUncomputable {
+                    source: pncad::topo::MassPropsError::Face {
+                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                        ..
+                    },
+                    ..
+                }]
+            )
+        },
+        retire,
+    );
+}
+
 /// The lily's frontier, run live: every shape the plant WANTED and the
 /// kernel would not state, attempted for real and pinned by its own
 /// typed refusal.
@@ -2487,11 +2530,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     quadrature stops after round 0 against the REPORTING target
     //     (`rounds: 1`, `target_len` = 1024·ε) on a solid of 3.1e-3
     //     m³ whose sign is not in doubt. The scene fits its swept
-    //     leaves at degree 2, where the gate certifies a number at the
-    //     default ε
+    //     leaves at degree 2, where the gate certifies
     //     (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`).
-    //     At ε = 1e-6 the cubic certifies too, so this wall, like
-    //     every tour lane, is pinned at the default ε.
     let cubic = try_leaf::<S>(
         LEAF_B.base,
         LEAF_B.dir,
@@ -2504,24 +2544,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     )
     .expect("the cubic leaf sweeps")
     .body;
-    wall(
+    budget_wall(
         14,
         "fit the lanceolate swept leaf's skin at the cubic degree the lofted \
          blades use, and validate it",
         pncad::topo::validate_geometric_certificate(&cubic, tol).map(|_| ()),
-        |e| {
-            matches!(
-                e[..],
-                [pncad::topo::ValidationError::VolumeUncomputable {
-                    source: pncad::topo::MassPropsError::Face {
-                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
-                        ..
-                    },
-                    ..
-                }]
-            )
-        },
         "fit the swept leaves at BLADE_V_DEGREE",
+        tol,
     );
 
     // 15. The lofted blades with the swept leaves' lens. They skin,
@@ -2533,23 +2562,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     three, which admit a bracket about 2.5x wide; none certifies
     //     a number. So the lofted blades keep their straight
     //     kite-and-rectangle sections.
-    wall(
+    budget_wall(
         15,
         "loft the long basal leaf with lanceolate sections, and validate it",
-        try_lofted_lance::<S>(tol).map(|_| ()),
-        |e| {
-            matches!(
-                e[..],
-                [pncad::topo::ValidationError::VolumeUncomputable {
-                    source: pncad::topo::MassPropsError::Face {
-                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
-                        ..
-                    },
-                    ..
-                }]
-            )
-        },
+        try_lofted_lance::<S>(tol),
         "give the long leaf and the sepals lanceolate sections",
+        tol,
     );
 
     println!(

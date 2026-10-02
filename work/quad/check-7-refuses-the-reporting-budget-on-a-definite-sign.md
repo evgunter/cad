@@ -93,9 +93,9 @@ gate.
 ## Reproduce
 
 `cargo test --release --bin demo-tour the_wall_list_still_stands`
-in `demos/tour` runs walls 14 and 15. Wall 14 does NOT refuse at
-ε = 1e-6 (the degree-3 swept blade certifies there), so the walls are
-pinned at the default ε, which is the ε every tour lane runs.
+in `demos/tour` runs walls 14 and 15. Neither refuses at
+ε = 1e-6 (both blades pass the gate there), so the walls are
+pinned at the default ε and tighter, and assert the pass at 1e-6.
 
 ## What it costs the scene
 
