@@ -2,7 +2,9 @@
 id: split-plane-normal-and-slab-axis-carry-unitness-as-prose
 kind: issue
 title: SplitPlane.normal and slab_extent's axis carry a unit precondition as prose — the class the geom-core witness now types at function boundaries
-status: open
+status: closed
+closed: 2026-10-02
+pr: 3809
 opened: 2026-09-15
 priority: P3
 cost: E
