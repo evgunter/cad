@@ -367,6 +367,10 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
+    session.perform(SessionOp::SetLabel {
+        node: split,
+        label: Some(pncad::document::Label::new("halves").expect("a label")),
+    });
     session.pump();
     let face = face_where(&session, split, |kind, _| kind == SurfaceKind::Plane);
     let picked = FaceSelection {
@@ -378,6 +382,14 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
     assert!(
         matches!(&seat, Err(FaceFrameFault::NotOneBody { at }) if at.id() == split),
         "the form declines it: {seat:?}"
+    );
+    let said = seat
+        .as_ref()
+        .map_err(ToString::to_string)
+        .expect_err("refused");
+    assert!(
+        said.starts_with("Split \"halves\" ("),
+        "it names the split as labelled: {said}"
     );
     let refused = session.perform(SessionOp::AddDatum {
         datum: DatumSpec::FaceFrame {

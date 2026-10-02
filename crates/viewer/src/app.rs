@@ -1727,7 +1727,9 @@ impl ViewerApp {
             // gather" is true until another pair lands.
             //
             // Which faults reach it is `frame::badge_site`'s.
-            if let Some(badge) = frame::product_badge(self.session.product_fault()) {
+            if let Some((landed, _)) = self.session.landed_pair()
+                && let Some(badge) = frame::product_badge(self.session.product_fault(), landed)
+            {
                 draw_badge(ui, &self.theme, &badge);
             }
             // The display budget's: shown while the δ on screen is

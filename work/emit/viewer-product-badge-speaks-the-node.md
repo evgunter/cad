@@ -2,19 +2,19 @@
 id: viewer-product-badge-speaks-the-node
 kind: unit
 title: The product badge and the scene's NoProduct speak the gather's refusal from the session's document
-status: parked
+status: review
+pr: 3806
 opened: 2026-10-02
 priority: P3
 cost: E
-blocked_on: [3794]
 parent: node-labels-are-document-data
 refs: [viewer-refusals-speak-the-node]
 ---
 
 
-Split from `viewer-refusals-speak-the-node`, parked on PR 3794 (`product-refusals-speak-the-node`), which gives `ProductError` its `Say` and `spoken(doc)`. Until it lands there is nothing to call.
+Split from `viewer-refusals-speak-the-node`, parked on PR 3794 (`product-refusals-speak-the-node`) until `ProductError` had `spoken(doc)`. 3794 merged while PR 3806 was in review, and the two reads were small, so 3806 carries them:
 
-Two reads, both of the gather's refusal by its `Display` (tags):
+- `frame::product_badge(fault, doc)` speaks the gather's refusal from the landed document it was gathered from (`DocSession::landed_pair`), not the committed one: the fault belongs to the landed run, and the committed document may be one an `Open` replaced since.
+- `scene.rs`'s `SceneError::NoProduct` holds the `ProductError` beside the `HeldNodes` its sentence names (`held_by`, at `scene::product_body`/`product_of_evaluation`, where the document is in hand). `frame::scene_badge` keeps it until a rebuild succeeds; every landing rebuilds, so a rename that lands replaces the sentence.
 
-- `frame::product_badge` (`fault.to_string()`), over the session's `product_fault`. The badge is re-read every frame from session state, so it speaks from the document that fault was gathered from: the landed run's (`DocSession::landed_pair`), not the committed one, which may be an edit ahead.
-- `scene.rs`'s `SceneError::NoProduct` (its `Display`, `write!(f, "{error}")`), raised by `scene::build_from`/`build_landed` from `product(doc, …)`, where `doc` is in hand. Speak it at the raise: `NoProduct` keeps the error and the `HeldNodes` its sentence names (`held_by`), as `FaceFrameFault::Unresolved` does. `frame::scene_badge` keeps the refusal until a rebuild succeeds; every landing rebuilds, so a rename (an edit that lands) replaces the sentence rather than leaving its label standing.
+Pinned by `node_labels::the_gathers_refusal_speaks_its_nodes`.

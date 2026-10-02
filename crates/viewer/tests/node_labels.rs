@@ -659,3 +659,35 @@ fn the_path_editors_refusal_speaks_its_node() {
         format!("Extrude \"plate\" ({}) is not a profile", tag(extrude.0))
     );
 }
+
+/// **The gather's refusal speaks its nodes**, on the toolbar badge and
+/// in the scene's refusal alike. Red if either says a node by its tag
+/// alone.
+#[test]
+fn the_gathers_refusal_speaks_its_nodes() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("viewer-node-labels-product", tol);
+    let doc = relabelled(&doc, extrude, "plate", tol);
+    let spoken = format!("Extrude \"plate\" ({})", tag(extrude.0));
+    let collision = pncad::document::ProductError::Naming {
+        node: extrude,
+        name: Box::new(pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Face,
+            node: extrude,
+            path: Vec::new(),
+        }),
+    };
+    let badge = viewer::frame::product_badge(Some(&collision), &doc).expect("a collision badges");
+    assert!(badge.label().contains(&spoken), "{}", badge.label());
+
+    let (broken, failed, _) = common::broken_document(tol);
+    let broken = relabelled(&broken, failed, "pocket", tol);
+    let refused =
+        viewer::scene::product_body(&broken, tol).expect_err("a failed root gathers nothing");
+    assert!(
+        refused
+            .to_string()
+            .contains(&format!("Extrude \"pocket\" ({})", tag(failed.0))),
+        "{refused}"
+    );
+}

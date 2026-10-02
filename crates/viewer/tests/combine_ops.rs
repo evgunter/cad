@@ -3205,9 +3205,22 @@ fn duplicating_a_several_body_value_is_refused() {
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
+    session.perform(SessionOp::SetLabel {
+        node: placed,
+        label: Some(pncad::document::Label::new("moved").expect("a label")),
+    });
     session.pump();
     let before = session.committed_doc().clone();
     let out = session.perform(SessionOp::Duplicate { input: placed });
+    let said = out
+        .refusal
+        .as_ref()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    assert!(
+        said.starts_with("Transform \"moved\" ("),
+        "it names the input as labelled: {said}"
+    );
     assert!(
         matches!(
             &out.refusal,

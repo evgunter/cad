@@ -535,8 +535,16 @@ fn a_driven_argument_refuses_to_load() {
         text: "side".to_owned(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.perform(SessionOp::SetLabel {
+        node: profile,
+        label: Some(pncad::document::Label::new("outline").expect("a label")),
+    });
     match sketch::held_loops(session.committed_doc(), profile) {
         Err(refusal @ HeldRefusal::Driven { .. }) => {
+            assert!(
+                refusal.to_string().starts_with("Profile \"outline\" ("),
+                "it names the profile as labelled: {refusal}"
+            );
             let HeldRefusal::Driven { node, slots } = &refusal else {
                 unreachable!("matched above")
             };
@@ -674,6 +682,10 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
         }],
         Notation::CANONICAL,
     );
+    session.perform(SessionOp::SetLabel {
+        node: profile,
+        label: Some(pncad::document::Label::new("outline").expect("a label")),
+    });
     let loaded = program(&session, profile).clone();
     let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     // Something else moves corner 2 first.
@@ -697,7 +709,8 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
         loops: lowered(&held, Notation::CANONICAL),
     });
     assert!(
-        matches!(&out.refusal, Some(Refusal::ProfileEditStale { node }) if node.id() == profile),
+        matches!(&out.refusal, Some(Refusal::ProfileEditStale { node }) if node.id() == profile
+            && node.to_string().starts_with("Profile \"outline\" (")),
         "{:?}",
         out.refusal
     );

@@ -720,7 +720,10 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             "so do the advisory checks",
         ),
         (
-            frame::product_badge(Some(&collision)),
+            frame::product_badge(
+                Some(&collision),
+                &Doc::empty_derived("badge", Tol::witness()),
+            ),
             frame::Subject::Document,
             "and the gather's verdict on the landed pair",
         ),
@@ -1247,7 +1250,10 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
          window is where that distinction is drawn"
     );
     assert_eq!(frame::delta_badge(None, M), None, "the user's own δ");
-    assert_eq!(frame::product_badge(None), None);
+    assert_eq!(
+        frame::product_badge(None, &Doc::empty_derived("badge", Tol::witness())),
+        None
+    );
     assert_eq!(
         frame::prefs_badge(None),
         None,
@@ -1502,7 +1508,13 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
             "at rest",
             frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
         ),
-        ("product", frame::product_badge(Some(&collision))),
+        (
+            "product",
+            frame::product_badge(
+                Some(&collision),
+                &Doc::empty_derived("badge", Tol::witness()),
+            ),
+        ),
         ("δ", frame::delta_badge(Some(&budget), M)),
         (
             "preferences",

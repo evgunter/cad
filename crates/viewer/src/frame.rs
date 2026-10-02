@@ -2349,7 +2349,8 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 }
 
 /// **What the chrome badges about the landed product**, and `None`
-/// when there is nothing to say.
+/// when there is nothing to say. Its nodes are said as `doc` holds
+/// them: the landed document the gather was taken of.
 ///
 /// The gather's verdict is a READ: computed once when a pair lands,
 /// held by the session, and consulted by a reader deciding what to do
@@ -2363,7 +2364,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 /// and that tone's stated contract is that no MEANING rests on its
 /// colour — every badge using it says its own words, and the colour
 /// carries only salience. This badge satisfies it,
-/// because [`ProductError`]'s `Display` opens every arm with
+/// because [`ProductError`]'s sentence opens every arm with
 /// "product: ".
 ///
 /// It is **not** simply louder than the line it left, and the argument
@@ -2381,10 +2382,10 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 /// fault at all, are both `None` here, and the argument for each is
 /// there. What is left is what this channel is FOR — the
 /// gather-level faults no per-node badge can carry.
-pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
+pub fn product_badge(fault: Option<&ProductError>, doc: &Doc<ProfileProgram>) -> Option<Badge> {
     fault
         .filter(|fault| badge_site(fault.kind()) == BadgeSite::Frame)
-        .map(|fault| Badge::read(Subject::Document, fault.to_string(), Tone::Actionable))
+        .map(|fault| Badge::read(Subject::Document, fault.spoken(doc), Tone::Actionable))
 }
 
 /// **What the chrome badges about the scene the picture is drawn
@@ -2913,6 +2914,12 @@ mod tests {
 
     use bvh::Aabb;
     use pncad::document::{NodeStanding, RecipeNodeId, SpokenNode};
+
+    /// A document holding no node, so every node a badge names is said
+    /// by its tag.
+    fn empty_doc() -> Doc<ProfileProgram> {
+        Doc::empty_derived("frame-tests", pncad::geom_core::Tol::witness())
+    }
     use pncad::prelude::{EntityKind, StableName};
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
@@ -3187,10 +3194,11 @@ mod tests {
                 path: Vec::new(),
             }),
         };
-        let badge = product_badge(Some(&collision)).expect("a naming collision badges");
+        let badge =
+            product_badge(Some(&collision), &empty_doc()).expect("a naming collision badges");
         assert_eq!(
             badge.label(),
-            collision.to_string(),
+            collision.spoken(&empty_doc()),
             "the fault renders itself"
         );
         assert_eq!(
@@ -3234,12 +3242,12 @@ mod tests {
                 "which channel reports it: {quiet}"
             );
             assert_eq!(
-                product_badge(Some(&quiet)),
+                product_badge(Some(&quiet), &empty_doc()),
                 None,
                 "another channel already carries this: {quiet}"
             );
         }
-        assert_eq!(product_badge(None), None);
+        assert_eq!(product_badge(None, &empty_doc()), None);
 
         // And the classes this channel is FOR, by name rather than by
         // the one sample above — the half of the policy a badge that
