@@ -71,10 +71,11 @@ edit one scene file never run at once.
   closed form; the scene asserts the same, through its own build.
 - **Gates**: hosted CI is the record. The tour's suite and clippy run
   on the PR when the diff touches `demos/tour`; renders do not. A unit
-  that moves frames dispatches `render.yml` on its branch (the GitHub
-  MCP `actions_run_trigger`, or `local-scripts/render-hosted.sh` where
-  `gh` exists), pulls the committed cells, and LOOKS at them before
-  the PR is marked ready; the PR body says what moved and why.
+  that moves frames pushes a commit whose subject line contains `[render]`
+  (agents cannot dispatch `render.yml` themselves: the integration
+  answers 403), waits for the render run and that commit's CI, which
+  run side by side, pulls the committed cells, and LOOKS at them before the PR is merged;
+  the PR body says what moved and why.
 - **README**: each unit rewrites its own stops-table row in
   `demos/README.md` and nothing else there, so concurrent lanes merge
   cleanly.

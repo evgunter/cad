@@ -477,6 +477,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the standing doors' as-drawn census, code view
     },
     Entry {
+        path: "tools/k-lint/tests/construction_coupled.rs",
+        disposition: Shared, // rule (5)'s pin on the fitted lane: code view to locate, literal view to read
+    },
+    Entry {
         path: "tools/k-lint/tests/predicate_roster.rs",
         disposition: Shared, // roster pinned to the kernel's mint: code view to locate, literal view to read
     },

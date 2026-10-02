@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: thirteen SsiError arms still end in no recourse (SsiError::ending gives None), each needing its decision named
 status: open
 opened: 2026-10-01
+priority: P2
+cost: M
 ---
 
 (SSI implementer `ssi-mend`, from the §5 sweep of PR "SSI: every march
@@ -30,14 +32,14 @@ check, not a ruling):
 | `TubeLadderEmpty` | every ladder rung below the floor | the carrier's extent against ε (a scale lever) |
 | `TubeProbeSilent` | no rung answered | kernel defect or last resort |
 | `FootPointInconclusive` | a certified foot point would not converge | last resort (the projection is an approximation) |
-| `Fit(FitError)` | the fitting stack refused the trace | by the `FitError` it carries |
+| `Fit(FitError)` | the fitting stack refused the trace | by the `FitError` it carries (`TooFewPoints` has one: a kernel defect) |
 | `UnsupportedCertificate` | a documented per-arm boundary | a plain "no way through" ending |
 | `TubeDegenerate` | the wall is constant across the locus, or the pcurve tangent is unusable | geometry lever for the wall, defect for the pcurve |
 | `WrongLane` | the door was handed the wrong kinds | the caller's (pass the kinds the door traces) |
 | `Band(BandError)` | the band could not be built | the caller's knobs |
 
 `ChartSpeed`, `OperandNotFinite`, `DomainUnusable`, `FloorUnresolvable`, `SettlingUnresolvable`,
-`BranchUndersampled`, `StepCollapsed`, `StepUnusable`, `FitSampleBudget`,
+`StepCollapsed`, `StepUnusable`, `FitSampleBudget`, `TraceUnresolved`,
 `TransversalityBand`, `PairTangent`, `SelfCrossingLocus`,
 `CertificateLimb`, `TubeStraddles`, `CertificateEscalated`, `Escalated`,
 `MarchTolMismatch` and `InvalidMarchTol` have endings.
