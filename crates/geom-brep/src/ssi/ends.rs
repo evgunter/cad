@@ -6,12 +6,13 @@
 //! known before any march, at ε, whatever the caller's extent:
 //!
 //! - From a crossing `A`, the march leaves inward with its step capped
-//!   at `|AB|/`[`SHORT_BRANCH_STEPS`], `B` the crossing nearest `A`, so
-//!   the branch it reaches is cut into at least that many steps. It
-//!   stops at its first state outside the rectangle, and that step is
-//!   matched to the one crossing on the side it left, within the step's
-//!   reach. A match that is missing or doubled contradicts two passes
-//!   that each certified their part, and refuses as the kernel's
+//!   at `|AB|/`[`SHORT_BRANCH_STEPS`], `B` the nearest crossing not yet
+//!   used, so the branch it reaches is cut into at least that many
+//!   steps. It stops at its first state outside the rectangle, and that
+//!   step is matched to the unused crossing on the side it left within
+//!   the step's reach, the one nearest where the step's chord meets the
+//!   side where two are (branches converging on a side). A march that leaves where no
+//!   crossing matches refuses as the march's limit
 //!   ([`SsiError::CrossingUnmatched`]).
 //! - Where `|AB|` is below [`SSI_SHORT_CLIP`]`·Kε`, no step of it can
 //!   clear the band, so the candidate is not marched: it is the Hermite
@@ -103,7 +104,7 @@ fn distance<S: LocalSystem<3, 4>>(sys: &S, a: &[f64; 4], b: &[f64; 4]) -> f64 {
 /// How far the tangent `d` at state `x` points into the wall's
 /// rectangle: the sum of its chart components across every side `x`
 /// sits on.
-fn inward(x: &[f64; 4], d: &[f64; 4], ctx: &MarchContext<4>) -> f64 {
+fn inwardness(x: &[f64; 4], d: &[f64; 4], ctx: &MarchContext<4>) -> f64 {
     (2..4)
         .map(|i| {
             if x[i] == ctx.domain[i][0] {
@@ -126,14 +127,33 @@ fn tangent(
     into: bool,
 ) -> [f64; 4] {
     let d = Svd::<3, 4>::new(sys.jacobian(x)).null_direction();
-    if (inward(x, &d, ctx) >= 0.0) == into {
+    if (inwardness(x, &d, ctx) >= 0.0) == into {
         d
     } else {
         d.map(|v| -v)
     }
 }
 
-impl Ends<'_> {
+impl<'a> Ends<'a> {
+    /// The ends' reader for one plane × NURBS call.
+    pub(crate) fn of(
+        sys: &'a ParametricPairR4<'a>,
+        ctx: MarchContext<4>,
+        plane: &'a Surface<f64>,
+        wall: &'a SsiOperand<'a, f64>,
+        domain: &super::SsiDomain,
+        band: Band,
+    ) -> Self {
+        Self {
+            sys,
+            ctx,
+            plane,
+            wall,
+            extent: domain.extent,
+            band,
+        }
+    }
+
     /// **Every open branch**, each from a crossing to its partner, in the
     /// crossings' order (D9).
     ///
@@ -193,7 +213,7 @@ impl Ends<'_> {
     ) -> Result<(usize, Vec<[f64; 4]>, f64), SsiError> {
         let cap = Real::min(SSI_STEP_MAX * self.extent, near / SHORT_BRANCH_STEPS as f64);
         let d = Svd::<3, 4>::new(self.sys.jacobian(&a.state)).null_direction();
-        let direction = if inward(&a.state, &d, &self.ctx) >= 0.0 {
+        let direction = if inwardness(&a.state, &d, &self.ctx) >= 0.0 {
             1.0
         } else {
             -1.0
@@ -246,21 +266,33 @@ impl Ends<'_> {
         // the arc of the step: its chord, with the band for the ends'
         // settling.
         let reach = 1.1 * distance(self.sys, &inside, &outside) + self.band.escalate();
-        let found: Vec<usize> = crossings
+        // The step's chord where it meets the side it crossed: the exit
+        // point's estimate, from which the nearest candidate is taken.
+        // Two branches converging on a side can both have a crossing in
+        // the window; picking the nearer is a candidate's choice, trusted
+        // for nothing, and the certificate decides it.
+        let exit = |i: usize, end: f64| {
+            let t = (end - inside[i]) / (outside[i] - inside[i]);
+            core::array::from_fn::<f64, 4, _>(|k| inside[k] + (outside[k] - inside[k]) * t)
+        };
+        let found = crossings
             .iter()
             .enumerate()
-            .filter(|(j, c)| {
-                !used[*j]
-                    && crossed.iter().any(|&(i, end)| c.state[i] == end)
-                    && distance(self.sys, &inside, &c.state) <= reach
+            .filter_map(|(j, c)| {
+                if used[j] || distance(self.sys, &inside, &c.state) > reach {
+                    return None;
+                }
+                crossed
+                    .iter()
+                    .find(|&&(i, end)| c.state[i] == end)
+                    .map(|&(i, end)| (j, distance(self.sys, &exit(i, end), &c.state)))
             })
-            .map(|(j, _)| j)
-            .collect();
-        match found.as_slice() {
-            [b] => Ok(*b),
-            _ => Err(SsiError::CrossingUnmatched {
+            .min_by(|x, y| x.1.total_cmp(&y.1).then(x.0.cmp(&y.0)));
+        match found {
+            Some((b, _)) => Ok(b),
+            None => Err(SsiError::CrossingUnmatched {
                 from: a.map(|c| c.at),
-                matches: found.len(),
+                matches: 0,
             }),
         }
     }

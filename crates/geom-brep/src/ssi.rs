@@ -516,10 +516,11 @@ pub enum SsiError {
         /// The verdict on the slope, levered by the feature extent.
         verdict: BandVerdict,
     },
-    /// The surfaces are tangent along a side of the wall that lies
-    /// within the band of the plane: the wall's slope across the side
-    /// never clears the band over the strip beside it
-    /// (`ssi_boundary_strip`). The C7 regime, as
+    /// A side of the wall lies within the band of the plane, and the
+    /// wall's certified slope across it over the strip beside it does
+    /// not clear the band (`ssi_boundary_strip`). The surfaces may be
+    /// tangent along the side, or the bound too loose to tell; either
+    /// way it is refused toward the C7 regime, as
     /// [`SsiError::TransversalityBand`] is.
     BoundaryTangent {
         /// The side.
@@ -536,15 +537,31 @@ pub enum SsiError {
         /// The parameter interval it was isolated to.
         bracket: (f64, f64),
     },
-    /// A march from a crossing left the wall where no crossing, or more
-    /// than one, matches its exit; or a crossing has no partner. Two
-    /// passes that each certified their part disagree.
+    /// A march from a crossing left the wall where no crossing matches
+    /// its exit, or a crossing has no partner. The march is a candidate
+    /// generator, trusted for nothing, so this is its limit, not a
+    /// contradiction between certified passes.
     CrossingUnmatched {
         /// The crossing the branch started from, or `None` for a branch
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
         /// How many crossings matched.
         matches: usize,
+    },
+    /// A side or corner of the wall lies within the band of the plane,
+    /// and no rung of the ladder bounds the region the intersection may
+    /// occupy there by [`boundary::SSI_REGION_REACH_MAX`]`·Kε`: the
+    /// certified bound on how far it may run from `side` is `reach`.
+    /// The intersection may run nearly along the wall's edge, which the
+    /// kernel neither reports as a region nor traces; refused toward
+    /// the C7 regime.
+    RegionUnbounded {
+        /// The side the intersection may run along.
+        side: ChartSide,
+        /// The smallest certified reach any rung gave, in metres.
+        reach: f64,
+        /// The largest reach a region may claim, in metres.
+        limit: f64,
     },
     /// A branch whose ends lie less than [`SSI_SHORT_CLIP`]`·Kε` apart
     /// took the Hermite candidate through them, and the certificate
@@ -873,9 +890,10 @@ impl core::fmt::Display for SsiError {
             }
             Self::BoundaryTangent { side, verdict } => write!(
                 f,
-                "ssi: {side} lies within the tolerance of the plane, and the wall meets the \
-                 plane tangentially across it (slope margin {} m): the tangency regime \
-                 (TangentIntersection), not a region to report",
+                "ssi: {side} lies within the tolerance of the plane, and the wall's certified \
+                 slope across it does not clear the tolerance band (slope margin {} m): the \
+                 surfaces may be tangent along that edge, which is not shown, and the pass does \
+                 not report a region there",
                 verdict.margin_text()
             ),
             Self::EndNotOnLocus { side, bracket } => write!(
@@ -894,6 +912,12 @@ impl core::fmt::Display for SsiError {
                     " matched {matches} crossings of the wall's boundary where it should match one"
                 )
             }
+            Self::RegionUnbounded { side, reach, limit } => write!(
+                f,
+                "ssi: the plane lies within the tolerance of the wall near {side}, and the \
+                 intersection there is bounded only to within {reach:e} m of it, beyond the \
+                 {limit:e} m a boundary region may claim: it may run nearly along that edge"
+            ),
             Self::ShortBranchUncertified { length, limb, .. } => {
                 let refused = match **limb {
                     Self::CertificateLimb { limb, .. }
@@ -1083,9 +1107,7 @@ impl SsiError {
                 | FitError::Lsq(_),
             ) => Unsized::LastResort.recourse(RefusedArm::SignCertain, reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
-            Self::BoundaryGraze { side, verdict, .. } => {
-                graze_decision(*side).recourse(verdict.arm(), reading)
-            }
+            Self::BoundaryGraze { verdict, .. } => GRAZE.recourse(verdict.arm(), reading),
             // The surfaces' tangency along the side: the march's own
             // transversality decision, read across the wall's edge.
             Self::BoundaryTangent { verdict, .. } => {
@@ -1097,7 +1119,19 @@ impl SsiError {
             Self::EndNotOnLocus { .. } => {
                 Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
             }
-            Self::CrossingUnmatched { .. } => defect_ending(reading).to_owned(),
+            // The march is untrusted: a march that loses its branch is the
+            // march's limit, whatever it matched.
+            Self::CrossingUnmatched { .. } => {
+                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+            }
+            // The intersection may run along the wall's edge: the
+            // transversality decision's lever, as the march's own near
+            // tangency.
+            Self::RegionUnbounded { .. } => crate::certify::recourse(
+                CertCheck::Transversality,
+                RefusedArm::SignCertain,
+                reading,
+            ),
             Self::ShortBranchUncertified { verdict, .. } => {
                 SHORT_BRANCH.recourse(verdict.arm(), reading)
             }
@@ -1523,49 +1557,16 @@ pub(crate) const TRACE_UNRESOLVED_RECOURSE: &str = "Recourse: for a curve longer
      tolerance, name a feature extent near its length; otherwise, name a slab that holds the \
      intersection clear of its faces";
 
-/// The graze decision (`ssi_boundary_crossing`) at a side, whose lever
-/// names it: a crossing of the wall's edge passes on a slope clear of
-/// the band.
-fn graze_decision(side: Option<ChartSide>) -> SizedDecision {
-    let lever = match side {
-        None => "move the plane or the curve so they cross at a clear angle",
-        Some(ChartSide {
-            fixed: ChartAxis::U,
-            end: ChartEnd::Low,
-        }) => {
-            "move the plane or the wall so the intersection crosses the wall's u = low side at a \
-             clear angle"
-        }
-        Some(ChartSide {
-            fixed: ChartAxis::U,
-            end: ChartEnd::High,
-        }) => {
-            "move the plane or the wall so the intersection crosses the wall's u = high side at a \
-             clear angle"
-        }
-        Some(ChartSide {
-            fixed: ChartAxis::V,
-            end: ChartEnd::Low,
-        }) => {
-            "move the plane or the wall so the intersection crosses the wall's v = low side at a \
-             clear angle"
-        }
-        Some(ChartSide {
-            fixed: ChartAxis::V,
-            end: ChartEnd::High,
-        }) => {
-            "move the plane or the wall so the intersection crosses the wall's v = high side at a \
-             clear angle"
-        }
-    };
-    SizedDecision {
-        lever,
-        size: "crossing angle",
-        passes: SizedPass::Positive,
-        stored: StoredDefinite::Lever,
-        at_zero: None,
-    }
-}
+/// The graze decision (`ssi_boundary_crossing`): a crossing of a
+/// boundary curve passes on a slope clear of the band. The payload names
+/// the side.
+const GRAZE: SizedDecision = SizedDecision {
+    lever: "move the plane or the wall so the intersection crosses that side at a clear angle",
+    size: "crossing angle",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 /// A short branch's candidate the certificate refused
 /// ([`SsiError::ShortBranchUncertified`]): its length is a size the user
@@ -2306,34 +2307,13 @@ pub fn plane_nurbs_ssi(
 
     // ---- the boundary pass: the wall's knot rectangle against the
     // plane, before any march (C3) ----
-    let pass = boundary::Pass {
-        wall,
-        speeds: charted.speeds(),
-        plane: boundary::PassPlane {
-            origin: p0,
-            normal,
-            u_ref,
-        },
-        sys: &sys,
-        tol,
-        floor: domain.floor(band),
-        extent: domain.extent,
-        band,
-    }
-    .run()?;
+    let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
 
     let seeds = exhaust::seed_chart_plane(wall, p0, normal, seed_floor)?;
     let seed_count = seeds.len() as u32;
 
     // ---- the open branches, between the crossings ----
-    let ends = ends::Ends {
-        sys: &sys,
-        ctx,
-        plane,
-        wall: &wall_op,
-        extent: domain.extent,
-        band,
-    };
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
     let mut branches = ends.branches(&pass.crossings)?;
     let mut tubes: Vec<UvRect> = branches.iter().flat_map(branch_chart_tubes).collect();
 
@@ -2397,6 +2377,49 @@ pub fn plane_nurbs_ssi(
         exhaustiveness,
         seeds: seed_count,
     })
+}
+
+/// The boundary pass over `wall`'s knot rectangle against `plane`, at
+/// the domain's floor and extent (C3), as both plane × NURBS doors run
+/// it.
+///
+/// # Errors
+///
+/// As [`boundary::Pass::run`].
+fn boundary_pass(
+    wall: &NurbsSurface<f64>,
+    charted: &ChartedNurbs<'_, f64>,
+    plane: &Surface<f64>,
+    sys: &ParametricPairR4<'_>,
+    tol: MarchTol,
+    domain: &SsiDomain,
+    band: Band,
+) -> Result<boundary::BoundaryPass, SsiError> {
+    let Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    } = *plane
+    else {
+        return Err(SsiError::WrongLane {
+            expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
+        });
+    };
+    boundary::Pass {
+        wall,
+        speeds: charted.speeds(),
+        plane: boundary::PassPlane {
+            origin,
+            normal,
+            u_ref,
+        },
+        sys,
+        tol,
+        floor: domain.floor(band),
+        extent: domain.extent,
+        band,
+    }
+    .run()
 }
 
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
@@ -2483,30 +2506,9 @@ pub fn trace_plane_nurbs_uncertified(
     };
     // A branch through the seed ends at the crossings the boundary pass
     // certifies, as every plane × NURBS branch does.
-    let pass = boundary::Pass {
-        wall,
-        speeds: charted.speeds(),
-        plane: boundary::PassPlane {
-            origin: p0,
-            normal,
-            u_ref,
-        },
-        sys: &sys,
-        tol,
-        floor: domain.floor(band),
-        extent: domain.extent,
-        band,
-    }
-    .run()?;
+    let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
     let wall_op = SsiOperand::Nurbs(charted);
-    let ends = ends::Ends {
-        sys: &sys,
-        ctx,
-        plane,
-        wall: &wall_op,
-        extent: domain.extent,
-        band,
-    };
+    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, &domain, band);
     let v_ref = normal.cross(u_ref);
     let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
@@ -2985,12 +2987,12 @@ mod ending_tests {
             ),
             (
                 "crossing unmatched",
-                KERNEL_DEFECT_ENDING,
+                KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             (
                 "crossing unmatched, seed",
-                KERNEL_DEFECT_ENDING,
+                KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             ("unsupported, side", NOT_YET_ENDING, NOT_YET_ENDING),
@@ -3055,7 +3057,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 37;
+    const ARMS: usize = 38;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3099,6 +3101,7 @@ mod ending_tests {
             SsiError::CrossingUnmatched { .. } => 34,
             SsiError::ShortBranchUncertified { .. } => 35,
             SsiError::WindowShortOfWall { .. } => 36,
+            SsiError::RegionUnbounded { .. } => 37,
         }
     }
 
@@ -3371,7 +3374,7 @@ mod ending_tests {
                         side: bottom,
                         t: 0.25,
                     }),
-                    matches: 2,
+                    matches: 0,
                 },
             ),
             (
@@ -3398,6 +3401,14 @@ mod ending_tests {
                     length: 3e-9,
                     limb: Box::new(SsiError::TubeProbeSilent { rungs: 3 }),
                     verdict: BandVerdict::Refused(zero),
+                },
+            ),
+            (
+                "region unbounded",
+                SsiError::RegionUnbounded {
+                    side: bottom,
+                    reach: 5e-3,
+                    limit: 5e-8,
                 },
             ),
             (

@@ -131,8 +131,8 @@ impl Pieces {
         let n = [normal.x, normal.y, normal.z].map(Interval::point);
         let o = [origin.x, origin.y, origin.z].map(Interval::point);
         // The weights scaled by a power of two near their largest, which
-        // is exact and moves neither the curve nor `h`'s sign, so a net
-        // of tiny weights does not underflow `h`.
+        // is exact and moves neither the curve, `φ = h/W` nor `h`'s sign,
+        // so a net of tiny weights does not underflow `h`.
         let top = curve.weights().iter().copied().fold(0.0, f64::max);
         #[allow(clippy::cast_possible_truncation)]
         let k = if top > 0.0 && top.is_finite() {
@@ -162,11 +162,9 @@ impl Pieces {
                 Interval::point(w) * d
             })
             .collect();
-        let w: Vec<Interval> = curve
-            .weights()
-            .iter()
-            .map(|&w| Interval::point(w))
-            .collect();
+        // `W` from the same scaled weights as `h`: `φ = h/W` only when
+        // both carry the one factor.
+        let w: Vec<Interval> = weights.iter().map(|&w| Interval::point(w)).collect();
         let add: Vec<f64> = kv
             .interior_knots()
             .flat_map(|(k, mult)| core::iter::repeat_n(k, p.saturating_sub(mult)))

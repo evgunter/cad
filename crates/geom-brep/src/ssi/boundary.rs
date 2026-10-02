@@ -45,6 +45,17 @@ use super::section::{
 };
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{ChartAxis, SsiError, TraceDecision};
+
+/// **The largest reach still reported as an ε-scale region**, in units
+/// of the band's escalate width `Kε` (D9, a fixed rule). A region stands
+/// in for an arc too short to trace, which is the contact the boundary
+/// pass reports in the band. [`super::SSI_SHORT_CLIP`]` · Kε` is the
+/// length from which the march traces a branch (below it the Hermite
+/// candidate, down to `√2·Kε`), so a reach beyond it measures an arc
+/// that meets the side too shallowly to be a contact and is long enough
+/// to trace: there the pass reports no region and the roots decide, the
+/// arc traced between them as any branch is. It is the same number.
+pub const SSI_REGION_REACH_MAX: f64 = super::SSI_SHORT_CLIP;
 use crate::dihedral::decide_reported;
 use crate::nurbs_iso::{boundary_iso_u, boundary_iso_v};
 use crate::recourse::Refused;
@@ -240,6 +251,21 @@ fn at(domain: (f64, f64), end: ChartEnd) -> f64 {
     }
 }
 
+/// The first `w` of `domain` in from its `end`, clamped to the domain.
+fn cut(d: (f64, f64), end: ChartEnd, w: f64) -> (f64, f64) {
+    match end {
+        ChartEnd::Low => (d.0, (d.0 + w).min(d.1)),
+        ChartEnd::High => ((d.1 - w).max(d.0), d.1),
+    }
+}
+
+/// Whether the first `w` in from `end` of `domain` lies strictly inside
+/// it: a cut that reaches the far end is not one whose far face can be
+/// clear of zeros.
+fn cut_inside(d: (f64, f64), w: f64) -> bool {
+    w < d.1 - d.0
+}
+
 /// The inward sign of a domain end: `+1` at the low end, `−1` at the
 /// high.
 fn inward(end: ChartEnd) -> f64 {
@@ -277,21 +303,35 @@ struct SideSection {
 
 /// What a side within the band of the plane is.
 enum SideClass {
-    /// The plane lies along it: a region of `reach` over `strip`.
-    Region { strip: UvRect, reach: f64 },
+    /// The plane lies along it: a region of `reach` over `strip`, whose
+    /// zero set lies in `cover`.
+    Region {
+        strip: UvRect,
+        cover: UvRect,
+        reach: f64,
+    },
     /// The plane misses the strip beside it (the exact empty answer).
     Clear { strip: UvRect },
+    /// No rung bounds a region along it: the smallest certified reach.
+    Unbounded { reach: f64 },
 }
 
 /// What a corner within the band of the plane is.
 enum CornerClass {
     /// The locus leaves the domain at the corner: a region of `reach`
-    /// over `cell`.
-    Contact { cell: UvRect, reach: f64 },
+    /// over `cell`, whose zero set lies in `cover`.
+    Contact {
+        cell: UvRect,
+        cover: UvRect,
+        reach: f64,
+    },
     /// The plane misses the corner cell (the exact empty answer).
     Empty { cell: UvRect },
     /// A branch starts at the corner.
     Start { cell: UvRect },
+    /// No rung bounds a region at the corner: the arc there is long
+    /// enough to trace, and the corner's roots are ordinary crossings.
+    Through,
 }
 
 impl Pass<'_> {
@@ -375,10 +415,6 @@ impl Pass<'_> {
     /// A strip along `side`, `pad` deep into the domain.
     fn strip(&self, side: ChartSide, pad: (f64, f64)) -> UvRect {
         let ((u0, u1), (v0, v1)) = self.domain();
-        let cut = |d: (f64, f64), end: ChartEnd, w: f64| match end {
-            ChartEnd::Low => (d.0, (d.0 + w).min(d.1)),
-            ChartEnd::High => ((d.1 - w).max(d.0), d.1),
-        };
         match side.fixed {
             ChartAxis::U => UvRect {
                 u: cut((u0, u1), side.end, pad.0),
@@ -394,29 +430,36 @@ impl Pass<'_> {
     /// A cell at `corner`, `pad` deep along each axis.
     fn corner_cell(&self, corner: ChartCorner, pad: (f64, f64)) -> UvRect {
         let ((u0, u1), (v0, v1)) = self.domain();
-        let cut = |d: (f64, f64), end: ChartEnd, w: f64| match end {
-            ChartEnd::Low => (d.0, (d.0 + w).min(d.1)),
-            ChartEnd::High => ((d.1 - w).max(d.0), d.1),
-        };
         UvRect {
             u: cut((u0, u1), corner.u, pad.0),
             v: cut((v0, v1), corner.v, pad.1),
         }
     }
 
-    /// **A side within the band of the plane**: the strip along it where
-    /// the inward partial is one-signed, the widest rung that has one,
-    /// and the region's reach. The strip's partial is the surfaces'
-    /// transversality across the side, so a strip that never clears
-    /// the band is the surfaces tangent along the wall's edge: C7's
-    /// regime, refused by the transversality decision.
+    /// **A side within the band of the plane.** The first rung whose
+    /// strip has the wall's slope across the side one-signed decides the
+    /// side against the plane: the strip is clear where the side is on
+    /// one side of the plane and the wall moves further that way inward
+    /// (the exact empty answer), and otherwise the plane lies along it.
+    ///
+    /// Along it, a zero of the strip lies at most `sup / inf|φ⊥|` in from
+    /// the side (`φ⊥` the slope across it), the strip's **cover**, and at
+    /// most `reach = sup · s⊥ / inf|φ⊥|` from it in metres. The region
+    /// is reported at the widest rung, from the first one-signed rung
+    /// down, whose cover lies strictly inside the strip (so the zero set
+    /// meets the strip's far face nowhere, and an arc in the strip ends
+    /// on the domain's sides) and whose reach is at most
+    /// [`SSI_REGION_REACH_MAX`]` · Kε`.
+    ///
+    /// `Ok(None)` where no rung's slope across the side is one-signed:
+    /// the strip certificate has nothing to stand on, and the side's own
+    /// roots decide it.
     ///
     /// # Errors
     ///
-    /// [`SsiError::BoundaryTangent`] naming the side. `Ok(None)` where
-    /// the slope across the side straddles zero over every rung's strip:
-    /// the plane does not lie along the side there, or the surfaces are
-    /// tangent along it, which the caller tells apart.
+    /// [`SsiError::BoundaryTangent`] where the slope across the side
+    /// does not clear the band. Where no rung bounds the region the side
+    /// is [`SideClass::Unbounded`], and its own roots decide it.
     fn side_region(
         &self,
         side: ChartSide,
@@ -427,95 +470,113 @@ impl Pass<'_> {
             ChartAxis::U => self.speeds.u,
             ChartAxis::V => self.speeds.v,
         };
-        let mut chosen: Option<(UvRect, Interval)> = None;
-        for pad in self.rungs() {
+        let ((u0, u1), (v0, v1)) = self.domain();
+        let across_domain = match side.fixed {
+            ChartAxis::U => (u0, u1),
+            ChartAxis::V => (v0, v1),
+        };
+        let rungs = self.rungs();
+        let mut classified = false;
+        let mut best_reach = f64::INFINITY;
+        for pad in rungs {
             let strip = self.strip(side, pad);
             let (pu, pv) = self.partials(strip);
             let across = match side.fixed {
                 ChartAxis::U => pu,
                 ChartAxis::V => pv,
             };
-            chosen = Some((strip, across));
-            if one_signed(across) {
-                break;
+            if !one_signed(across) {
+                continue;
+            }
+            let inf = super::enclose::zero_free_lower_bound(across);
+            if !classified {
+                classified = true;
+                // The side on one side of the plane, and the wall moving
+                // further that way inward: the strip is clear of the plane.
+                let rising_inward = sign(across) == Some(inward(side.end) > 0.0);
+                if side_of_plane == Some(rising_inward) {
+                    return Ok(Some(SideClass::Clear { strip }));
+                }
+                // The sine of the angle between the wall and the plane
+                // across the side, levered as the march's transversality
+                // is.
+                let sine = div_down(inf, speed.get());
+                let margin = Margin::levered(sine, self.extent);
+                let verdict = match decide_reported("ssi_boundary_strip", margin, self.band) {
+                    Ok(decided) => Refused::of(decided, self.band).map(BandVerdict::Refused),
+                    Err(cause) => Some(BandVerdict::Undecided(cause)),
+                };
+                if let Some(verdict) = verdict {
+                    return Err(SsiError::BoundaryTangent { side, verdict });
+                }
+            }
+            let depth = div_up(sup, inf);
+            let pad_across = match side.fixed {
+                ChartAxis::U => pad.0,
+                ChartAxis::V => pad.1,
+            };
+            let reach = div_up(sup, div_down(inf, speed.get())) + self.band.zero();
+            best_reach = best_reach.min(reach);
+            let inside = depth < pad_across || !cut_inside(across_domain, pad_across);
+            if inside && reach <= self.reach_max() {
+                let cover = self.strip(
+                    side,
+                    match side.fixed {
+                        ChartAxis::U => (depth, pad.1),
+                        ChartAxis::V => (pad.0, depth),
+                    },
+                );
+                return Ok(Some(SideClass::Region {
+                    strip,
+                    cover,
+                    reach,
+                }));
             }
         }
-        let Some((strip, across)) = chosen else {
-            return Err(SsiError::TubeLadderEmpty {
-                extent: self.extent,
-                floor: super::certify::SSI_TUBE_RADIUS * self.band.zero(),
-            });
-        };
-        let inf = super::enclose::zero_free_lower_bound(across);
-        if inf <= 0.0 {
+        if !classified {
             return Ok(None);
         }
-        // The side on one side of the plane, and the wall moving further
-        // that way inward: the strip is clear of the plane (the exact
-        // empty answer outside the domain).
-        let rising_inward = sign(across) == Some(inward(side.end) > 0.0);
-        if side_of_plane == Some(rising_inward) {
-            return Ok(Some(SideClass::Clear { strip }));
-        }
-        // The sine of the angle between the wall and the plane across the
-        // side, levered as the march's transversality is.
-        let sine = div_down(inf, speed.get());
-        let margin = Margin::levered(sine, self.extent);
-        let verdict = match decide_reported("ssi_boundary_strip", margin, self.band) {
-            Ok(decided) => match Refused::of(decided, self.band) {
-                None => {
-                    let reach = div_up(sup, sine) + self.band.zero();
-                    return Ok(Some(SideClass::Region { strip, reach }));
-                }
-                Some(r) => BandVerdict::Refused(r),
-            },
-            Err(cause) => BandVerdict::Undecided(cause),
-        };
-        Err(SsiError::BoundaryTangent { side, verdict })
+        Ok(Some(SideClass::Unbounded { reach: best_reach }))
     }
 
-    /// The surfaces tangent along `side`: its slope across the side
-    /// decided on the zero it reads at every rung.
-    fn tangent(&self, side: ChartSide) -> SsiError {
-        let margin = Margin::levered(0.0, self.extent);
-        let verdict = match decide_reported("ssi_boundary_strip", margin, self.band) {
-            Ok(decided) => match Refused::of(decided, self.band) {
-                Some(r) => BandVerdict::Refused(r),
-                None => unreachable!(
-                    "a zero slope across {side} decided positive: the strip decision passes \
-                     only a margin clear of the band"
-                ),
-            },
-            Err(cause) => BandVerdict::Undecided(cause),
-        };
-        SsiError::BoundaryTangent { side, verdict }
+    /// The largest reach a region may claim, in metres.
+    fn reach_max(&self) -> f64 {
+        SSI_REGION_REACH_MAX * self.band.escalate()
     }
 
     /// **A corner within the band of the plane**, classified by the
     /// plane distance's inward partials over the widest corner cell of
-    /// the ladder where both are one-signed (module docs).
+    /// the ladder where both are one-signed (module docs). Where the
+    /// locus leaves the domain there, a zero of the cell at inward
+    /// offsets `(du, dv)` has `inf|φ_u|·du + inf|φ_v|·dv ≤ |φ(corner)|`,
+    /// so it lies in the **cover** `du ≤ |φ|/inf|φ_u|`,
+    /// `dv ≤ |φ|/inf|φ_v|`, and at most
+    /// `reach = |φ| · max(s_u/inf|φ_u|, s_v/inf|φ_v|)` from the corner
+    /// (the largest of `s_u·du + s_v·dv` under the constraint). The
+    /// region is reported at the widest rung, from the classifying one
+    /// down, whose cover lies strictly inside the cell and whose reach
+    /// is at most [`SSI_REGION_REACH_MAX`]` · Kε`.
     ///
     /// # Errors
     ///
     /// [`SsiError::BoundaryGraze`] naming the side along which the
-    /// partial is never one-signed.
+    /// partial is never one-signed. Where no rung bounds the region the
+    /// corner is [`CornerClass::Through`].
     fn corner_class(&self, corner: ChartCorner, phi: Interval) -> Result<CornerClass, SsiError> {
-        let mut last: Option<(UvRect, Interval, Interval)> = None;
-        for pad in self.rungs() {
-            let cell = self.corner_cell(corner, pad);
-            let (pu, pv) = self.partials(cell);
-            last = Some((cell, pu, pv));
-            if one_signed(pu) && one_signed(pv) {
-                break;
-            }
-        }
-        let Some((cell, pu, pv)) = last else {
+        let rungs = self.rungs();
+        let Some(&last_pad) = rungs.last() else {
             return Err(SsiError::TubeLadderEmpty {
                 extent: self.extent,
                 floor: super::certify::SSI_TUBE_RADIUS * self.band.zero(),
             });
         };
-        if !one_signed(pu) || !one_signed(pv) {
+        let first = rungs.iter().position(|pad| {
+            let (pu, pv) = self.partials(self.corner_cell(corner, *pad));
+            one_signed(pu) && one_signed(pv)
+        });
+        let Some(first) = first else {
+            let cell = self.corner_cell(corner, last_pad);
+            let (pu, _) = self.partials(cell);
             // A partial along a side that never clears zero: the locus is
             // tangent to that side at the corner. `φ_u` runs along the
             // `v` side, `φ_v` along the `u` side.
@@ -535,7 +596,9 @@ impl Pass<'_> {
                 ChartAxis::V => cell.u,
             };
             return Err(graze(side, bracket, self.extent, self.band));
-        }
+        };
+        let cell = self.corner_cell(corner, rungs[first]);
+        let (pu, pv) = self.partials(cell);
         // The inward partials' signs.
         let su = sign(pu) == Some(inward(corner.u) > 0.0);
         let sv = sign(pv) == Some(inward(corner.v) > 0.0);
@@ -547,19 +610,35 @@ impl Pass<'_> {
         if sign(phi) == Some(su) {
             return Ok(CornerClass::Empty { cell });
         }
-        let (speeds_u, speeds_v) = (self.speeds.u.get(), self.speeds.v.get());
-        let inf_u = super::enclose::zero_free_lower_bound(pu);
-        let inf_v = super::enclose::zero_free_lower_bound(pv);
-        // A zero at inward offsets `(du, dv)` has `inf|φ_u|·du + inf|φ_v|·dv
-        // ≤ |φ(corner)|`, and lies at most `s_u·du + s_v·dv` from the
-        // corner, whose largest value under that constraint is
-        // `|φ(corner)| · max(s_u / inf|φ_u|, s_v / inf|φ_v|)`.
+        let ((u0, u1), (v0, v1)) = self.domain();
+        let (s_u, s_v) = (self.speeds.u.get(), self.speeds.v.get());
         let mag = magnitude(phi);
-        let reach = max_bound(
-            div_up(mag, div_down(inf_u, speeds_u)),
-            div_up(mag, div_down(inf_v, speeds_v)),
-        ) + self.band.zero();
-        Ok(CornerClass::Contact { cell, reach })
+        for &pad in &rungs[first..] {
+            let cell = self.corner_cell(corner, pad);
+            let (pu, pv) = self.partials(cell);
+            if !(one_signed(pu) && one_signed(pv)) {
+                continue;
+            }
+            let inf_u = super::enclose::zero_free_lower_bound(pu);
+            let inf_v = super::enclose::zero_free_lower_bound(pv);
+            let (du, dv) = (div_up(mag, inf_u), div_up(mag, inf_v));
+            let (ru, rv) = (
+                div_up(mag, div_down(inf_u, s_u)),
+                div_up(mag, div_down(inf_v, s_v)),
+            );
+            let reach = max_bound(ru, rv) + self.band.zero();
+            let inside = (du < pad.0 || !cut_inside((u0, u1), pad.0))
+                && (dv < pad.1 || !cut_inside((v0, v1), pad.1));
+            if inside && reach <= self.reach_max() {
+                let cover = self.corner_cell(corner, (du, dv));
+                return Ok(CornerClass::Contact { cell, cover, reach });
+            }
+        }
+        // No rung bounds the region: the arc the cell holds reaches too
+        // far along a side for an ε-scale region, so it is long enough to
+        // trace, the corner is no region, and its roots are ordinary
+        // crossings of that arc.
+        Ok(CornerClass::Through)
     }
 
     /// The state at a boundary point settled onto both surfaces, or
@@ -611,6 +690,7 @@ impl Pass<'_> {
         let ((u0, u1), (v0, v1)) = self.domain();
         let mut contacts = Vec::new();
         let mut regions: Vec<UvRect> = Vec::new();
+        let mut covers: Vec<UvRect> = Vec::new();
         let mut clear: Vec<UvRect> = Vec::new();
         let mut sections = Vec::new();
         for side in SIDES {
@@ -628,32 +708,59 @@ impl Pass<'_> {
             let section = match section {
                 BoundarySection::On { sup, side_of_plane } => {
                     match self.side_region(side, sup, side_of_plane)? {
-                        Some(SideClass::Region { strip, reach }) => {
+                        Some(SideClass::Region {
+                            strip,
+                            cover,
+                            reach,
+                        }) => {
                             contacts.push(SsiBoundaryContact::Side { side, reach });
                             regions.push(strip);
+                            covers.push(cover);
                             section
                         }
                         Some(SideClass::Clear { strip }) => {
                             clear.push(strip);
                             section
                         }
-                        // No strip beside the side holds the wall's slope
-                        // across it clear of zero. Either the plane
-                        // crosses a side shorter than the band, whose
-                        // crossings decide it, or the surfaces are
-                        // tangent along the side.
-                        None => match boundary_roots(
-                            &curve,
-                            self.plane.origin,
-                            self.plane.normal,
-                            self.along_speed(side),
-                            self.floor,
-                            self.extent,
-                            self.band,
-                        ) {
-                            Ok(roots) => roots,
-                            Err(_) => return Err(self.tangent(side)),
-                        },
+                        // The side lies within the band of the plane, and
+                        // no strip beside it bounds a region: no rung has
+                        // the wall's slope across it one-signed (a side
+                        // shorter than the band that the plane crosses is
+                        // the case met), or none brings the reach under
+                        // `SSI_REGION_REACH_MAX · Kε` (the arc runs along
+                        // the side too far for a region, and is traced).
+                        // The side's own roots decide it; a plane tangent
+                        // to the wall along it refuses as their graze.
+                        unbounded => {
+                            let roots = boundary_roots(
+                                &curve,
+                                self.plane.origin,
+                                self.plane.normal,
+                                self.along_speed(side),
+                                self.floor,
+                                self.extent,
+                                self.band,
+                            )
+                            .map_err(|e| e.on_side(side))?;
+                            if let (
+                                Some(SideClass::Unbounded { reach }),
+                                BoundarySection::Roots {
+                                    interior,
+                                    at_start: None,
+                                    at_end: None,
+                                },
+                            ) = (&unbounded, &roots)
+                                && interior.is_empty()
+                            {
+                                // Nothing to trace and nothing to bank.
+                                return Err(SsiError::RegionUnbounded {
+                                    side,
+                                    reach: *reach,
+                                    limit: self.reach_max(),
+                                });
+                            }
+                            roots
+                        }
                     }
                 }
                 roots => roots,
@@ -694,11 +801,13 @@ impl Pass<'_> {
             }
             match self.corner_class(corner, phi)? {
                 CornerClass::Empty { cell } => clear.push(cell),
-                CornerClass::Contact { cell, reach } => {
+                CornerClass::Contact { cell, cover, reach } => {
                     contacts.push(SsiBoundaryContact::Corner { corner, reach });
                     regions.push(cell);
+                    covers.push(cover);
                 }
                 CornerClass::Start { cell } => starts.push(cell),
+                CornerClass::Through => {}
             }
         }
         // The crossings: every root not inside a region; an end root at
@@ -729,9 +838,9 @@ impl Pass<'_> {
                 };
                 let point = (at((u0, u1), corner.u), at((v0, v1), corner.v));
                 let in_start = starts.iter().any(|c| holds(*c, point));
-                // Inside a region the root is the region's; in a corner
+                // Inside a region's cover the root is the region's; in a
                 // cell the plane is certified clear of, it is none.
-                if regions.iter().chain(&clear).any(|c| holds(*c, point)) {
+                if covers.iter().chain(&clear).any(|c| holds(*c, point)) {
                     continue;
                 }
                 if !in_start {
@@ -746,7 +855,9 @@ impl Pass<'_> {
             for root in roots {
                 let c = self.settle(*side, root)?;
                 let point = (c.state[2], c.state[3]);
-                if regions.iter().any(|r| holds(*r, point)) {
+                // A root in a region's cell beyond its cover is not the
+                // region's: it is kept, a crossing of another branch.
+                if covers.iter().any(|r| holds(*r, point)) {
                     continue;
                 }
                 // One crossing per corner a branch starts at.
