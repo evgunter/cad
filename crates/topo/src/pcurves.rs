@@ -3891,16 +3891,19 @@ pub fn chart_boundary<T: AtRestPolicy>(
 ///    re-statement), so no branch enters what a row is measured
 ///    against.
 /// 4. **Each loop's one-branch continuity is re-checked** on the stored
-///    pcurves, as the mint's walk reads the loop: every joint after the
-///    cycle's first half-edge exactly, and the joint back into it (the
-///    wrap) as the closure, which may wrap the chart by a whole period.
-///    A half-edge that stores no row is carried by the image the mint
-///    would derive there, pinned as the walk pins it, so the rows either
-///    side of a gap are measured across it and the wrap is read whenever
-///    the chain reaches it; a gap the derivation cannot place breaks the
-///    chain. So a body whose branches were tampered with fails here even
-///    if each pcurve certifies in isolation, whichever half-edge a gap
-///    is.
+///    pcurves, as the mint's walk reads the loop: every joint exactly,
+///    except the one the walk lets wrap (into the cycle's first
+///    half-edge), read as the closure, which may wrap the chart by a
+///    whole period. The chain runs once around from the loop's first
+///    stored row. A half-edge that stores no row is carried by the image
+///    the mint would derive there, pinned as the walk pins it, so the
+///    rows either side of a gap are measured across it and the wrap is
+///    read whenever the chain reaches it (at the next stored row, where
+///    the gap is the cycle's first half-edge); a gap the derivation
+///    cannot place breaks the chain. So a body whose branches were
+///    tampered with fails here even if each pcurve certifies in
+///    isolation, and the verdict hangs neither on which half-edge is the
+///    gap nor on the branch the loop's rows stand on.
 ///
 /// **Check 5 (trim containment) is vacuous here**: every row is
 /// measured against the hull of the stored rows, its own box among
@@ -4009,19 +4012,21 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
             }
         }
         // The one-branch loop continuity of the STORED pcurves, read as
-        // the mint's walk reads a loop: from the cycle's first half-edge,
-        // whose image the walk takes on its own branch, every joint after
-        // it pinned exactly, and the joint back into it — the loop's wrap
-        // — the closure, which may wrap the chart by a whole period. A
-        // half-edge that stores no row is carried by the image the mint
-        // would derive for it ([`derive_image`]), pinned to its
-        // predecessor as the walk pins it ([`pin_branch`]), so the rows
-        // either side of a gap are measured across it, and the wrap is
-        // checked whenever the chain reaches it — a half-minted loop is
-        // measured joint by joint as a complete one is, whichever
-        // half-edge the gap is. A gap the derivation cannot place (it
-        // refuses, or the pin does not decide) breaks the chain: the
-        // next stored row starts a new one, and the wrap goes unread.
+        // the mint's walk reads a loop: every joint pinned exactly, except
+        // the one the walk lets wrap — into the cycle's first half-edge,
+        // whose image the walk takes on its own branch — which is read as
+        // the closure (it may wrap the chart by a whole period). The chain
+        // starts at the loop's first stored row and runs once around back
+        // to it. A half-edge that stores no row is carried by the image the
+        // mint would derive for it ([`derive_image`]), pinned to the chain
+        // as the walk pins it ([`pin_branch`]); where that half-edge is the
+        // cycle's first, the wrap passes to the next stored row the chain
+        // reaches. So the rows either side of a gap are measured across
+        // it, the wrap is read whenever the chain reaches it, and a loop's
+        // verdict does not hang on which half-edge is the gap, nor on the
+        // branch its rows stand on (a loop moved a whole period over reads
+        // as it did). A gap the derivation cannot place breaks the chain
+        // until the next stored row.
         let v_meter = v_meter(chart);
         let u_period = chart_u_period(surface, band);
         let ends = |he: HalfEdgeKey| -> Result<Option<(Pcurve<T>, T, T)>, PcurveMintError> {
@@ -4039,62 +4044,70 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
             Some((base, entry_t, exit_t))
         };
         for cycle in &cycles {
-            let mut start: Option<geom_core::Point2<T>> = None;
-            let mut prev_exit: Option<geom_core::Point2<T>> = None;
-            for (i, &he) in cycle.iter().enumerate() {
-                let stored = match ends(he) {
-                    Ok(stored) => stored,
+            let n = cycle.len();
+            let mut rows = Vec::with_capacity(n);
+            for &he in cycle {
+                match ends(he) {
+                    Ok(row) => rows.push(row),
                     Err(e) => {
                         findings.push(e);
-                        prev_exit = None;
-                        continue;
+                        rows.push(None);
                     }
-                };
-                let Some((pcurve, entry_t, exit_t)) = stored else {
-                    // A gap: carried by its derived image, pinned to
-                    // the chain, or taken on its own branch where the
-                    // walk takes the first image.
-                    prev_exit = match (i, prev_exit, derived(he)) {
-                        (0, _, Some((base, entry_t, exit_t))) => {
-                            start = Some(base.eval(entry_t));
-                            Some(base.eval(exit_t))
-                        }
-                        (_, Some(prev), Some((base, entry_t, exit_t))) => {
-                            pin_branch(chart, base, entry_t, prev, u_period, band)
-                                .ok()
-                                .map(|pinned| pinned.eval(exit_t))
-                        }
-                        _ => None,
-                    };
+                }
+            }
+            let Some(anchor) = rows.iter().position(Option::is_some) else {
+                continue;
+            };
+            let mut prev_exit: Option<geom_core::Point2<T>> = rows[anchor]
+                .as_ref()
+                .map(|(pcurve, _, exit_t)| pcurve.eval(*exit_t));
+            // Whether the chain has passed the cycle's first half-edge
+            // since its last stored row, so the next stored row's joint
+            // is the wrap.
+            let mut wrap_due = false;
+            for k in 1..=n {
+                let i = (anchor + k) % n;
+                if i == 0 {
+                    wrap_due = true;
+                }
+                let he = cycle[i];
+                let Some((pcurve, entry_t, exit_t)) = &rows[i] else {
+                    prev_exit = prev_exit.and_then(|prev| {
+                        let (base, entry_t, exit_t) = derived(he)?;
+                        pin_branch(chart, base, entry_t, prev, u_period, band)
+                            .ok()
+                            .map(|pinned| pinned.eval(exit_t))
+                    });
                     continue;
                 };
-                let entry = pcurve.eval(entry_t);
-                if i == 0 {
-                    start = Some(entry);
-                } else if let Some(prev) = prev_exit {
-                    let arm = chart_u_arm(chart, prev.y);
-                    for margin in [
-                        arm.meter(entry.x - prev.x),
-                        Margin::metered_sup(entry.y - prev.y, v_meter),
-                    ] {
-                        match decide("pcurve_loop_continuity", margin, band) {
-                            Ok(Sign::Zero) => {}
-                            Ok(Sign::Positive | Sign::Negative) => {
-                                findings.push(PcurveMintError::LoopDiscontinuity { half_edge: he });
+                let entry = pcurve.eval(*entry_t);
+                if let Some(prev) = prev_exit {
+                    if wrap_due {
+                        if !loop_closes(chart, entry, prev, u_period, band) {
+                            findings.push(PcurveMintError::LoopNotClosed { face: face_key });
+                        }
+                    } else {
+                        let arm = chart_u_arm(chart, prev.y);
+                        for margin in [
+                            arm.meter(entry.x - prev.x),
+                            Margin::metered_sup(entry.y - prev.y, v_meter),
+                        ] {
+                            match decide("pcurve_loop_continuity", margin, band) {
+                                Ok(Sign::Zero) => {}
+                                Ok(Sign::Positive | Sign::Negative) => {
+                                    findings
+                                        .push(PcurveMintError::LoopDiscontinuity { half_edge: he });
+                                }
+                                Err(cause) => findings.push(PcurveMintError::Escalated {
+                                    half_edge: he,
+                                    cause,
+                                }),
                             }
-                            Err(cause) => findings.push(PcurveMintError::Escalated {
-                                half_edge: he,
-                                cause,
-                            }),
                         }
                     }
                 }
-                prev_exit = Some(pcurve.eval(exit_t));
-            }
-            if let (Some(start), Some(end)) = (start, prev_exit)
-                && !loop_closes(chart, start, end, u_period, band)
-            {
-                findings.push(PcurveMintError::LoopNotClosed { face: face_key });
+                wrap_due = false;
+                prev_exit = Some(pcurve.eval(*exit_t));
             }
         }
     }

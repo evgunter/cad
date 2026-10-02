@@ -426,3 +426,82 @@ fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
         "the boss wall has arc rows to shift: {cases} cases"
     );
 }
+
+/// **A valid loop moved a whole period over reads clean at every gap.**
+/// Every row of the boss wall's loop is restated one period over,
+/// consistently — the re-statement `Body::revert` makes. Complete, it
+/// reads clean; with any one half-edge detached, tier 3 reports that gap
+/// and nothing else, and the reversed body reads the same. The wrap the
+/// walk allows sits at the cycle's first half-edge, so where that
+/// half-edge is the gap the wrap passes to the next stored row rather
+/// than to the gap's image on its principal branch.
+///
+/// Adopted from the PCERT delta reviewer's round-2 probe on PR 3759,
+/// where the gap at cycle position 0 read a spurious `LoopDiscontinuity`.
+#[test]
+fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
+    let base =
+        crate::common::operands::n_arc_boss::<f64>(geom_core::Point2::new(0.0, 0.0), 3, 0.0, 1.0);
+    let (wall, cycle) = base
+        .faces()
+        .find_map(|(fk, f)| {
+            if !matches!(
+                base.get_surface(f.surface).unwrap(),
+                Surface::Cylinder { .. }
+            ) {
+                return None;
+            }
+            let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
+            else {
+                return None;
+            };
+            Some((fk, base.loop_cycle(first).unwrap()))
+        })
+        .expect("the boss has a cylinder wall");
+    let surface = base
+        .get_surface(base.get_face(wall).unwrap().surface)
+        .unwrap()
+        .clone();
+    let tau = core::f64::consts::TAU;
+    for shift in [tau, -tau] {
+        let mut moved = base.clone();
+        for &he in &cycle {
+            let cache = base.pcurve(he).unwrap();
+            let image = cache
+                .pcurve()
+                .map_affine(|p| Point2::new(p.x + shift, p.y), |v| v);
+            let edge = base.get_edge(base.get_half_edge(he).unwrap().edge).unwrap();
+            let carrier = base
+                .get_curve_geom(edge.curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .carrier()
+                .clone();
+            let (t0, t1) = cache.params();
+            let window = geom_brep::ChartWindow {
+                u_min: -3.0 * tau,
+                u_max: 4.0 * tau,
+                v_min: -5.0,
+                v_max: 5.0,
+            };
+            let row = PcurveCache::certify(image, t0, t1, &carrier, &surface, window, band())
+                .expect("the row certifies a period over");
+            moved.attach_pcurve(he, row);
+        }
+        let complete = validate_pcurves(&moved, band());
+        assert!(complete.is_empty(), "moved {shift}, complete: {complete:?}");
+        for (j, &gap) in cycle.iter().enumerate() {
+            let mut body = moved.clone();
+            body.detach_pcurve(gap);
+            let only_gap = [PcurveMintError::MissingCache { half_edge: gap }];
+            let f = validate_pcurves(&body, band());
+            assert_eq!(f, only_gap, "moved {shift}, gap {j}");
+            let fr = validate_pcurves(&body.revert().unwrap(), band());
+            assert!(
+                fr.len() == 1 && matches!(fr[0], PcurveMintError::MissingCache { .. }),
+                "moved {shift}, gap {j}, reversed: {fr:?}"
+            );
+        }
+    }
+}
