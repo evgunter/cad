@@ -176,7 +176,8 @@ pub struct Body<T: Real> {
     // row is present only where a cache was minted and certified
     // (`crate::pcurves`); planar faces store nothing (M2's
     // derive-on-demand status, C4 verbatim), so an all-planar body
-    // carries an empty map. Absence is never a claim about geometry.
+    // carries an empty map. On every other chart a row is mandatory at
+    // rest, and the tier-3 pcurve pass reports one that is missing.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
     // Null-face annotations (F9): typed loop-role attributes on null
     // (section-polygon) faces, parallel to the face arena like the

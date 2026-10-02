@@ -1252,8 +1252,9 @@ pub enum PcurveCertifyError {
     /// The carrier can lie on the chart, but no lane images this
     /// (chart, carrier) pair yet: valid input the kernel has not built
     /// a route for (DESIGN.md's frontier (c), D9 row 2's `Unsupported*`).
-    /// The only refusal the mint excuses — the face stays uncached,
-    /// which is a legal at-rest state.
+    /// The only refusal the mint excuses — the face stays uncached
+    /// until the class's route lands, and tier 3 excuses it by the same
+    /// predicate.
     UnsupportedCarrier {
         /// The chart kind.
         chart: crate::SurfaceKind,
@@ -2370,7 +2371,7 @@ impl<T: Decide> PcurveCache<T> {
     ///
     /// 1. **Mint-side wiring of the general-circle route** — the
     ///    oblique-trihedron octant faces whose boundary circles are
-    ///    GENERAL sphere circles stay legally uncached. The door is not
+    ///    GENERAL sphere circles stay uncached, excused. The door is not
     ///    what blocks it: `topo::mint_pcurves` holds the fitted door
     ///    (`topo::AtRestPolicy::fitted_lane`) and wires
     ///    [`PcurveCache::certify_general`] through it. What is left is

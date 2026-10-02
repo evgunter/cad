@@ -2010,8 +2010,9 @@ pub(crate) enum SplitRowError {
 ///
 /// # `None`, and what it does NOT claim
 ///
-/// - `half_edge` carries no row (the ordinary case: an all-planar
-///   body, or a body that never ran the minting pass);
+/// - `half_edge` carries no row (an all-planar body, a face of an
+///   uncovered class, or one a door has left rowless for its
+///   producer's closing mint);
 /// - the row's image is [`Pcurve::Fitted`] or [`Pcurve::General`],
 ///   whose certification doors are the fitted door's
 ///   ([`PcurveCache::certify_fitted`] / [`PcurveCache::certify_general`],
