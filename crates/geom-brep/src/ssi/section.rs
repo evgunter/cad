@@ -246,7 +246,24 @@ fn hull(c: &[Interval]) -> Interval {
 
 /// Whether an enclosure is certified and one-signed.
 fn one_signed(i: Interval) -> bool {
-    i.is_certified() && (i.lo() > 0.0 || i.hi() < 0.0)
+    sign(i).is_some()
+}
+
+/// The sign of a certified enclosure clear of zero: `Some(true)` above
+/// it. A refused bracket carries ordinary endpoints, so it is asked
+/// first.
+pub(crate) fn sign(i: Interval) -> Option<bool> {
+    (i.is_certified() && (i.lo() > 0.0 || i.hi() < 0.0)).then(|| i.lo() > 0.0)
+}
+
+/// The largest magnitude in a certified enclosure; `NaN` for a refused
+/// one.
+pub(crate) fn magnitude(i: Interval) -> f64 {
+    if i.is_certified() {
+        max_bound(i.lo().abs(), i.hi().abs())
+    } else {
+        f64::NAN
+    }
 }
 
 /// **Plane × one NURBS curve**: whether the curve lies in the plane
@@ -287,14 +304,10 @@ pub fn boundary_section(
         .flat_map(|(_, hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
         .reduce(Interval::hull)
         .unwrap_or_else(Interval::refused);
-    let sup = if d.is_certified() {
-        max_bound(d.lo().abs(), d.hi().abs())
-    } else {
-        f64::NAN
-    };
+    let sup = magnitude(d);
     let on = BoundarySection::On {
         sup,
-        side_of_plane: one_signed(d).then(|| d.lo() > 0.0),
+        side_of_plane: sign(d),
     };
     match decide("ssi_boundary_on_plane", Margin::of(sup), band) {
         Ok(Sign::Positive) => {}
@@ -369,18 +382,18 @@ fn roots(
             .unwrap_or_else(Interval::refused);
         let w_hi = over
             .iter()
-            .map(|(_, w, _)| hull(w).hi())
+            .map(|(_, w, _)| magnitude(hull(w)))
             .fold(0.0, max_bound);
         // `h` at the cluster's two ends: the first and last Bernstein
         // coefficients of the overlaps there.
         let h_a = over.first().and_then(|(h, _, _)| h.first().copied());
         let h_b = over.last().and_then(|(h, _, _)| h.last().copied());
-        let rising = one_signed(dh).then(|| dh.lo() > 0.0);
+        let rising = sign(dh);
         // At a root `h = 0`, so `dφ/dt = h′/W` there and
         // `|dφ/ds| ≥ inf|h′| / (sup W · sup‖C′‖)`.
         let slope = if rising.is_some() {
-            let num = dh.lo().abs().min(dh.hi().abs());
-            let den = (Interval::point(w_hi) * Interval::point(speed.get())).hi();
+            let num = super::enclose::zero_free_lower_bound(dh);
+            let den = magnitude(Interval::point(w_hi) * Interval::point(speed.get()));
             geom_core::interval::div_down(num, den)
         } else {
             0.0
@@ -400,10 +413,8 @@ fn roots(
         }
         // A monotone `h` whose two ends are one sign has no root here.
         if rising.is_some()
-            && let (Some(ha), Some(hb)) = (h_a, h_b)
-            && one_signed(ha)
-            && one_signed(hb)
-            && (ha.lo() > 0.0) == (hb.lo() > 0.0)
+            && let (Some(ha), Some(hb)) = (h_a.and_then(sign), h_b.and_then(sign))
+            && ha == hb
         {
             continue;
         }

@@ -2295,7 +2295,7 @@ pub fn plane_nurbs_ssi(
     // The plane's window is the caller's (a plane is unbounded, so a
     // window is a caller obligation, never a guess), and it holds the
     // wall, so the march ends only at the wall's knot rectangle.
-    window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
+    boundary::window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
 
     let ctx = MarchContext::<4> {
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
@@ -2399,48 +2399,6 @@ pub fn plane_nurbs_ssi(
     })
 }
 
-/// The plane chart's window holds the wall: every state the ℝ⁴ trace
-/// settles lies on the wall, inside its control hull (positive weights),
-/// and on the plane, so its plane coordinates lie in the hull's
-/// projection. A window that holds that projection never bounds a
-/// march, which ends only at the wall's own boundary.
-///
-/// # Errors
-///
-/// [`SsiError::WindowShortOfWall`] when it does not.
-fn window_holds_wall(
-    plane: (Point3<f64>, geom_core::Vec3<f64>, geom_core::Vec3<f64>),
-    wall: &NurbsSurface<f64>,
-    half: f64,
-) -> Result<(), SsiError> {
-    use geom_core::Interval;
-    use geom_core::interval::certification::Certification;
-    use geom_core::interval::max_bound;
-    let (p0, u_ref, v_ref) = plane;
-    let lift = |v: geom_core::Vec3<f64>| [v.x, v.y, v.z].map(Interval::point);
-    let (u, v) = (lift(u_ref), lift(v_ref));
-    let reach = wall
-        .control()
-        .iter()
-        .flat_map(|p| {
-            let q = [(p.x, p0.x), (p.y, p0.y), (p.z, p0.z)]
-                .map(|(a, b)| Interval::point(a) - Interval::point(b));
-            [u, v].map(|axis| {
-                let c = axis[0] * q[0] + axis[1] * q[1] + axis[2] * q[2];
-                max_bound(c.lo().abs(), c.hi().abs())
-            })
-        })
-        .fold(0.0, max_bound);
-    if reach <= half {
-        Ok(())
-    } else {
-        Err(SsiError::WindowShortOfWall {
-            half_extent: half,
-            reach,
-        })
-    }
-}
-
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
 /// demonstration's door, and nothing else's.
 ///
@@ -2512,7 +2470,7 @@ pub fn trace_plane_nurbs_uncertified(
     let speed = charted.speeds().max();
     let root = UvRect { u: ud, v: vd };
     let tol = MarchTol::decoupled(march_tol, spline_readout(window, wall, root, speed))?;
-    window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
+    boundary::window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
     let sys = ParametricPairR4 {
         a: chart_a,
         b: chart_b,

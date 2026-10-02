@@ -328,6 +328,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          so does the mignitude (`zero_free_lower_bound`, 4)",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",
         23,

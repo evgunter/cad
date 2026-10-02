@@ -403,6 +403,11 @@ which is what actually moves the number.
 | ssi/certify.rs:366–524 | ssi_on_locus / hull_sup / foot / chart | residuals, /2R linearizations, foot distances | m | OK |
 | ssi/certify.rs:836 | ssi_tube_transversality | sin (unit triple product) × arm | m | OK |
 | ssi/march.rs:295/310 | ssi_transversality_arm / ssi_transversality | arm (m); sin × arm | m | OK |
+| ssi/section.rs (`boundary_section`) | ssi_boundary_on_plane | sup over a boundary curve of `|n·(C − p₀)|`, from its control net (the rational hull) | m | OK |
+| ssi/section.rs (`decide_crossing`) | ssi_boundary_crossing | `|dφ/ds|` at a root (a sine: metres of plane distance per metre along the curve) × arm | m | OK |
+| ssi/boundary.rs (`Pass::run`) | ssi_boundary_corner | `|n·(P_corner − p₀)|`, the corner control point's plane distance | m | OK |
+| ssi/boundary.rs (`side_region`) | ssi_boundary_strip | inf of the wall's slope across a side (metres per chart unit) over the sup chart speed (a sine) × arm | m | OK |
+| ssi/ends.rs (`short_refusal`) | ssi_short_branch | a short branch's length over `SSI_SHORT_CLIP`, the step it would be marched at | m | OK |
 | ssi/march.rs:420/447/478 | ssi_step_progress / branch_open_end / closure_return | state × (m/state); scaled domain margins | m | OK |
 | ssi/march.rs:484 | ssi_closure_tangent | cos(unit tangents) × whole-branch arc length | m | FLAG F9 |
 | locus.rs (M9-2 PR-2) | tangent_locus_axis_parallel | sin(axis, plane / axis, axis) × the declared pair's consumed extent read from the foot of its centre on the (second) cylinder's axis, where the gap row is read (`ExtentBall::lever_from`, the extent topo's carrier-pair doors lever their ladder at) | m | FIXED (TANG; was a 1 m `T::one()` arm, which bridged a tilt standing more than Kε off across a face longer than a metre) |

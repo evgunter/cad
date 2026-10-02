@@ -31,7 +31,6 @@
 //! branch on this lane has.
 
 use geom::NurbsSurface;
-use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, div_up, max_bound};
 use geom_core::k_stats::decide;
@@ -41,7 +40,8 @@ use super::enclose::{ChartSpeeds, NurbsBoxes};
 use super::exhaust::UvRect;
 use super::march::MarchTol;
 use super::section::{
-    BandVerdict, BoundarySection, SectionRoot, boundary_roots, boundary_section, settle_root,
+    BandVerdict, BoundarySection, SectionRoot, boundary_roots, boundary_section, magnitude,
+    settle_root, sign,
 };
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{ChartAxis, SsiError, TraceDecision};
@@ -453,7 +453,7 @@ impl Pass<'_> {
         // The side on one side of the plane, and the wall moving further
         // that way inward: the strip is clear of the plane (the exact
         // empty answer outside the domain).
-        let rising_inward = (across.lo() > 0.0) == (inward(side.end) > 0.0);
+        let rising_inward = sign(across) == Some(inward(side.end) > 0.0);
         if side_of_plane == Some(rising_inward) {
             return Ok(Some(SideClass::Clear { strip }));
         }
@@ -537,14 +537,14 @@ impl Pass<'_> {
             return Err(graze(side, bracket, self.extent, self.band));
         }
         // The inward partials' signs.
-        let su = (pu.lo() > 0.0) == (inward(corner.u) > 0.0);
-        let sv = (pv.lo() > 0.0) == (inward(corner.v) > 0.0);
+        let su = sign(pu) == Some(inward(corner.u) > 0.0);
+        let sv = sign(pv) == Some(inward(corner.v) > 0.0);
         if su != sv {
             return Ok(CornerClass::Start { cell });
         }
         // Both inward partials carry φ away from the corner's value with
         // sign `su`: a corner distance of that sign keeps the cell clear.
-        if one_signed(phi) && (phi.lo() > 0.0) == su {
+        if sign(phi) == Some(su) {
             return Ok(CornerClass::Empty { cell });
         }
         let (speeds_u, speeds_v) = (self.speeds.u.get(), self.speeds.v.get());
@@ -554,7 +554,7 @@ impl Pass<'_> {
         // ≤ |φ(corner)|`, and lies at most `s_u·du + s_v·dv` from the
         // corner, whose largest value under that constraint is
         // `|φ(corner)| · max(s_u / inf|φ_u|, s_v / inf|φ_v|)`.
-        let mag = max_bound(phi.lo().abs(), phi.hi().abs());
+        let mag = magnitude(phi);
         let reach = max_bound(
             div_up(mag, div_down(inf_u, speeds_u)),
             div_up(mag, div_down(inf_v, speeds_v)),
@@ -683,11 +683,7 @@ impl Pass<'_> {
                 continue;
             }
             let phi = self.corner_distance(corner);
-            let margin = if phi.is_certified() {
-                Margin::of(max_bound(phi.lo().abs(), phi.hi().abs()))
-            } else {
-                Margin::of(f64::NAN)
-            };
+            let margin = Margin::of(magnitude(phi));
             match decide("ssi_boundary_corner", margin, self.band) {
                 Ok(Sign::Positive) => continue,
                 Ok(Sign::Zero | Sign::Negative) => {}
@@ -782,7 +778,7 @@ fn holds(r: UvRect, (u, v): (f64, f64)) -> bool {
 
 /// Whether an enclosure is certified and one-signed.
 fn one_signed(i: Interval) -> bool {
-    i.is_certified() && (i.lo() > 0.0 || i.hi() < 0.0)
+    sign(i).is_some()
 }
 
 /// The graze refusal at `side` where the slope along it is not
@@ -800,5 +796,44 @@ fn graze(side: ChartSide, bracket: (f64, f64), arm: f64, band: Band) -> SsiError
             "a zero slope decided positive at {side}: the crossing decision passes only a \
              margin clear of the band"
         ),
+    }
+}
+
+/// The plane chart's window holds the wall: every state the ℝ⁴ trace
+/// settles lies on the wall, inside its control hull (positive weights),
+/// and on the plane, so its plane coordinates lie in the hull's
+/// projection. A window that holds that projection never bounds a
+/// march, which ends only at the wall's own boundary.
+///
+/// # Errors
+///
+/// [`SsiError::WindowShortOfWall`] when it does not.
+pub(crate) fn window_holds_wall(
+    plane: (Point3<f64>, Vec3<f64>, Vec3<f64>),
+    wall: &NurbsSurface<f64>,
+    half: f64,
+) -> Result<(), SsiError> {
+    let (p0, u_ref, v_ref) = plane;
+    let lift = |v: Vec3<f64>| [v.x, v.y, v.z].map(Interval::point);
+    let (u, v) = (lift(u_ref), lift(v_ref));
+    let reach = wall
+        .control()
+        .iter()
+        .flat_map(|p| {
+            let q = [(p.x, p0.x), (p.y, p0.y), (p.z, p0.z)]
+                .map(|(a, b)| Interval::point(a) - Interval::point(b));
+            [u, v].map(|axis| {
+                let c = axis[0] * q[0] + axis[1] * q[1] + axis[2] * q[2];
+                magnitude(c)
+            })
+        })
+        .fold(0.0, max_bound);
+    if reach <= half {
+        Ok(())
+    } else {
+        Err(SsiError::WindowShortOfWall {
+            half_extent: half,
+            reach,
+        })
     }
 }

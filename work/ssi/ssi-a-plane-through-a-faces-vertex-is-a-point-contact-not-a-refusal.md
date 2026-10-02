@@ -2,11 +2,13 @@
 id: ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal
 kind: issue
 title: ssi: a plane through a face's corner vertex refuses TraceUnresolved instead of reporting a point contact, and a branch shorter than step/2^32 is lost depending on the extent
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: H
-design: true
+pr: 3862
+branch: ssi/ev-boundary-contact
+closed: 2026-10-02
 ---
 
 
@@ -135,3 +137,40 @@ rungs' mixed units, and a HullSup underestimate. That row must land before any c
 margin can differ by up to ε. So the join must accept a `Corner` region
 whose reach contains both its crossing vertices, and take the Hermite
 candidate from those vertices.
+
+## Closed (2026-10-02, PR 3862)
+
+Built as designed, on the branch that carried the ruling.
+
+- `geom_brep::boundary_section` (`ssi/section.rs`): plane × one NURBS
+  curve, Bernstein pieces in interval arithmetic, roots isolated by the
+  sweep's own recursion to the section floor minted per side
+  (`SweepFloor::section`). `SSI_BOUNDARY_BISECTIONS` is gone from this
+  lane; every `KnotVector` is clamped by construction, so the side
+  extraction is `nurbs_iso`'s row copy.
+- The boundary pass (`ssi/boundary.rs`) runs before seeding in
+  `plane_nurbs_ssi`; the branches between known ends and the Hermite
+  candidate are `ssi/ends.rs` (`SSI_SHORT_CLIP = 5`).
+- `SsiOutcome.boundary`, `Exhaustiveness.contact`, and
+  `BranchEnd::Crossings` are the output; the ℝ³ lane keeps its slab
+  search behind `SlabExit` (`ssi-r3-slab-is-not-geometry`).
+
+The two `TraceUnresolved` rows report regions; the open-end escalation
+row retired. Measured answers (1 m flat wall, every ε of 1e-6, 1e-9,
+1e-12; the 100 m wall at a 200 m extent agrees, except that at ε 1e-12
+its 100 m branch beside the edge escalates limb 2 in band, a 1e-14
+relative residual on a carrier that long):
+
+| geometry | answer |
+|---|---|
+| corner clip `x + z = d`, `d < 0` | `Ok`, empty |
+| `0 ≤ d ≤ √2·Kε` (corner within the band) | `Ok`, one `Corner` region |
+| `√2·Kε < d·√2 < 5Kε` | one branch, the Hermite candidate, certified |
+| `d·√2 ≥ 5Kε` | one branch, marched between its crossings |
+| edge plane `x = off`, `off < 0` | `Ok`, empty |
+| `0 ≤ off ≤ Kε` | `Ok`, one `Side` region |
+| `off > Kε` | one branch |
+
+Residue filed: `ssi-r3-slab-is-not-geometry`. The final-chord and
+step-scale rows carry this lane's evidence and stay open for the ℝ³
+lane.
