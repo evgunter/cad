@@ -364,10 +364,10 @@ impl MateToolError {
         match self {
             Self::NotAnInstancePick { side, node } => Self::NotAnInstancePick {
                 side,
-                node: doc.spoken(node.id()),
+                node: node.respoken(doc),
             },
             Self::SamePick { head } => Self::SamePick {
-                head: doc.spoken(head.id()),
+                head: head.respoken(doc),
             },
             Self::Frame { side, error, .. } => {
                 let held = held_by(&error, doc);

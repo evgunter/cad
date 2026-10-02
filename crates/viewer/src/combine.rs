@@ -851,7 +851,7 @@ impl DuplicateFault {
     /// ([`crate::session::Refusal::respoken`]).
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
-        let again = |node: SpokenNode| doc.spoken(node.id());
+        let again = |node: SpokenNode| node.respoken(doc);
         match self {
             Self::NoValue { standing, .. } => Self::NoValue {
                 held: held_by(&standing, doc),

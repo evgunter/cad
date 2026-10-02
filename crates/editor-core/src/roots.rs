@@ -66,6 +66,33 @@ pub enum RootFault {
     },
 }
 
+impl RootFault {
+    /// This fault with its roots spoken again from `doc`, a later
+    /// version of the document it was raised in
+    /// ([`SpokenNode::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        match self {
+            Self::NotLive { root } => Self::NotLive {
+                root: root.respoken(doc),
+            },
+            Self::Duplicate { root } => Self::Duplicate {
+                root: root.respoken(doc),
+            },
+            Self::Ancestor {
+                ancestor,
+                descendant,
+            } => Self::Ancestor {
+                ancestor: ancestor.respoken(doc),
+                descendant: descendant.respoken(doc),
+            },
+            Self::Uncovered { node } => Self::Uncovered {
+                node: node.respoken(doc),
+            },
+        }
+    }
+}
+
 impl core::fmt::Display for RootFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

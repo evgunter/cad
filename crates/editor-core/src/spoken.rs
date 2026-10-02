@@ -183,6 +183,27 @@ impl SpokenNode {
     pub fn label(&self) -> Option<&Label> {
         self.label.as_deref()
     }
+
+    /// **This node spoken again from `doc`, a later version of the
+    /// document it was spoken from**: as `doc` holds it now, or as it
+    /// was spoken when `doc` does not hold it — a node a refused insert
+    /// was minting keeps its kind, and one a later edit deleted keeps
+    /// what it was.
+    ///
+    /// Sound because within one document's history an id names one
+    /// node: an id is the head of the mint chain at the insert that
+    /// minted it (`crate::mint`), a digest of every minting edit before
+    /// it, so two versions that part from one value mint different ids
+    /// from there on. A version of ANOTHER document is never `doc`:
+    /// ids are not document-scoped, and its chain says nothing about
+    /// this one's.
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        match doc.node(self.id) {
+            Some(_) => doc.spoken(self.id),
+            None => self.clone(),
+        }
+    }
 }
 
 impl fmt::Display for SpokenNode {
@@ -253,6 +274,14 @@ impl SpokenName {
     pub fn minter(&self) -> &SpokenNode {
         &self.0.minter
     }
+
+    /// This name with its minter spoken again from `doc`, a later
+    /// version of the document it was spoken from
+    /// ([`SpokenNode::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        Self::new(self.name().clone(), self.minter().respoken(doc))
+    }
 }
 
 impl fmt::Display for SpokenName {
@@ -316,6 +345,15 @@ impl<P> HoldsNodes for Doc<P> {
 /// with no document at hand. Empty, every node is said by its tag.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeldNodes(Box<[SpokenNode]>);
+
+impl HeldNodes {
+    /// These nodes spoken again from `doc`, a later version of the
+    /// document they were held from ([`SpokenNode::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        Self(self.0.iter().map(|node| node.respoken(doc)).collect())
+    }
+}
 
 impl HoldsNodes for HeldNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {

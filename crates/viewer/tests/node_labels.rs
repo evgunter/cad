@@ -8,7 +8,7 @@
 
 use crate::common;
 
-use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{BooleanOp, Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, ProfilePlane, SessionOp};
@@ -326,7 +326,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddBoolean {
-            op: pncad::document::BooleanOp::Intersect,
+            op: BooleanOp::Intersect,
             a: block,
             b: moved,
             declare: Vec::new(),
@@ -573,6 +573,42 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
     assert_eq!(
         line, None,
         "the rename retires the line that said the old label"
+    );
+}
+
+/// **An edit the kernel door refuses speaks its node on the line as the
+/// document the batch leaves holds it** (`EditError::respoken`): the
+/// door spoke the node at the refusal, and a rename later in the same
+/// batch is the label the line says. Red if the line says the label
+/// from before the rename.
+#[test]
+fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("viewer-node-labels-edit-refusal", tol);
+    let doc = relabelled(&doc, extrude, "plate", tol);
+    let mut session = DocSession::inline(doc, tol);
+    let line = batch_line(
+        &mut session,
+        &[
+            SessionOp::AddBoolean {
+                op: BooleanOp::Union,
+                a: extrude,
+                b: extrude,
+                declare: Vec::new(),
+            },
+            SessionOp::SetLabel {
+                node: extrude,
+                label: Some(label("slab")),
+            },
+        ],
+    );
+    let said = line.map(|m| m.text().to_owned()).unwrap_or_default();
+    assert!(
+        said.contains(&format!(
+            "Extrude \"slab\" ({}) is taken as an input twice",
+            tag(extrude.0)
+        )),
+        "{said}"
     );
 }
 

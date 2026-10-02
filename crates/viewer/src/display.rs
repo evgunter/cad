@@ -253,7 +253,7 @@ impl AdmissionFault {
     /// ([`crate::session::Refusal::respoken`]).
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
-        let again = |node: SpokenNode| doc.spoken(node.id());
+        let again = |node: SpokenNode| node.respoken(doc);
         match self {
             Self::NoSuchNode { node } => Self::NoSuchNode { node: again(node) },
             Self::NotAnInstance { node } => Self::NotAnInstance { node: again(node) },

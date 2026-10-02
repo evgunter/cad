@@ -448,17 +448,14 @@ impl Refusal {
     /// every minting edit before it: two versions that part from one
     /// value — an undo, then a different insert — mint different ids
     /// from there on, so an id one version holds is either the same
-    /// node in a later version or absent from it (`node <tag>`). That
-    /// is what makes re-speaking from a later version sound, and it is
-    /// why a document an `Open` or a `New` replaced is never `doc`
-    /// here: another document's chain says nothing about these ids.
-    ///
-    /// [`Self::Edit`] is the kernel door's sentence, spoken at that
-    /// door ([`EditError`] holds its nodes spoken), and stays as the
-    /// door said it (`work/emit/edit-error-respeaks-from-a-later-version.md`).
+    /// node in a later version or absent from it, and an absent one is
+    /// said as the refusal said it ([`SpokenNode::respoken`]). That is
+    /// what makes re-speaking from a later version sound, and it is why
+    /// a document an `Open` or a `New` replaced is never `doc` here:
+    /// another document's chain says nothing about these ids.
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
-        let again = |node: SpokenNode| doc.spoken(node.id());
+        let again = |node: SpokenNode| node.respoken(doc);
         match self {
             Self::NoSuchSlot { node, slot } => Self::NoSuchSlot {
                 node: again(node),
@@ -473,12 +470,12 @@ impl Refusal {
             Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
             Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
+            Self::Edit(error) => Self::Edit(Box::new(error.respoken(doc))),
             unspoken @ (Self::DrivenByExpression { .. }
             | Self::NoSuchParam(_)
             | Self::ParamNotANumber { .. }
             | Self::ParamExists { .. }
             | Self::EmptyName
-            | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
             | Self::NoGesture
@@ -1198,7 +1195,7 @@ impl FaceFrameFault {
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         match self {
             Self::NotOneBody { at } => Self::NotOneBody {
-                at: doc.spoken(at.id()),
+                at: at.respoken(doc),
             },
             Self::Unresolved { error, .. } => {
                 let held = held_by(&error, doc);

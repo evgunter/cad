@@ -1613,6 +1613,193 @@ impl EditError {
         Problem(self)
     }
 
+    /// **This refusal with every node it names spoken again from
+    /// `doc`, a later version of the document it was raised in**
+    /// ([`SpokenNode::respoken`]), so a label changed since the door
+    /// refused is the one it says. A node `doc` does not hold — one a
+    /// refused insert was minting, or one a later edit deleted — is
+    /// said as the door said it.
+    ///
+    /// `doc` is a version of the document the refusal was raised in,
+    /// never another document's: ids are not document-scoped, and the
+    /// refusal carries no [`crate::DocumentId`] to check it by, so the
+    /// caller answers for it.
+    ///
+    /// [`EditError::LabelUnchanged`] stays as raised: its sentence is
+    /// about the label the node held when the door refused, and said
+    /// with a later one it would claim the node already holds a label
+    /// the refused edit never offered.
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+        let mut again = self.clone();
+        match &mut again {
+            Self::UnknownNode { id }
+            | Self::NodeIdCollides { id }
+            | Self::UnknownSlot { id, slot: _ } => {
+                *id = id.respoken(doc);
+            }
+            Self::ProfileProgramRefused { node, refusal: _ }
+            | Self::RepeatedDesignation {
+                node,
+                first: _,
+                again: _,
+            }
+            | Self::SelectionNotCanonical { node, at: _ }
+            | Self::SetMembersOnNonList { node }
+            | Self::SetProgramOnNonProfile { node }
+            | Self::StepIdsRefused { node, fault: _ }
+            | Self::TooFewMembers { node, found: _ }
+            | Self::SlotUnknownDocParam {
+                node,
+                name: _,
+                slot: _,
+            }
+            | Self::SlotDocParamDimension {
+                node,
+                name: _,
+                slot: _,
+                declared: _,
+                referenced: _,
+            }
+            | Self::PayloadUnknownDocParam { node, name: _ }
+            | Self::PayloadDocParamDimension {
+                node,
+                name: _,
+                declared: _,
+                referenced: _,
+            }
+            | Self::MeasureMalformed { node, fault: _ }
+            | Self::PathOffTree {
+                node,
+                slot: _,
+                path: _,
+            }
+            | Self::WitnessOnNonSketch { node }
+            | Self::DuplicateWitnessEntry { node }
+            | Self::OffsetOnNonInstance { node }
+            | Self::GaugeOnNonPlaced { node }
+            | Self::PlacementRuleMismatch { node }
+            | Self::EmptyPlacementList { node }
+            | Self::ImproperPlacement {
+                node,
+                at: _,
+                determinant: _,
+            }
+            | Self::NonFinitePlacement { node, at: _ }
+            | Self::NonRigidPlacement {
+                node,
+                at: _,
+                check: _,
+            }
+            | Self::NonFiniteAlignment { node }
+            | Self::UpdateOnNonInstance { node }
+            | Self::PinUnchanged { node, pin: _ } => {
+                *node = node.respoken(doc);
+            }
+            Self::UnresolvedInput { input } => {
+                *input = input.respoken(doc);
+            }
+            Self::WouldCycle { at } | Self::ReadSiteMissingNode { at } => {
+                *at = at.respoken(doc);
+            }
+            Self::DuplicateInput { node, input } | Self::DeclareInputNotDeclare { node, input } => {
+                *node = node.respoken(doc);
+                *input = input.respoken(doc);
+            }
+            Self::DeleteWouldDangle { id, referenced_by } => {
+                *id = id.respoken(doc);
+                *referenced_by = referenced_by.respoken(doc);
+            }
+            Self::AssertionTarget { node, measure }
+            | Self::AssertionDimension {
+                node,
+                measure,
+                measured: _,
+                bound: _,
+            } => {
+                *node = node.respoken(doc);
+                *measure = measure.respoken(doc);
+            }
+            Self::DeclareNamesMissingNode { name }
+            | Self::NameStepNeverMinted { name, step: _ }
+            | Self::RebindTargetMissingNode { name }
+            | Self::RebindUnknownName { name }
+            | Self::RebindIdentity { name }
+            | Self::RebindNoReferences { name }
+            | Self::NameUnresolvedInEvaluation { name }
+            | Self::RebindAppearanceCollision { name, kind: _ }
+            | Self::AppearanceWrongKind { name }
+            | Self::AppearanceNamesMissingNode { name }
+            | Self::AppearanceNotSet { name, kind: _ }
+            | Self::MetaUnversioned {
+                name,
+                key: _,
+                error: _,
+            }
+            | Self::MetaNonFinite {
+                name,
+                key: _,
+                path: _,
+            }
+            | Self::MetaNotSet { name, key: _ }
+            | Self::RebindMetadataCollision { name, key: _ } => {
+                *name = name.respoken(doc);
+            }
+            Self::GaugeNotLive { node, gauge }
+            | Self::NotAGauge { node, gauge }
+            | Self::GaugeCycle { node, gauge } => {
+                *node = node.respoken(doc);
+                *gauge = gauge.respoken(doc);
+            }
+            Self::WouldStartPlacing { mate } => {
+                *mate = mate.respoken(doc);
+            }
+            Self::MateRefused {
+                node,
+                held,
+                fault: _,
+            } => {
+                *node = node.respoken(doc);
+                *held = held.respoken(doc);
+            }
+            Self::Roots(fault) => *fault = fault.respoken(doc),
+            Self::LabelUnchanged { node: _ }
+            | Self::SlotDimensionMismatch {
+                slot: _,
+                expected: _,
+                found: _,
+            }
+            | Self::StructuralSlotNeedsStructuralEdit { slot: _ }
+            | Self::NotStructuralSlot { slot: _ }
+            | Self::ContinuousParamCannotBeCount { name: _ }
+            | Self::DocParamNotDeclared { name: _, door: _ }
+            | Self::DocParamCountHasNoUnit { name: _ }
+            | Self::DocParamCountHasNoDistribution { name: _ }
+            | Self::DocParamUnitMismatch {
+                name: _,
+                unit: _,
+                declared: _,
+            }
+            | Self::DocParamValueKindMismatch {
+                name: _,
+                declared: _,
+                offered: _,
+            }
+            | Self::Dimension(_)
+            | Self::NonFiniteDocParam { name: _, field: _ }
+            | Self::InvalidDistribution { name: _, fault: _ }
+            | Self::RebindKindMismatch { from: _, to: _ }
+            | Self::EmptyWitnessBulk
+            | Self::EvaluationOfAnotherDocument {
+                expected: _,
+                found: _,
+            }
+            | Self::InvalidTolerance { value: _ }
+            | Self::PlacementAxis { error: _ } => {}
+        }
+        again
+    }
+
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
     fn render(&self, f: &mut core::fmt::Formatter<'_>, tail: Tail) -> core::fmt::Result {
         match self {
