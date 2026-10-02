@@ -2450,6 +2450,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::StepCollapsed { .. }
         | E::StepUnusable { .. }
         | E::SeedRefinementFailed { .. }
+        | E::SeedOffDomain { .. }
         | E::StepRefinementFailed { .. }
         | E::SelfCrossingLocus { .. }
         | E::Fit(_)

@@ -513,8 +513,8 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1680, "rows in the committed baseline");
-    assert_eq!(sized.len(), 92, "of them sized");
+    assert_eq!(all.len(), 1676, "rows in the committed baseline");
+    assert_eq!(sized.len(), 88, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
         s.sort_unstable();
@@ -526,14 +526,12 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // The census over the SIZED rows — the one that matters, because
     // an unsized swap costs rule 2 nothing.
     let (pairs, in_pairs, scenes) = census(&sized);
-    assert_eq!(pairs, 16, "indistinguishable pairs among the sized rows");
-    assert_eq!(in_pairs, 32, "sized rows sitting in such a pair");
+    assert_eq!(pairs, 12, "indistinguishable pairs among the sized rows");
+    assert_eq!(in_pairs, 24, "sized rows sitting in such a pair");
     assert_eq!(
         scenes,
         [
             "klein/klein_loop",
-            "lily/lily_leaf_b",
-            "lily/lily_leaf_c",
             "lily/lily_sepal_b",
             "lofts/loft_prism",
             "lofts/nonuniform_loft",
@@ -559,7 +557,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // what it measures is the size of the hole the sized-row census
     // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 26_517, "pairs across every row");
+    assert_eq!(all_pairs, 26_513, "pairs across every row");
     assert_eq!(all_scenes.len(), 84, "scenes carrying one, corpus-wide");
 }
 
@@ -991,9 +989,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 441_860, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 453_482, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 333_508,
+        t.nurbs_triangles, 345_030,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -1003,14 +1001,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 144_130.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 169_409.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 150_402.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 170_851.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 149_983.0,
+        t.opt_cells, 151_547.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 136_115.0,
+        t.span_opt_cells, 143_051.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -1018,11 +1016,11 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.1754).abs() < 5e-4,
+        (held - 1.1360).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.0589).abs() < 5e-4,
+        (recoverable - 1.0514).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
