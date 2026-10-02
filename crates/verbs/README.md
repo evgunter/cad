@@ -85,10 +85,12 @@ layer whose types it serves (`topo/src/query.rs`):
   `edge_carrier_matches`, `face_surface_matches`, `edge_adjacent_matches`
   and the kind reads under them. They read a carrier's enum TAG, go
   through no funnel and carry no margin, and answer an honest NO on a
-  missing carrier or a dangling key. `CurveKind` is defined here — the
-  mirror lives where it is used, beside the predicates that read it —
-  while `SurfaceKind` stays the workspace's one fieldless surface mirror
-  in `geom-brep` and is reused.
+  missing carrier or a dangling key. `CurveKind` and `SurfaceKind`
+  are the workspace's one fieldless mirror of `Curve3` and of `Surface`,
+  each defined in `geom` beside the enum it mirrors (`Curve3::kind`,
+  `Surface::kind`) and reused by every crate above it. This seat owns
+  the comparand sets `CurveKindSet` and `SurfaceKindSet`, their bit
+  numbering, and the predicates that read them.
 - The DECIDED atom is resolved: `datum_distance_sign` measures an
   entity's point against a passed-in `DatumValue` through the
   `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an

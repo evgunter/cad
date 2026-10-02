@@ -269,7 +269,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
         &["bool_contact_vertex"],
     ),
     (
-        // Filed: work/edit/flip-reports-name-no-decision-for-most-predicates.md.
+        // Filed: work/doctail/flip-reports-name-no-decision-for-most-predicates.md.
         "no words yet",
         &[
             "bool_chord_side",
