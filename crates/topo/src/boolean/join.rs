@@ -126,7 +126,7 @@ use geom_core::Tol;
 /// decides its length there because the carrier's unit length is an
 /// at-rest convention no tier certifies. Its comparand is the vector's
 /// norm, a genuine length, through the plain [`Margin::norm3`] door.
-const BOOL_GERM_PLANE_NORMAL: &str = "bool_germ_plane_normal";
+pub(super) const BOOL_GERM_PLANE_NORMAL: &str = "bool_germ_plane_normal";
 
 /// One completed section-polygon **pair**: the 2-loop null face in
 /// each solid, with the loop roles as F9 data (IN copy = the loop
