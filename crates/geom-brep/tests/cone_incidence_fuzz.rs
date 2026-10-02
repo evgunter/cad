@@ -6,8 +6,8 @@
 //! reading — the kernel's folded residual amplitude, over
 //! `2·sin α·|z_centre|` instead of `2·sin α·z_min` — is `0.9·ε`, which
 //! near an elongated section's low vertex puts the ellipse far past the
-//! sliver. Every draw the kernel calls uncovered must lie within the
-//! sliver (`K·ε`) of the cone.
+//! sliver. Every draw the kernel reads as on the cone — imaged, or
+//! called uncovered — must lie within the sliver (`K·ε`) of the cone.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -110,13 +110,14 @@ fn an_uncovered_perturbed_section_lies_within_the_sliver() {
             // places the draw at its target.
             let per_unit = centre_reading(make(1e-7), alpha) / 1e-7;
             let c = ellipse(make(0.9 * e / per_unit));
-            if let Err(PcurveCertifyError::UnsupportedCarrier { .. }) =
-                chart_pcurve(&c, &cone(alpha), band())
-            {
+            if matches!(
+                chart_pcurve(&c, &cone(alpha), band()),
+                Ok(_) | Err(PcurveCertifyError::UnsupportedCarrier { .. })
+            ) {
                 let d = off_cone(&c, alpha);
                 assert!(
                     d < k * e,
-                    "frac {frac}: an ellipse {:.2}·ε off the cone was called uncovered ({})",
+                    "frac {frac}: an ellipse {:.2}·ε off the cone was read as on it ({})",
                     d / e,
                     fuzz::replay()
                 );

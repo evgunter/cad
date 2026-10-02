@@ -162,6 +162,16 @@ both sides) has nothing missing for this pose — the section and its
 plane are the coplanar pose's — so this is the third carrier on which
 the ring lane, and only it, is owed.
 
+## Evidence (2026-10-02, the circle × cylinder cell): parallel cylinders that pierce
+
+Two unit cylinders, `z ∈ [0, 2]` and `z ∈ [0.5, 2.5]`, axes `d` apart,
+`d ∈ {0.3, 0.8, 1.2, 1.6, 1.9}`: each rim circle's pierce of the other
+wall is certified by the circle × cylinder root lane and passes its
+sector side, and every op refuses
+`Join(SectionArcWindow { case: NoChartedRun })`. Pinned by
+`crates/sweep/tests/tang_circle_cylinder.rs`,
+`parallel_cylinders_that_pierce_stop_at_the_pierce_ring`.
+
 ## 2026-10-01 — re-measured on main (TANG)
 
 Every door was measured at `origin/main` `6000ec92d`, under all three ops
