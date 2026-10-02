@@ -130,8 +130,8 @@ pub(crate) enum LoopWinding<W> {
     Wound(W),
 }
 
-/// **The conic term of one traversed edge** — the one statement of it:
-/// `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
+/// **The conic term of one traversed edge** ([`ConicFrame`],
+/// [`chord_bulge`]): `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
 /// arc and its chord (the cross-sum's `2A` convention, odd in the
 /// signed span `Δ`) and the edge's boundary length (exact for a
 /// circle, an upper bound for an ellipse: `|Δ|` times the larger
@@ -157,20 +157,94 @@ pub(crate) fn conic_segment_term<T: Real>(
     forward: bool,
 ) -> Option<(Vec3<T>, T)> {
     let (t0, t1) = curve.params();
-    // `(axis, sa, sb, the larger semi-axis magnitude)`. The circle's lever is its
-    // radius itself, not `radius.max(radius)`: the same value, but at a
-    // symbolic scalar a `max` node is opaque where the radius is not.
-    let (axis, sa, sb, reach) = match *curve.carrier() {
-        geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius, radius),
-        geom::Curve3::Ellipse {
-            axis, major, minor, ..
-        } => (axis, major, minor, major.abs().max(minor.abs())),
-        geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-            return None;
-        }
-    };
+    let conic = ConicFrame::of(curve.carrier())?;
     let span = if forward { t1 - t0 } else { t0 - t1 };
-    Some((axis * (sa * sb * (span - span.sin())), span.abs() * reach))
+    Some((
+        conic.axis * (conic.sa * conic.sb * chord_bulge(span)),
+        span.abs() * conic.reach,
+    ))
+}
+
+/// **A conic carrier's frame** — the one reading of a circle or an
+/// ellipse as `P(θ) = center + a·cos θ + b·sin θ`, `a = u_ref·sa`,
+/// `b = (axis × u_ref)·sb`: a circle's `sa = sb = radius`, an
+/// ellipse's `(major, minor)`, as stored, signs included.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ConicFrame<T: Real> {
+    /// The conic's centre.
+    pub(crate) center: Point3<T>,
+    /// The unit normal of its plane.
+    pub(crate) axis: Vec3<T>,
+    /// The `θ = 0` direction.
+    pub(crate) u_ref: Vec3<T>,
+    /// The semi-axis along `u_ref`.
+    pub(crate) sa: T,
+    /// The semi-axis along `axis × u_ref`.
+    pub(crate) sb: T,
+    /// The arc-length lever per radian ([`conic_segment_term`]): a
+    /// circle's radius itself, an ellipse's larger semi-axis magnitude.
+    pub(crate) reach: T,
+}
+
+impl<T: Real> ConicFrame<T> {
+    /// The frame of `carrier`; `None` for a line, a spiric or a NURBS.
+    pub(crate) fn of(carrier: &geom::Curve3<T>) -> Option<Self> {
+        // The circle's lever is its radius itself, not `radius.max(radius)`:
+        // the same value, but at a symbolic scalar a `max` node is opaque
+        // where the radius is not.
+        let (center, axis, u_ref, sa, sb, reach) = match *carrier {
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => (center, axis, u_ref, radius, radius, radius),
+            geom::Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => (
+                center,
+                axis,
+                u_ref,
+                major,
+                minor,
+                major.abs().max(minor.abs()),
+            ),
+            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                return None;
+            }
+        };
+        Some(Self {
+            center,
+            axis,
+            u_ref,
+            sa,
+            sb,
+            reach,
+        })
+    }
+
+    /// The `θ = 0` semi-axis vector, `u_ref·sa`.
+    pub(crate) fn a(&self) -> Vec3<T> {
+        self.u_ref * self.sa
+    }
+
+    /// The `θ = π/2` semi-axis vector, `(axis × u_ref)·sb`.
+    pub(crate) fn b(&self) -> Vec3<T> {
+        self.axis.cross(self.u_ref) * self.sb
+    }
+}
+
+/// **The bulge of an arc over its chord** — the one statement of it:
+/// `Δ − sin Δ` for the signed span `Δ`. Twice the area between a unit
+/// circle's arc and its chord; an arc of the conic `c + a·cos θ +
+/// b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area, for any
+/// signed `Δ` and any `a`, `b` (module docs).
+pub(crate) fn chord_bulge<T: Real>(span: T) -> T {
+    span - span.sin()
 }
 
 /// How a winding's traversed halves close into the region it is read

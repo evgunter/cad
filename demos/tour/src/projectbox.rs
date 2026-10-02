@@ -199,7 +199,7 @@ mod tests {
     /// **The bored box and its halves pass their tiers, and the above
     /// half is three outer shells.** Building the stop asserts the
     /// chain's per-op volume oracle and Seamed kind, the halves' section
-    /// rings and `plane_section`'s closed-form areas; this adds what
+    /// rings and `plane_section`'s areas against their closed forms; this adds what
     /// `crate::run_body` asserts on the tour pass (tier 3′ on the box
     /// with its declared contacts, tier 3 on each half), and the shell
     /// roles the above half's STEP pin rests on: the cut frees the two
