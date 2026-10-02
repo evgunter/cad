@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P0
 cost: H
+design: true
 ---
 
 
@@ -77,3 +78,36 @@ Either the join learns to reuse the in-face edge as its section segment
 (the REST zip's structural reuse, outside a declared union), or the
 configuration refuses at a typed door that names it before the loose
 ends are counted.
+
+## Measured (JOIN, 2026-10-02; probe branch `join/inface-probe`)
+
+The section is emitted correctly: each in-face side of the section
+polygon has a germ at both ends, with opposed directions and senses.
+The join's `find_match` pairs germs by face pair, and the two ends
+name DIFFERENT flanks of the operand edge they lie on:
+
+- The vertex-on-face end goes through `vtxfac::resolve_on_entries`,
+  which resolves a mixed-flank on-edge to In. The germ therefore lands
+  on the Out flank's face.
+- The vertex-vertex end goes through `recl`'s attribution, which records
+  the germ on the sector holding the on-bound as its start. In every
+  pose measured that was the In flank.
+
+Every pose shows the same split (∪/∖/∩, cutter on either side, the
+diamond and the rod), and so does the merged teapot cup. With no end
+wall inside the operand, both ends are vertex-on-face sites: they
+agree, and the join mints a chord lying on the existing edge, which
+certifies.
+
+Experiments:
+- **Making vertex-on-face also pick In:** every diamond op certifies
+  at the exact volume, and so does rod ∪. Rod ∖ and rod ∩ build WRONG
+  bodies, off by πR²/8: the cutter's `y = 0` face uses the rod's
+  semicircle where it should use the straight diameter between one
+  vertex pair. The cup then refuses at a planar-only ring re-homing arm.
+- **Ignoring the face label in `find_match`:** `Euler(NotSameFace)`.
+
+The closed in-face conic of the third measurement is a different
+shape: `closed-in-face-section-loop-has-one-site`. The design question
+(which flank, decided how, and how a segment coinciding with an edge
+is identified) is with the two designers.
