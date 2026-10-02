@@ -580,6 +580,8 @@ mod germ_sphere_no_crossings;
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]
 mod germ_torus_rods;
+#[path = "join1_delta_probes.rs"]
+mod join1_delta_probes;
 #[path = "join1_mechanisms.rs"]
 mod join1_mechanisms;
 #[path = "join1_r1_probes.rs"]
