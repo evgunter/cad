@@ -4,7 +4,7 @@
 //! it has no label, `Extrude 3fa9c1d2a0b1`; a node the document does
 //! not hold reads `node 3fa9c1d2a0b1`.
 //!
-//! Three spellings, one home each:
+//! Four spellings, one home each:
 //!
 //! - [`SpokenNode`] — the node as a person reads it. It is built from
 //!   the document that holds the node, by the frame that owns that
@@ -16,6 +16,12 @@
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a stored reference). The edit, load and save doors all
 //!   hold a document, so each speaks.
+//! - [`Speaker`] — a sentence written once over the speaker, for a
+//!   refusal that holds bare ids (one the evaluation memo reuses, or
+//!   one a door raised from an evaluation alone): its `Display` says
+//!   each node by tag ([`Speaker::TAG`]), and its `spoken(doc)` says
+//!   each as the document of the frame handing it out holds it
+//!   ([`Speaker::of`]).
 //! - [`FullId`] — every bit of the id, for a machine channel (a
 //!   binding's `repr`, a goldened report) where two ids must never
 //!   print alike.
@@ -246,12 +252,7 @@ impl SpokenName {
 
 impl fmt::Display for SpokenName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} name minted by {}",
-            self.name().kind.noun(),
-            self.minter()
-        )
+        write!(f, "{}", SaidName(self.name(), self.minter()))
     }
 }
 
@@ -276,6 +277,109 @@ impl<P> Doc<P> {
             None => SpokenNode::absent(id),
         }
     }
+}
+
+/// **Who says a sentence's nodes**: a refusal's sentence is written
+/// once and said two ways. Its own `Display` says each node by its tag
+/// ([`Speaker::TAG`], where no document is at hand), and the frame that
+/// holds the document the ids are spelled in says each as that
+/// document holds it now ([`Speaker::of`]). A value the evaluation
+/// memo reuses, or one a door raised from an evaluation alone, keeps
+/// its bare ids and is said this way by the frame that hands it out.
+#[derive(Clone, Copy)]
+pub struct Speaker<'a>(Option<&'a dyn HoldsNodes>);
+
+/// A document a [`Speaker`] reads nodes off, whatever its program.
+trait HoldsNodes {
+    fn speak(&self, id: RecipeNodeId) -> SpokenNode;
+}
+
+impl<P> HoldsNodes for Doc<P> {
+    fn speak(&self, id: RecipeNodeId) -> SpokenNode {
+        self.spoken(id)
+    }
+}
+
+impl<'a> Speaker<'a> {
+    /// Each node by its tag: `node <tag>`.
+    pub const TAG: Speaker<'static> = Speaker(None);
+
+    /// Each node as `doc` holds it now ([`Doc::spoken`]).
+    #[must_use]
+    pub fn of<P>(doc: &'a Doc<P>) -> Self {
+        Self(Some(doc))
+    }
+
+    /// The node `id`, said.
+    #[must_use]
+    pub fn node(self, id: RecipeNodeId) -> SpokenNode {
+        match self.0 {
+            None => SpokenNode::absent(id),
+            Some(doc) => doc.speak(id),
+        }
+    }
+
+    /// The name `name`, its minting node said: `face name minted by
+    /// <node>`.
+    #[must_use]
+    pub fn name(self, name: &StableName) -> impl fmt::Display + '_ {
+        SaidName(name, self.node(name.node))
+    }
+
+    /// The node `id` where the sentence knows what it is: `<noun>
+    /// <tag>` by its tag, or for a node the document does not hold;
+    /// as the document holds it otherwise.
+    #[must_use]
+    pub fn node_as(self, id: RecipeNodeId, noun: &'static str) -> impl fmt::Display {
+        NodeAs(noun, self.node(id))
+    }
+}
+
+/// A name and its minting node said: the one spelling of `<kind> name
+/// minted by <node>` ([`SpokenName`]'s too).
+struct SaidName<'a, N>(&'a StableName, N);
+
+impl<N: fmt::Display> fmt::Display for SaidName<'_, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} name minted by {}", self.0.kind.noun(), self.1)
+    }
+}
+
+/// [`Speaker::node_as`]'s answer.
+struct NodeAs(&'static str, SpokenNode);
+
+impl fmt::Display for NodeAs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.1.kind() {
+            Some(_) => write!(f, "{}", self.1),
+            None => write!(f, "{} {}", self.0, self.1.id()),
+        }
+    }
+}
+
+/// A value whose sentence a [`Speaker`] says.
+pub trait Say {
+    /// The sentence, each node said by `by`.
+    ///
+    /// # Errors
+    ///
+    /// The formatter's.
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: Speaker<'_>) -> fmt::Result;
+}
+
+/// A value said by a speaker: the `Display` of [`Say::say`].
+pub struct Said<'a, T: ?Sized>(pub &'a T, pub Speaker<'a>);
+
+impl<T: Say + ?Sized> fmt::Display for Said<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.say(f, self.1)
+    }
+}
+
+/// `value`'s sentence as `doc` speaks its nodes now.
+#[must_use]
+pub fn spoken_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> String {
+    Said(value, Speaker::of(doc)).to_string()
 }
 
 /// **A report renders only from the document it was taken of.** A

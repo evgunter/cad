@@ -347,7 +347,7 @@ fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() 
         matches!(
             err,
             topo::pcurves::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::ArcNearPole { .. },
+                error: geom_brep::PcurveCertifyError::ArcNearPole,
                 ..
             }
         ),
@@ -373,19 +373,28 @@ fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() 
 }
 
 /// **The certificate sees the image between its samples.** The lane's
-/// image with ONE interior control point moved by 1e-3 rad in azimuth —
-/// a control no certification sample sits on, since the lane's nodes
-/// are triadic and the samples dyadic — is refused: by the schedule
-/// residual where a sample falls in the corrupted span, and by the span
-/// bound wherever it falls. Red if both stop reading the image.
+/// image with one interior control of a span that holds NO
+/// certification sample moved by 1e-3 rad in azimuth: check 3 cannot
+/// see it, so it must refuse at check 4, the envelope. Red if the span
+/// bound stops reading the image's own controls.
 #[test]
 fn a_corrupted_image_refuses_between_its_samples() {
     let (t0, t1) = ARC;
     let band = Band::linear(Tol::witness()).unwrap();
     let image = lane_image();
+    let knots = image.knots().knots();
+    let spans = (image.control().len() - 1) / 5;
+    let samples: Vec<f64> = (0..9)
+        .map(|k| t0 + (t1 - t0) * f64::from(k) / 8.0)
+        .collect();
+    let free = (0..spans)
+        .find(|&j| {
+            let (a, b) = (knots[5 * j + 5], knots[5 * j + 10]);
+            !samples.iter().any(|&s| s >= a && s <= b)
+        })
+        .expect("a span with no certification sample");
     let mut control = image.control().to_vec();
-    let k = control.len() / 2;
-    control[k].x += 1e-3;
+    control[5 * free + 2].x += 1e-3;
     let corrupted = Arc::new(
         NurbsCurve2::new(image.knots().clone(), control, image.weights().to_vec())
             .expect("same structure"),
@@ -409,12 +418,9 @@ fn a_corrupted_image_refuses_between_its_samples() {
             geom_brep::PcurveCertifyError::ResidualExceeded {
                 check: geom_brep::PcurveCheck::Envelope,
                 ..
-            } | geom_brep::PcurveCertifyError::ResidualExceeded {
-                check: geom_brep::PcurveCheck::MapResidual,
-                ..
             }
         ),
-        "the refusal is a residual one: {err:?}"
+        "the refusal is the envelope's, check 4: {err:?}"
     );
 }
 

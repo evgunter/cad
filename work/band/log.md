@@ -331,3 +331,9 @@ two fix passes, delta review. Merged with two red rows that are main's own
 (as #3701). Filed: `face-clearance-screen-skips-boundary-edges-it-cannot-read`,
 `support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place`,
 `support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`.
+
+## 2026-10-01 — S90 ruled: the blend stays differentiable (PR 3724)
+
+Ev approved the designers' converged answer: the blend doors stay generic
+under DL5; H-R3's fillet third is retired. `S90-impl` becomes the pin
+(dual tangent rows), P1/M. Fork-log row 40 (A = Opus, B = Fable).

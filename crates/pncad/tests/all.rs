@@ -2963,7 +2963,7 @@ fn workspace_resolve_door_refusals_meet_the_standard_and_their_recourses_get_thr
     use pncad::document::{PartFault, PersistError, Recourse};
     use pncad::workspace::{Scan, Workspace, WorkspaceError};
     use test_utils::refusal::{Admission, problems_admitting};
-    const HEX: &str = "work/edit/part-refusals-name-documents-by-hex-id.md";
+    const HEX: &str = "work/doctail/part-refusals-name-documents-by-hex-id.md";
     let dir = WsDir::new("resolve-door");
     let doc_ref = asm2a_part(&dir, "part.pncad", "ws-resolve-door-part");
     let (asm, ids) = asm2a_assembly("ws-resolve-door-asm", doc_ref, 1);

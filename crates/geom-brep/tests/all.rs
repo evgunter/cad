@@ -259,6 +259,8 @@ mod r2_mesh7_door_probes;
 mod review_general_circle_delta_probes;
 #[path = "review_general_circle_probes.rs"]
 mod review_general_circle_probes;
+#[path = "sphere_circle_certificate.rs"]
+mod sphere_circle_certificate;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
 #[path = "torus_meridian_radial.rs"]
