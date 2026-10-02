@@ -1,0 +1,4 @@
+fork: curve-kind-placement-disagrees-with-the-ratified-seat-clause (TQUERY)
+dispatched: 2026-10-02
+byte: 16
+mapping: A=opus B=fable
