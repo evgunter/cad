@@ -212,12 +212,18 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     }
 
-    // ---- 4. Seam realization, per solid. ----
+    // ---- 4. Seam realization, per solid. A segment one solid already
+    // carries as an edge is read there before either solid mints. ----
+    let a_segments: Vec<_> = segments.iter().map(|s| (s.a_u, s.a_v)).collect();
+    let b_segments: Vec<_> = segments.iter().map(|s| (s.b_u, s.b_v)).collect();
+    let from_b = partner_edges(&red.b, &b_segments)?;
+    let from_a = partner_edges(&red.a, &a_segments)?;
     let mut a_fragments = Vec::new();
     let mut b_fragments = Vec::new();
     let a_seam = realize_seam(
         &mut red.a,
-        &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
+        &a_segments,
+        &from_b,
         &a_rings,
         &mut a_fragments,
         tol,
@@ -227,7 +233,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
     let b_seam = realize_seam(
         &mut red.b,
-        &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
+        &b_segments,
+        &from_a,
         &b_rings,
         &mut b_fragments,
         tol,
@@ -866,13 +873,57 @@ struct SeamSet {
     per_segment: Vec<EdgeKey>,
 }
 
+/// A segment's edge on the OTHER solid: its certified curve, and
+/// whether that curve runs from the segment's first end to its second.
+struct PartnerEdge<T: geom_core::Real> {
+    curve: geom_brep::EdgeCurve<T>,
+    forward: bool,
+}
+
+/// Per segment, the edge `body` already carries between its ends (the
+/// fan walk), with its curve. The contact region's boundary runs along
+/// the two operands' face boundaries, so where one solid carries a
+/// segment as an edge, that edge's curve IS the seam's locus, and the
+/// other solid's chord takes it ([`mint_chord`]).
+fn partner_edges<T: Decide>(
+    body: &Body<T>,
+    segments: &[(VertexKey, VertexKey)],
+) -> Result<Vec<Option<PartnerEdge<T>>>, BooleanError> {
+    segments
+        .iter()
+        .map(|&(u, v)| {
+            let Some(e) = fan_edge_between(body, u, v)? else {
+                return Ok(None);
+            };
+            let edge = body
+                .get_edge(e)
+                .ok_or_else(|| desync("REST lane: a seam edge no longer resolves"))?;
+            let start = body
+                .get_half_edge(edge.he_plus)
+                .ok_or_else(|| desync("REST lane: a seam half no longer resolves"))?
+                .start;
+            let curve = body
+                .get_curve_geom(edge.curve)
+                .and_then(crate::null::CurveGeom::certified)
+                .cloned()
+                .ok_or_else(|| desync("REST lane: a seam edge has no certified curve"))?;
+            Ok(Some(PartnerEdge {
+                curve,
+                forward: start == u,
+            }))
+        })
+        .collect()
+}
+
 /// Realizes the seam in one solid: per segment, the existing operand
 /// edge (fan walk) or a minted chord through the standard splitting
-/// machinery. `Ok(None)`: a segment does not resolve structurally —
-/// not this lane's frontier (pre-identification phase).
+/// machinery, on the partner solid's edge where it has one. `Ok(None)`:
+/// a segment does not resolve structurally — not this lane's frontier
+/// (pre-identification phase).
 fn realize_seam<T: Decide>(
     body: &mut Body<T>,
     segments: &[(VertexKey, VertexKey)],
+    partners: &[Option<PartnerEdge<T>>],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -881,10 +932,10 @@ fn realize_seam<T: Decide>(
         set: SecondaryMap::new(),
         per_segment: Vec::with_capacity(segments.len()),
     };
-    for &(u, v) in segments {
+    for (&(u, v), partner) in segments.iter().zip(partners) {
         let edge = match fan_edge_between(body, u, v)? {
             Some(e) => e,
-            None => match mint_chord(body, u, v, rings, fragments, tol)? {
+            None => match mint_chord(body, u, v, partner.as_ref(), rings, fragments, tol)? {
                 Some(e) => e,
                 None => return Ok(None),
             },
@@ -929,12 +980,16 @@ fn fan_edge_between<T: Decide>(
 
 /// Mints the seam chord `u → v` through the standard splitting
 /// machinery (`mef` same-loop, `mekr` for ring loops / pierce-ring
-/// vertices) in the unique face incident to both endpoints.
-/// `Ok(None)`: no unique host face — not this lane's frontier.
+/// vertices) in the unique face incident to both endpoints. With a
+/// `partner` edge the chord is that edge's curve, charted on the host
+/// face; without one it is the straight chord. `Ok(None)`: no unique
+/// host face, or a partner curve this lane cannot run the other way —
+/// not this lane's frontier.
 fn mint_chord<T: Decide>(
     body: &mut Body<T>,
     u: VertexKey,
     v: VertexKey,
+    partner: Option<&PartnerEdge<T>>,
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -944,6 +999,28 @@ fn mint_chord<T: Decide>(
     let common: Vec<FaceKey> = fu.iter().filter(|f| fv.contains(f)).copied().collect();
     let [face] = common[..] else {
         return Ok(None); // zero or ambiguous host face
+    };
+    let host = body
+        .get_face(face)
+        .ok_or_else(|| desync("REST lane: chord host face vanished"))?
+        .surface;
+    // The partner's curve, running from `u` when `from_u`, else from `v`.
+    let spec = |from_u: bool| -> Option<Option<geom_brep::EdgeCurveSpec<T>>> {
+        let Some(p) = partner else {
+            return Some(None);
+        };
+        let (t0, t1) = p.curve.params();
+        let (carrier, param_start, param_end) = if p.forward == from_u {
+            (p.curve.carrier().clone(), t0, t1)
+        } else {
+            (reversed(p.curve.carrier())?, -t1, -t0)
+        };
+        Some(Some(geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(host),
+            carrier,
+            param_start,
+            param_end,
+        }))
     };
     let hu = halves_at(body, face, u)?;
     let hv = halves_at(body, face, v)?;
@@ -966,9 +1043,15 @@ fn mint_chord<T: Decide>(
         ([hu], [hv]) => {
             let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
             if lu == lv {
-                let created = body
-                    .mef_chord(MefSite::Chords { he1: *hu, he2: *hv }, tol)
-                    .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
+                let Some(curve) = spec(true) else {
+                    return Ok(None);
+                };
+                let site = MefSite::Chords { he1: *hu, he2: *hv };
+                let created = match curve {
+                    Some(c) => body.mef(site, c, FaceSurface::Inherit, tol),
+                    None => body.mef_chord(site, tol),
+                }
+                .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
                 fragments.push((created.face, face));
                 created.edge
             } else {
@@ -977,25 +1060,32 @@ fn mint_chord<T: Decide>(
                     .get_face(face)
                     .ok_or_else(|| desync("REST lane: chord host face vanished"))?
                     .outer;
-                let (target, ring) = if lv == outer { (*hv, *hu) } else { (*hu, *hv) };
-                body.mekr_chord(MekrSite::Cycles { target, ring }, tol)
+                let from_u = lv != outer;
+                let (target, ring) = if from_u { (*hu, *hv) } else { (*hv, *hu) };
+                let Some(curve) = spec(from_u) else {
+                    return Ok(None);
+                };
+                mekr_with(body, MekrSite::Cycles { target, ring }, curve, tol)
                     .map_err(|_| unsupported(RestZipFrontier::ChordMekrRefused))?
-                    .edge
             }
         }
         ([], [hv]) => {
             let ring = ring_loop_of(body, u)
                 .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hv, ring }, tol)
+            let Some(curve) = spec(false) else {
+                return Ok(None);
+            };
+            mekr_with(body, MekrSite::EmptyRing { target: *hv, ring }, curve, tol)
                 .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
-                .edge
         }
         ([hu], []) => {
             let ring = ring_loop_of(body, v)
                 .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hu, ring }, tol)
+            let Some(curve) = spec(true) else {
+                return Ok(None);
+            };
+            mekr_with(body, MekrSite::EmptyRing { target: *hu, ring }, curve, tol)
                 .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
-                .edge
         }
         ([], []) => {
             return Err(unsupported(RestZipFrontier::ChordBetweenIsolatedPierces));
@@ -1005,6 +1095,55 @@ fn mint_chord<T: Decide>(
         }
     };
     Ok(Some(created))
+}
+
+/// `mekr` on a given curve, or the chord sugar without one; the new edge.
+fn mekr_with<T: Decide>(
+    body: &mut Body<T>,
+    site: MekrSite,
+    curve: Option<geom_brep::EdgeCurveSpec<T>>,
+    tol: Tol,
+) -> Result<EdgeKey, crate::euler::EulerOpError> {
+    match curve {
+        Some(c) => body.mekr(site, c, tol),
+        None => body.mekr_chord(site, tol),
+    }
+    .map(|m| m.edge)
+}
+
+/// The carrier traversed the other way, on the parameter `−t`: a line
+/// on its negated direction, a circle or an ellipse about its negated
+/// axis (which negates `axis × u_ref`, so the point at `−t` is the
+/// original's at `t`). `None` for the carriers with no such closed form.
+fn reversed<T: geom_core::Real>(carrier: &geom::Curve3<T>) -> Option<geom::Curve3<T>> {
+    match *carrier {
+        geom::Curve3::Line { origin, dir } => Some(geom::Curve3::Line { origin, dir: -dir }),
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => Some(geom::Curve3::Circle {
+            center,
+            axis: -axis,
+            radius,
+            u_ref,
+        }),
+        geom::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => Some(geom::Curve3::Ellipse {
+            center,
+            axis: -axis,
+            major,
+            minor,
+            u_ref,
+        }),
+        _ => None,
+    }
 }
 
 /// The faces incident to `u`, deterministic orbit order (a pierce-ring

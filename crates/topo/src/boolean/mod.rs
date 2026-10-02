@@ -2734,28 +2734,15 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         plant: None,
         pad_override,
     };
-    reduce::sweep_direction(
+    reduce::sweep_both(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &ab_knobs,
-        Some(&mut ab),
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &ba_knobs,
-        Some(&mut ba),
+        [&ab_knobs, &ba_knobs],
+        [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
     Ok((ab, ba))
@@ -2790,28 +2777,15 @@ pub fn sweep_records(
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_both(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let sizes = [
@@ -2902,28 +2876,15 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     // Reduction sweep, both directions (A's edges first — D9 order).
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_both(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let contacts = acc.finish();
