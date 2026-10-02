@@ -2,12 +2,13 @@
 id: a-strut-bearing-operand-passes-the-boolean-gates-and-refuses-at-the-join
 kind: issue
 title: A boolean operand with a valence-1 vertex passes the operand gates and refuses at the join as UnpairedLooseEnds, whose text says kernel defect
-status: review
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: E
 branch: cleave/strut-gate
 pr: 3860
+closed: 2026-10-02
 ---
 
 Found by the LINALG pole-branch measurement (`linalg/pole-branch-shift`).
