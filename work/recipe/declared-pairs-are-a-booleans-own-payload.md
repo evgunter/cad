@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P1
 cost: H
 branch: recipe/declared-pairs-payload
+pr: 3902
 ---
 
 
@@ -63,3 +64,15 @@ sunk 1/16 into the base. With this row the flush edit becomes two
 edits — the count, then the re-detected pairs set on the live union —
 and the scene can be re-authored flush (`Seat::Flush`) with the recompute
 story counting both.
+
+## Built (2026-10-02, PR 3902)
+
+Landed as ruled:
+- **Payload and edit.** `Node::Boolean`/`Node::Union` carry `declare: Vec<DeclaredPair>`, and `DocEdit::SetDeclare { node, pairs }` sets it on a live node (whole list, empty clears; `SetDeclareOnNonDeclaring` for any other kind).
+- **Deleted.** `Node::Declare`, `DeclareInputNotDeclare`, `SnapshotError::DeclareInput`, `Maintenance::OrphanedDeclare` and the orphan root-set note, the declarations value family, and `refactor`'s Declare arm (now the payload's own remap).
+- **Recourse.** The kernel recourse names `SetDeclare`.
+- **Python.** `declare=` takes findings, `Doc.declare`/`declare_all` act on a live node, `DocEdit.set_declare` is new, and `Node.declare` is gone.
+- **Persistence.** The format has no schema version (`persist/mod.rs`), so the "bump" is the re-save of every checked-in document.
+- **Tour.** `heatsink` `flush_fins` measures the two-edit door: the count edit, then `declare_all` on the live union.
+
+Net −1160 lines. What remains is the viewer half, DOORS' two rows, which this unblocks.
