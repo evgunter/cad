@@ -26,3 +26,14 @@ tier 3. This is the lever class CONTACT-7 and CONTACT-9 closed at the
 touch analysis and the side codes: a reading levered at a length that
 is not the one the verdict is about. Here the dihedral should be read
 at the faces' extent from the seam.
+
+## Now a refusal (FUSE, 2026-10-02)
+
+The boolean's result gate refuses a scaffold at rest
+(`boolean::ops::gate`, from the FUSE unit
+`a-boolean-result-gate-ships-a-scaffold-at-rest`). The poses this
+lever leaves a scaffold no longer answer: in `contact9_side_codes`,
+the tilted wedge's ∩ and − and the pierce row's `tool − block` refuse
+`ResultInvalid` with `ScaffoldAtRest` alone, and those rows now pin the
+refusal. Fixing the lever turns them back into answers; the corner and
+volume checks they lost are in the rows' history.

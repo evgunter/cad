@@ -126,7 +126,7 @@ use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
-use crate::validate::{decide, validate, validate_closed};
+use crate::validate::{decide, scaffolds_at_rest, validate, validate_closed};
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
 
@@ -2578,13 +2578,21 @@ pub(super) fn remap_carried<T: Real>(
     Ok(())
 }
 
-/// The tier gates: tier 1 + tier 2 on the finished result (tier 3 is
-/// an at-rest posture with the PR 3 description gap — see the
-/// acceptance suite's documented posture).
+/// The result gate every [`BooleanBody`] passes before it is returned:
+/// tiers 1 and 2, then tier 3's transience fence
+/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest)):
+/// an edge of the finished result still described as a scaffold is a
+/// construction that stopped half-way, and no currency the wrapper
+/// claims admits it.
 pub(super) fn gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
     validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
-    Ok(())
+    let errors = scaffolds_at_rest(body);
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(BooleanError::ResultInvalid { errors })
+    }
 }
 
 /// One sphere group the extent scan wants re-cut: rigidly re-charted
@@ -3443,10 +3451,47 @@ mod tests {
 
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{seam_class, seam_must_carry, volume_backstop};
+    use super::{gate, seam_class, seam_must_carry, volume_backstop};
     use crate::boolean::{BooleanDecision, BooleanError, BooleanOp, LeverArm};
     use crate::props::QuadLane;
     use crate::splitting::reassembly::quad_prism;
+
+    /// The result gate refuses a scaffold at rest: a box whose chords
+    /// were never described is a closed solid (tiers 1 and 2 pass) and is
+    /// refused with one `ScaffoldAtRest` per edge; the same box described
+    /// passes.
+    #[test]
+    fn the_result_gate_refuses_a_scaffold_at_rest() {
+        let tol = Tol::witness();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let raw = quad_prism(&square, 1.0, tol);
+        assert_eq!(
+            crate::validate_closed(&raw),
+            Ok(()),
+            "the raw box is closed"
+        );
+        let Err(BooleanError::ResultInvalid { errors }) = gate(&raw) else {
+            panic!("the raw box's chords are scaffolds at rest");
+        };
+        let mut named: Vec<_> = errors
+            .iter()
+            .map(|e| match e {
+                crate::ValidationError::ScaffoldAtRest { edge } => *edge,
+                other => panic!("only the fence refuses, got {other:?}"),
+            })
+            .collect();
+        named.sort();
+        let mut edges: Vec<_> = raw.edges().map(|(k, _)| k).collect();
+        edges.sort();
+        assert_eq!(named, edges, "one finding per edge, each edge once");
+        let described =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        assert_eq!(
+            gate(&described).map_err(|e| e.to_string()),
+            Ok(()),
+            "the described box passes"
+        );
+    }
 
     /// The backstop's refusal wiring, by construction: feed it a
     /// "result" whose exact volume violates the op's bound (a half-height

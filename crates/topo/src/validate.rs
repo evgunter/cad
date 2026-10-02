@@ -4633,6 +4633,28 @@ pub(crate) fn shell_role<T: Decide>(
     .and_then(|(role, _)| role)
 }
 
+/// Tier 3's transience fence on its own: a
+/// [`ValidationError::ScaffoldAtRest`] for every edge whose description
+/// is still a scaffold, in edge-arena order. On a body that passes
+/// tier 2 every edge has two faces, so these are exactly the fence
+/// findings check 2 makes, with no re-certification around them.
+pub(crate) fn scaffolds_at_rest<T: Real>(body: &Body<T>) -> Vec<ValidationError> {
+    body.edges
+        .iter()
+        .filter(|(_, edge)| {
+            body.curves
+                .get(edge.curve)
+                .and_then(CurveGeom::certified)
+                .is_some_and(is_scaffold)
+        })
+        .map(|(edge, _)| ValidationError::ScaffoldAtRest { edge })
+        .collect()
+}
+
+fn is_scaffold<T: Real>(curve: &geom_brep::EdgeCurve<T>) -> bool {
+    matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_))
+}
+
 /// Tier 3's local check battery (checks 1–6 + the +V invariant, check
 /// 7), shared verbatim between [`validate_pseudomanifold`] and
 /// [`contact_marks`] (M3 PR 6a: the tier-3′ validator runs the SAME
@@ -5593,7 +5615,7 @@ pub(crate) fn tier3_local_checks_marked<
         // yet. This edge has two faces — the lookup above answered —
         // so it has a chart, and a scaffold here is a construction
         // that stopped half-way.
-        if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) {
+        if is_scaffold(curve) {
             errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
         }
         let adjacent = match curve.description() {

@@ -3402,6 +3402,16 @@ mod tests {
             },
         )
         .expect("a face takes a plane through its diagonal");
+        // The diagonal rests in the untouched half's chart, which holds
+        // it exactly; left the chord's scaffold, no result keeping it
+        // passes the result gate.
+        let chart = body.get_face(prism.top_face).expect("the top face").surface;
+        body.set_edge_curve(
+            half.edge,
+            geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(chart, false),
+            tol,
+        )
+        .expect("the diagonal rests in the top's chart");
         body
     }
 
