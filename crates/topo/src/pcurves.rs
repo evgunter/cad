@@ -34,16 +34,20 @@
 //!   circles; torus parallels/meridians) derive and certify exactly as
 //!   the cylinder's; the sphere walk additionally knows the chart's
 //!   involution twin and the pole's zero azimuth lever (see
-//!   [`chart_u_arm`]/`sphere_twin`). A carrier OUTSIDE the closed-form
+//!   [`chart_u_arm`]/`sphere_twin`). A sphere's GENERAL circle (neither
+//!   polar nor meridian) has no closed form and takes the fitted lane:
+//!   its image from [`geom_brep::FittedLane::sphere_circle_image`],
+//!   certified by [`geom_brep::PcurveCache::certify_fitted`]'s Circle
+//!   arm (`analytic_derive`). Any other carrier outside the closed-form
 //!   classes that can still lie on the chart refuses
 //!   [`PcurveCertifyError::UnsupportedCarrier`] with the class named,
-//!   and its face stays uncached — the sphere's general circles have a
-//!   certified route that this pass cannot reach
-//!   ([`geom_brep::PcurveCache::certify_fitted`], whose docs carry the
-//!   frontier); the cone/torus oblique classes have no honest route (no
-//!   ring-computable meters composite). A carrier that cannot lie on
-//!   its face ([`PcurveCertifyError::CarrierOffChart`]) is a defect,
-//!   and the pass refuses with it.
+//!   and its face stays uncached, excused by C4's exemption
+//!   ([`not_owed`]) until the class's route lands — the cone/torus
+//!   oblique classes have no honest route yet (no ring-computable
+//!   meters composite). A carrier
+//!   that cannot lie on its face
+//!   ([`PcurveCertifyError::CarrierOffChart`]) is a defect, and the
+//!   pass refuses with it.
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter
@@ -320,7 +324,9 @@
 //!   survey, checked by nothing.
 
 use geom::Surface;
-use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
+use geom_brep::{
+    ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, UncoveredClass, chart_pcurve,
+};
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
@@ -691,7 +697,7 @@ pub fn pcurve_of<T: AtRestPolicy>(
     if let Some(cache) = body.pcurve(half_edge) {
         return Ok(cache.pcurve().clone());
     }
-    let (carrier, _, _) = half_edge_carrier(body, half_edge)?;
+    let (carrier, t0, t1) = half_edge_carrier(body, half_edge)?;
     let surface = half_edge_surface(body, half_edge)?;
     // A SPLINE chart's images are description-driven (M6-3) — the iso
     // derivation, not the closed-form harmonic table. An approximating
@@ -699,8 +705,48 @@ pub fn pcurve_of<T: AtRestPolicy>(
     if surface.spline_chart().is_some() {
         return nurbs_iso_derive(body, half_edge, &surface, band);
     }
-    chart_pcurve(&carrier, &surface, band)
-        .map_err(|error| PcurveMintError::Certify { half_edge, error })
+    analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
+}
+
+/// The chart image of a carrier on an ANALYTIC chart, on the chart's
+/// principal branch: the closed form ([`chart_pcurve`]) wherever one
+/// exists, and for a sphere's GENERAL circle — the class the closed-form
+/// door names `UncoveredClass::SphereGeneralCircle`, its incidence with
+/// the chart already decided — the fitted image
+/// ([`geom_brep::FittedLane::sphere_circle_image`]), certified by
+/// [`PcurveCache::certify_fitted`]'s Circle arm.
+///
+/// # Errors
+///
+/// [`PcurveMintError::Certify`] with the closed-form door's refusal,
+/// the fitted image's own refusal (an arc through a pole of the chart),
+/// or [`PcurveCertifyError::FittedLaneUnsupported`] for a general
+/// circle at a scalar with no fitted door.
+fn analytic_derive<T: AtRestPolicy>(
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &Surface<T>,
+    band: Band,
+    half_edge: HalfEdgeKey,
+) -> Result<Pcurve<T>, PcurveMintError> {
+    let certify = |error| PcurveMintError::Certify { half_edge, error };
+    match chart_pcurve(carrier, surface, band) {
+        Err(PcurveCertifyError::UnsupportedCarrier {
+            class: UncoveredClass::SphereGeneralCircle,
+            ..
+        }) => {
+            let Some(lane) = T::fitted_lane() else {
+                return Err(certify(PcurveCertifyError::FittedLaneUnsupported {
+                    scalar: T::NAME,
+                }));
+            };
+            lane.sphere_circle_image(carrier, t0, t1, surface, band)
+                .map(|image| Pcurve::Fitted(std::sync::Arc::new(image)))
+                .map_err(certify)
+        }
+        image => image.map_err(certify),
+    }
 }
 
 /// The certified carrier and parameter interval of `half_edge`'s edge.
@@ -1575,12 +1621,12 @@ fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 
 /// A whole-period shift of the MERIDIONAL channel — the `v` twin of
 /// [`geom_brep::Pcurve::shift_branch`], for the charts whose second
-/// parameter is an angle (sphere/torus). Two forms live on those
-/// charts and both carry their meridional constant in one field: the
-/// harmonic form's `p0.y` and a spiric WALL image's `v0` (a spiric
-/// cap's chart is a plane, which has no periodic channel to shift).
-/// Other variants answer themselves unchanged — the walk never
-/// computes a nonzero shift for them.
+/// parameter is an angle (sphere/torus). The harmonic form carries its
+/// meridional constant in `p0.y` and a spiric WALL image in `v0` (a
+/// spiric cap's chart is a plane, which has no periodic channel to
+/// shift); a fitted image (a sphere's general circle) translates its
+/// control net. Other variants answer themselves unchanged — the walk
+/// never computes a nonzero shift for them.
 fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
     match pcurve {
         Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
@@ -1604,11 +1650,15 @@ fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T>
                 sense: *sense,
             },
         },
+        // A translation is affine, and a fitted image takes it exactly.
+        fitted @ Pcurve::Fitted(_) => {
+            fitted.map_affine(|p| geom_core::Point2::new(p.x, p.y + k * period), |v| v)
+        }
         other => other.clone(),
     }
 }
 
-/// The sphere chart's INVOLUTION twin of a harmonic image:
+/// The sphere chart's INVOLUTION twin of a harmonic or fitted image:
 /// `S(u + π, π − v) = S(u, v)` holds identically on a sphere chart
 /// (`radial(u+π) = −radial(u)`, `cos(π−v) = −cos v`, `sin(π−v) =
 /// sin v`), so every sphere pcurve has exactly two harmonic
@@ -1620,10 +1670,18 @@ fn sphere_twin<T: Decide>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pc
     if !matches!(surface, Surface::Sphere { .. }) {
         return None;
     }
+    let pi = T::pi();
+    if matches!(pcurve, Pcurve::Fitted(_)) {
+        // The involution is affine, so the fitted image's twin is its
+        // control net mapped through it.
+        return Some(pcurve.map_affine(
+            |p| geom_core::Point2::new(p.x + pi, pi - p.y),
+            |v| geom_core::Vec2::new(v.x, T::zero() - v.y),
+        ));
+    }
     let Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
         return None;
     };
-    let pi = T::pi();
     Some(Pcurve::Harmonic {
         p0: geom_core::Point2::new(p0.x + pi, pi - p0.y),
         pa: geom_core::Vec2::new(pa.x, T::zero() - pa.y),
@@ -2219,22 +2277,17 @@ fn mint_faces<T: AtRestPolicy>(
         match mint_face(body, face, band) {
             Ok(()) => {}
             // Rows not owed ([`not_owed`]): a pair the chart can hold
-            // but no lane covers yet (the executed case: an oblique fillet
-            // trihedron's corner octant, whose boundary circles are
-            // GENERAL sphere circles — on the sphere, neither polar nor
-            // meridian relative to the stored chart axis), or a fitted
-            // face at a scalar with no fitted door. The at-rest pass
-            // excuses exactly these, by the same predicate.
+            // but no route covers yet (an oblique torus circle, a tilted
+            // cone section, a spline carrier on an analytic chart), or a
+            // fitted face at a scalar with no fitted door. The at-rest
+            // pass excuses exactly these, by the same predicate.
             // `mint_face` stores rows only once every half-edge
             // certified, so a refused face holds none and there is
-            // nothing to clear. The general circle's certified route
-            // EXISTS (`certify_fitted`'s Circle-carrier arm, mate from
-            // the edge's description), and this pass already holds its
-            // door (`AtRestPolicy::fitted_lane`); what is missing is a
-            // mint site that reaches that arm. Every OTHER failure — a
-            // carrier off its face, an image that is not its carrier's,
-            // a covered class whose residuals, envelope, continuity or
-            // closure refuse — is a genuine defect and propagates.
+            // nothing to clear. Every OTHER failure — a carrier off its
+            // face, an image that is not its carrier's, a general sphere
+            // circle its fitted route refuses, a covered class whose
+            // residuals, envelope, continuity or closure refuse — is a
+            // genuine defect and propagates.
             // A row the face held is carried, re-certified, so the
             // mint never drops a certificate it cannot re-derive
             // ([`carry_rows`]).
@@ -2382,7 +2435,9 @@ fn mint_face<T: AtRestPolicy>(
 /// - **an uncovered class** — a pair the chart can hold but no lane
 ///   covers yet ([`PcurveCertifyError::UnsupportedCarrier`], whose
 ///   `class` names it); each class leaves this arm in the change that
-///   wires its route;
+///   wires its route. The sphere's general circle has left it: its
+///   route is the fitted lane ([`analytic_derive`]), so that class
+///   reaching here would be a derivation that skipped its route;
 /// - **a scalar with no fitted door** ([`AtRestPolicy::fitted_lane`]
 ///   answers `None`, as a dual's does) refusing a face only the fitted
 ///   lane can image ([`PcurveCertifyError::FittedLaneUnsupported`]):
@@ -2392,7 +2447,9 @@ fn mint_face<T: AtRestPolicy>(
 fn not_owed<T: AtRestPolicy>(e: &PcurveMintError) -> bool {
     match e {
         PcurveMintError::Certify { error, .. } => match error {
-            PcurveCertifyError::UnsupportedCarrier { .. } => true,
+            PcurveCertifyError::UnsupportedCarrier { class, .. } => {
+                *class != UncoveredClass::SphereGeneralCircle
+            }
             PcurveCertifyError::FittedLaneUnsupported { .. } => T::fitted_lane().is_none(),
             _ => false,
         },
@@ -2465,8 +2522,12 @@ fn derive_face<T: AtRestPolicy>(
     // as the policy answers it, `None` and all, and an absent one
     // refuses at check 4 — an image that fails checks 1–3 draws those
     // checks' verdict at every scalar.
-    let general = |w: &Walked<T>, image: &std::sync::Arc<geom::NurbsCurve2<T>>, window| {
-        PcurveCache::certify_general(
+    //
+    // A `Fitted` image is one this pass derived (a sphere's general
+    // circle, `analytic_derive`), which it did only through the fitted
+    // door, so the door is in hand; `certify_fitted` takes it bare.
+    let fitted = |w: &Walked<T>, window| match &w.pcurve {
+        Pcurve::General(image) => PcurveCache::certify_general(
             std::sync::Arc::clone(image),
             w.t0,
             w.t1,
@@ -2476,9 +2537,27 @@ fn derive_face<T: AtRestPolicy>(
             window,
             band,
             T::fitted_lane(),
-        )
+        ),
+        Pcurve::Fitted(image) => {
+            let lane = T::fitted_lane()
+                .ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
+            PcurveCache::certify_fitted(
+                std::sync::Arc::clone(image),
+                w.t0,
+                w.t1,
+                &w.carrier,
+                surface,
+                mate_surface(body, w.key).as_ref(),
+                window,
+                band,
+                lane,
+            )
+        }
+        closed => unreachable!(
+            "certify_walked hands the fitted door only Fitted and General images: {closed:?}"
+        ),
     };
-    certify_walked(walked, surface, band, Some(&general)).map_err(|refused| {
+    certify_walked(walked, surface, band, Some(&fitted)).map_err(|refused| {
         first_owed::<T>(
             refused
                 .into_iter()
@@ -2503,12 +2582,10 @@ fn first_owed<T: AtRestPolicy>(refused: Vec<PcurveMintError>) -> PcurveMintError
 /// The rows [`certify_walked`] certified, in walk order.
 type Certified<T, K> = Vec<(K, PcurveCache<T>)>;
 
-/// A fitted-grade certifier for a `General` image ([`certify_walked`]).
-type GeneralDoor<'a, T, K> = &'a dyn Fn(
-    &Walked<T, K>,
-    &std::sync::Arc<geom::NurbsCurve2<T>>,
-    ChartWindow<T>,
-) -> Result<PcurveCache<T>, PcurveCertifyError>;
+/// A fitted-grade certifier for a `Fitted` or `General` image
+/// ([`certify_walked`]).
+type FittedDoor<'a, T, K> =
+    &'a dyn Fn(&Walked<T, K>, ChartWindow<T>) -> Result<PcurveCache<T>, PcurveCertifyError>;
 
 /// **Pass 2 of the minting walk, for one face**: the face's chart
 /// window — the hull of the images the walk derived, none of which is
@@ -2533,9 +2610,10 @@ type GeneralDoor<'a, T, K> = &'a dyn Fn(
 /// rows the window hulls.
 ///
 /// Every image goes through the `Decide`-scalar door,
-/// [`PcurveCache::certify`], except a `General` one, which goes to
-/// `general` — the fitted door, which only the pass holds. Without it a
-/// `General` image meets the closed-form door, which refuses it.
+/// [`PcurveCache::certify`], except a `Fitted` or `General` one, which
+/// goes to `fitted` — the fitted door, which only the pass holds.
+/// Without it such an image meets the closed-form door, which refuses
+/// it.
 ///
 /// # Errors
 ///
@@ -2545,7 +2623,7 @@ fn certify_walked<T: Decide, K: Copy>(
     walked: Vec<Walked<T, K>>,
     surface: &Surface<T>,
     band: Band,
-    general: Option<GeneralDoor<'_, T, K>>,
+    fitted: Option<FittedDoor<'_, T, K>>,
 ) -> Result<Certified<T, K>, Vec<(K, PcurveCertifyError)>> {
     let Some(window) = hull_of(walked.iter().map(|w| w.pcurve.chart_box(w.t0, w.t1))) else {
         return Ok(Vec::new());
@@ -2553,8 +2631,8 @@ fn certify_walked<T: Decide, K: Copy>(
     let mut rows = Vec::with_capacity(walked.len());
     let mut refused = Vec::new();
     for w in walked {
-        let cache = match (&w.pcurve, general) {
-            (Pcurve::General(image), Some(general)) => general(&w, image, window),
+        let cache = match (&w.pcurve, fitted) {
+            (Pcurve::Fitted(_) | Pcurve::General(_), Some(fitted)) => fitted(&w, window),
             _ => PcurveCache::certify(
                 w.pcurve.clone(),
                 w.t0,
@@ -3117,10 +3195,7 @@ fn derive_image<T: AtRestPolicy>(
         // description (M6-3) — see `nurbs_iso_derive`.
         nurbs_iso_derive(body, he, surface, band)?
     } else {
-        chart_pcurve(&carrier, surface, band).map_err(|error| PcurveMintError::Certify {
-            half_edge: he,
-            error,
-        })?
+        analytic_derive(&carrier, t0, t1, surface, band, he)?
     };
     Ok((carrier, t0, t1, base))
 }
@@ -3382,6 +3457,9 @@ fn chart_edge<T: Decide>(
         // `_` arm there already answers from `eval` over the span
         // hull.
         Pcurve::Spiric { .. } => false,
+        // A cone section's image is curved in both channels, and takes
+        // the same envelope door.
+        Pcurve::ConeSection { .. } => false,
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
     if straight {
@@ -4724,8 +4802,8 @@ mod recourse_tests {
             escalate: 1e-9,
         };
         let certify_error = PcurveCertifyError::CarrierOffChart {
-            chart: geom_brep::SurfaceKind::Sphere,
-            carrier: geom_brep::CurveKind::Line,
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Line,
             why: "a sphere holds no line",
         };
         let arms = [

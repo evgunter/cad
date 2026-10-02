@@ -104,7 +104,7 @@ use geom::Surface;
 use geom_core::{Band, Indeterminate, Margin, Sign};
 
 use crate::dihedral::decide;
-use crate::intersect::SurfaceKind;
+use geom::SurfaceKind;
 
 /// Which nappe of the double cone a face's material lies on.
 ///

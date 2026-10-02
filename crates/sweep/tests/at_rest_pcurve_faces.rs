@@ -4,13 +4,18 @@
 //! a stored row stated over more of its carrier than the edge spans is
 //! refused, on a complete face and a half-minted one alike.
 //!
-//! The excuse rows run on a quarter revolve of `dome_profile`, whose
-//! sphere wall is minted, with struts added to that wall:
+//! The excuse rows run on a quarter revolve of a profile whose one arc
+//! is centred off the axis, so its wall is a minted torus, with struts
+//! added to that wall:
 //!
-//! - a GENERAL circle on the sphere (neither polar nor meridian), which
-//!   the closed-form lane refuses as uncovered — rows not owed;
-//! - a small circle in the sphere's tangent plane at its vertex, which
-//!   is OFF the sphere (`CarrierOffChart`, a defect).
+//! - an OBLIQUE circle (neither a parallel nor a meridian), which the
+//!   closed-form lane refuses as uncovered (`TorusGeneralCircle`) —
+//!   rows not owed;
+//! - a straight line, which no torus holds (`CarrierOffChart`, a
+//!   defect).
+//!
+//! (R2's probes used a sphere's general circle as the uncovered class;
+//! PR 3733 gave that class its route, so the rows moved to the torus.)
 //!
 //! Adopted from PCERT reviewer R2's probes on PR 3759.
 
@@ -18,9 +23,9 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, PcurveCache, PcurveCertifyError};
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
-use sweep::test_support::{dome_profile, revolved_about_y};
+use sweep::test_support::revolved_about_y;
 use topo::pcurves::validate_pcurves;
 use topo::{Body, FaceKey, HalfEdgeKey, MevSite, PcurveMintError};
 
@@ -32,33 +37,36 @@ fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
-fn dome_quarter() -> Body<f64> {
+/// A quarter revolve about Y of the region under a quarter arc of
+/// radius 0.5 centred at (1, 0): its curved wall is a torus.
+fn torus_quarter() -> Body<f64> {
+    let bulge = (core::f64::consts::FRAC_PI_8).tan();
     revolved_about_y(
-        dome_profile(1.0),
+        vec![
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.5, 0.0), bulge),
+            (Point2::new(1.0, 0.5), 0.0),
+        ],
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol(),
     )
 }
 
-/// The minted sphere wall, its centre and radius, and its outer cycle.
-fn sphere_wall(body: &Body<f64>) -> (FaceKey, Point3<f64>, f64, Vec<HalfEdgeKey>) {
+/// The minted torus wall and its outer cycle.
+fn torus_wall(body: &Body<f64>) -> (FaceKey, Vec<HalfEdgeKey>) {
     body.faces()
         .find_map(|(fk, f)| {
-            let Surface::Sphere { center, radius, .. } = *body.get_surface(f.surface).unwrap()
-            else {
+            let Surface::Torus { .. } = *body.get_surface(f.surface).unwrap() else {
                 return None;
             };
             let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary
             else {
                 return None;
             };
-            assert!(
-                body.pcurve(first).is_some(),
-                "the dome's sphere wall is minted"
-            );
-            Some((fk, center, radius, body.loop_cycle(first).unwrap()))
+            assert!(body.pcurve(first).is_some(), "the torus wall is minted");
+            Some((fk, body.loop_cycle(first).unwrap()))
         })
-        .expect("the dome has a sphere wall")
+        .expect("the revolve has a torus wall")
 }
 
 fn start_point(body: &Body<f64>, he: HalfEdgeKey) -> Point3<f64> {
@@ -70,45 +78,37 @@ fn unit(v: Vec3<f64>) -> Vec3<f64> {
     v * (1.0 / v.dot(v).sqrt())
 }
 
-/// A circle on the sphere `(c, r)` through `p`, in a plane tilted off
-/// both polar (⊥ Y) and meridian (∋ Y).
-fn general_circle_through(c: Point3<f64>, r: f64, p: Point3<f64>) -> Curve3<f64> {
-    let n = unit(Vec3::new(0.7, 1.0, 0.4));
-    let d = (p - c).dot(n);
-    let center = c + n * d;
+/// A circle through `p` in a plane tilted off both the torus's
+/// parallels (⊥ Y) and its meridians (∋ Y).
+fn oblique_circle_through(p: Point3<f64>) -> Curve3<f64> {
+    let axis = unit(Vec3::new(0.7, 1.0, 0.4));
+    let helper = Vec3::unit_x();
+    let u = unit(helper - axis * helper.dot(axis));
+    let radius = 0.3;
     Curve3::Circle {
-        center,
-        axis: n,
-        radius: (r * r - d * d).sqrt(),
-        u_ref: unit(p - center),
-    }
-}
-
-/// A small circle in the sphere's tangent plane at `p`: it meets the
-/// sphere only at `p`.
-fn tangent_circle_at(c: Point3<f64>, p: Point3<f64>) -> Curve3<f64> {
-    let normal = unit(p - c);
-    let helper = if normal.x.abs() < 0.9 {
-        Vec3::unit_x()
-    } else {
-        Vec3::unit_z()
-    };
-    let t = unit(helper - normal * helper.dot(normal));
-    let radius = 0.1;
-    let center = p + t * radius;
-    Curve3::Circle {
-        center,
-        axis: normal,
+        center: p - u * radius,
+        axis,
         radius,
-        u_ref: unit(p - center),
+        u_ref: u,
     }
 }
 
-fn strut(body: &mut Body<f64>, he: HalfEdgeKey, carrier: Curve3<f64>, span: f64) {
-    let end = carrier.eval(span);
-    let spec = EdgeCurveSpec::arc_of_circle(carrier, 0.0, span).unwrap();
+fn strut(body: &mut Body<f64>, he: HalfEdgeKey, end: Point3<f64>, spec: EdgeCurveSpec<f64>) {
     body.mev(MevSite::Fan { he1: he, he2: he }, end, spec, tol())
         .unwrap();
+}
+
+fn arc_strut(body: &mut Body<f64>, he: HalfEdgeKey, carrier: Curve3<f64>, span: f64) {
+    let end = carrier.eval(span);
+    let spec = EdgeCurveSpec::arc_of_circle(carrier, 0.0, span).unwrap();
+    strut(body, he, end, spec);
+}
+
+/// A straight strut from `he`'s start, 0.2 up the axis.
+fn line_strut(body: &mut Body<f64>, he: HalfEdgeKey) {
+    let p = start_point(body, he);
+    let end = p + Vec3::new(0.05, 0.2, 0.05);
+    strut(body, he, end, EdgeCurveSpec::line_between(p, end));
 }
 
 fn off_chart(e: &PcurveMintError) -> bool {
@@ -132,15 +132,14 @@ fn verdicts(
     Result<usize, PcurveMintError>,
     Body<f64>,
 ) {
-    let mut body = dome_quarter();
-    let (wall, c, r, cycle) = sphere_wall(&body);
+    let mut body = torus_quarter();
+    let (wall, cycle) = torus_wall(&body);
     if let Some(i) = g {
         let p = start_point(&body, cycle[i]);
-        strut(&mut body, cycle[i], general_circle_through(c, r, p), 0.2);
+        arc_strut(&mut body, cycle[i], oblique_circle_through(p), 0.2);
     }
     if let Some(i) = o {
-        let p = start_point(&body, cycle[i]);
-        strut(&mut body, cycle[i], tangent_circle_at(c, p), 0.5);
+        line_strut(&mut body, cycle[i]);
     }
     let findings = validate_pcurves(&body, band());
     let mut minted = body.clone();

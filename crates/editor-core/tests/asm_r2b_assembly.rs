@@ -1959,7 +1959,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             "product: 1 root not valid at rest:",
             "\n  root 000000000003 output 1: a solid encloses negative volume, so it is inside-out",
         ],
-        &["root 000000000002's face name (minted by node 000000000001) collides"],
+        &["root 000000000002's face name minted by node 000000000001 collides"],
         &["the kernel could not graft root 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {

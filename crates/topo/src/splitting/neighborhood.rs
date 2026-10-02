@@ -123,14 +123,16 @@ pub(super) fn sector_face<T: Decide>(
     })?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
-        SectorCarrier::Cylinder => Ok((resolved.face, resolved.normal, false)),
+        SectorCarrier::Cylinder | SectorCarrier::Cone => {
+            Ok((resolved.face, resolved.normal, false))
+        }
         SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
-            kind: geom_brep::SurfaceKind::Sphere,
+            kind: geom::SurfaceKind::Sphere,
         }),
         SectorCarrier::Torus => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
-            kind: geom_brep::SurfaceKind::Torus,
+            kind: geom::SurfaceKind::Torus,
         }),
     }
 }
@@ -243,7 +245,7 @@ pub fn classify_neighborhood<T: Decide>(
         //   contact) classifies On for rule (b)'s adjudication;
         //   in-band escalates typed.
         let class = if let Some((deriv2, speed_sq)) = conic_jet {
-            let margin = Margin::of(dir_a.dot(plane.normal));
+            let margin = Margin::of(dir_a.dot(plane.normal.get()));
             match decide("split_conic_departure", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
@@ -264,7 +266,7 @@ pub fn classify_neighborhood<T: Decide>(
                     match geom_brep::enters_material_order2(
                         deriv2,
                         speed_sq,
-                        geom_brep::ReferenceNormal::of_split_plane(plane.normal),
+                        geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
                         dir_a.norm(),
                         band,
                     ) {
@@ -320,7 +322,7 @@ pub fn classify_neighborhood<T: Decide>(
             },
         )?;
         if let Some(bisector) = wide {
-            let margin = Margin::levered(bisector.dot(plane.normal), arm);
+            let margin = Margin::levered(bisector.dot(plane.normal.get()), arm);
             let class = match decide("split_bisector_side", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
@@ -379,7 +381,7 @@ mod tests {
         match sector_face(&body, vertex, orbit_he) {
             Err(SplitReduceError::CurvedBooleanUnsupported { face: f, kind }) => {
                 assert_eq!(f, face);
-                assert_eq!(kind, geom_brep::SurfaceKind::Sphere);
+                assert_eq!(kind, geom::SurfaceKind::Sphere);
             }
             other => panic!("expected the typed sphere refusal, got {other:?}"),
         }

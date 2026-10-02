@@ -5,11 +5,11 @@
 //! — a `Chart` edge image, a stored pcurve row — is re-stated under
 //! the reflection, and every certificate the source carried is a
 //! certificate of the result (`topo::revert` module docs). Measured on
-//! SHELL's drum: a cylinder whose top cap carries a collinear profile
-//! vertex, so one plane holds four faces with a latitude ring between
-//! them, and the ring's two half-circles are the plane images with a
-//! non-zero `v` channel (the six radial lines lie on the `u_ref` axis
-//! and were fixed by the mirror all along). The other image kinds a
+//! SHELL's drum: a cylinder whose top cap carries a latitude ring, so
+//! one plane holds three faces with the ring between them, and the
+//! ring's two half-circles are the plane images with a non-zero `v`
+//! channel (the two radial lines lie on the `u_ref` axis and were fixed
+//! by the mirror all along). The other image kinds a
 //! plane can carry — an iso line, a fitted or general NURBS image —
 //! have no producer on a plane, so their body-level rows build the
 //! face by hand through the Euler door with the image given.

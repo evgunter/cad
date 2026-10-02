@@ -13,8 +13,8 @@
 //!
 //! 1. **Operand gate (F5 → THE C5 table, M5 PR 5)**: every face's
 //!    `(kind × plane)` arm must be one the pipeline executes —
-//!    `Plane` (the M3 seam, bit-identical) or `Cylinder` (the rung-2
-//!    conic lane); other kinds refuse typed CITING their rung routing
+//!    `Plane` (the M3 seam, bit-identical), `Cylinder` or `Cone` (the
+//!    rung-2 conic lanes); other kinds refuse typed CITING their rung routing
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
 //!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
 //!    pass; `Nurbs` refuses
@@ -73,7 +73,7 @@ pub mod rules;
 mod section;
 mod section_loops;
 
-use geom_core::{BandError, Indeterminate, Point3, Real, Vec3};
+use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -88,15 +88,19 @@ pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
 pub use section::{Section, SectionError, SectionPolygon, SectionRegion, plane_section};
 
-/// The splitting plane: a point on the plane and its **unit** normal
-/// (conventional, unchecked — same posture as `Surface::Plane`). The
+/// The splitting plane: a point on the plane and its unit normal. The
 /// positive side (`(p − origin)·normal > 0`) is **Above**.
+///
+/// The normal is a [`UnitVec3`], so its length is decided where the
+/// caller mints it (`UnitVec3::new`) rather than assumed here: every
+/// conic section of a curved face reads the normal's components as
+/// direction cosines, and a longer vector reads as a shallower tilt.
 #[derive(Clone, Copy, Debug)]
 pub struct SplitPlane<T: Real> {
     /// A point on the plane.
     pub origin: Point3<T>,
     /// The unit normal; Above is the side it points to.
-    pub normal: Vec3<T>,
+    pub normal: UnitVec3<T>,
 }
 
 /// A trilean side verdict against the split plane (the classification
@@ -110,6 +114,18 @@ pub enum PlaneSide {
     On,
     /// Definitely on the positive side.
     Above,
+}
+
+impl PlaneSide {
+    /// The side as a refusal names it.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Below => "below",
+            Self::On => "on",
+            Self::Above => "above",
+        }
+    }
 }
 
 /// What a neighborhood entry stands for (typed, F9-style — never
@@ -150,11 +166,12 @@ pub struct NullEdgeRecord {
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
-    /// The F9 side attribute (`below_end` = old vertex, `above_end` =
-    /// the minted copy holding the ABOVE run) — orientation as data.
+    /// The F9 side attribute (`above_end` = the end holding the ABOVE
+    /// run: the minted copy, save for a whole-orbit run, where the old
+    /// vertex keeps it) — orientation as data.
     pub attr: NullEdge,
     /// True for a dangling null edge (a wide same-side sector whose
-    /// bisector crossed — the strut case).
+    /// bisector crossed — the strut case, either way round).
     pub dangling: bool,
 }
 
@@ -186,7 +203,7 @@ pub enum SplitReduceError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
     /// A face's `(kind × plane)` arm of THE C5 dispatch table is not
-    /// executed by the split pipeline (M5 PR 5: `Plane` and `Cylinder`
+    /// executed by the split pipeline (`Plane`, `Cylinder` and `Cone`
     /// are; the refusal retires PER ARM, never wholesale — C12.1). The
     /// Display cites the arm's rung routing from
     /// [`geom_brep::intersect::route`].
@@ -194,7 +211,7 @@ pub enum SplitReduceError {
         /// The offending face.
         face: FaceKey,
         /// Its surface kind (the table row).
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// An edge carrier is the `Nurbs` fallback — a rung-3 carrier in
     /// the INPUT operand. The general rung itself is implemented (SSI);
@@ -349,7 +366,7 @@ impl core::fmt::Display for SplitReduceError {
             // things it can mean, and names the second as the corrupt
             // body it is rather than as a feature not built yet.
             Self::CurvedBooleanUnsupported {
-                kind: geom_brep::SurfaceKind::Nurbs,
+                kind: geom::SurfaceKind::Nurbs,
                 ..
             } => write!(
                 f,
@@ -362,13 +379,13 @@ impl core::fmt::Display for SplitReduceError {
                 "the body has {}, and the split cannot cut a body with such a face \
                  yet. There is no way through yet",
                 match kind {
-                    geom_brep::SurfaceKind::Approx => "an approximated spline face",
-                    geom_brep::SurfaceKind::Cone => "a cone face",
-                    geom_brep::SurfaceKind::Sphere => "a sphere face",
-                    geom_brep::SurfaceKind::Torus => "a torus face",
-                    geom_brep::SurfaceKind::Plane => "a plane face",
-                    geom_brep::SurfaceKind::Cylinder => "a cylinder face",
-                    geom_brep::SurfaceKind::Nurbs => "a spline (NURBS) face",
+                    geom::SurfaceKind::Approx => "an approximated spline face",
+                    geom::SurfaceKind::Cone => "a cone face",
+                    geom::SurfaceKind::Sphere => "a sphere face",
+                    geom::SurfaceKind::Torus => "a torus face",
+                    geom::SurfaceKind::Plane => "a plane face",
+                    geom::SurfaceKind::Cylinder => "a cylinder face",
+                    geom::SurfaceKind::Nurbs => "a spline (NURBS) face",
                 }
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(
@@ -706,7 +723,14 @@ pub(crate) fn through_the_join<T: geom_core::Decide>(
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
 /// (no degenerate body is ever emitted), and
-/// [`SplitFinishError::SectionCusp`] from either run.
+/// [`SplitFinishError::SectionCusp`] from either run. Each run gates
+/// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
+/// mirrored run whose side is not a closed solid surfaces the direct
+/// run's refusal, as any other mirror failure does. Tier 3 is
+/// deliberately not run on the sides: split accepts operands carrying
+/// scaffold edges tier 3 refuses, and a pinch side's touching pieces
+/// carry contacts split declares nowhere
+/// (`work/tquery/validate-passes-a-body-with-a-zero-width-slit-face.md`).
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
@@ -778,8 +802,13 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
 ) -> Result<SplitResult<T>, SplitError> {
     let (red, completed, fragments) = split_scratch(operand, plane, tol)?;
     let mut result = finish::split_finish(red, &completed, fragments, tol)?;
-    for part in [&mut result.above, &mut result.below] {
+    for (side, part) in [
+        (PlaneSide::Above, &mut result.above),
+        (PlaneSide::Below, &mut result.below),
+    ] {
         if let finish::SplitPart::Body(body) = part {
+            crate::validate::validate_closed(body)
+                .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             crate::pcurves::mint_pcurves(body, tol)?;
         }
     }

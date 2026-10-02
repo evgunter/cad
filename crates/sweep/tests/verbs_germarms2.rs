@@ -246,9 +246,9 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 ///   `the_non_parallel_cylinder_pair_splits_on_coplanarity_alone`
 ///   (`boolean::join`).
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
-///   a wall, whose parameters are the roots of a degree-2 trigonometric
-///   polynomial. No root lane for that exists anywhere in this tree, so
-///   the crossing layer refuses.
+///   a wall, certified by the circle × cylinder root lane; at one height
+///   the two pairs of cap discs then overlap in their planes, an
+///   undeclared coincidence, which stops the pose before any join.
 #[test]
 fn the_fenced_poses_keep_their_own_doors() {
     let a = cyl(1.0, 2.0);
@@ -286,8 +286,8 @@ fn the_fenced_poses_keep_their_own_doors() {
         matches!(
             e,
             BooleanError::GermFrameUnsupported {
-                a_kind: geom_brep::SurfaceKind::Cylinder,
-                b_kind: geom_brep::SurfaceKind::Cylinder,
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Cylinder,
                 ..
             }
         ),
@@ -295,7 +295,14 @@ fn the_fenced_poses_keep_their_own_doors() {
     );
     assert_same_door(&e, &union_err(&repose(&a), &repose(&skew)), "skew axes");
 
-    // Parallel axes, walls definitely crossing: the rim circle row.
+    // Parallel axes, walls definitely crossing: the rim circle row,
+    // whose cap discs are coplanar.
+    fn short_of_the_join_at_the_caps(name: &str, e: &BooleanError) {
+        assert!(
+            matches!(e, BooleanError::UndeclaredCoincidence { .. }),
+            "{name}: expected the cap discs' undeclared coincidence, got {e:?}"
+        );
+    }
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(1.2, 0.0), 1.0, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
@@ -307,10 +314,7 @@ fn the_fenced_poses_keep_their_own_doors() {
     .unwrap()
     .body;
     let e = union_err(&a, &parallel);
-    assert!(
-        matches!(e, BooleanError::CurvedPierceUnsupported { .. }),
-        "parallel-equal-r: the rim circle has no root lane, got {e:?}"
-    );
+    short_of_the_join_at_the_caps("parallel-equal-r", &e);
     assert_same_door(
         &e,
         &union_err(&repose(&a), &repose(&parallel)),
