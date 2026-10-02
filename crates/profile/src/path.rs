@@ -2934,20 +2934,35 @@ fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
     d1.perp_dot(d2) / (d1.norm() * d2.norm() + d1.dot(d2))
 }
 
-/// **The tangent arc's one conversion**: the arc leaving `a` and
-/// ending at `b`, lowered from its chord ([`crate::bulge_leg`]) with X
-/// the tangent of half the tangent-chord angle `delta` — the arc turns
-/// 2·`delta`, so X is tan(θ/4). `b` straight ahead is X = 0, the line
-/// the lowering rule stores; straight behind is the pole, the door's to
-/// refuse.
+/// **The tangent arc's one conversion**: the arc leaving `a` along the
+/// unit `u` and ending at `b`. Its carrier is the circle tangent to `u`
+/// at `a` through `b`: the centre `a + n̂·ρ` (n̂ the left normal of `u`)
+/// at the signed offset `ρ = |d|² / (2·across)`, the radius `|ρ|`, with
+/// `d = b − a` resolved along and across `u` — no root. Δθ = 4·atan(X)
+/// with X the tangent of half the angle δ from `u` to the chord (the
+/// arc turns 2δ, so X is tan(θ/4)), spelled `across / (|d| + along)`.
+/// `b` straight ahead (across exactly zero) is the line the lowering
+/// rule stores; straight behind is the pole, the door's to refuse.
 ///
-/// `delta` is the door's `atan2` of the target across and along the
-/// departure. The algebraic spelling of X, `across / (|d| + along)`, is
-/// one the symbolic tier does not close on a half-turn whose chord is a
-/// parameter: `r2_link`'s tangent arcs refuse at their certification
-/// under it.
-fn tangent_arc<T: Real>(a: Point2<T>, b: Point2<T>, delta: T) -> Option<BuiltArc<T>> {
-    crate::bulge_leg(a, b, (delta / T::from_f64(2.0)).tan())
+/// **Its endpoint facts are theorems** ([`crate::Facts::Registered`]):
+/// `‖a − c‖ = |ρ|` because n̂ is a unit normal, and
+/// `‖b − c‖² = |d|² − 2ρ·across + ρ² = ρ²` by the choice of ρ; the
+/// centre lies on the chord's perpendicular bisector, so the included
+/// angle about it is 2δ, whose quarter-tangent X is.
+fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
+    let d = b - a;
+    let (along, across) = (u.dot(d), u.perp_dot(d));
+    let x = across / (d.norm() + along);
+    crate::bulge_leg(a, b, x)?;
+    let rho = d.norm_squared() / (T::from_f64(2.0) * across);
+    Some(BuiltArc {
+        arc: Arc2 {
+            centre: a + Vec2::new(-u.y, u.x) * rho,
+            radius: rho.abs(),
+            sweep: T::from_f64(4.0) * x.atan(),
+        },
+        facts: crate::Facts::Registered,
+    })
 }
 
 /// The tip's record of a leg's carrier, read off the stored arc (none
@@ -3268,10 +3283,63 @@ fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T) -> BuiltArc<T> {
     }
 }
 
+/// **Registers the fillet's incoming tangency** on the values the
+/// door built: the centre, spelled from the arrival side
+/// ([`fillet_arc_carrier`]), IS `t1 + σ·r·n̂₁` — the incoming tangent
+/// point moved the radius along the incoming ray's left normal to the
+/// turn side — per component.
+///
+/// **A theorem of the construction.** The fillet circle is the circle
+/// of radius r tangent to both carriers on the turn side of each, `t1`
+/// and `t2` are the feet of its centre on them, so the centre is `r`
+/// along each carrier's turn-side normal from that carrier's foot, over
+/// the reals at every value of the corner's data the door's decisions
+/// hold for. The arrival-side spelling states it for `t2` by
+/// construction; this states it for `t1`, which is the tangency the
+/// incoming side's consumers read.
+fn register_incoming_tangency<T: Real>(
+    arc: &ArcData<T>,
+    t1: Point2<T>,
+    u1: Vec2<T>,
+    turn: Sign,
+    tol: Tol,
+) {
+    let sgn = match turn {
+        Sign::Negative => -T::one(),
+        Sign::Positive | Sign::Zero => T::one(),
+    };
+    let from_t1 = t1 + Vec2::new(-u1.y, u1.x) * (sgn * arc.radius);
+    for (what, built, held) in [
+        (
+            "the fillet centre's x from its incoming foot",
+            arc.center.x,
+            from_t1.x,
+        ),
+        (
+            "the fillet centre's y from its incoming foot",
+            arc.center.y,
+            from_t1.y,
+        ),
+    ] {
+        built.register_equal(held, tol).handle(what);
+    }
+}
+
 /// The fillet arc's own carrier: tangent to the arrival carrier at
-/// `t2`, center r to the turn side σ = sign(tan(φ/2)).
-fn fillet_arc_carrier<T: Real>(trims: &LineFilletTrims<T>, u2: Vec2<T>, radius: T) -> ArcData<T> {
-    let sgn = T::one().copysign(trims.half_tan);
+/// `t2`, centre r to the turn side σ — the corner's decided turn
+/// (`path_corner_turn`), the sign of tan(φ/2) wherever the windows the
+/// door decided hold, spelled as the literal ±1 so no sign atom enters
+/// the carrier.
+fn fillet_arc_carrier<T: Real>(
+    trims: &LineFilletTrims<T>,
+    u2: Vec2<T>,
+    radius: T,
+    turn: Sign,
+) -> ArcData<T> {
+    let sgn = match turn {
+        Sign::Negative => -T::one(),
+        Sign::Positive | Sign::Zero => T::one(),
+    };
     let n_hat = Vec2::new(-u2.y, u2.x);
     ArcData {
         center: trims.t2 + n_hat * (sgn * radius),
@@ -3585,16 +3653,16 @@ impl<T: Decide> Core<T> {
         // (1) parallel/tangent carriers admit no corner: the turn
         // margin sin φ levered by the anchor separation.
         let cross = u1.perp_dot(u2);
-        match decide("path_corner_turn", Margin::levered(cross, wn), band) {
+        let turn = match decide("path_corner_turn", Margin::levered(cross, wn), band) {
             Ok(Sign::Zero) => {
                 return Err(PathError::NoCornerForFillet {
                     reason: PathNoCornerReason::CarriersParallel,
                     radius: pending.radius,
                 });
             }
-            Ok(_) => {}
+            Ok(turn) => turn,
             Err(source) => return Err(PathError::Escalated { source }),
-        }
+        };
         // (2) the corner must lie ahead of the incoming ray's origin
         // and behind the arrival side's anchor (ray parameters, meters).
         let t_ray = w.perp_dot(u2) / cross;
@@ -3644,7 +3712,8 @@ impl<T: Decide> Core<T> {
             .guide
             .line_fits(trims.fit_in, trims.fit_out)
             .map_err(PathError::Structure)?;
-        let arc = fillet_arc_carrier(&trims, u2, pending.radius);
+        let arc = fillet_arc_carrier(&trims, u2, pending.radius, turn);
+        register_incoming_tangency(&arc, trims.t1, u1, turn, tol);
         let built = fillet_arc(arc, trims.bulge);
         // (5) incoming side emission: Positive fit emits the straight
         // piece + declared joint (exactly the raw fillet's rule); Zero
@@ -4598,10 +4667,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         // A target ON the departure line is not a carrier question —
         // the 2026-09-02 ruling took those away — but it is still a
         // GEOMETRY one, and only forward of the tip is it answerable:
-        // `delta` is `atan2(0, along)`, which is 0 ahead of the tip (a
-        // zero-bulge arc, the straight segment the declaration asks
-        // for) and π behind it, where the quarter-tangent
-        // `tan(delta/2)` is unbounded and no arc spans the chord. Gated
+        // the arc's quarter-tangent `across / (|d| + along)` is 0 ahead
+        // of the tip (the straight segment the declaration asks for)
+        // and unbounded behind it, where no arc spans the chord. Gated
         // here so the infinity cannot reach a segment.
         let band = linear_band(tol)?;
         if let Ok(Sign::Zero) = decide("path_collinear_target", Margin::of(across), band) {
@@ -4615,10 +4683,13 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 Err(source) => return Err(PathError::Escalated { source }),
             }
         }
-        let delta = across.atan2(along);
-        let arc = tangent_arc(at, p, delta);
-        let end_ang = Dir::from_angle(ang.ang + delta + delta);
+        let arc = tangent_arc(at, u, p);
+        // The arc leaves along `u` and arrives along `u` reflected
+        // across its chord (the tangent-chord angle is the same at both
+        // ends), spelled on the ray with no angle read and no root:
+        // `2(u·d)d/(d·d) − u`.
         let chord = d.norm_squared().sqrt();
+        let end_ang = Dir::from_unit(d * (T::from_f64(2.0) * u.dot(d) / d.norm_squared()) - u);
         Ok(TangentArcGeom {
             arc,
             end_ang,
