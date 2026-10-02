@@ -70,6 +70,7 @@ mod lily;
 mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
+mod oracles;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;
@@ -859,7 +860,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
+    println!("\n-- the Klein bottle: a non-orientable surface, two bodies deep --");
     for stop in klein::stops(tol) {
         visit(&stop);
     }

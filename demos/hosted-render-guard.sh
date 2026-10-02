@@ -94,8 +94,8 @@ require_hosted_render() {
         echo
         echo "  git commit -m \"scene: widen the bracket [render]\""
         echo "  git push          # the render runs on the branch, commits what"
-        echo "                    #   differs with a neutral (\"!\") check, and"
-        echo "                    #   CI re-gates the PR on that new head"
+        echo "                    #   differs with a neutral (\"!\") check and"
+        echo "                    #   [skip ci]; the PR's CI ran on your commit"
         echo "  git pull          # the frames are on your branch: look at them"
         echo
         echo "A neutral check is NOT a failure: if the render is what you intended"
