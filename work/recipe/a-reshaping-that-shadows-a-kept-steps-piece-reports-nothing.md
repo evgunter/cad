@@ -65,9 +65,11 @@ correctness review found no valid instance, because the lattice pins a
 ## Built (2026-10-02, PR 3879)
 
 The fix is a report row. `SetProgram` now strands a name on a kept
-step's piece when the old program draws that piece and the new one
-does not, both read under the current parameters
-(`undrawn_kept_pieces`, `crates/editor-core/src/edit.rs`). It reads
+step's piece when the new program does not draw that piece and the
+old one did, both read under the current parameters — or, where the
+old program does not replay under them (a parked parameter), whenever
+the new one does not draw it (`undrawn_kept_pieces`,
+`crates/editor-core/src/edit.rs`). It reads
 which pieces each program draws from `ProfilePayload::drawn_pieces`,
 which is `ProfileProgram::pieces`, the naming anchor's own door. The
 report goes through the same single walk as `stranded_steps`, so the
@@ -76,6 +78,10 @@ order contract holds.
 - Pinned by
   `edit_set_program::a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it`,
   which measured `[]` before the fix.
+- The parked case pinned by
+  `edit_set_program::a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing`,
+  and the report measured against resolution over 23 reshapings by
+  `edit_set_program::a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes`.
 - Pinned at the viewer's Apply count by
   `edit_maintenance::a_fillet_inserted_before_a_framed_leg_is_counted_and_reported`.
 - DM7 and N1 re-worded.

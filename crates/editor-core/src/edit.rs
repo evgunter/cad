@@ -148,10 +148,11 @@ pub enum DocEdit<P> {
     /// [`Maintenance::Strand`] / [`Maintenance::StrandedAppearance`]
     /// exactly as a delete reports it (DM7: the subject is the edit
     /// that removes a name's referent, of which the delete is one).
-    /// So is a name on a kept step's piece that the old program draws
-    /// and the new one does not under the current parameters — a
-    /// fillet inserted or moved before a leg takes the leg's segment
-    /// (`names/README.md`, "Undrawn pieces vanish rather than alias").
+    /// So is a name on a kept step's piece that the new program does
+    /// not draw under the current parameters and the old one did, or
+    /// could not be replayed to say — a fillet inserted or moved before
+    /// a leg takes the leg's segment (`names/README.md`, "Undrawn pieces
+    /// vanish rather than alias").
     ///
     /// A program byte-identical to the current one, keeping every
     /// step, is legal and reports nothing.
@@ -1022,8 +1023,9 @@ pub enum EditError {
     /// document never minted — one its mint log does not hold. The
     /// node half's rule ([`EditError::DeclareNamesMissingNode`]) for
     /// the half of a name that is a step id: a never-minted id is a
-    /// typo, or a name carried from another branch of the document. (A step a `SetProgram` dropped was minted, so a name on
-    /// it is ALLOWED — it strands, DM7.)
+    /// typo, or a name carried from another branch of the document. (A
+    /// step a `SetProgram` dropped was minted, so a name on it is
+    /// ALLOWED — it strands, DM7.)
     NameStepNeverMinted {
         /// The name.
         name: SpokenName,
@@ -2613,10 +2615,10 @@ pub enum Maintenance {
     /// After a delete what is gone is the node that minted it, so
     /// evaluation answers [`crate::resolve::ResolveError::NodeGone`] —
     /// rung 1 of the N5 ladder. After a reshaping what is gone is the
-    /// step: its id is never minted again, so no program draws the
-    /// piece and evaluation answers
-    /// [`crate::resolve::ResolveError::Vanished`], rung 3; so does a
-    /// kept step's piece the new program does not draw. Either way
+    /// piece: a dropped step's id is never minted again, and a kept
+    /// step's piece reported here is one the new program does not
+    /// draw, so evaluation answers
+    /// [`crate::resolve::ResolveError::Vanished`], rung 3. Either way
     /// the name resolves to nothing and [`DocEdit::Rebind`] is the
     /// repair, from the spelling this row carries. A name is not a
     /// DAG edge (the D3 carve-out), so both edits are legal: this row
@@ -2943,17 +2945,21 @@ fn settle_step_ids(
 }
 
 /// **The pieces of kept steps a `SetProgram` stops drawing**, among
-/// those a name in `doc` spells ([`StableName::step_pieces`]): drawn by
-/// `old` and not by `new`, both under `doc`'s current parameters, as
+/// those a name in `doc` spells ([`StableName::step_pieces`]): not drawn
+/// by `new` and drawn by `old` where it replays, under `doc`'s current
+/// parameters, as
 /// [`crate::ProfilePayload::drawn_pieces`] answers — the one authority
 /// on which pieces a program draws. A kept step's piece goes undrawn
 /// when another piece takes its segment (N1, "Undrawn pieces vanish
 /// rather than alias"): a fillet inserted or moved before its leg.
 ///
-/// Only a piece `old` draws is the edit's to report: one `old` already
-/// left undrawn, or a program that does not replay under the current
-/// parameters, has no referent for the edit to remove. Neither program
-/// is replayed when no name spells a kept step's piece.
+/// A piece `old` draws and `new` does not is the edit's to report; one
+/// `old` already left undrawn is not, since the edit removed nothing.
+/// Where `old` does not replay under the current parameters (a legal
+/// at-rest state) there is no drawn set to compare against, and every
+/// named kept piece `new` does not draw is reported: the edit removes
+/// the referent's future either way. Neither program is replayed when
+/// no name spells a kept step's piece.
 fn undrawn_kept_pieces<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     node: RecipeNodeId,
@@ -2985,14 +2991,14 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
         refusal: Box::new(refusal),
     };
     let before = match old.drawn_pieces(&env, tol) {
-        Ok(drawn) => drawn,
+        Ok(drawn) => Some(drawn),
         Err(refusal @ crate::ProgramRefusal::Pieces(_)) => return Err(refused(refusal)),
-        Err(_) => return Ok(std::collections::BTreeSet::new()),
+        Err(_) => None,
     };
     let after = new.drawn_pieces(&env, tol).map_err(refused)?;
     Ok(named
         .into_iter()
-        .filter(|p| before.contains(p) && !after.contains(p))
+        .filter(|p| before.as_ref().is_none_or(|b| b.contains(p)) && !after.contains(p))
         .collect())
 }
 
@@ -3115,8 +3121,9 @@ pub struct Applied<P> {
     /// one home all the same: one roster, `Carrier::ALL`, drives the
     /// walk both doors read (`Doc::name_carriers`) — filtered on the
     /// deleted node for a delete, on the dropped steps and the
-    /// undrawn kept pieces for a program edit — so the strands' order is that roster's, and a reader who
-    /// wants to see why reads it there.
+    /// undrawn kept pieces for a program edit — so the strands' order
+    /// is that roster's, and a reader who wants to see why reads it
+    /// there.
     ///
     /// Each boundary is held by the row whose fixture actually
     /// produces the pair of kinds it separates:
@@ -3143,8 +3150,10 @@ pub struct Applied<P> {
 /// [`Applied::maintenance`] is a function of one `(document, edit)`
 /// pair and answers what that edit did. An action — a cascade delete
 /// ([`cascade_delete_order`]'s sequence), a parameter's value and its
-/// notation written together — is several edits, and a row one of them reported
-/// can be about nothing the action leaves behind. This is the one
+/// notation written together — is several edits, and a row one of them
+/// reported can be about nothing the action leaves behind: a cascade's
+/// early delete strands a name on a carrier a later one deletes. This
+/// is the one
 /// spelling of which rows survive, so every caller that holds a
 /// sequence (the viewer's session, the pre-click count a chrome states
 /// before a cascade) answers the same.

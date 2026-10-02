@@ -585,18 +585,17 @@ pub trait ProfilePayload: serde::Serialize {
     /// **Every authored step's piece this program draws** under `env`
     /// — [`ProfileProgram::pieces`], the one answer to which pieces a
     /// program draws, flattened over its loops. Empty for a payload
-    /// with no program.
+    /// with no program. Required, so a payload that holds a program
+    /// cannot answer that it draws nothing by omission.
     ///
     /// # Errors
     ///
-    /// [`ProfileProgram::pieces`]'.
+    /// [`ProfileProgram::pieces`]'s refusals, for the same causes.
     fn drawn_pieces(
         &self,
-        _env: &ParamEnv<f64>,
-        _tol: Tol,
-    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
-        Ok(std::collections::BTreeSet::new())
-    }
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal>;
 }
 
 /// A typed authoring-time program refusal (VQ9; `EditError`'s payload).

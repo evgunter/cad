@@ -402,13 +402,11 @@ inserted or moved before a leg takes the leg's (`names/README.md`,
 removal too, and its names are reported the same way: the door
 compares which pieces the old and the new program draw under the
 current parameters, as the program's own piece door answers, and
-reports a name whose piece the old one drew and the new one does not.
-The new program's values are part of what it states, so a piece its
-values leave undrawn — a run a `Zero` fit suppresses — is reported
-too, where the same values written by a value edit report nothing.
-For the same reason a value edit reports nothing: it can move which
-loop is outer, which way a loop runs or how many segments a step
-draws, and none of those moves a name.
+reports a name whose piece the new one does not draw and the old one
+drew — or every such name, where the old program does not replay under
+the current parameters and so cannot say what it drew. A value edit
+reports nothing: it can move which loop is outer, which way a loop runs
+or how many segments a step draws, and none of those moves a name.
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is

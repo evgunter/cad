@@ -32,8 +32,24 @@ moves as one `SetProgram` (`profile_edit.rs`,
 through a `Zero` fit counts on the Apply button, and the same radius
 typed into the parameter panel does not.
 
-DM7's text now states this behaviour plainly, so nothing is hidden;
-the question is whether it is the right answer.
+DM7 states only the structural rule (a kept piece the new program
+does not draw is reported); the value-only behaviour is as built and
+pinned by
+`edit_set_program::a_reshapings_values_strand_what_a_slot_edit_of_them_would_not`,
+and the question is whether it is the right answer.
+
+**The count case.** A `circle_split` hole's count `4 → 3` through a
+keep-all `SetProgram` reports the names on its `Piece(3)`, and only
+those (the same row pins it). The count `n` is a `u32` in
+`LoopProgram::CircleSplit`, not an expression slot (`SlotId::Profile`
+has no count argument; `SlotId::dimension`'s `Profile` arm: "none is
+Count"), so a `SetStructuralParam` aimed at it refuses (pinned
+too) and `SetProgram` is the count's only door. Unlike the radius
+there is no value-edit twin that reports nothing, and the options
+below land differently on it: the second would stop reporting it (no
+other piece takes `Piece(3)`'s segment; the split just draws fewer
+pieces), and the third reports it only if the count is structure
+rather than a value.
 
 ## The options
 

@@ -3440,12 +3440,15 @@ class DocEdit:
         `inner_variant` `repeated`.
 
         A name on a profile piece spells its step's id, so a name on a
-        kept step keeps denoting its piece and is not touched. A step
-        the new program does not keep takes its id with it: every name
-        on it — a fillet's selection, a shell's mouth, a derived
-        frame's face, a paint — keeps its spelling, resolves to
-        nothing, and is reported `strand` or `stranded_appearance` on
-        `Doc.last_maintenance` until `rebind` repairs it.
+        kept step keeps denoting its piece wherever the new program
+        draws it and is not touched. A step the new program does not
+        keep takes its id with it: every name on it — a fillet's
+        selection, a shell's mouth, a derived frame's face, a paint —
+        keeps its spelling, resolves to nothing, and is reported
+        `strand` or `stranded_appearance` on `Doc.last_maintenance`
+        until `rebind` repairs it. So is a name on a kept step's piece
+        the new program stops drawing, as a fillet inserted before a
+        leg takes the leg's segment.
 
         Refuses `step_ids_refused` before the program is replayed
         (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
