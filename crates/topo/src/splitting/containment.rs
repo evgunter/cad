@@ -1183,7 +1183,7 @@ pub(crate) fn loop_extent_from<T: Decide>(
 /// The points and balls [`extent_from`] folds for `loop`, read with no
 /// decision: every vertex, and each curved edge's [`step_ball`].
 #[allow(clippy::type_complexity)] // two lists, each named at its reader
-fn loop_hull<T: Decide>(
+pub(crate) fn loop_hull<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
 ) -> Result<(Vec<Point3<T>>, Vec<(Point3<T>, T)>), PointInLoopError> {

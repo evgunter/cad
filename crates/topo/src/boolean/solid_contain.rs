@@ -54,7 +54,8 @@
 //! near a face's loop however far from `q` — and abandons it
 //! ([`crate::ray_parity::Abandoned`] holds the argument). A ray parallel
 //! to a carrier within the band skips that face only where `q` is
-//! definitely off the carrier; otherwise it is abandoned too. When no
+//! definitely off the carrier, or (on a plane) the face lies definitely
+//! beside the ray; otherwise it is abandoned too. When no
 //! ray decides, the refusal is the first abandoned reading, else
 //! [`PointInSolidError::PartialConeFace`] when such a face set aside a
 //! ray, else [`PointInSolidError::RayExhausted`]. A `?` inside a ray is
@@ -73,11 +74,22 @@
 //!   from `q` the selection reaches (`selection_reach`), so the margin is
 //!   how far the ray rises off the plane, or drifts off its distance
 //!   from the axis, over every length at which it could meet the face.
-//!   Zero with `q` definitely off the carrier (`bool_point_in_solid_plane`
-//!   asked again, past its escalate threshold) ⇒ the ray misses the
-//!   face — skipped; Zero with `q` in band of the carrier ⇒ graze. The
-//!   wall arm's outward sign at a root is read off the
-//!   decided discriminant, never re-decided.
+//!   Zero ⇒ the ray runs along the carrier: it skips the face where `q`
+//!   is definitely off the carrier (`bool_point_in_solid_clearance`) or,
+//!   on a plane, the face lies definitely beside the ray
+//!   (`bool_point_in_solid_beside`); otherwise the ray is abandoned. The
+//!   wall arm's outward sign at a root is read off the decided
+//!   discriminant, never re-decided.
+//! - **`bool_point_in_solid_clearance`**: `|elev|`, the unsigned
+//!   distance of `q` off a carrier a ray runs along within the band (a
+//!   plane's elevation, a wall's linearized residual). Positive ⇒ the
+//!   ray cannot reach the face; Zero ⇒ graze; in band ⇒ the ray is
+//!   abandoned. Unsigned because the side is not the question: which
+//!   side `q` is on decides nothing here.
+//! - **`bool_point_in_solid_beside`**: for a ray running along a planar
+//!   face's carrier, the face's clearance off the plane through the ray
+//!   normal to that carrier (the larger of its two sides'), over the
+//!   hull of its outer loop. Positive ⇒ the ray passes beside the face.
 //! - **`bool_point_in_solid_advance`**: the crossing's advance `t`
 //!   along the ray (Zero ⇒ crossing at `q` — graze, retry).
 //! - **`bool_cone_partial_reach`**: a point's distance from a cone's
@@ -4727,7 +4739,11 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
 /// enclosure that straddles a band edge decides nothing, and abandons it
 /// too.
 fn clear_of_carrier<T: Decide>(elev: T, face: FaceKey, band: Band) -> Result<bool, RayFault> {
-    match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
+    match decide(
+        "bool_point_in_solid_clearance",
+        Margin::of(elev.abs()),
+        band,
+    ) {
         Ok(Sign::Zero) => Ok(false),
         Ok(_) => Ok(true),
         Err(diag) => Err(RayFault::Abandon(PointInSolidError::Escalated {
@@ -4735,6 +4751,50 @@ fn clear_of_carrier<T: Decide>(elev: T, face: FaceKey, band: Band) -> Result<boo
             diag,
         })),
     }
+}
+
+/// Does the ray from `q` along `d`, which runs along planar `face`'s
+/// carrier (normal `normal`) within the band, pass definitely beside the
+/// face? The ray lies in the plane through `q` spanned by `d` and
+/// `normal`, whose normal is `m = normal × d`; the face lies in the hull
+/// of its outer loop's vertices and its curved edges' balls
+/// ([`loop_hull`](crate::splitting::containment::loop_hull)), so when
+/// every one of them is definitely on one side of that plane, no point
+/// of the face is on the ray. `bool_point_in_solid_beside` decides the
+/// larger of the two sides' clearances; anything but Positive abandons
+/// the ray, and a loop that does not read is the body's refusal.
+fn ray_passes_beside<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    d: Vec3<T>,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<bool, RayFault> {
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let (verts, balls) =
+        crate::splitting::containment::loop_hull(body, f.outer).map_err(PointInSolidError::Loop)?;
+    let m = normal.cross(d);
+    let m = m / m.norm();
+    let (mut above, mut below) = (None::<T>, None::<T>);
+    for (c, r) in verts.into_iter().map(|v| (v, T::zero())).chain(balls) {
+        let h = (c - q).dot(m);
+        let (a, b) = (h - r, T::zero() - h - r);
+        above = Some(above.map_or(a, |x| x.min(a)));
+        below = Some(below.map_or(b, |x| x.min(b)));
+    }
+    let (Some(above), Some(below)) = (above, below) else {
+        return Ok(true); // no vertex: the loop bounds no region
+    };
+    Ok(decide(
+        "bool_point_in_solid_beside",
+        Margin::of(above.max(below)),
+        band,
+    )
+    .map_err(|diag| RayFault::Abandon(PointInSolidError::Escalated { face, diag }))?
+        == Sign::Positive)
 }
 
 /// One ray of the sweep: `Some(verdict)` or `None` for a graze.
@@ -4799,15 +4859,20 @@ fn cast_ray<T: Decide>(
                 if denom_sign == Sign::Zero {
                     // A ray parallel to the plane within the band rises
                     // off it by at most the band's zero over the reach.
-                    // It misses the face only where q is definitely off
-                    // the plane (`|elev|` past the band's escalate
-                    // threshold); the pre-pass passes q in band of the
-                    // carrier wherever its foot is outside the face, so
-                    // that is asked here, not assumed.
-                    if clear_of_carrier((q - origin).dot(normal), face, band)? {
+                    // The pre-pass passes q in band of the carrier
+                    // wherever its foot is outside the face, so a miss
+                    // is asked, not assumed: q definitely off the plane,
+                    // or the face definitely to one side of the ray.
+                    let clear = clear_of_carrier((q - origin).dot(normal), face, band);
+                    if matches!(clear, Ok(true))
+                        || ray_passes_beside(body, face, q, d, normal, band)?
+                    {
                         continue;
                     }
-                    return Ok(None);
+                    return match clear {
+                        Err(abandon) => Err(abandon),
+                        Ok(_) => Ok(None),
+                    };
                 }
                 let t = (origin - q).dot(normal) / denom;
                 // In-face test FIRST: a plane hit outside the face
