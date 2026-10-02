@@ -2,8 +2,9 @@
 id: a-declared-line-seam-stops-at-the-rest-zip
 kind: issue
 title: A seam declared along a line (the D-bar on the slab) verifies and stops at the declared-Rest zip, ParallelSeamEdges
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-02
 ---
 
 ## What
@@ -35,3 +36,12 @@ declared distinct-carrier tangency as `Tangent` only:
 germ short-circuit, and `vtxfac`'s admitted list. A seam's lump verdict
 is the same second-order question with the material on the same side.
 The rim seam (the sphere-capped tube) reaches none of these sites.
+
+## Outcome (2026-10-02)
+
+Closed without work on this row. After PR 3849 merged `origin/main`
+(merge of `30b07d5a`), the D-bar union BUILDS in both orders: tier 3 and
+3′ clean, volume 3 + π/8 exactly, census (6, 12, 8, 1). A change on main
+between `29751b90`'s base and that merge reached the parallel-seam-edge
+zip; the row is re-pinned as a build
+(`a_d_bar_on_the_slab_builds_with_its_line_seams_declared`).

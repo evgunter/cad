@@ -259,6 +259,13 @@ pub enum BooleanDecision {
     /// on a positive margin, a smooth join on zero). Asked of the result,
     /// after every declaration was spent, so none is read.
     SeamWedge,
+    /// Whether the two faces touching along a seam of the result curve
+    /// apart there or share their curvature (`tangent_second_order`, the
+    /// must-carry rule's second-order reading at a station of a smooth
+    /// seam): both definite verdicts pass (the intrinsic tangency on a
+    /// positive margin, the conventional description on zero). Asked of
+    /// the result, after every declaration was spent, so none is read.
+    SeamJet,
     /// A question the curved-extent scan asks of a sphere face, which
     /// takes no declarations.
     Sphere(SphereQuestion),
@@ -761,6 +768,20 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
     lever: "move the geometry so the faces at that seam meet either clearly creased or clearly \
             smooth",
     size: "fold across the seam",
+    passes: SizedPass::NonNegative,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// Whether the faces touching along a seam curve apart or share their
+/// curvature ([`BooleanDecision::SeamJet`]): the sagitta their relative
+/// bend subtends over the folded lever arm, a determinate tangency on a
+/// positive margin and an under-determined one on zero. The margin is a
+/// magnitude, so no negative one is read.
+const SEAM_JET: SizedDecision = SizedDecision {
+    lever: "move the geometry so the faces touching along that seam either clearly curve apart \
+            there or clearly share their curvature",
+    size: "curvature difference across the seam",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
     at_zero: None,
@@ -1434,6 +1455,10 @@ impl BooleanDecision {
             Self::SeamWedge => {
                 "whether the two faces at a seam edge cross there or touch tangentially"
             }
+            Self::SeamJet => {
+                "whether the two faces touching along a seam edge curve apart there or share \
+                 their curvature"
+            }
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
         }
@@ -1616,6 +1641,7 @@ impl BooleanDecision {
             // corner.
             Self::BisectorSide => Ending::Lever(CORNER_EDGES, LeverPass::Unmeasured),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
+            Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
             Self::SelfCheck(_) => Ending::Unsized(Unsized::Defect),
@@ -1853,6 +1879,7 @@ mod tests {
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
+                BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
                 BooleanDecisionKind::Sphere => SphereQuestion::iter()
                     .map(BooleanDecision::Sphere)
                     .collect(),
@@ -2199,6 +2226,15 @@ mod tests {
                 Ending::Sized(
                     "Recourse: move the geometry so the faces at that seam meet either clearly \
                      creased or clearly smooth",
+                    SizedPass::NonNegative,
+                ),
+            ),
+            BooleanDecision::SeamJet => (
+                "whether the two faces touching along a seam edge curve apart there or share \
+                 their curvature",
+                Ending::Sized(
+                    "Recourse: move the geometry so the faces touching along that seam either \
+                     clearly curve apart there or clearly share their curvature",
                     SizedPass::NonNegative,
                 ),
             ),

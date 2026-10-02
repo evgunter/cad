@@ -3484,8 +3484,8 @@ pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
         ContainError::RayExhausted => BooleanError::ClassificationInvariant {
             what: "contfp ray schedule exhausted",
         },
-        ContainError::ArcLoopUnsupported { r#loop } => {
-            BooleanError::ArcLoopContainmentUnsupported { operand, r#loop }
+        ContainError::Uncrossable(cause) => {
+            BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
         ContainError::Corrupt => BooleanError::corrupt_at(operand, VertexKey::default()),
     }

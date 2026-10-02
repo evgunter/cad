@@ -41,8 +41,7 @@
 //!   contradicted too, because the ruling runs through the rod wall's
 //!   interior: the wall does not END at the line, so no seam runs along
 //!   it (`seam_locus_no_edge`). The D-bar on the slab, whose half-rod
-//!   wall does end there, verifies as a line seam and stops at the
-//!   declared-`Rest` zip.
+//!   wall does end there, verifies as a line seam and builds.
 //! - **The dodge plate** (a plate whose outline leaves a line on one
 //!   side and then reaches round to the other): the line seam is read
 //!   where the faces leave the line, not off the boundary.
@@ -871,12 +870,12 @@ fn coplanar_pairs(x: &Body<f64>, y: &Body<f64>) -> Vec<FacePairDeclaration> {
 /// whose flat lies on the slab's side face (`Rest`) and whose wall
 /// starts at the slab's top and bottom edges leaves each tangent ruling
 /// on the side away from the slab, so its walls declared a `Seam`
-/// against the slab's top and bottom verify in both orders. The union
-/// then stops in the declared-`Rest` zip, which has no arm for the two
-/// parallel seam edges (filed:
-/// `a-declared-line-seam-stops-at-the-rest-zip`).
+/// against the slab's top and bottom verify in both orders, and the
+/// union builds: the slab with its `+x` side bent round into a half
+/// cylinder, tier 3 and 3′ clean, its volume the slab's plus the half
+/// rod's, census (6, 12, 8, 1).
 #[test]
-fn a_d_bar_on_the_slab_verifies_its_line_seams_and_stops_at_the_zip() {
+fn a_d_bar_on_the_slab_builds_with_its_line_seams_declared() {
     let tol = Tol::witness();
     let slab: Body<f64> = brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol);
     let lp = profile::test_support::bulge_loop(vec![
@@ -923,15 +922,14 @@ fn a_d_bar_on_the_slab_verifies_its_line_seams_and_stops_at_the_zip() {
             5,
             "two seams, the flat, two flush ends"
         );
-        let r = topo::union_with(x, y, &d, tol);
-        assert!(
-            matches!(
-                r,
-                Err(BooleanError::RestZipUnsupported {
-                    what: topo::RestZipFrontier::ParallelSeamEdges
-                })
-            ),
-            "verified, then the zip: {r:?}"
+        let label = "slab ∪ D-bar";
+        let (v, c, _) = built(label, topo::union_with(x, y, &d, tol));
+        let want = 3.0 + half_rod;
+        assert!((v - want).abs() <= 1e-12, "{label}: {v} vs {want}");
+        assert_eq!(
+            c,
+            (6, 12, 8, 1),
+            "{label}: the slab with one wall bent round"
         );
     }
 }
@@ -1552,4 +1550,205 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
             }
         }
     }
+}
+
+/// Narrow review (JOIN-1 fix pass 3): domes and bowls of several corner
+/// angles, turned, on tubes, every op both orders, discs declared
+/// `Rest`; every build read at tiers 2, 3′, the certificate, tier 3,
+/// volume, and as an operand.
+#[test]
+#[ignore]
+fn narrow_review_dome_battery() {
+    let tol = Tol::witness();
+    let mut builds = 0;
+    let mut refusals = std::collections::BTreeMap::<String, usize>::new();
+    let mut bad = 0;
+    for &alpha_deg in &[15.0_f64, 30.0, 45.0, 60.0, 75.0, 89.0] {
+        let alpha = alpha_deg.to_radians();
+        let rise = R * (alpha / 2.0).tan();
+        let bulge = (alpha / 4.0).tan();
+        let dome = cap_on_the_tube(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(R, 0.0), bulge),
+            (Point2::new(0.0, rise), 0.0),
+        ]);
+        let bowl = cap_on_the_tube(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.0, -rise), bulge),
+            (Point2::new(R, 0.0), 0.0),
+        ]);
+        for &turn_deg in &[0.0_f64, 30.0, 90.0, 180.0, 7.0] {
+            let turn = Affine3::rotation_about_axis(
+                Point3::origin(),
+                Vec3::unit_z(),
+                turn_deg.to_radians(),
+            );
+            let tdome = topo::transform_rigid(&dome, &turn, tol).unwrap();
+            for (plabel, partner) in [
+                ("tube", rod_z(R, 0.0, H)),
+                ("short tube", rod_z(R, H - 0.25, 0.25)),
+                ("bowl", bowl.clone()),
+            ] {
+                for (x, y, xl, yl) in [(&partner, &tdome, "p", "d"), (&tdome, &partner, "d", "p")] {
+                    let (dx, dy) = (planes_at_z(x, H), planes_at_z(y, H));
+                    let d = declared(&dx, &dy, ContactClass::Rest);
+                    for (op, r) in [
+                        ("union", topo::union_with(x, y, &d, tol)),
+                        ("subtract", topo::subtract_with(x, y, &d, tol)),
+                        ("intersect", topo::intersect_with(x, y, &d, tol)),
+                    ] {
+                        let label = format!("a{alpha_deg} t{turn_deg} {plabel} {xl}{yl} {op}");
+                        match r {
+                            Ok(BooleanResult::Body(bb)) => {
+                                builds += 1;
+                                let t2 = topo::validate_closed(&bb.body).is_ok();
+                                let t3p =
+                                    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                                        .is_ok();
+                                let cert =
+                                    topo::validate_geometric_certificate(&bb.body, tol).is_ok();
+                                let t3 = topo::validate_geometric(&bb.body, tol).is_ok();
+                                let v = topo::mass_properties(&bb.body, tol)
+                                    .map(|m| m.volume)
+                                    .unwrap_or(f64::NAN);
+                                let vx = topo::mass_properties(x, tol).unwrap().volume;
+                                let vy = topo::mass_properties(y, tol).unwrap().volume;
+                                let want = match op {
+                                    "union" => vx + vy,
+                                    "subtract" => vx,
+                                    _ => 0.0,
+                                };
+                                let vol_ok = (v - want).abs() <= 1e-9 * (vx + vy);
+                                let operand = std::panic::catch_unwind(|| {
+                                    sweep::test_support::assert_legal_operand(
+                                        "probe", &bb.body, tol,
+                                    )
+                                })
+                                .is_ok();
+                                let ok = t2 && t3p && cert && t3 && vol_ok && operand;
+                                if !ok {
+                                    bad += 1;
+                                }
+                                println!(
+                                    "NR {label}: BUILD t2={t2} t3p={t3p} cert={cert} t3={t3} vol={v:.12} want={want:.12} operand={operand}{}",
+                                    if ok { "" } else { " BAD" }
+                                );
+                            }
+                            Ok(BooleanResult::Empty) => {
+                                println!("NR {label}: EMPTY");
+                                if op != "intersect" {
+                                    bad += 1;
+                                }
+                            }
+                            Err(e) => {
+                                let k = format!("{e:?}");
+                                let k = k.split([' ', '(', '{']).next().unwrap().to_string();
+                                println!("NR {label}: REFUSE {k}");
+                                *refusals.entry(k).or_default() += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("NR SUMMARY builds={builds} bad={bad} refusals={refusals:?}");
+    assert_eq!(bad, 0);
+}
+
+/// Narrow review: brick corners and tube rims on balls and domes —
+/// contact vertices on curved faces, every op both orders; every build
+/// read at tiers 2, 3′, the certificate, tier 3 and as an operand.
+#[test]
+#[ignore]
+fn narrow_review_corner_on_ball_battery() {
+    let tol = Tol::witness();
+    let mut builds = 0;
+    let mut bad = 0;
+    let mut refusals = std::collections::BTreeMap::<String, usize>::new();
+    let s3 = 3.0_f64.sqrt();
+    let s2 = 2.0_f64.sqrt();
+    let mut poses: Vec<(String, Body<f64>, Body<f64>)> = Vec::new();
+    for (bl, ball) in [
+        ("ball z", ball_poled_z(s3, Vec3::new(0.0, 0.0, 0.0), tol)),
+        (
+            "ball y",
+            sweep::test_support::ball_poled_y(s3, Vec3::new(0.0, 0.0, 0.0), tol),
+        ),
+    ] {
+        for (kl, x, y, z) in [
+            ("out", (1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
+            ("in", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
+            ("cross", (0.5, 1.0), (0.5, 1.0), (0.5, 2.5)),
+            ("edge-out", (1.0, 2.0), (-1.0, 1.0), (1.0, 2.0)),
+            ("slab", (-3.0, 3.0), (-3.0, 3.0), (1.0, 3.0)),
+            ("neg", (-2.0, -1.0), (1.0, 2.0), (-1.0, 0.0)),
+        ] {
+            poses.push((
+                format!("{bl} brick {kl}"),
+                ball.clone(),
+                brick(x, y, z, tol),
+            ));
+        }
+        // A tube whose rim lies on the ball (radius 1 at height 1).
+        for (tl, z0, len) in [
+            ("tube up", 1.0, 1.0),
+            ("tube down", -1.0, 2.0),
+            ("tube through", 0.0, 3.0),
+        ] {
+            poses.push((format!("{bl} {tl}"), ball.clone(), rod_z(1.0, z0, len)));
+        }
+        // A ball of radius √2 at the origin: the tube rim at z = 1.
+        let small = ball_poled_z(s2, Vec3::new(0.0, 0.0, 0.0), tol);
+        poses.push((
+            format!("{bl} small tube"),
+            small.clone(),
+            rod_z(1.0, 1.0, 1.0),
+        ));
+    }
+    for (label, p, q) in &poses {
+        for (xl, x, y) in [("ab", p, q), ("ba", q, p)] {
+            for (op, r) in [
+                ("union", topo::union(x, y, tol)),
+                ("subtract", topo::subtract(x, y, tol)),
+                ("intersect", topo::intersect(x, y, tol)),
+            ] {
+                let label = format!("{label} {xl} {op}");
+                match r {
+                    Ok(BooleanResult::Body(bb)) => {
+                        builds += 1;
+                        let t2 = topo::validate_closed(&bb.body).is_ok();
+                        let t3p =
+                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
+                        let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
+                        let t3 = topo::validate_geometric(&bb.body, tol).is_ok();
+                        let v = topo::mass_properties(&bb.body, tol)
+                            .map(|m| m.volume)
+                            .unwrap_or(f64::NAN);
+                        let operand = std::panic::catch_unwind(|| {
+                            sweep::test_support::assert_legal_operand("probe", &bb.body, tol)
+                        })
+                        .is_ok();
+                        let ok = t2 && t3p && cert && t3 && operand;
+                        if !ok {
+                            bad += 1;
+                        }
+                        println!(
+                            "NR2 {label}: BUILD t2={t2} t3p={t3p} cert={cert} t3={t3} vol={v:.9} operand={operand}{}",
+                            if ok { "" } else { " BAD" }
+                        );
+                    }
+                    Ok(BooleanResult::Empty) => println!("NR2 {label}: EMPTY"),
+                    Err(e) => {
+                        let k = format!("{e:?}");
+                        let k = k.split([' ', '(', '{']).next().unwrap().to_string();
+                        println!("NR2 {label}: REFUSE {k}");
+                        *refusals.entry(k).or_default() += 1;
+                    }
+                }
+            }
+        }
+    }
+    println!("NR2 SUMMARY builds={builds} bad={bad} refusals={refusals:?}");
+    assert_eq!(bad, 0);
 }
