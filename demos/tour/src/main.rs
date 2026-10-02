@@ -356,6 +356,16 @@ struct StepFrontierPin {
     retire: &'static str,
 }
 
+/// Whether a boolean result declares no contacts, which is how its
+/// body is routed: a TRANSVERSE curved boolean declares none and takes
+/// plain tier 3, because the 3′ census is exact-on-planar by ruling
+/// (C12.4/OQ5: a TOUCHING curved result refuses there — pinned in
+/// `sweep/tests/m5_pr9_boss_union.rs`); a result that declares some
+/// takes 3′ with them.
+fn declares_no_contacts(contacts: &ContactRecords) -> bool {
+    contacts.vv.is_empty() && contacts.a_on_b.is_empty() && contacts.b_on_a.is_empty()
+}
+
 /// The writer's named subset frontier, as one list. Refusals in this
 /// class say a tour SCENE grew past the writer; everything else says
 /// the writer broke. Only the UNDECLARED arm asks this question — a

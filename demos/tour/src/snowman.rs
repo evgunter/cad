@@ -13,12 +13,15 @@
 //! circle and the band is an exact torus.
 //!
 //! **What this pose is, and what it is not.** Coaxial is what a
-//! snowman is, and it is the pose that builds. A ball moved OFF the
-//! shared axis tilts the radical plane against the spheres' polar
-//! axes, and the join refuses that typed — it is the lily's wall 7
+//! snowman is, and it is the pose that builds; `tests` pins the two
+//! poses beside it, under all three ops. A head moved OFF the shared
+//! axis — 0.05 along `x` or along `z` — tilts the radical plane
+//! against the spheres' polar axes, and the join refuses
+//! `SectionNotPolar`
 //! (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
-//! A ball SPUN about the shared axis, so the two revolves' seams are
-//! no longer coplanar, refuses at the pierce-ring door
+//! A head SPUN 0.9 rad about the shared axis, so the two revolves'
+//! seams are no longer coplanar, refuses `SectionArcWindow {
+//! NoChartedRun }` at the pierce-ring door
 //! (`work/tang/pierce-ring-has-no-join-arm.md`); sketching both
 //! semicircles in one plane, as here, is the natural spelling and
 //! never meets it.
@@ -67,10 +70,11 @@ const ROLL: f64 = 0.05;
 const STEP: f64 = 0.8;
 /// The scene's chord budget.
 const DELTA: f64 = 2e-3;
-/// The relative slack every volume is held to against its closed form:
-/// the kernel's mass properties are exact on these faces, so this is
-/// rounding's, and a dropped cap or a band counted twice misses by
-/// orders of magnitude.
+/// The relative slack every volume is held to against its closed form.
+/// Every face is a sphere or a torus, which the mass properties
+/// integrate in closed form (`assert_volume` pins a zero pad), so the
+/// slack is rounding's, and a dropped cap or a band counted twice
+/// misses by orders of magnitude.
 const SLACK: f64 = 1e-12;
 
 /// A semicircle about `(0, y)` of radius `r`, closed along the axis.
@@ -179,11 +183,13 @@ fn band_delta_v() -> f64 {
         + arc_rho2_dy((0.0, D), R2, t2, waist))
 }
 
-/// The body's volume against `expected`; returns the relative residual.
+/// The body's volume against `expected`, read off closed-form faces
+/// only; returns the relative residual.
 fn assert_volume(what: &str, body: &Body<f64>, expected: f64, tol: Tol) -> f64 {
-    let v = pncad::topo::mass_properties(body, tol)
-        .unwrap_or_else(|e| panic!("{what}: mass properties, got {e:?}"))
-        .volume;
+    let p = pncad::topo::mass_properties(body, tol)
+        .unwrap_or_else(|e| panic!("{what}: mass properties, got {e:?}"));
+    assert_eq!(p.volume_pad, 0.0, "{what}: closed-form faces only");
+    let v = p.volume;
     let residual = (v - expected).abs() / expected;
     assert!(
         residual <= SLACK,
@@ -194,9 +200,12 @@ fn assert_volume(what: &str, body: &Body<f64>, expected: f64, tol: Tol) -> f64 {
 
 /// The waist, said by description: the edges between two sphere
 /// faces, then `rim_of` on each, which hands back the whole rim for an
-/// arc on two surfaces and refuses a seam meridian `CoSurface`. Returns
-/// the rim and how many meridians the description also named.
-fn waist(body: &Body<f64>) -> (Vec<EdgeKey>, usize) {
+/// arc on two surfaces and refuses a seam meridian `CoSurface`.
+///
+/// The census is pinned because the filed finding quotes it: the
+/// description names the waist's two arcs and four co-surface
+/// meridians, two per ball.
+fn waist(body: &Body<f64>) -> Vec<EdgeKey> {
     let spheres = SurfaceKindSet::just(SurfaceKind::Sphere);
     let named: Vec<EdgeKey> = query::all_edges(body)
         .into_iter()
@@ -219,11 +228,11 @@ fn waist(body: &Body<f64>) -> (Vec<EdgeKey>, usize) {
     }
     let rim = rim.expect("the union has a waist rim");
     assert_eq!(
-        named.len(),
-        rim.len() + meridians,
-        "every (Sphere, Sphere) edge is a waist arc or a meridian"
+        (named.len(), rim.len(), meridians),
+        (6, 2, 4),
+        "(Sphere, Sphere) names two waist arcs and four co-surface meridians"
     );
-    (rim, meridians)
+    rim
 }
 
 /// The cell's bodies sit side by side along `x`.
@@ -232,13 +241,11 @@ fn placed(body: &Body<f64>, slot: f64, tol: Tol) -> Body<f64> {
         .expect("a translation is rigid")
 }
 
-/// A transverse curved boolean declares no contacts and takes plain
-/// tier 3 (`bossplate` states the ruling); a result that did declare
-/// some takes 3′ with them.
+/// A boolean result, placed in its slot and routed by
+/// [`crate::declares_no_contacts`].
 fn scene_body(name: &str, color: [f64; 3], bb: BooleanBody<f64>, slot: f64, tol: Tol) -> SceneBody {
     let body = placed(&bb.body, slot, tol);
-    let c = &bb.contacts;
-    if c.vv.is_empty() && c.a_on_b.is_empty() && c.b_on_a.is_empty() {
+    if crate::declares_no_contacts(&bb.contacts) {
         SceneBody::plain(name, color, body)
     } else {
         SceneBody::seamed(name, color, body, bb.contacts)
@@ -260,7 +267,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     .into_iter()
     .fold(0.0, f64::max);
 
-    let (rim, meridians) = waist(&snowman.body);
+    let rim = waist(&snowman.body);
     let rolled = fillet_edges(&snowman.body, &rim, ROLL, tol)
         .unwrap_or_else(|e| panic!("the snowman's waist fillets: {e:?}"));
     let dv = band_delta_v();
@@ -278,14 +285,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         match *rolled.body.get_surface(face.surface).expect("its surface") {
             Surface::Torus {
                 center,
+                axis,
                 major_radius,
                 minor_radius,
                 ..
             } => {
                 assert!(
-                    (center.y - y).abs() < 1e-12,
-                    "the spine's height is {y}, got {}",
-                    center.y
+                    axis.x == 0.0 && axis.z == 0.0 && axis.y.abs() == 1.0,
+                    "the band's axis is the snowman's, ±y; got {axis:?}"
+                );
+                assert!(
+                    center.x == 0.0 && center.z == 0.0 && (center.y - y).abs() < 1e-12,
+                    "the spine is centred on the axis at height {y}, got {center:?}"
                 );
                 assert!(
                     (major_radius - rho).abs() < 1e-12,
@@ -301,7 +312,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     }
     println!(
         "   [snowman] the waist: {} arc(s) named by (Sphere, Sphere) and kept by rim_of, \
-         {meridians} seam meridian(s) refused CoSurface; {} band face(s), spine at y = \
+         4 seam meridians refused CoSurface; {} band face(s), spine at y = \
          {y:.6}, ρ = {rho:.6}; ΔV = {dv:.6e} m³; worst relative volume residual \
          {worst:.1e}",
         rim.len(),
@@ -325,7 +336,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              and the rolled waist's meets it plus the band's Pappus ΔV = {dv:.4e} m³. The \
              band is a torus on BlendArm::SphereSphereTorus, its spine at {R1} + r and \
              {R2} + r from the two centres. Coaxial is what builds: a head moved off the \
-             axis is the lily's wall 7",
+             axis refuses SectionNotPolar (the tilted sphere pair), and one spun about it \
+             refuses at the pierce-ring door",
             x = waist_height()
         )),
         view: View {
@@ -352,5 +364,68 @@ mod tests {
     #[test]
     fn the_snowman_meets_its_closed_forms() {
         stops(Tol::witness());
+    }
+
+    /// **The poses beside the snowman, which the narration names.** A
+    /// head moved 0.05 off the axis along `x` or `z` refuses at the
+    /// tilted-pair join, and a head spun 0.9 rad about the axis at the
+    /// pierce-ring door — under every op. A pose that starts building,
+    /// or refuses elsewhere, means the narration is stale.
+    #[test]
+    fn the_poses_off_the_coaxial_seam_refuse_where_the_narration_says() {
+        use pncad::topo::{ArcWindowCase, SplitJoinError};
+        let tol = Tol::witness();
+        let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
+        let not_polar = |e: &BooleanError| {
+            matches!(
+                e,
+                BooleanError::Join(SplitJoinError::SectionNotPolar { .. })
+            )
+        };
+        let no_run = |e: &BooleanError| {
+            matches!(
+                e,
+                BooleanError::Join(SplitJoinError::SectionArcWindow {
+                    case: ArcWindowCase::NoChartedRun,
+                    ..
+                })
+            )
+        };
+        type Pinned = fn(&BooleanError) -> bool;
+        let poses: [(&str, Affine3<f64>, Pinned); 3] = [
+            (
+                "moved 0.05 along x",
+                Affine3::translation(v3(0.05, 0.0, 0.0)),
+                not_polar,
+            ),
+            (
+                "moved 0.05 along z",
+                Affine3::translation(v3(0.0, 0.0, 0.05)),
+                not_polar,
+            ),
+            (
+                "spun 0.9 rad about the axis",
+                Affine3::rotation_about_axis(
+                    pncad::geom_core::Point3::origin(),
+                    v3(0.0, 1.0, 0.0),
+                    0.9,
+                ),
+                no_run,
+            ),
+        ];
+        for (what, pose, pinned) in poses {
+            let moved = pncad::topo::transform_rigid(&head, &pose, tol).expect("a rigid pose");
+            for (op, out) in [
+                ("∪", pncad::topo::union(&bottom, &moved, tol)),
+                ("∖", pncad::topo::subtract(&bottom, &moved, tol)),
+                ("∩", pncad::topo::intersect(&bottom, &moved, tol)),
+            ] {
+                match out {
+                    Err(e) if pinned(&e) => {}
+                    Err(e) => panic!("head {what}, {op}: refused elsewhere, {e:?}"),
+                    Ok(_) => panic!("head {what}, {op}: builds now — retell the narration"),
+                }
+            }
+        }
     }
 }
