@@ -2,12 +2,13 @@
 id: split-edges-key-retention-direction-is-pinned-by-no-row
 kind: issue
 title: topo: split_edge's key-retention DIRECTION is pinned by no row
-status: review
+status: closed
 opened: 2026-09-13
 priority: P3
 cost: E
 branch: tquery/split-edge-retention
 pr: 3761
+closed: 2026-10-02
 ---
 
 
@@ -49,3 +50,9 @@ consumer's row in another crate, which is exactly the wrong home for
 
 Found by the v6 dual review of BLEND unit 8 (PR 2505), which re-derived
 the rule from `split.rs` rather than trusting the unit's census.
+
+## Closed (2026-10-02, PR 3761)
+
+`review_m3_pr1::split_edge_parent_key_keeps_the_start_side` pins the
+direction off the keys alone; reversing the retention in
+`Body::split_edge` turns it red (checked by the lane, not committed).

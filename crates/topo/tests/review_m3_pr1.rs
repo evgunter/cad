@@ -593,8 +593,7 @@ fn split_edge_interiority_band_edges() {
 
 /// The parent key survives as the FIRST child (original start → new
 /// vertex) and `new_edge` is the SECOND (new vertex → original end),
-/// read off the keys alone. Every other split row is symmetric in which
-/// child got which key; this one goes red if the retention is reversed.
+/// read off the keys alone.
 #[test]
 fn split_edge_parent_key_keeps_the_start_side() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
