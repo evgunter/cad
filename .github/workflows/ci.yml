@@ -91,12 +91,19 @@ jobs:
               exit 1
             fi
             case "$mergeable" in
-              true) echo "sha=$merge" >>"$GITHUB_OUTPUT"; echo "gating PR #$PR's test merge $merge"; exit 0 ;;
+              true)
+                # `mergeable` can turn true over the previous head's merge.
+                built_on="$(gh api "repos/$GITHUB_REPOSITORY/commits/$merge" --jq '.parents[1].sha')"
+                if [ "$built_on" = "$GITHUB_SHA" ]; then
+                  echo "sha=$merge" >>"$GITHUB_OUTPUT"
+                  echo "gating PR #$PR's test merge $merge"
+                  exit 0
+                fi ;;
               false) echo "::error title=PR conflicts with its base::PR #$PR does not merge cleanly, so there is no merge to gate. Merge the base in and push."; exit 1 ;;
             esac
             sleep 10
           done
-          echo "::error::GitHub did not compute PR #$PR's mergeability in 5 minutes"
+          echo "::error::GitHub did not build PR #$PR's test merge on $GITHUB_SHA in 5 minutes"
           exit 1
       - uses: actions/checkout@v4
         with:
@@ -167,6 +174,7 @@ jobs:
                 seeded "$c" && extra="$extra${extra:+ | }package($c)"
               done
               if [ -f changed.txt ]; then
+                # shellcheck disable=SC2013 # crate names: one word per line
                 for c in $(grep -E '^crates/[^/]+/.*(probe|golden)' changed.txt | cut -d/ -f2 | sort -u); do
                   case "$extra" in *"package($c)"*) ;; *) extra="$extra${extra:+ | }package($c)";; esac
                 done
@@ -184,15 +192,11 @@ jobs:
               *) echo "cargo_scope=$CARGO_SCOPE" ;;
             esac
           } | tee -a "$GITHUB_OUTPUT"
-      # `[render]` as a whitespace-delimited token in the PR head commit's
-      # SUBJECT (HEAD^2 of the test merge) dispatches render.yml on the PR's
-      # branch with this run's token: `workflow_dispatch` is an event a
-      # GITHUB_TOKEN may start. render.yml commits re-baselined cells there
-      # and re-gates the PR on the new head. Drafts dispatch nothing (marking
-      # the PR ready re-reads the tag). Only a pull_request run reads the tag
-      # and the bot's commits start no run, so the re-gate cannot fire it
-      # again. A fork's branch is out of this token's reach: warned, not
-      # rendered. A failed dispatch reds `gate ok` without skipping the rows.
+      # HEAD^2 of the test merge is the PR head. A GITHUB_TOKEN may start a
+      # `workflow_dispatch`, which is what render.yml's re-gate (its
+      # `ci-on-new-head` job) answers with; that dispatch never reaches this
+      # step, so the two cannot loop. A failed dispatch is an output, not a
+      # failed step, so `gate ok` goes red without skipping the rows.
       - name: render tag
         id: render-tag
         if: github.event_name == 'pull_request'
@@ -207,7 +211,12 @@ jobs:
           subject="$(git log -1 --format=%s "$head")"
           token='(^|[[:space:]])\[render\]([[:space:]]|$)'
           if ! [[ $subject =~ $token ]]; then
-            echo "no [render] token in the subject of $head: nothing dispatched"
+            message="$(git log -1 --format=%B "$head")"
+            if [[ $message == *"[render]"* ]]; then
+              echo "::warning title=[render] not honoured::$head mentions [render], but only a whitespace-delimited [render] in the commit's SUBJECT line asks for a render. Nothing was rendered."
+            else
+              echo "no [render] token in the subject of $head: nothing dispatched"
+            fi
             exit 0
           fi
           if [ "$DRAFT" = true ]; then
@@ -282,6 +291,7 @@ jobs:
             cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
           else
             [ "$TOOLKIT" = true ] || SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
+            # shellcheck disable=SC2086 # SCOPE is a list of -p flags
             cargo clippy $SCOPE --all-targets --all-features -- -D warnings
           fi
 

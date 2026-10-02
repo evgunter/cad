@@ -67,6 +67,8 @@ runs:
         RUN_ID: ${{ github.run_id }}
       run: |
         set -euo pipefail
+        # shellcheck source=lib.sh
+        source "$GITHUB_ACTION_PATH/lib.sh"
 
         drift="$(git status --porcelain -- "$DIR/")"
         if [ -z "$drift" ]; then
@@ -169,22 +171,16 @@ runs:
           git fetch --depth=1 origin "$PUSH_TO"
           tip="$(git rev-parse "origin/$PUSH_TO")"
           if [ "$tip" != "$rendered" ] && [ "$PUSH_TO" != "$default_branch" ]; then
-            cmp="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${rendered}...${tip}" \
-              --jq '[.status, ([.commits[] | select(.author.login != "github-actions[bot]") | .sha[:9]] | join(","))] | join(" ")')"
-            read -r status foreign <<<"$cmp"
-            if [ "$status" != ahead ] || [ -n "${foreign:-}" ]; then
-              why="${PUSH_TO} moved during the render (now ${tip}; ${status}${foreign:+, commits ${foreign}}), so these ${LANE} cells, drawn from ${rendered}, were not committed onto it. Push again with [render] in the subject to render the new tip. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"
-              gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
-                -f "name=render refused (${LANE})" \
-                -f "head_sha=${tip}" \
-                -f "status=completed" \
-                -f "conclusion=failure" \
-                -f "output[title]=the branch moved during the render; push again with [render]" \
-                -f "output[summary]=${why}" \
-                --silent
-              echo "::error title=${DIR} not re-baselined::${why}"
-              exit 1
-            fi
+            past="$(past_rendered "$rendered" "$tip")"
+            case "$past" in
+              identical|bot) ;;
+              *)
+                why="${PUSH_TO} moved during the render (now ${tip}; ${past}), so these ${LANE} cells, drawn from ${rendered}, were not committed onto it. Push again with [render] in the subject to render the new tip. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"
+                post_failure "render refused (${LANE})" "$tip" \
+                  "the branch moved during the render; push again with [render]" "$why"
+                echo "::error title=${DIR} not re-baselined::${why}"
+                exit 1 ;;
+            esac
           fi
           git reset --hard "origin/$PUSH_TO"
           mkdir -p "$DIR"

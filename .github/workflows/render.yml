@@ -123,15 +123,13 @@
 # of its own — so the PR would show that one neutral check and NOTHING
 # else, every green check stranded on the parent commit (measured on
 # PR #598: 30 green jobs on one sha, a head commit carrying a single
-# check). A dispatch of THIS workflow closes that gap: `ci-on-new-head`
-# dispatches ci.yml on a branch whose open PR it re-baselined, gating the
-# PR's merge with main, and its checks land on the new head. Nothing else
-# closes it: nightly.yml dispatched on a PR branch commits there through
-# `workflow_call`, and that head carries only the neutral checks. A lane
-# that finds its branch moved by someone else during the render commits
-# nothing and fails (`.github/actions/rebaseline-lane`), except on the
-# default branch, which the nightly keeps converging. A PR that never asked
-# for a render merges with stale cells, and the nightly re-baselines main.
+# check). A dispatch of THIS workflow re-gates the PR on the new head; the
+# `ci-on-new-head` job below is where that mechanism and its gaps are
+# described. A lane that finds its branch moved by someone else during the
+# render commits nothing and fails (`.github/actions/rebaseline-lane`),
+# except on the default branch, which the nightly keeps converging. A PR
+# that never asked for a render merges with stale cells, and the nightly
+# re-baselines main.
 # `.github/actions/rebaseline-lane` carries the full reasoning,
 # including why neutral rather than red and why not silent green.
 #
@@ -1179,6 +1177,7 @@ jobs:
             notclean=$(grep -cE 'NOTE — |TIMED OUT after|CRASHED — ' "$out" || true)
             if [ "$status" -eq 0 ] && [ "${notclean:-0}" -gt 0 ]; then
               echo "::warning::[$lane] GREEN BUT NOT CLEAN — ${notclean} line(s) report a retried or stalled freecadcmd process. The lane drew everything, but the renderer misbehaved doing it; the first attempt's log is in the freecad-logs-$lane artifact as *.attempt1.log."
+              # shellcheck disable=SC2016 # the backticks are markdown
               printf -- '- **%s lane**: green, but %s line(s) report a retried or stalled process — the renderer misbehaved and drew anyway (see `*.attempt1.log` in `freecad-logs-%s`).\n' \
                 "$lane" "$notclean" "$lane" >> "$GITHUB_STEP_SUMMARY"
             fi
@@ -1554,21 +1553,29 @@ jobs:
           push_to: ${{ env.PUSH_TARGET }}
           token: ${{ github.token }}
 
-  # CI ON THE NEW HEAD. A lane's re-baseline commit is pushed with this run's
-  # token, so it starts no CI run of its own and a PR's checks would stay on
-  # the parent. When every commit past the rendered one is this workflow's
-  # bot commit and the branch has a ready open PR, this dispatches ci.yml
-  # with that PR's number: it gates the PR's test merge with its base, and
-  # its checks, `gate ok` among them, attach to the new head. ci.yml's
-  # dispatch never reads the `[render]` tag, so this does not loop.
+  # CI ON THE NEW HEAD — the one description of the re-gate.
+  #
+  # A lane's re-baseline commit is pushed with this run's token, so it starts
+  # no CI run of its own and a PR's checks would stay on the parent. When
+  # every commit past the rendered one is a lane's bot commit and the branch
+  # has a ready open PR, this dispatches ci.yml with that PR's number: it
+  # gates the PR's test merge with its base, and its checks, `gate ok` among
+  # them, attach to the new head. ci.yml's dispatch never reads the
+  # `[render]` tag, so this does not loop. A draft is left for its
+  # `ready_for_review` run to gate.
   #
   # A head this job cannot vouch for goes RED, not neutral-only: lanes that
-  # did not all succeed after one committed (a partial set), or a re-gate
-  # that was not dispatched, post a failing `render re-gate` check on it.
+  # did not all succeed after one committed (a partial set) post a failing
+  # `render re-gate` check on it, and so does the last step when the re-gate
+  # step did not finish, whether it failed or the run was cancelled under
+  # it. What is left uncovered: that last step itself being killed (a second
+  # cancel inside its grace period, or a lost runner).
   #
   # Only a dispatch of THIS file: under nightly.yml's `workflow_call` the
-  # github context, `workflow_ref` included, is the caller's. `always()` so
-  # a cancelled render still answers for the commits it left behind.
+  # github context, `workflow_ref` included, is the caller's, and a nightly
+  # dispatched on a PR branch commits there with no re-gate behind it, its
+  # head carrying only neutral checks. `always()` so a cancelled render
+  # still answers for the commits it left behind.
   ci-on-new-head:
     name: CI on the re-baselined head
     runs-on: ubuntu-latest
@@ -1584,29 +1591,33 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RENDERED: ${{ needs.checkout-target.outputs.ref }}
     steps:
+      # Only the helpers the lanes use, so both read one rule.
+      - uses: actions/checkout@v4
+        if: ${{ always() }}
+        with:
+          sparse-checkout: .github/actions/rebaseline-lane
       - name: re-gate the branch if a lane committed to it
+        id: regate
+        if: ${{ always() }}
         env:
           OWNER: ${{ github.repository_owner }}
           RESULTS: ${{ needs.scene-inputs.result }} ${{ needs.montage.result }} ${{ needs.gui.result }}
         run: |
           set -euo pipefail
+          trap 'rc=$?; [ "$rc" -ne 0 ] || echo "done=true" >>"$GITHUB_OUTPUT"' EXIT
+          # shellcheck source=/dev/null
+          source .github/actions/rebaseline-lane/lib.sh
           if [ -z "$PUSH_TARGET" ] || [ -z "$RENDERED" ]; then
             echo "this run had no branch to commit to: nothing to re-gate"
             exit 0
           fi
           tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$PUSH_TARGET" --jq .object.sha)"
-          cmp="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RENDERED...$tip" \
-            --jq '[.status, ([.commits[] | select(.author.login != "github-actions[bot]") | .sha[:9]] | join(","))] | join(" ")')"
-          read -r status foreign <<<"$cmp"
-          case "$status" in
+          past="$(past_rendered "$RENDERED" "$tip")"
+          case "$past" in
             identical) echo "$PUSH_TARGET is still at the rendered commit: no lane committed"; exit 0 ;;
-            ahead) ;;
-            *) echo "$PUSH_TARGET's tip $tip is $status of the rendered $RENDERED: not a head this run made"; exit 0 ;;
+            bot) ;;
+            *) echo "$PUSH_TARGET's tip $tip is not this run's ($past): a lane that met the move refused with a failing check; this run vouches for no head past it"; exit 0 ;;
           esac
-          if [ -n "${foreign:-}" ]; then
-            echo "$PUSH_TARGET moved during the render ($foreign not this workflow's): a lane that met the move refused with a failing check; this run vouches for no head past it"
-            exit 0
-          fi
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=$OWNER:$PUSH_TARGET" \
             --jq 'map("\(.number) \(.draft)") | .[0] // ""')"
           if [ -z "$pr" ]; then
@@ -1616,11 +1627,8 @@ jobs:
           read -r number draft <<<"$pr"
           case " $RESULTS " in
             *" failure "*|*" cancelled "*)
-              gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
-                -f "name=render re-gate" -f "head_sha=$tip" -f status=completed -f conclusion=failure \
-                -f "output[title]=partial render: re-render before merging" \
-                -f "output[summary]=This head carries cells from render run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID, whose lanes did not all succeed ($RESULTS). Push a commit whose subject carries [render] to re-render." \
-                --silent
+              post_failure "render re-gate" "$tip" "partial render: re-render before merging" \
+                "This head carries cells from render run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID, whose lanes did not all succeed ($RESULTS). Push a commit whose subject carries [render] to re-render."
               echo "::error::lanes did not all succeed ($RESULTS) after one committed; failing check posted on $tip" ;;
           esac
           if [ "$draft" = true ]; then
@@ -1631,13 +1639,13 @@ jobs:
             -f "ref=$PUSH_TARGET" -f "inputs[pr]=$number"
           echo "dispatched ci.yml on $PUSH_TARGET to gate PR #$number's merge (tip $tip):"
           echo "  $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/ci.yml?query=branch%3A$PUSH_TARGET"
-      - name: a head this job could not answer for goes red
-        if: failure()
+      - name: a head the re-gate did not finish with goes red
+        if: ${{ always() && steps.regate.outputs.done != 'true' }}
         run: |
+          # shellcheck source=/dev/null
+          source .github/actions/rebaseline-lane/lib.sh
+          [ -n "$PUSH_TARGET" ] || exit 0
           tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$PUSH_TARGET" --jq .object.sha)" || exit 1
           [ "$tip" != "$RENDERED" ] || exit 0
-          gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
-            -f "name=render re-gate" -f "head_sha=$tip" -f status=completed -f conclusion=failure \
-            -f "output[title]=CI may not have re-run on this head" \
-            -f "output[summary]=Render run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID moved $PUSH_TARGET and its re-gate job failed. Push a commit to gate this head." \
-            --silent
+          post_failure "render re-gate" "$tip" "CI may not have re-run on this head" \
+            "Render run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID moved $PUSH_TARGET and its re-gate step did not finish. Push a commit to gate this head."

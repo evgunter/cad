@@ -186,7 +186,7 @@ git push        # ci.yml's `render tag` step dispatches render.yml on the
                 #   branch; a lane that differs is committed back to it
                 #   with a neutral ("!") check naming the cells, and CI is
                 #   dispatched again on that new head, gating the PR's
-                #   merge with main
+                #   merge with its base
 git pull        # the frames are on your branch: look at them
 ```
 
