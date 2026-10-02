@@ -961,6 +961,68 @@ pub(crate) struct CarrierLoop<T: geom_core::Real> {
     pub(crate) keys: Vec<EdgeKey>,
     /// The edges on their carriers.
     pub(crate) edges: Vec<LoopEdge<T>>,
+    /// A ball holding each curved edge's carrier arc ([`step_ball`]),
+    /// which with `verts` holds the whole loop ([`extent_from`]).
+    balls: Vec<(Point3<T>, T)>,
+}
+
+/// One step of a loop's cycle, read with no decision: its start
+/// vertex's point, its edge, and the edge's certified curve (`None` for
+/// null scaffolding, a zero-length chord its vertex holds).
+struct LoopStep<'b, T: geom_core::Real> {
+    point: Point3<T>,
+    edge: EdgeKey,
+    curve: Option<&'b geom_brep::EdgeCurve<T>>,
+}
+
+/// The steps of `loop`'s cycle, or the lone vertex of an empty loop.
+fn loop_steps<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+) -> Result<Result<Vec<LoopStep<'_, T>>, Point3<T>>, PointInLoopError> {
+    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
+    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex } => {
+            let point = body.get_vertex(vertex).ok_or_else(corrupt)?.point;
+            return Ok(Err(*body.get_point(point).ok_or_else(corrupt)?));
+        }
+    };
+    let mut steps = Vec::new();
+    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
+        let point = body.get_vertex(h.start).ok_or_else(corrupt)?.point;
+        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+        // A curve key that does not resolve is corruption; a resolved
+        // entry that is null scaffolding is a zero-length chord.
+        steps.push(LoopStep {
+            point: *body.get_point(point).ok_or_else(corrupt)?,
+            edge: h.edge,
+            curve: body.get_curve_geom(edge.curve).ok_or_else(corrupt)?.certified(),
+        });
+    }
+    Ok(Ok(steps))
+}
+
+/// The ball holding a step's edge beyond its end vertices: `None` for
+/// a chord ([`carrier_ball`]).
+///
+/// # Errors
+///
+/// [`PointInLoopError::CorruptLoop`] for a spline edge with no control
+/// points.
+fn step_ball<T: Decide>(
+    r#loop: LoopKey,
+    step: &LoopStep<'_, T>,
+) -> Result<Option<(Point3<T>, T)>, PointInLoopError> {
+    let Some(curve) = step.curve else {
+        return Ok(None);
+    };
+    match carrier_ball(curve.carrier(), curve.params()) {
+        Some(ball) => Ok(Some(ball)),
+        None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => Ok(None),
+        None => Err(PointInLoopError::CorruptLoop { r#loop }),
+    }
 }
 
 /// The loop's vertices and its edges on their carriers, a conic's span
@@ -972,53 +1034,42 @@ pub(crate) fn carrier_loop<T: Decide>(
     band: Band,
 ) -> Result<CarrierLoop<T>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
-        return Err(corrupt());
-    };
+    let steps = loop_steps(body, r#loop)?.map_err(|_| corrupt())?;
     let mut verts = Vec::new();
     let mut keys = Vec::new();
     let mut edges = Vec::new();
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
-        let point = body.get_vertex(h.start).ok_or_else(corrupt)?.point;
-        verts.push(*body.get_point(point).ok_or_else(corrupt)?);
-        keys.push(h.edge);
-        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-        // A curve key that does not resolve is corruption; a resolved
-        // entry that is null scaffolding is a zero-length chord.
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .ok_or_else(corrupt)?
-            .certified()
-        else {
+    let mut balls = Vec::new();
+    for step in &steps {
+        verts.push(step.point);
+        keys.push(step.edge);
+        let ball = step_ball(r#loop, step)?;
+        balls.extend(ball);
+        let Some(curve) = step.curve else {
             edges.push(LoopEdge::Chord);
             continue;
         };
-        let (t0, t1) = curve.params();
-        let carrier = curve.carrier();
-        match ConicArc::of(carrier, (t0, t1), rows.conic, band) {
-            Ok(Some(k)) => {
-                edges.push(LoopEdge::Conic(k));
-                continue;
-            }
-            Ok(None) => {}
+        match ConicArc::of(curve.carrier(), curve.params(), rows.conic, band) {
+            Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
+            Ok(None) => edges.push(match (curve.carrier(), ball) {
+                (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, _) => {
+                    unreachable!("a circle or an ellipse is a conic arc above")
+                }
+                (_, Some((center, reach))) => LoopEdge::Unrowed { center, reach },
+                // A line: its segment is its two end vertices'.
+                (_, None) => LoopEdge::Chord,
+            }),
             Err(ConicArcError::WoundPastPeriod) => return Err(corrupt()),
             Err(ConicArcError::Escalated(diag)) => {
                 return Err(PointInLoopError::Escalated { r#loop, diag });
             }
         }
-        edges.push(match carrier {
-            geom::Curve3::Line { .. } => LoopEdge::Chord,
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-                unreachable!("a circle or an ellipse is a conic arc above")
-            }
-            _ => {
-                let (center, reach) = carrier_ball(carrier, (t0, t1)).ok_or_else(corrupt)?;
-                LoopEdge::Unrowed { center, reach }
-            }
-        });
     }
-    Ok(CarrierLoop { verts, keys, edges })
+    Ok(CarrierLoop {
+        verts,
+        keys,
+        edges,
+        balls,
+    })
 }
 
 /// **A ball holding the arc `span` of `carrier`**, `(center, radius)`,
@@ -1083,40 +1134,60 @@ fn carrier_ball<T: Decide>(carrier: &geom::Curve3<T>, (t0, t1): (T, T)) -> Optio
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, or
-/// a spline edge with no control points.
+/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
+/// spline edge with no control points, or a poisoned extent.
 pub(crate) fn loop_extent_from<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     q: Point3<T>,
 ) -> Result<T, PointInLoopError> {
-    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { vertex } => {
-            let point = body.get_vertex(vertex).ok_or_else(corrupt)?.point;
-            return Ok((*body.get_point(point).ok_or_else(corrupt)? - q).norm());
-        }
+    let (verts, balls) = loop_hull(body, r#loop)?;
+    extent_from(r#loop, q, &verts, &balls)
+}
+
+/// The points and balls [`extent_from`] folds for `loop`, read with no
+/// decision: every vertex, and each curved edge's [`step_ball`].
+#[allow(clippy::type_complexity)] // two lists, each named at its reader
+fn loop_hull<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+) -> Result<(Vec<Point3<T>>, Vec<(Point3<T>, T)>), PointInLoopError> {
+    let steps = match loop_steps(body, r#loop)? {
+        Ok(steps) => steps,
+        Err(vertex) => return Ok((vec![vertex], Vec::new())),
     };
+    let mut balls = Vec::new();
+    for step in &steps {
+        balls.extend(step_ball(r#loop, step)?);
+    }
+    Ok((steps.iter().map(|s| s.point).collect(), balls))
+}
+
+/// **The radius of a ball about `from` holding a loop**, given its
+/// vertices and a ball `(center, radius)` holding each curved edge:
+/// `|v − from|` and `|center − from| + radius`, folded by their maximum.
+/// A poisoned term is refused rather than folded, so no lever built on
+/// the extent carries it on.
+///
+/// # Errors
+///
+/// [`PointInLoopError::CorruptLoop`] for a poisoned term.
+fn extent_from<T: Decide>(
+    r#loop: LoopKey,
+    from: Point3<T>,
+    verts: &[Point3<T>],
+    balls: &[(Point3<T>, T)],
+) -> Result<T, PointInLoopError> {
+    let terms = verts
+        .iter()
+        .map(|v| (*v - from).norm())
+        .chain(balls.iter().map(|&(center, radius)| (center - from).norm() + radius));
     let mut extent = T::zero();
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
-        let point = body.get_vertex(h.start).ok_or_else(corrupt)?.point;
-        extent = extent.max((*body.get_point(point).ok_or_else(corrupt)? - q).norm());
-        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-        // Null scaffolding is a zero-length chord its vertex holds.
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .ok_or_else(corrupt)?
-            .certified()
-        else {
-            continue;
-        };
-        match carrier_ball(curve.carrier(), curve.params()) {
-            Some((center, reach)) => extent = extent.max((center - q).norm() + reach),
-            None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => {}
-            None => return Err(corrupt()),
+    for term in terms {
+        if term.is_poison() {
+            return Err(PointInLoopError::CorruptLoop { r#loop });
         }
+        extent = extent.max(term);
     }
     Ok(extent)
 }
@@ -1237,7 +1308,7 @@ fn carrier_walk<T: Decide>(
     let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
     let (verts, edges) = (&lp.verts, &lp.edges);
     // The loop's reach from `q`: the schedule gate's lever.
-    let extent = reach_from(verts, edges, q);
+    let extent = extent_from(r#loop, q, verts, &lp.balls)?;
     let balls: Vec<_> = edges
         .iter()
         .filter_map(|e| match *e {
@@ -1348,47 +1419,25 @@ fn carrier_walk<T: Decide>(
     }
 }
 
-/// The radius of a ball about `from` that holds the whole loop: every
-/// vertex, and every edge's carrier locus through the bound its
-/// [`LoopEdge`] carries (a conic within its larger semi-axis of its
-/// centre, an unrowed carrier within its own reach).
-fn reach_from<T: Decide>(verts: &[Point3<T>], edges: &[LoopEdge<T>], from: Point3<T>) -> T {
-    let mut ball = T::zero();
-    for v in verts {
-        ball = ball.max((*v - from).norm());
-    }
-    for edge in edges {
-        let (center, reach) = match *edge {
-            LoopEdge::Chord => continue,
-            LoopEdge::Conic(k) => (k.center, k.a.max(k.b)),
-            LoopEdge::Unrowed { center, reach } => (center, reach),
-        };
-        ball = ball.max((center - from).norm() + reach);
-    }
-    ball
-}
-
 /// **A ball holding the whole loop**, `(center, radius)`: the loop's
 /// first vertex and the reach [`point_in_carrier_loop`] confines its
-/// refusal with. Nothing here needs the loop to be planar — each edge
-/// is bounded on its own carrier — so a curved face's outer loop is
-/// served the same way.
+/// refusal with ([`loop_extent_from`]). Nothing here needs the loop to
+/// be planar — each edge is bounded on its own carrier — so a curved
+/// face's outer loop is served the same way.
 ///
 /// # Errors
 ///
-/// [`PointInLoopError`] — an unwalkable loop, or a conic span that
-/// escalates.
+/// [`PointInLoopError::CorruptLoop`] — a loop [`loop_extent_from`]
+/// refuses.
 pub(crate) fn loop_reach<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-    band: Band,
 ) -> Result<(Point3<T>, T), PointInLoopError> {
-    let lp = carrier_loop(body, r#loop, WALK_ROWS, band)?;
-    let anchor = *lp
-        .verts
+    let (verts, balls) = loop_hull(body, r#loop)?;
+    let anchor = *verts
         .first()
         .ok_or(PointInLoopError::CorruptLoop { r#loop })?;
-    Ok((anchor, reach_from(&lp.verts, &lp.edges, anchor)))
+    Ok((anchor, extent_from(r#loop, anchor, &verts, &balls)?))
 }
 
 /// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —

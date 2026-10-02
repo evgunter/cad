@@ -541,8 +541,8 @@ pub(crate) fn face_plane<T: Decide>(
 /// **Orientation (S10)**: every arm's outward direction is the chart's
 /// with the face's sense folded in. The plane arm carries it in the
 /// normal itself (there is a vector to fold it into); the curved arms have
-/// no stored normal — their outward direction is recomputed at each
-/// ray hit — so they carry the face's `sense` bit and the doors apply
+/// no stored normal — their outward sign is taken at each ray hit — so
+/// they carry the face's `sense` bit and the doors apply
 /// it to the sign they derive. Only the material-side signs need it:
 /// the boundary pre-pass compares residuals against Zero and the
 /// chart trims are parameter-domain work, both orientation-free.
@@ -1126,7 +1126,7 @@ pub(super) fn wall_outline<T: Decide>(
         return Ok(WallOutline::Unsupported { reach: None });
     }
     let unsupported = || -> Result<WallOutline<T>, PointInSolidError> {
-        let (anchor, reach) = loop_reach(body, f.outer, band)?;
+        let (anchor, reach) = loop_reach(body, f.outer)?;
         Ok(WallOutline::Unsupported {
             reach: Some((anchor, reach)),
         })
@@ -3705,9 +3705,9 @@ fn point_in_faces<T: Decide>(
 /// `d·n̂`, the wall arm's axis-parallel rung): a ray that drifts off a
 /// face's plane, or off a wall's axis, by no more than the band over
 /// this whole length meets no point of the face, so skipping it is
-/// sound. A planar face lies in its outer loop's hull and so in this
-/// ball; a cylinder wall face lies within its diameter of it (the wall
-/// arm adds that).
+/// sound. A planar face lies in its outer loop's hull, and a wall face
+/// in the hull of its loops (each of its points is on a ruling segment
+/// between two boundary points), so each lies in this ball.
 fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -3728,9 +3728,8 @@ fn selection_reach<T: Decide>(
 /// The crossing sign implied by a CHART-outward direction on a face
 /// whose orientation sense may reverse it (S10): `d·n̂_outward` has the
 /// opposite sign to `d·n̂_chart` exactly when the face's `sense` is
-/// `false`. Used by the curved doors, which recompute their outward
-/// direction from the surface at each hit and so have no stored normal
-/// to fold the sign into (the plane door gets it from [`face_geo`]).
+/// `false`. Used by the curved doors, which take their outward sign at
+/// each hit and so have no stored normal to fold it into (the plane door gets it from [`face_geo`]).
 ///
 /// Exact structure, not a numeric decision: a `bool` selects between
 /// two enum values — no comparison, no tolerance, nothing for the
@@ -3843,11 +3842,7 @@ pub(super) fn line_wall_roots<T: Decide>(
         Sign::Zero => return Ok(WallRoots::Tangent),
         Sign::Negative => return Ok(WallRoots::Miss),
     }
-    let root = disc.max(T::zero()).sqrt();
-    Ok(WallRoots::Two([
-        (T::zero() - b2 - root) / a2,
-        (T::zero() - b2 + root) / a2,
-    ]))
+    Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
 }
 
 /// **Which rung of [`line_wall_roots`] escalated**: the two questions
@@ -3873,6 +3868,32 @@ pub struct WallRootFault {
     pub rung: WallRung,
     /// Its diagnostics.
     pub diag: Indeterminate,
+}
+
+/// **The two roots of `a·t² + 2b·t + c`**, `[(−b − √disc)/a,
+/// (−b + √disc)/a]` with `disc = b² − a·c` decided positive by the
+/// caller, each spelled so that no sum in it cancels.
+///
+/// Of the two numerators `−b ∓ √disc`, one adds magnitudes and the
+/// other cancels when `a·c` is small beside `b²`; divided by a lead `a`
+/// that is only decided nonzero, the cancelled one is wrong by
+/// `≈ ulp·|b|/a`, far above the band on a line all but parallel to a
+/// wall's axis. Since `(−b − √disc)(−b + √disc) = a·c`, that root is
+/// also `c` over the other numerator, which adds magnitudes, and that is
+/// the spelling taken for it. Which numerator adds magnitudes is the
+/// sign of `b`, read by [`geom_core::Real::select_le_zero`] as a value
+/// selection, not a decision: both spellings name the same root, so
+/// where an enclosure of `b` straddles zero the hull of the two is as
+/// narrow as either, and neither denominator nears zero there (it is
+/// `√disc` plus a sliver).
+fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
+    let root = disc.max(T::zero()).sqrt();
+    // `−b − √disc` adds magnitudes for `b > 0`, `√disc − b` for `b ≤ 0`.
+    let (minus, plus) = (T::zero() - b - root, root - b);
+    [
+        b.select_le_zero(c / plus, minus / a),
+        b.select_le_zero(plus / a, c / minus),
+    ]
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -3915,11 +3936,7 @@ pub(super) fn line_sphere_roots<T: Decide>(
         Sign::Zero => return Ok(WallRoots::Tangent),
         Sign::Negative => return Ok(WallRoots::Miss),
     }
-    let root = disc.max(T::zero()).sqrt();
-    Ok(WallRoots::Two([
-        (T::zero() - b2 - root) / a2,
-        (T::zero() - b2 + root) / a2,
-    ]))
+    Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
 }
 
 /// What [`line_torus_roots`] found — the same three-way keep-them-apart
@@ -4055,10 +4072,9 @@ fn cbrt<T: geom_core::Real>(x: T) -> T {
 /// (`≈ |Q|/P`). The textbook stable form transfers it onto `√(…)`
 /// instead, which does not vanish there: the radicand straddles zero,
 /// `P/(3A)` becomes the whole line, and the arm escalates a ray it has
-/// every digit for (`r1_the_q_zero_surface_certifies_on_both_sides`). The cylinder and
-/// cone arms' quadratic formula has the same hazard with no such way
-/// out, because the sign there picks WHICH root the formula names:
-/// `work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead`.
+/// every digit for (`r1_the_q_zero_surface_certifies_on_both_sides`). The
+/// quadratic arms escape the same hazard by selecting, per root, between
+/// two spellings of that one root ([`quadratic_roots`]).
 ///
 /// `A − B` itself cancels when `x` is small beside `A`, which costs an
 /// ABSOLUTE error `≈ ulp·A`, and only for `P > 0`: for `P < 0`, `B < 0`
@@ -4392,8 +4408,8 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
                 // otherwise: neither is a certified pair of factors.
                 Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
             }
-            let root = inner.max(T::zero()).sqrt();
-            ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
+            let [lo, hi] = quadratic_roots(T::one(), T::zero() - p / two, s, inner / four);
+            ((T::zero(), hi), (T::zero(), lo))
         } else {
             // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
             // whose constant term is negative, so its LARGEST real root is
@@ -4436,8 +4452,7 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
             Sign::Zero => return Ok(TorusRoots::Uncertain),
             Sign::Positive => {}
         }
-        let root = inner.max(T::zero()).sqrt();
-        for y in [(T::zero() - a - root) / two, (T::zero() - a + root) / two] {
+        for y in quadratic_roots(T::one(), a / two, c, inner / four) {
             ts[found] = y;
             found += 1;
         }
@@ -4545,9 +4560,9 @@ fn cast_ray<T: Decide>(
             // infinite wall at the roots of a quadratic in metres
             // (the linearized residual along the ray); each definite
             // root inside the face's chart trim folds like a planar
-            // hit, with the outward sign read from the radial
-            // gradient at the hit. A tangent ray (discriminant in the
-            // zero band) grazes and retries — never a parity guess.
+            // hit, with the outward sign read off the root order
+            // (below). A tangent ray (discriminant in the zero band)
+            // grazes and retries — never a parity guess.
             FaceGeo::Cylinder {
                 origin,
                 axis,
@@ -4557,12 +4572,12 @@ fn cast_ray<T: Decide>(
                 h,
                 sense,
             } => {
-                // The face lies within its diameter of the selection's
-                // loops ([`selection_reach`]): its height range is its
-                // boundary's, and every point of it is within `2r` of
-                // the axis point at its height.
-                let span = reach + T::from_f64(2.0) * radius;
-                let roots = line_wall_roots(q, d, origin, axis, radius, span, band)
+                // Every point of a wall face lies on a ruling segment
+                // whose two ends are points of its boundary (the hull
+                // [`wall_hit_outside_reach`] reads), so the face lies in
+                // the hull of its loops, inside the selection's ball: a
+                // hit is at most `reach` along the ray.
+                let roots = line_wall_roots(q, d, origin, axis, radius, reach, band)
                     .map_err(|fault| escalate(fault.diag))?;
                 let ts = match roots {
                     // Axis-parallel ray: it drifts off its distance from
@@ -4671,10 +4686,9 @@ fn cast_ray<T: Decide>(
                     Sign::Zero => return Ok(None), // tangent ray: graze
                     Sign::Negative => continue,    // definite miss
                 }
-                let root = disc.max(T::zero()).sqrt();
                 // Unordered: `A` may be negative, and the closest-hit
                 // fold orders by advance anyway.
-                for t in [(T::zero() - b2 - root) / a2, (T::zero() - b2 + root) / a2] {
+                for t in quadratic_roots(a2, b2, c2, disc) {
                     let p = q + d * t;
                     match point_on_cone_in_face(
                         face, apex, axis, half_angle, u_ref, az, v, nappe, p, band,

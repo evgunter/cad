@@ -1804,23 +1804,17 @@ pub(super) fn curved_face_arm<T: Decide>(
                             Ok(CurvedEvent::None)
                         }
                         // **`Constant` is NOT a clearance here.** It
-                        // reports that the axis-parallel test —
-                        // `|d_perp|²/2r`, a SQUARED transverse
-                        // component — did not come back definitely
-                        // positive, which is an L²-amplified window: a
-                        // direction a band-width off the axis has a
-                        // transverse component of order `sqrt(band)`,
-                        // and the residual it accumulates over a long
-                        // span is not the constant this verdict would
-                        // read it as. Clearing on it would be a silent
-                        // wrong answer at exactly the poses the belly
-                        // arm exists for, so it keeps the door. (The
-                        // ray lane's sibling at
-                        // `solid_contain::cast_ray` skips the face on
-                        // the same verdict and is not touched here: its
-                        // pre-pass has already put `q` definitely off
-                        // the wall, which is the one-sign story this
-                        // arm does not have.)
+                        // says the edge drifts off its distance from the
+                        // axis by less than the band over its span, so
+                        // the residual is constant along it, but not on
+                        // which side of the wall: an edge running along
+                        // the wall in band is a coincidence, and nothing
+                        // upstream put this one definitely off it. So it
+                        // keeps the door. (`solid_contain::cast_ray`
+                        // skips the face on its own axis-parallel
+                        // verdict, levered by the selection's reach,
+                        // because its pre-pass has put `q` definitely off
+                        // the wall.)
                         SpanVerdict::Constant => Err(frontier()),
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
