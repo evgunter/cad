@@ -56,3 +56,16 @@ way under these rows since they were filed):
   dispatched (`tquery/split-edge-retention`), orchestrator's-read tier:
   a test-only row whose content is written in the item.
 - 2026-10-02 — designers agreed on the final state (one kind mirror per enum, in `geom`; sets stay in `topo::query`), split only on authoring (hand-written vs `strum` derive); `[ev]` PR 3763 opened carrying both reports as A/B (fork-log row 41).
+- 2026-10-02 — `tquery/rim-of-recipe` STOPPED at a fork, nothing built.
+  Ev's preferred repair (a `GeomSource` read) has nothing to read:
+  every kernel-direct body's curves are `KernelDirect`, and editor-core
+  stamps one source per curve description, so a rim's arcs are always
+  distinct sources. The fallback (`eq_bits`) keeps the refusal.
+  Measured: all arcs of an extruded rim share the same two surface keys
+  (extrude decides one cylinder per run), and with the bit compare off
+  the rim suites pass bar four rows that pin the bit rule or the
+  winding contract. A CLASS finding: N6's recipe provenance does not
+  reach kernel-direct bodies, so any repair that leans on it is
+  editor-core-only. Sent to the designer pair
+  (`analysis/design-fork/tquery-rim-identity`); the dangling-key and
+  prose riders wait for the answer (same arms of `RimError`).
