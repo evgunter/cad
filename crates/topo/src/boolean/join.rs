@@ -12,18 +12,24 @@
 //! # Matching is germ identity, not slots or senses (the below-copy
 //! # audit)
 //!
-//! A section-polygon edge lies on the intersection line of one A-face
-//! and one B-face; its two end sites offer null-edge halves *facing*
-//! that germ. The neighbor test is therefore pure data:
+//! A section-polygon edge lies in one cell of each operand — inside a
+//! face, or along an edge, where it lies in both faces the edge bounds
+//! ([`super::Locus`]); its two end sites offer null-edge halves
+//! *facing* that germ. The neighbor test is therefore pure data:
 //!
-//! - the two halves' germ **face pairs agree** (both components — this
-//!   subsumes the book's same-face test and is immune to mid-join face
-//!   divisions);
+//! - the two halves' germ **loci agree** on both operands (this
+//!   subsumes the book's same-face test, is immune to mid-join face
+//!   divisions, and names a segment along an edge the same at both
+//!   ends, whichever flank each end attributed it to);
 //! - their record **parities oppose** (the book's "opposite he1/he2
 //!   roles" — 15.11's IN-record→OUT-record orientation carried as
 //!   data);
-//! - the A-side and B-side germs of one match are the SAME face pair
-//!   (one spatial polygon edge).
+//! - the A-side and B-side germs of one match carry the SAME loci (one
+//!   spatial polygon edge).
+//!
+//! A segment whose locus on a solid is an edge is that edge: the
+//! solid's adjacency skip reads the locus, not the geometry
+//! ([`SegmentEdge`]).
 //!
 //! Boolean runs mint copies of BOTH parities (In-runs mint
 //! `NewVertexSide::Below` copies — the PR 4 interface fact); nothing
@@ -212,6 +218,7 @@ impl SolidJoin {
     /// The planar-side chord lane against the partner `wall`, whose
     /// face's azimuth window is `window`: one chord through
     /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`.
+    #[allow(clippy::too_many_arguments)]
     fn join_bool_planar<T: Decide>(
         &mut self,
         body: &mut Body<T>,
@@ -690,7 +697,7 @@ pub(super) fn bool_connect<T: Decide>(
 }
 
 /// `scanjoin`, germ form (module docs): among all candidate/entry slot
-/// combinations whose A-side germs carry the SAME face pair and whose
+/// combinations whose A-side germs carry the SAME loci and whose
 /// two sites mutually FACE each other along the germ line
 /// (`bool_join_facing`, decided — the polygon edge's ends point at one
 /// another), with OPPOSED senses in both solids (the sense theorem's
@@ -698,7 +705,7 @@ pub(super) fn bool_connect<T: Decide>(
 /// decided — non-adjacent same-line sites must not be chorded across
 /// an intermediate one). The B side consumes the SAME slots — slot `i`
 /// of the A and B germ arrays is one spatial germ (registration doc);
-/// a B-side face-pair or sense disagreement at matched slots is a
+/// a B-side locus or sense disagreement at matched slots is a
 /// loud desync, never an alternative pairing. Zero-distance
 /// combinations (distinct pair records at one coincident site) are
 /// skipped — that degeneracy gate is `bool_join_chord` (margin = the
@@ -775,7 +782,7 @@ fn find_match<T: Decide>(
                         continue;
                     }
                     // The B side at the SAME slots — mirror checks, not
-                    // freedom: shared-germ face pairs and the
+                    // freedom: shared-germ loci and the
                     // anti-correlation theorem make disagreement a
                     // kernel bug, refused loudly.
                     let (rgb, egb) = (rec.b[cs].0, e.b[es].0);
@@ -1408,7 +1415,7 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 
 /// Still-unused null-edge halves, each mapped to its geometric MATCH
 /// PARTNER's half in the same solid: the nearest mutually-facing loose
-/// germ with the same face pair — [`find_match`]'s own criteria,
+/// germ with the same loci — [`find_match`]'s own criteria,
 /// static in the germ geometry, so a captured partner PAIR can still
 /// join (same face) while splitting a pair walls one side off. Germ
 /// meta is shared between the solids, so the (record, slot) partner
@@ -1449,7 +1456,7 @@ fn loose_partners<T: Decide>(
                 continue;
             }
             let g2 = open[j].a[t].0;
-            if g2.a_face != g.a_face || g2.b_face != g.b_face {
+            if g2.a_locus != g.a_locus || g2.b_locus != g.b_locus {
                 continue;
             }
             let p2 = point_of(g2.he)?;

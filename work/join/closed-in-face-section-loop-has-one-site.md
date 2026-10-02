@@ -38,3 +38,12 @@ A representation of a closed section loop with one site, in the join
 (and in the REST lane where one is declared), or a typed refusal
 naming it before the loose ends are counted. Weigh it with the
 designers' answer on the flank fork, which may cover it.
+
+## Built (JOIN-1, branch `join/1-germ-locus`)
+
+The typed-refusal half: both loops now refuse
+`Join(SingleSiteSectionLoop { count: 2 })` under ∪, ∖ and ∩, before
+the loose ends are counted; pinned by
+`crates/sweep/tests/germ_coplanar_conic.rs`
+`a_closed_section_loop_with_one_site_refuses_typed`. The self-loop
+arm (a record matching itself) is not built.

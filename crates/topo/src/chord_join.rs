@@ -1670,9 +1670,8 @@ fn skip_adjacent_chord<T: Decide>(
 /// the interior is sign-constant: a Zero midpoint pins the whole arc
 /// in-plane; a definite midpoint is a belly arc — the skipped chord
 /// MUST be minted or the section face inherits an off-plane boundary
-/// edge. The plane×plane lane asks the same question as the split lane:
-/// a planar divided face still carries conic edges (a cylinder's cap
-/// disk), and the partner germ plane is its section.
+/// edge. It is the split lane's question ([`SegmentEdge::InPlane`]);
+/// the boolean lanes read the segment's locus.
 fn between_edge_in_plane<T: Decide>(
     body: &Body<T>,
     lane: &JoinLane<'_, T>,
@@ -1716,64 +1715,13 @@ fn between_edge_in_plane<T: Decide>(
                         Err(_) => Ok(None),
                     }
                 }
-                // The boolean's PLANAR side (M5 PR 9 fix pass, dev 4):
-                // every edge of the divided planar face lies in the
-                // germ PLANE by face containment — but on a CONIC germ
-                // locus "in plane" is not "is the section segment":
-                // both complementary arcs share the plane AND the
-                // locus (the two-semicircle 2-gon is the witness — the
-                // old structural `true` skipped the second side's mint
-                // and desynced the zip). The honest test is WINDOW
-                // membership: the between arc is this match's own side
-                // exactly when its midpoint lies in the lane's wall
-                // window (the same cone comparison the containment
-                // layer decides trim with; Zero = graze = escalate).
-                JoinLane::BoolPlanar { wall, window, .. } => {
-                    // The wall's chart frame — cylinder (PR 9) or
-                    // sphere (M5 S13); the branch-cut-free cosine
-                    // window test below is chart-frame generic.
-                    let (o_c, a_c, r_c, u_ref_c) = match wall {
-                        geom::Surface::Cylinder {
-                            origin,
-                            axis,
-                            radius,
-                            u_ref,
-                        } => (origin, axis, radius, u_ref),
-                        geom::Surface::Sphere {
-                            center,
-                            radius,
-                            axis,
-                            u_ref,
-                        } => (center, axis, radius, u_ref),
-                        _ => {
-                            return Err(SplitJoinError::SectionInvariant {
-                                face: owning_face()?,
-                                what: "boolean planar-side germ partner is neither a cylinder \
-                                       nor a sphere (arm not wired)",
-                            });
-                        }
-                    };
-                    let (w_min, w_max) = *window;
-                    let half = T::from_f64(0.5);
-                    let m_ang = (w_min + w_max) * half;
-                    let (s_m, c_m) = m_ang.sin_cos();
-                    let v_ref = a_c.cross(*u_ref_c);
-                    let m_hat = *u_ref_c * c_m + v_ref * s_m;
-                    let w = mid - *o_c;
-                    let radial = w - *a_c * w.dot(*a_c);
-                    let r_hat = radial / radial.norm();
-                    let c_h = ((w_max - w_min) * half).cos();
-                    // Ledger row F8 (unchanged): (cosΔ − cos h)·r is
-                    // quadratic in the angular deviation for narrow
-                    // windows; the margin is a length (levered) today.
-                    let margin = Margin::levered(r_hat.dot(m_hat) - c_h, *r_c);
-                    match decide("bool_between_arc_window", margin, band) {
-                        Ok(Sign::Positive) => Ok(Some(true)),
-                        Ok(Sign::Negative) => Ok(Some(false)),
-                        Ok(Sign::Zero) => Ok(None),
-                        Err(_) => Ok(None),
-                    }
-                }
+                // The boolean lanes read the segment's locus instead
+                // ([`SegmentEdge::Is`]); the split lane never runs here.
+                JoinLane::BoolPlanar { .. } => Err(SplitJoinError::SectionInvariant {
+                    face: owning_face()?,
+                    what: "the in-plane skip test was asked on the boolean planar-side lane, \
+                           whose skip reads the segment's locus",
+                }),
             }
         }
     }
