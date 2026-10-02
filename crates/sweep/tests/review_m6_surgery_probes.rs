@@ -13,7 +13,7 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};

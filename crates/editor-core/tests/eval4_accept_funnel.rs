@@ -1,14 +1,13 @@
 //! The accepted edit travels whole through the refactoring doors:
-//! [`split`]'s outcome carries the [`Maintenance`] its
-//! remainder edits and its part edits performed, and [`inline`]'s
-//! carries its own — beside the documents and the recorded edits,
-//! never instead of them.
+//! [`split`]'s outcome carries the [`editor_core::Maintenance`] its remainder edits
+//! and its part edits reported, and [`inline`]'s carries its own —
+//! beside the documents and the recorded edits, never instead of them.
 //!
-//! Each row asserts a maintenance act the door's edits are known to
-//! perform (the act is checked against the group partition of the
-//! document that came back), so a door that swapped a document in and
-//! let the maintenance fall goes red here rather than reporting an
-//! empty list that reads as "nothing moved".
+//! No edit records a frame (A11 (2)), so a group cut whole or spliced
+//! back reports nothing: its offsets move as the chains they are. Each
+//! row reads the group partition and the offsets of the documents that
+//! came back, so an empty report is checked against what moved rather
+//! than read as "nothing moved".
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -17,9 +16,9 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, Maintenance, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, groups, inline, split,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Frame,
+    MateFrame, MatePrimitive, Node, Placement, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    groups, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame_keeping, square, step};
@@ -96,21 +95,24 @@ fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
 }
 
 /// A host with one kept instance of `doc_ref`, whose body is
-/// `part_body`, mated to a local block:
-/// the mate welds nothing before the split (its far end is no member)
-/// and welds the kept instance to the new part instance after it. The
-/// insert door refuses a head that resolves to no member, so the mate
-/// is authored the way such a head arises after insert
-/// (`insert_mate_with_stranded_head`).
+/// `part_body`, mated to a local block: the mate welds nothing (its far
+/// end is no member). The insert door refuses a head that resolves to
+/// no member, so the mate is authored the way such a head arises after
+/// insert (`insert_mate_with_stranded_head`).
 fn kept_instance_mated_to_a_local_block(
     label: &str,
     doc_ref: DocRef,
     part_body: RecipeNodeId,
-) -> (ProfileDoc, RecipeNodeId, BTreeSet<RecipeNodeId>) {
+) -> (
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+    BTreeSet<RecipeNodeId>,
+) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, kept) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, cut, body) = local_block(doc, 3.0);
-    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
+    let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         mate(in_part(kept, part_body, CapEnd::Start), local_cap(body)),
         editor_core::MateSide::B,
@@ -120,83 +122,42 @@ fn kept_instance_mated_to_a_local_block(
     assert_eq!(
         groups(&doc),
         vec![vec![kept]],
-        "before the split the kept instance is a singleton: the mate's far end is a local body"
+        "the kept instance is a singleton: the mate's far end is a local body"
     );
-    (doc, kept, cut)
+    (doc, kept, mate, cut)
 }
 
-/// Row 1 — the remainder's `Rebind` joins two groups, and the
-/// outcome says so.
-///
-/// Re-anchoring the mate's far end onto the new instance is what
-/// makes the mate weld: the kept instance's singleton absorbs the
-/// instance the split just minted. That join is a fact about the
-/// remainder the outcome hands back, so it must ride the outcome.
+/// Row 1 — a cut whose re-anchoring would make a mate START placing
+/// refuses (A4): the instance the split leaves behind sits on the
+/// world, as the kept instance does, so the mate that welded nothing
+/// would weld the two and state a place nobody authored.
 #[test]
-fn a_rebind_that_joins_two_groups_appears_in_the_remainder_maintenance() {
+fn a_cut_that_would_start_a_mate_placing_refuses() {
     let mut store = PartStore::new();
     let (doc_ref, part_body) = store.insert_part(part("eval4-r1-part"), Tol::witness());
-    let (doc, kept, cut) = kept_instance_mated_to_a_local_block("eval4-r1", doc_ref, part_body);
-    let out = split(
+    let (doc, _kept, mate, cut) =
+        kept_instance_mated_to_a_local_block("eval4-r1", doc_ref, part_body);
+    let err = split(
         &doc,
         &cut,
         DocumentId::derive("eval4-r1-cell"),
         Tol::witness(),
         None,
     )
-    .expect("a local block whose only outside reference is a mate operand cuts");
-    assert_eq!(
-        groups(&out.remainder),
-        vec![vec![kept, out.instance]],
-        "after the split the re-anchored mate welds the kept instance to the new one"
-    );
-    assert_eq!(
-        out.remainder_maintenance,
-        vec![Maintenance::Cluster(ClusterMaintenance::Join {
-            survived: kept,
-            absorbed: out.instance,
-            absorbed_frame: None,
-        })],
-        "the join the rebind performed rides the outcome"
-    );
+    .expect_err("the re-anchored mate would place");
     assert!(
-        out.part_maintenance.is_empty(),
-        "the part holds no mate, so its edits moved no mate graph: {:?}",
-        out.part_maintenance
+        matches!(&err, editor_core::SplitError::WouldStartPlacing { mate: m } if m.id() == mate),
+        "{err:?}"
     );
 }
 
-/// Row 2 — a group cut whole re-forms in the part (its mate's insert
-/// is a join there) and dissolves in the remainder (its mate's delete
-/// is a split there); each side's record rides its own outcome field.
+/// Row 2 — a group cut whole HOISTS its root's offset onto the instance
+/// left behind and lands the root at the empty chain in the part (A4);
+/// the group re-forms there, and neither side reports anything: no
+/// edit records a frame.
 #[test]
-fn a_whole_group_cut_records_its_join_in_the_part_and_its_split_in_the_remainder() {
-    let mut store = PartStore::new();
-    let (doc_ref, part_body) = store.insert_part(part("eval4-r2-part"), Tol::witness());
-    let doc = ProfileDoc::empty(DocumentId::derive("eval4-r2"), Tol::witness());
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, joint) = insert(
-        doc,
-        mate(
-            in_part(a, part_body, CapEnd::End),
-            in_part(b, part_body, CapEnd::Start),
-        ),
-    );
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetPlacement {
-            node: a,
-            frame: Frame::translation([0.0, 0.0, 4.0]),
-        },
-    );
-    assert_eq!(groups(&doc), vec![vec![a, b]], "one group, two members");
-
-    // Both sides of this cut move a root (the remainder's mate delete
-    // splits the group, the part's mate insert joins it), so each
-    // side's maintenance solve levers the instances' part through the
-    // store — a cut given no resolver refuses the same solve typed.
-    let store: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
+fn a_whole_group_cut_hoists_its_root_offset_and_reports_nothing() {
+    let (doc, store, [a, b, joint], offset) = placed_pair("eval4-r2");
     let out = split(
         &doc,
         &BTreeSet::from([a, b, joint]),
@@ -212,80 +173,99 @@ fn a_whole_group_cut_records_its_join_in_the_part_and_its_split_in_the_remainder
         "the group re-forms in the part"
     );
     assert_eq!(
-        out.part_maintenance,
-        vec![Maintenance::Cluster(ClusterMaintenance::Join {
-            survived: pa,
-            absorbed: pb,
-            absorbed_frame: None,
-        })],
-        "the part's mate insert joined the two spliced members"
+        offset_of(&out.part, pa),
+        Some(Placement::IDENTITY),
+        "the root lands at the empty chain"
     );
-    // The remainder deletes the mate first (reverse document order),
-    // which splits the group and re-mints the orphan's frame from
-    // its solved pose; the two member deletes that follow move no mate
-    // graph, so the split is the whole record.
+    assert_eq!(
+        offset_of(&out.part, pb),
+        None,
+        "the member stays mate-placed"
+    );
     assert!(
-        matches!(
-            out.remainder_maintenance[..],
-            [Maintenance::Cluster(ClusterMaintenance::Split { from, to, frame: Some(_) })] if from == a && to == b
-        ),
-        "the remainder's mate delete split the group: {:?}",
+        offset_of(&out.remainder, out.instance).is_some_and(|o| o.bit_eq(&offset)),
+        "the instance takes the root's offset"
+    );
+    assert!(
+        out.part_maintenance.is_empty(),
+        "{:?}",
+        out.part_maintenance
+    );
+    assert!(
+        out.remainder_maintenance.is_empty(),
+        "{:?}",
         out.remainder_maintenance
     );
 }
 
-/// Row 3 — `inline` carries what its splice did: the wrapped name's
-/// re-anchoring onto the spliced local body un-welds the instance from
-/// the kept one (a split), which is the row-1 join undone.
+/// Row 3 — inline of that split is A4's sugar: the part is one group
+/// rooted at the empty chain on its world, so its root takes the
+/// instance's offset, and the document split was given comes back up
+/// to node ids, reporting nothing.
 #[test]
-fn inline_records_the_split_its_re_anchoring_performs() {
-    let mut store = PartStore::new();
-    let (doc_ref, part_body) = store.insert_part(part("eval4-r3-part"), Tol::witness());
-    let (doc, kept, cut) = kept_instance_mated_to_a_local_block("eval4-r3", doc_ref, part_body);
+fn inline_of_a_hoisted_split_restores_the_root_offset_and_reports_nothing() {
+    let (doc, store, [a, b, joint], offset) = placed_pair("eval4-r3");
     let out = split(
         &doc,
-        &cut,
+        &BTreeSet::from([a, b, joint]),
         DocumentId::derive("eval4-r3-cell"),
         Tol::witness(),
-        None,
+        Some(&store),
     )
     .expect("cuts");
-    store.insert(out.part.clone(), Tol::witness());
-    let back = inline(
-        &out.remainder,
-        out.instance,
-        &(std::sync::Arc::new(store) as std::sync::Arc<dyn editor_core::PartResolver>),
-        Tol::witness(),
-    )
-    .expect("the instance inlines back");
-    assert_eq!(
-        groups(&back.doc),
-        vec![vec![kept]],
-        "after the splice the mate's far end is local again and welds nothing"
+    let mut parts = PartStore::new();
+    parts.insert(out.part.clone(), Tol::witness());
+    let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(parts);
+    let back = inline(&out.remainder, out.instance, &resolver, Tol::witness())
+        .expect("the instance inlines back");
+    let (ia, ib) = (
+        back.node_map[&out.node_map[&a]],
+        back.node_map[&out.node_map[&b]],
     );
-    // FOUND, not indexed: `Applied::maintenance` contracts that the
-    // strands lead and the cluster acts follow, so position 0 is a
-    // cluster act only when the splice stranded nothing. The claim
-    // here is about the split, so the split is what is looked for.
-    assert!(
-        back.maintenance
-            .iter()
-            .find_map(|row| match row {
-                Maintenance::Cluster(ClusterMaintenance::Split { from, to, .. }) => {
-                    Some((*from, *to))
-                }
-                _ => None,
-            })
-            .is_some_and(|(from, to)| from == kept && to == out.instance),
-        "the re-anchoring rebind split the instance off the kept group: {:?}",
-        back.maintenance
+    assert_eq!(groups(&back.doc), vec![vec![ia, ib]]);
+    assert!(offset_of(&back.doc, ia).is_some_and(|o| o.bit_eq(&offset)));
+    assert_eq!(offset_of(&back.doc, ib), None);
+    assert!(back.maintenance.is_empty(), "{:?}", back.maintenance);
+}
+
+/// Two instances of one block mated, the first placed at an offset:
+/// the document, its part store, `[a, b, mate]` and `a`'s offset.
+fn placed_pair(
+    label: &str,
+) -> (
+    ProfileDoc,
+    std::sync::Arc<dyn editor_core::PartResolver>,
+    [RecipeNodeId; 3],
+    Placement,
+) {
+    let mut store = PartStore::new();
+    let (doc_ref, part_body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+    let (doc, joint) = insert(
+        doc,
+        mate(
+            in_part(a, part_body, CapEnd::End),
+            in_part(b, part_body, CapEnd::Start),
+        ),
     );
-    assert!(
-        !back
-            .maintenance
-            .iter()
-            .any(|act| matches!(act, Maintenance::Cluster(ClusterMaintenance::Join { .. }))),
-        "nothing the splice did joined a group: {:?}",
-        back.maintenance
+    let offset = Placement::literal(&Frame::translation([0.0, 0.0, 4.0]));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance: a,
+            offset: Some(offset.clone()),
+        },
     );
+    assert_eq!(groups(&doc), vec![vec![a, b]], "one group, two members");
+    (doc, std::sync::Arc::new(store), [a, b, joint], offset)
+}
+
+/// An instance's offset.
+fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<Placement> {
+    match doc.node(id) {
+        Some(Node::InstantiatePart { offset, .. }) => offset.clone(),
+        other => panic!("node {} is an instance, got {other:?}", id.0),
+    }
 }

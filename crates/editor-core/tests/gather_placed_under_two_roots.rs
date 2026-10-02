@@ -89,7 +89,7 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     for needle in [
         format!("node {}'s body", test_utils::refusal::tag(extrude.0)),
         format!(
-            "two roots, {} and {}",
+            "two roots, node {} and node {}",
             test_utils::refusal::tag(t1.0),
             test_utils::refusal::tag(t2.0)
         ),
@@ -400,10 +400,10 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
         let (doc, m) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     head_at(base, in_part(base, base_body, CapEnd::End)),
                     head_at(at, in_part(top, top_body, CapEnd::Start)),
-                ),
+                )),
             },
         );
         (doc, m.expect("the mate inserts"))

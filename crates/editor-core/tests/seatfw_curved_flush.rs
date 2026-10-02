@@ -28,11 +28,11 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, CancelToken, ContactClass, EvalOptions, Evaluation, FlushRung, LoopProgram, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal,
+    BooleanCoincidence, BooleanOp, CancelToken, EvalOptions, Evaluation, FlushRung, LoopProgram,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal,
     ValuePayload, declare_all, evaluate, find_flush_candidates,
 };
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use topo::{Body, PlaneRelation, query};
 
@@ -148,7 +148,7 @@ fn a_cylindrical_cosurface_pair_is_a_finding_at_both_seats() {
         "every wall-against-wall pair sits on the shared cylinder: {keys:?}"
     );
     for f in &keys {
-        assert_eq!(f.class, ContactClass::Rest);
+        assert_eq!(f.class, BooleanCoincidence::REST);
         assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite, "{f:?}");
         assert_eq!(f.evidence.rung, FlushRung::DecidedCoincident, "{f:?}");
     }
@@ -161,7 +161,7 @@ fn a_cylindrical_cosurface_pair_is_a_finding_at_both_seats() {
         "one verifier under both seats: keys {keys:?} vs names {names:?}"
     );
     for f in &names {
-        assert_eq!(f.class, ContactClass::Rest);
+        assert_eq!(f.class, BooleanCoincidence::REST);
         assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite, "{f:?}");
         assert_eq!(f.pair.0.name.node, peg);
         assert_eq!(f.pair.1.name.node, block);

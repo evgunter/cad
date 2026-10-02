@@ -133,7 +133,7 @@ pub fn selection(
         .into_iter()
         .map(|e| at(RoleSeg::FromA(e.into())))
         .collect();
-    for band in [RoleSeg::Band(lower), RoleSeg::BandPi(lower)] {
+    for band in [RoleSeg::Band(lower.into()), RoleSeg::BandPi(lower.into())] {
         out.push(at(RoleSeg::Seam {
             a: cap_top.clone().into(),
             b: ball_face(band).into(),
@@ -200,7 +200,7 @@ pub fn excluded_meridians(
                 node: ball,
                 path: vec![RoleSeg::Meridian(
                     end,
-                    crate::fixture::piece(doc, ball, 0, 0),
+                    crate::fixture::piece(doc, ball, 0, 0).into(),
                 )],
             }))],
         })

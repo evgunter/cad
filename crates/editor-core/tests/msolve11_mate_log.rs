@@ -134,7 +134,13 @@ impl Scene {
     /// Inserts `node` through the door, levered by the scene's parts.
     fn add(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
-        let (doc, id) = fixture::step_with(self.doc.clone(), DocEdit::InsertNode { node }, &reach);
+        let (doc, id) = fixture::step_with(
+            self.doc.clone(),
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            &reach,
+        );
         self.doc = doc;
         id.unwrap()
     }
@@ -435,7 +441,13 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
     let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
     let err = s
         .doc
-        .apply(&DocEdit::InsertNode { node }, Tol::witness(), &reach)
+        .apply(
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            Tol::witness(),
+            &reach,
+        )
         .expect_err("the door refuses the lever");
     let editor_core::EditError::MateRefused { fault, .. } = err else {
         panic!("expected MateRefused, got {err:?}");

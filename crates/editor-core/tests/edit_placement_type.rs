@@ -10,7 +10,7 @@ use crate::wire::doctored;
 
 use editor_core::{
     Axis3, CancelToken, Dimension, DocEdit, DocParam, DocParamValue, EditError, EvalOptions, Expr,
-    Frame, FrameSite, LoggedEdit, Node, ParamEnv, ParamName, PersistError, Placement, ProfileDoc,
+    Frame, FrameSite, Node, ParamEnv, ParamName, PersistError, Placement, ProfileDoc,
     ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step,
     ValuePayload, VectorSlot, evaluate, load, save,
 };
@@ -92,7 +92,7 @@ fn motion(p: &Placement) -> Affine3<f64> {
 }
 
 fn lands(p: &Placement, at: [f64; 3]) -> Point3<f64> {
-    motion(p).transform_point(Point3::new(at[0], at[1], at[2]))
+    motion(p).transform_point(Point3::from_array(at))
 }
 
 fn near(p: Point3<f64>, q: [f64; 3]) -> bool {
@@ -188,7 +188,7 @@ fn compose_is_frame_composes_order_and_its_inner_placement_acts_first() {
         .affine::<f64>()
         .transform_point(Point3::new(1.0, 0.0, 0.0));
     assert!(
-        near(lands(&by_chain, [1.0, 0.0, 0.0]), [want.x, want.y, want.z]),
+        near(lands(&by_chain, [1.0, 0.0, 0.0]), want.to_array()),
         "a shift composed over a turn is rotate_then_translate"
     );
 }
@@ -245,7 +245,7 @@ fn the_empty_chain_is_the_identity_at_both_doors() {
     let (doc, placed) = step(
         doc,
         DocEdit::InsertNode {
-            node: Node::transform(body, Placement::IDENTITY),
+            node: Box::new(Node::transform(body, Placement::IDENTITY)),
         },
     );
     let placed = placed.expect("the edit door admits the empty chain");
@@ -280,10 +280,10 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
     stretched.columns[1] = [0.0, 2.0, 0.0];
     let (doc, body) = cube("placement-refused");
     let at = |frame: &Frame| DocEdit::InsertNode {
-        node: Node::transform(
+        node: Box::new(Node::transform(
             body,
             Placement::from(about_z([0.0; 3], 0.0)).compose(&Placement::literal(frame)),
-        ),
+        )),
     };
     let door = |edit| {
         editor_core::apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach).map(|_| ())
@@ -307,7 +307,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
         }
         let text = error.to_string();
         assert!(
-            text.contains("step 2 of node") && text.contains("Recourse:"),
+            text.contains("step 2 of Transform ") && text.contains("Recourse:"),
             "the {what} refusal names the step and its recourse: {text}"
         );
     }
@@ -334,7 +334,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
             at,
             determinant,
         })) => {
-            assert_eq!((node, at), (placed, second));
+            assert_eq!((node.id(), at), (placed, second));
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("a mirrored step must refuse typed at load, got {other:?}"),
@@ -345,7 +345,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
             else {
                 unreachable!("matched above")
             };
-            assert_eq!((*node, *at), (placed, second));
+            assert_eq!((node.id(), *at), (placed, second));
             assert!(
                 error.to_string().ends_with(REGENERATE_RECOURSE),
                 "with the regenerate recourse: {error}"
@@ -476,11 +476,11 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     match door(
         &doc,
         DocEdit::InsertNode {
-            node: chain(Step::Rigid {
+            node: Box::new(chain(Step::Rigid {
                 translation: [ang(1.0), len(0.0), len(0.0)],
                 axis: [scl(0.0), scl(0.0), scl(1.0)],
                 angle: ang(0.0),
-            }),
+            })),
         },
     ) {
         Err(EditError::SlotDimensionMismatch { slot, .. }) => assert_eq!(slot, x),
@@ -495,7 +495,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         door(
             &doc,
             DocEdit::InsertNode {
-                node: chain(unknown)
+                node: Box::new(chain(unknown))
             }
         )
         .is_err(),
@@ -504,11 +504,11 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
 
     let snapshot = doc.clone();
     let insert_edit = DocEdit::InsertNode {
-        node: chain(Step::Rigid {
+        node: Box::new(chain(Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
             angle: Expr::param(turn, Dimension::Angle),
-        }),
+        })),
     };
     let (doc, t) = step(doc, insert_edit.clone());
     let t = t.expect("the chain inserts");
@@ -534,12 +534,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
             .is_err(),
         "step 0 has no later-step address"
     );
-    let text = save(
-        &snapshot,
-        &[LoggedEdit::bare(insert_edit), LoggedEdit::bare(set)],
-        Tol::witness(),
-    )
-    .expect("saves with the log");
+    let text = save(&snapshot, &[insert_edit, set], Tol::witness()).expect("saves with the log");
     assert!(
         load(&text, Tol::witness())
             .expect("loads and replays")

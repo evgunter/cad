@@ -2,8 +2,11 @@
 id: point-in-solid-ray-denominators-are-not-lengths
 kind: issue
 title: The point-in-solid ray test decides dimensionless and 1/m denominators against the metre band, so at eps 1e-6 a rod a thousand kilometres across refuses to build
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
+branch: reach/opensign-red
+refs: [an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed]
 ---
 
 
@@ -44,3 +47,30 @@ The audit names the model: the sphere-disc arm meters its comparand
 with `over_lever`. Meter all four F2 sites the same way, in one unit, as
 the audit asks. The acceptance margins that quote these predicates move
 with it.
+
+## Closed (2026-10-01)
+
+All four sites are metered in metres. The ledger rows read FIXED and
+`decide_flagged`'s census drops from 8 to 4. Beyond refusing, the
+axis-parallel rung answered wrong. On a wall of radius `≥ 1/(2ε)`, any
+ray read as parallel and skipped the wall, so a point on a wide rod's
+axis read `Out`. That wrong verdict is what PR 3716's loop-role
+agreement check turned into `SectionLoopMixed` on `reach_volume_backstop`
+(`work/reach/an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed.md`).
+The fix and its rows:
+
+- The two skip questions are levered by the selection's reach
+  (`solid_contain::selection_reach`, a decision-free ball over every
+  loop, `containment::loop_extent_from`). The plane arm's lever is the
+  reach. The wall's is the reach plus `2r`. For an edge, the lever is
+  the edge's own span.
+- The disc is `over_lever(disc/|d⊥|², 2r)`.
+- The hit-outward sign is read off the root order.
+- Rows: `solid_contain::wall_root_rows`, and `rim_dim_boolean_twins`,
+  which allows no nonlinear predicate now and pins
+  `bool_point_in_solid_denom` as firing.
+- The edge-sweep refusal of the axis-parallel rung offers a tolerance,
+  as a sized ending, with an executed case in `offer_rows`. A
+  penetrating edge's clearance (`Coincidence(EdgeOnCurvedFace)` /
+  `(VertexOnCurvedFace)`) offers one on both sides, because the wall
+  roots it goes on to are a length.

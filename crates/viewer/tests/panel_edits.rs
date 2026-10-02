@@ -320,7 +320,7 @@ fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
                 found,
             },
         )) => {
-            assert_eq!(node, extrude);
+            assert_eq!(node.id(), extrude);
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(expected, Dimension::Length);
             assert_eq!(found, Dimension::Count);
@@ -924,10 +924,8 @@ fn the_tree_selects_a_node_and_the_property_panel_follows() {
     let ids: Vec<_> = rows.iter().map(|row| row.id).collect();
     assert!(ids.contains(&profile) && ids.contains(&extrude));
     assert_eq!(
-        rows.iter()
-            .find(|row| row.id == extrude)
-            .map(|row| row.depth),
-        Some(0),
+        common::row_of(&rows, extrude).depth,
+        0,
         "the profile is the extrude's primary input, so the extrude \
          continues its line rather than indenting under it"
     );

@@ -104,6 +104,8 @@ mod focus_highlight;
 mod frame_labels;
 #[path = "frame_policy.rs"]
 mod frame_policy;
+#[path = "gauge_door_and_badge.rs"]
+mod gauge_door_and_badge;
 #[path = "gesture_table.rs"]
 mod gesture_table;
 #[path = "index_memo.rs"]

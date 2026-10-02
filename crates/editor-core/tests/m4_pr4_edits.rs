@@ -8,8 +8,8 @@
 use crate::fixture;
 
 use editor_core::{
-    BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd, ContactClass,
-    Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
+    BifurcationKind, BooleanCoincidence, BranchCertification, BranchMarginEvidence, CancelToken,
+    CapEnd, Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
     ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, StableName, WitnessAge,
     WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
@@ -104,7 +104,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
         pairs,
         &vec![(
             (sited(t.a), SitedRef::new(t.b, cap(t.c))),
-            ContactClass::Rest
+            BooleanCoincidence::REST
         )]
     );
     // One-shot: no alias table — a SECOND rebind of the same source
@@ -121,13 +121,18 @@ fn rebind_rewrites_declare_sites_one_shot() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindNoReferences { name: cap(t.b) }
+        EditError::RebindNoReferences {
+            name: applied.doc.spoken_name(&cap(t.b))
+        }
     );
     // Purity: the input document is untouched.
     let Some(Node::Declare { pairs }) = t.doc.node(t.decl) else {
         panic!()
     };
-    assert_eq!(pairs, &vec![((sited(t.a), sited(t.b)), ContactClass::Rest)]);
+    assert_eq!(
+        pairs,
+        &vec![((sited(t.a), sited(t.b)), BooleanCoincidence::REST)]
+    );
 }
 
 #[test]
@@ -157,7 +162,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
         pairs,
         &vec![(
             (sited(t.a), SitedRef::new(t.b, cap(t.c))),
-            ContactClass::Rest
+            BooleanCoincidence::REST
         )]
     );
     assert!(matches!(
@@ -189,7 +194,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindIdentity { name: cap(t.b) }
+        EditError::RebindIdentity {
+            name: t.doc.spoken_name(&cap(t.b))
+        }
     );
     // Kind mismatch: a face reference cannot become a body.
     let body_c = StableName {
@@ -226,7 +233,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindTargetMissingNode { name: cap(t.c) }
+        EditError::RebindTargetMissingNode {
+            name: doc_del.spoken_name(&cap(t.c))
+        }
     );
     // Never-minted source id: a typo, not a NodeGone repair.
     let foreign = cap(RecipeNodeId(9999));
@@ -241,7 +250,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindUnknownName { name: foreign }
+        EditError::RebindUnknownName {
+            name: t.doc.spoken_name(&foreign)
+        }
     );
     // Zero document sites.
     assert_eq!(
@@ -270,7 +281,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindNoReferences { name: cap(t.c) }
+        EditError::RebindNoReferences {
+            name: t.doc.spoken_name(&cap(t.c))
+        }
     );
 }
 
@@ -312,7 +325,9 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::WitnessOnNonSketch { node: extrude }
+        EditError::WitnessOnNonSketch {
+            node: doc.spoken(extrude)
+        }
     );
     assert_eq!(
         doc.apply(
@@ -325,7 +340,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
         )
         .unwrap_err(),
         EditError::UnknownNode {
-            id: RecipeNodeId(9999)
+            id: editor_core::SpokenNode::absent(RecipeNodeId(9999))
         }
     );
     // Replay determinism: same edits, bit-identical document
@@ -410,7 +425,9 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::DuplicateWitnessEntry { node: p1 }
+        EditError::DuplicateWitnessEntry {
+            node: doc.spoken(p1)
+        }
     );
     assert_eq!(
         doc.apply(
@@ -422,7 +439,9 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::WitnessOnNonSketch { node: e1 }
+        EditError::WitnessOnNonSketch {
+            node: doc.spoken(e1)
+        }
     );
 }
 

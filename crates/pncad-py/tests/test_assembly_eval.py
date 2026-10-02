@@ -699,7 +699,7 @@ class TestNestingPastTheBound(unittest.TestCase):
         )
         self.assertRegex(
             child.stderr.rstrip().splitlines()[-1],
-            r"^pncad\.EvaluationError: node [0-9a-f]{12} failed",
+            r"^pncad\.EvaluationError: InstantiatePart [0-9a-f]{12} failed",
             "the traceback ends at the refusal that was raised",
         )
 

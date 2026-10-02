@@ -5,7 +5,6 @@ title: AssertionVerdict derives PartialEq alone, so a reader holding one over an
 status: open
 priority: P4
 cost: E
-refs: [an-assertion-row-shows-no-verdict]
 opened: 2026-09-30
 ---
 

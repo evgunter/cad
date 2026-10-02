@@ -69,7 +69,7 @@ fn one_call_hollow_ring() {
     assert_eq!(counts(&t.body), (8, 16, 8, 0));
 
     // The handle bundle covers the hole loop with result-body keys.
-    assert!(t.walls[1].iter().all(Option::is_some));
+    assert!(t.walls()[1].iter().all(Option::is_some));
     assert!(t.rims[1].iter().all(Option::is_some));
     assert!(t.poles[1].iter().all(Option::is_none));
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
@@ -196,7 +196,7 @@ fn two_holes_two_cavities() {
     assert_eq!(t.body.shells().count(), 3);
     assert_eq!(t.cavities.len(), 2);
     assert_ne!(t.cavities[0], t.cavities[1]);
-    assert_eq!(t.walls.len(), 3);
+    assert_eq!(t.walls().len(), 3);
 
     // Pappus, hole by hole: outer 2·3 at r̄ 2; h1 1·0.5 at r̄ 2;
     // h2 0.5·1 at r̄ 1.75.

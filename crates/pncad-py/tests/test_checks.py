@@ -46,6 +46,7 @@ from pncad import (
     ChecksConfig,
     ChecksError,
     Doc,
+    DocEdit,
     DocRef,
     Expr,
     Node,
@@ -259,6 +260,52 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertEqual(cfg.severity(CheckId.Separation), Severity.Off)
         self.assertEqual(cfg, ChecksConfig(connectedness=Severity.Error,
                                            separation=Advisory.Off))
+
+    def test_a_report_speaks_its_roots_from_the_evaluated_document(self):
+        """`str()` of the report, of a finding and of the refusal says
+        each root as the evaluated document holds it — kind, label and
+        tag — and `repr()` keeps the full id. A label set after
+        `evaluate` is not the evaluated document's, so it is not said."""
+        doc, root, _ = disjoint_union()
+        doc.apply(DocEdit.set_label(root, "joined"))
+        evaluation = evaluate(doc)
+        doc.apply(DocEdit.set_label(root, "renamed"))
+        strict = ChecksConfig(connectedness=Severity.Error)
+        report = run_checks(doc, evaluation, strict)
+        (finding,) = report.findings
+        spoken = 'check connectedness: Boolean "joined" ('
+        self.assertIn(spoken, str(report))
+        self.assertIn(spoken, str(finding))
+        self.assertNotIn("renamed", str(report))
+        full = repr(root).removeprefix("NodeId(").removesuffix(")")
+        self.assertNotIn(f"root {full[:12]}", str(finding))
+        self.assertIn(f"node {full},", repr(finding))
+        with self.assertRaises(CheckRefusal) as caught:
+            enforce_checks(report, strict)
+        self.assertIn(spoken, str(caught.exception))
+        self.assertIn(spoken, str(caught.exception.findings[0]))
+
+    def test_equal_means_the_same_findings_over_the_same_document(self):
+        """Another document holding the same ids as other nodes reports
+        findings that read alike and are not equal; a label is not
+        compared."""
+
+        def checked(seed, text):
+            doc = Doc(seed)
+            first = slab(doc, 0.0, 1.0)
+            slab(doc, 0.5, 1.5)
+            doc.apply(DocEdit.set_label(first, text))
+            report = run_checks(doc, evaluate(doc))
+            return first, report
+
+        first, report = checked("checks-equal-a", "one")
+        again_first, again = checked("checks-equal-a", "two")
+        other_first, other = checked("checks-equal-b", "one")
+        self.assertEqual((first, other_first), (again_first, first))
+        self.assertEqual(report, again)
+        self.assertEqual(report.findings, again.findings)
+        self.assertNotEqual(report, other)
+        self.assertNotEqual(report.findings[0], other.findings[0])
 
     def test_a_report_renders_itself(self):
         doc, _, _ = disjoint_union()

@@ -170,6 +170,11 @@ const CURVED_ARM_SITE: Door = Door::Site(
     "the curved sweep arm is the one door for an edge against a cylinder wall sheet, and a \
      solid built around the pose meets other questions first",
 );
+const WALL_ROOT_SITE: Door = Door::Site(
+    "the wall's axis-parallel rung is read inside the edge sweep's wall crossing, on a line and \
+     a run set directly: the prism fixtures' edges run across a wall's axis or exactly along it, \
+     never off it by a drift in band",
+);
 
 use Door::Public;
 use Offer::{Valued, Withdrawn};
@@ -202,16 +207,14 @@ cases! {
         tangent_side(true);
     line_clear_of_a_wall: "Coincidence(EdgeOnCurvedFace)", D, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0 + D, 0.0);
-    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", -D, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("WallRoots(Discriminant)")) =>
+    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0 - D, 0.0);
     endpoint_clear_of_a_wall: "Coincidence(VertexOnCurvedFace)", D, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0, (2.0 * D).sqrt());
-    endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("WallRoots(Discriminant)")) =>
+    edge_drifting_off_a_walls_axis: "WallRoots(AxisParallel)", D, WALL_ROOT_SITE, Valued =>
+        line_drifting_off_a_walls_axis(D);
+    endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
-    arc_clear_of_a_wall: "Coincidence(ArcClearsCurvedFace)", D, CURVED_ARM_SITE, Valued =>
-        arc_against_a_wall(1.0 + D, None);
     // Declared `Rest` through the door, the walls are one carrier and the
     // arc's ends are read; a smaller tolerance decides the radii apart.
     arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", D, CURVED_ARM_SITE,
@@ -257,7 +260,10 @@ cases! {
         Valued => turned_wedge(2, true, 200.0, 5.0, 1.0, -D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
-    tangent_screen_of_a_tilted_block: "Coincidence(Planes)", D / 4.0, Public,
+    // The tilt, `D/4` a metre, levered at the declared pair's extent:
+    // the ball around both faces' 3 m × 3 m footprint, `1.5·√2`.
+    tangent_screen_of_a_tilted_block: "Coincidence(Planes)",
+        D / 4.0 * 1.5 * core::f64::consts::SQRT_2, Public,
         Withdrawn(Because::Refuses("UnsupportedDeclarationClass")) =>
         tilted_block_declared_tangent();
     membership_along_a_curved_flank: "Coincidence(CurvedFlankSense)", D, Door::Site(
@@ -286,13 +292,14 @@ cases! {
     corner_turned_on_a_corner: "Coincidence(VertexOnFace)", -3e-9 * 2.0 / CC2_AXIS_NORM,
         Public, Withdrawn(Because::Refuses("Coincidence(VertexOnFace)")) =>
         corner_on_a_corner(Vec3::new(-2.0, 1.0, 0.5), 3e-9);
-    // The coincfr4 review's W6: below the vertex's value the containment
-    // refuses (CONTACT's row).
+    // The coincfr4 review's W6: below the vertex's value it builds. Its
+    // shell's witnesses read in band there until the ray's parallel test
+    // against a face's plane was levered by the selection's reach.
     wide_wedge_with_a_far_vertex_union: "Coincidence(VertexOnFace)", 1.1e-8 * sin_deg(30.0),
-        Public, Withdrawn(Because::Refuses("Containment")) =>
+        Public, Withdrawn(Because::Passes) =>
         turned_wedge(0, true, 10.0, 30.0, 1.0, 1.1e-8);
     wide_wedge_with_a_far_vertex_intersect: "Coincidence(VertexOnFace)",
-        1.1e-8 * sin_deg(30.0), Public, Withdrawn(Because::Refuses("Containment")) =>
+        1.1e-8 * sin_deg(30.0), Public, Withdrawn(Because::Passes) =>
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
@@ -483,16 +490,16 @@ const GATE_SITE: Door = Door::Site(
 /// behind it `reach`, at arm 1.
 fn sector_side(dir: Vec3<f64>, reach: Reach<f64>) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-    side_code(dir, reach, n, 1.0, NO_CURVATURE(), band()).map(|_| ())
+    side_code(dir, reach, n, NO_CURVATURE(), band()).map(|_| ())
 }
 
-/// A bisector at arm ½ leaving a face of bend radius 1 by `margin` more
-/// than the face bends away over the arm.
+/// A bisector of reach ½ leaving a face of bend radius 1 at the slope
+/// `s` whose peak separation from the face, `s²·R/4`, is `margin`.
 fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-    let c = 0.5 + 2.0 * margin;
+    let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
-    side_code(dir, Reach::Bisector(0.5), n, 0.5, 1.0, band()).map(|_| ())
+    side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
 /// A unit cylinder along `y` resting on a floor from the side `side`
@@ -526,7 +533,7 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
     } else {
         (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt()
     };
-    let read = DeclarationRead::Spent(ContactClass::Tangent);
+    let read = DeclarationRead::Spent(BooleanCoincidence::TANGENT);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -539,6 +546,26 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
         [(x0, y0), (x0 + 1.0, y0), (x0 + 1.0, 2.0), (x0, 2.0)]
     };
     line_run(profile)
+}
+
+/// A line from inside the unit wall about `z`, off the axis direction
+/// by `drift` over the unit run its edge covers.
+fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
+    let z = Vec3::new(0.0, 0.0, 1.0);
+    super::super::solid_contain::line_wall_roots(
+        Point3::new(0.5, 0.0, 0.0),
+        Vec3::new(drift, 0.0, 1.0),
+        Point3::new(0.0, 0.0, 0.0),
+        z,
+        1.0,
+        1.0,
+        band(),
+    )
+    .map(|_| ())
+    .map_err(|fault| BooleanError::Escalated {
+        decision: BooleanDecision::WallRoots(fault.rung),
+        diag: fault.diag,
+    })
 }
 
 fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
@@ -568,7 +595,8 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         (0.0, 1.0),
         tol,
     );
-    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     let mut acc = ContactAcc::default();
     curved_face_arm(
         &x,
@@ -622,7 +650,7 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
         ..BooleanDeclarations::none()
     };
     let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = DeclaredPairs::build(&decls, one);
+    let declared = DeclaredPairs::build(&decls, one, &x, &y, band())?;
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -789,7 +817,8 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         intersect: true,
     }];
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
-    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     resolve_edge_edge(
         &records,
         &corner(fca),
@@ -878,7 +907,7 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
         -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
     };
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
-    let read = DeclarationRead::Spent(ContactClass::Tangent);
+    let read = DeclarationRead::Spent(BooleanCoincidence::TANGENT);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -1181,7 +1210,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         ..BooleanDeclarations::none()
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = DeclaredPairs::build(&decls, one);
+    let declared = DeclaredPairs::build(&decls, one, &pa.body, &pb.body, band())?;
     resolve_edge_edge(
         &records,
         &[sector(z, x, fa), sector(x, z, fa)],
@@ -1223,7 +1252,8 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
         arm,
     };
-    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    let declared =
+        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
     super::super::recl::require_same(
         &pa.body,
         Operand::A,
@@ -1789,6 +1819,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::UnderflowedSectorChord
         | BooleanErrorKind::DeclarationContradicted
         | BooleanErrorKind::ContactContradicted
+        | BooleanErrorKind::ContinuationContradicted
         | BooleanErrorKind::UnsupportedDeclarationClass
         | BooleanErrorKind::RimSeamNotDeclarable
         | BooleanErrorKind::RimCuspArmUnbuilt
@@ -2106,9 +2137,34 @@ fn top_level_fn(line: &str) -> Option<String> {
 /// decision, mentions)`.
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
+        "carrier_cross.rs",
+        "escalated",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "circle_cylinder.rs",
+        "-",
+        "BooleanDecision::ArcCylinderRoots",
+        2,
+    ),
+    (
         "circle_sphere.rs",
-        "circle_sphere_roots",
+        "-",
         "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
+    (
+        "circle_torus.rs",
+        "escalated",
+        "BooleanDecision::ArcTorusRoots",
+        1,
+    ),
+    (
+        "finish.rs",
+        "weld_pinches",
+        "BooleanDecision::VertexOnVertex",
         1,
     ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
@@ -2179,6 +2235,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "SelfCheck::CarrierLadder",
         1,
     ),
+    ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
     (
         "mod.rs",
         "verify_tangent_declaration",
@@ -2240,8 +2297,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     (
         "reduce.rs",
-        "curved_face_arm",
-        "Coincide::ArcClearsCurvedFace",
+        "arc_chain_reaches",
+        "Coincide::EdgeOnCurvedFace",
         1,
     ),
     (
@@ -2260,7 +2317,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "curved_face_arm",
         "Coincide::VertexOnCoveredFace",
-        2,
+        1,
     ),
     (
         "reduce.rs",
@@ -2306,17 +2363,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 4),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
     (
         "reduce.rs",
-        "vertex_on_curved_face",
+        "vertex_on_curved_face_at",
         "BooleanDecision::VertexOnVertex",
-        2,
-    ),
-    (
-        "reduce.rs",
-        "wall_crossing",
-        "BooleanDecision::ArcTorusRoots",
         1,
     ),
     (

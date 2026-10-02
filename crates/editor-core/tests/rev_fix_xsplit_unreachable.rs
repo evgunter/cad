@@ -198,10 +198,10 @@ fn three_shapes() -> ProfileDoc {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
                 in_part(b, b_body, CapEnd::Start),
-            ),
+            )),
         },
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a
