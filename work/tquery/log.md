@@ -106,3 +106,15 @@ way under these rows since they were filed):
 - 2026-10-02 — Main was red on pncad-py's `prose_census` (viewer 51f0b1f29's `NameAndPath` positional `{:?}`); the cloud lane's fix (PR 3828) was overtaken by an identical fix on main (541f26c0c), so 3828 is closed; its CI-filter evidence (a source-reading consumer outside the dependency closure) moved to CIW's demos-row item here.
 - 2026-10-02 — Ev ruled PR 3813: the shared point (copies of a cut vertex keep its `PointKey`; census rung 1). Recorded and merged; the build is dispatched with a single full review.
 - 2026-10-02 — Ev confirmed "point" on 3813 (one `PointKey`, each prong keeps its own vertex); 3813 merged with the DESIGN.md tier 3′ text. Build lane: cloud session `session_01XUq4jLByrKDbwxg9U2J6Sn` on `tquery/split-pinch-shared-point`, single full review once green.
+- 2026-10-02 — PR 3856 (shared point) reviewed: mergeable with fixes.
+  Two MINORs worth carrying as CLASSES:
+  - **The offset doors re-mint every vertex in scope, moved or not, and
+    solve twins separately.** Any op that rebinds vertices must reason
+    per shared point, not per vertex. A shared identity is only as good
+    as the least careful mutator. The fix pass handles the offset doors
+    or files them on SHELL.
+  - **A band-made pinch now passes the door silently.** With the touch
+    held structurally, the census can no longer catch an op that
+    declares structure it only decided within the band. The guard has
+    to sit at the producer's ON verdict (CLEAVE's row, raised to P1 with
+    the reproduction).
