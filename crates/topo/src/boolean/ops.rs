@@ -1545,23 +1545,23 @@ pub(crate) fn volume_backstop<T: Decide>(
     match op {
         BooleanOp::Intersect => {
             if ba {
-                bound_holds("vol(A ∩ B) ≤ vol(A)", true, &mut ca, &mut cr, band, exact)?;
+                bound_holds("vol(A ∩ B) ≤ vol(A)", true, Operand::A, &mut ca, &mut cr, band, exact)?;
             }
             if bb {
-                bound_holds("vol(A ∩ B) ≤ vol(B)", true, &mut cb, &mut cr, band, exact)?;
+                bound_holds("vol(A ∩ B) ≤ vol(B)", true, Operand::B, &mut cb, &mut cr, band, exact)?;
             }
         }
         BooleanOp::Union => {
             if ba {
-                bound_holds("vol(A ∪ B) ≥ vol(A)", false, &mut ca, &mut cr, band, exact)?;
+                bound_holds("vol(A ∪ B) ≥ vol(A)", false, Operand::A, &mut ca, &mut cr, band, exact)?;
             }
             if bb {
-                bound_holds("vol(A ∪ B) ≥ vol(B)", false, &mut cb, &mut cr, band, exact)?;
+                bound_holds("vol(A ∪ B) ≥ vol(B)", false, Operand::B, &mut cb, &mut cr, band, exact)?;
             }
         }
         BooleanOp::Subtract => {
             if ba {
-                bound_holds("vol(A ∖ B) ≤ vol(A)", true, &mut ca, &mut cr, band, exact)?;
+                bound_holds("vol(A ∖ B) ≤ vol(A)", true, Operand::A, &mut ca, &mut cr, band, exact)?;
             }
         }
     }
@@ -1581,14 +1581,15 @@ fn props_refusal(operand: Option<Operand>, source: crate::MassPropsError) -> Boo
 }
 
 /// One inequality of [`volume_backstop`] — `got ≤ bound` when `upper`,
-/// `got ≥ bound` otherwise, named by `which`: refuse a certified
-/// violation, refine while the enclosures alone keep the sign open,
-/// decide what the last round leaves against the band (fn docs of
-/// [`volume_backstop`], "Enclosures, and the resolution they leave"),
-/// then the magnitude arm.
+/// `got ≥ bound` otherwise, named by `which`, `bound` being `operand`'s
+/// measurement: refuse a certified violation, refine while the
+/// enclosures alone keep the sign open, decide what the last round
+/// leaves against the band (fn docs of [`volume_backstop`],
+/// "Enclosures, and the resolution they leave"), then the magnitude arm.
 fn bound_holds<T: Decide>(
     which: &'static str,
     upper: bool,
+    operand: Operand,
     bound: &mut crate::props::PastTarget<'_, T>,
     got: &mut crate::props::PastTarget<'_, T>,
     band: Band,
@@ -1609,24 +1610,16 @@ fn bound_holds<T: Decide>(
         // `got − bound` for a lower one, each metered over the two
         // bodies' summed surface area (fn docs, audit F3).
         let (be, ge) = (bp.enclosure(), gp.enclosure());
-        let (lo, hi) = if upper {
+        let (mut lo, hi) = if upper {
             (be.volume_lo - ge.volume_hi, be.volume_hi - ge.volume_lo)
         } else {
             (ge.volume_lo - be.volume_hi, ge.volume_hi - be.volume_lo)
         };
         let lever = be.surface_area + ge.surface_area;
         let metered = hi / lever;
-        // Arm 1 — the inequality itself, at the margin's upper end. A
-        // sign-certain violation is a violated bound whatever its size,
-        // so nothing about ε enters here.
-        if geom_core::k_stats::decide_invariant("volume_backstop_violation", metered, exact)
-            == Ok(Sign::Negative)
-        {
-            return Err(implausible());
-        }
         // Open: the upper end is not a violation and the lower end is,
         // so the enclosures keep the sign open.
-        let open = bp.volume_pad + gp.volume_pad > 0.0
+        let mut open = bp.volume_pad + gp.volume_pad > 0.0
             && !matches!(
                 geom_core::k_stats::decide_invariant(
                     "volume_backstop_violation",
@@ -1635,6 +1628,39 @@ fn bound_holds<T: Decide>(
                 ),
                 Ok(Sign::Zero | Sign::Positive)
             );
+        // Arm 1 — the inequality itself, at the margin's upper end. A
+        // sign-certain violation is a violated bound whatever its size,
+        // so nothing about ε enters here. The walk's own sums round
+        // (`PastTarget::interval_volume`), so a sign they call negative
+        // is re-derived in interval arithmetic before it refuses: one
+        // the interval margin does not certify is the rounding's, and
+        // stays open.
+        if geom_core::k_stats::decide_invariant("volume_backstop_violation", metered, exact)
+            == Ok(Sign::Negative)
+        {
+            let honest = |target: &crate::props::PastTarget<'_, T>, operand| {
+                match target.interval_volume() {
+                    Some(Ok(measured)) => Ok(measured),
+                    Some(Err(source)) => Err(props_refusal(operand, source)),
+                    None => Err(BooleanError::VolumeUndecided { which }),
+                }
+            };
+            let (bv, ba) = honest(bound, Some(operand))?;
+            let (gv, ga) = honest(got, None)?;
+            let margin = if upper { bv - gv } else { gv - bv };
+            match geom_core::k_stats::decide_invariant(
+                "volume_backstop_violation",
+                margin / (ba + ga),
+                exact,
+            ) {
+                Ok(Sign::Negative) => return Err(implausible()),
+                Err(diag) if diag.margin.is_invalid() => return Err(escalated(diag)),
+                Ok(Sign::Zero | Sign::Positive) | Err(_) => {
+                    open = true;
+                    lo = T::from_f64(margin.lo());
+                }
+            }
+        }
         if open {
             // Both, not the first that moves.
             if bound.refine() | got.refine() {
@@ -1649,10 +1675,9 @@ fn bound_holds<T: Decide>(
             }
         }
         // Arm 2 — the magnitude, for the near-zero region arm 1 leaves
-        // open. Unchanged posture: only a certified negative refuses
-        // (unreachable, since arm 1 subsumes it — kept as the honest
-        // statement of the gate rather than a dead arm removed), Zero
-        // and in-band PASS, poison refuses.
+        // open: only a certified negative refuses, Zero and in-band
+        // PASS, poison refuses. Arm 1 or the open arm above has
+        // already answered every margin certified past the band.
         return match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
             Ok(Sign::Negative) => Err(implausible()),
             Ok(Sign::Zero | Sign::Positive) => Ok(()),

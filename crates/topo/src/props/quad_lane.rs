@@ -2,7 +2,9 @@ use geom_brep::Pcurve;
 use geom_brep::props::quad::{
     self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
+use geom_brep::props::{
+    FaceContribution, LoopEdge, PropsError, curved_face, loop_vector_area, planar_face,
+};
 use geom_core::Tol;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -127,6 +129,46 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
         cb: Interval::from_certified(cb),
         cl: Interval::from_certified(cl),
     })
+}
+
+/// One closed-form face's flux and area at the interval scalar: its
+/// surface and loops lifted point for point (`map_scalar`, which does no
+/// arithmetic) and handed to the same closed form the face walk runs,
+/// so the result holds the exact flux of the stored geometry rather
+/// than its `f64` rounding. A plane reads every loop; any other surface
+/// reads its outer loop and its sense, as the face walk's closed form
+/// does.
+pub(super) fn closed_form<T: Decide + Bounds + CertifiedEnclosure>(
+    surface: &Surface<T>,
+    loops: &[Vec<LoopEdge<T>>],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<Interval>, PropsError> {
+    let lift = |edges: &[LoopEdge<T>]| -> Vec<LoopEdge<Interval>> {
+        edges
+            .iter()
+            .map(|e| LoopEdge {
+                carrier: e.carrier.map_scalar(Interval::from_certified),
+                carrier_id: e.carrier_id,
+                t0: Interval::from_certified(e.t0),
+                t1: Interval::from_certified(e.t1),
+                forward: e.forward,
+                start: e.start,
+                end: e.end,
+            })
+            .collect()
+    };
+    let surface = surface.map_scalar(Interval::from_certified);
+    match surface {
+        Surface::Plane { origin, .. } => {
+            let loops: Vec<_> = loops.iter().map(|l| lift(l)).collect();
+            planar_face(origin, &loops)
+        }
+        _ => {
+            let outer = loops.first().map(|l| lift(l)).unwrap_or_default();
+            curved_face(&surface, &outer, sense, band)
+        }
+    }
 }
 
 /// The certified flux/area enclosures of one curved-cut face

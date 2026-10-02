@@ -42,6 +42,7 @@ use geom_brep::props::{
 use geom_brep::recourse::{
     Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
+use geom_core::interval::Interval;
 use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::Key;
@@ -624,6 +625,58 @@ impl<T: Decide> PastTarget<'_, T> {
     /// and `area_pad` are its half-widths.
     pub(crate) fn props(&self) -> MassProperties<T> {
         fold_runs(&self.walk.runs).0
+    }
+
+    /// **The enclosure re-derived in interval arithmetic** —
+    /// `(volume, surface area)`, each an interval holding the exact
+    /// value of the body's stored geometry.
+    ///
+    /// [`Self::props`] is not that. Its closed-form faces are evaluated
+    /// at the walk's scalar and its fold sums in it, so at `f64` both
+    /// round, and the pads, which are the quadrature's half-widths
+    /// only, say nothing of it: two congruent bodies measured through
+    /// different face orders can differ by ulps with zero pads on
+    /// both. Here every closed-form face is re-derived at the interval
+    /// scalar over its own stored geometry (the walk's lane,
+    /// [`QuadLane`]'s `closed_form`), every quadrature face contributes
+    /// the enclosure its lane returned rather than the midpoint and
+    /// half-width rounded from it, and the sum is interval arithmetic.
+    /// The quadrature faces stay at the rounds this walk reached.
+    ///
+    /// `None` when the walk holds no certified lane, so has no interval
+    /// door to re-derive through.
+    ///
+    /// # Errors
+    ///
+    /// The property layer's refusal of a face whose closed form does
+    /// not hold at the interval scalar — the face's geometry read with
+    /// no rounding to hide behind, which can leave a classification
+    /// open that the walk's scalar decided.
+    pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
+        let walk = &self.walk;
+        let lane = walk.quad?;
+        let measure = || {
+            let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+            for run in &walk.runs {
+                let (f, a) = match run.contribution.enclosure {
+                    Some(enclosure) => enclosure,
+                    None => {
+                        let (surface, loops, sense) = closed_form_inputs(walk.body, run.face)?;
+                        let c = (lane.closed_form)(surface, &loops, sense, walk.band).map_err(
+                            |source| MassPropsError::Face {
+                                face: run.face,
+                                source,
+                            },
+                        )?;
+                        (c.flux, c.area)
+                    }
+                };
+                flux = flux + f;
+                area = area + a;
+            }
+            Ok((flux / Interval::from_f64(3.0), area))
+        };
+        Some(measure())
     }
 
     /// **One round further** on every face that met the target at a
@@ -1328,6 +1381,7 @@ mod face_walk_composition_tests {
                 area: 0.0,
                 flux_pad: 0.0,
                 area_pad: 0.0,
+                enclosure: None,
             },
             open_at: None,
             converged_at: None,
@@ -1495,6 +1549,7 @@ mod continuation_refusal_order_tests {
                 area: 0.0,
                 flux_pad: 0.0,
                 area_pad: 0.0,
+                enclosure: None,
             },
             open_at,
             converged_at: None,
@@ -1680,6 +1735,11 @@ struct FaceFlux<T> {
     area: T,
     flux_pad: f64,
     area_pad: f64,
+    /// The quadrature's flux and area enclosures as the lane returned
+    /// them, before [`quad_lane::mid_pad`] rounded them to a midpoint
+    /// and a half-width; `None` for a closed-form face, whose
+    /// enclosure [`PastTarget::interval_volume`] re-derives.
+    enclosure: Option<(Interval, Interval)>,
 }
 
 /// One face's contribution and where its refinement stopped — the unit
@@ -1704,6 +1764,29 @@ struct FaceRun<T> {
     /// can carry one and still contribute a sound enclosure: that is
     /// the whole difference between the two levels.
     refusal: Option<PropsError>,
+}
+
+/// What a closed form reads of one face: its surface, its loops
+/// flattened (the outer first, then the rings), and its sense.
+fn closed_form_inputs<T: Decide>(
+    body: &Body<T>,
+    face_key: FaceKey,
+) -> Result<(&Surface<T>, Vec<Vec<LoopEdge<T>>>, bool), MassPropsError> {
+    let Some(face) = body.faces.get(face_key) else {
+        return Err(MassPropsError::Corrupt {
+            what: "face key does not resolve",
+        });
+    };
+    let Some(surface) = body.surfaces.get(face.surface) else {
+        return Err(MassPropsError::Corrupt {
+            what: "face surface key does not resolve",
+        });
+    };
+    let mut loops = Vec::with_capacity(1 + face.rings.len());
+    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+        loops.push(loop_edges(body, lk)?.0);
+    }
+    Ok((surface, loops, face.sense))
 }
 
 /// The per-face body of the flux walk (module docs): resolve the
@@ -1735,6 +1818,7 @@ fn face_flux<T: Decide>(
     };
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
+    let mut enclosure = None;
     let mut open_at = None;
     let mut converged_at = None;
     let mut refusal = None;
@@ -1812,6 +1896,7 @@ fn face_flux<T: Decide>(
                     let (ac, ap) = quad_lane::mid_pad(bounds.area);
                     flux_pad += fp;
                     area_pad += ap;
+                    enclosure = Some((bounds.flux, bounds.area));
                     FaceContribution {
                         flux: T::from_f64(fc),
                         area: T::from_f64(ac),
@@ -1834,6 +1919,7 @@ fn face_flux<T: Decide>(
             area: contribution.area,
             flux_pad,
             area_pad,
+            enclosure,
         },
         open_at,
         converged_at,
@@ -2416,6 +2502,18 @@ pub struct QuadLane<T: Decide> {
         Tol,
         RoundWindow,
     ) -> Result<RoundOutcome, PropsError>,
+    /// One closed-form face's flux and area re-derived in interval
+    /// arithmetic over its stored geometry — `quad_lane::closed_form`
+    /// (`wiring_rows` pins the pointer). The closed forms run at the
+    /// walk's scalar, where an `f64` sum rounds with no pad to say so;
+    /// this is the enclosure a decision about a rounding-scale sign
+    /// reads instead ([`PastTarget::interval_volume`]).
+    closed_form: fn(
+        &Surface<T>,
+        &[Vec<LoopEdge<T>>],
+        bool,
+        Band,
+    ) -> Result<FaceContribution<Interval>, PropsError>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
@@ -2430,6 +2528,7 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
     pub const fn certified() -> Self {
         Self {
             cut_face_rounds: quad_lane::cut_face_rounds::<T>,
+            closed_form: quad_lane::closed_form::<T>,
         }
     }
 }

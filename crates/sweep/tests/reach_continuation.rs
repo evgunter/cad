@@ -703,21 +703,20 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
 /// faces). The union refuses `FallbackExtentUnsupported`: no crossing
 /// event exists, and that pass exempts no declared pair
 /// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
-/// The flush-top intersect, whose result is the thin plate itself,
-/// refuses `ResultVolumeImplausible` on a two-ulp tie between two
-/// closed-form volumes
-/// (`work/reach/volume-backstop-refuses-a-closed-form-rounding-tie.md`);
-/// it is the one refusal here whose text still calls the legal input a
-/// kernel defect.
+/// B ∖ A, empty (the thin plate lies inside the thick one), refuses as
+/// the union does. The
+/// flush-top intersect is the thin plate itself, whose `f64` volume
+/// rounds two ulps above the operand's through another face order; the
+/// backstop re-derives that tie in interval arithmetic and builds it.
 #[test]
 fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
     let none = BooleanDeclarations::default();
     let a = plate(rounded(R), 0.0);
     let half = area(4.0) / 2.0;
-    for (label, z0, subtract_faces, intersect_builds) in [
-        ("sunk inside", 0.25, 20, true),
-        ("flush top", 0.5, 10, false),
-        ("flush bottom", 0.0, 10, true),
+    for (label, z0, subtract_faces) in [
+        ("sunk inside", 0.25, 20),
+        ("flush top", 0.5, 10),
+        ("flush bottom", 0.0, 10),
     ] {
         let b = extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol());
         let (rest, cont) = findings(&a, &b);
@@ -751,20 +750,16 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
             half,
             subtract_faces,
         );
-        let intersect = topo::intersect_with(&a, &b, &d, tol());
-        if intersect_builds {
-            builds(&format!("{label}, intersect"), intersect, half, 10);
-        } else {
-            assert!(
-                matches!(
-                    intersect,
-                    Err(BooleanError::ResultVolumeImplausible {
-                        which: "vol(A ∩ B) ≤ vol(B)",
-                        ..
-                    })
-                ),
-                "{label}, intersect: {intersect:?}"
-            );
-        }
+        builds(
+            &format!("{label}, intersect"),
+            topo::intersect_with(&a, &b, &d, tol()),
+            half,
+            10,
+        );
+        let err = topo::subtract_with(&b, &a, &d, tol()).expect_err("B ∖ A refuses");
+        assert!(
+            matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
+            "{label}, B ∖ A: {err:?}"
+        );
     }
 }
