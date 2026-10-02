@@ -769,4 +769,3 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
         "the corpus's Probe evaluation moved"
     );
 }
-

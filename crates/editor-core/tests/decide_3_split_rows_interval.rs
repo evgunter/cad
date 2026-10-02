@@ -110,6 +110,39 @@ fn decide_3_no_predicate_loses_a_decision() {
             // the G-shut tier (`m10_10_evidence_interval` at
             // `CAD_M10_10_DOC=r2_link CAD_M10_10_RETRY=default`).
             //
+            // Since the tangent arc stores its own carrier with
+            // Δθ = 4·atan(across / (|d| + along)), the link's half-turns
+            // read their quarter-tangent as `2w / sqrt(4w²)`.
+            // `carrier_matches_mapped_source` moved to
+            // `[108, 0, 44, 28] -> [144, 0, 12, 24]` (from
+            // `[108, 0, 60, 12] -> [108, 0, 50, 22]`): 36 more theorems on
+            // the shipped side, and four fewer numeric. And `arc_span` is
+            // the third re-baseline: rule G re-keys that root as `|2w|`,
+            // so the span's sign over `2w / |2w|` is no theorem on the
+            // shipped side, `[8, 0, 0, 0] -> [4, 0, 0, 4]`, where the
+            // G-shut tier keeps the root an atom it reads non-negative.
+            // `carrier_on_surface_2` moved with it, to
+            // `[84, 0, 0, 24] -> [76, 0, 16, 16]` (from
+            // `[88, 0, 0, 20] -> [84, 0, 10, 14]`). Toggling the tangent
+            // arc back to an `atan2` quarter-tangent restores all three
+            // predicates' old numbers.
+            //
+            // Three more are the decision read answering decisions that
+            // are theorems with it shut
+            // (`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`):
+            // with the constructions' carriers stored, the link's
+            // `dihedral_wedge` (32) and `path_seam_arrival_turn` (1) and
+            // the bracket's `dihedral_wedge` (8, beside 8 the fillet's
+            // incoming-tangency registration discharges) are theorems
+            // with G and the read shut, and the shipped side answers
+            // them by the read first — the bracket's other 8 then stay
+            // numeric. Against main's shipped side these are gains on
+            // the link (`[0, 0, 0, 128]` and `[0, 0, 0, 1]` before) and
+            // a loss of 8 gated decisions to numeric on the bracket
+            // (`[0, 16, 0, 216]` before).
+            // At the document level the shipped side still gains:
+            // `[569, 0, 94, 499] -> [643, 33, 44, 442]`.
+            //
             // Both sides here run one attempt per rung
             // (`split_at_the_nominal`, no retry ladder), because this is
             // rule G's trade and a ladder on the `on` side would read it
@@ -117,10 +150,14 @@ fn decide_3_no_predicate_loses_a_decision() {
             // is pinned where the ladder is:
             // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`.
             let rebaselined: Option<([u64; 4], [u64; 4])> = match (*name, *p) {
-                ("r2_link", "carrier_on_surface_2") => Some(([88, 0, 0, 20], [84, 0, 10, 14])),
+                ("r2_link", "carrier_on_surface_2") => Some(([84, 0, 0, 24], [76, 0, 16, 16])),
                 ("r2_link", "carrier_matches_mapped_source") => {
-                    Some(([108, 0, 60, 12], [108, 0, 50, 22]))
+                    Some(([108, 0, 44, 28], [144, 0, 12, 24]))
                 }
+                ("r2_link", "arc_span") => Some(([8, 0, 0, 0], [4, 0, 0, 4])),
+                ("r2_link", "dihedral_wedge") => Some(([32, 0, 0, 96], [0, 32, 0, 96])),
+                ("r2_link", "path_seam_arrival_turn") => Some(([1, 0, 0, 0], [0, 1, 0, 0])),
+                ("r2_filleted_bracket", "dihedral_wedge") => Some(([8, 0, 8, 216], [0, 8, 0, 224])),
                 _ => None,
             };
             if let Some(expected) = rebaselined {

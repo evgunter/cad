@@ -176,4 +176,3 @@ fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
          changed on purpose, re-derive with --nocapture and re-pin"
     );
 }
-

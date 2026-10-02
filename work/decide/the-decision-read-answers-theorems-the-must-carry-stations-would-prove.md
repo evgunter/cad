@@ -57,3 +57,17 @@ rendering of the pad's blocked residuals. That the pad's 28 are the
 DECIDE: the read's ordering is `geom_core::sym::signed`'s and the
 session's. The pins re-baselined to the shipped numbers with this cause
 stated (`m10_9_pins_interval`, `sym_9_retry_interval`).
+
+## 2026-10-02 — three more instances, from PATHS 5b (#3774)
+
+With the constructions storing the carriers they build, the decision read
+answers decisions that are theorems with G and the read shut
+(`decide_3_split_rows_interval`, at the nominal, every ε):
+- `r2_link` `dihedral_wedge`: `[32, 0, 0, 96] -> [0, 32, 0, 96]`;
+- `r2_link` `path_seam_arrival_turn`: `[1, 0, 0, 0] -> [0, 1, 0, 0]`;
+- `r2_filleted_bracket` `dihedral_wedge`: `[8, 0, 8, 216] -> [0, 8, 0, 224]`.
+  Here the 8 decisions the fillet's incoming-tangency registration
+  discharges with the read shut stay numeric with it on. Main's shipped
+  row was `[0, 16, 0, 216]`, so the bracket's 8 are a loss against main.
+
+`decide_3` re-baselines all three, citing this item.

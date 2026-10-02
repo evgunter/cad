@@ -111,7 +111,11 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
             "PAST_THE_CEILING is read positionally against `measured_studies`, and the two \
              have gone out of order"
         );
-        let doc = (study.at)(study.refuses_at * eps);
+        let Some(refuses_at) = study.refuses_at else {
+            println!("   {name}: no measured refusal to replay past");
+            continue;
+        };
+        let doc = (study.at)(refuses_at * eps);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         match replay_on_a_thread(doc, ParamBox::of(&analyzed), tol) {
             Ok((refusal, counts)) => {

@@ -688,15 +688,15 @@ fn evidence_two_param_plate_whole_certifying_half_width() {
 /// leaves certify after real bisection, the receipt identity holds, and
 /// the accounting sums to 1.
 ///
-/// At ±0.05 on both parameters — a REAL study, a fifth of the radius.
-/// Under M10-10's tier (rule D with amendment A1) the fixture's
-/// whole-certifying half-width is a real margin at about 0.022
-/// (`evidence_two_param_plate_whole_certifying_half_width`), so an
-/// ε-scaled box no longer splits and a row about bisection has to be
+/// At ±0.1 on both parameters — a REAL study, two fifths of the radius.
+/// The fixture's whole-certifying half-width is a real margin at about
+/// 0.0596 (`evidence_two_param_plate_whole_certifying_half_width`; it
+/// was 0.022 until the circle stored its authored carrier), so an
+/// ε-scaled box does not split and a row about bisection has to be
 /// wider than that.
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
-    let doc = two_param_plate(uniform(0.05), uniform(0.05));
+    let doc = two_param_plate(uniform(0.1), uniform(0.1));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("the nominal builds");
 
@@ -1082,13 +1082,13 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
 /// parameter varying, leaves certify and refuse exactly as they would
 /// otherwise, and the ACCOUNTING columns refuse typed, naming the band.
 ///
-/// At ±0.05, past the fixture's whole-certifying half-width (the row
+/// At ±0.1, past the fixture's whole-certifying half-width (the row
 /// above): a leaf that covers a band's WHOLE support prices as 1 by
 /// the band's own rule (`box_mass`), so the refusal this row is about
 /// needs a leaf that covers part of it, i.e. a drive that split.
 #[test]
 fn a_band_parameter_certifies_normally_and_prices_nothing() {
-    let w = 0.05;
+    let w = 0.1;
     let banded = two_param_plate(Distribution::Band { lo: -w, hi: w }, uniform(w));
     let priced = two_param_plate(uniform(w), uniform(w));
     let analyzed = analyzed_box(&banded, &AnalysisPolicy::default());
