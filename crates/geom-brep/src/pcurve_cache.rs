@@ -54,12 +54,16 @@
 //! - **Where `S ∘ P` has a closed form, the envelope alone is the
 //!   certified statement.** For a [`Pcurve::Harmonic`] image it is the
 //!   carrier's incidence with the chart plus the stored image's
-//!   fidelity to the image re-derived from the carrier
-//!   ([`EnvelopeStatement::MapResidualClosedForm`]), so a minted row's
+//!   fidelity to the image re-derived from the carrier, both on the
+//!   chart's orthonormalised frame, plus that frame's distance from the
+//!   stored one ([`EnvelopeStatement::MapResidualClosedForm`]), so a minted row's
 //!   identity is a theorem rather than a trig round trip. The shared
 //!   [`crate::CERT_SAMPLES`] schedule is the closed-form tables'
-//!   cross-check: it runs where the scalar is a point, and as the
-//!   property test `envelope_lemma_fuzz`, and not over a parameter box.
+//!   cross-check: it runs on the witness lane (a scalar whose
+//!   [`geom_core::Witness`] is `Inexact`: `f64`, `Sym<f64>`, the
+//!   driver's point witness) and as the property test
+//!   `envelope_lemma_fuzz`, and not at a certifying scalar (`Interval`,
+//!   `Sym<Interval>`), over a box or at a point alike.
 //! - **Where no closed form exists**, the certificate falls back to the
 //!   displacement at the shared schedule plus a between-samples
 //!   envelope. For a fitted image on a NURBS chart that envelope bounds
@@ -1256,12 +1260,18 @@ pub enum EnvelopeTerm {
     /// The stored image's second channel against the re-derived one —
     /// up to a whole period where it is an angle — metered at its arm.
     FidelityV,
+    /// The chart's frame is not orthonormal: its distance from its
+    /// Gram–Schmidt twin over the stored image, levered by the radius
+    /// and by the image's actual axial reach (the lemma's premise,
+    /// metered rather than assumed).
+    Frame,
 }
 
 impl EnvelopeTerm {
     /// Every term, in the order the envelope sums them and a refusal
     /// is attributed.
-    const ALL: [EnvelopeTerm; 8] = [
+    const ALL: [EnvelopeTerm; 9] = [
+        EnvelopeTerm::Frame,
         EnvelopeTerm::Centre,
         EnvelopeTerm::Radius,
         EnvelopeTerm::Orientation,
@@ -1271,7 +1281,36 @@ impl EnvelopeTerm {
         EnvelopeTerm::FidelityU,
         EnvelopeTerm::FidelityV,
     ];
+
+    /// The term's slot in [`EnvelopeTerm::ALL`]. An exhaustive match,
+    /// so a variant added to the enum does not compile until it has a
+    /// slot, and the assertion below fails the build until `ALL` lists
+    /// it there.
+    const fn slot(self) -> usize {
+        match self {
+            EnvelopeTerm::Frame => 0,
+            EnvelopeTerm::Centre => 1,
+            EnvelopeTerm::Radius => 2,
+            EnvelopeTerm::Orientation => 3,
+            EnvelopeTerm::Tilt => 4,
+            EnvelopeTerm::Line => 5,
+            EnvelopeTerm::Drift => 6,
+            EnvelopeTerm::FidelityU => 7,
+            EnvelopeTerm::FidelityV => 8,
+        }
+    }
 }
+
+const _: () = {
+    let mut i = 0;
+    while i < EnvelopeTerm::ALL.len() {
+        assert!(
+            EnvelopeTerm::ALL[i].slot() == i,
+            "EnvelopeTerm::ALL is the slot order"
+        );
+        i += 1;
+    }
+};
 /// The number a fitted-lane refusal carries, named for what it IS.
 ///
 /// The SSI door's definite refusals each measured something different,
@@ -1655,6 +1694,12 @@ pub enum PcurveCertifyError {
     /// the chart-side counterpart of
     /// [`crate::certify::CertifyError::WindingExceeded`].
     AzimuthPeriodExceeded,
+    /// A stored image's whole-period branch sits more than
+    /// [`MAX_BRANCH_PERIODS`] periods from the image re-derived from its
+    /// carrier, or a walked joint's from its predecessor's
+    /// ([`BranchMiss::OutOfReach`]): a branch no producer is known to
+    /// reach, refused by type rather than searched for.
+    BranchOutOfReach,
     /// A certified residual definitely exceeded the tolerance band: the
     /// pcurve does not represent the carrier through the map (D4 ¶2).
     ResidualExceeded {
@@ -1820,6 +1865,12 @@ impl core::fmt::Display for PcurveCertifyError {
                 "pcurve certification: the pcurve winds more than one full period around \
                  the chart — split the edge first (the winding gate, chart side)"
             ),
+            Self::BranchOutOfReach => write!(
+                f,
+                "pcurve certification: the image's whole-period branch is more than \
+                 {MAX_BRANCH_PERIODS} periods from its carrier's — a winding no producer is \
+                 known to mint, refused rather than searched for"
+            ),
             Self::ResidualExceeded { check, sample } => write!(
                 f,
                 "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
@@ -1878,6 +1929,7 @@ impl PcurveCertifyError {
             | Self::FittedCertificate { .. }
             | Self::CarrierDomain(_)
             | Self::ChartWindingUnsupported
+            | Self::BranchOutOfReach
             | Self::PlaceholderChart
             | Self::Band(_) => return None,
         };
@@ -1939,6 +1991,9 @@ pub enum EnvelopeStatement {
     /// |S(P(t)) − C(t)| ≤ |S(P(t)) − S(P_d(t))| + |S(P_d(t)) − C(t)|
     ///                         fidelity                incidence
     /// ```
+    ///
+    /// (on the chart's orthonormal twin, plus **frame** for the stored
+    /// chart's distance from it — the frame paragraph below).
     ///
     /// **Fidelity** meters the stored image against `P_d` through the
     /// chart's sup stretch along the chart segment between them:
@@ -2024,11 +2079,26 @@ pub enum EnvelopeStatement {
     /// coefficients, so even that class is bounded rather than refused
     /// unmeasured.
     ///
-    /// **The frame.** Every arm reads the chart through its conventional
-    /// frame — `axis` and `u_ref` unit, `u_ref ⊥ axis` — as every meter
-    /// in this lane already does ([`chart_stretch_sup`]'s arms,
-    /// `azimuth_lever`); the chart's own at-rest check margins that
-    /// convention (`Surface::representability_margins`).
+    /// **The frame.** Every arm above is a lemma about an orthonormal
+    /// frame (`axis` and `u_ref` unit, `u_ref ⊥ axis`), as every meter
+    /// in this lane is ([`chart_stretch_sup`]'s arms, `azimuth_lever`).
+    /// Nothing at rest makes the stored chart's frame one: the cone
+    /// carries no frame margins, and where
+    /// `Surface::representability_margins` does carry them it meters
+    /// them at the radius, while an axis's defect moves a point by the
+    /// defect times its HEIGHT. So check 4 applies the lemma, and
+    /// derives `P_d`, on the chart's Gram–Schmidt twin `Ŝ` (`n̂ =
+    /// axis/‖axis‖`, `ê₁` the normalised part of `u_ref` normal to it,
+    /// `ê₂ = n̂ × ê₁`), and adds **frame**: `sup |S − Ŝ|` over the
+    /// stored image's chart box. The two maps share every scalar, so
+    /// the radial direction differs by at most `‖u_ref − ê₁‖ + ‖v_ref −
+    /// ê₂‖` and the axis by `‖axis − n̂‖`, each levered by what
+    /// multiplies it in the map: the radius, the torus's `R + r` and
+    /// `r`, and on a cylinder's axis and both of a cone's channels the
+    /// image's own `sup |v|`. Then `|S(P) − C| ≤ |S(P) − Ŝ(P)| + |Ŝ(P) −
+    /// C|`, the second bounded by the arms above on `Ŝ`. On a literal
+    /// unit frame the twin is the frame itself and the term is the zero
+    /// form.
     ///
     /// The terms are summed and decided once as `pcurve_envelope`; a
     /// refusal names the first term that is over the band on its own
@@ -2040,7 +2110,7 @@ pub enum EnvelopeStatement {
     /// **On a harmonic row this envelope is the whole certified
     /// statement** (C4): the lemma above is proven once and pinned by
     /// that sweep, and the schedule that used to re-check it on every
-    /// body runs only where the scalar is a point, as a cross-check
+    /// body runs only on the witness lane (`Witness::Inexact`), as a cross-check
     /// whose verdicts are not part of the certificate
     /// ([`PcurveCache::certify`] step 3).
     MapResidualClosedForm,
@@ -2170,8 +2240,11 @@ pub enum EnvelopeStatement {
 #[derive(Clone, Copy, Debug)]
 pub struct PcurveCertificate<T: Real> {
     /// The sample count of the schedule that ran ([`CERT_SAMPLES`]), or
-    /// `0` where none ran: a [`Pcurve::Harmonic`] row over a parameter
-    /// box, whose envelope is its whole certified statement.
+    /// `0` where none ran: a [`Pcurve::Harmonic`] row certified at a
+    /// scalar whose [`geom_core::Witness`] is `Exact` (`Interval`,
+    /// `Sym<Interval>`), at a point or over a box alike. Its envelope
+    /// is its whole certified statement; the schedule cross-checks it on
+    /// the witness lane only.
     pub samples: u32,
     /// The maximum `|S(P(tᵢ)) − C(tᵢ)|` over the schedule (metres), `0`
     /// where none ran — **the sampled max only**. The between-samples statement is
@@ -2773,8 +2846,10 @@ impl<T: Decide> PcurveCache<T> {
     ///    form step 4 states is *verified* at the samples, never
     ///    trusted. On a [`Pcurve::Harmonic`] image step 4 is the whole
     ///    certified statement and this step is its cross-check: it runs
-    ///    where the scalar is a point ([`geom_core::Witness::Inexact`]),
-    ///    records no verdict, and is not run over a parameter box.
+    ///    on the witness lane ([`geom_core::Witness::Inexact`]: `f64`,
+    ///    `Sym<f64>`), records no verdict, and is not run at an
+    ///    exact-witness scalar (`Interval`, `Sym<Interval>`), at a point
+    ///    or over a box.
     /// 4. **Envelope**: the between-samples sup bound over the whole
     ///    span ≤ ε, by the lane the variant selects.
     ///    - [`Pcurve::Harmonic`]: the closed-form bound
@@ -3559,6 +3634,18 @@ fn param_rate_gate<T: Decide>(
     Ok(rate)
 }
 
+/// How a residual's decision is recorded: as a verdict of the
+/// certified statement ([`decide`]), or as check 4's cross-check on a
+/// harmonic row, which refuses as a verdict would and records none
+/// (`k_stats::check_unlogged`, audit row F20: a point build would
+/// otherwise log rows a box build cannot, and the driver compares the
+/// two row for row).
+#[derive(Clone, Copy)]
+enum Record {
+    Verdict,
+    CrossCheck,
+}
+
 /// Folds a residual into the running max and classifies it against the
 /// band (the `certify::check_residual` idiom, one module over).
 fn check_residual<T: Decide>(
@@ -3569,8 +3656,35 @@ fn check_residual<T: Decide>(
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), PcurveCertifyError> {
+    check_residual_as(
+        Record::Verdict,
+        name,
+        check,
+        sample,
+        residual,
+        band,
+        max_residual,
+    )
+}
+
+/// [`check_residual`], recorded as `record` says.
+fn check_residual_as<T: Decide>(
+    record: Record,
+    name: &'static str,
+    check: PcurveCheck,
+    sample: u32,
+    residual: Margin<T>,
+    band: Band,
+    max_residual: &mut T,
+) -> Result<(), PcurveCertifyError> {
     *max_residual = max_residual.max(residual.value().abs());
-    match decide(name, residual, band) {
+    let decided = match record {
+        Record::Verdict => decide(name, residual, band),
+        Record::CrossCheck => {
+            geom_core::k_stats::check_unlogged(name, residual.value(), band, "F20")
+        }
+    };
+    match decided {
         Ok(Sign::Zero) => Ok(()),
         Ok(Sign::Positive | Sign::Negative) => {
             Err(PcurveCertifyError::ResidualExceeded { check, sample })
@@ -3674,11 +3788,20 @@ fn run_harmonic_checks<T: Decide>(
 
     // ---- Check 3: the schedule, the closed form's cross-check. ----
     // Check 4's envelope is the whole certified statement of a harmonic
-    // row (C4); the schedule cross-checks its tables where the scalar is
-    // a point, and is not run over a parameter box.
+    // row (C4); the schedule cross-checks its tables on the witness lane
+    // (`Witness::Inexact`), and is not run at an exact-witness scalar.
     let samples = match T::WITNESS {
         geom_core::Witness::Inexact => {
-            schedule_cross_check(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+            schedule_residuals(
+                Record::CrossCheck,
+                pcurve,
+                t0,
+                t1,
+                carrier,
+                surface,
+                band,
+                &mut max_residual,
+            )?;
             CERT_SAMPLES
         }
         geom_core::Witness::Exact => 0,
@@ -3687,8 +3810,8 @@ fn run_harmonic_checks<T: Decide>(
     // ---- Check 4: the closed-form between-samples envelope. ----
     // A plane chart is affine, so the image's coefficients map through
     // and their differences from the carrier's are the bound. A
-    // periodic chart's is incidence plus fidelity (the lemma on
-    // `EnvelopeStatement::MapResidualClosedForm`).
+    // periodic chart's is frame plus incidence plus fidelity (the lemma
+    // on `EnvelopeStatement::MapResidualClosedForm`).
     let terms = match surface {
         Surface::Plane { .. } => None,
         _ => Some(periodic_envelope(
@@ -3798,7 +3921,7 @@ impl<T: Decide> EnvelopeTerms<T> {
     }
 
     fn add(&mut self, term: EnvelopeTerm, value: T) {
-        let slot = &mut self.0[term as usize];
+        let slot = &mut self.0[term.slot()];
         *slot = *slot + value;
     }
 
@@ -3814,7 +3937,7 @@ impl<T: Decide> EnvelopeTerms<T> {
             !matches!(
                 decide(
                     "pcurve_envelope_term",
-                    Margin::of(self.0[term as usize]),
+                    Margin::of(self.0[term.slot()]),
                     band
                 ),
                 Ok(Sign::Zero)
@@ -3835,7 +3958,12 @@ fn periodic_envelope<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
-    let (derived, derivation) = derive_harmonic(carrier, surface, band)?;
+    // The lemma's premise is an orthonormal frame. The stored chart's
+    // need not be one over a box (or at all), so the lemma is applied
+    // on the chart's orthonormalised twin and the two maps' distance
+    // over the stored image is its own term (`Frame`).
+    let ideal = orthonormal_chart(surface);
+    let (derived, derivation) = derive_harmonic(carrier, &ideal, band)?;
     if matches!(derivation, Derivation::ConeSection) {
         return Err(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Harmonic,
@@ -3843,9 +3971,170 @@ fn periodic_envelope<T: Decide>(
         });
     }
     let mut terms = EnvelopeTerms::new();
-    incidence(carrier_form, surface, derivation, reach, &mut terms);
-    fidelity(pcurve, &derived, surface, span, reach, band, &mut terms)?;
+    let Pcurve::Harmonic { p0, pa, pb, pl } = *pcurve else {
+        unreachable!("periodic_envelope: check 4's periodic arm reads a harmonic image")
+    };
+    let v_reach = harmonic_span_box(p0, pa, pb, pl, span.0, span.1).v_reach();
+    terms.add(EnvelopeTerm::Frame, frame_defect(surface, v_reach));
+    incidence(carrier_form, &ideal, derivation, reach, &mut terms);
+    fidelity(pcurve, &derived, &ideal, span, reach, band, &mut terms)?;
     Ok(terms)
+}
+
+/// The chart with its frame made orthonormal by Gram–Schmidt:
+/// `n̂ = axis/‖axis‖`, and `ê₁` the part of `u_ref` normal to `n̂`,
+/// normalised (the map's `v_ref` is then `n̂ × ê₁`). In exact
+/// arithmetic it is the frame the lemma on
+/// [`EnvelopeStatement::MapResidualClosedForm`] assumes; a literal
+/// unit frame is its own twin, and its twin's forms reduce to its own.
+fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
+    let frame = |axis: Vec3<T>, u_ref: Vec3<T>| {
+        let n = axis / axis.norm();
+        let e1 = u_ref - n * n.dot(u_ref);
+        (n, e1 / e1.norm())
+    };
+    match *surface {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            }
+        }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            }
+        }
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            }
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }
+        }
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!(
+                "orthonormal_chart: check 4's periodic arm reads an analytic periodic chart"
+            )
+        }
+    }
+}
+
+/// `sup |S(u, v) − Ŝ(u, v)|` over an image whose `|v|` stays within
+/// `v_reach`, `Ŝ` the chart's orthonormal twin ([`orthonormal_chart`]).
+/// Both maps share the chart's scalars and differ only in their frame:
+/// the radial direction moves by at most `‖u_ref − ê₁‖ + ‖v_ref − ê₂‖`
+/// at any azimuth (`ρ(u) − ρ̂(u)` is that pair's difference under
+/// `cos u`, `sin u`), and the axis by `‖axis − n̂‖`. Each is levered by
+/// what multiplies it in the chart's own map: the radius, or the
+/// slant `v` on a cylinder's axis and a cone's two channels — the
+/// actual axial reach, not the radius.
+///
+/// The distances are bounded in the frame's own invariants, never by
+/// differencing the normalised vectors (whose enclosures widen by the
+/// radius times a few ulps at the interval scalar — the wide-arc
+/// widening check 4 was restated to remove). With `A = axis·axis`,
+/// `U = u_ref·u_ref` and `θ = |axis·u_ref|/√A = |n̂·u_ref|`, and since
+/// `|x − 1| ≤ |x² − 1|` for `x ≥ 0`:
+///
+/// - `‖axis − n̂‖ = |√A − 1| ≤ |A − 1|`;
+/// - `‖u_ref − ê₁‖ ≤ ‖u_ref − u⊥‖ + ‖u⊥ − ê₁‖ ≤ θ + |U − θ² − 1| ≤
+///   θ + |U − 1| + θ²`, `u⊥ = u_ref − n̂·θ` its part normal to `n̂`;
+/// - `‖axis × u_ref − n̂ × ê₁‖ ≤ ‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
+///
+/// On a literal unit frame every one is the zero form.
+fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
+    let defect = |axis: Vec3<T>, u_ref: Vec3<T>| {
+        let (a2, u2) = (axis.dot(axis), u_ref.dot(u_ref));
+        let one = T::one();
+        let d_axis = (a2 - one).abs();
+        let tilt = axis.dot(u_ref).abs() / a2.sqrt();
+        let d_u = tilt + (u2 - one).abs() + tilt.powi(2);
+        (d_axis, d_u + d_u + d_axis * u2.sqrt())
+    };
+    match *surface {
+        Surface::Cylinder {
+            axis,
+            radius,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
+            d_radial * radius + d_axis * v_reach
+        }
+        Surface::Cone {
+            axis,
+            half_angle,
+            u_ref,
+            ..
+        } => {
+            let (s_a, c_a) = half_angle.sin_cos();
+            let (d_axis, d_radial) = defect(axis, u_ref);
+            (d_axis * c_a.abs() + d_radial * s_a.abs()) * v_reach
+        }
+        Surface::Sphere {
+            radius,
+            axis,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
+            (d_radial + d_axis) * radius
+        }
+        Surface::Torus {
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
+            d_radial * (major_radius + minor_radius) + d_axis * minor_radius
+        }
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("frame_defect: check 4's periodic arm reads an analytic periodic chart")
+        }
+    }
 }
 
 /// `|p − ‖q‖|`, spelled `|p² − q·q| / (p + ‖q‖)` so the numerator is a
@@ -4075,8 +4364,37 @@ fn incidence<T: Decide>(
 }
 
 /// The furthest a branch may sit from the one it is read against, in
-/// whole periods, before [`whole_periods`] calls it no branch at all.
-const MAX_BRANCH_PERIODS: i32 = 4;
+/// whole periods, before [`whole_periods`] refuses it
+/// ([`BranchMiss::OutOfReach`]).
+///
+/// **Why a cap, and why four.** The search steps one period at a time
+/// from `k = 0`, two sign decisions a step, so an uncapped search over
+/// a gap of `n` periods costs `2n` decisions and over an unbounded box
+/// would not terminate. Four is not derived from a bound. It is room
+/// above the branches producers are known to reach: the derivation
+/// answers on the principal branch, a row's azimuth extent is gated to
+/// one period (`AzimuthPeriodExceeded`), and a closed loop's walk
+/// closes through at most one period at its seam. A helical producer,
+/// whose rows legitimately sit further out, would need the cap raised
+/// or its branch read off its winding. The refusal says so by type
+/// rather than as a residual
+/// (`work/pcert/whole-periods-caps-a-branch-at-four-periods.md`).
+pub const MAX_BRANCH_PERIODS: i32 = 4;
+
+/// Why [`whole_periods`] decided no branch.
+#[derive(Clone, Debug)]
+pub enum BranchMiss {
+    /// A half-period mark is undecided: the gap is not resolved to one
+    /// branch at this width (D4 ¶3, escalate-never-guess).
+    Undecided(Indeterminate),
+    /// The gap sits ON a half-period mark (the mark decided Zero): it
+    /// is half a period from two branches and is the gap of neither —
+    /// a stored image a half period off, or a sphere's involution twin
+    /// read with period `τ`.
+    OnMark,
+    /// The gap is more than [`MAX_BRANCH_PERIODS`] periods out.
+    OutOfReach,
+}
 
 /// **A branch, decided as structure**: the whole number of periods `k`
 /// with `|gap − k·period| < period/2`, returned as the LITERAL `k`. It
@@ -4087,20 +4405,20 @@ const MAX_BRANCH_PERIODS: i32 = 4;
 /// parameters (C4: "the branch per face is chosen once by the loop
 /// walk"). The loop walk pins each row's branch with it
 /// (`topo::pcurves`), and check 4's fidelity reads a stored image's
-/// branch against its re-derivation with it.
+/// branch, and a sphere image's twin, against its re-derivation with
+/// it.
 ///
 /// # Errors
 ///
-/// `Err(Some(cause))` where a half-period mark is undecided (the gap is
-/// not resolved to one branch); `Err(None)` where it sits on one, or
-/// further than [`MAX_BRANCH_PERIODS`] out: no branch is the gap's.
+/// [`BranchMiss`]: a mark undecided, the gap on a mark, or the gap out
+/// of reach.
 pub fn whole_periods<T: Decide>(
     name: &'static str,
     gap: T,
     period: T,
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
-) -> Result<T, Option<Indeterminate>> {
+) -> Result<T, BranchMiss> {
     let half = T::from_f64(0.5);
     let mark = |k: i32, side: T| {
         decide(
@@ -4115,28 +4433,28 @@ pub fn whole_periods<T: Decide>(
     let (mut below, mut above) = (false, false);
     loop {
         if !above {
-            match mark(k, half).map_err(Some)? {
+            match mark(k, half).map_err(BranchMiss::Undecided)? {
                 Sign::Negative => {}
-                Sign::Zero => return Err(None),
+                Sign::Zero => return Err(BranchMiss::OnMark),
                 Sign::Positive => {
                     k += 1;
                     (below, above) = (true, false);
                     if k > MAX_BRANCH_PERIODS {
-                        return Err(None);
+                        return Err(BranchMiss::OutOfReach);
                     }
                     continue;
                 }
             }
         }
         if !below {
-            match mark(k, T::zero() - half).map_err(Some)? {
+            match mark(k, T::zero() - half).map_err(BranchMiss::Undecided)? {
                 Sign::Positive => {}
-                Sign::Zero => return Err(None),
+                Sign::Zero => return Err(BranchMiss::OnMark),
                 Sign::Negative => {
                     k -= 1;
                     (below, above) = (false, true);
                     if k < -MAX_BRANCH_PERIODS {
-                        return Err(None);
+                        return Err(BranchMiss::OutOfReach);
                     }
                     continue;
                 }
@@ -4178,9 +4496,13 @@ fn fidelity<T: Decide>(
     let (arm_u, arm_v) = match chart_stretch_sup(surface) {
         Ok(arms) => arms,
         Err(NoChartSup::ConeAzimuthGrowsWithV) => {
+            // `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
+            // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
+            // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant
+            // levers the azimuth, and the nearer one's is enough.
             let v_sup = harmonic_span_box(p0, pa, pb, pl, t0, t1)
                 .v_reach()
-                .max(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach());
+                .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach());
             (
                 SupSpeed::new(azimuth_lever(surface, v_sup)),
                 SupSpeed::new(T::one()),
@@ -4190,56 +4512,73 @@ fn fidelity<T: Decide>(
     };
     let tau = T::tau();
     let angular_v = matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. });
-    // The twin, where the azimuth sits definitely off the derivation's
-    // own; an undecided offset keeps the derivation's (D9) — either
-    // name bounds the same map, so the choice moves only how tight.
-    let (q0, qa, qb, ql) = match surface {
-        Surface::Sphere { .. } => {
-            let offset = (p0.x - q0.x).reduce_periodic_centred(tau);
-            match decide(
-                "pcurve_fidelity_twin",
-                Margin::levered(offset, arm_u.get()),
-                band,
-            ) {
-                Ok(Sign::Zero) | Err(_) => (q0, qa, qb, ql),
-                Ok(Sign::Positive | Sign::Negative) => {
-                    let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
-                    (
-                        Point2::new(q0.x + T::pi(), T::pi() - q0.y),
-                        flip(qa),
-                        flip(qb),
-                        flip(ql),
-                    )
-                }
-            }
-        }
-        _ => (q0, qa, qb, ql),
-    };
-    // The constant's offset, read up to a whole period on an angular
-    // channel: less the stored image's branch, decided as the literal
-    // it is ([`whole_periods`]), or raw where no branch decides — any
-    // whole period bounds the same distance, so the choice moves only
-    // how tight.
-    let constant = |offset: T, arm: SupSpeed<T>, angular: bool| -> T {
-        if !angular {
-            return offset.abs();
-        }
-        match whole_periods(
-            "pcurve_fidelity_branch",
+    // A channel's branch, decided as the literal it is (`whole_periods`).
+    let branch = |name: &'static str, offset: T, arm: SupSpeed<T>| {
+        whole_periods(
+            name,
             offset,
             tau,
             |gap| Margin::levered(gap, arm.get()),
             band,
-        ) {
-            Ok(k) => (offset - k * tau).abs(),
-            Err(_) => offset.abs(),
-        }
+        )
     };
-    let du = constant(p0.x - q0.x, arm_u, true)
+    // The azimuth's branch, and on a sphere whether the stored image is
+    // `P_d` or its involution twin `(u + π, π − v)`: both are branches
+    // of the same offset, `P_d`'s at `kτ` and the twin's at `π + kτ`, so
+    // the twin is read as the second branch rather than off a fold's
+    // cut (an exact twin's offset is the centred fold's jump, which a
+    // box encloses on both sides). The twin is asked only where `P_d`'s
+    // branch decides none, so an image on `P_d`'s branch never pays for
+    // it.
+    let (k_u, (q0, qa, qb, ql)) = match branch("pcurve_fidelity_branch", p0.x - q0.x, arm_u) {
+        Ok(k) => (Some(k), (q0, qa, qb, ql)),
+        Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
+        Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => match surface {
+            Surface::Sphere { .. } => {
+                let flip = |v: Vec2<T>| Vec2::new(v.x, T::zero() - v.y);
+                let twin = (
+                    Point2::new(q0.x + T::pi(), T::pi() - q0.y),
+                    flip(qa),
+                    flip(qb),
+                    flip(ql),
+                );
+                match branch("pcurve_fidelity_twin", p0.x - twin.0.x, arm_u) {
+                    Ok(k) => (Some(k), twin),
+                    Err(BranchMiss::OutOfReach) => {
+                        return Err(PcurveCertifyError::BranchOutOfReach);
+                    }
+                    // Neither name's branch decides: `P_d` is kept
+                    // (D9), read raw.
+                    Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => (None, (q0, qa, qb, ql)),
+                }
+            }
+            _ => (None, (q0, qa, qb, ql)),
+        },
+    };
+    // The constant's offset less its branch. Where NO branch decides —
+    // the offset on a half-period mark, or a mark undecided at this
+    // width — the raw offset is read instead: every whole period bounds
+    // the same distance, so the raw offset is a bound too, only a
+    // looser one, and a branch that genuinely mattered leaves an offset
+    // of a half period or more that refuses as this channel's term.
+    let less_branch = |offset: T, k: Option<T>| match k {
+        Some(k) => (offset - k * tau).abs(),
+        None => offset.abs(),
+    };
+    let k_v = if angular_v {
+        match branch("pcurve_fidelity_branch", p0.y - q0.y, arm_v) {
+            Ok(k) => Some(k),
+            Err(BranchMiss::OutOfReach) => return Err(PcurveCertifyError::BranchOutOfReach),
+            Err(BranchMiss::OnMark | BranchMiss::Undecided(_)) => None,
+        }
+    } else {
+        Some(T::zero())
+    };
+    let du = less_branch(p0.x - q0.x, k_u)
         + (pa.x - qa.x).abs()
         + (pb.x - qb.x).abs()
         + (pl.x - ql.x).abs() * reach;
-    let dv = constant(p0.y - q0.y, arm_v, angular_v)
+    let dv = less_branch(p0.y - q0.y, k_v)
         + (pa.y - qa.y).abs()
         + (pb.y - qb.y).abs()
         + (pl.y - ql.y).abs() * reach;
@@ -4386,7 +4725,16 @@ fn run_cone_section_checks<T: Decide>(
     }
 
     // ---- Check 3: the schedule, in metres through the map. ----
-    schedule_residuals(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the closed-form between-samples envelope. ----
     let (sin_a, cos_a) = half_angle.sin_cos();
@@ -4715,7 +5063,16 @@ fn run_spiric_checks<T: Decide>(
     }
 
     // ---- Check 3: the schedule, in metres through the map. ----
-    schedule_residuals(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the between-samples statement, one per image. ----
     //
@@ -5334,9 +5691,13 @@ fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
     T::from_f64((hi / lo).powi(2))
 }
 
-/// Check 3 for either lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
-/// schedule, in metres through the map.
+/// Check 3 for every lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
+/// schedule, in metres through the map, recorded as `record` says: a
+/// verdict on every lane whose statement it is part of, and the
+/// cross-check of check 4's closed form on a harmonic row.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
 fn schedule_residuals<T: Decide>(
+    record: Record,
     pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
@@ -5350,7 +5711,8 @@ fn schedule_residuals<T: Decide>(
         let chart_point = pcurve.eval(t);
         let mapped = surface.eval(chart_point.x, chart_point.y);
         let on_carrier = carrier.eval(t);
-        check_residual(
+        check_residual_as(
+            record,
             "pcurve_map_residual",
             PcurveCheck::MapResidual,
             i,
@@ -5358,50 +5720,6 @@ fn schedule_residuals<T: Decide>(
             band,
             max_residual,
         )?;
-    }
-    Ok(())
-}
-
-/// Check 3 on a harmonic row: [`schedule_residuals`]'s samples, decided
-/// as a cross-check of check 4's closed form rather than as part of the
-/// certified statement ([`geom_core::k_stats::decide_cross_check`]), so
-/// they refuse as before and record no verdict.
-fn schedule_cross_check<T: Decide>(
-    pcurve: &Pcurve<T>,
-    t0: T,
-    t1: T,
-    carrier: &Curve3<T>,
-    surface: &Surface<T>,
-    band: Band,
-    max_residual: &mut T,
-) -> Result<(), PcurveCertifyError> {
-    for i in 0..CERT_SAMPLES {
-        let t = sample_param(t0, t1, i);
-        let chart_point = pcurve.eval(t);
-        let residual = surface
-            .eval(chart_point.x, chart_point.y)
-            .distance(carrier.eval(t));
-        *max_residual = max_residual.max(residual.abs());
-        match geom_core::k_stats::decide_cross_check(
-            "pcurve_map_residual",
-            Margin::of(residual),
-            band,
-        ) {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => {
-                return Err(PcurveCertifyError::ResidualExceeded {
-                    check: PcurveCheck::MapResidual,
-                    sample: i,
-                });
-            }
-            Err(cause) => {
-                return Err(PcurveCertifyError::Escalated {
-                    check: PcurveCheck::MapResidual,
-                    sample: i,
-                    cause,
-                });
-            }
-        }
     }
     Ok(())
 }
@@ -5547,7 +5865,16 @@ fn run_fitted_checks<T: Decide>(
 
     // ---- Check 3: the schedule, in metres through the map. ----
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the envelope, RE-DERIVED. ----
     let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
@@ -5686,7 +6013,16 @@ fn run_iso_arc_checks<T: Decide>(
         breaks: breaks.clone(),
     };
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the rational control-difference hull. ----
     let esc = |cause| PcurveCertifyError::Escalated {
@@ -6043,7 +6379,16 @@ fn run_iso_checks<T: Decide>(
     // ---- Check 3: the schedule, in metres through the map. ----
     let pcurve = Pcurve::IsoLine { p0, pl };
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the control-difference hull envelope, by class. ----
     let esc = |cause| PcurveCertifyError::Escalated {

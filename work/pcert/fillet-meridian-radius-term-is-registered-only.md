@@ -4,7 +4,7 @@ kind: issue
 title: check 4's radius incidence on a fillet cylinder's meridian strut holds only by registration, which the quotient spelling cannot reach, so the bracket and the pad refuse at the envelope
 status: open
 opened: 2026-10-02
-priority: P1
+priority: P0
 cost: M
 design: true
 ---
@@ -23,10 +23,10 @@ fillet cylinder. A typical one is the carrier
 `Line { origin: (0.00245, 0.0005, 0), dir: (0, 0, 1) }` on
 `Cylinder { origin: (0.0022, 0.0005, 0), radius: 0.00025 }`.
 
-The term is `norm_gap(r, r², radial(c − origin))`
-(`crates/geom-brep/src/pcurve_cache.rs:3536`, the meridian arm at
-`:3582`). That is `|r² − ‖q‖²| / (r + ‖q‖)`, with `q` the strut's
-offset from the axis. The identity `‖q‖ = r` holds on the fillet because
+The term is `norm_gap(r, r², radial(c − origin))` (`norm_gap` at
+`crates/geom-brep/src/pcurve_cache.rs:4144`, the
+`CylinderMeridian` arm of `incidence` at `:4191`). That is
+`|r² − ‖q‖²| / (r + ‖q‖)`, with `q` the strut's offset from the axis. The identity `‖q‖ = r` holds on the fillet because
 the fillet's construction registers it: the rim identity is a
 registered door identity, as `carrier_matches_mapped_source` is on the
 plate. But `r² − q·q` is a polynomial that is not zero in the
@@ -50,3 +50,37 @@ registered fillet get its identity? Two candidates:
   before the quotient; or
 - the fillet mints its struts' offsets from the radius, so that
   `r² − q·q` is the zero polynomial.
+
+## A regression, disclosed (PR 3812's review)
+
+This is a regression from main, not a pre-existing gap (R2, claim 9):
+main's `m10_9_pins_interval::measured_studies` certify the bracket and
+the pad whole at their brackets, and 3759 + 3812 together leave both
+refusing there at `pcurve_envelope`. The unit's sequencing clause says
+3759 "does not merge with the widening regression", so this row is
+raised to P0 and carries that question to the orchestrator: block the
+merge, or rule that it does not.
+
+`m10_9_no_registrant_lies_on_any_measured_document` now ASSERTS both
+refusals (`pcurve_envelope`), so the regression is a pinned row rather
+than a truncated count.
+
+Not fixed in 3812's fix pass, because it is a design question. The two
+spellings measured so far fail in opposite directions:
+
+- the quotient `|r² − q·q| / (r + ‖q‖)` is a theorem wherever `r² = q·q`
+  is a polynomial identity (the plate's rulings), and numeric where it
+  holds only through the fillet's registration;
+- the plain `|r − ‖q‖|` was measured (scratch, `CIF_NORM_GAP`) to make
+  every radius term numeric, the plate's included.
+
+So neither spelling reaches the door in the registrant's form. The
+candidates are still the two above: ask the door for `‖q − c‖ = r` in
+the registrant's spelling before the quotient, or have the fillet mint
+its struts' offsets from the radius so `r² − q·q` is the zero form.
+
+**After 3812's fix pass** (check 4 meters the frame on the chart's
+Gram–Schmidt twin, `EnvelopeTerm::Frame`, bounded in the frame's
+invariants), the bracket still refuses at `3.87e2·ε` on the envelope's
+sum (`[0, 2.9e-9]` at ε = 1e-9), no single term over the band on its
+own; the pad still refuses at `pcurve_envelope`.

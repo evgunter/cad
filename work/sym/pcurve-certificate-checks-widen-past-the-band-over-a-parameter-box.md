@@ -140,3 +140,32 @@ case. With that one term dropped on top (scratch, unsound), every one
 of them returns, as in the paragraph above. The plate's nominal split
 is main's again (`pcurve_map_residual` `[0, 0, 36, 0]`), and the link's
 retries are back to 14.
+
+**On PR 3812's head after its review's fix pass** (part 1, part 2, the
+literal loop-walk branch, and check 4's frame metered on the chart's
+Gram–Schmidt twin), at `Sym<Interval>` under the shipped set, 1e-9
+unless named. Every row above that the walked rows' azimuth fidelity
+bounded has come back:
+
+- **The plate**: 0.2631 of its real study (0.2369 at 1e-6), bounded by
+  `assert_bound`, its pre-mint ceiling; main's `m10_10` pins pass at all
+  three ε. `pcurve_envelope` is 16/0/0/0 over its box.
+- **The `m10_3` four-widths drive**: the whole box certifies in one leaf
+  at every width. Both `m10_3_driver` rows and both M10-4 rows are
+  green at all three ε.
+- **M10-9's five studies at its brackets**: the plate, the annulus and
+  the link certify whole; the bracket and the pad refuse at
+  `pcurve_envelope`
+  (`work/pcert/fillet-meridian-radius-term-is-registered-only.md`).
+- **`sym11`'s stadium** builds at every ε row.
+- **The shallow-arc grid at bare `Interval`**: `(51, 6, 3, 0)` at 1e-9
+  and `(24, 22, 14, 0)` at 1e-12. The metered frame costs the
+  `l = 50, b = 1e-4` walls about `6e-10` m, since their `u_ref` is a rim
+  normalised at `Interval`
+  (`work/pctail/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
+  reopened).
+- **The tour**: the tolerance study certifies 99.46%. `chaintol` is
+  bounded by the placed rows' `pcurve_loop_continuity` and
+  `pcurve_trim_containment`, at `[6.510e-7, 2.216e-7, 1.117e-7,
+  6.751e-8]` of the study (pinned, naming
+  `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin.md`).
