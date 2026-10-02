@@ -46,6 +46,11 @@ continuation, a station kept on a side, a raw collinear polygon). Extrude
 and revolve build ONE wall per run on every carrier kind, so no sweep mints
 a same-key adjacency for a merge to undo. The one exception is a run that
 is the whole closed loop (a circle): it keeps its canonical cut (C12.5).
+A partial revolve builds a run of cocircular arcs one wall per arc, on
+the run's one surface key: one wall would carry each wedge cap's meridian
+in pieces, and the mass-properties meridian fold groups pieces by split
+lineage, which a station's pieces do not have
+(`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
 A station inside a run stays a vertex wherever a cap carries the profile
 (extrude's caps, a partial revolve's wedge caps), splitting the rim or
 meridian chain into collinear edges; in a full revolve it has no entity.

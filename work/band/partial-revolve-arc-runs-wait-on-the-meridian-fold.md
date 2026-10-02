@@ -2,7 +2,7 @@
 id: partial-revolve-arc-runs-wait-on-the-meridian-fold
 kind: issue
 title: revolve: a partial revolve still sweeps one wall per arc of a cocircular run, because one wall would carry a meridian in pieces mass properties do not fold
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M

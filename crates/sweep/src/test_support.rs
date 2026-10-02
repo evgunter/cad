@@ -1984,9 +1984,24 @@ pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f
     .clone()
 }
 
+/// The bulged vertices of an OPEN run of `k` equal arcs of the circle
+/// of radius `r` about `c`, from azimuth `a0` turning `total` (signed,
+/// counter-clockwise positive), and its end vertex with bulge 0 — a
+/// chain to close with straight legs ([`profile::test_support::bulge_loop`]).
+#[must_use]
+pub fn arc_run(c: Point2<f64>, r: f64, a0: f64, total: f64, k: usize) -> Vec<(Point2<f64>, f64)> {
+    let bulge = (total / (4.0 * k as f64)).tan();
+    let at = |a: f64| Point2::new(c.x + r * a.cos(), c.y + r * a.sin());
+    (0..k)
+        .map(|i| (at(a0 + total * i as f64 / k as f64), bulge))
+        .chain(core::iter::once((at(a0 + total), 0.0)))
+        .collect()
+}
+
 /// The `n` bulged vertices of a circle of radius `r` about `c`,
 /// authored as `n` equal arcs starting at azimuth 0.
-fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
+#[must_use]
+pub fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
     assert!(n >= 2, "a closed loop of arcs needs at least two vertices");
     let bulge = (core::f64::consts::PI / (2.0 * n as f64)).tan();
     (0..n)

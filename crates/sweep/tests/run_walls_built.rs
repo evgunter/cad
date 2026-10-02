@@ -22,9 +22,11 @@ use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
-use sweep::test_support::{bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, pocket_of_arcs};
+use sweep::test_support::{
+    arc_polygon, arc_run, bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, pocket_of_arcs,
+};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, EdgeKey, subtract, union, validate_closed, validate_geometric};
+use topo::{Body, BooleanError, EdgeKey, subtract, union, validate_closed, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -55,9 +57,10 @@ fn prof(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         .unwrap()
 }
 
-/// Two distinct faces on one PLANAR surface key sharing an edge: a
-/// planar wall that should have been one face.
-fn planar_same_key_adjacency(b: &Body<f64>) -> usize {
+/// Edges between two distinct faces on one surface key, the key a
+/// plane (`planar`) or a curved surface: on a plane, a wall that should
+/// have been one face; on a curved surface, a cut or a split run.
+fn same_key_adjacency(b: &Body<f64>, planar: bool) -> usize {
     b.edges()
         .filter(|(_, e)| {
             let (Some(fa), Some(fb)) = (
@@ -70,14 +73,25 @@ fn planar_same_key_adjacency(b: &Body<f64>) -> usize {
                 b.get_face(fa).unwrap().surface,
                 b.get_face(fb).unwrap().surface,
             );
-            fa != fb && ka == kb && matches!(b.get_surface(ka), Some(geom::Surface::Plane { .. }))
+            fa != fb
+                && ka == kb
+                && matches!(b.get_surface(ka), Some(geom::Surface::Plane { .. })) == planar
         })
         .count()
 }
 
 /// The row's checks; `faces` is the expected face count where the row
-/// pins one. Panics naming the row.
-fn holds(label: &str, b: &Body<f64>, faces: Option<usize>, tools: &[Body<f64>]) {
+/// pins one. A boolean with a tool in `tools` may refuse for a reason
+/// of its own, never as a non-maximal operand; one with a tool in
+/// `answering` must answer. Whatever answers validates. Panics naming
+/// the row.
+fn holds(
+    label: &str,
+    b: &Body<f64>,
+    faces: Option<usize>,
+    tools: &[Body<f64>],
+    answering: &[Body<f64>],
+) {
     let t = tol();
     if let Some(f) = faces {
         assert_eq!(b.faces().count(), f, "{label}: one wall per run");
@@ -85,7 +99,7 @@ fn holds(label: &str, b: &Body<f64>, faces: Option<usize>, tools: &[Body<f64>]) 
     validate_closed(b).unwrap_or_else(|e| panic!("{label}: tier 2: {e:?}"));
     validate_geometric(b, t).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
     assert_eq!(
-        planar_same_key_adjacency(b),
+        same_key_adjacency(b, true),
         0,
         "{label}: a planar wall split"
     );
@@ -97,7 +111,8 @@ fn holds(label: &str, b: &Body<f64>, faces: Option<usize>, tools: &[Body<f64>]) 
         merged.groups.is_empty(),
         "{label}: coplanar faces left to merge"
     );
-    for (i, tool) in tools.iter().enumerate() {
+    let may = tools.iter().map(|t| (t, false));
+    for (i, (tool, answers)) in may.chain(answering.iter().map(|t| (t, true))).enumerate() {
         for (op, r) in [
             ("union", union(b, tool, t)),
             ("subtract", subtract(b, tool, t)),
@@ -108,10 +123,9 @@ fn holds(label: &str, b: &Body<f64>, faces: Option<usize>, tools: &[Body<f64>]) 
             let r = match r {
                 Ok(r) => r,
                 Err(e) => {
-                    let e = format!("{e:?}");
                     assert!(
-                        !e.contains("NonMaximal"),
-                        "{label}: {op} with tool {i}: {e}"
+                        !answers && !matches!(e, BooleanError::NonMaximalFaces { .. }),
+                        "{label}: {op} with tool {i}: {e:?}"
                     );
                     continue;
                 }
@@ -168,6 +182,7 @@ fn extruded_runs_build_one_wall_each() {
                     &e.body,
                     Some(6),
                     &tools(s),
+                    &[],
                 );
             }
         }
@@ -191,6 +206,7 @@ fn extruded_runs_build_one_wall_each() {
             &e.body,
             Some(10),
             &[cube(2.5, 1.5, z0, 1.0, 1.0, 1.0)],
+            &[],
         );
     }
 }
@@ -361,7 +377,13 @@ fn revolved_runs_build_one_wall_each() {
         ] {
             let r =
                 revolve(&v, axis, rev, tol()).unwrap_or_else(|e| panic!("{label} {rev:?}: {e:?}"));
-            holds(&format!("revolve {label} {rev:?}"), &r.body, faces, &tools);
+            holds(
+                &format!("revolve {label} {rev:?}"),
+                &r.body,
+                faces,
+                &tools,
+                &[],
+            );
             let far = cube(10.0, 10.0, 10.0, 1.0, 1.0, 1.0);
             union(&r.body, &far, tol())
                 .unwrap_or_else(|e| panic!("{label} {rev:?}: disjoint union: {e:?}"));
@@ -369,134 +391,226 @@ fn revolved_runs_build_one_wall_each() {
     }
 }
 
-/// Edges between two distinct faces on one CURVED surface key.
-fn curved_same_key_adjacency(b: &Body<f64>) -> usize {
-    b.edges()
-        .filter(|(_, e)| {
-            let (Some(fa), Some(fb)) = (
-                b.face_of_half_edge(e.he_plus),
-                b.face_of_half_edge(e.he_minus),
-            ) else {
-                return false;
-            };
-            let (ka, kb) = (
-                b.get_face(fa).unwrap().surface,
-                b.get_face(fb).unwrap().surface,
-            );
-            fa != fb && ka == kb && !matches!(b.get_surface(ka), Some(geom::Surface::Plane { .. }))
-        })
-        .count()
+/// A run of `k` arcs of the unit circle about `(x0, 0)` from azimuth
+/// `a0` turning `total`, closed by its chord through `tail`, the vertex
+/// list rotated left by `start` (the run wraps the loop's start for
+/// `0 < start ≤ k`): the bulged chain.
+fn arcs_chain(
+    x0: f64,
+    a0: f64,
+    total: f64,
+    k: usize,
+    tail: &[(f64, f64)],
+    start: usize,
+) -> Vec<(Point2<f64>, f64)> {
+    let mut v = arc_run(Point2::new(x0, 0.0), 1.0, a0, total, k);
+    v.extend(tail.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)));
+    let n = v.len();
+    v.rotate_left(start % n);
+    v
 }
 
-/// A D about `x = x0`: the half circle of radius 1 centred `(x0, 0)`
-/// on its `+x` side cut into `k` cocircular arcs, closed by the
-/// diameter on `x = x0`; the vertex list rotated left by `start` (the
-/// run wraps the loop's start when `0 < start < k + 1`).
-fn d_of_arcs(x0: f64, k: usize, start: usize) -> ProfileLoop<f64> {
-    use core::f64::consts::{FRAC_PI_2, PI};
-    let bulge = (PI / (4.0 * k as f64)).tan();
-    let mut v: Vec<(Point2<f64>, f64)> = (0..k)
-        .map(|i| {
-            let a = -FRAC_PI_2 + PI * i as f64 / k as f64;
-            (Point2::new(x0 + a.cos(), a.sin()), bulge)
-        })
-        .collect();
-    v.push((Point2::new(x0, 1.0), 0.0));
-    v.rotate_left(start);
-    bulge_loop(v)
+/// [`arcs_chain`]'s loop.
+fn arcs_closed(
+    x0: f64,
+    a0: f64,
+    total: f64,
+    k: usize,
+    tail: &[(f64, f64)],
+    start: usize,
+) -> ProfileLoop<f64> {
+    bulge_loop(arcs_chain(x0, a0, total, k, tail, start))
 }
 
-/// The unit circle centred `(x0, 0)` cut into `k` arcs.
-fn circle_of_arcs(x0: f64, k: usize) -> ProfileLoop<f64> {
-    use core::f64::consts::PI;
-    let bulge = (PI / (2.0 * k as f64)).tan();
-    bulge_loop(
-        (0..k)
-            .map(|i| {
-                let a = 2.0 * PI * i as f64 / k as f64;
-                (Point2::new(x0 + a.cos(), a.sin()), bulge)
-            })
-            .collect(),
+/// A D on `x = x0`: the half circle of radius 1 about `(x0, 0)` in `k`
+/// arcs, closed by its diameter (the bulged chain).
+fn d_chain(x0: f64, k: usize, start: usize) -> Vec<(Point2<f64>, f64)> {
+    arcs_chain(
+        x0,
+        -core::f64::consts::FRAC_PI_2,
+        core::f64::consts::PI,
+        k,
+        &[],
+        start,
     )
 }
 
-/// A run of `k` cocircular arcs sweeps ONE curved wall: extruded, a
-/// D's arc side is one cylinder face beside one plane, wherever the
-/// loop starts; fully revolved about its diameter it is one sphere
-/// wall, about an axis beside it one torus wall. A partial revolve
-/// keeps each arc's wall on the run's one key
-/// (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
-/// A circle cut into `k` arcs keeps its canonical cut: `k` walls on
-/// one key.
+/// [`d_chain`]'s loop.
+fn d_of_arcs(x0: f64, k: usize, start: usize) -> ProfileLoop<f64> {
+    bulge_loop(d_chain(x0, k, start))
+}
+
+/// The body's volume against `want`, to the quadrature pad.
+fn has_volume(label: &str, b: &Body<f64>, want: f64) {
+    let p = topo::mass_properties(b, tol()).unwrap_or_else(|e| panic!("{label}: props: {e:?}"));
+    assert!(
+        (p.volume - want).abs() <= 1e-7 * want.abs().max(1.0) + p.volume_pad,
+        "{label}: volume {} want {want}",
+        p.volume
+    );
+}
+
+/// The loop starts every row runs: as drawn, one in, and on the run's
+/// last station (the run wraps the start).
+fn starts(k: usize) -> Vec<usize> {
+    let mut v = vec![0, 1, k];
+    v.dedup();
+    v
+}
+
+/// An extruded run of `k` cocircular arcs is ONE cylinder wall: a D
+/// (half turn), a major arc closed by a chord (sum 3π/2, past the half
+/// turn), the D as a hole loop, and uneven pieces, wherever the loop
+/// starts, by distance and by vector either way. No curved face meets
+/// another on its key, the volume is the profile's area times the
+/// height, and a box through the run's stations unions and subtracts.
 #[test]
-fn arc_runs_build_one_wall_each() {
-    for k in 1..=4usize {
-        for start in [0, 1, k] {
+fn extruded_arc_runs_build_one_wall_each() {
+    use core::f64::consts::PI;
+    let through = || cube(0.5, -0.5, -3.0, 1.0, 1.0, 6.0);
+    let one_wall = |label: &str, b: &Body<f64>, faces: usize, volume: f64| {
+        holds(label, b, Some(faces), &[], &[through()]);
+        assert_eq!(
+            same_key_adjacency(b, false),
+            0,
+            "{label}: a curved wall split"
+        );
+        has_volume(label, b, volume);
+    };
+    for k in 1..=5usize {
+        for start in starts(k) {
             let v = prof(vec![d_of_arcs(0.0, k, start)]);
-            for d in [2.0, -2.0] {
-                let label = format!("extruded D of {k} arcs start={start} d={d}");
-                let e = extrude(&v, Extrusion::Distance(d), tol()).unwrap();
+            let mut exts = vec![Extrusion::Distance(2.0), Extrusion::Distance(-2.0)];
+            if k == 3 {
+                exts.extend([
+                    Extrusion::Vector(Vec3::new(0.0, 0.0, 2.0)),
+                    Extrusion::Vector(Vec3::new(0.0, 0.0, -2.0)),
+                ]);
+            }
+            for ext in exts {
+                let label = format!("extruded D of {k} arcs start={start} {ext:?}");
+                let e = extrude(&v, ext, tol()).unwrap();
                 assert_eq!(e.walls[0].len(), 2, "{label}: the arc run and the diameter");
-                let z0 = if d > 0.0 { 0.5 } else { -1.5 };
-                holds(
-                    &label,
-                    &e.body,
-                    Some(4),
-                    &[cube(0.5, -0.5, z0, 1.0, 1.0, 1.0)],
-                );
-                assert_eq!(
-                    curved_same_key_adjacency(&e.body),
-                    0,
-                    "{label}: a curved wall split"
-                );
+                one_wall(&label, &e.body, 4, PI);
             }
-            // (label, axis offset, full faces, quarter-turn faces): a
-            // sphere's full revolve is its wall's two π-bands; the
-            // torus lamina's walls wrap whole; a quarter turn has two
-            // wedge caps and one wall per arc.
-            for (what, x0, full, quarter) in [("sphere", 0.0, 2, k + 2), ("torus", 2.0, 2, k + 3)] {
-                let v = prof(vec![d_of_arcs(x0, k, start)]);
-                for (rev, faces) in [
-                    (Revolution::Full, Some(full)),
-                    (Revolution::Partial(core::f64::consts::FRAC_PI_2), None),
-                    (Revolution::Partial(-2.0), None),
-                ] {
-                    let label = format!("revolved {what} D of {k} arcs start={start} {rev:?}");
-                    let r = revolve(&v, y_axis(), rev, tol())
-                        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                    if matches!(rev, Revolution::Full) {
-                        holds(
-                            &label,
-                            &r.body,
-                            faces,
-                            &[cube(x0 + 0.5, -0.5, 0.3, 1.0, 1.0, 1.0)],
-                        );
-                        continue;
-                    }
-                    assert_eq!(r.body.faces().count(), quarter, "{label}: one wall per arc");
-                    validate_geometric(&r.body, tol())
-                        .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                    assert_eq!(
-                        curved_same_key_adjacency(&r.body),
-                        k - 1,
-                        "{label}: one latitude between each two arcs' walls"
-                    );
-                }
-            }
+            let total = 1.5 * PI;
+            let major = prof(vec![arcs_closed(0.0, -PI / 4.0, total, k, &[], start)]);
+            let e = extrude(&major, Extrusion::Distance(1.0), tol()).unwrap();
+            let label = format!("extruded major arc of {k} arcs start={start}");
+            one_wall(&label, &e.body, 4, 0.5 * (total - total.sin()));
+            let outer = pts(&[(-3.0, -3.0), (3.0, -3.0), (3.0, 3.0), (-3.0, 3.0)]);
+            let holed = prof(vec![outer, d_of_arcs(0.0, k, start)]);
+            let e = extrude(&holed, Extrusion::Distance(2.0), tol()).unwrap();
+            let label = format!("extruded D hole of {k} arcs start={start}");
+            one_wall(&label, &e.body, 8, (36.0 - PI / 2.0) * 2.0);
         }
     }
+    // Uneven pieces, a short one at either end and inside.
+    for ratios in [&[1.0, 1e-3][..], &[1e-3, 1.0, 1.0], &[5.0, 1.0, 1e-2, 3.0]] {
+        let sum: f64 = ratios.iter().sum();
+        let mut a = -PI / 2.0;
+        let mut v = Vec::new();
+        for w in ratios {
+            let sweep = PI * w / sum;
+            v.push((Point2::new(a.cos(), a.sin()), (sweep / 4.0).tan()));
+            a += sweep;
+        }
+        v.push((Point2::new(a.cos(), a.sin()), 0.0));
+        let e = extrude(&prof(vec![bulge_loop(v)]), Extrusion::Distance(2.0), tol()).unwrap();
+        one_wall(&format!("extruded uneven D {ratios:?}"), &e.body, 4, PI);
+    }
+}
+
+/// A fully revolved run of `k` cocircular arcs is ONE wall: a sphere
+/// (the D on the axis, its wall in the wire case's two π-bands), a
+/// torus (the D beside the axis, or a major arc of sum 2π − 0.2 closed
+/// by a chord), and a sphere zone between a bore's cylinder walls,
+/// wherever the loop starts; volumes in closed form (Pappus for the
+/// tori). A slab through the sphere unions and subtracts.
+#[test]
+fn fully_revolved_arc_runs_build_one_wall_each() {
+    use core::f64::consts::{PI, TAU};
+    let slab = || cube(-2.0, -0.3, -2.0, 4.0, 0.6, 4.0);
+    let full = |lp: ProfileLoop<f64>| {
+        revolve(&prof(vec![lp]), y_axis(), Revolution::Full, tol())
+            .unwrap()
+            .body
+    };
+    for k in 1..=5usize {
+        for start in starts(k) {
+            let label = format!("sphere of {k} arcs start={start}");
+            let b = full(d_of_arcs(0.0, k, start));
+            holds(&label, &b, Some(2), &[], &[slab()]);
+            assert_eq!(
+                same_key_adjacency(&b, false),
+                2,
+                "{label}: the π-split alone"
+            );
+            has_volume(&label, &b, 4.0 / 3.0 * PI);
+
+            let label = format!("torus D of {k} arcs start={start}");
+            let b = full(d_of_arcs(2.0, k, start));
+            holds(&label, &b, Some(2), &[], &[]);
+            assert_eq!(
+                same_key_adjacency(&b, false),
+                0,
+                "{label}: a curved wall split"
+            );
+            has_volume(&label, &b, TAU * (2.0 + 4.0 / (3.0 * PI)) * (PI / 2.0));
+
+            let total = TAU - 0.2;
+            let label = format!("torus major arc of {k} arcs start={start}");
+            let b = full(arcs_closed(3.0, PI + 0.1, total, k, &[], start));
+            holds(&label, &b, Some(2), &[], &[]);
+            assert_eq!(
+                same_key_adjacency(&b, false),
+                0,
+                "{label}: a curved wall split"
+            );
+            let centroid = 3.0 + 4.0 * (total / 2.0).sin().powi(3) / (3.0 * (total - total.sin()));
+            has_volume(&label, &b, TAU * centroid * 0.5 * (total - total.sin()));
+
+            let a = PI / 3.0;
+            let h = a.sin();
+            let label = format!("sphere zone of {k} arcs start={start}");
+            let b = full(arcs_closed(
+                0.0,
+                -a,
+                2.0 * a,
+                k,
+                &[(0.3, h), (0.3, -h)],
+                start,
+            ));
+            holds(&label, &b, Some(4), &[slab()], &[]);
+            assert_eq!(
+                same_key_adjacency(&b, false),
+                0,
+                "{label}: a curved wall split"
+            );
+            has_volume(
+                &label,
+                &b,
+                PI * (2.0 * h - 2.0 * h.powi(3) / 3.0) - PI * 0.09 * 2.0 * h,
+            );
+        }
+    }
+}
+
+/// Where a sweep keeps cocircular arcs apart, their walls share one
+/// key: a circle cut into `k` arcs keeps its canonical cut (`k` walls,
+/// `k` same-key struts) under every verb, and a partial revolve builds
+/// a D's arc run one wall per arc (`k − 1` same-key latitudes between
+/// them; `work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
+#[test]
+fn arcs_kept_apart_share_one_key() {
     for k in 2..=4usize {
+        let circle = |x0: f64| prof(vec![bulge_loop(arc_polygon(k, 1.0, Point2::new(x0, 0.0)))]);
         let label = format!("extruded circle of {k} arcs");
-        let e = extrude(
-            &prof(vec![circle_of_arcs(0.0, k)]),
-            Extrusion::Distance(2.0),
-            tol(),
-        )
-        .unwrap();
+        let e = extrude(&circle(0.0), Extrusion::Distance(2.0), tol()).unwrap();
         assert_eq!(e.walls[0].len(), k, "{label}: the cut is kept");
-        holds(&label, &e.body, Some(k + 2), &[]);
+        holds(&label, &e.body, Some(k + 2), &[], &[]);
         assert_eq!(
-            curved_same_key_adjacency(&e.body),
+            same_key_adjacency(&e.body, false),
             k,
             "{label}: k cut struts"
         );
@@ -505,8 +619,75 @@ fn arc_runs_build_one_wall_each() {
             (Revolution::Partial(core::f64::consts::FRAC_PI_2), k + 2),
         ] {
             let label = format!("revolved circle of {k} arcs {rev:?}");
-            let r = revolve(&prof(vec![circle_of_arcs(3.0, k)]), y_axis(), rev, tol()).unwrap();
-            holds(&label, &r.body, Some(faces), &[]);
+            let r = revolve(&circle(3.0), y_axis(), rev, tol()).unwrap();
+            holds(&label, &r.body, Some(faces), &[], &[]);
+        }
+    }
+    for k in 1..=4usize {
+        for start in starts(k) {
+            for (what, x0, quarter) in [("sphere", 0.0, k + 2), ("torus", 2.0, k + 3)] {
+                let v = prof(vec![d_of_arcs(x0, k, start)]);
+                for rev in [
+                    Revolution::Partial(core::f64::consts::FRAC_PI_2),
+                    Revolution::Partial(-2.0),
+                ] {
+                    let label = format!("partial {what} D of {k} arcs start={start} {rev:?}");
+                    let r = revolve(&v, y_axis(), rev, tol())
+                        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                    assert_eq!(r.body.faces().count(), quarter, "{label}: one wall per arc");
+                    validate_geometric(&r.body, tol())
+                        .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+                    assert_eq!(
+                        same_key_adjacency(&r.body, false),
+                        k - 1,
+                        "{label}: one latitude between each two arcs' walls"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The same runs at `Interval`: an extruded D of `k` arcs is one
+/// cylinder wall, and fully revolved one sphere or torus wall whose
+/// mass properties certify.
+#[test]
+fn arc_runs_build_one_wall_at_interval() {
+    use geom_core::{Interval, Real};
+    let t = tol();
+    let at = |chain: Vec<(Point2<f64>, f64)>| {
+        let v: Vec<(Point2<Interval>, Interval)> = chain
+            .into_iter()
+            .map(|(p, b)| (p.map(Interval::from_f64), Interval::from_f64(b)))
+            .collect();
+        Profile::new(SketchPlane::<Interval>::xy(), vec![bulge_loop(v)])
+            .validate(t)
+            .unwrap_or_else(|e| panic!("the profile validates at Interval: {e:?}"))
+    };
+    let axis = RevolveAxis {
+        origin: Point2::new(Interval::from_f64(0.0), Interval::from_f64(0.0)),
+        dir: Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
+    };
+    for k in [2usize, 3, 5] {
+        for start in [0, 1] {
+            let label = format!("D of {k} arcs start={start}");
+            let e = extrude(
+                &at(d_chain(0.0, k, start)),
+                Extrusion::Distance(Interval::from_f64(2.0)),
+                t,
+            )
+            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            assert_eq!(e.body.faces().count(), 4, "{label}: one cylinder wall");
+            validate_geometric(&e.body, t).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+            for (what, x0) in [("sphere", 0.0), ("torus", 2.0)] {
+                let label = format!("{what} {label}");
+                let r = revolve(&at(d_chain(x0, k, start)), axis, Revolution::Full, t)
+                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                assert_eq!(r.body.faces().count(), 2, "{label}: one wall");
+                validate_geometric(&r.body, t).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+                topo::mass_properties(&r.body, t)
+                    .unwrap_or_else(|e| panic!("{label}: props: {e:?}"));
+            }
         }
     }
 }

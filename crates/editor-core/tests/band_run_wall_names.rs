@@ -384,3 +384,187 @@ fn a_run_of_arcs_is_named_by_its_pieces() {
         }
     }
 }
+
+/// The profile node's step ids, loop 0.
+fn step_ids(doc: &ProfileDoc, p: RecipeNodeId) -> Vec<editor_core::StepId> {
+    match doc.node(p) {
+        Some(Node::Profile(pp)) => pp.ids[0].clone(),
+        other => panic!("not a profile: {other:?}"),
+    }
+}
+
+/// `doc` with profile `p`'s loop 0 re-authored as `steps`, keeping the
+/// step ids listed.
+fn reprogrammed(
+    doc: &ProfileDoc,
+    p: RecipeNodeId,
+    steps: Vec<ProgramStep>,
+    ids: Vec<Option<editor_core::StepId>>,
+) -> ProfileDoc {
+    editor_core::apply(
+        doc,
+        &editor_core::DocEdit::SetProgram {
+            node: p,
+            loops: vec![LoopProgram::Chain(steps)],
+            ids: vec![ids],
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the program edit applies")
+    .doc
+}
+
+/// What a vanished name is offered.
+fn offers(doc: &ProfileDoc, name: &StableName) -> Vec<StableName> {
+    let ev = run(doc, &Default::default());
+    match editor_core::resolve(editor_core::RunCtx { doc, eval: &ev }, name) {
+        editor_core::Resolution::Failed(f) => f.offers,
+        other => panic!("{name:?} should vanish, resolved {other:?}"),
+    }
+}
+
+/// **Offers cross an arc station both ways.** A D's half arc split at a
+/// declared tangent joint becomes one run wall: the old one-piece
+/// wall's name is offered the run wall. Bending the station off the
+/// circle breaks the run: the run wall's name is offered each piece's
+/// wall. Extruded either way and fully revolved.
+#[test]
+fn offers_follow_an_arc_station_in_and_out() {
+    let wall = |n: RecipeNodeId, revolve: bool, pieces: Vec<editor_core::ProfileEdgeRef>| {
+        let r = PieceRun::new(pieces).unwrap();
+        minted(
+            EntityKind::Face,
+            n,
+            if revolve {
+                RoleSeg::Band(r)
+            } else {
+                RoleSeg::Lateral(r)
+            },
+        )
+    };
+    for (label, angle, d, x0) in [
+        ("extrude +", None, 1.0, 0.0),
+        ("extrude −", None, -1.0, 0.0),
+        ("full revolve", Some(std::f64::consts::TAU), 1.0, 2.0),
+    ] {
+        let plain = vec![
+            ProgramStep::At(len2([x0, -1.0])),
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target: to(x0, 1.0),
+                b: scl(1.0),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ];
+        let (doc, n) = match angle {
+            Some(a) => revolved(plain, a),
+            None => extruded_by(plain, d),
+        };
+        let p = profile_of(&doc, n);
+        let rev = angle.is_some();
+        let held = wall(n, rev, vec![piece(&doc, n, 0, 0)]);
+        let i = step_ids(&doc, p);
+        let doc2 = reprogrammed(
+            &doc,
+            p,
+            d_of_two_arcs(x0),
+            vec![Some(i[0]), Some(i[1]), None, None, Some(i[2])],
+        );
+        let run_wall = wall(n, rev, vec![piece(&doc2, n, 0, 0), piece(&doc2, n, 0, 1)]);
+        assert!(
+            table(&run(&doc2, &Default::default()), n)
+                .lookup(&run_wall)
+                .is_some(),
+            "{label}: the run wall is minted"
+        );
+        assert!(
+            offers(&doc2, &held).contains(&run_wall),
+            "{label}: the one-piece wall is offered the run wall"
+        );
+        let quarter = (std::f64::consts::PI / 8.0).tan();
+        let bent = vec![
+            ProgramStep::At(len2([x0, -1.0])),
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target: to(x0 + 1.1, 0.0),
+                b: scl(quarter),
+            }),
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target: to(x0, 1.0),
+                b: scl(quarter),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ];
+        let i2 = step_ids(&doc2, p);
+        let doc3 = reprogrammed(
+            &doc2,
+            p,
+            bent,
+            vec![Some(i2[0]), Some(i2[1]), Some(i2[3]), Some(i2[4])],
+        );
+        let got = offers(&doc3, &run_wall);
+        for k in 0..2 {
+            let w = wall(n, rev, vec![piece(&doc3, n, 0, k)]);
+            assert!(
+                got.contains(&w),
+                "{label}: the broken run offers piece {k}'s wall"
+            );
+        }
+    }
+}
+
+/// **f64 and `Interval` mint the same arc-run names**: the extruded D,
+/// and the D fully revolved on and beside the axis.
+#[test]
+fn arc_run_names_agree_across_scalars() {
+    use geom_core::Interval;
+    for (label, x0, angle) in [
+        ("extrude", 0.0, None),
+        ("full sphere", 0.0, Some(std::f64::consts::TAU)),
+        ("full torus", 2.0, Some(std::f64::consts::TAU)),
+    ] {
+        let (doc, n) = match angle {
+            Some(a) => revolved(d_of_two_arcs(x0), a),
+            None => extruded_by(d_of_two_arcs(x0), -1.0),
+        };
+        let ev = run(&doc, &Default::default());
+        let evi = editor_core::evaluate::<Interval>(
+            &doc,
+            None,
+            &editor_core::CancelToken::new(),
+            &Default::default(),
+            Tol::witness(),
+        );
+        let names = |t: &editor_core::NameTable| {
+            let mut v: Vec<String> = t.iter().map(|(k, _)| format!("{k:?}")).collect();
+            v.sort();
+            v
+        };
+        let a = names(&ev.value(n).expect("the f64 value").name_table);
+        let b = names(
+            &evi.value(n)
+                .unwrap_or_else(|| panic!("{label}: the Interval value"))
+                .name_table,
+        );
+        let run = run_of(&doc, n, &[0, 1]);
+        let seg = if angle.is_some() {
+            RoleSeg::Band(run)
+        } else {
+            RoleSeg::Lateral(run)
+        };
+        assert!(
+            table(&ev, n)
+                .lookup(&minted(EntityKind::Face, n, seg))
+                .is_some(),
+            "{label}: the run wall is minted"
+        );
+        assert_eq!(a, b, "{label}: f64 and Interval mint the same names");
+    }
+}
+
+/// The profile a sweep node sweeps.
+fn profile_of(doc: &ProfileDoc, sweep: RecipeNodeId) -> RecipeNodeId {
+    match doc.node(sweep) {
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
+        other => panic!("not a sweep: {other:?}"),
+    }
+}

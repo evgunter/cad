@@ -178,10 +178,15 @@ impl<T: Real> Traversed<T> {
 
     /// The run this traversal continues into `next` on one carrier
     /// (the full revolve's collapsed run, `revolve::full::Collapsed`):
-    /// a line stays a line; an arc keeps its carrier and turn, its
-    /// sweep the two summed — same turn, so same sign. A pair of
-    /// different kinds is no run (the cosurface verdict never joins
-    /// one).
+    /// a line stays a line; an arc keeps ITS centre, radius and turn —
+    /// `next`'s carrier is the same one only within the cosurface
+    /// margin — and its sweep is the two summed (same turn, so same
+    /// sign). The end the summed sweep implies therefore differs from
+    /// the run's stored last endpoint by at most that margin plus
+    /// rounding; the collapsed segment keeps the stored endpoint, and
+    /// certification meters the carrier against it. A pair of
+    /// different kinds is no run: the cosurface verdict never joins
+    /// one.
     pub(crate) fn continued(self, next: Self) -> Self {
         Self(match (self.0, next.0) {
             (SegmentKind::Line, SegmentKind::Line) => SegmentKind::Line,
@@ -673,41 +678,85 @@ impl Run {
     }
 }
 
-/// The wall runs of one swept loop, in ascending order of their first
-/// segment, read off the loop's cosurface verdicts: `pair[j]` says
-/// segment `j` continues segment `j − 1`'s carrier (`pair[0]` is the
-/// wrap join), and `walled(j)` whether segment `j` sweeps a wall.
-///
-/// A run joins collinear lines, and cocircular same-turn arcs where
-/// `arcs` says the verb builds a curved run whole (crate README, "Walls:
-/// one per run"); an arc it does not join keeps its own wall on the
-/// run's one surface key ([`shared_wall`]). A loop every join of which
-/// continues one carrier is a circle cut into arcs — collinear lines
-/// cannot close a simple loop — and it keeps its canonical cut (C12.5):
-/// each arc its own run, the walls sharing one surface key across the
-/// meridian struts between them.
-pub(crate) fn wall_runs<T: Real, S: SweptChord<T>>(
+/// How segment `j`'s wall meets segment `j − 1 mod n`'s, by swept
+/// position (`joins[0]` is the wrap join): which joins a run crosses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Join {
+    /// Two carriers, or a side that sweeps no wall: the joint is a
+    /// corner between walls on their own surfaces.
+    Corner,
+    /// One carrier, inside a run: one wall crosses the joint, and the
+    /// station has no strut.
+    Run,
+    /// One carrier, two walls: a strut between walls that share one
+    /// surface key — a circle's canonical cut (C12.5), or the arcs of a
+    /// verb that splits a curved run ([`CurvedRuns::Split`]).
+    Cut,
+}
+
+/// Whether a verb builds a run of cocircular arcs as one wall.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CurvedRuns {
+    /// A run of cocircular arcs is one wall.
+    Whole,
+    /// Each arc keeps its own wall, on the run's one surface key.
+    Split,
+}
+
+/// A loop's [`Join`]s, read off its cosurface verdicts `pair`
+/// ([`cosurface_pairs`], which is false across a side that sweeps no
+/// wall). A one-carrier join is a [`Join::Run`] for lines, and for arcs
+/// where `arcs` is [`CurvedRuns::Whole`]; otherwise a [`Join::Cut`]. A
+/// loop whose every join continues one carrier is a circle cut into
+/// arcs — collinear lines cannot close a simple loop — and it keeps its
+/// canonical cut (C12.5): every join a `Cut`.
+pub(crate) fn joins<T: Real, S: SweptChord<T>>(
     segs: &[S],
     pair: &[bool],
-    walled: impl Fn(usize) -> bool,
     arcs: CurvedRuns,
-) -> Vec<Run> {
-    let n = segs.len();
+) -> Vec<Join> {
     let is_line = |j: usize| matches!(segs[j].kind().get(), SegmentKind::Line);
-    let joined = |j: usize| {
-        let p = (j + n - 1) % n;
-        pair[j] && walled(p) && walled(j) && (arcs == CurvedRuns::Whole || is_line(j))
-    };
-    let starts: Vec<usize> = (0..n).filter(|&j| !joined(j)).collect();
-    if starts.is_empty() {
-        // Every join continues one carrier, and a cosurface pair never
-        // mixes kinds, so the loop is all lines or all arcs.
+    if pair.iter().all(|&p| p) {
+        // A cosurface pair never mixes kinds, so the loop is all lines
+        // or all arcs.
         if is_line(0) {
             unreachable!(
                 "a run of collinear lines closes the whole loop, which validation refuses"
             );
         }
-        return (0..n).map(|first| Run { first, len: 1 }).collect();
+        return vec![Join::Cut; pair.len()];
+    }
+    (0..pair.len())
+        .map(|j| match (pair[j], arcs) {
+            (false, _) => Join::Corner,
+            (true, CurvedRuns::Whole) => Join::Run,
+            (true, CurvedRuns::Split) if is_line(j) => Join::Run,
+            (true, CurvedRuns::Split) => Join::Cut,
+        })
+        .collect()
+}
+
+/// The wall runs of one swept loop, in ascending order of their first
+/// segment: a run starts at every join that is not a [`Join::Run`]
+/// (crate README, "Walls: one per run").
+///
+/// No run is the whole loop. That needs every join but one to continue
+/// one carrier while the last does not, and the carrier closes through
+/// it: a circle's arcs all lie on it, a line's collinear pieces cannot
+/// close. The verdicts at the joins only part from the geometry inside
+/// the cosurface band, and profile validation escalates a carrier pair
+/// that near-coincides before any sweep sees it, so such a loop is a
+/// kernel defect, refused here rather than built as one full-period
+/// wall with one strut.
+pub(crate) fn wall_runs(joins: &[Join]) -> Vec<Run> {
+    let n = joins.len();
+    let starts: Vec<usize> = (0..n).filter(|&j| joins[j] != Join::Run).collect();
+    if starts.len() == 1 {
+        unreachable!(
+            "joint {} is the loop's one corner and every other joint continues one carrier: \
+             profile validation escalates the carrier pair this needs",
+            starts[0]
+        );
     }
     starts
         .iter()
@@ -759,38 +808,25 @@ pub(crate) fn run_leads(runs: &[Run], n: usize) -> Vec<bool> {
     lead
 }
 
-/// Whether a verb's run joins cocircular arcs ([`wall_runs`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CurvedRuns {
-    /// A run of cocircular arcs is one wall.
-    Whole,
-    /// Each arc keeps its own wall, on the run's one surface key: the
-    /// partial revolve, whose sphere and torus walls would carry a
-    /// meridian in pieces mass properties do not fold
-    /// (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
-    Split,
-}
-
-/// The wall whose SURFACE KEY segment `j`'s wall shares, when `j`
-/// leads a run that continues an earlier wall's carrier — an arc
-/// [`wall_runs`] did not join, or a circle's canonical cut: `pair[j]`
-/// shares the previous wall's key, and a run reaching `origin` (the
-/// first run's lead) through the wrap shares the first wall's key. The
-/// first run (rank 0) shares nothing. `faces` holds the walls minted so
-/// far, by swept position.
+/// The wall whose SURFACE KEY the wall leading at `j` shares, across a
+/// [`Join::Cut`]: the previous wall's, and for a chain of cuts reaching
+/// `origin` (the first run's lead) through the wrap, the first wall's.
+/// The first run shares nothing. `faces` holds the walls minted so far,
+/// by swept position.
 pub(crate) fn shared_wall(
-    pair: &[bool],
+    joins: &[Join],
     faces: &[Option<FaceKey>],
     j: usize,
     origin: usize,
 ) -> Option<FaceKey> {
-    let n = pair.len();
+    let n = joins.len();
+    let cut = |k: usize| joins[k] == Join::Cut;
     let rank = |k: usize| (k + n - origin) % n;
     if rank(j) == 0 {
         None
-    } else if pair[j] {
+    } else if cut(j) {
         faces[(j + n - 1) % n]
-    } else if pair[origin] && ((rank(j) + 1)..n).all(|r| pair[(origin + r) % n]) {
+    } else if cut(origin) && ((rank(j) + 1)..n).all(|r| cut((origin + r) % n)) {
         faces[origin]
     } else {
         None
@@ -949,6 +985,34 @@ mod tests {
     use super::*;
     use geom_core::sym::{session_counts, with_session};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
+
+    /// A run starts at every join that is not [`Join::Run`]; a loop of
+    /// cuts is one run per segment.
+    #[test]
+    fn runs_start_at_every_join_a_run_does_not_cross() {
+        use Join::{Corner, Cut, Run as R};
+        let runs = |j: &[Join]| {
+            wall_runs(j)
+                .iter()
+                .map(|r| (r.first, r.len))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(runs(&[Corner, R, Corner, R]), vec![(0, 2), (2, 2)]);
+        assert_eq!(
+            runs(&[R, Corner, Cut, R]),
+            vec![(1, 1), (2, 3)],
+            "a run wraps the start"
+        );
+        assert_eq!(runs(&[Cut, Cut, Cut]), vec![(0, 1), (1, 1), (2, 1)]);
+    }
+
+    /// One corner and every other join a run would be one full-period
+    /// wall with one strut; it is a kernel defect and panics.
+    #[test]
+    #[should_panic(expected = "the loop's one corner")]
+    fn a_loop_with_one_corner_is_refused() {
+        wall_runs(&[Join::Run, Join::Corner, Join::Run]);
+    }
 
     /// **The cap apex stays at the chord's scale at `Interval`.** Over
     /// the shallow-arc grid (chord `L` ∈ {1e-3, 1, 50}, bulge down to

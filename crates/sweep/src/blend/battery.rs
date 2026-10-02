@@ -1647,8 +1647,9 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 /// their seams; one where a support is a whole face carrying both arcs —
 /// a full revolve's plane disc or annulus, which has no seam to cut it.
 /// The one-seam reading also needs `topo::query::rim_of` to list the
-/// rim through this vertex: an open run of cocircular arcs swept beside
-/// a whole face (one arc of a D's rim) has the same orbit at its
+/// rim through this vertex: an open run of cocircular arcs whose walls
+/// a sweep keeps apart, beside a whole face (a partial revolve's arc
+/// run, one meridian piece on its wedge cap), has the same orbit at its
 /// station, and there the recourse's "request the rim whole, `rim_of`
 /// lists it" would be false — so the reading asks that door itself:
 /// `rim_lists(seed, arcs)` is the caller's `rim_of` read, true iff the
@@ -1724,7 +1725,8 @@ fn is_seam_vertex<T: Decide>(
         2 => true,
         // One seam: a whole face carries the rim on one side, so
         // nothing about this vertex alone says the rim is CLOSED — one
-        // arc of an open cocircular run (a D's quarter arcs, swept) has
+        // arc of an open cocircular run (a partially revolved D's
+        // meridian pieces) has
         // the same orbit, and so do arcs that close on shared vertices
         // but sit on circles `rim_of` does not read as one (the same
         // point set stored on bits of its own per arc). The recourse

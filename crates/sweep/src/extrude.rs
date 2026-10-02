@@ -971,7 +971,8 @@ fn sweep_loop<T: Decide>(
             source,
         },
     )?;
-    let runs = swept::wall_runs(segs, &pair, |_| true, swept::CurvedRuns::Whole);
+    let joins = swept::joins(segs, &pair, swept::CurvedRuns::Whole);
+    let runs = swept::wall_runs(&joins);
 
     // Struts: one swept vertex per run's leading vertex. A station
     // inside a run has none — its top vertex is minted by the run's
@@ -1012,7 +1013,7 @@ fn sweep_loop<T: Decide>(
         },
         |body, run, faces| {
             let surface = side_surface(
-                body, loop_index, segs, &pair, faces, run, origin, qs, place, normal, w, band, tol,
+                body, loop_index, segs, &joins, faces, run, origin, qs, place, normal, w, band, tol,
             )?;
             let last = (run.first + run.len - 1) % n;
             let end = run.end(n);
@@ -1258,16 +1259,16 @@ struct LoopSwept {
     top_rims: Vec<EdgeKey>,
 }
 
-/// The surface spec of the wall over `run`, from the precomputed
-/// cosurface verdicts `pair` (see [`sweep_loop`]) and the walls minted
+/// The surface spec of the wall over `run`, from the loop's precomputed
+/// [`swept::Join`]s (see [`sweep_loop`]) and the walls minted
 /// so far (`faces`, per segment; walls are minted in run order from the
 /// run that leads at `origin`). A line run is one wall on a freshly
 /// built plane (Newell over the run's quad corners in loop order —
 /// outward by the orientation contract). An arc run is one wall on a
 /// fresh cylinder (turn-signed axis, crate docs) whose `u_ref` aims at
-/// the run's leading vertex — except inside a circle cut into arcs
-/// ([`swept::wall_runs`]), whose walls after the first share its key
-/// ([`swept::shared_wall`]). Every arm
+/// the run's leading vertex — except across a circle's canonical cut
+/// ([`swept::Join::Cut`]), where each wall after the first shares its
+/// key ([`swept::shared_wall`]). Every arm
 /// states the run's [`WallSeg::wall_sense`]: a concave arc's wall has
 /// its material outside the carrier cylinder, against the
 /// outward-radial chart normal.
@@ -1276,7 +1277,7 @@ fn side_surface<T: Decide>(
     body: &Body<T>,
     loop_index: usize,
     segs: &[WallSeg<T>],
-    pair: &[bool],
+    joins: &[swept::Join],
     faces: &[Option<FaceKey>],
     run: swept::Run,
     origin: usize,
@@ -1290,7 +1291,7 @@ fn side_surface<T: Decide>(
     let n = segs.len();
     let j = run.first;
     let sense = segs[j].wall_sense;
-    if let Some(f) = swept::shared_wall(pair, faces, j, origin) {
+    if let Some(f) = swept::shared_wall(joins, faces, j, origin) {
         let key = face_surface_key(body, f)?;
         return Ok(FaceSurface::Shared { key, sense });
     }

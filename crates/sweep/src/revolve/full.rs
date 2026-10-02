@@ -834,9 +834,9 @@ pub(super) fn collapse_runs<T: Decide>(
     band: Band,
 ) -> Result<Collapsed<T>, RevolveError> {
     let n = segs.len();
-    let walled = |j: usize| cls.walls[j].kind().is_some();
     let pair = super::partial::loop_pairs(segs, cls, loop_index, band)?;
-    let runs = crate::swept::wall_runs(segs, &pair, walled, crate::swept::CurvedRuns::Whole);
+    let joins = crate::swept::joins(segs, &pair, crate::swept::CurvedRuns::Whole);
+    let runs = crate::swept::wall_runs(&joins);
     let mut out = Collapsed {
         segs: Vec::with_capacity(runs.len()),
         cls: LoopClasses {
