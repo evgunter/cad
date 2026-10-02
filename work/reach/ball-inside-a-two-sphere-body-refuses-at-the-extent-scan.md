@@ -6,6 +6,7 @@ status: review
 opened: 2026-10-01
 refs: [sphere-union-sphere-refuses-though-the-section-is-closed-form]
 branch: reach/extent-scan-faces
+pr: 3801
 ---
 
 Found by the delta review of PR 3659 (probe `zz_rv3659b.rs`, `reach-review3659b`).
