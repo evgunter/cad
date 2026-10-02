@@ -331,3 +331,20 @@ two fix passes, delta review. Merged with two red rows that are main's own
 (as #3701). Filed: `face-clearance-screen-skips-boundary-edges-it-cannot-read`,
 `support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place`,
 `support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`.
+
+## 2026-10-01 — S90 ruled: the blend stays differentiable (PR 3724)
+
+Ev approved the designers' converged answer: the blend doors stay generic
+under DL5; H-R3's fillet third is retired. `S90-impl` becomes the pin
+(dual tangent rows), P1/M. Fork-log row 40 (A = Opus, B = Fable).
+
+## 2026-10-02 — `S90-impl` closed (PR #3764)
+
+The blend's dual tangents are pinned: a sweep row checks a filleted and a
+chamfered cube's `Dual64` volume tangent against central differences
+(blend size and an upstream cube size seeded) and the fillet against two
+closed forms; an editor-core row differentiates a stack-up measure
+through a 3D fillet. Each row reds under a tangent-freezing mutant
+(radius read through `.lo()`; chamfer distance; edge point). Reviewed by
+the orchestrator's read (tests only, mutants demonstrated). Filed TINT's
+`dual-tangent-is-unpinned-for-seven-recipe-verbs`.
