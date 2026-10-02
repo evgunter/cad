@@ -332,8 +332,8 @@ pub use editor_core::ContentBits;
 // group's own space, which a `Product` carries beside the world for
 // the at-rest gate to check, and `own_spaces` gathers every one.
 pub use editor_core::{
-    OwnSpace, Product, ProductError, ProductErrorKind, RootFault, SourceFinding, own_spaces,
-    product, product_recorded,
+    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, RootFault, SourceFinding,
+    own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:

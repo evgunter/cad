@@ -109,6 +109,7 @@ use crate::eval::{BooleanValue, Evaluation, NodeStanding, NodeValue, SplitSide, 
 use crate::names::{CarriedRows, EntityKey, NameTable, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 use crate::sentence::{Labelled, Labels, Staged};
+use crate::spoken::{Said, Say, Speaker};
 use geom_core::Tol;
 
 /// Why [`product`] refused. Fail-loud and typed: a product is all of
@@ -286,11 +287,17 @@ pub struct SourceFinding {
 struct SourceLine<'a> {
     source: &'a SourceFinding,
     error: &'a ValidationError,
+    by: Speaker<'a>,
 }
 
 impl crate::finding::Finding for SourceLine<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "root {} output {}", self.source.node, self.source.output)
+        write!(
+            f,
+            "{} output {}",
+            self.by.node_as(self.source.node, "root"),
+            self.source.output
+        )
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -302,6 +309,26 @@ impl crate::finding::Finding for SourceLine<'_> {
     }
 }
 
+/// The source's findings, one line each under its root and output.
+impl Say for SourceFinding {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} output {} is not valid at rest:",
+            by.node_as(self.node, "root"),
+            self.output
+        )?;
+        crate::finding::render_lines(f, &self.errors)
+    }
+}
+
+/// The source's sentence where no document is at hand: its root by tag.
+impl core::fmt::Display for SourceFinding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Say::say(self, f, Speaker::TAG)
+    }
+}
+
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM and FORWARDS its payload's own `Display` — the kernel's
 // refusals and validity findings both carry one, so no arm re-states
@@ -309,47 +336,93 @@ impl crate::finding::Finding for SourceLine<'_> {
 // one kernel finding per indented line through the finding sink
 // ([`crate::finding`]): the aggregate's bare findings through
 // `render_lines`, a per-root list through `render_list`, each line
-// composed with its root and output as the subject. Node ids render
-// plain, names as kind + minting node.
+// composed with its root and output as the subject. Every node the
+// sentence names is in the gathered document's ids, said by the
+// speaker; a name is said as its kind and minting node.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", Labelled(self, Labels::Kept))
     }
 }
 
+/// The refusal under its stage word, each node said by `by`.
+impl Say for ProductError {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        write!(f, "{}: ", <Self as Staged>::STAGE)?;
+        self.fmt_said(f, Labels::Kept, by)
+    }
+}
+
 // The gather's labels are its stage word and the `root N output M`
 // subject each listed finding opens with, legitimate where the gather's
 // refusal is drawn under its own name. The sentence a carrier that
-// names the stage renders ([`crate::PartFault::PartProduct`]'s
-// `message`) carries neither, and names the roots in its header.
+// names the stage renders ([`crate::PartFault::PartProduct`]'s) carries
+// neither, and names the roots in its header.
 impl Staged for ProductError {
     const STAGE: &'static str = "product";
 
     fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+        self.fmt_said(f, labels, Speaker::TAG)
+    }
+}
+
+/// [`ProductError`]'s sentence without its labels, each node said by a
+/// speaker: what a carrier that names the stage draws.
+pub(crate) struct BareSentence<'a>(&'a ProductError, Speaker<'a>);
+
+impl core::fmt::Display for BareSentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt_said(f, Labels::Stripped, self.1)
+    }
+}
+
+impl ProductError {
+    /// The sentence without its labels, each node said by `by`.
+    pub(crate) fn bare_said<'a>(&'a self, by: Speaker<'a>) -> BareSentence<'a> {
+        BareSentence(self, by)
+    }
+
+    /// **The refusal as the frame holding the gathered document says
+    /// it**: each node as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
+    }
+
+    /// The sentence at `labels`, after the stage word when they are
+    /// kept, each node said by `by`.
+    fn fmt_said(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        labels: Labels,
+        by: Speaker<'_>,
+    ) -> core::fmt::Result {
         let list = crate::finding::render_lines::<&ValidationError, _>;
+        let root = |id: RecipeNodeId| by.node_as(id, "root");
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
                 "the evaluation is of document {found}, not of \
                  document {expected}",
             ),
-            Self::Root(standing) => write!(f, "{}", standing.of_root()),
+            Self::Root(standing) => write!(f, "{}", Said(&standing.of_root(), by)),
             Self::PlacedUnderTwoRoots {
                 placed,
                 select,
                 first,
                 second,
             } => {
+                let placed = by.node(*placed);
                 let what = match select {
-                    None => format!("node {}'s body", placed),
+                    None => format!("{placed}'s body"),
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Above)) => {
-                        format!("the above half of node {}", placed)
+                        format!("the above half of {placed}")
                     }
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
-                        format!("the below half of node {}", placed)
+                        format!("the below half of {placed}")
                     }
                     Some(crate::node::PartSelect::Instance(i)) => {
-                        format!("instance `{}` of node {}", crate::expr::unparse(i), placed)
+                        format!("instance `{}` of {placed}", crate::expr::unparse(i))
                     }
                 };
                 write!(
@@ -358,7 +431,8 @@ impl Staged for ProductError {
                      a transform or part selection mints no name, so both \
                      would carry its names. Recourse: place it under one \
                      root, or union the two",
-                    first, second
+                    by.node(*first),
+                    by.node(*second)
                 )
             }
             Self::NoBodyRoots => f.write_str(
@@ -374,8 +448,8 @@ impl Staged for ProductError {
                     let sep = if i == 0 { "" } else { ";" };
                     write!(
                         f,
-                        "{sep} the group rooted at node {}, because {cause}",
-                        group
+                        "{sep} the group rooted at {}, because {cause}",
+                        by.node(*group)
                     )?;
                 }
                 write!(
@@ -395,23 +469,23 @@ impl Staged for ProductError {
             // its own root's mint, and would be described correctly.
             Self::Naming { node, name } if *node != name.node => write!(
                 f,
-                "root {}'s {} name (minted by node {}) collides in the \
+                "{}'s {} name (minted by {}) collides in the \
                  product's name table",
-                node,
+                root(*node),
                 name.kind.noun(),
-                name.node
+                by.node(name.node)
             ),
             Self::Naming { name, .. } => write!(
                 f,
-                "the {} name minted by node {} collides in the \
+                "the {} name minted by {} collides in the \
                  product's name table",
                 name.kind.noun(),
-                name.node
+                by.node(name.node)
             ),
             Self::Graft { node, source } => write!(
                 f,
-                "the kernel could not graft root {}'s body: {source}",
-                node
+                "the kernel could not graft {}'s body: {source}",
+                root(*node)
             ),
             Self::RootInvalid { findings } => {
                 // Findings arrive in gather order, so one root's outputs
@@ -425,21 +499,22 @@ impl Staged for ProductError {
                         let lines: Vec<SourceLine<'_>> = findings
                             .iter()
                             .flat_map(|source| {
-                                source
-                                    .errors
-                                    .iter()
-                                    .map(move |error| SourceLine { source, error })
+                                source.errors.iter().map(move |error| SourceLine {
+                                    source,
+                                    error,
+                                    by,
+                                })
                             })
                             .collect();
                         crate::finding::render_list(f, &lines)
                     }
                     Labels::Stripped => {
-                        if let [root] = roots.as_slice() {
-                            write!(f, "root {} is not valid at rest:", root)?;
+                        if let [one] = roots.as_slice() {
+                            write!(f, "{} is not valid at rest:", root(*one))?;
                         } else {
                             let named: Vec<String> =
-                                roots.iter().map(ToString::to_string).collect();
-                            write!(f, "roots {} are not valid at rest:", named.join(", "))?;
+                                roots.iter().map(|id| root(*id).to_string()).collect();
+                            write!(f, "{} are not valid at rest:", named.join(", "))?;
                         }
                         crate::finding::render_lines(
                             f,
@@ -459,11 +534,11 @@ impl Staged for ProductError {
             }
             Self::ContactLineage { node, what } => write!(
                 f,
-                "root {}'s declared contact names {} {what} the \
+                "{}'s declared contact names {} {what} the \
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
-                node,
+                root(*node),
                 crate::sentence::article(what)
             ),
         }
@@ -471,6 +546,58 @@ impl Staged for ProductError {
 }
 
 impl core::error::Error for ProductError {}
+
+/// **A gather refusal, shared**: what a value that is `Clone` and
+/// compared holds in place of a [`ProductError`], which is neither
+/// ([`crate::PartFault::PartProduct`], [`crate::ChecksError::Product`]).
+///
+/// It keeps the error whole, its ids bare, so the frame that hands it
+/// out says its nodes ([`Say`]), and a clone is a pointer copy. Equality
+/// is [`crate::NodeRefusal`]'s, for its reason: over the `Debug`
+/// structure, since the kernel refusals the error carries have none of
+/// their own.
+#[derive(Debug, Clone)]
+pub struct ProductRefusal(Arc<ProductError>);
+
+impl ProductRefusal {
+    /// The refusal, as the gather typed it.
+    #[must_use]
+    pub fn error(&self) -> &ProductError {
+        &self.0
+    }
+
+    /// Which arm refused ([`ProductError::kind`]).
+    #[must_use]
+    pub fn kind(&self) -> ProductErrorKind {
+        self.0.kind()
+    }
+}
+
+impl From<ProductError> for ProductRefusal {
+    fn from(error: ProductError) -> Self {
+        Self(Arc::new(error))
+    }
+}
+
+impl PartialEq for ProductRefusal {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || format!("{:?}", self.0) == format!("{:?}", other.0)
+    }
+}
+
+impl Eq for ProductRefusal {}
+
+impl Say for ProductRefusal {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        self.0.say(f, by)
+    }
+}
+
+impl core::fmt::Display for ProductRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 /// Which arm of [`ProductError`] refused, without the payload.
 ///

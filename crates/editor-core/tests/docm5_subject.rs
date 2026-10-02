@@ -108,30 +108,40 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     let tol = Tol::witness();
     let doc = one_body_under_two_roots("docm5-collide");
     let ev: Evaluation<f64> = corpus::eval(&doc);
-    let refusal = product_recorded(&doc, &ev, tol).expect_err("one body under two roots");
+    let gathered = || product_recorded(&doc, &ev, tol).expect_err("one body under two roots");
+    let refusal = gathered();
     assert!(
         matches!(refusal, ProductError::PlacedUnderTwoRoots { .. }),
         "the premise: {refusal:?}"
     );
-
-    // Through the wrapper, which gathers.
-    match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses") {
-        ChecksError::Product { kind, reason } => {
-            assert_eq!(reason, refusal.to_string(), "the gather's own sentence");
+    let carries_the_gathers_refusal = |err: ChecksError| match &err {
+        ChecksError::Product {
+            refusal: Some(carried),
+        } => {
             assert_eq!(
-                kind,
-                Some(refusal.kind()),
-                "and the class of that same refusal"
+                format!("{:?}", carried.error()),
+                format!("{refusal:?}"),
+                "the gather's own refusal, whole"
+            );
+            assert_eq!(err.to_string(), format!("checks: {refusal}"));
+            assert_eq!(
+                err.spoken(&doc),
+                format!("checks: {}", refusal.spoken(&doc)),
+                "said by the frame holding the checked document"
             );
         }
         other => panic!("expected the subject refusal, got {other}"),
-    }
+    };
+
+    // Through the wrapper, which gathers.
+    carries_the_gathers_refusal(
+        run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
+    );
 
     // And through the door, handed the same fact directly. The arm is
     // the same, and it is raised whether or not the connectedness
     // resident ran: what it is NOT raised by is a resident that reads
     // no subject.
-    let unavailable = || Subject::refused(&refusal);
     for cfg in [
         ChecksConfig::default(),
         ChecksConfig {
@@ -139,13 +149,10 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
             ..ChecksConfig::default()
         },
     ] {
-        match run_checks_on(&doc, &ev, unavailable(), &cfg, tol).expect_err("the door refuses") {
-            ChecksError::Product { kind, reason } => {
-                assert_eq!(reason, refusal.to_string());
-                assert_eq!(kind, Some(refusal.kind()));
-            }
-            other => panic!("expected the subject refusal, got {other}"),
-        }
+        carries_the_gathers_refusal(
+            run_checks_on(&doc, &ev, Subject::refused(gathered()), &cfg, tol)
+                .expect_err("the door refuses"),
+        );
     }
 }
 
