@@ -315,7 +315,7 @@ impl Settling {
     }
 }
 
-impl super::DeclaredPairs {
+impl<T: geom_core::Real> super::DeclaredPairs<T> {
     /// **What a door read of the declaration ahead of `question`**,
     /// looked up for the face pairs it asks about, in order: the first
     /// declared pair's class is [`DeclarationRead::Spent`] (the question
@@ -478,6 +478,15 @@ pub enum Coincide {
     /// Whether a declared contact holds along its witness: the contact
     /// table's rows pass on different sets.
     Contact,
+    /// Whether two faces declared on one carrier (`Rest` or a
+    /// continuation) lie within the band of one another at every point
+    /// of both: the pair's displacement, bounded above over a ball
+    /// enclosing the faces, stands past the band, and no point known to
+    /// lie on them stands definitely off (`carrier_eq`'s
+    /// `CarrierEqError::Unsettled`). Only an in-band bound passes, and
+    /// the bound is what stands past it, so no sign of the margin
+    /// passes.
+    DeclaredReach,
     /// Where the surfaces of a face of each solid meet (a section's
     /// pose): the pose rows pass on different sets.
     Section,
@@ -519,6 +528,11 @@ impl Coincide {
             Self::TangentLocus => "where two faces of the two solids touch tangentially",
             Self::Rim => "whether a face of each solid ends on one circle",
             Self::Contact => "whether a declared contact holds along its witness",
+            Self::DeclaredReach => {
+                "whether two faces declared on one surface stay within the tolerance of one another at \
+                 every point of both, which neither a bound over the faces nor a point on them \
+                 settles"
+            }
             Self::Section => "where the surfaces of a face of each solid meet",
             Self::Join => "how the sections' ends pair up where the two solids meet",
         }
@@ -563,6 +577,7 @@ impl Coincide {
                 | Self::TangentLocus
                 | Self::Rim
                 | Self::Contact
+                | Self::DeclaredReach
                 | Self::Section
                 | Self::Join,
                 Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation,
@@ -598,6 +613,7 @@ impl Coincide {
                 LeverPass::ByRung,
             ),
             Self::Contact | Self::Section => Ending::Lever(proximity_lever!(), LeverPass::ByRung),
+            Self::DeclaredReach => Ending::Lever(DECLARED_REACH_LEVER, LeverPass::Never),
         }
     }
 
@@ -634,11 +650,17 @@ impl Coincide {
             | Self::TangentLocus
             | Self::Rim
             | Self::Contact
+            | Self::DeclaredReach
             | Self::Section
             | Self::Join => self.ending(),
         }
     }
 }
+
+/// [`Coincide::DeclaredReach`]'s lever: a declared pair is settled by
+/// geometry that reads one way or the other over both faces.
+const DECLARED_REACH_LEVER: &str =
+    "move the parts so the declared faces clearly coincide, or clearly do not";
 
 /// A coincidence whose geometry lever is to make the parts clearly meet
 /// or clearly stand apart, passing on `passes`: an in-band gap on a side
@@ -1829,7 +1851,7 @@ mod tests {
                     .unwrap_or_default(),
                 ..BooleanDeclarations::none()
             };
-            DeclaredPairs::without_struts(&decls, Default::default())
+            DeclaredPairs::<f64>::without_struts(&decls, Default::default())
         };
         let mut reads = vec![declared(None).read(&pair, which, &[])];
         for &class in BooleanCoincidence::ALL {
@@ -1891,6 +1913,11 @@ mod tests {
             Coincide::TangentLocus => "where two faces of the two solids touch tangentially",
             Coincide::Rim => "whether a face of each solid ends on one circle",
             Coincide::Contact => "whether a declared contact holds along its witness",
+            Coincide::DeclaredReach => {
+                "whether two faces declared on one surface stay within the tolerance of one another at \
+                 every point of both, which neither a bound over the faces nor a point on them \
+                 settles"
+            }
             Coincide::Section => "where the surfaces of a face of each solid meet",
             Coincide::Join => "how the sections' ends pair up where the two solids meet",
         }
@@ -1959,6 +1986,10 @@ mod tests {
                  declared between faces that end on one circle. There is no way through yet",
             ),
             Coincide::Contact => Ending::Lever(MEET, LeverPass::ByRung),
+            Coincide::DeclaredReach => Ending::Lever(
+                "Recourse: move the parts so the declared faces clearly coincide, or clearly do not",
+                LeverPass::Never,
+            ),
             Coincide::Section => Ending::Lever(MEET, LeverPass::ByRung),
             Coincide::Join => Ending::Sized(MEET, SizedPass::AnySign),
         }
@@ -1994,6 +2025,7 @@ mod tests {
             | Coincide::TangentLocus
             | Coincide::Rim
             | Coincide::Contact
+            | Coincide::DeclaredReach
             | Coincide::Section
             | Coincide::Join => None,
         }
@@ -2458,7 +2490,8 @@ mod tests {
         use crate::boolean::{BooleanDeclarations, DeclaredPairs, FacePairDeclaration};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let none = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+        let none =
+            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
         let settled = |which: Coincide| -> &'static [BooleanCoincidence] {
             match which {
                 Coincide::OnPlanes => &[BooleanCoincidence::REST, BooleanCoincidence::Continuation],
@@ -2482,6 +2515,7 @@ mod tests {
                 | Coincide::TangentLocus
                 | Coincide::Rim
                 | Coincide::Contact
+                | Coincide::DeclaredReach
                 | Coincide::Section
                 | Coincide::Join => &[],
             }
@@ -2507,7 +2541,7 @@ mod tests {
                     coincident_faces: vec![FacePairDeclaration::new(face, face, class)],
                     ..BooleanDeclarations::none()
                 };
-                let declared = DeclaredPairs::without_struts(&decls, Default::default());
+                let declared = DeclaredPairs::<f64>::without_struts(&decls, Default::default());
                 assert_eq!(
                     declared.read(&pair, which, BooleanCoincidence::ALL),
                     DeclarationRead::Spent(class),
@@ -2555,7 +2589,8 @@ mod tests {
         use crate::boolean::{BooleanDeclarations, DeclaredPairs};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let none = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+        let none =
+            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
         let diag = diag_of(MarginDiag::value((band().zero() + band().escalate()) / 2.0));
         let mut carried_any = 0;
         for minted in Coincide::iter() {
@@ -2817,14 +2852,20 @@ mod tests {
 
     /// A declared pair of `c1` and `c2`, verified by the real rung
     /// (`carrier_eq`, which `recl` and `vtxfac` call and `plane_eq`
-    /// serves for planes): the contradiction it raises.
+    /// serves for planes) over a metre about the origin, with points on
+    /// `c1` known: the contradiction it raises.
     fn contradicted(c1: CarrierDesc<f64>, c2: CarrierDesc<f64>) -> (Contradiction, Indeterminate) {
         let id = PlaneIdentity {
             s1: None,
             s2: None,
             declared: true,
         };
-        match crate::boolean::carrier_eq(&c1, &c2, id, 1.0, band()) {
+        let on = crate::boolean::carrier_eq::points_on(&c1);
+        let extent = crate::boolean::ConsumedExtent {
+            on: [&on, &[]],
+            ..crate::boolean::ConsumedExtent::arm(1.0)
+        };
+        match crate::boolean::carrier_eq(&c1, &c2, id, &extent, band()) {
             Err(CarrierEqError::Contradicted { fact, diag }) => (fact, diag),
             other => panic!("a declared pair this far apart contradicts: {other:?}"),
         }
@@ -3091,8 +3132,14 @@ mod tests {
                 let (p1, p2) = planes(sign);
                 for id in [DECLARED, PlaneIdentity::NONE] {
                     let label = format!("arm {arm:e}, facing {sign}, declared {}", id.declared);
-                    let err = oriented_plane_eq(&p1, &p2, id, arm, b)
-                        .expect_err("an orientation margin this small refuses");
+                    let err = oriented_plane_eq(
+                        &p1,
+                        &p2,
+                        id,
+                        &crate::boolean::ConsumedExtent::arm(arm),
+                        b,
+                    )
+                    .expect_err("an orientation margin this small refuses");
                     let PlaneEqError::Escalated {
                         rung: PlaneRung::Orientation,
                         diag,
@@ -3143,8 +3190,8 @@ mod tests {
     /// positive margin alone, where the Boolean's passes on either sign.
     /// Real raises of the declared rung, routed as the merge routes them
     /// (`declared_pair_verdict`): coincident planes facing the same way
-    /// (positive margins) and opposite ways (negative), at a shared-edge
-    /// chord in the zero band, in the ambiguity band, and definite. The
+    /// (positive margins) and opposite ways (negative), over a reach in
+    /// the zero band, in the ambiguity band, and definite. The
     /// same-facing definite pair glues; every other arm names the one
     /// lever toward that pass, no declaration, no stage label and no
     /// face key; a positive margin offers the tolerance it gives, and a
@@ -3160,7 +3207,7 @@ mod tests {
         use crate::entity::FaceKey;
         use crate::merge_faces::declared_pair_verdict;
         const LEVER: &str = "Recourse: turn one of the two faces so both clearly face the same \
-                             way, across a shared edge whose ends lie clearly apart";
+                             way, on faces that clearly span a length";
         let b = band();
         let (z, e) = (b.zero(), b.escalate());
         let (f1, f2) = (FaceKey::default(), FaceKey::default());
@@ -3168,8 +3215,17 @@ mod tests {
             for sign in [1.0, -1.0] {
                 let label = format!("chord {chord:e}, facing {sign}");
                 let (p1, p2) = planes(sign);
-                let verdict =
-                    declared_pair_verdict(oriented_plane_eq(&p1, &p2, DECLARED, chord, b), f1, f2);
+                let verdict = declared_pair_verdict(
+                    oriented_plane_eq(
+                        &p1,
+                        &p2,
+                        DECLARED,
+                        &crate::boolean::ConsumedExtent::arm(chord),
+                        b,
+                    ),
+                    f1,
+                    f2,
+                );
                 let err = match verdict {
                     Ok(glued) => {
                         assert!(
@@ -3519,7 +3575,7 @@ mod tests {
         // Every door a plane rung reaches, the undeclared ones included:
         // no declaration reads poison, so none is offered, and the
         // refusal is the kernel's.
-        let undeclared = crate::boolean::DeclaredPairs::without_struts(
+        let undeclared = crate::boolean::DeclaredPairs::<f64>::without_struts(
             &crate::boolean::BooleanDeclarations::none(),
             Default::default(),
         );
@@ -3560,8 +3616,14 @@ mod tests {
             (bent, 1.0, PlaneRung::Parallel),
             (flat, (z + e) / 2.0, PlaneRung::Orientation),
         ] {
-            let err = oriented_plane_eq(&flat, &p2, PlaneIdentity::NONE, chord, b)
-                .expect_err("the gate's rung refuses");
+            let err = oriented_plane_eq(
+                &flat,
+                &p2,
+                PlaneIdentity::NONE,
+                &crate::boolean::ConsumedExtent::arm(chord),
+                b,
+            )
+            .expect_err("the gate's rung refuses");
             let PlaneEqError::Escalated { rung: got, diag } = err else {
                 panic!("{rung:?}: an escalation: {err:?}");
             };

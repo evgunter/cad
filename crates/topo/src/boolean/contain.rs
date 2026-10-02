@@ -928,13 +928,13 @@ pub(super) fn point_on_circle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
-    let w = q - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let r_norm = radial.norm();
-    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
+    let d = crate::splitting::containment::circle_miss(q, center, axis, radius);
     match decide("bool_contact_arc", Margin::of(d), band) {
-        Ok(Sign::Zero) => Ok(Some((radial, r_norm))),
+        Ok(Sign::Zero) => {
+            let w = q - center;
+            let radial = w - axis * w.dot(axis);
+            Ok(Some((radial, radial.norm())))
+        }
         Ok(Sign::Positive) => Ok(None),
         Ok(Sign::Negative) => Err(crate::invalid_margin::invalid(band, "bool_contact_arc")),
         Err(diag) => Err(diag),
