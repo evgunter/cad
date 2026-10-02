@@ -961,7 +961,8 @@ Flagged, NOT fixed here (dispositions):
   `Margin::of` door fits it dimensionally; what keeps it off the logged
   doors is WHERE it runs. Since C4 (Ev, PR 3781) the envelope is the
   whole certified statement on a harmonic row, and the schedule is its
-  cross-check, run where the scalar is a point and not over a box. The
+  cross-check, run on the witness lane (`f64`, `Sym<f64>`) and not at an
+  exact-witness scalar, whether a point or a box. The
   driver replays a leaf at the point witness and at the box scalar and
   compares the two verdict vectors row for row, so a logged
   cross-check would put rows in the witness's vector that the leaf's
