@@ -69,7 +69,7 @@ fn overlapping_balls_stop_at_the_polar_gate() {
     assert!(
         matches!(
             &err,
-            BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
+            BooleanError::Join(topo::SplitJoinError::SectionArcSide { .. })
         ),
         "expected the polar gate, got {err:?}"
     );
@@ -100,3 +100,4 @@ fn in_band_clearance_escalates_through_the_funnel() {
         other => panic!("expected an escalation, got {other:?}"),
     }
 }
+

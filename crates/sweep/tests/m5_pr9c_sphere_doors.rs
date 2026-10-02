@@ -275,7 +275,7 @@ fn the_die_pips_shape_stops_typed_at_its_tilted_section() {
         .body;
     let b = ball();
     let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
-    let topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. }) = &err else {
+    let topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide { .. }) = &err else {
         panic!("expected the join's tilted-section frontier, got {err:?}");
     };
     // The retired claims must be GONE from the surfaced text: revert is

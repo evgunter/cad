@@ -1976,6 +1976,9 @@ fn sphere<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    if sphere_loop_has_tilted_circle(center, radius, axis, edges, band)? {
+        return sphere_circle_loop(center, radius, edges, sense, band);
+    }
     let (mut b, meridian_axes) = sphere_boundary(center, radius, axis, edges, band)?;
     // A boundary of rims alone can carry no extent of its own: every
     // level it touches is a rim latitude, and where those coincide the
@@ -2042,6 +2045,192 @@ fn sphere<T: Decide>(
     let va = loop_vector_area(edges, center)?;
     let flux = side.signed(radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
+}
+
+/// Whether some boundary circle of a sphere face is neither a rim
+/// (carrier axis parallel to the sphere axis) nor a meridian great
+/// circle (axis perpendicular, centred on the sphere): a circle tilted
+/// against the chart, which no iso-parameter rectangle has on its
+/// boundary and [`sphere_circle_loop`] measures instead. Decided per
+/// circle under `props_sphere_circle_tilt` (the axis tilt metered at
+/// the circle radius) and, for an axis perpendicular to the sphere
+/// axis, `props_sphere_circle_great` (the centre offset). Non-circle
+/// edges are left to [`sphere_boundary`]'s refusal.
+fn sphere_loop_has_tilted_circle<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<bool, PropsError> {
+    for e in edges {
+        let Curve3::Circle {
+            center: c_c,
+            axis: n_c,
+            radius: r_c,
+            ..
+        } = e.carrier
+        else {
+            continue;
+        };
+        if classify(
+            "props_sphere_circle_tilt",
+            Margin::levered(n_c.cross(axis).norm(), r_c),
+            band,
+        )? == Sign::Zero
+        {
+            continue;
+        }
+        if classify(
+            "props_circle_axis_class",
+            Margin::levered(n_c.dot(axis), r_c),
+            band,
+        )? == Sign::Zero
+            && classify(
+                "props_sphere_circle_great",
+                Margin::of((c_c - center).norm().max((r_c - radius).abs())),
+                band,
+            )? == Sign::Zero
+        {
+            continue;
+        }
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+/// **A sphere face bounded by circle arcs of any tilt** — closed form,
+/// no chart. The radial flux term needs the face's area, and on a
+/// sphere of radius `R` Gauss–Bonnet gives it from the boundary alone:
+///
+/// ```text
+/// Area / R²  =  2π  −  Σ_arcs ∫κ_g ds  −  Σ_vertices ε
+/// ```
+///
+/// for a face whose one loop bounds a disc (the curved faces this
+/// lane reads carry no rings), with `κ_g` the geodesic curvature
+/// against the face's OUTWARD normal `N = σ·(p − c)/R` (`σ` the sense
+/// bit) and `ε` the signed turning angle at each vertex. A circle arc
+/// on the sphere has constant geodesic curvature: with carrier centre
+/// `C`, unit axis `â`, radius `ρ` and a traversal of `Δt` in the
+/// direction `s = ±1` (the `forward` bit),
+///
+/// ```text
+/// ∫κ_g ds  =  s·σ·((C − c)·â / R)·Δt
+/// ```
+///
+/// (the curvature vector of the circle is `−(p − C)/ρ²` and its
+/// component along `N × T` is `s·σ·((C − c)·â)/(ρR)`, since `p − C ⊥ â`).
+/// The turning angle at a vertex is the angle from the arriving
+/// traversal tangent to the departing one about `N` there, in
+/// `(−π, π)`; a cusp (the two antiparallel) has no turning angle and is
+/// refused, `props_sphere_loop_cusp`. Every quantity is stored data:
+/// the arcs' certified spans and carriers, nothing inverted through a
+/// chart. The flux is then `σ·R·Area + c·A⃗` as on every sphere face.
+///
+/// Verified before integrating: each edge is a circle ON the sphere —
+/// its centre offset parallel to its axis (`props_sphere_circle_on`)
+/// and its radius fitting (`props_rim_fit`) — and the area lies
+/// strictly between 0 and the whole sphere (`props_sphere_loop_area`),
+/// which a loop whose traversal disagrees with the sense bit fails.
+///
+/// # Errors
+///
+/// [`PropsError::NotIsoRectangle`] naming the failed premise,
+/// [`PropsError::Unimplemented`] for a spline or spiric edge,
+/// [`PropsError::Escalated`] in the band.
+fn sphere_circle_loop<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    edges: &[LoopEdge<T>],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
+    let sigma = if sense { T::one() } else { -T::one() };
+    let tau = T::pi() + T::pi();
+    let mut turning = T::zero();
+    // Each arc's traversal tangents at its two ends, for the vertex
+    // turning angles.
+    let mut ends: Vec<(Vec3<T>, Vec3<T>, Point3<T>)> = Vec::with_capacity(edges.len());
+    for e in edges {
+        let Curve3::Circle {
+            center: c_c,
+            axis: n_c,
+            radius: r_c,
+            ..
+        } = e.carrier
+        else {
+            return Err(match e.carrier {
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
+                _ => PropsError::NotIsoRectangle {
+                    what: "sphere boundary edge is not a circle",
+                },
+            });
+        };
+        let w = c_c - center;
+        require_zero(
+            "props_sphere_circle_on",
+            Margin::of(w.cross(n_c).norm()),
+            band,
+        )?;
+        require_zero(
+            "props_rim_fit",
+            Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
+            band,
+        )?;
+        let s = if e.forward { T::one() } else { -T::one() };
+        turning = turning + s * sigma * (w.dot(n_c) / radius) * (e.t1 - e.t0);
+        let tangent = |p: Point3<T>| {
+            let d = n_c.cross(p - c_c) * s;
+            d / d.norm()
+        };
+        let (p_start, p_end) = e.traversal_ends();
+        ends.push((tangent(p_start), tangent(p_end), p_end));
+    }
+    for (i, &(_, arrive, at)) in ends.iter().enumerate() {
+        let depart = ends[(i + 1) % ends.len()].0;
+        let normal = (at - center) * (sigma / radius);
+        require_cusp_free(arrive, depart, radius, band)?;
+        turning = turning + normal.dot(arrive.cross(depart)).atan2(arrive.dot(depart));
+    }
+    let area = radius.powi(2) * (tau - turning);
+    match classify(
+        "props_sphere_loop_area",
+        Margin::levered(area.min(radius.powi(2) * (tau + tau) - area), T::one()),
+        band,
+    )? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(PropsError::NotIsoRectangle {
+                what: "props_sphere_loop_area",
+            });
+        }
+    }
+    let va = loop_vector_area(edges, center)?;
+    let flux = sigma * radius * area + (center - Point3::origin()).dot(va);
+    Ok(FaceContribution { flux, area })
+}
+
+/// A loop junction whose arriving and departing tangents are
+/// antiparallel turns by ±π, which no signed angle decides:
+/// `props_sphere_loop_cusp`, the chord between the departing tangent
+/// and the reversed arriving one, metered at the sphere radius.
+fn require_cusp_free<T: Decide>(
+    arrive: Vec3<T>,
+    depart: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    match classify(
+        "props_sphere_loop_cusp",
+        Margin::levered((depart + arrive).norm(), radius),
+        band,
+    )? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(PropsError::NotIsoRectangle {
+            what: "props_sphere_loop_cusp",
+        }),
+    }
 }
 
 /// Which way a sphere face's material faces, for the radial term of

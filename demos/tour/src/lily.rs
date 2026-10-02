@@ -2230,7 +2230,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionNotPolar { .. })
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionArcSide { .. })
             )
         },
         "give the lanterns their three tepal seams",
@@ -3942,7 +3942,7 @@ mod verbs_gate_r1_probes {
         assert!(
             matches!(
                 &refusal,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionNotPolar { .. })
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionArcSide { .. })
             ),
             "the gate admits, the REPAIRED lantern is maximal-faced and the crossing \
              layer pierces, so what refuses is the join's polar gate — got {refusal:?}"

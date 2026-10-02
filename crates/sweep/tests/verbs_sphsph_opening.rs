@@ -178,7 +178,7 @@ fn seam_crossing_pairs_reach_the_join() {
     assert!(
         matches!(
             &err,
-            BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
+            BooleanError::Join(topo::SplitJoinError::SectionArcSide { .. })
         ),
         "offset along X, in the seam plane: expected the polar gate, got {err:?}"
     );
