@@ -2475,13 +2475,25 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // unwired JOIN lane alone), and this scan has no
                         // declaration channel to reach a coaxial
                         // classification through.
+                        // Both margins are charged the rounding of `d`, a
+                        // projection and a norm of the centre's offset,
+                        // against the magnitudes it is built from (the
+                        // root doors' one spelling of the charge): only a
+                        // definitely positive margin acts, so the charge
+                        // can move a pose toward the typed refusal, never
+                        // away from it.
                         let clear = || {
                             let w = center - origin;
                             let along = w.dot(w_axis);
                             let d = (w - w_axis * along).norm();
+                            let charge =
+                                super::circle_roots::rounding_charge(w.norm() + radius + w_radius);
                             [
-                                ("bool_sphere_cylinder_gap", d - (radius + w_radius)),
-                                ("bool_sphere_cylinder_nested", w_radius - (d + radius)),
+                                ("bool_sphere_cylinder_gap", d - (radius + w_radius) - charge),
+                                (
+                                    "bool_sphere_cylinder_nested",
+                                    w_radius - (d + radius) - charge,
+                                ),
                             ]
                             .into_iter()
                             .any(|(row, m)| {

@@ -34,8 +34,10 @@
 //!   and a tangency must reach the extremes' zero band, not the ladder's
 //!   discriminant
 //!   (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
-//!   Against a sphere `A₂ = (a² − b²)/4r`, which a minted ellipse holds
-//!   definitely positive at any ordinary scale.
+//!   Against a sphere `A₂ = |a² − b²|/4r`, in the zero band only for
+//!   semi-axes within about `4r·zero/(|a| + |b|)` of each other — a near
+//!   circle, which then takes this arm as a circle would, its `A₂`
+//!   charged.
 //! - **The ladder — `A₂` definite, or in the band's gap**: the five
 //!   harmonics go to the shared half-angle ladder under the
 //!   `bool_ellipse_*` rows. The carrier's speed `|C′|` lies in `[b, a]`,

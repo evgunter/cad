@@ -244,7 +244,7 @@ fn a_cap_abutting_on_the_rim_refuses_whatever_the_corner_with_its_discs_declared
             for e in union_both_orders(&tube, &cap, &cap_t, &cap_c, class) {
                 // At ε = 1e-6 the dome's rim-circle clearance against
                 // the tube's wall lands in band and escalates
-                // (`bool_circle_curved_clearance`) rather than piercing:
+                // (`bool_conic_curved_clearance`) rather than piercing:
                 // the same crossing layer, one predicate earlier.
                 assert!(
                     is_pierce(&e) || matches!(e, BooleanError::Escalated { .. }),

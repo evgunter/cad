@@ -661,7 +661,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
                     BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::Escalated {
                             diag: geom_core::Indeterminate {
-                                predicate: Some("bool_circle_curved_clearance"),
+                                predicate: Some("bool_conic_curved_clearance"),
                                 ..
                             },
                             ..

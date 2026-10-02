@@ -1329,7 +1329,6 @@ pub(super) fn curved_face_arm<T: Decide>(
     // door, and an in-band clearance escalates (two-tolerance on the
     // arm, definite ones included). The rung is the CONIC's: an ellipse
     // reads the same two enclosures (`geom_brep::Conic`).
-    // unconditional door.
     match (curve.carrier(), geom_brep::Conic::of(curve.carrier())) {
         (geom::Curve3::Line { .. }, _) => {}
         (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, Some(conic)) => {
@@ -1866,7 +1865,7 @@ fn conic_clearance<T: Decide>(
     let arc_margin = geom_brep::conic_arc_residual_range(surface, conic, t0, t1)
         .map_or(carrier_margin, |(arc_lo, arc_hi)| arc_lo.max(-arc_hi));
     Some(decide(
-        "bool_circle_curved_clearance",
+        "bool_conic_curved_clearance",
         Margin::of(carrier_margin.max(arc_margin)),
         band,
     ))
