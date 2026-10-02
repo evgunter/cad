@@ -2,8 +2,10 @@
 id: convex-insert-widens-near-equal-point-nets
 kind: issue
 title: insert_once_ring: the convex form widens near-equal point nets, and the pxn envelope row went red
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-02
+pr: 3855
 cost: E
 priority: P1
 branch: ssi/convex-insert-widening
@@ -44,3 +46,12 @@ Default ε, certified `hull_sup` against the sampled truth:
 
 The fix: both forms enclose the true inserted coefficient, so their
 intersection does too, and it is at least as tight as either one.
+
+## Closed
+
+Landed on PR #3855. `algebra::insertion_combo` keeps the meet of the
+two forms, and both `insert_once_ring` and
+`CurvePlan::apply_certified` use it. The pxn row reads 1.000581 at
+a = 1e-12, under its unchanged 1.005 ceiling. The coarsening guard
+that the tighter envelope no longer trips at 25 samples is filed as
+`work/tint/pxn-envelope-ceilings-no-longer-catch-a-24pct-coarsening.md`.
