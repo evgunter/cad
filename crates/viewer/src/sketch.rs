@@ -2278,7 +2278,11 @@ mod tests {
             );
         }
         let drawn = previewed(vec![steps]).expect("the seam fillet draws");
-        assert!(drawn.hold().is_none(), "closed and valid: {:?}", drawn.hold());
+        assert!(
+            drawn.hold().is_none(),
+            "closed and valid: {:?}",
+            drawn.hold()
+        );
         let [only] = drawn.loops.as_slice() else {
             panic!("one loop: {drawn:?}")
         };
