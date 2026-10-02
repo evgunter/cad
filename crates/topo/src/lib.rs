@@ -285,9 +285,9 @@ pub mod test_support {
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
         assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
-        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, face_surface_of_he,
-        flush_declarations, geometric_cube, holed_block, identity_map, line, mapped_cube, plane,
-        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
+        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
+        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_ring_face,
+        prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_samples::validation_error_samples;
@@ -672,7 +672,9 @@ pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
     SurfaceKind, SurfaceKindSet,
 };
-pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
+pub use readback::{
+    DanglingRef, EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError,
+};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};

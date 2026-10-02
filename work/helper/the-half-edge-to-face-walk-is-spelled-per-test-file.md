@@ -86,3 +86,36 @@ a one-caller wrapper over the last — are deleted, and their twelve
 call sites across eight `sweep/tests` files read
 `Body::face_of_half_edge(..).unwrap()`. The rest of this row's
 population is untouched, so it stays open.
+
+## The edge-level twin now has a door (TQUERY, 2026-10-02)
+
+`topo::readback::edge_sides(body, edge)` answers BOTH sides of an edge —
+each side's face and its surface key, `he_plus`'s first — refusing with
+the `DanglingRef` of whichever lookup missed. Many sites above walk both
+half-edges of one edge, and those fold onto it rather than onto
+`face_of_half_edge` twice. The tquery branch routed the three test
+files `work/tquery/edge-side-surfaces-have-no-door.md` named
+(`sweep/tests/rim_of_rows.rs`, `sweep/tests/rim_of_structural_review_probes.rs`,
+`topo/tests/r2_rim_probes.rs`). Its sweep
+(`face_of\w*|surface_of|query_face` applied to `.he_plus`/`.he_minus` on one line)
+left these test-file pair-walks for this row:
+
+- `sweep/tests/`: `band_subdivided_side_walls.rs`, `blend3_r2_probes.rs`,
+  `blend6_verb_vocab.rs`, `blend_recourse_followability.rs`,
+  `bool1_fix_pass.rs`, `bool1_r1_probes.rs`, `curved_mergedoor.rs`,
+  `full_turn_wall.rs`, `germ_cone_apex_closure.rs`, `must_carry_rule.rs`,
+  `review_blend4_r4_probes.rs`, `review_m2_pr4.rs` (`edge_face_surfaces`),
+  `shell10_r2_probes.rs`, `shell7_dump.rs`, `shell8_dump.rs`,
+  `spiric_rim.rs` (three), `verbs_f7_r2_probes.rs` (three).
+- `topo/tests/`: `boolean_discards.rs`, `issue86_double_subtract.rs`,
+  `readback_sense_kind.rs`, `review_m9_1_r2_probes.rs`,
+  `trim_3_chart_bound.rs`.
+- `step-export/tests/common/mod.rs`.
+- In-crate test modules: `topo/src/attach.rs`, `census.rs` (the
+  `face_of` pair in its tests), `tier3_tests.rs`.
+
+`topo::test_support_fixtures::face_surface_of_he`, named above as the
+composition that serves the `.surface` hop, is retired: its four callers
+all read an edge's two sides, and read them through `edge_sides` now
+(`.surfaces()`). A test-file site that wants one side's surface reads
+`edge_sides(..)?.plus.surface`; one that wants both reads `.surfaces()`.
