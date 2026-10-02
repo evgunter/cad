@@ -210,6 +210,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// rows doubled, `pcurve_fidelity_branch` new at 0/0/0/24,
 /// `pcurve_loop_branch` new at 0/0/0/18, and `pcurve_loop_continuity`
 /// 9/0/0/9 -> 9/0/6/3.
+///
+/// **DECIDE-9** (a product with an ungated zero factor rests on that
+/// factor alone), merged in after PR 3812, makes the six gated
+/// `pcurve_envelope` decisions theorems: 6/6/0/0 -> 12/0/0/0. They are
+/// the six `sym_9` counts on the boss (`sign_gated` 26 -> 20).
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -248,7 +253,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_orientation", [0, 0, 0, 12]),
             ("pcurve_chart_radial_moving", [14, 0, 0, 12]),
             ("pcurve_chart_winding", [12, 0, 0, 18]),
-            ("pcurve_envelope", [6, 6, 0, 0]),
+            ("pcurve_envelope", [12, 0, 0, 0]),
             ("pcurve_fidelity_branch", [0, 0, 0, 24]),
             ("pcurve_interval_forward", [0, 0, 0, 12]),
             ("pcurve_loop_branch", [0, 0, 0, 18]),
