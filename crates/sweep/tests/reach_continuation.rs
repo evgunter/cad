@@ -688,7 +688,7 @@ fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
 }
 
 /// **A declared rounded continuation that lies inside the other's wall
-/// builds its subtract and intersect, and refuses its union typed.**
+/// builds its subtract and intersect, and refuses A ∪ B typed.**
 /// The rounded plate and a plate of the same outline half as thick,
 /// sunk inside it or flush with its top or bottom, so the thin plate's
 /// walls (fillets included) lie inside the thick one's. Undeclared,
@@ -696,24 +696,29 @@ fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
 /// declared, subtract and intersect build at box arithmetic in z over
 /// the outline's area `24 − (4 − π)·R²`: half the thick plate's volume
 /// each, the sunk subtract as two plates of a quarter unit (twenty
-/// faces). The union refuses `FallbackExtentUnsupported`: no crossing
+/// faces). A ∪ B refuses `FallbackExtentUnsupported`: no crossing
 /// event exists, and that pass exempts no declared pair
 /// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
-/// The flush-top intersect, whose result is the thin plate itself,
-/// refuses `ResultVolumeImplausible` on a two-ulp tie between two
-/// closed-form volumes
-/// (`work/reach/volume-backstop-refuses-a-closed-form-rounding-tie.md`);
-/// it is the one refusal here whose text still calls the legal input a
-/// kernel defect.
+/// With the declarations keyed for (B, A), B ∖ A, empty (the thin
+/// plate lies inside the thick one), refuses as A ∪ B does, while B ∪ A
+/// builds the thick plate, its walls left split where the thin plate's
+/// lay (18 faces sunk, 14 flush, against the plate's 10): the union
+/// refuses in one operand order only.
+///
+/// Two results here are an operand itself measured through another
+/// face order, so their `f64` volumes round a few ulps past the operand
+/// they are bounded by: the flush-top intersect (the thin plate) and
+/// the sunk B ∪ A (the thick plate). The backstop re-derives each tie
+/// in interval arithmetic and builds it.
 #[test]
 fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
     let none = BooleanDeclarations::default();
     let a = plate(rounded(R), 0.0);
     let half = area(4.0) / 2.0;
-    for (label, z0, subtract_faces, intersect_builds) in [
-        ("sunk inside", 0.25, 20, true),
-        ("flush top", 0.5, 10, false),
-        ("flush bottom", 0.0, 10, true),
+    for (label, z0, subtract_faces, union_faces) in [
+        ("sunk inside", 0.25, 20, 18),
+        ("flush top", 0.5, 10, 14),
+        ("flush bottom", 0.0, 10, 14),
     ] {
         let b = extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol());
         let (rest, cont) = findings(&a, &b);
@@ -747,20 +752,24 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
             half,
             subtract_faces,
         );
-        let intersect = topo::intersect_with(&a, &b, &d, tol());
-        if intersect_builds {
-            builds(&format!("{label}, intersect"), intersect, half, 10);
-        } else {
-            assert!(
-                matches!(
-                    intersect,
-                    Err(BooleanError::ResultVolumeImplausible {
-                        which: "vol(A ∩ B) ≤ vol(B)",
-                        ..
-                    })
-                ),
-                "{label}, intersect: {intersect:?}"
-            );
-        }
+        builds(
+            &format!("{label}, intersect"),
+            topo::intersect_with(&a, &b, &d, tol()),
+            half,
+            10,
+        );
+        let (rest_ba, cont_ba) = findings(&b, &a);
+        let d_ba = with(&rest_ba, &cont_ba);
+        let err = topo::subtract_with(&b, &a, &d_ba, tol()).expect_err("B ∖ A refuses");
+        assert!(
+            matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
+            "{label}, B ∖ A: {err:?}"
+        );
+        builds(
+            &format!("{label}, B ∪ A"),
+            topo::union_with(&b, &a, &d_ba, tol()),
+            area(4.0),
+            union_faces,
+        );
     }
 }

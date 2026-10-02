@@ -208,6 +208,101 @@ fn the_near_tangent_family_builds_to_1e_6_and_escalates_at_1e_8() {
     }
 }
 
+/// **The near-tangent family at the finer bands.** At `δ = 1e-5` and
+/// `1e-6` the section circle is a few millimetres across and the
+/// meridians cross the partner sphere at a slope of `√(4.5δ)`, so the
+/// pierce points are placed only as well as the extremes of the circle
+/// × sphere residual are evaluated. Each δ builds under every op to its
+/// cap closed form wherever it is a definite depth with a decade to
+/// spare (`δ ≥ 10·Kε`): at ε = 1e-9 and 1e-12, not at 1e-6, where the
+/// pole's side of the other sphere is inside the band.
+#[test]
+fn the_near_tangent_family_builds_to_1e_6_at_the_finer_bands() {
+    let escalate = Band::linear(Tol::witness()).unwrap().escalate();
+    let deltas: Vec<f64> = [1e-5, 1e-6]
+        .into_iter()
+        .filter(|&delta| delta >= 10.0 * escalate)
+        .collect();
+    if deltas.is_empty() {
+        test_utils::vacuity::stood_down(
+            "coarse eps",
+            "at this band the near-tangent depths are inside the escalation gap",
+        );
+        return;
+    }
+    let a = ball(R1, 0.0);
+    let (va, vb) = (ball_volume(R1), ball_volume(R2));
+    for delta in deltas {
+        let d = R1 + R2 - delta;
+        let b = ball(R2, d);
+        let lens = lens_volume(R1, R2, d);
+        for (label, op, x, y, expected) in [
+            ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - lens),
+            ("A ∩ B", BooleanOp::Intersect, &a, &b, lens),
+            ("A ∖ B", BooleanOp::Subtract, &a, &b, va - lens),
+            ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - lens),
+        ] {
+            let label = format!("δ = {delta:e}, {label}");
+            let body = run(op, x, y);
+            assert_body(&label, &body, expected);
+            assert_pierces_on_the_section(&label, &body, d);
+        }
+    }
+}
+
+/// Every vertex off the axis lies within ε of the section circle,
+/// read off the radii alone: the radical plane at `y* = r1 − h` with
+/// `h = δ(2r2 − δ)/2d`, the circle's radius `√(h(2r1 − h))`, every
+/// factor free of cancellation, and `δ = (r1 − d) + r2` exact. The
+/// volume cannot see a misplaced pierce on a lens this thin; this can.
+fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
+    let eps = Tol::witness().get().eps;
+    let delta = (R1 - d) + R2;
+    let h = delta * (2.0 * R2 - delta) / (2.0 * d);
+    let (y_star, a) = (R1 - h, (h * (2.0 * R1 - h)).sqrt());
+    let mut pierces = 0;
+    for (key, _) in body.vertices() {
+        let p = topo::readback::vertex_point(body, key).unwrap();
+        let off_axis = p.x.hypot(p.z);
+        if off_axis <= eps {
+            continue;
+        }
+        pierces += 1;
+        let off = (p.y - y_star).hypot(off_axis - a);
+        assert!(
+            off <= eps,
+            "{label}: vertex {p:?} is {off:e} off the section circle (y {y_star}, radius {a})"
+        );
+    }
+    assert!(pierces >= 2, "{label}: the section's pierce vertices exist");
+}
+
+/// **Where the near-tangent family stops at ε = 1e-12.** At `δ = 1e-7`
+/// the slope at the pierce is `≈ 6.7e-4`, and the `f64` evaluation of
+/// the residual's near extreme cannot place the pierce point to within
+/// `1e-12`: the circle × sphere roots answer uncertain and every op
+/// refuses at the pierce door
+/// (`work/reach/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
+#[test]
+fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
+    if Tol::witness().get().eps != 1e-12 {
+        test_utils::vacuity::stood_down(
+            "eps other than 1e-12",
+            "the f64 placement frontier is measured at the finest band only",
+        );
+        return;
+    }
+    let a = ball(R1, 0.0);
+    let b = ball(R2, R1 + R2 - 1e-7);
+    for op in OPS {
+        let e = refusal(op, &a, &b);
+        assert!(
+            matches!(e, topo::BooleanError::CurvedPierceUnsupported { .. }),
+            "δ = 1e-7 under {op:?}: expected the pierce door, got {e:?}"
+        );
+    }
+}
+
 /// **The tangent pairs are the honest frontier.** Touching externally
 /// (`d = r1 + r2`) or internally (`d = r1 − r2`), the two balls meet at
 /// one pole, where a meridian of each touches the other sphere without
@@ -508,9 +603,9 @@ fn a_spun_snowman_builds_under_every_boolean() {
 /// through a public op: a square bar poking out of a ball, its long
 /// edges straddling the sphere. They pierce, the pierce points' sector
 /// sides certify, and the op goes on to the join. The pierced sphere
-/// face's rings join, and the bar's faces `z = ±0.3`, tilted against
-/// the ball's `y` pole, stop at the planar side's polar gate
-/// (`work/reach/planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue`).
+/// face's rings join, and a chord of the bar's faces `z = ±0.3`, tilted
+/// against the ball's `y` pole, takes the run-side arc rule and meets a
+/// run end that is a reflex corner of the divided face (`ReflexRunEnd`).
 /// A refusal at the pierce door would mean the root lane went dark.
 #[test]
 fn a_bar_through_a_ball_crosses_the_sphere() {
@@ -522,10 +617,13 @@ fn a_bar_through_a_ball_crosses_the_sphere() {
         assert!(
             matches!(
                 e,
-                topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
+                topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide {
+                    case: topo::ArcSideCase::ReflexRunEnd,
+                    ..
+                })
             ),
             "bar through a ball under {op:?}: expected to cross the sphere and stop at the \
-             polar gate, got {e:?}"
+             run-side rule's reflex run end, got {e:?}"
         );
     }
 }

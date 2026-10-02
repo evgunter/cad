@@ -2740,6 +2740,19 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 NOT_YET.into(),
                 false,
             ),
+            // A tilted-circle sphere face whose loop does not bound a
+            // region of its sphere, or whose bit its boundary
+            // contradicts: stored data that is wrong.
+            P::SphereLoop { .. } => reading(
+                "a sphere face's boundary does not bound a region of its sphere",
+                DEFECT.into(),
+                true,
+            ),
+            P::SenseContradicted => reading(
+                "a sphere face is inside-out against its own boundary",
+                DEFECT.into(),
+                true,
+            ),
             // Raised on an extent decided zero at the band and on a
             // quadrature area whose enclosure reaches zero: a face too
             // thin to certify, not a contradiction in the body.
@@ -3664,10 +3677,27 @@ pub fn validate<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
 /// A non-empty vector of every [`ValidationError`] found, tier 1 first,
 /// in the documented deterministic order.
 pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
+    let (mut errors, scaffolding) = closed_by_tier(body);
+    errors.extend(scaffolding);
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// [`validate_closed`]'s findings split by tier: `(tier 1, tier 2)`,
+/// each in its documented order. A door that answers a structurally
+/// broken body and a body still carrying scaffolding differently reads
+/// the split here rather than classifying the variants itself.
+pub(crate) fn closed_by_tier<T: Real>(
+    body: &Body<T>,
+) -> (Vec<ValidationError>, Vec<ValidationError>) {
     let Tier1Report {
-        mut errors,
+        errors: tier1_errors,
         shell_components,
     } = tier1(body);
+    let mut errors = Vec::new();
 
     // Tier 2, check 1: no empty loops (loop-arena order).
     for (loop_key, loop_) in body.loops.iter() {
@@ -3726,11 +3756,7 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
         }
     }
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
-    }
+    (tier1_errors, errors)
 }
 
 /// Validates a body as a **tier-3 "geometric" solid** (M2 PR 3 — the
@@ -4712,7 +4738,7 @@ pub(crate) enum PlusVVerdict {
 /// [`crate::props::ShellRole::decided_at`] gives it: the high end under
 /// `positive_volume` first, and the low end under
 /// `positive_volume_enclosure` only when the high end decides nothing.
-fn plus_v_read<T: geom_core::Decide>(
+pub(crate) fn plus_v_read<T: geom_core::Decide>(
     enclosure: crate::props::VolumeEnclosure<T>,
     band: Band,
 ) -> Option<crate::props::ShellRole> {

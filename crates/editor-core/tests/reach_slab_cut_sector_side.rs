@@ -1,5 +1,6 @@
 //! **A planar slab through a cylinder wall answers its closed form or
-//! stops at the pierce ring's join door.**
+//! stops at a typed frontier: the pierce ring's join door, or the
+//! notched wall's volume.**
 //!
 //! Two fixtures, each the first move of a common part:
 //!
@@ -12,10 +13,14 @@
 //! and each pierce vertex's sector bounds have a definite first-order
 //! side. A bound longer than the wall's radius used to fail the
 //! curvature charge, which was read at the bound's far end; it is read
-//! where it peaks, so these fixtures now reach the join, where a ring in a wall face has no arm yet
-//! (`work/tang/pierce-ring-has-no-join-arm`). Each row admits that door
-//! or a body at its closed form, and nothing else: when the ring lane
-//! lands, these rows check its volumes.
+//! where it peaks, so these fixtures reach the join. The drum's rings
+//! join, and the wall the slab notches along rulings and arcs has no
+//! volume measurement, so the volume backstop refuses it
+//! (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`). The
+//! boss's stop at the join, where a ring whose chord's run is scaffolding
+//! alone has no arm (`work/tang/pierce-ring-has-no-join-arm`). Each row
+//! admits those doors or a body at its closed form, and nothing else:
+//! when they close, these rows check the volumes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
@@ -29,7 +34,7 @@ use editor_core::{
     RecipeNodeId,
 };
 use geom_core::Tol;
-use topo::{ArcWindowCase, BooleanError, SplitJoinError};
+use topo::{ArcWindowCase, BooleanError, MassPropsError, SplitJoinError};
 
 /// A disc of radius `r` about `(cx, cy)` on the plane `z = z0`,
 /// extruded `dz`.
@@ -57,20 +62,28 @@ fn strip(a: f64, r: f64) -> f64 {
     2.0 * (a * (r * r - a * a).sqrt() + r * r * (a / r).asin())
 }
 
-/// The node's answer: its volume, or the pierce ring's join door. Any
+/// The node's answer: its volume, or one of the two frontiers. Any
 /// other refusal fails the row, naming it.
-fn volume_or_ring_door(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> Option<f64> {
+fn volume_or_frontier(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> Option<f64> {
     match failure(ev, n) {
         None => Some(
             topo::mass_properties(body_of(ev, n), Tol::witness())
                 .expect("the volume integrates")
                 .volume,
         ),
+        Some(NodeErrorKind::Boolean(BooleanError::VolumeUnmeasured {
+            operand: None,
+            source:
+                MassPropsError::Face {
+                    source: geom_brep::props::PropsError::NotIsoRectangle { .. },
+                    ..
+                },
+        })) => None,
         Some(NodeErrorKind::Boolean(BooleanError::Join(SplitJoinError::SectionArcWindow {
             case: ArcWindowCase::NoChartedRun,
             ..
         }))) => None,
-        Some(other) => panic!("{what}: neither a body nor the ring's join door: {other:?}"),
+        Some(other) => panic!("{what}: neither a body nor a frontier door: {other:?}"),
     }
 }
 
@@ -78,7 +91,7 @@ fn volume_or_ring_door(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> Opt
 /// less a slab `40 × 6 mm` from `z = 31 mm` up past its top: the drum
 /// less the band `|y| ≤ 3 mm` across its disc, over the top 5 mm.
 #[test]
-fn a_slab_cut_through_a_drum_answers_its_volume_or_the_ring_door() {
+fn a_slab_cut_through_a_drum_answers_its_volume_or_the_notched_wall_door() {
     let (r, z0, h) = (0.013, 0.028, 0.008);
     let (half_t, cut_z) = (0.003, 0.031);
     let doc = ProfileDoc::empty_derived("round_crenellation", Tol::witness());
@@ -94,7 +107,7 @@ fn a_slab_cut_through_a_drum_answers_its_volume_or_the_ring_door() {
         },
     );
     let truth = PI * r * r * h - strip(half_t, r) * (z0 + h - cut_z);
-    if let Some(v) = volume_or_ring_door(&run(&doc), n, "drum ∖ slab") {
+    if let Some(v) = volume_or_frontier(&run(&doc), n, "drum ∖ slab") {
         assert!(
             (v - truth).abs() < 1e-9 * truth,
             "drum ∖ slab: {v} vs {truth}"
@@ -131,7 +144,7 @@ fn a_slab_across_a_round_boss_answers_its_volume_or_the_ring_door_in_every_order
             },
         );
         let what = format!("order {order:?}");
-        if let Some(v) = volume_or_ring_door(&run(&doc), n, &what) {
+        if let Some(v) = volume_or_frontier(&run(&doc), n, &what) {
             assert!((v - truth).abs() < 1e-9 * truth, "{what}: {v} vs {truth}");
         }
     }

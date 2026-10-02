@@ -381,6 +381,19 @@ the poses that stopped one layer early now reach this unit's doors:
 - The story suite's rook keeps its square crown for this door; its
   module docs say so (`crates/viewer/tests/story_authoring.rs`).
 
+## Evidence (2026-10-02, `reach/tilted-sphere-pair`): tilted sphere pairs and plane cuts
+
+Once a sphere section tilted against the chart has an arc rule (the
+wall lane's run-side rule, `chord_join::select_arc_by_run_side`), the
+ring is where every tilted pose whose pierce lands inside a face stops:
+ball(1) at `(2, 2, 0.5)` against ball(1) at `(3.3, 2, 0.7)`, and against
+ball(0.7) at `(2.9, 2.3, 1.1)`, refuse `Join(SectionArcSide { case:
+NoCertifiedRun })` under ∪, ∩ and ∖ — the run the chord is handed is
+null scaffolding, the run-side rule's form of `NoChartedRun`
+(`crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side`). Their
+in-seam-plane siblings, whose pierces land on the seams, build.
+
 ## Measured (JOIN-3)
 
 On the boolean lanes the wall door `NoChartedRun` was the SECOND chord
@@ -402,8 +415,14 @@ second chord's run back. Measured on that branch:
   probe) and the laps across the rod's rulings (`axis_lap`) join and
   stop at the volume backstop on the notched wall
   (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`);
-- the bar through a ball stops at the planar side's polar gate
-  (`work/reach/planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue`);
+- the bar through a ball stops at the run-side arc rule,
+  `SectionArcSide { ReflexRunEnd }`; the tilted sphere pair off the seam
+  plane at `SectionArcSide { TangentToRun }`, and the smaller ball off
+  every axis still at `NoCertifiedRun`
+  (`tilted_sphere_pair::a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side`);
+- the drum crenellation (editor-core `reach_slab_cut_sector_side`) stops
+  at the notched wall; the round boss crossed by a slab still at
+  `NoChartedRun`;
 - the parallel pierced cylinders stop at their walls' cylinder ×
   cylinder pair (`CurvedBooleanUnsupported { Cylinder }`);
 - the laps OFF the axis (`axis_lap::laps_off_the_rulings_stop_at_the_wall_pierce_ring`,

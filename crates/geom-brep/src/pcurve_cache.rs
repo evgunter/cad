@@ -2450,6 +2450,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::StepCollapsed { .. }
         | E::StepUnusable { .. }
         | E::SeedRefinementFailed { .. }
+        | E::SeedOffDomain { .. }
         | E::StepRefinementFailed { .. }
         | E::SelfCrossingLocus { .. }
         | E::Fit(_)
@@ -2457,7 +2458,6 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::FitSampleBudget { .. }
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }
-        | E::Band(_)
         | E::InvalidMarchTol { .. }
         | E::MarchTolMismatch { .. } => (
             None,
@@ -4809,9 +4809,29 @@ fn run_fitted_checks<T: Decide>(
     // for the same reason: a certificate whose own bound exceeds ε is
     // not a certificate. It is NOT folded into `max_residual` (the
     // sampled max and the sup bound stay separate statements).
+    //
+    // **The Hermite construction's envelope is recorded under its own
+    // name**, keyed on the statement the lane returns, not on the
+    // carrier kind. `fitted_lane` states `MapResidualHermite` for the
+    // image `sphere_circle_image_lane` refines until the Hermite bound
+    // is a quarter of the band, so this margin sits just under `ε/4` at
+    // every ε by construction: it scales with ε, unlike the closed-form
+    // and composite envelopes, which are rounding-sized. The K lint
+    // judges it against that target (`tools/k-lint`'s
+    // `CONSTRUCTION_COUPLED`, whose pin reads this match). Another
+    // construction states its own statement and keeps the shared name
+    // until it is ruled.
+    let envelope_name = match statement {
+        EnvelopeStatement::MapResidualHermite => "pcurve_envelope_hermite",
+        EnvelopeStatement::MapResidualClosedForm
+        | EnvelopeStatement::MapResidualComposite
+        | EnvelopeStatement::OnLocusHull
+        | EnvelopeStatement::MapResidualIsoHull
+        | EnvelopeStatement::SpiricIdentity => "pcurve_envelope",
+    };
     let mut envelope_margin = T::zero();
     check_residual(
-        "pcurve_envelope",
+        envelope_name,
         PcurveCheck::Envelope,
         0,
         Margin::of(envelope),

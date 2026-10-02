@@ -277,10 +277,7 @@ impl crate::spoken::Say for PartFault {
             ),
             // The resolver knows what went wrong in its store, so its
             // message states the recourse of a pin or a lookup. The ε
-            // seam's is the same whatever the store: a document keeps
-            // the ε it was written at, a process holds one, and the
-            // recorded-ε edit moves a part onto another while it keeps
-            // its id, whether that was minted or derived.
+            // seam's is the same whatever the store.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
                     write!(f, "the reference's pin does not hold: {message}")
@@ -289,11 +286,7 @@ impl crate::spoken::Say for PartFault {
                     f,
                     "the referenced document's recorded tolerance disagrees with this process's: \
                      {message}. {}",
-                    Recourse(
-                        "open the part in a process at its own tolerance, record the edit that \
-                         sets this process's tolerance, save it over its file, then accept its \
-                         updated version here"
-                    )
+                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },

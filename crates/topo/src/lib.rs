@@ -585,7 +585,7 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
-    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction,
+    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction, Corruption,
     CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, HeldEdge,
     LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite,
     PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
@@ -689,11 +689,11 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision, LoopContainment,
-    NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionError, SectionPolygon,
-    SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError,
-    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ArcSideCase, ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision,
+    LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionError,
+    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
+    SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,
+    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

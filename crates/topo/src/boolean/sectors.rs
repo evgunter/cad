@@ -142,7 +142,7 @@ impl<T: geom_core::Real> BoolSector<T> {
 }
 
 fn corrupt(operand: Operand, vertex: VertexKey) -> BooleanError {
-    BooleanError::CorruptOperand { operand, vertex }
+    BooleanError::corrupt_at(operand, vertex)
 }
 
 /// Builds the sector array of `vertex`'s neighborhood (module docs).

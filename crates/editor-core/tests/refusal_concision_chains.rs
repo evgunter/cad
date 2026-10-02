@@ -353,6 +353,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Boolean/Join/SectionLoopMixed",
     "Boolean/Join/UnpairedLooseEnds",
     "Split/Finish/Corrupt",
+    "Split/Finish/DegenerateSide",
     "Split/Finish/Euler",
     "Split/Finish/NotSingleSolid",
     "Split/Finish/TornComponent",
@@ -1463,6 +1464,14 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
+            (
+                "SectionArcSide",
+                J::SectionArcSide {
+                    face,
+                    case: topo::ArcSideCase::EndsDisagree,
+                    band: band(),
+                },
+            ),
             (
                 "SectionCrossings",
                 J::SectionCrossings {
