@@ -845,3 +845,17 @@ tangencies), so the item now says where its look starts.
 - E6 moves;
 - PATHS lands `an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`,
   after which DECIDE measures its tier effect on `props/sign-hull`.
+
+## 2026-10-02 — DECIDE-9 spec'd: the decision read answers theorems; single FULL review
+
+The read's contract orders it behind every value-free fold, yet it
+answers 32 of the pad's and 16 of the bracket's theorems `sign_gated`.
+That is DECIDE's own code and the program's live P2.
+
+**Review tier: single FULL review.** It is a contract-restoring change to
+the tier's labels, settled by receipts and minimal rows, and reversible,
+as DECIDE-6 and DECIDE-7 were. A stop rule sends to the orchestrator any
+answer that would move a decision's value.
+
+Spec `docs/DECIDE-9-SPEC.md`. Branch `decide/9-read-behind-theorems` from
+`props/sign-hull` at `494d477ef`.

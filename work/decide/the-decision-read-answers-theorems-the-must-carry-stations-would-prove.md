@@ -2,10 +2,11 @@
 id: the-decision-read-answers-theorems-the-must-carry-stations-would-prove
 kind: issue
 title: The decision read answers 32 of the pad's and 16 of the bracket's decisions that are theorems with it shut; 28 of the pad's are the must-carry stations
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P2
-refs: [rule-g-trades-sixteen-of-the-links-carrier-on-surface-2, interval-orthonormal-basis-sign-hull]
+cost: M
+refs: [rule-g-trades-sixteen-of-the-links-carrier-on-surface-2, 2468]
 ---
 
 ## What was measured (LINALG's merge of `main` into `props/sign-hull`, 2026-10-01)
