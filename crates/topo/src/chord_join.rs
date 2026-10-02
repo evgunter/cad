@@ -573,12 +573,18 @@ impl SplitJoinError {
                 band.zero(),
                 band.escalate(),
             ),
+            // Only the tangency is a verdict of the band; a run with no
+            // certified edge or two disagreeing ends is the geometry's.
             Self::SectionArcSide { case, band, .. } => write!(
                 f,
                 "the section through a curved face has no arc to take: {case} \
-                 ('split_arc_run_side', band ({:e}, {:e}))",
+                 ('split_arc_run_side', band ({:e}, {:e})). Recourse: {}",
                 band.zero(),
                 band.escalate(),
+                match case {
+                    ArcSideCase::TangentToRun => recourse,
+                    ArcSideCase::NoCertifiedRun | ArcSideCase::EndsDisagree => "move the geometry",
+                },
             ),
         }
     }
@@ -1357,7 +1363,7 @@ fn run_is_section_arc<T: Decide>(
     }
     let on_conic = decide(
         "split_arc_run_on_section_conic",
-        Margin::levered((x * x + y * y).sqrt() - T::one(), conic.sa),
+        Margin::levered((x.powi(2) + y.powi(2)).sqrt() - T::one(), conic.sa),
         band,
     )
     .map_err(escalated)?;

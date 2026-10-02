@@ -2159,7 +2159,7 @@ fn sphere_circle_loop<T: Decide>(
     let mut turning = T::zero();
     // Each arc's traversal tangent and point at its start and its end,
     // for the vertex turning angles and the loop's closure.
-    let mut ends: Vec<(Vec3<T>, Point3<T>, Vec3<T>, Point3<T>)> = Vec::with_capacity(edges.len());
+    let mut ends: Vec<ArcEnds<T>> = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle {
             center: c_c,
@@ -2200,13 +2200,19 @@ fn sphere_circle_loop<T: Decide>(
             let d = d / d.norm();
             if e.forward { d } else { -d }
         };
-        ends.push((tangent(p_start), p_start, tangent(p_end), p_end));
+        ends.push(ArcEnds {
+            depart: tangent(p_start),
+            from: p_start,
+            arrive: tangent(p_end),
+            at: p_end,
+        });
     }
-    for (i, &(_, _, arrive, at)) in ends.iter().enumerate() {
-        let (depart, from, _, _) = ends[(i + 1) % ends.len()];
+    for (i, end) in ends.iter().enumerate() {
+        let next = &ends[(i + 1) % ends.len()];
+        let (arrive, at, depart) = (end.arrive, end.at, next.depart);
         require_zero(
             "props_sphere_loop_closed",
-            Margin::of((from - at).norm()),
+            Margin::of((next.from - at).norm()),
             band,
         )?;
         let normal = outward(at);
@@ -2216,7 +2222,9 @@ fn sphere_circle_loop<T: Decide>(
     let area = radius.powi(2) * (tau - turning);
     match classify(
         "props_sphere_loop_area",
-        Margin::levered(area.min(radius.powi(2) * (tau + tau) - area), T::one()),
+        // The smaller of the face's and its complement's solid angles,
+        // metered at the sphere radius (angle × radius, metres).
+        Margin::levered((tau - turning).min(tau + turning), radius),
         band,
     )? {
         Sign::Positive => {}
@@ -2230,6 +2238,15 @@ fn sphere_circle_loop<T: Decide>(
     let flux =
         SphereFluxSide::Sense(sense).signed(radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
+}
+
+/// One arc of a [`sphere_circle_loop`] boundary at its two traversal
+/// ends: the unit traversal tangent and the point at each.
+struct ArcEnds<T: Real> {
+    depart: Vec3<T>,
+    from: Point3<T>,
+    arrive: Vec3<T>,
+    at: Point3<T>,
 }
 
 /// A loop junction whose arriving and departing tangents are
