@@ -781,6 +781,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         (fb_e, rep(&b_sectors[fb_e], false)),
     ];
 
+    // An undeclared continuation the union would keep, found while
+    // reading membership: refused only once the event is known to be a
+    // seam the union glues (a germ). Touching-only edges (an assembly)
+    // keep their faces in two shells and glue nothing.
+    let continuation: std::cell::RefCell<Option<BooleanError>> = std::cell::RefCell::new(None);
     // Membership of one flanker's rep inside the other solid's wedge.
     let membership = |own_is_a: bool,
                       own_idx: usize,
@@ -890,7 +895,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 band,
                             )
                         {
-                            return Err(e);
+                            continuation.borrow_mut().get_or_insert(e);
                         }
                         inside = false;
                     } else {
@@ -996,6 +1001,9 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         }
         if !germ_a {
             return Ok(None);
+        }
+        if let Some(e) = continuation.borrow_mut().take() {
+            return Err(e);
         }
         Some((a_in, b_in))
     };
