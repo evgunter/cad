@@ -2843,7 +2843,7 @@ pub(crate) fn edge_reach<T: Decide>(
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
 /// corner pair, and back.
-fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
+pub(crate) fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
     (
         Point3::new(s.x.lo, s.y.lo, s.z.lo),
         Point3::new(s.x.hi, s.y.hi, s.z.hi),

@@ -204,8 +204,9 @@ pub enum SplitReduceError {
     /// The plane may meet a face whose `(kind × plane)` arm of the C5
     /// dispatch table the split pipeline does not execute (`Plane`,
     /// `Cylinder` and `Cone` are; C12.1). "May meet": the face's padded
-    /// reach box is not certainly on one side of the plane; a face
-    /// behind a box that clears does not refuse.
+    /// reach box, axis-aligned in world coordinates, is not certainly
+    /// on one side of the plane; a face behind a box that clears does
+    /// not refuse.
     CurvedBooleanUnsupported {
         /// The offending face.
         face: FaceKey,
@@ -353,23 +354,10 @@ impl core::fmt::Display for SplitReduceError {
         use geom_core::RANGE_RECOURSE;
         match self {
             Self::Band(e) => write!(f, "{e}"),
-            // The gate reports a face whose surface does not resolve as
-            // `Nurbs` (`classify::gate_operand`), so that arm says both
-            // things it can mean, and names the second as the corrupt
-            // body it is rather than as a feature not built yet.
-            Self::CurvedBooleanUnsupported {
-                kind: geom::SurfaceKind::Nurbs,
-                ..
-            } => write!(
-                f,
-                "the split plane may meet a spline (NURBS) face, which the split cannot cut \
-                 yet, or a face with no surface, which means the body is corrupt. Recourse: \
-                 move the split plane clear of the spline face"
-            ),
             Self::CurvedBooleanUnsupported { kind, .. } => write!(
                 f,
                 "the split plane may meet {}, and the split cannot cut such a face yet. \
-                 Recourse: move the split plane clear of that face",
+                 Recourse: move the split plane clear of that face's bounding box",
                 match kind {
                     geom::SurfaceKind::Approx => "an approximated spline face",
                     geom::SurfaceKind::Cone => "a cone face",
@@ -383,7 +371,8 @@ impl core::fmt::Display for SplitReduceError {
             Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
                 "the split plane may meet an edge on a spline (NURBS) or spiric curve, which \
-                 the split cannot take yet. Recourse: move the split plane clear of that edge"
+                 the split cannot take yet. Recourse: move the split plane clear of the \
+                 bounding boxes of that edge and the faces beside it"
             ),
             // The fault's routing is the Boolean's too: a crossing
             // decision ends as that decision does, and a coincidence

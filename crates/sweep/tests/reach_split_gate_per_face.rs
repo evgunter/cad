@@ -159,13 +159,29 @@ fn a_plane_clear_of_a_sphere_or_torus_face_splits_the_body() {
     }
 }
 
+/// The plane taking a small dome off the cap near its pole, on the
+/// `−z` side: its normal is the cap's radial direction 15° from the pole
+/// toward `−z`, at 1.23 from the sphere's centre, so it meets the cap in a
+/// circle of angular radius `acos(1.23/1.25) ≈ 10°` that reaches neither
+/// the pole, nor the rim, nor the seam meridians. It clears every point of
+/// the body below the cap (the farthest, the rim, sits at 0.98).
+fn dome_cut() -> SplitPlane<f64> {
+    let n = Vec3::new(0.0, 15f64.to_radians().cos(), -(15f64.to_radians().sin()));
+    SplitPlane {
+        origin: Point3::new(0.0, 0.25, 0.0) + n * 1.23,
+        normal: unit(n),
+    }
+}
+
 /// A plane through the curved face refuses naming it: the gate is
 /// scoped to the plane's reach, not lifted. The truncated ball's
 /// sphere face shares its rim with the cap and lies on the other side
 /// of it, so a plane through its interior refuses where the same plane
-/// clears the cap. The plane cutting a small cap off the ball's flank
-/// meets the face in a circle that crosses no edge, so no later stage
-/// sees the sphere at all: the gate is the only refusal it has.
+/// clears the cap. The level cut through the cap crosses its seam
+/// meridian, so a later stage would refuse it too; the dome cut and the
+/// cuts off the ball's flanks meet their faces in circles that cross no
+/// edge, so no later stage sees the sphere at all and the gate is the
+/// only refusal they have.
 #[test]
 fn a_plane_that_may_meet_the_face_refuses_naming_it() {
     let flank = |n: Vec3<f64>| SplitPlane {
@@ -178,6 +194,18 @@ fn a_plane_that_may_meet_the_face_refuses_naming_it() {
             capped_cylinder(),
             SurfaceKind::Sphere,
             plane(0.3, 1.1),
+        ),
+        (
+            "sphere cap, level",
+            capped_cylinder(),
+            SurfaceKind::Sphere,
+            plane(0.0, 1.2),
+        ),
+        (
+            "sphere cap, a dome off its -z side",
+            capped_cylinder(),
+            SurfaceKind::Sphere,
+            dome_cut(),
         ),
         (
             "torus rounding",
@@ -235,3 +263,173 @@ fn a_plane_missing_a_spline_body_returns_it_whole() {
     }
     assert_volume(below, LOFT_PRISM_VOLUME, "the loft");
 }
+
+/// The exact rational quadratic NURBS of the conic arc
+/// `c + a·cos t·û + b·sin t·v̂`, `t ∈ [t0, t1]`, in two segments: each
+/// half is the unit circle's arc of at most a quarter turn, mapped by
+/// the conic's affine frame, which a rational curve's weights survive.
+fn conic_arc_nurbs(
+    c: Point3<f64>,
+    (u, v): (Vec3<f64>, Vec3<f64>),
+    (a, b): (f64, f64),
+    (t0, t1): (f64, f64),
+) -> geom::NurbsCurve3<f64> {
+    let at = |x: f64, y: f64| c + u * (a * x) + v * (b * y);
+    let half = (t1 - t0) / 2.0;
+    let w = (half / 2.0).cos();
+    let mut control = vec![at(t0.cos(), t0.sin())];
+    let mut weights = vec![1.0];
+    for k in 0..2 {
+        let (s, e) = (t0 + half * f64::from(k), t0 + half * f64::from(k + 1));
+        let m = (s + e) / 2.0;
+        control.push(at(m.cos() / w, m.sin() / w));
+        control.push(at(e.cos(), e.sin()));
+        weights.extend([w, 1.0]);
+    }
+    let kv =
+        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2)
+            .unwrap();
+    geom::NurbsCurve3::new(kv, control, weights).unwrap()
+}
+
+/// The unit cylinder cut by the plane `y = 0.5 + 0.3·z`, its lower half:
+/// a planar elliptic top bounded by two half-ellipses that meet at the
+/// seam points `(±1, 0.5, 0)`. The half on `z < 0` dips to `y = 0.2`
+/// between them, and it is re-described as its own exact spline, an edge
+/// between a plane face and a cylinder face, both armed.
+fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
+    let cyl = revolved(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
+    let tilt = SplitPlane {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        normal: unit(Vec3::new(0.0, 1.0, -0.3)),
+    };
+    let SplitPart::Body(mut body) = split(&cyl, &tilt, Tol::witness()).unwrap().below else {
+        panic!("the tilted cut leaves material below");
+    };
+    let start = |b: &Body<f64>, he| {
+        *b.get_point(
+            b.get_vertex(b.get_half_edge(he).unwrap().start)
+                .unwrap()
+                .point,
+        )
+        .unwrap()
+    };
+    let (edge, spec) = body
+        .edges()
+        .find_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            let geom::Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } = *c.carrier()
+            else {
+                return None;
+            };
+            let (t0, t1) = c.params();
+            let mid = c.carrier().eval((t0 + t1) / 2.0);
+            if mid.z > 0.0 {
+                return None;
+            }
+            let spline =
+                conic_arc_nurbs(center, (u_ref, axis.cross(u_ref)), (major, minor), (t0, t1));
+            assert!(
+                (spline.eval(0.0) - start(&body, e.he_plus)).norm() < 1e-12,
+                "the spline runs the edge's way"
+            );
+            let (s1, s2) = topo::readback::edge_sides(&body, k).unwrap().surfaces();
+            Some((
+                k,
+                geom_brep::EdgeCurveSpec {
+                    description: geom_brep::EdgeDescriptionSpec::Intersection {
+                        s1,
+                        s2,
+                        witness: mid,
+                    },
+                    carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),
+                    param_start: 0.0,
+                    param_end: 1.0,
+                },
+            ))
+        })
+        .expect("the tilted section has a half-ellipse on z < 0");
+    body.set_edge_curve(edge, spec, Tol::witness())
+        .expect("the exact spline attaches");
+    (body, edge)
+}
+
+/// A spline edge between two armed faces, its ends on one side of the
+/// plane and its belly across it, refuses at the gate. Nothing else
+/// reads it: no crossing lane serves a spline, so passing it would
+/// leave the edge uncut while the plane crosses the faces beside it.
+#[test]
+fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
+    let (body, edge) = cylinder_with_a_spline_rim();
+    for part in [validate(&body), validate_closed(&body)] {
+        assert_eq!(part, Ok(()), "the re-described body is well formed");
+    }
+    match split(&body, &plane(0.0, 0.4), Tol::witness()) {
+        Err(SplitError::Reduce(SplitReduceError::CurvedEdgeUnsupported { edge: e })) => {
+            assert_eq!(e, edge, "the refusal names the spline edge");
+        }
+        other => panic!("the plane through the spline's belly refuses, got {other:?}"),
+    }
+}
+
+/// A sphere face whose boundary bounds the outside of its latitude zone
+/// keeps the whole ball. A rectangle's boundary also bounds its
+/// complement, so the zone holds the face only when the side the
+/// traversal encodes agrees with the sense bit.
+///
+/// The face is the sphere zone revolved through one radian, a chart
+/// rectangle with no pole on its boundary. Reverting the body reverses
+/// every loop and flips every bit; setting the zone's bit back leaves
+/// its loop running the complement's way with its own sense, the class
+/// of an imported face whose loop bounds the outside of its rectangle.
+/// A level plane above the zone clears the zone's box and meets the
+/// ball's, and nothing else in the body: the gate is the only refusal.
+#[test]
+fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
+    let wedge = sweep::test_support::sphere_zone(0.5, Revolution::Partial(1.0), Tol::witness());
+    let above = plane(0.0, 1.5);
+    let whole = split(&wedge, &above, Tol::witness()).expect("the zone's box clears the cut");
+    assert!(
+        matches!(
+            (&whole.above, &whole.below),
+            (SplitPart::Empty, SplitPart::Body(_))
+        ),
+        "the wedge lies below the cut"
+    );
+    let mut reverted = wedge.revert().expect("the wedge reverts");
+    let (zone, surface, sense) = reverted
+        .faces()
+        .find_map(|(k, f)| {
+            let s = reverted.get_surface(f.surface)?;
+            matches!(s, geom::Surface::Sphere { .. }).then(|| (k, s.clone(), f.sense))
+        })
+        .expect("the wedge has a sphere face");
+    reverted
+        .set_face_surface_stranding_for_tests(
+            zone,
+            topo::FaceSurface::New {
+                surface,
+                sense: !sense,
+            },
+        )
+        .unwrap();
+    match split(&reverted, &above, Tol::witness()) {
+        Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
+            face,
+            kind: SurfaceKind::Sphere,
+        })) => assert_eq!(face, zone, "the refusal names the zone"),
+        other => panic!("an uncertified side keeps the ball, got {other:?}"),
+    }
+}
+

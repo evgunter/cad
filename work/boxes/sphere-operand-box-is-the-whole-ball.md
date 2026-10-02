@@ -37,5 +37,6 @@ cap `y ≥ 1`) cut at `y = 1/2` refused, because the ball spans
 pins a latitude window, the face lies in the zone between its two
 extreme latitudes, and the box is `slab_extent` over that axial window
 met with the ball. That is a split-local copy of the tightening this
-row asks for. When this row lands in `FaceBoxRule`, fold the special
-case back into `census::face_reach` and delete it.
+row asks for, now with a side guard (a rectangle's boundary also
+bounds its complement). Folding it into `FaceBoxRule` is its own unit,
+`split-gate-sphere-zone-folds-into-face-box-rule`.

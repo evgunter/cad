@@ -3139,7 +3139,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             levels.push((w.dot(axis), r_c));
         }
     }
-    let Some((lat_lo, lat_hi)) = latitude_extremes(&levels, radius, band).map_err(escalate)? else {
+    let Some((north, south)) = latitude_extremes(&levels, radius, band).map_err(escalate)? else {
         return Ok(None);
     };
     // A window the loop walk cannot derive is a face this chart cannot
@@ -3203,7 +3203,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             Sign::Zero | Sign::Negative => return Ok(None),
         }
     };
-    Ok(Some(SphereChartTrim { az, lat_lo, lat_hi }))
+    Ok(Some(SphereChartTrim { az, north, south }))
 }
 
 /// A sphere face's chart rectangle: the azimuth window and the two
@@ -3223,10 +3223,10 @@ pub(crate) struct SphereChartTrim<T> {
     pub az: Option<(T, T)>,
     /// The extreme latitude nearest the `+axis` pole, or `None` when
     /// the face reaches that pole.
-    pub lat_lo: Option<(T, T)>,
+    pub north: Option<(T, T)>,
     /// The extreme latitude nearest the `−axis` pole, or `None` when
     /// the face reaches that pole.
-    pub lat_hi: Option<(T, T)>,
+    pub south: Option<(T, T)>,
 }
 
 /// The dimensionless sine of the latitude difference `v_b − v_a`
@@ -3391,10 +3391,10 @@ pub(super) fn point_on_sphere_in_face<T: Decide>(
     let radial = w - axis * height;
     let here = (height, radial.norm());
     let mut margins: Vec<Margin<T>> = [
-        trim.lat_lo
-            .map(|lo| Margin::levered(latitude_sine(lo, here, radius), radius)),
-        trim.lat_hi
-            .map(|hi| Margin::levered(latitude_sine(here, hi, radius), radius)),
+        trim.north
+            .map(|n| Margin::levered(latitude_sine(n, here, radius), radius)),
+        trim.south
+            .map(|s| Margin::levered(latitude_sine(here, s, radius), radius)),
     ]
     .into_iter()
     .flatten()

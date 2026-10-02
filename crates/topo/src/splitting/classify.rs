@@ -10,7 +10,7 @@ use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::entity::{FaceKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 
@@ -20,46 +20,41 @@ use crate::validate::decide;
 /// A face passes if the split pipeline executes its `(kind × plane)`
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
-/// plane MAY meet it: its certified reach box (`census::face_reach`,
-/// the boolean's `FaceBoxRule` at this body's scalar, a sphere face's
-/// tightened to its latitude zone by [`gate_face_reach`]), padded by the
-/// boolean sweep's pad, is cleared when all eight corners are
-/// definitely on one side of the plane ([`box_clears`]). Behind a box
-/// that clears, the face has no vertex on or across the plane, no
-/// edge crossing it and no section through it, so every later stage
-/// carries it through whole.
+/// plane MAY meet it: when its padded reach box ([`gate_face_reach`])
+/// is not definitely on one side of the plane ([`box_clears`]). Behind
+/// a box that clears, the face has no vertex on or across the plane,
+/// no edge crossing it and no section through it, so every later stage
+/// carries it through whole. The box is the face's STORED locus, so an
+/// `Approx` face clears by its fit, which is the geometry there is to
+/// cut; one the plane may meet refuses by kind, since an arm executed
+/// against the fit would cut the approximation, not the surface the
+/// modeller described.
 ///
 /// Edge carriers: `Line`, `Circle` and `Ellipse` pass. A `Spiric` or
-/// `Nurbs` carrier refuses typed only when the plane may meet it: it
-/// clears behind its own reach box, or behind the box of either face
-/// it bounds, since an edge lies on both its faces (and a spline edge
-/// has no sound box of its own). A face whose surface key does not
-/// resolve, or whose box cannot be built, may meet the plane and
-/// refuses; so does pre-existing null scaffolding.
+/// `Nurbs` carrier refuses typed only when the plane may meet it
+/// ([`edge_clears`]). A face whose surface key does not resolve is a
+/// corrupt body and refuses as one; null scaffolding refuses as ever.
 pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let face_clears = |face| box_clears(gate_face_reach(body, face, band), plane, band);
     for (face_key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
-            return Err(SplitReduceError::CurvedBooleanUnsupported {
-                face: face_key,
-                kind: geom::SurfaceKind::Nurbs,
-            });
+            return Err(SplitReduceError::Euler(
+                crate::euler::EulerOpError::StaleGeometry {
+                    key: crate::entity::GeomRef::Surface(face.surface),
+                },
+            ));
         };
         let kind = surface.kind();
         match kind {
             geom::SurfaceKind::Plane | geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone => {}
-            // `Approx` is gated by kind, not passed as the spline its
-            // fit is: an arm executed against the fit would cut the
-            // approximation, not the surface the modeller described.
             geom::SurfaceKind::Sphere
             | geom::SurfaceKind::Torus
             | geom::SurfaceKind::Nurbs
             | geom::SurfaceKind::Approx => {
-                if !face_clears(face_key) {
+                if !box_clears(gate_face_reach(body, face_key, band), plane, band) {
                     return Err(SplitReduceError::CurvedBooleanUnsupported {
                         face: face_key,
                         kind,
@@ -76,11 +71,7 @@ pub(super) fn gate_operand<T: Decide>(
                 | geom::Curve3::Ellipse { .. } => {}
                 // No crossing-root arm reads a spiric or a spline.
                 geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                    let bounding =
-                        [edge.he_plus, edge.he_minus].map(|he| body.face_of_half_edge(he));
-                    let clears = box_clears(crate::census::edge_reach(body, edge_key), plane, band)
-                        || bounding.into_iter().flatten().any(face_clears);
-                    if !clears {
+                    if !edge_clears(body, edge_key, plane, band) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
                 }
@@ -91,84 +82,112 @@ pub(super) fn gate_operand<T: Decide>(
     Ok(())
 }
 
+/// Whether the plane certainly misses an edge: behind its own reach box
+/// (`census::edge_reach`) or behind the box of either face it bounds,
+/// since an edge lies on both its faces. A spline edge has no sound box
+/// of its own (`EdgeBoxRule::NoSoundBox`), so its faces' boxes are what
+/// clear it.
+fn edge_clears<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    plane: &SplitPlane<T>,
+    band: Band,
+) -> bool {
+    let bounding = body
+        .get_edge(edge)
+        .map(|e| [e.he_plus, e.he_minus].map(|he| body.face_of_half_edge(he)));
+    box_clears(crate::census::edge_reach(body, edge), plane, band)
+        || bounding
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|face| box_clears(gate_face_reach(body, face, band), plane, band))
+}
+
 /// K name: a sphere face's polar axis, read as a unit direction for
 /// its latitude zone's slab.
 const SPLIT_GATE_SPHERE_AXIS: &str = "split_gate_sphere_axis";
 
-/// A face's reach for the gate: `census::face_reach`, except that a
-/// sphere face whose chart trim pins a latitude window
-/// (`solid_contain::sphere_chart_trim`) is boxed by the zone between
-/// its two extreme latitudes — the axial slab over that window, met
+/// A face's reach for the gate: `census::face_reach` (the boolean's
+/// `FaceBoxRule` at this body's scalar), except that a sphere face is
+/// boxed by its latitude zone where that zone is certified: the axial
+/// slab over the window `solid_contain::sphere_chart_trim` pins, met
 /// with the ball. The ball alone is the whole sphere, which a plane
-/// through any part of it meets: a cap on a cylinder would refuse
-/// every cut of the cylinder. A face outside the trim's class, or one
-/// whose trim escalates, keeps the ball.
+/// through any part of it meets, so a cap on a cylinder would refuse
+/// every cut of the cylinder.
+///
+/// The trim reads the window off the boundary, and the boundary of a
+/// rectangle is also the boundary of its complement. The zone is
+/// therefore taken only when the side the boundary traversal encodes
+/// (`boundary_material_sign`, the iso-rectangle reading tier 3's curved
+/// sense check runs) agrees with the face's `sense`, which places the
+/// face on the rectangle's side of its rims. A face whose side is
+/// unencoded, refused, or in disagreement, one outside the trim's
+/// class, and one whose trim escalates all keep the ball.
 fn gate_face_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::{Span, SpanBox, UnitSpanBox, meet, slab_extent};
+    use crate::boolean::boxes::{Span, SpanBox, UnitSpanBox, slab_extent};
     let ball = crate::census::face_reach(body, face, band)?;
-    let Some(geom::Surface::Sphere {
-        center,
-        radius,
-        axis,
-        ..
-    }) = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+    let f = body.get_face(face)?;
+    let Some(
+        surface @ geom::Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        },
+    ) = body.get_surface(f.surface)
     else {
         return Some(ball);
     };
+    let side_certified = crate::props::loop_edges(body, f.outer)
+        .ok()
+        .and_then(|(outer, _)| geom_brep::props::boundary_material_sign(surface, &outer, band).ok())
+        .is_some_and(|side| {
+            side == geom_brep::props::MaterialSign::Encoded(if f.sense {
+                Sign::Positive
+            } else {
+                Sign::Negative
+            })
+        });
+    if !side_certified {
+        return Some(ball);
+    }
     let (Ok(Some(trim)), Ok(unit)) = (
         crate::boolean::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band),
         UnitVec3::new(*axis, SPLIT_GATE_SPHERE_AXIS, band),
     ) else {
         return Some(ball);
     };
-    // `lat_lo` is the extreme nearest the `+axis` pole, so the larger
-    // axial offset; a `None` end reaches its pole.
     let h = Span {
-        lo: trim.lat_hi.map_or(T::zero() - *radius, |(h, _)| h),
-        hi: trim.lat_lo.map_or(*radius, |(h, _)| h),
+        lo: trim.south.map_or(T::zero() - *radius, |(h, _)| h),
+        hi: trim.north.map_or(*radius, |(h, _)| h),
     };
-    let zone = slab_extent(
+    let (zlo, zhi) = crate::census::span_pts(slab_extent(
         &SpanBox::point(*center),
         &UnitSpanBox::exact(unit),
         h,
         *radius,
-    );
-    let ball = SpanBox {
-        x: Span {
-            lo: ball.0.x,
-            hi: ball.1.x,
-        },
-        y: Span {
-            lo: ball.0.y,
-            hi: ball.1.y,
-        },
-        z: Span {
-            lo: ball.0.z,
-            hi: ball.1.z,
-        },
-    };
-    let met = meet(zone, ball);
+    ));
+    let (lo, hi) = ball;
     Some((
-        Point3::new(met.x.lo, met.y.lo, met.z.lo),
-        Point3::new(met.x.hi, met.y.hi, met.z.hi),
+        Point3::new(lo.x.max(zlo.x), lo.y.max(zlo.y), lo.z.max(zlo.z)),
+        Point3::new(hi.x.min(zhi.x), hi.y.min(zhi.y), hi.z.min(zhi.z)),
     ))
 }
 
-/// K name: a corner of an unarmed entity's padded reach box, its
-/// signed distance from the split plane (metres).
+/// K name: an unarmed entity's padded reach box, its distance from the
+/// split plane (metres).
 const SPLIT_GATE_BOX_SIDE: &str = "split_gate_box_side";
 
-/// Whether the plane certainly misses a reach box: the box padded by
-/// the boolean sweep's pad, every one of its eight corners definitely
-/// on one side. The signed distance is affine, so the corners are its
-/// extremes over the box. No box (an entity the reach lane cannot
-/// bound), a corner in band, or corners on both sides answer `false`.
+/// Whether the plane certainly misses a reach box padded by the
+/// boolean sweep's pad: the box centre's distance from the plane, less
+/// the box's half-extent along the normal (its support, `Σ|nᵢ|·hᵢ`),
+/// decided definitely positive. No box (an entity the reach lane cannot
+/// bound) answers `false`.
 fn box_clears<T: Decide>(
     reach: Option<(Point3<T>, Point3<T>)>,
     plane: &SplitPlane<T>,
@@ -178,30 +197,21 @@ fn box_clears<T: Decide>(
         return false;
     };
     let pad = T::from_f64(crate::boolean::boxes::sweep_pad(band));
-    let (lo, hi) = (
-        Point3::new(lo.x - pad, lo.y - pad, lo.z - pad),
-        Point3::new(hi.x + pad, hi.y + pad, hi.z + pad),
+    let half = T::from_f64(0.5);
+    let n = plane.normal.get();
+    let centre = Point3::new(
+        (lo.x + hi.x) * half,
+        (lo.y + hi.y) * half,
+        (lo.z + hi.z) * half,
     );
-    let mut sides = [false; 2];
-    for i in 0..8 {
-        let pick = |bit: usize, l: T, h: T| if i & bit == 0 { l } else { h };
-        let corner = Point3::new(
-            pick(1, lo.x, hi.x),
-            pick(2, lo.y, hi.y),
-            pick(4, lo.z, hi.z),
-        );
-        let margin = Margin::of(crate::sector_shape::plane_offset(
-            plane.origin,
-            plane.normal.get(),
-            corner,
-        ));
-        match decide(SPLIT_GATE_BOX_SIDE, margin, band) {
-            Ok(Sign::Positive) => sides[0] = true,
-            Ok(Sign::Negative) => sides[1] = true,
-            Ok(Sign::Zero) | Err(_) => return false,
-        }
-    }
-    sides[0] != sides[1]
+    let support = n.x.abs() * ((hi.x - lo.x) * half + pad)
+        + n.y.abs() * ((hi.y - lo.y) * half + pad)
+        + n.z.abs() * ((hi.z - lo.z) * half + pad);
+    let gap = crate::sector_shape::plane_offset(plane.origin, n, centre).abs() - support;
+    matches!(
+        decide(SPLIT_GATE_BOX_SIDE, Margin::of(gap), band),
+        Ok(Sign::Positive)
+    )
 }
 
 /// F6: classify every vertex against the plane through the
@@ -613,8 +623,13 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
 ///   rule (b) adjudication. Two roots split the parent then its
 ///   trailing child (ascending — the second root lives on the child's
 ///   span).
+/// - **Spiric and spline carriers** have no crossing lane. One passes
+///   uncut only where [`edge_clears`] certifies its whole locus on one
+///   side of the plane, the operand gate's own test; any other refuses
+///   [`SplitReduceError::CurvedEdgeUnsupported`]. Same-side endpoints
+///   are not enough: a spline's belly can cross between them.
 ///
-/// Both lanes are certified by `split_edge` itself (the
+/// Both crossing lanes are certified by `split_edge` itself (the
 /// `split_edge_param_interior` trilean + full child re-certification —
 /// the honest lane the raw book formula lacks). New vertices are ON
 /// **by construction** (declared coincidence): their verdicts are
@@ -662,15 +677,11 @@ pub(super) fn insert_crossings<T: Decide>(
                     fault,
                 });
             }
-            // The gate admits a spiric or spline edge only behind a box
-            // the plane cannot meet, so its ends sit on one strict side
-            // and there is no crossing to insert; anything else is a
-            // carrier no crossing lane reads.
+            // A spiric or spline carrier has no crossing lane: it passes
+            // only behind a box the plane cannot meet, read here as at
+            // the gate, so its whole locus is on one side.
             Err(()) if !matches!(curve.carrier(), geom::Curve3::Line { .. }) => {
-                if matches!(
-                    (sides[u], sides[v]),
-                    (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below)
-                ) {
+                if edge_clears(body, edge_key, plane, band) {
                     continue;
                 }
                 return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
