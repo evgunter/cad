@@ -338,6 +338,8 @@ mod reach_aligned_half_rods;
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]
 mod reach_continuation;
+#[path = "reach_split_gate_per_face.rs"]
+mod reach_split_gate_per_face;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]

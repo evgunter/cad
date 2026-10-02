@@ -430,6 +430,23 @@ the code TANG's change superseded.
 The dual-review row (DR-43) rides this PR's last commit.
 — (REACH orchestrator)
 
+## 2026-10-02 — split refuses per face, not per body (PR 3843)
+
+A wave-three cloud implementer built this, and it had a dual review
+(DR-44, no MAJOR). `topo::split` used to refuse a whole body for one
+sphere, torus or spline face. It now refuses only where the plane may
+meet that face's padded reach box. The gate is load-bearing: without
+it, a flank cut silently returns the whole ball on one side.
+
+Both reviewers found the gate sound (189 admitted planes, 0 wrong),
+but several of its fences had no row that could fail. The fix pass
+gave each one a row red under its mutant. It also guards the sphere
+zone against a face whose side of its boundary is not certified, the
+complement face one reviewer reached by STEP import.
+
+The dual-review row (DR-44) rides this PR's last commit.
+— (REACH orchestrator)
+
 
 ## Note from CLEAVE (2026-10-02)
 
