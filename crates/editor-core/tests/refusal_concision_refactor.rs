@@ -167,7 +167,10 @@ fn inline_refusals() -> Vec<InlineError> {
             by: s(5, "Union"),
         },
         InlineError::Unresolved {
-            failure: ResolveFailure::new(ResolveFault::Unresolved, "no such document"),
+            failure: ResolveFailure::new(
+                ResolveFault::EpsilonSeam,
+                "document ε 1e-6 conflicts with the process ε 1e-9 (one process, one ε)",
+            ),
         },
         InlineError::EpsilonSeam {
             host_eps: 1e-9,
@@ -227,40 +230,7 @@ fn inline_refusals() -> Vec<InlineError> {
 
 /// The stage words a refactor refusal opens with, each on the row
 /// namespace that writes it.
-const LABELS: &[(&str, &str)] = &[
-    ("Split/", "split"),
-    ("Inline/", "inline"),
-    // The pin's own refusal, forwarded under its stage word.
-    ("Split/Pin", "persist"),
-];
-
-/// The rows that state no recourse, by exact row id, filed with their
-/// owner.
-const FILED_NO_RECOURSE: &[&str] = &[
-    // work/place/split-and-inline-refusals-short-of-the-shape-guard.md
-    "Split/EmptyCut",
-    "Split/UnknownCutNode",
-    "Split/PartIdCollides",
-    "Split/SeveredEdge",
-    "Split/OperandSeveredFromMate",
-    "Split/UncutParamReference",
-    "Split/PartNameReachesRemainder",
-    "Split/NameStraddlesCut",
-    "Split/NameOnDroppedStep",
-    "Split/BodyNameCrossesCut",
-    "Split/Pin",
-    "Inline/UnknownNode",
-    "Inline/NotAnInstance",
-    "Inline/InstanceConsumed",
-    "Inline/Unresolved",
-    "Inline/EpsilonSeam",
-    "Inline/PartCarriesMetadata",
-    "Inline/ParamConflict",
-    "Inline/InstanceBodyNameReferenced",
-    "Inline/ForeignInstanceName",
-    "Inline/NameOnDroppedStep",
-    "Inline/StrandedPartName",
-];
+const LABELS: &[(&str, &str)] = &[("Split/", "split"), ("Inline/", "inline")];
 
 /// The rows that name a document by its hex id, filed with their owner.
 const ADMISSIONS: &[Admission<'static>] = &[Admission {
@@ -275,7 +245,6 @@ const ADMISSIONS: &[Admission<'static>] = &[Admission {
 fn every_split_and_inline_refusal_states_one_recourse() {
     let mut problems = Vec::new();
     let mut names = Vec::new();
-    let mut used = std::collections::BTreeSet::new();
     let split: Vec<(String, String)> = split_refusals()
         .iter()
         .map(|e| {
@@ -314,29 +283,15 @@ fn every_split_and_inline_refusal_states_one_recourse() {
     }
     for (name, text) in split.iter().chain(&inline) {
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-        let no_recourse = format!("{name} states no recourse");
         let allowed: Vec<&str> = LABELS
             .iter()
             .filter(|(ns, _)| name.starts_with(ns))
             .map(|(_, l)| *l)
             .collect();
-        for problem in
-            test_utils::refusal::problems_admitting(name, text, &allowed, false, ADMISSIONS)
-        {
-            if FILED_NO_RECOURSE.contains(&name.as_str()) && problem.starts_with(&no_recourse) {
-                used.insert(name.clone());
-            } else {
-                problems.push(problem);
-            }
-        }
+        problems.extend(test_utils::refusal::problems_admitting(
+            name, text, &allowed, false, ADMISSIONS,
+        ));
         names.push(name.clone());
-    }
-    for filed in FILED_NO_RECOURSE {
-        if !used.contains(*filed) {
-            problems.push(format!(
-                "the admission {filed} admits nothing a row renders"
-            ));
-        }
     }
     problems.extend(test_utils::refusal::unclaimed_admissions(
         ADMISSIONS,
