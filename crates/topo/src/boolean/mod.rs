@@ -2710,9 +2710,10 @@ impl core::fmt::Display for BooleanError {
                 match orientation {
                     ShellOrientation::Unpaired { .. } => write!(
                         f,
-                        "but one of its faces is not built from or declared coincident \
-                         with a face of the other. Recourse: declare which face of the \
-                         other it lies on"
+                        "but one of its faces is neither built from nor declared \
+                         coincident with a face of the other. If that face lies on one, \
+                         declare the pair; if it does not (a curved face the Boolean \
+                         cannot probe inside), this is a kernel frontier"
                     ),
                     ShellOrientation::Mixed => write!(
                         f,

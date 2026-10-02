@@ -111,7 +111,7 @@ use super::finish::setopfinish;
 use super::join::bool_connect;
 use super::section_cert::Refusal as SectionRefusal;
 use super::shell_witness::{
-    ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept, shell_verdict,
+    ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
@@ -3149,15 +3149,8 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
         [(&red.a, &a_sides), (&red.b, &b_sides)],
         [a_pristine, b_pristine],
     )?;
-    let keep = |sides: &[(ShellKey, ShellVerdict)], operand| -> Vec<ShellKey> {
-        sides
-            .iter()
-            .filter(|(_, v)| kept(op, operand, *v))
-            .map(|(k, _)| *k)
-            .collect()
-    };
-    let a_keep = keep(&a_sides, Operand::A);
-    let b_keep = keep(&b_sides, Operand::B);
+    let a_keep = kept_shells(op, Operand::A, &a_sides);
+    let b_keep = kept_shells(op, Operand::B, &b_sides);
 
     let carve_kept = |body: &Body<T>, keep: &[ShellKey]| -> Result<Body<T>, BooleanError> {
         let solid = single_solid(body).map_err(|_| desync("fallback operand not one solid"))?;

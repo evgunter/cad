@@ -1,27 +1,39 @@
-//! **The cell-dimension witness ladder**: which side of the other
-//! operand a cell complex — a set of faces of one operand — lies on,
-//! where the other operand's boundary does not cut it. Two questions
-//! read it:
+//! **What an uncut cell complex is to the other operand** — a set of
+//! faces of one operand that the other operand's boundary does not
+//! cut. Two answers come from two sources, and they are asked in order:
 //!
-//! - **the uncut-shell witness** ([`shell_verdict`]): the containment
+//! 1. **a side**, In or Out, from the complex's own points
+//!    (the cell-dimension witness ladder, [`complex_side`]);
+//! 2. for a whole shell the ladder leaves undecided with every witness
+//!    ON the other boundary, **`On`** — the shell lies on a shell of
+//!    the other operand — from the coincidences the reduction settled
+//!    ([`on_verdict`], [`check_mutual`]).
+//!
+//! Two questions read it:
+//!
+//! - **the uncut-shell verdict** ([`shell_verdict`]): the containment
 //!   fallback's per-shell verdict and the uncut-component probe of
-//!   `setopfinish`. The containment fallback runs only when the
-//!   operands have no crossings, and for a curved boundary the extent
-//!   certificates that run before it (`ops::sphere_extent_scan`,
-//!   `ops::section_extent_pass`) certify that none was missed;
-//!   `setopfinish` classifies a component that carries no section face,
-//!   so its ground is the join's: every crossing of the two boundaries
-//!   was found and cut, and this component met none.
+//!   `setopfinish`. Both answers apply. The containment fallback runs
+//!   only when the operands have no crossings, and for a curved
+//!   boundary the extent certificates that run before it
+//!   (`ops::sphere_extent_scan`, `ops::section_extent_pass`) certify
+//!   that none was missed; `setopfinish` classifies a component that
+//!   carries no section face, so its ground is the join's: every
+//!   crossing of the two boundaries was found and cut, and this
+//!   component met none.
 //! - **section-loop role resolution** (`join::resolve_roles_geometric`):
 //!   the region faces flanking each loop of a completed section
 //!   polygon, read once every polygon is cut, so no crossing runs
-//!   through them.
+//!   through them. Only the side applies: a region is not a shell.
+//!
+//! # The side: the witness ladder
 //!
 //! An uncut complex meets the other operand's boundary only where it
 //! lies ON it (a seam, a declared flush face, a vertex at rest on a
 //! face), so every point of it OFF that boundary is on one side, and
 //! [`point_in_solid`] at any such point names the complex's side. One
-//! decisive witness is therefore the answer; a second could only agree.
+//! decisive witness therefore names the side; a second could only
+//! agree.
 //!
 //! The witnesses are the complex's own points, one per cell, in
 //! increasing dimension:
@@ -41,43 +53,46 @@
 //! other refusal is about the other operand rather than the point, and
 //! propagates.
 //!
-//! No record of contacts is consulted, at any dimension. A vertex the
-//! reduction recorded ON the other boundary is there by geometry, within
-//! the band's zero, and reads `OnBoundary`; a declared pair whose
-//! carriers sit in the band's sliver is refused by the reduction before
-//! any witness runs. So a recorded contact never reads decisively, which
-//! [`debug_assert_contacts_undecisive`] checks on every boolean that
-//! reaches the ladder.
+//! The ladder consults no record of contacts, at any dimension. A
+//! vertex the reduction recorded ON the other boundary is there by
+//! geometry, within the band's zero, and reads `OnBoundary`; a declared
+//! pair whose carriers sit in the band's sliver is refused by the
+//! reduction before any witness runs. So a recorded contact never reads
+//! decisively, which [`debug_assert_contacts_undecisive`] checks on
+//! every boolean that reaches the ladder.
 //!
 //! The first decisive witness decides. A block inside another, flush on
 //! four walls, reaches the third tier: its vertices and edges all lie
 //! on the other boundary, and the interior of each end face does not.
-//! When no witness decides, the complex's side is undecided, and the
-//! reading says how many witnesses read the other boundary and how many
-//! read too near it to say. That is the cause; an in-band reading is
-//! about one point, possibly near a face far from the complex, and rides
-//! along as evidence only. A complex whose vertices and edges all lie on
-//! the other boundary and whose faces off it are all curved reaches this
-//! (tier 3 reads planar faces only).
+//! When no witness decides, the reading says how many witnesses read
+//! the other boundary and how many read too near it to say. An in-band
+//! reading is about one point, possibly near a face far from the
+//! complex, and rides along as evidence only: a shell with one refuses
+//! [`BooleanError::ShellWitnessExhausted`].
 //!
-//! # The `On` verdict
+//! # `On`: the settled coincidences
 //!
-//! An uncut shell every witness of which reads `OnBoundary` (none
-//! in-band) may lie wholly ON the other operand's boundary: one body
-//! twice, or one operand's shell carried unchanged into the other. The
-//! ladder cannot say so, because no point of such a shell is off that
-//! boundary; the coincidence ladder can. The question is asked of the
-//! pairs the reduction SETTLED one carrier (`BooleanReduction`'s
-//! `coincident`: shared recipe source, or a verified declaration),
-//! never of values and never of how many witnesses read `OnBoundary`.
-//! The shell is `On` a shell of the other operand when every face of
-//! each is in a settled pair with a face of the other ([`on_verdict`]),
-//! the pairs between the two agree on orientation, and the partner
-//! reads `On` back ([`check_mutual`]). The two then hold one surface,
-//! and [`on_kept`] keeps or drops each copy by the classic rule for a
-//! coincident face pair. Where the pairs certify less — a face with no
-//! settled pair, mixed orientations, no partner covered back — the
-//! boolean refuses [`BooleanError::CoincidentShell`].
+//! A shell every witness of which reads `OnBoundary` may lie wholly ON
+//! the other operand's boundary: one body twice, or one operand's shell
+//! carried unchanged into the other. No point of such a shell is off
+//! that boundary, so the ladder cannot name it; the coincidence ladder
+//! can. This answer reads reduction records — the face pairs the
+//! reduction SETTLED one carrier (`BooleanReduction`'s `coincident`:
+//! shared recipe source, or a verified declaration) — and never values,
+//! nor how many witnesses read `OnBoundary`. The shell is `On` a shell
+//! of the other operand when every face of each is in a settled pair
+//! with a face of the other, the pairs agree on orientation
+//! ([`on_verdict`]), and the partner reads `On` back ([`check_mutual`]).
+//! The two then hold one surface, and [`on_kept`] keeps or drops each
+//! copy by Eq. 15.3, the rule for a coincident face pair. Where the
+//! pairs certify less — a face with no settled pair, mixed
+//! orientations, no partner covered back — the boolean refuses
+//! [`BooleanError::CoincidentShell`].
+//!
+//! The same shell is also what reaches `On` when its faces off the
+//! other boundary are all curved, since tier 3 reads planar faces only.
+//! Such a face has no settled pair unless the recipe or a declaration
+//! made it one carrier with a face of the other, so it refuses typed.
 
 use geom_core::{Band, Decide, Point3, Tol, Vec3};
 use slotmap::SecondaryMap;
@@ -385,26 +400,25 @@ fn on_verdict<T: Decide>(
     }
 }
 
-/// **The keep rule for an `On` shell**, per operand (module docs):
-///
-/// | the shells' orientation | ∪ | ∩ | A − B |
-/// |---|---|---|---|
-/// | same | A's copy | A's copy | neither |
-/// | opposite | neither | neither | A's |
+/// **The keep rule for an `On` shell**, per operand: Eq. 15.3's lump
+/// for a coincident face pair, kept where it is the side `op` keeps
+/// ([`super::tables::kept_copy`]'s rule, cell for cell). Aligned, ∪
+/// and ∩ keep A's copy and ∖ neither; opposed, ∪ and ∩ keep neither
+/// and ∖ keeps A's.
 pub(super) fn on_kept(op: BooleanOp, operand: Operand, relation: CarrierRelation) -> bool {
-    match (op, relation) {
-        (BooleanOp::Union | BooleanOp::Intersect, CarrierRelation::SameOriented)
-        | (BooleanOp::Subtract, CarrierRelation::SameOpposite) => operand == Operand::A,
-        _ => false,
-    }
+    super::tables::eq15_3_lump(op, operand, relation) == super::finish::kept_side(op, operand)
 }
 
-/// Is `verdict` kept under `op` for `operand`?
-pub(super) fn kept(op: BooleanOp, operand: Operand, verdict: ShellVerdict) -> bool {
-    match verdict {
-        ShellVerdict::Side(s) => s == super::finish::kept_side(op, operand),
-        ShellVerdict::On { relation, .. } => on_kept(op, operand, relation),
-    }
+/// The shells of `verdicts` that `op` keeps for `operand`, in order.
+pub(super) fn kept_shells(op: BooleanOp, operand: Operand, verdicts: &[Verdict]) -> Vec<ShellKey> {
+    verdicts
+        .iter()
+        .filter(|(_, v)| match *v {
+            ShellVerdict::Side(s) => s == super::finish::kept_side(op, operand),
+            ShellVerdict::On { relation, .. } => on_kept(op, operand, relation),
+        })
+        .map(|(k, _)| *k)
+        .collect()
 }
 
 /// One shell with its verdict.
@@ -617,5 +631,78 @@ pub(super) fn debug_assert_contacts_undecisive<T: Decide>(
     }
     for c in &contacts.b_on_a {
         check(b, c.vertex, Operand::B);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{ShellOrientation, ShellVerdict, on_verdict};
+    use crate::boolean::{BooleanError, BooleanResult, CarrierRelation, Operand, SettledPair};
+    use crate::entity::{FaceKey, ShellKey};
+    use crate::test_support_fixtures::brick;
+    use crate::{Body, union};
+    use geom_core::Tol;
+
+    /// **A partner covers the whole shell, not part of it.** A unit
+    /// block S against a body of two disjoint blocks P1 and P2, with a
+    /// settled-pair list handed in: five of S's faces pair into P1, the
+    /// sixth only into P2, and every face of P1 pairs back into S. P1
+    /// would read `On` back, so only the coverage filter in
+    /// [`on_verdict`] keeps S from being called `On` P1 with a face
+    /// lying on P2. The reduction is not known to produce such a list
+    /// (an unsettled face lying on P1's twin refuses first), so the list
+    /// is built here rather than reached.
+    #[test]
+    fn a_shell_split_across_two_partners_is_not_on_either() {
+        let tol = Tol::witness();
+        let unit = (0.0, 1.0);
+        let s: Body<f64> = brick(unit, unit, unit, tol);
+        let p1: Body<f64> = brick(unit, unit, unit, tol);
+        let p2: Body<f64> = brick((3.0, 4.0), unit, unit, tol);
+        let BooleanResult::Body(other) = union(&p1, &p2, tol).unwrap() else {
+            panic!("two blocks are not empty");
+        };
+        let other = other.body;
+        let shells: Vec<(ShellKey, Vec<FaceKey>)> = other
+            .shells()
+            .map(|(k, sh)| (k, sh.faces.clone()))
+            .collect();
+        assert_eq!(shells.len(), 2, "the other body holds P1 and P2");
+        let (shell, s_faces) = s
+            .shells()
+            .map(|(k, sh)| (k, sh.faces.clone()))
+            .next()
+            .unwrap();
+        let (one, two) = (&shells[0].1, &shells[1].1);
+        let same = CarrierRelation::SameOriented;
+        let mut coincident: Vec<SettledPair> = (0..5)
+            .map(|i| SettledPair {
+                a: s_faces[i],
+                b: one[i],
+                relation: same,
+            })
+            .collect();
+        coincident.push(SettledPair {
+            a: s_faces[5],
+            b: two[0],
+            relation: same,
+        });
+        coincident.push(SettledPair {
+            a: s_faces[0],
+            b: one[5],
+            relation: same,
+        });
+        match on_verdict((shell, Operand::A), &s_faces, &other, &coincident) {
+            Err(BooleanError::CoincidentShell {
+                orientation: ShellOrientation::Same,
+                ..
+            }) => {}
+            Ok(ShellVerdict::On { partner, .. }) => {
+                panic!("S read On {partner:?} with a face paired only into the other shell")
+            }
+            other => panic!("expected CoincidentShell(Same), got {other:?}"),
+        }
     }
 }

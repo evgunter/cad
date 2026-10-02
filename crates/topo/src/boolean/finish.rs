@@ -37,7 +37,7 @@ use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
 use super::join::CompletedPolygonPair;
 use super::shell_witness::{
-    ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept, shell_verdict,
+    ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
 use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
@@ -269,15 +269,8 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         [(&red.a, &a_verdicts), (&red.b, &b_verdicts)],
         [a_pristine, b_pristine],
     )?;
-    let kept_of = |verdicts: &[(ShellKey, ShellVerdict)], operand| -> Vec<ShellKey> {
-        verdicts
-            .iter()
-            .filter(|(_, v)| kept(op, operand, *v))
-            .map(|(k, _)| *k)
-            .collect()
-    };
-    let a_kept_shells = kept_of(&a_verdicts, Operand::A);
-    let b_kept_shells = kept_of(&b_verdicts, Operand::B);
+    let a_kept_shells = kept_shells(op, Operand::A, &a_verdicts);
+    let b_kept_shells = kept_shells(op, Operand::B, &b_verdicts);
     if a_kept_shells.is_empty() || b_kept_shells.is_empty() {
         // With ≥ 1 completed polygon both solids hold both components.
         return Err(desync("a seamed operand lost its kept component"));
