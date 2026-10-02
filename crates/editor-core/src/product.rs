@@ -581,7 +581,7 @@ impl From<ProductError> for ProductRefusal {
 
 impl PartialEq for ProductRefusal {
     fn eq(&self, other: &Self) -> bool {
-        let (mine, theirs) = (&self.0, &other.0);
+        let (Self(mine), Self(theirs)) = (self, other);
         Arc::ptr_eq(mine, theirs) || format!("{mine:?}") == format!("{theirs:?}")
     }
 }
