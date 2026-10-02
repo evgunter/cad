@@ -90,9 +90,9 @@ pub use description::{
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DihedralClass, MaterialPairing, MaterialWedge, MustCarryDescription,
-    MustCarryRefusal, MustCarryVerdict, SecondOrder, classify_dihedral, classify_material_pairing,
-    classify_material_pairing_as, folded_lever_arm, material_kappa_rel, must_carry_over_edge,
-    tangent_second_order,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, classify_dihedral,
+    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, material_kappa_rel,
+    must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{
     CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
@@ -140,9 +140,10 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage, UncoveredClass,
-    chart_pcurve, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, MAX_BRANCH_PERIODS,
+    NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
+    PcurveKind, SpiricImage, UncoveredClass, chart_pcurve, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

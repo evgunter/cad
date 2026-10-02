@@ -174,9 +174,9 @@ impl<T: Decide> Body<T> {
     /// ([`crate::pcurves::split_cache`]), so a face this op touches is
     /// never left half-minted and a refusal
     /// ([`EulerOpError::PcurveSplit`]) arrives with the body
-    /// untouched. A half-edge with no row keeps none: absence is never
-    /// a claim, and the op does not start caching a body whose
-    /// producer chose not to.
+    /// untouched. A half-edge with no row keeps none: the op carries
+    /// what is there, and minting what is missing is the producer's
+    /// closing mint.
     ///
     /// Two frontiers, both stated at `split_cache`. A
     /// `Fitted`/`General` row is left exactly as found, because its

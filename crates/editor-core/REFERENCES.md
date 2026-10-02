@@ -191,10 +191,9 @@ So the chain goes, not the link:
   fold of the kernel's pair verb in member order (D9: the order is the
   list's, and the list is data). The fold builds the body. Contact is
   not judged by the fold: it is judged pairwise before the fold (the
-  contact rule below). After every fold step the union joins each
-  joinable vertex no MEMBER drew (`docs/DESIGN.md`, the merge stage),
-  so the body is normalized against the members, not the steps, and
-  is the same in every member order. It sits beside `Boolean(Union)`,
+  contact rule below). The fold's body is the same in every member order: each step's output
+  has maximal faces and maximal edges (`docs/DESIGN.md`, the merge
+  stage), a form unique to the region and its face partition. It sits beside `Boolean(Union)`,
   which stays for a pair, and beside `PlacedUnion`, which fuses
   instances of one prototype and is a different sentence (`node.rs`).
 - **Naming keys by member, not by depth.** The emitter wraps a
@@ -382,7 +381,8 @@ the die's chain unnecessary.*
 ## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 
 The edit that removes a name's referent — `DeleteNode`, and
-`SetProgram` for the steps it drops — stays legal when a
+`SetProgram` for the steps it drops and the kept pieces it stops
+drawing — stays legal when a
 payload name (`Node::payload_names`) names what is being removed: a
 name is not a DAG edge, and the carve-out in §0 stands. What the door
 owes is a report: every `(node, name)` pair whose referent the edit
@@ -395,12 +395,20 @@ the diagnosis and the repair. A reshaping's strands are the names on
 the steps it drops: a profile piece's name spells its step's minted id
 (`names/README.md`, "N1, the profile pieces"), so a name on a step the
 reshaping keeps still denotes that step's piece wherever the new
-program draws it and is neither rewritten nor reported, while a dropped
-step's id is never minted again and every name on it keeps its
-spelling, resolves `Vanished` and is reported stranded. For the same
-reason a value edit reports nothing: it can move which loop is outer,
-which way a loop runs or how many segments a step draws, and none of
-those moves a name.
+program draws it and is not rewritten, while a dropped step's id is
+never minted again and every name on it keeps its spelling, resolves
+`Vanished` and is reported stranded. A kept step's piece the new
+program does not draw — another piece took its segment, as a fillet
+inserted or moved before a leg takes the leg's (`names/README.md`,
+"Undrawn pieces vanish rather than alias") — is the reshaping's
+removal too, and its names are reported the same way: the door
+compares which pieces the old and the new program draw under the
+current parameters, as the program's own piece door answers, and
+reports a name whose piece the new one does not draw and the old one
+drew — or every such name, where the old program does not replay under
+the current parameters and so cannot say what it drew. A value edit
+reports nothing: it can move which loop is outer, which way a loop runs
+or how many segments a step draws, and none of those moves a name.
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is

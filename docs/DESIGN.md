@@ -467,28 +467,31 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   stage cannot glue a planar group it was licensed to merge refuses
   the step with the merge's own typed reason, so every boolean output
   is a legal boolean operand; only a curved group's skip is recorded
-  and shipped. Load-bearing dependency: `merge_coplanar_faces`
-  **never fuses two vertices into one, and a boolean never removes a
-  vertex an input drew**. A vertex is *drawn* when it descends from an
-  input's vertex through the op's own build records: operand keys,
-  graft rows, zip and weld fusions, and the vertex-to-vertex and
-  vertex-on-face coincidence rows the reduction writes; coincidence of
-  position alone does not count. The output stage deletes a vertex in
-  two shapes, both recorded in `killed_vertices`: the free end of a
-  seam edge the glue left dangling inside the merged face (that edge
-  encloses no area, so it and its free end go together, at any angle
-  and repeatedly along a seam chain), and a *joinable* vertex that no
-  input drew — valence 2, two distinct edges on one carrier between
-  the same two faces — whose two edges become one. For a pair boolean
-  the inputs are its operands; an n-ary union joins again after each
-  fold step with its members as the inputs (DM4). Tier 3′'s strict
-  record-drop rule (a contact record whose vertex pair fused into one
-  vertex is consumed and drops) is correct *because* nothing is fused;
-  a record citing a deleted free end drops as consumed, and no record
-  cites a joined vertex, since every vertex a record can cite is drawn.
-  A vertex where a contact begins or ends is one tier 3′ reconstructs
-  the contact from, so it is never joinable away. Any future fusing,
-  or deletion of a drawn vertex, re-opens the record-carriage class.
+  and shipped. Every op's output also has **maximal edges**: no
+  *joinable* vertex, meaning valence 2 with two distinct edges on one
+  structural carrier between the same two faces. A sweep builds one rim
+  edge per run, as it builds one wall, and a boolean's output stage joins
+  every joinable vertex after the merge, whatever drew it. A body is then
+  the unique complex with maximal faces and maximal edges over its face
+  partition, so a union's body does not depend on its member order, and
+  the form is checked at tier 2 on the result alone, with no history.
+  Load-bearing dependency: `merge_coplanar_faces` **never fuses two
+  vertices into one**. A contact record is a pair of cells, one from each
+  touching shell (vertex, edge or face), whose interiors meet, plus its
+  backing. A vertex resting on an edge's interior is the record
+  (vertex, edge). The output stage deletes a vertex in two shapes, both
+  recorded in `killed_vertices`:
+  - the free end of a seam edge the glue left dangling inside the
+    merged face, which goes together with its edge;
+  - a joinable vertex, whose two edges become one.
+
+  The join carries every record citing the three cells it replaces to
+  the edge it makes, by substitution with its backing unchanged, so
+  records are written by the op that changes their entities and never
+  re-derived at the gate (F1). Tier 3′'s strict record-drop rule (a
+  contact record whose vertex pair fused into one vertex is consumed and
+  drops) is correct *because* nothing is fused. Any future fusing
+  re-opens the record-carriage class.
 
 **The frontier is typed, named and inventoried elsewhere.** Every
 unbuilt case refuses with a message naming its own blocker (D9 row 2),
@@ -504,7 +507,12 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Circle-carrier arm), so the oblique-trihedron octant faces store
   their rows; the cone/torus oblique classes have no ring-computable
   meters composite and refuse with the class named, their faces left
-  uncached until each class's route lands.
+  uncached, excused by C4's exemption until each class's route lands.
+  The same exemption covers a spline carrier at the closed-form door
+  and the zero-offset spiric, mirror-torus spiric and no-fitted
+  classes. Each class has its own PCERT row: the torus general circle,
+  the cone section, the spline carrier, and the spiric and no-fitted
+  classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest; what is missing is
   the join window itself (`run_azimuth_window`/`chart_pcurve` have no

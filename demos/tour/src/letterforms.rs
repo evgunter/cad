@@ -202,20 +202,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         let shadow = shadow_area(&three.body, axis, tol);
         assert_eq!(shadow, area, "the 3-way's shadow is the whole {letter}");
     }
-    crate::walls::wall(
-        "silhouette3",
-        1,
-        "intersect the declared H x T with the C in that order, (H x T) x C",
-        try_intersect_declared(&two.body, &c, tol),
-        |e| {
-            matches!(
-                e,
-                BooleanError::JoinDesync {
-                    what: "every chord arc separates a loose scaffolding pair"
-                }
-            )
-        },
-        "build the 3-way in whichever order reads naturally",
+    // The other order, (H x T) x C, builds the same 3-way: intersection
+    // is commutative, and the join no longer refuses it
+    // (`work/join/declared-flush-intersect-refuses-in-one-operand-order.md`).
+    expect_seamed(
+        "declared (H x T) x C intersect",
+        check(try_intersect_declared(&two.body, &c, tol), V_3WAY, tol),
+        V_3WAY,
     );
     // The shadow PROOF renders (standalone, not montage panels): the
     // 3-way solid viewed straight down each axis — orthographic, so
