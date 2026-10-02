@@ -60,6 +60,7 @@
 //! D2 bump: the first leg's `Distance` (mid-DAG — its cone is that
 //! extrude plus all four unions, everything else reused).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, RoleSeg, SlotId, declare_node,
     evaluate, find_flush_candidates,
@@ -96,6 +97,7 @@ pub fn document() -> CorpusDoc {
     let top = r.insert(Node::Extrude {
         profile: top_profile,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
 
     let mut acc = top;
@@ -111,6 +113,7 @@ pub fn document() -> CorpusDoc {
         let ext = r.insert(Node::Extrude {
             profile: prof,
             distance: len(1.125),
+            side: ExtrudeSide::Along,
         });
         if i == 0 {
             first_leg = ext;

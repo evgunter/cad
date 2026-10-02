@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
@@ -156,7 +157,10 @@ fn major_arc_prism_matches_independent_closed_forms() {
     let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -184,7 +188,10 @@ fn two_hole_plate_matches_independent_closed_forms() {
     ]);
     let t = extrude(
         &validated(vec![outer, round, square]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -204,7 +211,10 @@ fn negative_extrusion_distance_is_positively_oriented() {
     ]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(-1.5),
+        Extrusion::Distance {
+            depth: 1.5,
+            side: ExtrudeSide::Against,
+        },
         Tol::witness(),
     )
     .unwrap();

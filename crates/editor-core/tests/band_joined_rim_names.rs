@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
@@ -43,6 +44,7 @@ fn block(doc: ProfileDoc, (x0, x1): (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

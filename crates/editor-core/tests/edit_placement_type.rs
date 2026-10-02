@@ -7,6 +7,7 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Axis3, CancelToken, Dimension, DocEdit, DocParam, DocParamValue, EditError, EvalOptions, Expr,
@@ -37,6 +38,7 @@ fn cube(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

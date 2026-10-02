@@ -33,6 +33,7 @@
 use crate::common::approx::band;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_chord_at, rod_creases,
@@ -76,9 +77,16 @@ fn extruded(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>, len: f64) -> 
     let p = Profile::new(plane, loops)
         .validate(tol())
         .expect("the profile validates");
-    extrude(&p, Extrusion::Distance(len), tol())
-        .expect("the profile extrudes")
-        .body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: len,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the profile extrudes")
+    .body
 }
 
 /// The block: `x ∈ [−1, 1]`, `y ∈ [−1, 0]`, `z ∈ [0, L]` — its top

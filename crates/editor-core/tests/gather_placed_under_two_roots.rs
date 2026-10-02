@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
@@ -40,6 +41,7 @@ fn block(doc: ProfileDoc, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -522,6 +524,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
         Node::Extrude {
             profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     insert(

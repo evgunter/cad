@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::collections::BTreeMap;
@@ -56,6 +57,7 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
         Node::Extrude {
             profile,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -622,6 +624,7 @@ fn separation_off_is_visibly_skipped_and_independent() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let moved = |doc, dx: f64| {

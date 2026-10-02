@@ -18,6 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanError};
@@ -77,7 +78,10 @@ fn a_prism<S: Scalar>(tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
     extrude(
         &validated(plane, vec![lp(&A_OUTLINE, tol), lp(&A_COUNTER, tol)], tol).expect("A profile"),
-        Extrusion::Distance(S::from_f64(2.0)),
+        Extrusion::Distance {
+            depth: S::from_f64(2.0),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("extrude A")
@@ -89,7 +93,10 @@ fn z_prism<S: Scalar>(tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(p3(0.0, 0.0, 0.0)));
     extrude(
         &validated(plane, vec![lp(&Z_OUTLINE, tol)], tol).expect("Z profile"),
-        Extrusion::Distance(S::from_f64(2.0)),
+        Extrusion::Distance {
+            depth: S::from_f64(2.0),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("extrude Z")

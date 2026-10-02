@@ -36,6 +36,7 @@ use geom_core::{
     Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2,
 };
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis};
 
 fn budget() -> SymBudget {
@@ -61,9 +62,16 @@ fn stadium_extrude<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, 
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .map_err(|e| format!("validate: {e:?}"))?;
-    sweep::extrude(&vp, Extrusion::Distance(lit(1.0)), Tol::witness())
-        .map(|e| e.body.faces().count())
-        .map_err(|e| format!("extrude: {e:?}"))
+    sweep::extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: lit(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body.faces().count())
+    .map_err(|e| format!("extrude: {e:?}"))
 }
 
 /// **The M10-9 washer** — `sweep::revolve_washer`'s parametric
@@ -110,9 +118,16 @@ fn triangle_extrude<T: Decide + topo::AtRestPolicy>(d: T, _r: T) -> Result<usize
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .map_err(|e| format!("validate: {e:?}"))?;
-    sweep::extrude(&vp, Extrusion::Distance(lit(1.0)), Tol::witness())
-        .map(|e| e.body.faces().count())
-        .map_err(|e| format!("extrude: {e:?}"))
+    sweep::extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: lit(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body.faces().count())
+    .map_err(|e| format!("extrude: {e:?}"))
 }
 
 /// The three bodies, in the order [`TABLE`]'s cells list them.

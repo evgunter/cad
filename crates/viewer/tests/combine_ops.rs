@@ -21,6 +21,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
@@ -1957,6 +1958,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1974,6 +1976,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         Node::Extrude {
             profile: profile_b,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -2063,6 +2066,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             Node::Extrude {
                 profile,
                 distance: common::len(0.004),
+                side: ExtrudeSide::Along,
             },
         ),
         (

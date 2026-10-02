@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorClass, NodeErrorKind, NodeResult,
@@ -63,6 +64,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -620,6 +622,7 @@ fn declare_doors_node_gone_and_ambiguous() {
         Node::Extrude {
             profile: up,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, us) = insert(

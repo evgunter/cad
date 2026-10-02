@@ -32,6 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -84,6 +85,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance,
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -628,6 +630,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
         r.insert(Node::Extrude {
             profile: p,
             distance: Expr::param(name("plate_h"), Dimension::Length),
+            side: ExtrudeSide::Along,
         });
         r.doc
     };

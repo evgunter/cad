@@ -21,6 +21,7 @@ use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitReduceError, split};
@@ -36,9 +37,16 @@ fn cylinder_body() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 #[test]
@@ -137,9 +145,16 @@ fn filleted_block() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 #[test]

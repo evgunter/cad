@@ -10,6 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::prelude::{Open, Start, Via, query};
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::chamfer::chamfer_edges;
@@ -87,7 +88,10 @@ pub fn bracket<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
         .into();
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
-        Extrusion::Distance(S::from_f64(0.75)),
+        Extrusion::Distance {
+            depth: S::from_f64(0.75),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("extrude bracket")
@@ -106,7 +110,10 @@ pub fn plate<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     loops.extend(holes);
     extrude(
         &validated(SketchPlane::xy(), loops, tol).expect("profile validation"),
-        Extrusion::Distance(S::from_f64(0.6)),
+        Extrusion::Distance {
+            depth: S::from_f64(0.6),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("extrude plate")
@@ -368,7 +375,10 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
         .into();
     let pad = extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
-        Extrusion::Distance(S::from_f64(z)),
+        Extrusion::Distance {
+            depth: S::from_f64(z),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("extrude spacer")

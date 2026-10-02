@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
@@ -32,6 +33,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         Node::Extrude {
             profile: cube_p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, pip_p) = on_frame(
@@ -45,7 +47,8 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         doc,
         Node::Extrude {
             profile: pip_p,
-            distance: len(-0.125),
+            distance: len(0.125),
+            side: ExtrudeSide::Against,
         },
     );
     let (doc, placed) = insert(

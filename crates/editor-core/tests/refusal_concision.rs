@@ -10,6 +10,7 @@
 
 use crate::corpus::eval;
 use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
+use editor_core::ExtrudeSide;
 
 use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
 
@@ -44,6 +45,7 @@ fn cone_block_union_refusal() -> String {
     let block = r.insert(Node::Extrude {
         profile: block_p,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,

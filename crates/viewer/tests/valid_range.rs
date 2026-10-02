@@ -15,6 +15,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{Dimension, Doc, Expr, Node, ProfileProgram, SlotId};
 use pncad::geom_core::Tol;
@@ -278,6 +279,7 @@ fn the_session_probes_a_real_slots_range() {
         Node::Extrude {
             profile,
             distance: common::len_mm(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -500,6 +502,7 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
         Node::Extrude {
             profile,
             distance: Expr::param(common::thickness_param(), Dimension::Length),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

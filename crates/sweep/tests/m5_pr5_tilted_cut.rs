@@ -17,6 +17,7 @@ use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, SketchPlane, ValidatedProfile, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, split};
 use topo::{Body, validate, validate_closed, validate_geometric};
@@ -35,9 +36,16 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &disc(),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Every certified `Ellipse` edge of a body, with its curve.
@@ -270,9 +278,16 @@ mod interval {
         let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
-            .unwrap()
-            .body;
+        let body = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: iv(1.0),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
         let phi = 0.3f64;
         let plane = topo::test_support::split_plane(
             p3(0.0, 0.0, 0.5),
@@ -657,9 +672,16 @@ fn even_crossing_belly_cut_at_interval() {
     let vp = profile::Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
-        .unwrap()
-        .body;
+    let body = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     // The tilted-belly even-crossing configuration (both rims crossed
     // twice + both seams once). Axis-parallel even-crossing planes put
     // crossing-vertex PAIRS at equal in-plane u (vertically aligned),

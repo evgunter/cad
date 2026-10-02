@@ -44,6 +44,7 @@
 // is exactly the shape a GUI form has, where the draft is canonical
 // whatever the picker shows.
 
+use pncad::document::ExtrudeSide;
 use pncad::document::{BooleanOp, BooleanValue, RefusingReach, save};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
@@ -233,6 +234,7 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
         Node::Extrude {
             profile: cube_p,
             distance: len(L),
+            side: ExtrudeSide::Along,
         },
         tol,
     )

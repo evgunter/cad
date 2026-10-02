@@ -15,6 +15,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -124,6 +125,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
             profile,
             distance: Expr::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -324,6 +326,7 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     )

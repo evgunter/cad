@@ -22,6 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -49,6 +50,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

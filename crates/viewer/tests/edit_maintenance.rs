@@ -21,6 +21,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::{Attr, Rgba8};
@@ -84,6 +85,7 @@ fn extruded(
         Node::Extrude {
             profile,
             distance: common::len(1.0),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

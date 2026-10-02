@@ -7,6 +7,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, mass_properties, validate_closed};
@@ -27,9 +28,16 @@ fn extruded(loops: Vec<Loop>) -> Body<f64> {
     let vp = Profile::new(SketchPlane::xy(), lps)
         .validate(Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 fn plane(o: (f64, f64), n: (f64, f64)) -> SplitPlane<f64> {

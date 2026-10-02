@@ -38,6 +38,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::xy_frame;
 use corpus::{documents, eval, failures};
@@ -553,6 +554,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let puck = r.insert(Node::Extrude {
         profile,
         distance: fixture::len(0.5),
+        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [fixture::len(0.1), fixture::len(0.0), fixture::len(0.25)],

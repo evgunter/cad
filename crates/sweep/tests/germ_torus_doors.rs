@@ -47,6 +47,7 @@
 use crate::common::operands::framed_bar;
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
@@ -448,9 +449,16 @@ fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the bar profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .expect("the bar extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: z.1 - z.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bar extrudes")
+    .body
 }
 
 fn donut() -> Body<f64> {
@@ -725,9 +733,16 @@ fn three_face_cylinder() -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the three-arc circle validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("the cylinder extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the cylinder extrudes")
+    .body
 }
 
 // -------------------------------------------------------------------
@@ -972,9 +987,16 @@ fn a_cylinder_grazing_the_outer_equator_is_not_an_assembly() {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the circle validates");
-    let cyl = sweep::extrude(&vp, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("the cylinder extrudes")
-        .body;
+    let cyl = sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the cylinder extrudes")
+    .body;
     if let Ok(r) = topo::union(&donut(), &cyl, Tol::witness()) {
         assert!(
             !matches!(
@@ -1252,9 +1274,16 @@ fn subtract_and_intersect_refuse_where_union_does() {
         let vp = profile::Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .expect("the circle validates");
-        sweep::extrude(&vp, sweep::Extrusion::Distance(2.0), Tol::witness())
-            .expect("the cylinder extrudes")
-            .body
+        sweep::extrude(
+            &vp,
+            sweep::Extrusion::Distance {
+                depth: 2.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("the cylinder extrudes")
+        .body
     };
     let halves = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
     let waists = declarations(&halves.0, &halves.1, Some(BooleanCoincidence::Continuation));

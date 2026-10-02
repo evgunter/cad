@@ -273,6 +273,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         EditError::SetMembersOnNonList { node }
         | EditError::SetProgramOnNonProfile { node }
+        | EditError::SetExtrudeSideOnNonExtrude { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
         | EditError::OffsetOnNonInstance { node }

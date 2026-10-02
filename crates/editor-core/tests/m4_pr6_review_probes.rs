@@ -8,6 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
@@ -32,6 +33,7 @@ fn small() -> (ProfileDoc, String) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -297,6 +299,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: Box::new(Node::Extrude {
                 profile: p0,
                 distance: Expr::param(ParamName::from_static("d"), Dimension::Length),
+                side: ExtrudeSide::Along,
             }),
         },
     )
@@ -321,6 +324,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: Box::new(Node::Extrude {
                 profile: p1,
                 distance: len(1.5),
+                side: ExtrudeSide::Along,
             }),
         },
     )

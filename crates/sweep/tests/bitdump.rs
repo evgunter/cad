@@ -49,6 +49,7 @@
 )]
 
 use std::fmt::Write as _;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom::SurfaceKind;
@@ -290,9 +291,16 @@ fn bitdump_shell_open_box_corpus() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol)
         .unwrap();
-    let body = sweep::extrude(&profile, sweep::Extrusion::Distance(4.0), tol)
-        .unwrap()
-        .body;
+    let body = sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     let cap_at = |b: &Body<f64>, z: f64| -> Vec<topo::FaceKey> {
         b.faces()
             .filter(|(_, f)| {
@@ -396,7 +404,14 @@ fn bitdump_extrude_revolve_corpus() {
         (name.to_owned(), body)
     };
     let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
-        extruded_by(name, loops, sweep::Extrusion::Distance(h))
+        extruded_by(
+            name,
+            loops,
+            sweep::Extrusion::Distance {
+                depth: h,
+                side: ExtrudeSide::Along,
+            },
+        )
     };
     let circle = |cx: f64, cy: f64, r: f64| {
         bulge_loop(vec![
@@ -495,7 +510,10 @@ fn bitdump_extrude_revolve_corpus() {
             ])
             .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
         ],
-        sweep::Extrusion::Distance(-0.5),
+        sweep::Extrusion::Distance {
+            depth: 0.5,
+            side: ExtrudeSide::Against,
+        },
     ));
     rows.push(("dome (plane-sphere equator)".to_owned(), dome(1.0, tol)));
     rows.push(("waisted (cone-plane rims)".to_owned(), waisted(tol)));

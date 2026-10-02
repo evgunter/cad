@@ -17,6 +17,7 @@ use crate::tags::{
     promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag, workspace_error_tag,
 };
 use pncad::document::Dimension;
+use pncad::document::ExtrudeSide;
 use pncad::tolerance::Tol;
 use pncad::topo::{FaceKey, SolidKey, VertexKey};
 use std::collections::{BTreeMap, BTreeSet};
@@ -116,6 +117,7 @@ fn box_doc(
         Node::Extrude {
             profile,
             distance: len(1.5),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, body)
@@ -1467,6 +1469,7 @@ fn resolution_status_tags_are_stable() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
 

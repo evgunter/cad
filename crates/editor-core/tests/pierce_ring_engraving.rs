@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use editor_core::ExtrudeSide;
 
 use crate::corpus::{body_of, eval};
 use crate::fixture::{frame, insert, len, len2, scl, xform};
@@ -100,7 +101,8 @@ fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
         doc,
         Node::Extrude {
             profile: disc,
-            distance: len(-HEIGHT),
+            distance: len(HEIGHT),
+            side: ExtrudeSide::Against,
         },
     );
     let (doc, outline) = insert(doc, profile(xz, tool));
@@ -109,6 +111,7 @@ fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
         Node::Extrude {
             profile: outline,
             distance: len(2.0 * DEPTH),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, lifted) = insert(doc, xform(prism, [dx, DEPTH, 0.0], [0.0, 0.0, 1.0], 0.0));

@@ -692,6 +692,8 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
+        // A side is one of two words.
+        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::Rebind { .. }
         | DocEdit::ReWitness { .. }

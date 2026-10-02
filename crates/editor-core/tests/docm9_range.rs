@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -96,6 +97,7 @@ fn slab(depth: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -113,6 +115,7 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let e = r.insert(Node::Extrude {
         profile: p,
         distance: len(depth),
+        side: ExtrudeSide::Along,
     });
     (r.doc, e)
 }
@@ -144,6 +147,7 @@ fn two_param_slab() -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -160,6 +164,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let e = r.insert(Node::Extrude {
         profile: p,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     let pat = r.insert(Node::Pattern {
         input: e,
@@ -771,6 +776,7 @@ fn a_profile_step_argument_widens() {
     r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let doc = r.doc;
     let profile = doc.node(p).expect("the profile");

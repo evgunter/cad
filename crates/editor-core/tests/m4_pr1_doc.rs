@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
+use editor_core::ExtrudeSide;
 use editor_core::{Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, RecipeNodeId, SlotId};
 use geom_core::Tol;
 
@@ -112,6 +113,7 @@ fn author_die() -> Die {
             node: Box::new(Node::Extrude {
                 profile: cube_profile.unwrap(),
                 distance: len(2.0 * HALF),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -130,6 +132,7 @@ fn author_die() -> Die {
             node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
                 distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
             }),
         },
     );

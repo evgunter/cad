@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
 use editor_core::{
@@ -45,6 +46,7 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -924,6 +926,7 @@ fn boxed(
         Node::Extrude {
             profile: p,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }

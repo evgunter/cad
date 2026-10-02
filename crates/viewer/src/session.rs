@@ -52,6 +52,7 @@
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
+use pncad::document::ExtrudeSide;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -2497,7 +2498,11 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Extrude { profile, distance }),
+            node: Box::new(Node::Extrude {
+                profile,
+                distance,
+                side: ExtrudeSide::Along,
+            }),
         })
     }
 
@@ -2852,6 +2857,10 @@ impl DocSession {
             ),
             // The rename field's text, against the label the node has.
             DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),
+            DocEdit::SetExtrudeSide { node, side } => matches!(
+                doc.node(*node),
+                Some(Node::Extrude { side: stood, .. }) if stood == side
+            ),
             // Every other edit submits. The structure of the recipe and
             // the shape of the product: a node inserted, deleted,
             // re-parented or re-pointed has no standing value of its

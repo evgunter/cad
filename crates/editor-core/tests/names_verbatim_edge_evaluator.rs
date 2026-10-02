@@ -49,6 +49,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -129,6 +130,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

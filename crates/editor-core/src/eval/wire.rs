@@ -211,7 +211,9 @@ where
             wire_profile(program, results, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
-        Node::Extrude { profile, .. } => wire_extrude(id, *profile, doc, results, vals, env, tol),
+        Node::Extrude { profile, side, .. } => {
+            wire_extrude(id, *profile, *side, doc, results, vals, env, tol)
+        }
         Node::Revolve { profile, axis, .. } => {
             wire_revolve(id, *profile, *axis, doc, results, vals, env, tol)
         }
@@ -1685,9 +1687,11 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
+#[allow(clippy::too_many_arguments)] // `wire_revolve`'s list, with the side for its axis
 fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
+    side: crate::node::ExtrudeSide,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -1697,7 +1701,7 @@ fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let distance = need_scalar(vals, SlotId::Distance)?;
     wire_swept(
         &crate::verbs::sweep::extrude(),
-        distance,
+        (distance, side),
         id,
         profile,
         doc,
@@ -4956,7 +4960,10 @@ mod route_tests {
             .unwrap();
         sweep::extrude(
             &profile,
-            sweep::Extrusion::Distance(1.0_f64),
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()

@@ -28,6 +28,7 @@
 //! master extrude, the pattern, and all five Transform+Union pairs;
 //! the base half of the DAG is reused).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId,
 };
@@ -57,6 +58,7 @@ pub fn document() -> CorpusDoc {
     let base = r.insert(Node::Extrude {
         profile: base_p,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     let fin_p = r.profile(
         [0.0, 0.0, 0.1875],
@@ -72,6 +74,7 @@ pub fn document() -> CorpusDoc {
     let fin = r.insert(Node::Extrude {
         profile: fin_p,
         distance: len(0.8125),
+        side: ExtrudeSide::Along,
     });
     // The instance-payload half of the document.
     let pattern = r.insert(Node::Pattern {

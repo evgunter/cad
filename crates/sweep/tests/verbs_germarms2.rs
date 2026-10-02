@@ -46,6 +46,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::germ_pair::{cyl, repose, same_door, seams_off_the_pinch, spin, steinmetz};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -308,7 +309,10 @@ fn the_fenced_poses_keep_their_own_doors() {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
     let parallel = extrude(
         &Profile::new(plane, vec![lp.into()]).validate(tol).unwrap(),
-        Extrusion::Distance(4.0),
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .unwrap()

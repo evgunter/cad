@@ -550,6 +550,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
+        EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
@@ -1202,6 +1203,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SelectionNotCanonical { .. } => None,
         EditError::SetMembersOnNonList { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
+        EditError::SetExtrudeSideOnNonExtrude { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
         EditError::NodeIdCollides { .. } => None,
@@ -1347,6 +1349,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
     match err {
         ExtrudeError::Band(_) => "band",
         ExtrudeError::DegenerateExtrusion => "degenerate_extrusion",
+        ExtrudeError::NegativeDepth { .. } => "negative_depth",
         ExtrudeError::ObliqueExtrusion => "oblique_extrusion",
         ExtrudeError::ExtrusionEscalated { .. } => "extrusion_escalated",
         ExtrudeError::CosurfaceEscalated { .. } => "cosurface_escalated",

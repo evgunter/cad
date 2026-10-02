@@ -12,6 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
     Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc,
@@ -167,6 +168,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
         Node::Extrude {
             profile: plate_profile,
             distance: len(1.0e-3),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -189,6 +191,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
             Node::Extrude {
                 profile,
                 distance: len(1.0e-3),
+                side: ExtrudeSide::Along,
             },
             tol,
         )

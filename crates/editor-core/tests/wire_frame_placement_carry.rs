@@ -17,6 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use crate::fixture;
@@ -170,6 +171,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
         Node::Extrude {
             profile: first,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, frame, [first, second], extrude)
@@ -281,6 +283,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         Node::Extrude {
             profile: base,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, derived) = fixture::insert(
@@ -303,6 +306,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         Node::Extrude {
             profile: boss,
             distance: fixture::len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = eval(&doc, None);

@@ -30,6 +30,7 @@
 //! D2 bump: the extrude's `Distance` (mid-DAG — its cone is the extrude
 //! and the fillet; the frame and the profile are reused).
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RoleSeg, SlotId, StableName, StepId,
@@ -126,6 +127,7 @@ pub fn document() -> CorpusDoc {
     let rod = r.insert(Node::Extrude {
         profile,
         distance: len(ROD_L),
+        side: ExtrudeSide::Along,
     });
     // The fillet is authored against the PLAIN program's crease, and
     // the reshaping below keeps the step whose piece the name spells,

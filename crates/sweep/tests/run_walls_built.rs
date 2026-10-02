@@ -17,6 +17,7 @@
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::{bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, pocket_of_arcs};
@@ -39,7 +40,16 @@ fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> Body<f64> {
         Point3::new(0.0, 0.0, z0) - Point3::origin(),
     ));
     let v = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(&v, Extrusion::Distance(sz), tol()).unwrap().body
+    extrude(
+        &v,
+        Extrusion::Distance {
+            depth: sz,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 fn pts(p: &[(f64, f64)]) -> ProfileLoop<f64> {
@@ -144,13 +154,26 @@ fn extruded_runs_build_one_wall_each() {
             q.rotate_left(start);
             let v = prof(vec![pts(&q)]);
             for ext in [
-                Extrusion::Distance(2.0),
-                Extrusion::Distance(-2.0),
+                Extrusion::Distance {
+                    depth: 2.0,
+                    side: ExtrudeSide::Along,
+                },
+                Extrusion::Distance {
+                    depth: 2.0,
+                    side: ExtrudeSide::Against,
+                },
                 Extrusion::Vector(Vec3::new(0.0, 0.0, 2.0)),
                 Extrusion::Vector(Vec3::new(0.0, 0.0, -2.0)),
             ] {
                 let s = match ext {
-                    Extrusion::Distance(d) => d,
+                    Extrusion::Distance {
+                        depth: d,
+                        side: ExtrudeSide::Along,
+                    } => d,
+                    Extrusion::Distance {
+                        depth: d,
+                        side: ExtrudeSide::Against,
+                    } => -d,
                     Extrusion::Vector(w) => w.z,
                 };
                 let e = extrude(&v, ext, tol()).unwrap();
@@ -181,7 +204,15 @@ fn extruded_runs_build_one_wall_each() {
     ]);
     let v = prof(vec![outer, hole]);
     for d in [2.0, -2.0] {
-        let e = extrude(&v, Extrusion::Distance(d), tol()).unwrap();
+        let e = extrude(
+            &v,
+            Extrusion::Distance {
+                depth: d,
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        )
+        .unwrap();
         let z0 = if d > 0.0 { 0.5 } else { -1.5 };
         holds(
             &format!("extrude hole d={d}"),

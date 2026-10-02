@@ -198,6 +198,17 @@ pub enum DocEdit<P> {
         /// The replacement Count expression.
         expr: Expr,
     },
+    /// Set which side of its sketch plane an extrude goes toward — the
+    /// one structural choice on a [`Node::Extrude`] that is not an
+    /// expression, so it has its own arm rather than a slot. A node of
+    /// another kind refuses [`EditError::SetExtrudeSideOnNonExtrude`].
+    SetExtrudeSide {
+        /// The extrude node.
+        node: RecipeNodeId,
+        /// The side it goes toward.
+        #[serde(with = "crate::persist::kernel_wire::extrude_side")]
+        side: crate::node::ExtrudeSide,
+    },
     /// Replace the expression SUBTREE at an [`ExprPath`] (empty path =
     /// the whole slot), re-running dimension checks on rebuilt
     /// ancestors (spec D6).
@@ -523,6 +534,7 @@ impl<P> DocEdit<P> {
             | Self::SetGauge { .. }
             | Self::SetParam { .. }
             | Self::SetStructuralParam { .. }
+            | Self::SetExtrudeSide { .. }
             | Self::SetExpression { .. }
             | Self::SetDocParam { .. }
             | Self::SetDocParamValue { .. }
@@ -740,6 +752,12 @@ pub enum EditError {
     /// version of this edit.
     SetProgramOnNonProfile {
         /// The node that holds no program.
+        node: SpokenNode,
+    },
+    /// A [`DocEdit::SetExtrudeSide`] aimed at a node that is not an
+    /// extrude.
+    SetExtrudeSideOnNonExtrude {
+        /// The node that has no side.
         node: SpokenNode,
     },
     /// A program's step ids were refused (`names/README.md`, "N1, the
@@ -1650,6 +1668,7 @@ impl EditError {
             | Self::SelectionNotCanonical { node, at: _ }
             | Self::SetMembersOnNonList { node }
             | Self::SetProgramOnNonProfile { node }
+            | Self::SetExtrudeSideOnNonExtrude { node }
             | Self::StepIdsRefused { node, fault: _ }
             | Self::TooFewMembers { node, found: _ }
             | Self::SlotUnknownDocParam {
@@ -1879,6 +1898,10 @@ impl EditError {
                     "{node} holds no profile program, so it has no program to set"
                 )?;
                 tail.recourse(f, format_args!("aim the edit at a profile node"))
+            }
+            Self::SetExtrudeSideOnNonExtrude { node } => {
+                write!(f, "{node} is not an extrude, so it has no side to set")?;
+                tail.recourse(f, format_args!("aim the edit at an extrude node"))
             }
             // The fault owns its sentence, shared with the load door;
             // the door adds which node's program the ids were about,
@@ -4049,6 +4072,25 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 return Err(EditError::NotStructuralSlot { slot: *slot });
             }
             set_slot(&mut new, doc, *node, *slot, expr)?;
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
+        DocEdit::SetExtrudeSide { node, side } => {
+            let Some(target) = new.nodes.get_mut(node) else {
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(*node),
+                });
+            };
+            let Node::Extrude { side: held, .. } = target else {
+                return Err(EditError::SetExtrudeSideOnNonExtrude {
+                    node: doc.spoken(*node),
+                });
+            };
+            *held = *side;
+            // Structural whether or not the side moved, as
+            // `SetStructuralParam` is whatever count it writes.
             EditRecord {
                 minted: None,
                 structural: true,

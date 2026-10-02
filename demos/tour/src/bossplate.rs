@@ -20,6 +20,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::HashMap;
 
 use pncad::authoring::{p2, polygon, v3, validated};
@@ -37,9 +38,16 @@ fn plate<S: Scalar>(tol: Tol) -> Body<S> {
     let lp =
         polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], tol).expect("plate outline");
     let profile = validated(SketchPlane::xy(), vec![lp], tol).unwrap();
-    extrude(&profile, Extrusion::Distance(S::from_f64(1.0)), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// The boss: radius 0.5 about (2, 2), three 120° arcs, sketched at
@@ -57,9 +65,16 @@ fn boss<S: Scalar>(tol: Tol) -> Body<S> {
         .expect("the three-arc rim authors");
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, 0.4)));
     let profile = validated(plane, vec![rim.into()], tol).unwrap();
-    extrude(&profile, Extrusion::Distance(S::from_f64(1.2)), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(1.2),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// The union (a seamed boolean body — 3′ validates with its own

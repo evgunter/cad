@@ -62,6 +62,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use pncad::document::{
@@ -227,6 +228,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         Node::Extrude {
             profile: base_p,
             distance: pe("250 mm"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -253,6 +255,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         Node::Extrude {
             profile: fin_p,
             distance: pe(fin_height),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

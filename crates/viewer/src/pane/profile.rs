@@ -484,6 +484,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use eframe::egui;
+    use pncad::document::ExtrudeSide;
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{PathErrorKind, ProfileError, SketchPlane, Step, Target, TipState, Verb};
@@ -1128,6 +1129,7 @@ mod tests {
             Node::Extrude {
                 profile,
                 distance: crate::test_support::len(0.01),
+                side: ExtrudeSide::Along,
             },
             tol,
         );

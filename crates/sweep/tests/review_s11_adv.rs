@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::PI;
 use profile::RawLoop;
@@ -59,7 +60,15 @@ fn adv_mixed_convex_concave_hole() {
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
@@ -155,7 +164,15 @@ fn adv_eye_slot_outer_and_hole_senses() {
     let vp = Profile::new(SketchPlane::xy(), vec![eye_slot(0.3)])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
@@ -176,7 +193,15 @@ fn adv_eye_slot_outer_and_hole_senses() {
     let vp = Profile::new(SketchPlane::xy(), vec![outer, eye_slot(0.3)])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
@@ -223,7 +248,10 @@ fn adv_asymmetric_downward_invariance() {
         &Profile::new(SketchPlane::xy(), vec![mk()])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -415,9 +443,16 @@ fn adv_union_with_reversed_faces_answers_exactly() {
     let vp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();
-    let boxb = extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body;
+    let boxb = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     match topo::boolean::union(&washer, &boxb, Tol::witness()) {
         Err(e) => panic!("the washer's full-turn walls are served at both doors: {e}"),
         Ok(r) => {

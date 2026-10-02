@@ -8,6 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanValue, CancelToken, EvalOptions, EvalOutcome, Evaluation, NodeResult, ProfileDoc,
@@ -258,6 +259,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         Node::Extrude {
             profile: small_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, big_p) = fixture::on_frame(
@@ -272,6 +274,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         Node::Extrude {
             profile: big_p,
             distance: len(3.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = fixture::insert(
@@ -324,6 +327,7 @@ fn split_evaluates_both_parts_role_tagged() {
         Node::Extrude {
             profile: prof,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     // The tool: a datum plane z = 0.5 (normal +z).

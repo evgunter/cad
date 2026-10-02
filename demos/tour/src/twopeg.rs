@@ -67,6 +67,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, v3, validated};
+use pncad::document::ExtrudeSide;
 use pncad::geom_core::{Affine3, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};
@@ -192,7 +193,10 @@ fn plate_profile<S: Scalar>(z0: f64, bores: bool, tol: Tol) -> ValidatedProfile<
 fn plate<S: Scalar>(z0: f64, tol: Tol) -> Body<S> {
     extrude(
         &plate_profile::<S>(z0, false, tol),
-        Extrusion::Distance(S::from_f64(PLATE.2)),
+        Extrusion::Distance {
+            depth: S::from_f64(PLATE.2),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("the plate extrudes")
@@ -204,9 +208,16 @@ fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> Body<S> {
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
     let profile =
         validated(plane, vec![rim::<S>(cx, tol)], tol).expect("the peg profile validates");
-    extrude(&profile, Extrusion::Distance(S::from_f64(h)), tol)
-        .expect("the peg extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(h),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the peg extrudes")
+    .body
 }
 
 /// Plate P: the plate, with a peg unioned on at each centre. Each peg
@@ -253,7 +264,10 @@ fn plate_with_pegs<S: Scalar>(tol: Tol) -> Body<S> {
 fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
     extrude(
         &plate_profile::<S>(PLATE.2, true, tol),
-        Extrusion::Distance(S::from_f64(PLATE.2)),
+        Extrusion::Distance {
+            depth: S::from_f64(PLATE.2),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("the holed plate extrudes")

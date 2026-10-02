@@ -28,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind,
@@ -55,6 +56,7 @@ fn part_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

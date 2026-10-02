@@ -45,6 +45,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
@@ -78,6 +79,7 @@ fn both_blends() -> BothBlends {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let edges: Vec<StableName> = prism_edges(&r.doc, cube, 4);
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
@@ -388,6 +390,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let a = r.insert(Node::Extrude {
         profile: pa,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
@@ -398,6 +401,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let b = r.insert(Node::Extrude {
         profile: pb,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let boolean = r.insert(Node::Boolean {
         op: editor_core::BooleanOp::Intersect,

@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     DocEdit, EntityKind, LoopProgram, Node, PieceRun, ProfileDoc, ProfileEdgeRef, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, StepId,
@@ -38,6 +39,7 @@ fn build(steps: Vec<ProgramStep>, d: f64) -> (ProfileDoc, RecipeNodeId, RecipeNo
         Node::Extrude {
             profile: p,
             distance: len(d),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, p, ex)
@@ -209,7 +211,8 @@ fn run_names_agree_across_scalar_types() {
                 doc,
                 Node::Extrude {
                     profile: p,
-                    distance: len(-1.0),
+                    distance: len(1.0),
+                    side: ExtrudeSide::Against,
                 },
             )
         };

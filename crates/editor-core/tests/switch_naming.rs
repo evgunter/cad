@@ -8,6 +8,7 @@
 //! remains the structural-edit backstop (stale refs refuse Vanished).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::fixture;
@@ -69,6 +70,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
             node: Box::new(Node::Extrude {
                 profile: crate::fixture::newest(&doc),
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             }),
         },
         Tol::witness(),
@@ -202,6 +204,7 @@ fn circle_radius_edit_keeps_names() {
                 node: Box::new(Node::Extrude {
                     profile: crate::fixture::newest(&doc),
                     distance: len(1.0),
+                    side: ExtrudeSide::Along,
                 }),
             },
             Tol::witness(),
@@ -345,6 +348,7 @@ fn hole_circle_anchor_recovers_reversal() {
                 node: Box::new(Node::Extrude {
                     profile: crate::fixture::newest(&doc),
                     distance: len(1.0),
+                    side: ExtrudeSide::Along,
                 }),
             },
             Tol::witness(),

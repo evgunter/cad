@@ -97,6 +97,7 @@ pub enum Axis3 {
 /// the evaluation service will run, so no conversion stands between
 /// authoring it and performing it. Its persisted bytes are this
 /// crate's, described by `persist::kernel_wire::boolean_op`.
+pub use sweep::ExtrudeSide;
 pub use topo::BooleanOp;
 
 /// A profile-program step's ARGUMENT ROLE — the closed per-verb enum
@@ -1921,13 +1922,19 @@ pub enum Node<P> {
     Datum(Datum),
     /// A programmatic sketch, carried opaquely (F4; never re-modeled).
     Profile(P),
-    /// Extrude an upstream profile by a Length distance along its
-    /// sketch-plane normal.
+    /// Extrude an upstream profile by a Length depth to one side of
+    /// its sketch plane.
     Extrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
-        /// Extrusion distance ([`SlotId::Distance`]).
+        /// Extrusion depth ([`SlotId::Distance`]): a size, refused
+        /// unless definitely positive (`sweep::Extrusion::Distance`).
         distance: Expr,
+        /// Which side of the sketch plane the depth goes toward —
+        /// structural, so no value of `distance` flips it
+        /// ([`DocEdit::SetExtrudeSide`](crate::DocEdit::SetExtrudeSide)).
+        #[serde(with = "crate::persist::kernel_wire::extrude_side")]
+        side: ExtrudeSide,
     },
     /// Revolve an upstream profile about a datum axis.
     Revolve {

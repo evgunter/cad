@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
 use crate::wire::doctored;
@@ -62,6 +63,7 @@ pub(crate) fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }

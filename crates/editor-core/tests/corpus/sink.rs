@@ -33,6 +33,7 @@
 //! one — the golden fixture in `m4_pr6_golden.rs` is where a pinned ε
 //! belongs, deliberately.
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
@@ -119,6 +120,7 @@ pub fn document() -> CorpusDoc {
     let block_a = r.insert(Node::Extrude {
         profile,
         distance: dist,
+        side: ExtrudeSide::Along,
     });
 
     // A flush neighbour + Declare + the consuming union (F5). The
@@ -136,6 +138,7 @@ pub fn document() -> CorpusDoc {
     let block_b = r.insert(Node::Extrude {
         profile: profile_b,
         distance: len(1.25),
+        side: ExtrudeSide::Along,
     });
     let (with_declare, declare) = declare_x_offset_flush(r.doc.clone(), block_a, block_b);
     let declare_node = with_declare
@@ -181,6 +184,7 @@ pub fn document() -> CorpusDoc {
     let lone = r.insert(Node::Extrude {
         profile,
         distance: len(0.5),
+        side: ExtrudeSide::Along,
     });
     r.insert(Node::Pattern {
         input: lone,
@@ -230,6 +234,11 @@ pub fn document() -> CorpusDoc {
         node: lone,
         slot: SlotId::Distance,
         expr: len(0.375),
+    });
+    // The extrude's structural side: the same block, below its plane.
+    r.push(DocEdit::SetExtrudeSide {
+        node: lone,
+        side: ExtrudeSide::Against,
     });
     // The inert datum has no dependents: delete it (ids never reused).
     r.push(DocEdit::DeleteNode { id: inert });

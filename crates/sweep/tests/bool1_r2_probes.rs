@@ -9,6 +9,7 @@
 use geom_brep::EdgeDescription;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, ValidationError};
 
@@ -16,9 +17,16 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("valid probe profile");
-    extrude(&prof, Extrusion::Distance(h), Tol::witness())
-        .expect("the probe profile extrudes")
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the probe profile extrudes")
+    .body
 }
 
 fn split_at_y(body: &Body<f64>, y: f64) -> topo::SplitResult<f64> {

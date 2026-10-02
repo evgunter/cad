@@ -18,6 +18,7 @@ use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::test_support::extruded;
 use sweep::{Extrusion, extrude};
 use topo::{
@@ -347,9 +348,16 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
         let profile = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     let top: Vec<_> = a
         .faces()

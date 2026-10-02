@@ -19,6 +19,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{
     BooleanOp, Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
@@ -50,6 +51,7 @@ fn die_shaped(tol: Tol) -> Die {
         Node::Extrude {
             profile: blank_profile,
             distance: common::len(0.04),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -59,6 +61,7 @@ fn die_shaped(tol: Tol) -> Die {
         Node::Extrude {
             profile: pip_profile,
             distance: common::len(0.004),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

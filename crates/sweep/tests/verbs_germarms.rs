@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -40,9 +41,16 @@ fn pipe() -> Body<f64> {
     let lp = profile::circle(Point2::new(0.0, 0.0), 1.0, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(4.0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {

@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
@@ -51,6 +52,7 @@ fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(side),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -149,7 +151,8 @@ fn a_negative_extrudes_end_cap_lies_below_its_start_cap() {
             profile,
             // The sketch plane's normal is u x v = +z; a NEGATIVE
             // distance extrudes against it.
-            distance: len(-1.0),
+            distance: len(1.0),
+            side: ExtrudeSide::Against,
         },
     );
     let ev = run(&doc);

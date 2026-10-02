@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
+use sweep::ExtrudeSide;
 
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::{Affine3, Band, Point2, Point3, Sign, Tol, Vec3};
@@ -43,7 +44,16 @@ fn margins_at(
     let lp = profile::circle(Point2::new(s(0.0), s(0.0)), s(1.0), tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(s(0.0), s(0.0), s(-2.0))));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    let body = extrude(&vp, Extrusion::Distance(s(4.0)), tol).unwrap().body;
+    let body = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: s(4.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
     let band = Band::linear(tol).unwrap();
     let probes = [
         (0.25, 0.125, 0.5),

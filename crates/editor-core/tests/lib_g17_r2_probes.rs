@@ -5,6 +5,7 @@
 
 use crate::corpus::{self, body_of, cup, eval, failures};
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, DocEdit, EntityKind, Entry, EvalOptions, LoopProgram, Node, NodeErrorKind,
@@ -387,6 +388,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     let blank = r.insert(Node::Extrude {
         profile,
         distance: fixture::len(1.0),
+        side: ExtrudeSide::Along,
     });
     let shell = r.insert(Node::shell(
         blank,

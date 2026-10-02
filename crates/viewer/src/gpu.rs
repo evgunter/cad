@@ -86,6 +86,7 @@
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
+use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -2534,6 +2535,7 @@ mod tests {
             Node::Extrude {
                 profile,
                 distance: len(SIDE),
+                side: ExtrudeSide::Along,
             },
             tol,
         );

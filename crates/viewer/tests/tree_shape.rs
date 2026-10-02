@@ -21,6 +21,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -49,6 +50,7 @@ fn plate(
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

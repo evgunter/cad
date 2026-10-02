@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 use test_utils::refusal::Admission;
@@ -3360,6 +3361,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         moved(moved(doc, body, 2.0), body, 4.0)
@@ -3371,6 +3373,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (doc, plane) = insert(
@@ -3805,6 +3808,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let face = fname(body, wall(&doc, body, 2));

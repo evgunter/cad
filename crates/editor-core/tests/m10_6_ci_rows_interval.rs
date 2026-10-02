@@ -51,6 +51,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
@@ -255,6 +256,7 @@ fn distributed_plate() -> ProfileDoc {
     let _plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let hs = Expr::param(name("half_spacing"), Dimension::Length);
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
@@ -268,6 +270,7 @@ fn distributed_plate() -> ProfileDoc {
     let hole_a = r.insert(Node::Extrude {
         profile: hole_a_p,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let hole_b_p = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -280,6 +283,7 @@ fn distributed_plate() -> ProfileDoc {
     let hole_b = r.insert(Node::Extrude {
         profile: hole_b_p,
         distance: len(1.0e-3),
+        side: ExtrudeSide::Along,
     });
     let ev = evaluate::<f64>(
         &r.doc,
@@ -414,6 +418,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
     let placed = r.insert(Node::transform(
         solid,
@@ -870,6 +875,7 @@ fn plain_distance_doc() -> ProfileDoc {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let measure = r.insert(
         Node::measure(

@@ -9,6 +9,7 @@
 
 use core::f64::consts::FRAC_PI_8;
 use profile::RawLoop;
+use sweep::ExtrudeSide;
 
 use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
@@ -167,7 +168,10 @@ fn extruded_l_profile_passes_all_tiers() {
     // (a) The L-prism: 8 faces, genus 0, every join a corner.
     let t = extrude(
         &validated(vec![l_loop()]),
-        Extrusion::Distance(1.5),
+        Extrusion::Distance {
+            depth: 1.5,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -226,7 +230,10 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     let hole = circle_loop(0.5, 0.5, 0.1);
     let t = extrude(
         &validated(vec![outer, hole]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -307,7 +314,10 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     lp = lp.with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(0.5),
+        Extrusion::Distance {
+            depth: 0.5,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -368,7 +378,10 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     // same-carrier smooth-join class).
     let t = extrude(
         &validated(vec![circle_loop(0.0, 0.0, 0.5)]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -406,7 +419,10 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     ]);
     let t = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -428,12 +444,28 @@ fn both_extrusion_directions_build_outward_solids() {
     // the sweep is outward along w; the sketch-plane cap is outward
     // along −w.
     let vp = validated(vec![l_loop()]);
-    let up = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let up = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&up.body);
     assert!(outward_normal(&up.body, up.top).z > 0.99);
     assert!(outward_normal(&up.body, up.bottom).z < -0.99);
 
-    let down = extrude(&vp, Extrusion::Distance(-1.0), Tol::witness()).unwrap();
+    let down = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Against,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&down.body);
     // Downward: the swept (top) cap sits at z = −1, outward −z; the
     // bottom cap keeps the sketch plane, outward +z.
@@ -462,7 +494,10 @@ fn both_extrusion_directions_build_outward_solids() {
     ]);
     let holed = extrude(
         &validated(vec![outer, circle_loop(0.5, 0.5, 0.1)]),
-        Extrusion::Distance(-0.5),
+        Extrusion::Distance {
+            depth: 0.5,
+            side: ExtrudeSide::Against,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -480,7 +515,15 @@ fn placed_profile_extrudes_along_its_own_normal() {
     let vp = Profile::new(plane, vec![l_loop()])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert!(outward_normal(&t.body, t.top).y > 0.99);
     assert!(outward_normal(&t.body, t.bottom).y < -0.99);
@@ -501,11 +544,27 @@ fn error_paths_are_typed_and_leave_no_body() {
     );
     // Zero distance.
     assert_eq!(
-        extrude(&vp, Extrusion::Distance(0.0), Tol::witness()).unwrap_err(),
+        extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: 0.0,
+                side: ExtrudeSide::Along
+            },
+            Tol::witness()
+        )
+        .unwrap_err(),
         ExtrudeError::DegenerateExtrusion
     );
     // Sliver distance: strictly inside the band (ε, K·ε) escalates.
-    let err = extrude(&vp, Extrusion::Distance(3.0 * eps()), Tol::witness()).unwrap_err();
+    let err = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 3.0 * eps(),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap_err();
     assert!(
         matches!(err, ExtrudeError::ExtrusionEscalated { ref source }
             if source.predicate == Some("extrusion_normal_component")),
@@ -539,7 +598,10 @@ fn sliver_dihedral_join_is_a_typed_error() {
     ]);
     let err = extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(1.0e-3),
+        Extrusion::Distance {
+            depth: 1.0e-3,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap_err();
@@ -577,7 +639,14 @@ fn certification_failures_surface_the_report() {
     // And the Op wrapper carries certification reports verbatim when an
     // operator-level gate fires (exercised here through the public
     // sweep API only as the absence case: a clean build has none).
-    let ok = extrude(&vp, Extrusion::Distance(1.0), Tol::witness());
+    let ok = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    );
     assert!(ok.is_ok());
     drop(ok);
     // Shape check: the error type embeds EulerOpError::Certification.
@@ -623,7 +692,10 @@ fn rebuild_is_byte_identical() {
     let build = || {
         extrude(
             &validated(vec![outer.clone(), circle_loop(0.5, 0.5, 0.1)]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -649,7 +721,10 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     use geom_core::{Dual, Dual64};
     let f = extrude(
         &validated(vec![l_loop()]),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -661,7 +736,10 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     .unwrap();
     let d = extrude(
         &dp,
-        Extrusion::Distance(Dual::constant(1.0)),
+        Extrusion::Distance {
+            depth: Dual::constant(1.0),
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();

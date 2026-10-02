@@ -38,6 +38,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -221,6 +222,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(z)],

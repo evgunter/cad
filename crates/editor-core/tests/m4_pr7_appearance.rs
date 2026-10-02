@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::NodeStanding;
 use editor_core::{
@@ -64,6 +65,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -249,6 +251,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -626,6 +629,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(

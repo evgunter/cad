@@ -48,6 +48,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -132,6 +133,7 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -180,6 +182,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance: param("depth"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -215,6 +218,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     let block = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     r.insert(Node::transform(
         block,
