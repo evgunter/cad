@@ -159,7 +159,8 @@ pub(super) fn apply_rule_a<T: Decide>(
         // coplanar with the split plane, so a parallel local normal is
         // a **tangent contact** — C7 territory, refused typed (never
         // marched into); the arm for that pair moves at M5 PR 9.
-        let parallel_margin = Margin::levered(n_face.vec().cross(plane.normal).norm(), extent);
+        let parallel_margin =
+            Margin::levered(n_face.vec().cross(plane.normal.get()).norm(), extent);
         match decide("split_sector_coplanar", parallel_margin, band) {
             Ok(Sign::Zero) => {
                 if !is_plane {
@@ -215,7 +216,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         // sense to thread, which is why it travels as a bare vector in
         // the `dir` slot (likewise the parallelism margin above, which
         // is a magnitude in any case).
-        let class = match enters_material(plane.normal, n_face, extent, band) {
+        let class = match enters_material(plane.normal.get(), n_face, extent, band) {
             Ok(EntersMaterial::Exits) => PlaneSide::Below,
             Ok(EntersMaterial::Enters) => PlaneSide::Above,
             // Tangent after the parallelism gate is contradictory —

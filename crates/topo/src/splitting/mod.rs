@@ -73,7 +73,7 @@ pub mod rules;
 mod section;
 mod section_loops;
 
-use geom_core::{BandError, Indeterminate, Point3, Real, Vec3};
+use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -88,15 +88,19 @@ pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
 pub use section::{Section, SectionError, SectionPolygon, SectionRegion, plane_section};
 
-/// The splitting plane: a point on the plane and its **unit** normal
-/// (conventional, unchecked — same posture as `Surface::Plane`). The
+/// The splitting plane: a point on the plane and its unit normal. The
 /// positive side (`(p − origin)·normal > 0`) is **Above**.
+///
+/// The normal is a [`UnitVec3`], so its length is decided where the
+/// caller mints it (`UnitVec3::new`) rather than assumed here: every
+/// conic section of a curved face reads the normal's components as
+/// direction cosines, and a longer vector reads as a shallower tilt.
 #[derive(Clone, Copy, Debug)]
 pub struct SplitPlane<T: Real> {
     /// A point on the plane.
     pub origin: Point3<T>,
     /// The unit normal; Above is the side it points to.
-    pub normal: Vec3<T>,
+    pub normal: UnitVec3<T>,
 }
 
 /// A trilean side verdict against the split plane (the classification
@@ -110,6 +114,18 @@ pub enum PlaneSide {
     On,
     /// Definitely on the positive side.
     Above,
+}
+
+impl PlaneSide {
+    /// The side as a refusal names it.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Below => "below",
+            Self::On => "on",
+            Self::Above => "above",
+        }
+    }
 }
 
 /// What a neighborhood entry stands for (typed, F9-style — never
@@ -707,7 +723,14 @@ pub(crate) fn through_the_join<T: geom_core::Decide>(
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
 /// (no degenerate body is ever emitted), and
-/// [`SplitFinishError::SectionCusp`] from either run.
+/// [`SplitFinishError::SectionCusp`] from either run. Each run gates
+/// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
+/// mirrored run whose side is not a closed solid surfaces the direct
+/// run's refusal, as any other mirror failure does. Tier 3 is
+/// deliberately not run on the sides: split accepts operands carrying
+/// scaffold edges tier 3 refuses, and a pinch side's touching pieces
+/// carry contacts split declares nowhere
+/// (`work/tquery/validate-passes-a-body-with-a-zero-width-slit-face.md`).
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
@@ -779,8 +802,13 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
 ) -> Result<SplitResult<T>, SplitError> {
     let (red, completed, fragments) = split_scratch(operand, plane, tol)?;
     let mut result = finish::split_finish(red, &completed, fragments, tol)?;
-    for part in [&mut result.above, &mut result.below] {
+    for (side, part) in [
+        (PlaneSide::Above, &mut result.above),
+        (PlaneSide::Below, &mut result.below),
+    ] {
         if let finish::SplitPart::Body(body) = part {
+            crate::validate::validate_closed(body)
+                .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             crate::pcurves::mint_pcurves(body, tol)?;
         }
     }

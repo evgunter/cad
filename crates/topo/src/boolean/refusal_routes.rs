@@ -224,6 +224,11 @@ pub enum BooleanDecision {
     /// for a coaxial carrier's constant residual and for either end of
     /// a tilted one's range.
     ArcSphereRoots,
+    /// Where an arc crosses a cylinder wall: the circle × cylinder lane's
+    /// certified roots (`circle_cylinder`) — on a circle square to the
+    /// wall's axis the square arm's extremes, otherwise the half-angle
+    /// quartic's rows.
+    ArcCylinderRoots,
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.
     PierceCurvature,
@@ -409,9 +414,6 @@ pub enum Coincide {
     /// other or lies on it: every verdict passes (a clear one at once,
     /// the rest to the exact wall roots).
     EdgeOnCurvedFace,
-    /// Whether an arc of one solid clears a curved face of the other
-    /// that no declaration covers: only a clear arc passes.
-    ArcClearsCurvedFace,
     /// Whether an arc of one solid lies on a curved face of the other
     /// that it is declared to touch: on it or clear of it passes.
     ArcOnCoveredFace,
@@ -491,9 +493,6 @@ impl Coincide {
             Self::EdgeOnCurvedFace => {
                 "whether an edge of one solid clears a curved face of the other or lies on it"
             }
-            Self::ArcClearsCurvedFace => {
-                "whether an arc of one solid clears a curved face of the other"
-            }
             Self::ArcOnCoveredFace => {
                 "whether an arc of one solid lies on a curved face of the other or clears it"
             }
@@ -541,7 +540,6 @@ impl Coincide {
                 | Self::VertexOnCoveredFace
                 | Self::EdgeOnPlane
                 | Self::EdgeOnCurvedFace
-                | Self::ArcClearsCurvedFace
                 | Self::ArcOnCoveredFace
                 | Self::SectorSide
                 | Self::TangentSide
@@ -577,7 +575,6 @@ impl Coincide {
             Self::EdgeOnEdge => Ending::Sized(proximity(SizedPass::NonNegative)),
             Self::EdgeOnCurvedFace | Self::VertexOnCurvedFace => Ending::Sized(CURVED_CLEARANCE),
             Self::VertexOnCoveredFace => Ending::Lever(COVERED_VERTEX_LEVER, LeverPass::ByArm),
-            Self::ArcClearsCurvedFace => Ending::Sized(ARC_CLEARANCE),
             Self::ArcOnCoveredFace => Ending::Lever(COVERED_ARC_LEVER, LeverPass::DeclaredAway),
             Self::TangentSide => Ending::Sized(TANGENT_SIDE),
             Self::FlankSense => Ending::Sized(FLANK_SENSE),
@@ -614,7 +611,6 @@ impl Coincide {
             | Self::VertexOnCoveredFace
             | Self::EdgeOnPlane
             | Self::EdgeOnCurvedFace
-            | Self::ArcClearsCurvedFace
             | Self::ArcOnCoveredFace
             | Self::SectorSide
             | Self::TangentSide
@@ -685,19 +681,6 @@ const COVERED_VERTEX_LEVER: &str = "move the parts so the vertex lies clearly on
 /// inside the wall (`WallRoots`), the length this margin reads on the
 /// other side, so a smaller tolerance is offered on both.
 const CURVED_CLEARANCE: SizedDecision = proximity(SizedPass::NonZero);
-
-/// An uncovered arc against a curved face
-/// ([`Coincide::ArcClearsCurvedFace`]): the larger of the arc's two
-/// enclosures' one-sidedness margins, which passes only definitely
-/// positive (the arc is clear); zero or negative is the curved pierce
-/// frontier.
-const ARC_CLEARANCE: SizedDecision = SizedDecision {
-    lever: "move the parts so the arc clearly clears that face",
-    size: "clearance",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
 
 /// A covered arc against the curved face it is declared to touch
 /// ([`Coincide::ArcOnCoveredFace`]): passes on zero (the declared-cover
@@ -1377,6 +1360,9 @@ impl BooleanDecision {
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
             Self::ArcSphereRoots => "whether an arc crosses a sphere, grazes it or misses it",
+            Self::ArcCylinderRoots => {
+                "whether an arc crosses a cylinder wall, grazes it or misses it"
+            }
             Self::PierceCurvature => {
                 "whether an edge leaves a curved face steeply enough against its bend to read \
                  which side it goes"
@@ -1547,6 +1533,12 @@ impl BooleanDecision {
             // escalation does not say which refused.
             Self::ArcSphereRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the sphere or clearly misses it",
+                LeverPass::ByRung,
+            ),
+            // The two lanes' rungs together: the extremes' sets, and the
+            // quartic's rows, which are not all lengths.
+            Self::ArcCylinderRoots => Ending::Lever(
+                "move the parts so the arc clearly crosses the cylinder or clearly misses it",
                 LeverPass::ByRung,
             ),
             Self::PierceCurvature => Ending::Sized(PIERCE_CURVATURE),
@@ -1788,6 +1780,7 @@ mod tests {
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
                 BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
+                BooleanDecisionKind::ArcCylinderRoots => vec![BooleanDecision::ArcCylinderRoots],
                 BooleanDecisionKind::PierceCurvature => vec![BooleanDecision::PierceCurvature],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
@@ -1861,9 +1854,6 @@ mod tests {
             Coincide::EdgeOnCurvedFace => {
                 "whether an edge of one solid clears a curved face of the other or lies on it"
             }
-            Coincide::ArcClearsCurvedFace => {
-                "whether an arc of one solid clears a curved face of the other"
-            }
             Coincide::ArcOnCoveredFace => {
                 "whether an arc of one solid lies on a curved face of the other or clears it"
             }
@@ -1915,10 +1905,6 @@ mod tests {
             Coincide::EdgeOnCurvedFace | Coincide::VertexOnCurvedFace => {
                 Ending::Sized(MEET, SizedPass::NonZero)
             }
-            Coincide::ArcClearsCurvedFace => Ending::Sized(
-                "Recourse: move the parts so the arc clearly clears that face",
-                SizedPass::Positive,
-            ),
             // A clear arc is a gap its face's declared contact says is
             // not there.
             Coincide::ArcOnCoveredFace => Ending::Lever(
@@ -1980,7 +1966,6 @@ mod tests {
             | Coincide::VertexOnCoveredFace
             | Coincide::EdgeOnPlane
             | Coincide::EdgeOnCurvedFace
-            | Coincide::ArcClearsCurvedFace
             | Coincide::ArcOnCoveredFace
             | Coincide::SectorSide
             | Coincide::TangentSide
@@ -2107,6 +2092,14 @@ mod tests {
                 "whether an arc crosses a sphere, grazes it or misses it",
                 Ending::Lever(
                     "Recourse: move the parts so the arc clearly crosses the sphere or clearly \
+                     misses it",
+                    LeverPass::ByRung,
+                ),
+            ),
+            BooleanDecision::ArcCylinderRoots => (
+                "whether an arc crosses a cylinder wall, grazes it or misses it",
+                Ending::Lever(
+                    "Recourse: move the parts so the arc clearly crosses the cylinder or clearly \
                      misses it",
                     LeverPass::ByRung,
                 ),
@@ -2457,7 +2450,6 @@ mod tests {
                 | Coincide::VertexOnCoveredFace
                 | Coincide::EdgeOnPlane
                 | Coincide::EdgeOnCurvedFace
-                | Coincide::ArcClearsCurvedFace
                 | Coincide::ArcOnCoveredFace
                 | Coincide::SectorSide
                 | Coincide::TangentSide
