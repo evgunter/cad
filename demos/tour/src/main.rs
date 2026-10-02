@@ -829,7 +829,9 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    println!(
+        "\n-- the rocker plate (fillets in the profile, the branch PICKED, and on the solid) --"
+    );
     for stop in rocker::stops(tol) {
         visit(&stop);
     }
@@ -878,7 +880,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the snowman (two coaxial balls under every boolean; the waist rolled into a \
-         torus band) --"
+         torus band; a head moved off the axis in the seam plane builds too) --"
     );
     for stop in snowman::stops(tol) {
         visit(&stop);
@@ -982,7 +984,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
-         split/inline, the update door) --"
+         gauges, split/inline, the update door) --"
     );
     for stop in assembly::stops(work, tol) {
         visit(&stop);

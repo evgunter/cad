@@ -2740,6 +2740,19 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 NOT_YET.into(),
                 false,
             ),
+            // A tilted-circle sphere face whose loop does not bound a
+            // region of its sphere, or whose bit its boundary
+            // contradicts: stored data that is wrong.
+            P::SphereLoop { .. } => reading(
+                "a sphere face's boundary does not bound a region of its sphere",
+                DEFECT.into(),
+                true,
+            ),
+            P::SenseContradicted => reading(
+                "a sphere face is inside-out against its own boundary",
+                DEFECT.into(),
+                true,
+            ),
             // Raised on an extent decided zero at the band and on a
             // quadrature area whose enclosure reaches zero: a face too
             // thin to certify, not a contradiction in the body.
