@@ -163,7 +163,7 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Sited
         node,
         &editor_core::Selector::of(editor_core::NamePat::of_kind(editor_core::EntityKind::Face)),
         &[editor_core::GeomPred::SurfaceKind(
-            editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+            editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
         )],
         &doc.param_env::<f64>(),
         Tol::witness(),

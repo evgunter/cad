@@ -702,7 +702,11 @@ class AssemblyError(PncadError):
 
 class ProductError(PncadError):
     """The whole-document gather refused. A product is all of the
-    roots or none of them — there are no partial products."""
+    roots or none of them — there are no partial products.
+
+    Its message names each node as the evaluation's own document holds
+    it (kind, label and tag): the document the gather was taken of.
+    `node` and `through` carry the full ids."""
 
     variant: str
     node: Optional[NodeId]
@@ -904,7 +908,8 @@ class ChecksError(PncadError):
     DI3, refused before any check runs) or `product_unavailable` (the
     roots gather into no product, so the registry has no subject for a
     check that reads one). `node` names the root on the first arm and
-    is `None` on the others.
+    is `None` on the others. Its message names each node as the
+    evaluation's own document holds it, the gather's included.
 
     NOT a finding. A check that ran and disagreed is a value in the
     report; this class means nothing was checked."""
@@ -2330,8 +2335,8 @@ class Node:
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
-        Every face of one solid on a chart is named together (a full
-        revolve's cap is two half-faces). An unresolvable name, a name that is not a
+        Every face of one solid on a chart is named together (naming
+        only some of them refuses). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
         designated face refuses typed at `evaluate`. `thickness` mints
         a literal in the node's `shell_thickness` slot, moved by
@@ -4308,8 +4313,9 @@ def band(node: NodeId, piece: Piece) -> str:
 
 def band_pi(node: NodeId, piece: Piece) -> str:
     """The `[pi, 2pi)` band face swept from the profile piece `piece` —
-    `band`'s twin, where a full revolve emits a segment as two faces.
-    A face, as `band` is."""
+    `band`'s twin, where a full revolve emits a CURVED segment as two
+    faces. A planar segment sweeps whole, one face, its `band`, and has
+    no `band_pi`. A face, as `band` is."""
 
 def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts

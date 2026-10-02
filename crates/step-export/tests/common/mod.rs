@@ -233,7 +233,7 @@ pub fn washer() -> Body<f64> {
 /// plane passes through the axis midpoint, so it halves the cylinder).
 pub fn cut_cylinder() -> Body<f64> {
     use profile::test_support::bulge_loop;
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     let lp = bulge_loop(vec![
         (Point2::new(-1.0, 0.0), 1.0),
         (Point2::new(1.0, 0.0), 1.0),
@@ -245,10 +245,11 @@ pub fn cut_cylinder() -> Body<f64> {
         .unwrap()
         .body;
     let phi: f64 = 0.3;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        Vec3::new(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(above) = &result.above else {
         panic!("the above half carries material");

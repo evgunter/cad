@@ -314,6 +314,9 @@ fn windings_of(derivation: Derivation) -> ChartWindings {
         Derivation::SphereMeridian { sigma, .. } | Derivation::TorusMeridian { sigma } => {
             (Winding::Zero, Some(sigma))
         }
+        Derivation::ConeSection => {
+            unreachable!("windings_of: the sweep draws no ellipse on a cone")
+        }
     };
     ChartWindings { u, v }
 }

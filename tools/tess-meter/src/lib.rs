@@ -206,7 +206,7 @@
 
 use std::collections::HashMap;
 
-use geom::Surface;
+use geom::SurfaceKind;
 use mesh::Mesh;
 use mesh::budget::{CellMeasure, FaceMeasure};
 use topo::Body;
@@ -229,77 +229,25 @@ use topo::Body;
 /// sweep's own output, not this line.
 pub const DEV_SAMPLES: usize = 6;
 
-/// The chart a face was tessellated on. Names the LANE's view, which
-/// is what a budget reader needs (`Nurbs` is one row whether the face
-/// was integral or rational — the cell count says which).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Chart {
-    /// `Surface::Plane`.
-    Plane,
-    /// `Surface::Cylinder`.
-    Cylinder,
-    /// `Surface::Cone`.
-    Cone,
-    /// `Surface::Sphere`.
-    Sphere,
-    /// `Surface::Torus`.
-    Torus,
-    /// `Surface::Nurbs` (described; the placeholder never reaches a row
-    /// — it refuses upstream).
-    Nurbs,
-    /// `Surface::Approx` — an approximating surface. Its own row: the
-    /// lane meshes its FIT, so the cell count is a spline's, but what
-    /// the face carries is a description plus a certificate, and a
-    /// budget reader that saw `nurbs` here would not know that.
-    Approx,
-}
-
-impl Chart {
-    /// The chart of a face's surface.
-    pub fn of(surface: &Surface<f64>) -> Self {
-        match *surface {
-            Surface::Plane { .. } => Chart::Plane,
-            Surface::Cylinder { .. } => Chart::Cylinder,
-            Surface::Cone { .. } => Chart::Cone,
-            Surface::Sphere { .. } => Chart::Sphere,
-            Surface::Torus { .. } => Chart::Torus,
-            Surface::Nurbs(_) => Chart::Nurbs,
-            Surface::Approx(_) => Chart::Approx,
-        }
-    }
-
-    /// The CSV token.
-    pub fn tag(self) -> &'static str {
-        match self {
-            Chart::Plane => "plane",
-            Chart::Cylinder => "cylinder",
-            Chart::Cone => "cone",
-            Chart::Sphere => "sphere",
-            Chart::Torus => "torus",
-            Chart::Nurbs => "nurbs",
-            Chart::Approx => "approx",
-        }
-    }
-
-    /// Is a face of this chart one the meter measures — i.e. does its
-    /// row OWE the Hessian-sized columns?
-    ///
-    /// This is the meter's contract read from the chart alone, which
-    /// is all a row has: `mesh` hands a `FaceMeasure` over for exactly
-    /// the faces its trimmed lane took on the NURBS arm, and that arm
-    /// is chosen by surface kind — a described NURBS face, or an
-    /// approximating surface meshed on its fit. Every other chart is
-    /// measured by nothing, so its sizing columns are empty because
-    /// there is nothing to put in them.
-    ///
-    /// **No wildcard arm.** A chart added to this enum is a face kind
-    /// whose lane nobody has yet decided, and the compiler is the
-    /// right party to ask.
-    pub fn sized_lane(self) -> bool {
-        match self {
-            Chart::Plane | Chart::Cylinder | Chart::Cone | Chart::Sphere | Chart::Torus => false,
-            Chart::Nurbs | Chart::Approx => true,
-        }
+/// Is a face of this chart one the meter measures — i.e. does its
+/// row OWE the Hessian-sized columns?
+///
+/// This is the meter's contract read from the chart alone, which
+/// is all a row has: `mesh` hands a `FaceMeasure` over for exactly
+/// the faces its trimmed lane took on the NURBS arm, and that arm
+/// is chosen by surface kind — a described NURBS face, or an
+/// approximating surface meshed on its fit. Every other chart is
+/// measured by nothing, so its sizing columns are empty because
+/// there is nothing to put in them.
+///
+/// **No wildcard arm.** A surface kind added to `geom` is a face kind
+/// whose lane nobody has yet decided, and the compiler is the
+/// right party to ask.
+pub fn sized_lane(chart: SurfaceKind) -> bool {
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    match chart {
+        Plane | Cylinder | Cone | Sphere | Torus => false,
+        Nurbs | Approx => true,
     }
 }
 
@@ -387,9 +335,9 @@ pub struct NurbsColumns {
 /// apart.
 ///
 /// **The type is not itself the guarantee, and where the guarantee is
-/// matters.** Nothing here ties a variant to a [`Chart`]: both
+/// matters.** Nothing here ties a variant to a [`SurfaceKind`]: both
 /// variants are `pub`, [`FaceRow`]'s fields are `pub`, and
-/// `FaceRow { chart: Chart::Nurbs, sizing: Sizing::OffLane, .. }` is a
+/// `FaceRow { chart: SurfaceKind::Nurbs, sizing: Sizing::OffLane, .. }` is a
 /// legal struct literal. The pairing is refused at the two sites that
 /// can see both halves — `sizing_of`, where [`face_rows`] DERIVES the
 /// state from a lookup, and [`FaceRow::csv_row`], where the state is
@@ -399,7 +347,7 @@ pub struct NurbsColumns {
 /// still checkable.
 #[derive(Clone, Copy, Debug)]
 pub enum Sizing {
-    /// The face's chart is not the sized lane's ([`Chart::sized_lane`]),
+    /// The face's chart is not the sized lane's ([`sized_lane`]),
     /// so there is nothing to report and the CSV's sizing columns are
     /// EMPTY — not zero, which would read as a measured zero.
     OffLane,
@@ -492,7 +440,7 @@ pub struct FaceRow {
     /// name, because [`face_rows`] refuses a table that misses one.
     pub name: Option<FaceName>,
     /// The chart its lane used.
-    pub chart: Chart,
+    pub chart: SurfaceKind,
     /// The δ the mesh was requested at.
     pub delta: f64,
     /// Triangles the face contributed.
@@ -550,18 +498,18 @@ impl FaceRow {
     /// would print the empty tail — the spelling every consumer reads
     /// as *"not on the sized lane"* — over a face that is on it.
     pub fn csv_row(&self, scene: &str) -> String {
-        match (self.chart.sized_lane(), self.sizing) {
+        match (sized_lane(self.chart), self.sizing) {
             (true, Sizing::OffLane) => panic!(
                 "face {} is chart `{}`, the Hessian-sized lane's, and carries no columns: \
                  the empty tail this would write says the face is OFF that lane",
                 self.face,
-                self.chart.tag()
+                self.chart.name()
             ),
             (false, Sizing::Measured(_)) => panic!(
                 "face {} is chart `{}`, which the meter measures nothing about, and \
                  carries the sized lane's columns anyway",
                 self.face,
-                self.chart.tag()
+                self.chart.name()
             ),
             (true, Sizing::Measured(_)) | (false, Sizing::OffLane) => {}
         }
@@ -569,7 +517,7 @@ impl FaceRow {
             "{scene},{},{},{},{:e},{}",
             self.face,
             self.name.as_ref().map_or("", FaceName::as_str),
-            self.chart.tag(),
+            self.chart.name(),
             self.delta,
             self.triangles
         );
@@ -660,7 +608,7 @@ pub fn face_rows(
                 .get_face(patch.face)
                 .and_then(|f| body.get_surface(f.surface))
                 .expect("the mesh's patches name this body's faces");
-            let chart = Chart::of(surface);
+            let chart = surface.kind();
             FaceRow {
                 face: ordinal,
                 name: name_of(ordinal, patch.face, names),
@@ -731,20 +679,20 @@ fn name_of(ordinal: usize, face: topo::FaceKey, names: Option<&FaceNames>) -> Op
 /// once for every column (module docs, *Which columns may carry a
 /// fallback: none of them*): these columns are read by a DIFFERENTIAL
 /// gate, so a value this crate could not take has two ways to lie.
-fn sizing_of(ordinal: usize, chart: Chart, measure: Option<&FaceMeasure>) -> Sizing {
-    match (chart.sized_lane(), measure) {
+fn sizing_of(ordinal: usize, chart: SurfaceKind, measure: Option<&FaceMeasure>) -> Sizing {
+    match (sized_lane(chart), measure) {
         (false, None) => Sizing::OffLane,
         (true, Some(m)) => Sizing::Measured(columns(m)),
         (true, None) => panic!(
             "face {ordinal} is chart `{}`, the Hessian-sized lane's, and no measurement \
              covers it: the meter was not armed for this tessellation, or these are not \
              the measurements it took",
-            chart.tag()
+            chart.name()
         ),
         (false, Some(_)) => panic!(
             "face {ordinal} is chart `{}`, which the meter measures nothing about, and a \
              measurement names it anyway",
-            chart.tag()
+            chart.name()
         ),
     }
 }

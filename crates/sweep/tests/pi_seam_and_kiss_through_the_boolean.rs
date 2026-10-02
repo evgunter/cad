@@ -29,7 +29,7 @@
 
 use core::f64::consts::PI;
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
 use sweep::{Extrusion, Revolution, extrude};
@@ -43,7 +43,7 @@ const H: f64 = 2.0;
 
 fn faces_of(b: &Body<f64>, kind: SurfaceKind) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(_, f)| b.get_surface(f.surface).map(SurfaceKind::of) == Some(kind))
+        .filter(|(_, f)| b.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect()
 }
@@ -332,7 +332,21 @@ fn a_ball_seated_in_its_own_bore_refuses_declared_or_not() {
     let bore = faces_of(&bored, SurfaceKind::Cylinder);
     let sph = faces_of(&ball, SurfaceKind::Sphere);
     for e in union_both_orders(&bored, &ball, &bore, &sph, None) {
-        assert!(is_pierce(&e), "undeclared: {e:?}");
+        // The ball's meridian circles touch the bore wall at their two
+        // equator points: a tangency, which the circle × cylinder lane's
+        // ladder escalates on its own decision when its margin lands in
+        // the band's gap, and which keeps the pierce door otherwise.
+        assert!(
+            is_pierce(&e)
+                || matches!(
+                    e,
+                    BooleanError::Escalated {
+                        decision: topo::BooleanDecision::ArcCylinderRoots,
+                        ..
+                    }
+                ),
+            "undeclared: the crossing layer's refusal: {e:?}"
+        );
     }
     for e in union_both_orders(&bored, &ball, &bore, &sph, Some(ContactClass::Tangent)) {
         assert!(

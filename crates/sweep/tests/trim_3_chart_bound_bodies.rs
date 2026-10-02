@@ -316,17 +316,6 @@ fn edge_mids(body: &Body<Interval>, face: FaceKey) -> Vec<Point3<f64>> {
     out
 }
 
-fn kind(s: &Surface<Interval>) -> &'static str {
-    match s {
-        Surface::Plane { .. } => "plane",
-        Surface::Cylinder { .. } => "cylinder",
-        Surface::Cone { .. } => "cone",
-        Surface::Sphere { .. } => "sphere",
-        Surface::Torus { .. } => "torus",
-        _ => "other",
-    }
-}
-
 fn arms(s: &Surface<Interval>) -> Option<(Interval, Interval)> {
     match s {
         Surface::Plane { .. } => Some((Interval::one(), Interval::one())),
@@ -479,11 +468,11 @@ fn probe_face(
 ) -> (Option<ChartBound<Interval>>, Option<GridStats>) {
     match chart_boundary(body, face, chart, band()) {
         Err(e) => {
-            eprintln!("{label} [{}]: REFUSED: {e}", kind(chart));
+            eprintln!("{label} [{}]: REFUSED: {e}", chart.kind().name());
             (None, None)
         }
         Ok(b) => {
-            eprintln!("{label} [{}]: {}", kind(chart), describe_line(&b));
+            eprintln!("{label} [{}]: {}", chart.kind().name(), describe_line(&b));
             let stats = match (arms(chart), oracle) {
                 (Some(a), Some(o)) => Some(grid(&b, chart, a, window_of(&b, 0.3), 32, o, label)),
                 _ => None,
@@ -530,7 +519,7 @@ fn extrude_oracles(
         ));
     }
     let all_segs: Vec<Seg> = loops.iter().flat_map(|l| segs_of(l)).collect();
-    for faces in &t.side_faces {
+    for faces in &t.side_faces() {
         for &face in faces {
             let mids = edge_mids(body, face);
             let seg = all_segs
@@ -591,7 +580,7 @@ fn revolve_oracles(
     let all_segs: Vec<Seg> = loops.iter().flat_map(|l| segs_of(l)).collect();
     let mut out: Vec<(FaceKey, Oracle, &'static str)> = Vec::new();
     let mut walls = std::collections::HashSet::new();
-    let _ = &t.walls;
+    let _ = &t.walls();
     for (face, _) in body.faces() {
         let mids = edge_mids(body, face);
         let seg = all_segs.iter().copied().find(|s| {
@@ -1098,7 +1087,7 @@ fn p14_fat_intervals_only_lose_cells() {
             }
             eprintln!(
                 "{face:?} [{}] widen {w}: lost={lost} gained={gained}",
-                kind(&s)
+                s.kind().name()
             );
             lost_total += lost;
             gained_total += gained;
@@ -1144,7 +1133,7 @@ fn singular_probe(name: &str, loops: &[Vec<((f64, f64), f64)>], theta: f64) -> (
     let (mut singular_refusals, mut violations) = (0usize, 0usize);
     for (face, oracle, fname) in revolve_oracles(&t.body, &t, loops, Some(theta)) {
         let s = face_surface(&t.body, face);
-        let label = format!("{name}/{fname}/{face:?} [{}]", kind(&s));
+        let label = format!("{name}/{fname}/{face:?} [{}]", s.kind().name());
         match chart_boundary(&t.body, face, &s, band()) {
             Err(topo::PcurveMintError::SingularChartJoint { .. }) => {
                 singular_refusals += 1;

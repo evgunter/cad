@@ -28,6 +28,7 @@ use topo::{Body, ReplaceFaceError, ShellError};
 use super::common::shell_operands::vessel;
 use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
+use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
 use crate::common::torus_walls::props_door;
 
 const R: f64 = 2.0;
@@ -322,11 +323,13 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
 // ---------------------------------------------------------------------
 // The seam-posture class, wider than the torus: every same-surface
 // circle centred on the axis in a plane normal to it is a latitude
-// circle, whatever its surface. The fixtures below are DOOR-BUILT
-// (a collinear profile vertex is a legal same-carrier continuation),
-// so each is also a door-built row for the carried corner arm on that
-// profile kind. Fixtures from the R1 review lane (the collinear drum,
-// the two-arc sphere), measured there as refusing at the seam arms.
+// circle, whatever its surface. The sphere's is DOOR-BUILT (two
+// cocircular arcs keep a wall each). A line run's is not — a full
+// revolve keeps no entity for a station inside a run — so the drum's
+// and the frustum's rings are cut by hand through the Euler door on the
+// door-built body (`common::latitude_seam`). Fixtures from the R1
+// review lane (the collinear drum, the two-arc sphere), measured there
+// as refusing at the seam arms.
 // ---------------------------------------------------------------------
 
 /// Tier 3, two shells, the volume closed form, and every vertex at
@@ -379,18 +382,26 @@ fn shells_with_one_surface_vertices(
     out
 }
 
-/// **A drum with a collinear wall vertex** (R1's fixture): the wall is
-/// one cylinder in four faces, the mid-height ring is a same-surface
+/// The surface key of `body`'s faces wearing `pred`'s surface.
+fn wall_key(body: &Body<f64>, pred: impl Fn(&Surface<f64>) -> bool) -> topo::SurfaceKey {
+    body.faces()
+        .find(|(_, f)| body.get_surface(f.surface).is_some_and(&pred))
+        .expect("the wall")
+        .1
+        .surface
+}
+
+/// **A drum with a ring on its wall** (R1's fixture): the wall is one
+/// cylinder in four faces, the mid-height ring is a same-surface
 /// latitude circle, and the mid vertices' only surface is the cylinder
-/// — the LINE arm through a door-built operand. Shells to the drum's
-/// closed form; each mid vertex moves to its foot `(r − t, h/2)`.
+/// — the LINE arm. Shells to the drum's closed form; each mid vertex
+/// moves to its foot `(r − t, h/2)`.
 #[test]
 fn a_collinear_wall_vertex_drum_shells_through_the_line_arm() {
     let (r, h, t) = (1.0, 2.0, 0.05);
-    let body = polyline(
-        &[(0.0, 0.0), (r, 0.0), (r, h / 2.0), (r, h), (0.0, h)],
-        Revolution::Full,
-    );
+    let mut body = polyline(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)], Revolution::Full);
+    let wall = wall_key(&body, |s| matches!(s, Surface::Cylinder { .. }));
+    ring_on_wall(&mut body, wall);
     let want = PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
     shells_with_one_surface_vertices("collinear drum", &body, t, want, |(rho, hh)| {
         ((hh - h / 2.0).abs() <= 1e-12 && (rho - r).abs() <= 1e-12).then_some((r - t, h / 2.0))
@@ -450,10 +461,10 @@ fn cavity_at_closed_form(
     cavity
 }
 
-/// **A cap with a collinear vertex — the door takes it, and `shell`
-/// closes it.** The top cap is one plane in four faces, its mid-radius ring a
+/// **A cap with a ring — the door takes it, and `shell` closes it.**
+/// The top cap is one plane in three faces, its mid-radius ring a
 /// same-surface latitude circle on a PLANE, and the ring's vertices'
-/// only surface is that plane: the station-line arm, door-built.
+/// only surface is that plane: the station-line arm.
 /// Through the direct door the cavity is tier-3 valid at
 /// `π(r−t)²(h−2t)` with the ring at its foot `(r/2, h − t)`; through
 /// `shell` the same cavity is inserted and the thin solid closes at
@@ -467,10 +478,8 @@ fn cavity_at_closed_form(
 #[test]
 fn a_collinear_cap_vertex_drum_shells_to_its_closed_form() {
     let (r, h, t) = (1.0, 2.0, 0.05);
-    let body = polyline(
-        &[(0.0, 0.0), (r, 0.0), (r, h), (r / 2.0, h), (0.0, h)],
-        Revolution::Full,
-    );
+    let mut body = polyline(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)], Revolution::Full);
+    ring_on_cap(&mut body, h, r, r / 2.0);
     let ring_foot = |(rho, hh): (f64, f64)| {
         ((hh - h).abs() <= 1e-12 && (rho - r / 2.0).abs() <= 1e-12).then_some((r / 2.0, h - t))
     };
@@ -488,25 +497,20 @@ fn a_collinear_cap_vertex_drum_shells_to_its_closed_form() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
-/// **A frustum with a collinear generator vertex**: the wall is one
-/// cone in four faces, the mid ring a same-surface latitude circle on
-/// a CONE, and the ring's vertices' only surface is that cone — the
-/// generator-line arm, door-built. The moved cone is the same cone with
+/// **A frustum with a ring on its wall**: the wall is one cone in four
+/// faces, the mid ring a same-surface latitude circle on a CONE, and the
+/// ring's vertices' only surface is that cone — the generator-line arm. The moved cone is the same cone with
 /// its apex slid by `t / sin α` along the axis, so the image is the
 /// foot of the old vertex on the moved generator.
 #[test]
 fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
     let (r0, r1, h, t) = (1.0, 0.5, 2.0, 0.05);
-    let body = polyline(
-        &[
-            (0.0, 0.0),
-            (r0, 0.0),
-            ((r0 + r1) / 2.0, h / 2.0),
-            (r1, h),
-            (0.0, h),
-        ],
+    let mut body = polyline(
+        &[(0.0, 0.0), (r0, 0.0), (r1, h), (0.0, h)],
         Revolution::Full,
     );
+    let wall = wall_key(&body, |s| matches!(s, Surface::Cone { .. }));
+    ring_on_wall(&mut body, wall);
     // The cavity: the frustum's own closed form at the inset radii.
     let tan_a = (r0 - r1) / h;
     let alpha = tan_a.atan();

@@ -1607,8 +1607,8 @@ pub(crate) fn every_euler_op_error_once()
             edge: ek,
             half_edge: he,
             error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
-                chart: geom_brep::SurfaceKind::Torus,
-                carrier: geom_brep::CurveKind::Circle,
+                chart: geom::SurfaceKind::Torus,
+                carrier: geom::CurveKind::Circle,
                 class: geom_brep::UncoveredClass::TorusGeneralCircle,
             },
         },
@@ -3693,11 +3693,10 @@ impl<T: Decide> Body<T> {
     /// `T: Real`, there is no door for the exact question: `Point3<T>`
     /// derives no `PartialEq`, `Real` offers no bit accessor, and
     /// `Real::register_equal` is a site-allowlisted identity axiom, not
-    /// an equality. A bit comparison of points does exist in the tree
-    /// one bound up, at `T: Bounds`: `crate::query`'s `same_point_bits`,
-    /// which compares `lo()`/`hi()` bits and which `rim_of`'s circle
-    /// identity uses in production. The absence of a door is therefore
-    /// not what decides; `docs/DESIGN.md`'s standing outcome that
+    /// an equality. A bit comparison of points could be spelled one
+    /// bound up, at `T: Bounds`, by comparing `lo()`/`hi()` bits, so the
+    /// absence of a door is not what decides; `docs/DESIGN.md`'s
+    /// standing outcome that
     /// production bit-identity coincidence checking is RETIRED is, and
     /// whether a kernel gate may ask this question, and through which
     /// door, is on

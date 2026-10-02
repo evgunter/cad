@@ -1058,25 +1058,17 @@ pub struct NodeError {
 }
 
 /// **An evaluation refusal, carried into a document-layer
-/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault),
+/// vocabulary** ([`crate::Refusal`]) — [`MateFault::PlacerRefused`](crate::MateFault),
 /// [`EditError::PlacementAxis`](crate::EditError),
 /// [`PartFault::PartRootFailed`](crate::PartFault) and
 /// [`PartFault::PartRootPoisoned`](crate::PartFault) hold one.
-///
-/// It exists because [`NodeErrorKind`] carries kernel refusals
-/// UNALTERED (D2) and those kernel types have neither `Clone` nor
-/// equality of their own, while the document-layer error enums have
-/// both. Sharing the refusal rather than copying it is what makes
-/// the carriage possible without stringifying anything: the payload
-/// reaching a reader is the very value the evaluation raised.
-#[derive(Debug, Clone)]
-pub struct NodeRefusal(std::sync::Arc<NodeErrorKind>);
+pub type NodeRefusal = crate::refusal::Refusal<NodeErrorKind>;
 
 impl NodeRefusal {
     /// The refusal, as the evaluation layer typed it.
     #[must_use]
     pub fn kind(&self) -> &NodeErrorKind {
-        &self.0
+        self.get()
     }
 
     /// The refusal as `node`'s own [`NodeError`] renders it, said by
@@ -1085,7 +1077,7 @@ impl NodeRefusal {
     /// tree draws.
     #[must_use]
     pub fn line_at(&self, node: RecipeNodeId, by: crate::spoken::Speaker<'_>) -> String {
-        failed_line(node, &self.0, by)
+        failed_line(node, self.get(), by)
     }
 }
 
@@ -1099,43 +1091,6 @@ fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Spea
         by.node(node),
         crate::spoken::Said(kind, by.about(node))
     )
-}
-
-impl From<NodeErrorKind> for NodeRefusal {
-    fn from(kind: NodeErrorKind) -> Self {
-        Self(std::sync::Arc::new(kind))
-    }
-}
-
-/// **Equality is over the refusal's `Debug` structure**, which is the
-/// derived one on [`NodeErrorKind`] and on every payload it carries,
-/// so two refusals compare equal exactly when they are the same
-/// variant carrying the same fields.
-///
-/// It is written rather than derived because the kernel error types
-/// [`NodeErrorKind`] carries unaltered do not implement `PartialEq`,
-/// and inventing equality for them here would be this layer deciding
-/// something the kernel owns. Two float differences follow from
-/// comparing renderings rather than values, and both are the ones a
-/// diagnostic wants: `NaN` payloads compare EQUAL to themselves, and
-/// `0.0` and `-0.0` compare DIFFERENT.
-///
-/// It is an equivalence, so the refusal is `Eq`: the relation is
-/// equality of two strings, and the pointer test short-cuts only pairs
-/// whose strings are the same.
-impl PartialEq for NodeRefusal {
-    fn eq(&self, other: &Self) -> bool {
-        std::sync::Arc::ptr_eq(&self.0, &other.0)
-            || format!("{:?}", self.kind()) == format!("{:?}", other.kind())
-    }
-}
-
-impl Eq for NodeRefusal {}
-
-impl core::fmt::Display for NodeRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(f)
-    }
 }
 
 /// **The entity-kind door**: one home for *read a thing, test what kind
@@ -1849,7 +1804,7 @@ pub enum NodeErrorKind {
     /// not a predicate — the carrier's own kind, copied out.
     FaceFrameNotPlanar {
         /// The carrier kind the face actually has.
-        carrier: geom_brep::SurfaceKind,
+        carrier: geom::SurfaceKind,
     },
     /// A derived frame's face resolved to a key its own body could not
     /// read back — an evaluation-internal inconsistency between the
@@ -6256,6 +6211,19 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             role(h, r);
         }
     };
+    // A run of pieces: one piece feeds as that piece, so a one-piece
+    // run digests as the bare locator did; several feed under a tag no
+    // locator starts with, then the count and the pieces.
+    let run = |h: &mut SegFeed<'a>, r: &crate::names::PieceRun| match r.single() {
+        Some(e) => pe(h, e),
+        None => {
+            h.write_tag(3);
+            h.write_u64(r.pieces().len() as u64);
+            for e in r.pieces() {
+                pe(h, *e);
+            }
+        }
+    };
     let pv = |h: &mut SegFeed<'a>, v: crate::names::ProfileVertexRef| match v {
         crate::names::ProfileVertexRef::Piece { step, role: r } => {
             h.write_tag(1);
@@ -6298,8 +6266,8 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Cap(c) => {
             h.write_tag(cap(*c));
         }
-        RoleSeg::Lateral(e) => {
-            pe(h, *e);
+        RoleSeg::Lateral(r) => {
+            run(h, r);
         }
         RoleSeg::RimEdge(c, e) => {
             h.write_tag(cap(*c));
@@ -6324,8 +6292,8 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
                 pv(h, *v);
             }
         }
-        RoleSeg::Band(e) => {
-            pe(h, *e);
+        RoleSeg::Band(r) => {
+            run(h, r);
         }
         RoleSeg::BandRim(v) => {
             pv(h, *v);
@@ -6333,12 +6301,12 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::BandRimPi(v) => {
             pv(h, *v);
         }
-        RoleSeg::BandPi(e) => {
-            pe(h, *e);
+        RoleSeg::BandPi(r) => {
+            run(h, r);
         }
-        RoleSeg::Meridian(m, e) => {
+        RoleSeg::Meridian(m, r) => {
             h.write_tag(mer(*m));
-            pe(h, *e);
+            run(h, r);
         }
         RoleSeg::MeridianVertex(m, v) => {
             h.write_tag(mer(*m));

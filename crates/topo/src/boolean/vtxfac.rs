@@ -345,7 +345,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand: piercing,
                 face: s.face,
@@ -364,7 +364,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand: piercing,
                 face: s.face,
@@ -498,15 +498,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         let s_end = &sectors[(run.0 + run.1 - 1) % n];
         let dir_start = pierce_germ_dir(s_start, n_pierced.vec(), band)?;
         let dir_end = pierce_germ_dir(s_end, n_pierced.vec(), band)?;
-        run_germs.push((
-            (germ_pair(s_start.face), dir_start),
-            (germ_pair(s_end.face), dir_end),
-        ));
+        let (gs, ds) = (germ_pair(s_start.face), dir_start);
+        let (ge, de) = (germ_pair(s_end.face), dir_end);
+        run_germs.push(((gs, ds), (ge, de)));
         let members = (0..run.1).map(|j| entries[(run.0 + j) % n]);
         let mut real = members.filter(|e| e.is_edge);
         let first = real.next();
         let last = real.next_back().or(first);
-        let (site, dangling) = match (first, last) {
+        // `strut`: the site is an empty fan, so `mev_null` splices the
+        // null edge as a spike [he_plus, he_minus] into one corner.
+        let (site, strut) = match (first, last) {
             (Some(first), Some(last)) => {
                 let mate = piercing_body
                     .mate(last.he)
@@ -521,7 +522,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                         vertex,
                     })?
                     .next;
-                (MevSite::Fan { he1: first.he, he2 }, false)
+                // A run holding every real edge of the orbit leaves the
+                // In side strictly inside one physical sector, the one
+                // before `first`: `he2` comes back round to `first.he`,
+                // and the empty fan is a strut spliced before it.
+                (MevSite::Fan { he1: first.he, he2 }, he2 == first.he)
             }
             _ => {
                 let after = entries[(run.0 + run.1) % n];
@@ -535,22 +540,19 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             }
         };
         // Sense theorem (join module docs): the half facing the run's
-        // START germ (forward code Out) must be the UP half — for the
-        // dangling splice that half is he_minus (starts at the copy),
-        // so the SIDE swaps with the facing (mint side flipped to keep
-        // the body scaffold attribute and the record one datum).
-        let side = if dangling {
+        // START germ (forward code Out) is the UP half, starting at
+        // `below_end`. A fan puts he_plus (old → copy) at the start
+        // germ's cut, so the copy is the above end. A strut's spike
+        // faces its start germ with he_minus (copy → old), so the copy
+        // is the below end — the mint side follows, keeping the body's
+        // scaffold attribute and the record one datum.
+        let side = if strut {
             NewVertexSide::Below
         } else {
             NewVertexSide::Above
         };
         let created = piercing_body.mev_null(site, side)?;
-        let Some(&((gs, ds), (ge, de))) = run_germs.last() else {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "run germ bookkeeping desynchronized",
-            });
-        };
-        let (start_he, end_he) = if dangling {
+        let (start_he, end_he) = if strut {
             (created.he_minus, created.he_plus)
         } else {
             (created.he_plus, created.he_minus)
@@ -570,7 +572,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             at_vertex: vertex,
             edge: created.edge,
             attr,
-            dangling,
+            dangling: strut,
             germs: [
                 super::HalfGerm {
                     he: start_he,
@@ -831,10 +833,10 @@ pub(super) fn pierce_germ_dir<T: Decide>(
 /// The surface kind a refusal about `face` cites. A face whose surface
 /// cannot be read at all is reported as the kind with no arm anywhere,
 /// which is what the sibling refusal sites in this module do.
-fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom_brep::SurfaceKind {
+fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom::SurfaceKind {
     body.get_face(face)
         .and_then(|f| body.get_surface(f.surface))
-        .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of)
+        .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind)
 }
 
 /// Maximal cyclic Out-runs `(start, len)` (PR 2's `above_runs` on

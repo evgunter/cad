@@ -921,14 +921,11 @@ fn cut_by(cuts: &[Cut]) -> Body<f64> {
 
 /// `body` cut down to the side of every plane in `cuts` below it.
 fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     for cut in cuts {
         let result = split(
             &body,
-            &SplitPlane {
-                origin: cut.point,
-                normal: cut.normal,
-            },
+            &topo::test_support::split_plane(cut.point, cut.normal, geom_core::Tol::witness()),
             tol(),
         )
         .expect("the cut splits");

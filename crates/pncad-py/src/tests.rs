@@ -3611,8 +3611,7 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
-            kind: Some(pncad::document::ProductErrorKind::NoBodyRoots),
-            reason: "no body roots".into()
+            refusal: Some(pncad::document::ProductError::NoBodyRoots.into())
         }),
         "product_unavailable"
     );
@@ -5608,6 +5607,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_manifold_axis_contact",
             "op",
             "pcurve",
+            "pinned_run_station",
             "sliver_axis_clearance",
             "sliver_join",
             "sliver_radius",
