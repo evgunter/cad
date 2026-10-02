@@ -165,13 +165,10 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// built around should not be a literal buried in the drawing code.
 ///
 /// **At the DEFAULT ε**, like every other measured number here: the
-/// fraction moves with ε — `1.083e-1` at ε = 1e-6 and `8.626e-2` at
-/// 1e-5, measured. The wall is the wedge's margin at the tip pin's cap
-/// circle: its lower end falls toward zero as the box grows, and the
-/// box stops certifying where it drops under `K·ε`
-/// ([`crate::chaintol`]'s header has the mechanism). So the cell asks
-/// at every ε whether this published box still certifies there rather
-/// than reasoning about it.
+/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured — for the
+/// reason [`crate::chaintol`]'s header gives under "What sets the
+/// wall". So the cell asks at every ε whether this published box still
+/// certifies there rather than reasoning about it.
 pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 
 /// **The same measurement at 1, 2, 3 and 4 links** — one number in
@@ -184,12 +181,8 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 /// `0.500 / 0.500 / 0.499`, and MEASURED with the radius doubled to
 /// `1.6e-3` m the fractions become `1.0000 / 0.73841 / 0.36921 /
 /// 0.22192` and the half-width `7.975e-4` m — still `0.498` of the
-/// radius. Why half: the tip pin's cap circle and its cylinder's axis
-/// are enclosed apart, each carrying that half-width across the chain,
-/// so the radial vector between them reaches zero once the two add up
-/// to the radius, and the wedge's margin there goes with it
-/// ([`crate::chaintol`]'s header). [`CERTIFIED_TIP_OVER_PIN_RADIUS`]
-/// pins it. The one-link row
+/// radius; why half is [`crate::chaintol`]'s header, "What sets the
+/// wall". [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it. The one-link row
 /// is capped by the study itself rather than by the wall, and sits at
 /// `0.450` of the radius.
 ///
