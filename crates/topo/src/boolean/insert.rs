@@ -1036,4 +1036,21 @@ mod tests {
         }
         assert!(wrong.is_empty(), "silently misordered: {wrong:?}");
     }
+
+    /// REVIEW (join/reflex-corner-review): an arrival edge along the
+    /// face normal (the synthetic sectors of `f12_four_survivor_pairing`)
+    /// leaves every germ's side, its along-reading and the cosine
+    /// difference a decided zero. Nothing then orders the germs, and
+    /// the order must escalate rather than answer.
+    #[test]
+    fn review_the_strut_order_escalates_when_nothing_orders_the_germs() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let germs = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
+        let got = strut_order(n, n, germs, 1.0, band);
+        assert!(
+            got.is_err(),
+            "decided with no comparand away from zero: {got:?}"
+        );
+    }
 }
