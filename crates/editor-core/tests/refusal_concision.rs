@@ -486,6 +486,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::SeamContradicted {
                 a: face,
                 b: face,
+                fact: None,
                 margin: diag,
             },
         ),

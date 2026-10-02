@@ -35,10 +35,17 @@
 //! - **Tube ∪ ball** (overlapping, ball centred on the top cap) stops at
 //!   the crossing layer.
 //! - **The stadium** (slab ∪ cylinder whose wall the slab's top and
-//!   bottom are tangent to along a ruling): a plane×cylinder π seam.
-//!   Undeclared it stops at the crossing layer; declared `Tangent` the
-//!   witness lane contradicts it, because its outward normals AGREE;
-//!   declared a `Seam` it verifies and stops at the curved lump site.
+//!   bottom are tangent to along a ruling). Undeclared it stops at the
+//!   crossing layer; declared `Tangent` the witness lane contradicts it,
+//!   because its outward normals AGREE; declared a `Seam` it is
+//!   contradicted too, because the ruling runs through the rod wall's
+//!   interior: the wall does not END at the line, so no seam runs along
+//!   it (`seam_locus_no_edge`). The D-bar on the slab, whose half-rod
+//!   wall does end there, verifies as a line seam and stops at the
+//!   declared-`Rest` zip.
+//! - **The dodge plate** (a plate whose outline leaves a line on one
+//!   side and then reaches round to the other): the line seam is read
+//!   where the faces leave the line, not off the boundary.
 //! - **The kiss** (a ball seated in a bore of its own radius): the
 //!   equator touches the bore wall, wedge 2π. Undeclared it stops at
 //!   the crossing layer; declared `Tangent` or a `Seam` the class is
@@ -818,14 +825,15 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
         );
     }
     // Declared a `Seam`, the lane finds the outward normals aligned,
-    // and then that the rod's wall face lies on BOTH sides of the
-    // ruling: half of it runs inside the slab. The two faces do not
-    // leave the line on opposite sides, so this is no seam.
+    // and then that no boundary edge of the rod's wall runs along the
+    // ruling: the ruling crosses the wall's interior, half of which
+    // runs inside the slab. A face that does not end at the line
+    // leaves it on no one side, so this is no seam.
     for e in union_both_orders(&slab, &rod, &flats, &walls, Some(BooleanCoincidence::Seam)) {
         let BooleanError::SeamContradicted { margin, .. } = &e else {
             panic!("declared Seam: contradicted: {e:?}");
         };
-        assert_eq!(margin.predicate, Some("seam_line_side"), "{e}");
+        assert_eq!(margin.predicate, Some("seam_locus_no_edge"), "{e}");
     }
 }
 
@@ -1052,14 +1060,16 @@ fn a_puck_and_its_rounding_ring_build_with_the_top_declared_a_seam() {
     }
 }
 
-/// **A cover admits an off-carrier end only on its certified side.** A
-/// rod of radius 0.5 seated in the bore of radius 1 of a revolved tube,
-/// touching along a ruling and declared `Tangent`, at thirty turns of
-/// the touching ruling. The rod's carrier lies inside the bore's
-/// (certified Negative), so its end arcs' off-carrier ends are admitted
-/// there, and the bore's lies outside the rod's. Pinned per refusal.
+/// **A rod in a bore, declared `Tangent`, refuses at the crossing
+/// layer at every turn.** A rod of radius 0.5 seated in the bore of
+/// radius 1 of a revolved tube, touching along a ruling, at thirty
+/// turns of the touching ruling: pinned per refusal. Its covered ends
+/// lie on the certified side, so this row holds with or without the
+/// cover's side gate; the gate is carried by the unit row
+/// `a_cover_admits_an_off_point_only_on_its_certified_side`, which is
+/// the only place a certificate's wrong side is reachable.
 #[test]
-fn a_rod_in_a_bore_declared_tangent_is_admitted_only_on_its_side() {
+fn a_rod_in_a_bore_declared_tangent_refuses_at_the_crossing_layer() {
     let tol = Tol::witness();
     let tube = revolved_about_y(
         vec![
@@ -1111,8 +1121,8 @@ fn a_rod_in_a_bore_declared_tangent_is_admitted_only_on_its_side() {
 
 /// **The seam's own refusals.** Two stacked rods of one radius share
 /// one carrier: a seam declared on their walls is contradicted as
-/// conformal (`seam_conformal`), and the label names what failed, not
-/// the axis rung that passed. A rod hovering a clear gap above a slab
+/// conformal. The fact names the finding (`OneCarrier`), and the margin
+/// keeps the predicate the carrier ladder measured it with. A rod hovering a clear gap above a slab
 /// has no tangency: the closed-form locus finds the gap
 /// (`tangent_locus_gap`).
 #[test]
@@ -1124,10 +1134,18 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
         let mut d = declared(&cyl(x), &cyl(y), BooleanCoincidence::Seam);
         d.coincident_faces.extend(coplanar_pairs(x, y));
         let r = topo::union_with(x, y, &d, tol);
-        let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
+        let Err(BooleanError::SeamContradicted { margin, fact, .. }) = &r else {
             panic!("stacked rods: contradicted: {r:?}");
         };
-        assert_eq!(margin.predicate, Some("seam_conformal"), "{r:?}");
+        assert_eq!(*fact, Some(topo::Contradiction::OneCarrier), "{r:?}");
+        assert_eq!(margin.predicate, Some("carrier_cyl_axis_parallel"), "{r:?}");
+        assert!(
+            r.as_ref()
+                .unwrap_err()
+                .to_string()
+                .contains("lie on one carrier"),
+            "the message says it in words"
+        );
     }
     let slab: Body<f64> = brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol);
     let lp = profile::circle(Point2::new(2.0, -1.5), 0.5, tol).unwrap();
@@ -1419,4 +1437,119 @@ fn a_g1_joint_authored_inside_one_profile_needs_no_declaration() {
         2,
         "the authored joint, minted as two semicircles"
     );
+}
+
+/// A quarter rod along `x ∈ [0, 1]`, radius 0.5, axis on `y = 0,
+/// z = 0.5`: its wall's lowest ruling is the line `y = z = 0`, and its
+/// flat on `y = 0` faces away from the side it lies on (`side` −1 or +1
+/// in `y`).
+fn quarter_rod(side: f64, tol: Tol) -> Body<f64> {
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    let lp = if side < 0.0 {
+        profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, 0.5), 0.0),
+            (Point2::new(-0.5, 0.5), q),
+            (Point2::new(0.0, 0.0), 0.0),
+        ])
+    } else {
+        profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, 0.5), 0.0),
+            (Point2::new(0.0, 0.0), q),
+            (Point2::new(0.5, 0.5), 0.0),
+        ])
+    };
+    // Sketch x → world y, sketch y → world z, the normal → world x.
+    let k = 1.0 / 3.0_f64.sqrt();
+    let plane = profile::SketchPlane::new(Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(k, k, k),
+        core::f64::consts::TAU / 3.0,
+    ));
+    let p = profile::Profile::new(plane, vec![lp])
+        .validate(tol)
+        .unwrap();
+    extrude(&p, Extrusion::Distance(1.0), tol).unwrap().body
+}
+
+/// **A line seam is read at the line, not off the boundary.** The
+/// dodge plate (thickness 0.25, on `z ∈ [0, 0.25]`) has the edge
+/// `(1, 0) → (0, 0)` on the line `y = z = 0`, and its outline then
+/// sweeps an arc about `(1, 0.5)` of radius √1.25 through 273.4°,
+/// dipping to `y ≈ −0.618` under that edge and closing above it. At the
+/// line the plate's bottom leaves on `y < 0`, though every boundary
+/// vertex and arc midpoint reads `y ≥ 0`. A quarter rod on `y < 0`
+/// tangent to the bottom along the line leaves it on the same side, a
+/// cusp: declared a `Seam`, contradicted (`seam_line_side`). On `y > 0`
+/// it leaves on the other side, a seam: the door verifies it, and the
+/// union goes on past the declarations. The square plate, which lies on
+/// `y < 0` everywhere, is the control. Both member orders.
+#[test]
+fn a_line_seam_is_read_where_the_faces_leave_the_line() {
+    let tol = Tol::witness();
+    let sweep = 273.4_f64.to_radians();
+    let dodge = profile::test_support::bulge_loop(vec![
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(0.0, 0.0), (sweep / 4.0).tan()),
+        (
+            Point2::new(
+                1.0 + 1.25_f64.sqrt() * 120.0_f64.to_radians().cos(),
+                0.5 + 1.25_f64.sqrt() * 120.0_f64.to_radians().sin(),
+            ),
+            0.0,
+        ),
+    ]);
+    let square = profile::test_support::bulge_loop(vec![
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(0.0, -1.0), 0.0),
+        (Point2::new(1.0, -1.0), 0.0),
+    ]);
+    for (label, lp) in [("dodge", dodge), ("square", square)] {
+        let p = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .unwrap();
+        let plate = extrude(&p, Extrusion::Distance(0.25), tol).unwrap().body;
+        for (pose, side) in [("cusp", -1.0), ("seam", 1.0)] {
+            let rod = quarter_rod(side, tol);
+            for (x, y) in [(&plate, &rod), (&rod, &plate)] {
+                let mut d = declared(
+                    &planes_at_z(x, 0.0),
+                    &faces_of(y, SurfaceKind::Cylinder),
+                    BooleanCoincidence::Seam,
+                );
+                d.coincident_faces.extend(
+                    declared(
+                        &faces_of(x, SurfaceKind::Cylinder),
+                        &planes_at_z(y, 0.0),
+                        BooleanCoincidence::Seam,
+                    )
+                    .coincident_faces,
+                );
+                d.coincident_faces.extend(coplanar_pairs(x, y));
+                let r = topo::union_with(x, y, &d, tol);
+                match pose {
+                    "cusp" => {
+                        let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
+                            panic!("{label} {pose}: contradicted: {r:?}");
+                        };
+                        assert_eq!(margin.predicate, Some("seam_line_side"), "{label} {pose}");
+                    }
+                    // Verified; the square plate and the rod are
+                    // disjoint but for the line, and the union is both.
+                    _ if label == "square" => {
+                        let (v, _, _) = built(label, r);
+                        let want = 0.25 + PI * 0.25 / 4.0;
+                        assert!((v - want).abs() <= 1e-12, "{label} {pose}: {v} vs {want}");
+                    }
+                    // Verified; the dodge plate's outline also reaches
+                    // over the rod on `y > 0`, and that crossing stops
+                    // at the crossing layer, past the declarations.
+                    _ => assert!(
+                        matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                        "{label} {pose}: verified at the door: {r:?}"
+                    ),
+                }
+            }
+        }
+    }
 }

@@ -84,6 +84,9 @@ pub enum Contradiction {
     TorusMajorRadiiDiffer,
     /// The declared tori's tube radii differ.
     TorusTubeRadiiDiffer,
+    /// A tangency claimed between faces on ONE carrier: conformal
+    /// contact, which is a `Rest` contact or a continuation.
+    OneCarrier,
 }
 
 impl Contradiction {
@@ -103,6 +106,10 @@ impl Contradiction {
             Self::TorusCentresDiffer => "the declared tori's centres differ",
             Self::TorusMajorRadiiDiffer => "the declared tori's major radii differ",
             Self::TorusTubeRadiiDiffer => "the declared tori's tube radii differ",
+            Self::OneCarrier => {
+                "the declared faces lie on one carrier, which is a `Rest` contact or a \
+                 continuation, not a tangency"
+            }
         }
     }
 
@@ -125,7 +132,8 @@ impl Contradiction {
             | Self::TorusAxesNotParallel
             | Self::TorusCentresDiffer
             | Self::TorusMajorRadiiDiffer
-            | Self::TorusTubeRadiiDiffer => false,
+            | Self::TorusTubeRadiiDiffer
+            | Self::OneCarrier => false,
         }
     }
 }

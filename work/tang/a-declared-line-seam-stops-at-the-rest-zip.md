@@ -16,13 +16,14 @@ declared continuations. Its wall starts at the slab's top and bottom
 edges, and leaves each tangent ruling away from the slab. The wall,
 declared a `Seam` against the slab's top and bottom faces, VERIFIES in
 both member orders along the DEV-1 line locus: the `Tangent` lane with
-the sense bit reversed, then `rim_wedge::line_side`. The union then
+the sense bit reversed, then `rim_wedge::departures` read at the
+edges running along the line. The union then
 refuses `RestZipUnsupported { what: ParallelSeamEdges }`.
 
 The stadium (the full rod, its wall straddling the ruling with half of
 it inside the slab) no longer reaches this far. Declared a `Seam`, it is
-contradicted on `seam_line_side`, which is right: those two faces do not
-leave the line on opposite sides.
+contradicted on `seam_locus_no_edge`, which is right: the ruling runs
+through the rod wall's interior, so the wall does not end at the line.
 
 ## Why
 

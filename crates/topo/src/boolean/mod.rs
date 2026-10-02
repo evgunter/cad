@@ -677,12 +677,17 @@ fn tagged(o: Operand, f: FaceKey) -> OperandFace {
 ///   axis with the cylinder's radius, so the sphere lies in the closed
 ///   solid cylinder, and the cylinder keeps at least the radius from the
 ///   centre.
-/// - **sphere and torus**: tangent along a circle only centred on the
-///   torus's axis, at a centre `c` every point of the centre circle is
-///   equidistant from; so the torus lies within that distance plus the
-///   minor radius of `c` (or beyond it less the minor radius), on one
-///   side of the sphere, and the sphere keeps at least the minor radius
-///   from the centre circle, outside the open solid torus.
+/// - **sphere and torus**: tangent along a circle in two ways. Centred
+///   on the torus's axis, at a centre `c` every point of the centre
+///   circle `C` is equidistant from, at `d`: the torus is `{x : dist(x,
+///   C) = r}`, so every point of it lies between `d − r` and `d + r` of
+///   `c`, on one side of a sphere of radius `d ∓ r`, and that sphere
+///   keeps at least `r` from `C`, outside the open solid torus. Or
+///   centred ON the centre circle with the minor radius `r` (the
+///   ball-ended elbow, tangent along a meridian): every torus point is
+///   `r` from `C`, so at least `r` from the centre, outside the open
+///   ball, and the sphere lies within `r` of `C`, inside the closed
+///   solid torus. Both are a global side.
 /// - **plane and torus**: tangent along a circle only at a top or bottom
 ///   plane, with the torus in one half-space and the plane at least the
 ///   minor radius from the centre circle.
@@ -690,19 +695,54 @@ fn tagged(o: Operand, f: FaceKey) -> OperandFace {
 /// Every other pair gives no cover, and its crossing stays a typed
 /// frontier. Two tori, or a torus and a cylinder, joined G1 along a
 /// meridian diverge quadratically past it, so each crosses the other's
-/// continuation. A cone's tangent plane leaves its second nappe on the
+/// continuation. **That exclusion is conservative**, since the table
+/// answers by KIND: a cylinder coaxial with a torus, of radius `R ± r`,
+/// is tangent to it along an equator and is a global side. A kind row
+/// cannot tell the coaxial cylinder from the tube chain, and admitting
+/// the chain would cover a crossing, so the row stays out and the
+/// coaxial case keeps its typed frontier. A cone's tangent plane leaves its second nappe on the
 /// other side. A spline (STEP adoption, blends) carries no global
 /// convexity. Two planes, two spheres or a plane and a sphere are never
 /// tangent along a curve on distinct carriers.
-fn tangency_certifies_side(parent: geom::SurfaceKind, partner: geom::SurfaceKind) -> bool {
+///
+/// **The source column.** A seam certifies every row above. A
+/// structural tangency (the strut source) certifies only plane and
+/// cylinder, both ways: that is what it covered before the seam came
+/// and what a fixture exercises. The other rows are as true for a strut
+/// as for a seam, but nothing yet reaches them through one, so they
+/// wait for a witness (filed: `the-strut-cover-on-cylinder-pairs`).
+/// The old strut row for plane and sphere is not restored: those are
+/// never tangent along a curve on distinct carriers.
+fn tangency_certifies_side(
+    source: TangencySource,
+    parent: geom::SurfaceKind,
+    partner: geom::SurfaceKind,
+) -> bool {
     use geom::SurfaceKind::{Cylinder, Plane, Sphere, Torus};
-    matches!(
+    let global = matches!(
         (parent, partner),
         (Plane, Cylinder | Torus)
             | (Cylinder, Plane | Cylinder | Sphere)
             | (Sphere, Cylinder | Torus)
             | (Torus, Plane | Sphere)
-    )
+    );
+    global
+        && match source {
+            TangencySource::Seam => true,
+            TangencySource::Strut => {
+                matches!((parent, partner), (Plane, Cylinder) | (Cylinder, Plane))
+            }
+        }
+}
+
+/// Which certificate a tangency along a curve comes from
+/// ([`tangency_certifies_side`]'s source column).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TangencySource {
+    /// An operand edge described `TangentIntersection`.
+    Strut,
+    /// A verified seam declaration.
+    Seam,
 }
 
 /// **What the one-sided cover certifies** about a parent face's carrier
@@ -740,6 +780,19 @@ impl CoverSide {
 /// already says one closed side holds the whole parent carrier, so any
 /// definite reading names it; readings that disagree contradict the
 /// certificate and leave the side unread.
+///
+/// **Reading the side off boundary samples is sound HERE and nowhere
+/// the side is only local.** The seam's departure read once sampled a
+/// face's boundary the same way, and a face whose outline reached round
+/// to the other bank of its locus fooled it: there the question was
+/// which side the face leaves on AT the locus, a local fact the far
+/// boundary says nothing about. This question is global by the time it
+/// is asked: [`tangency_certifies_side`] has certified that every point
+/// of the parent's CARRIER lies in one closed side of the target's,
+/// so every point of the face, boundary samples included, lies there
+/// too, and one definite sample names the side. A face cannot bulge to
+/// the other side between samples because no point of its carrier is
+/// there.
 fn read_cover_side<T: Decide>(
     parent: &Body<T>,
     face: FaceKey,
@@ -831,7 +884,7 @@ impl<T: Decide> DeclaredPairs<T> {
                     let (strut_face, other_face) = (tagged(o, f), tagged(target.0, target.1));
                     // The strut face's carrier on one side of the
                     // partner's, which IS the other face's carrier.
-                    if tangency_certifies_side(f_kind, partner_kind) {
+                    if tangency_certifies_side(TangencySource::Strut, f_kind, partner_kind) {
                         pairs
                             .one_sided
                             .entry((strut_face, other_face))
@@ -839,7 +892,7 @@ impl<T: Decide> DeclaredPairs<T> {
                     }
                     // The partner's carrier (the other face's) on one
                     // side of the strut face's.
-                    if tangency_certifies_side(partner_kind, f_kind) {
+                    if tangency_certifies_side(TangencySource::Strut, partner_kind, f_kind) {
                         pairs
                             .one_sided
                             .entry((other_face, strut_face))
@@ -911,8 +964,10 @@ impl<T: Real> DeclaredPairs<T> {
             .chain(verified.seam.iter().flat_map(|(&(fa, fb), &(ka, kb))| {
                 let (x, y) = (tagged(Operand::A, fa), tagged(Operand::B, fb));
                 [
-                    tangency_certifies_side(ka, kb).then_some(((x, y), CoverSide::Unread)),
-                    tangency_certifies_side(kb, ka).then_some(((y, x), CoverSide::Unread)),
+                    tangency_certifies_side(TangencySource::Seam, ka, kb)
+                        .then_some(((x, y), CoverSide::Unread)),
+                    tangency_certifies_side(TangencySource::Seam, kb, ka)
+                        .then_some(((y, x), CoverSide::Unread)),
                 ]
                 .into_iter()
                 .flatten()
@@ -1628,6 +1683,12 @@ pub enum BooleanError {
         a: FaceKey,
         /// The B-operand face.
         b: FaceKey,
+        /// The fact that contradicted it, where it is a carrier fact (the
+        /// two faces lie on one carrier, or on carriers the ladder found
+        /// distinct in a way a seam's sense cannot be); `None` where the
+        /// witness lane's own finding is the evidence, which the
+        /// margin's predicate labels.
+        fact: Option<Contradiction>,
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
     },
@@ -2741,11 +2802,11 @@ impl core::fmt::Display for BooleanError {
                  inside",
                 class.name()
             ),
-            Self::SeamContradicted { .. } => write!(
+            Self::SeamContradicted { fact, .. } => write!(
                 f,
                 "the declared seam between the operands' faces is contradicted: \
                  {}. {}",
-                crate::contact::CONTRADICTION_REASON,
+                fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 crate::contact::CONTRADICTION_RECOURSE,
             ),
             Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
@@ -3443,6 +3504,7 @@ pub(super) fn sense_contradiction(
         BooleanCoincidence::Seam => BooleanError::SeamContradicted {
             a: fa,
             b: fb,
+            fact: None,
             margin: margin("seam_senses_aligned"),
         },
         BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
@@ -3506,6 +3568,7 @@ fn verify_one_carrier_declaration<T: Decide>(
             BooleanCoincidence::Seam => BooleanError::SeamContradicted {
                 a: fa,
                 b: fb,
+                fact: Some(fact),
                 margin: diag,
             },
             BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
@@ -3578,6 +3641,18 @@ impl Tangency {
         margin: Indeterminate,
         steer: Option<&'static str>,
     ) -> BooleanError {
+        self.contradicted_by(a, b, None, margin, steer)
+    }
+
+    /// [`Self::contradicted`], naming the carrier fact that did it.
+    fn contradicted_by(
+        self,
+        a: FaceKey,
+        b: FaceKey,
+        fact: Option<Contradiction>,
+        margin: Indeterminate,
+        steer: Option<&'static str>,
+    ) -> BooleanError {
         match self {
             Self::Contact => BooleanError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
@@ -3586,10 +3661,10 @@ impl Tangency {
                     class: ContactClass::Tangent,
                 },
                 steer,
-                fact: None,
+                fact,
                 margin,
             },
-            Self::Seam => BooleanError::SeamContradicted { a, b, margin },
+            Self::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
         }
     }
 
@@ -3642,10 +3717,12 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
 ///    (`seam_senses_aligned`).
 /// 4. **Which way the faces leave the locus.** A seam's two faces must
 ///    leave it on opposite sides: along a rim, their boundaries run it
-///    in opposite directions ([`rim_wedge::departures_opposed`]); along
-///    a line, they lie on opposite sides of it in the common tangent
-///    plane ([`rim_wedge::line_side`]). The same side is a cusp
-///    (`seam_rim_cusp`, `seam_line_side`).
+///    in opposite directions, and along a line likewise
+///    ([`rim_wedge::departures`]), read at the boundary half-edges that
+///    run along the locus. The same side is a cusp (`seam_rim_cusp`,
+///    `seam_line_side`); a face with no boundary edge along the locus,
+///    which the locus then crosses or merely touches, is no seam
+///    either (`seam_locus_no_edge`).
 ///
 /// A `Tangent` claim along a rim takes the ratified routing instead of
 /// steps 3 and 4: the material wedge decides which arm the rim earns,
@@ -3679,17 +3756,22 @@ fn verify_tangency_declaration<T: Decide>(
         // No description to compare: the witness lane below answers
         // for the kinds it holds.
         Ok(Ok(CarrierRelation::Distinct)) | Err(rest::PairUnread::OutsideInventory) => {}
+        // One carrier, structurally: no `decide` ran, so the label
+        // names the finding (the `contact_rest_senses_opposed`
+        // precedent), and the fact says it in words.
         Ok(Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)) => {
-            return Err(claim.contradicted(fa, fb, label(claim.conformal()), None));
+            return Err(claim.contradicted_by(
+                fa,
+                fb,
+                Some(Contradiction::OneCarrier),
+                label(claim.conformal()),
+                None,
+            ));
         }
-        // One carrier, geometrically: the diag carries the margins that
-        // decided it, relabelled with the finding.
+        // One carrier, geometrically: the diag keeps the predicate that
+        // measured it and its value, and the fact names the finding.
         Ok(Err(carrier_eq::CarrierEqError::Undeclared { diag, .. })) => {
-            let margin = Indeterminate {
-                predicate: Some(claim.conformal()),
-                ..diag
-            };
-            return Err(claim.contradicted(fa, fb, margin, None));
+            return Err(claim.contradicted_by(fa, fb, Some(Contradiction::OneCarrier), diag, None));
         }
         Ok(Err(carrier_eq::CarrierEqError::Escalated { rung, diag })) => {
             return Err(BooleanError::plane_identity(
@@ -3796,32 +3878,34 @@ fn verify_tangency_declaration<T: Decide>(
             return Err(claim.unsupported());
         }
     }
-    // 4. Which way a seam's two faces leave its locus.
+    // 4. Which way a seam's two faces leave its locus, read at the locus.
     if claim == Tangency::Seam {
-        let opposite = match (rim, &carrier) {
-            (Some(rim), _) => rim_wedge::departures_opposed(a, fa, b, fb, rim, band)
-                .map_err(|diag| BooleanError::coincidence(Coincide::Rim, spent, diag))?,
-            (None, geom::Curve3::Line { origin, dir }) => {
-                let n = geom_brep::implicit_outward_normal(&sa, sense_a, *origin).vec();
-                let across = n.cross(*dir);
-                let side = |body, f| {
-                    rim_wedge::line_side(body, f, *origin, across, band).map_err(|diag| {
-                        BooleanError::coincidence(Coincide::TangentLocus, spent, diag)
-                    })
-                };
-                match (side(a, fa)?, side(b, fb)?) {
-                    (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => true,
-                    _ => return Err(claim.contradicted(fa, fb, label("seam_line_side"), None)),
-                }
-            }
+        let locus = match (rim, &carrier) {
+            (Some(rim), _) => rim_wedge::Locus::Rim(rim),
+            (None, geom::Curve3::Line { origin, dir }) => rim_wedge::Locus::Line {
+                origin: *origin,
+                dir: *dir / dir.norm(),
+            },
             (None, _) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "declaration door: a seam witness is a line or a rim",
                 });
             }
         };
-        if !opposite {
-            return Err(claim.contradicted(fa, fb, label("seam_rim_cusp"), None));
+        let site = match locus {
+            rim_wedge::Locus::Rim(_) => Coincide::Rim,
+            rim_wedge::Locus::Line { .. } => Coincide::TangentLocus,
+        };
+        let departure = rim_wedge::departures(a, fa, b, fb, locus, band)
+            .map_err(|diag| BooleanError::coincidence(site, spent, diag))?;
+        let finding = match (departure, locus) {
+            (rim_wedge::Departure::Opposite, _) => None,
+            (rim_wedge::Departure::Same, rim_wedge::Locus::Rim(_)) => Some("seam_rim_cusp"),
+            (rim_wedge::Departure::Same, rim_wedge::Locus::Line { .. }) => Some("seam_line_side"),
+            (rim_wedge::Departure::NoEdge, _) => Some("seam_locus_no_edge"),
+        };
+        if let Some(finding) = finding {
+            return Err(claim.contradicted(fa, fb, label(finding), None));
         }
     }
     Ok(kinds)
@@ -3865,14 +3949,21 @@ fn tangent_rim_refusal<T: Decide>(
         // says so; on the same side it is a nested touch, and no
         // declaration fits it.
         Ok(rim_wedge::RimRouting::Seam) => {
-            match rim_wedge::departures_opposed(a, fa, b, fb, rim, band) {
-                Ok(true) => claim.contradicted(
+            match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band) {
+                Ok(rim_wedge::Departure::Opposite) => claim.contradicted(
                     fa,
                     fb,
                     label("contact_tangent_rim_seam"),
                     Some(crate::contact::SEAM_STEER),
                 ),
-                Ok(false) => claim.contradicted(fa, fb, label("contact_tangent_rim_nested"), None),
+                Ok(rim_wedge::Departure::Same) => {
+                    claim.contradicted(fa, fb, label("contact_tangent_rim_nested"), None)
+                }
+                // Unreachable: the rim was found on both faces'
+                // boundaries. Refuse loudly anyway.
+                Ok(rim_wedge::Departure::NoEdge) => BooleanError::ClassificationInvariant {
+                    what: "tangent rim refusal: a shared rim rides both faces' boundaries",
+                },
                 Err(diag) => BooleanError::coincidence(
                     Coincide::Rim,
                     DeclarationRead::Spent(claim.coincidence()),
@@ -4070,7 +4161,7 @@ mod tests {
         let admitted: Vec<(SurfaceKind, SurfaceKind)> = all
             .iter()
             .flat_map(|&p| all.iter().map(move |&q| (visit(p), q)))
-            .filter(|&(p, q)| tangency_certifies_side(p, q))
+            .filter(|&(p, q)| tangency_certifies_side(TangencySource::Seam, p, q))
             .collect();
         assert_eq!(
             admitted,
@@ -4086,103 +4177,193 @@ mod tests {
                 (Torus, Sphere),
             ]
         );
+        // The strut source's column: plane and cylinder only.
+        let struts: Vec<(SurfaceKind, SurfaceKind)> = all
+            .iter()
+            .flat_map(|&p| all.iter().map(move |&q| (p, q)))
+            .filter(|&(p, q)| tangency_certifies_side(TangencySource::Strut, p, q))
+            .collect();
+        assert_eq!(struts, [(Plane, Cylinder), (Cylinder, Plane)]);
         for k in [Nurbs, Approx, Cone] {
             for o in all {
-                assert!(!tangency_certifies_side(k, o), "{k:?} against {o:?}");
-                assert!(!tangency_certifies_side(o, k), "{o:?} against {k:?}");
+                for source in [TangencySource::Strut, TangencySource::Seam] {
+                    assert!(
+                        !tangency_certifies_side(source, k, o),
+                        "{k:?} against {o:?}"
+                    );
+                    assert!(
+                        !tangency_certifies_side(source, o, k),
+                        "{o:?} against {k:?}"
+                    );
+                }
             }
         }
     }
 
-    /// **Why a torus with a cylinder or a torus is not in the table**,
-    /// measured rather than argued: a G1 tube chain's two carriers each
-    /// reach both sides of the other. The torus of ring `R` and tube `r`
-    /// continues past its end meridian at `θ = 0`, where the straight
-    /// tube of radius `r` along `+y` meets it G1. Sampled on the torus
-    /// near that meridian, the cylinder's residual takes both signs, and
-    /// sampled on the cylinder, the torus's does too; on the admitted
-    /// sphere-capped tube each carrier keeps to one side of the other.
-    /// A table answering `true` for either torus pair, or `false` for
-    /// sphere × cylinder, reds here.
+    /// **Every row of the table, measured rather than argued**: for each
+    /// ordered kind pair, a G1 pair of carriers tangent along a curve,
+    /// sampled over the whole parent carrier (a plane, cylinder or
+    /// cylinder axis over ±4 m) against the partner's implicit residual.
+    /// An admitted row must keep to one closed side on every fixture;
+    /// each excluded torus row has a fixture reaching both sides. The
+    /// fixtures cover every admitted row and every torus exclusion, so
+    /// flipping any of them reds here:
+    ///
+    /// - plane `z = r` on a cylinder along `x`;
+    /// - two parallel cylinders, tangent externally and internally;
+    /// - a sphere on the axis of a cylinder of its radius;
+    /// - a sphere centred on a torus's axis, tangent along its inner
+    ///   equator, and the ball-ended elbow: a sphere of the minor radius
+    ///   centred on the centre circle, tangent along a meridian;
+    /// - the plane `z = r` on a torus;
+    /// - excluded: the G1 tube chain, a straight tube leaving a torus's
+    ///   end meridian, and the S-bend, two tori sharing a meridian and
+    ///   bending opposite ways. Each carrier reaches both sides of the
+    ///   other. (A cylinder coaxial with a torus, of radius `R ± r`, is
+    ///   tangent along an equator and IS a global side: the exclusion
+    ///   is conservative, see the table's doc.)
     #[test]
     fn the_table_matches_which_carriers_keep_to_one_side() {
-        use geom::SurfaceKind::{Cylinder, Sphere, Torus};
+        use geom::Surface;
+        use geom::SurfaceKind::{self, Cylinder, Plane, Sphere, Torus};
         use geom_core::{Point3, Vec3};
-        let (big, r) = (5.0_f64, 0.5_f64);
-        let unit = |v: Vec3<f64>| v;
-        let torus = geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: unit(Vec3::new(0.0, 0.0, 1.0)),
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let p = |a: f64, b: f64, c: f64| Point3::new(a, b, c);
+        let (big, r) = (2.0_f64, 0.5_f64);
+        let plane = |h: f64| Surface::Plane {
+            origin: p(0.0, 0.0, h),
+            normal: z,
+            u_ref: x,
+        };
+        let cyl =
+            |o: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| Surface::Cylinder {
+                origin: o,
+                axis,
+                radius,
+                u_ref,
+            };
+        let ball = |c: Point3<f64>, radius: f64| Surface::Sphere {
+            center: c,
+            radius,
+            axis: z,
+            u_ref: x,
+        };
+        let torus = |c: Point3<f64>| Surface::Torus {
+            center: c,
+            axis: z,
             major_radius: big,
             minor_radius: r,
-            u_ref: unit(Vec3::new(1.0, 0.0, 0.0)),
+            u_ref: x,
         };
-        let tube = geom::Surface::Cylinder {
-            origin: Point3::new(big, 0.0, 0.0),
-            axis: unit(Vec3::new(0.0, 1.0, 0.0)),
-            radius: r,
-            u_ref: unit(Vec3::new(1.0, 0.0, 0.0)),
+        let samples = |s: &Surface<f64>| -> Vec<Point3<f64>> {
+            let tau = core::f64::consts::TAU;
+            let (us, vs): (Vec<f64>, Vec<f64>) = match s {
+                Surface::Plane { .. } => (
+                    (0..33).map(|i| -4.0 + f64::from(i) * 0.25).collect(),
+                    (0..33).map(|i| -4.0 + f64::from(i) * 0.25).collect(),
+                ),
+                Surface::Cylinder { .. } => (
+                    (0..48).map(|i| f64::from(i) * tau / 48.0).collect(),
+                    (0..33).map(|i| -4.0 + f64::from(i) * 0.25).collect(),
+                ),
+                Surface::Sphere { .. } => (
+                    (0..48).map(|i| f64::from(i) * tau / 48.0).collect(),
+                    (1..24)
+                        .map(|i| {
+                            -core::f64::consts::FRAC_PI_2
+                                + f64::from(i) * core::f64::consts::PI / 24.0
+                        })
+                        .collect(),
+                ),
+                _ => (
+                    (0..96).map(|i| f64::from(i) * tau / 96.0).collect(),
+                    (0..48).map(|i| f64::from(i) * tau / 48.0).collect(),
+                ),
+            };
+            us.iter()
+                .flat_map(|&u| vs.iter().map(move |&v| s.eval(u, v)))
+                .collect()
         };
-        let ball = geom::Surface::Sphere {
-            center: Point3::new(big, 0.0, 0.0),
-            radius: r,
-            u_ref: unit(Vec3::new(1.0, 0.0, 0.0)),
-            axis: unit(Vec3::new(0.0, 1.0, 0.0)),
-        };
-        let signs = |of: &geom::Surface<f64>, pts: &[Point3<f64>]| {
-            let rs: Vec<f64> = pts
-                .iter()
-                .map(|&p| geom_brep::implicit_residual(of, p))
+        let one_side = |parent: &Surface<f64>, partner: &Surface<f64>| {
+            let rs: Vec<f64> = samples(parent)
+                .into_iter()
+                .map(|q| geom_brep::implicit_residual(partner, q))
                 .collect();
-            (rs.iter().any(|&x| x > 1e-9), rs.iter().any(|&x| x < -1e-9))
+            !(rs.iter().any(|&v| v > 1e-9) && rs.iter().any(|&v| v < -1e-9))
         };
-        let mut on_torus = Vec::new();
-        let mut on_tube = Vec::new();
-        let mut on_ball = Vec::new();
-        for i in 0..24 {
-            let phi = f64::from(i) * core::f64::consts::TAU / 24.0;
-            for j in 1..12 {
-                let theta = f64::from(j) * 0.05;
-                let rho = big + r * phi.cos();
-                on_torus.push(Point3::new(
-                    rho * theta.cos(),
-                    rho * theta.sin(),
-                    r * phi.sin(),
-                ));
-                on_tube.push(Point3::new(
-                    big + r * phi.cos(),
-                    -f64::from(j) * 0.25,
-                    r * phi.sin(),
-                ));
-                let lat = f64::from(j) / 12.0 * core::f64::consts::FRAC_PI_2;
-                on_ball.push(Point3::new(
-                    big + r * lat.cos() * phi.cos(),
-                    r * lat.sin(),
-                    r * lat.cos() * phi.sin(),
-                ));
+        // The straight tube leaving the torus's end meridian at `+x`
+        // (heading `+y`), and the torus bending the other way from it.
+        let fixtures: Vec<(&str, Surface<f64>, Surface<f64>)> = vec![
+            (
+                "plane on a cylinder",
+                plane(r),
+                cyl(p(0.0, 0.0, 0.0), x, r, y),
+            ),
+            (
+                "cylinders outside",
+                cyl(p(0.0, 0.0, 0.0), z, 1.0, x),
+                cyl(p(2.0, 0.0, 0.0), z, 1.0, x),
+            ),
+            (
+                "cylinders inside",
+                cyl(p(0.0, 0.0, 0.0), z, 1.0, x),
+                cyl(p(0.5, 0.0, 0.0), z, 0.5, x),
+            ),
+            (
+                "sphere in a cylinder",
+                ball(p(0.0, 0.0, 0.0), r),
+                cyl(p(0.0, 0.0, 0.0), z, r, x),
+            ),
+            (
+                "sphere in a torus's hole",
+                ball(p(0.0, 0.0, 0.0), big - r),
+                torus(p(0.0, 0.0, 0.0)),
+            ),
+            (
+                "the ball-ended elbow",
+                ball(p(big, 0.0, 0.0), r),
+                torus(p(0.0, 0.0, 0.0)),
+            ),
+            ("plane on a torus", plane(r), torus(p(0.0, 0.0, 0.0))),
+            (
+                "the tube chain",
+                torus(p(0.0, 0.0, 0.0)),
+                cyl(p(big, 0.0, 0.0), y, r, x),
+            ),
+            (
+                "the S-bend",
+                torus(p(0.0, 0.0, 0.0)),
+                torus(p(2.0 * big, 0.0, 0.0)),
+            ),
+        ];
+        let mut seen = std::collections::BTreeSet::new();
+        for (label, s1, s2) in &fixtures {
+            for (parent, partner) in [(s1, s2), (s2, s1)] {
+                let kinds = (parent.kind(), partner.kind());
+                let held = one_side(parent, partner);
+                if tangency_certifies_side(TangencySource::Seam, kinds.0, kinds.1) {
+                    assert!(
+                        held,
+                        "{label}: {kinds:?} is admitted, yet both sides are reached"
+                    );
+                } else {
+                    assert!(!held, "{label}: {kinds:?} is excluded, yet one side holds");
+                }
+                seen.insert(kinds);
             }
         }
-        let one_side = |(pos, neg): (bool, bool)| !(pos && neg);
-        assert_eq!(
-            one_side(signs(&tube, &on_torus)),
-            tangency_certifies_side(Torus, Cylinder),
-            "the torus against the tube's carrier"
-        );
-        assert_eq!(
-            one_side(signs(&torus, &on_tube)),
-            tangency_certifies_side(Cylinder, Torus),
-            "the tube against the torus's carrier"
-        );
-        assert_eq!(
-            one_side(signs(&tube, &on_ball)),
-            tangency_certifies_side(Sphere, Cylinder),
-            "the cap against the tube's carrier"
-        );
-        assert_eq!(
-            one_side(signs(&ball, &on_tube)),
-            tangency_certifies_side(Cylinder, Sphere),
-            "the tube against the cap's carrier"
-        );
+        let all = [Plane, Cylinder, Sphere, Torus];
+        let rows: std::collections::BTreeSet<(SurfaceKind, SurfaceKind)> = all
+            .iter()
+            .flat_map(|&a| all.iter().map(move |&b| (a, b)))
+            .filter(|&(a, b)| tangency_certifies_side(TangencySource::Seam, a, b))
+            .chain([(Torus, Cylinder), (Cylinder, Torus), (Torus, Torus)])
+            .collect();
+        assert_eq!(seen, rows, "a fixture for every row and torus exclusion");
     }
 
     /// **The cover carries its side, and admits an off-carrier point
@@ -4592,6 +4773,7 @@ mod tests {
             BooleanError::SeamContradicted {
                 a: face,
                 b: face,
+                fact: None,
                 margin: diag,
             },
             BooleanError::InvalidDeclaration {

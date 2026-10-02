@@ -237,7 +237,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 BooleanCoincidence::Continuation => {
                     BooleanError::ContinuationContradicted { a, b, fact, margin }
                 }
-                BooleanCoincidence::Seam => BooleanError::SeamContradicted { a, b, margin },
+                BooleanCoincidence::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
                 BooleanCoincidence::Contact(class) => BooleanError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact { a, b, class },
                     steer: fact.and_then(super::contact_verify::fit_steer),

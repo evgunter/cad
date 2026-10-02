@@ -209,9 +209,13 @@ carrier with the target. A seam and a structural tangency are tangencies
 along a curve, and the condition asks for a certified side, not a local
 touch: they count only where such a tangency is a global side for their
 carriers' kinds (plane, cylinder and sphere with one another, and a
-sphere or a plane with a torus). A torus with a cylinder or a torus does
-not count, since past a G1 joint each carrier crosses the other's
-continuation. Which side the certificate holds is read off the parent
+sphere or a plane with a torus); a structural tangency counts only for a
+plane with a cylinder. A torus with a cylinder or a torus does not count.
+That exclusion is conservative: the condition is read per pair of KINDS,
+and while a cylinder coaxial with a torus (radius `R ± r`, tangent along
+an equator) does lie on one side of it, a straight tube leaving a torus's
+end meridian G1 crosses its continuation, and a kind cannot tell the two
+apart. Which side the certificate holds is read off the parent
 face, and an endpoint off the carrier is eventless only on that side.
 It is never read from values: a root
 verdict of "tangent" is a band decision, so a graze within the band

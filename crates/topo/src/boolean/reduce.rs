@@ -1157,10 +1157,21 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 } else {
                     let read =
                         edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
+                    // One decision per end, in the carrier's own residual:
+                    // the sign the cover's side is stated in. It differs
+                    // from the offset along the OUTWARD normal only by the
+                    // face's sense bit, so whether an end is ON the plane
+                    // reads the same either way.
+                    let carrier = y
+                        .get_face(face)
+                        .and_then(|f| y.get_surface(f.surface))
+                        .ok_or(BooleanError::ClassificationInvariant {
+                            what: "planar lane: the face's plane resolved above",
+                        })?;
                     let side = |p: Point3<T>| {
                         decide(
                             "bool_vertex_face_side",
-                            Margin::of((p - plane.origin).dot(plane.normal)),
+                            Margin::of(geom_brep::implicit_residual(carrier, p)),
                             band,
                         )
                         .map_err(|diag| {
@@ -1168,20 +1179,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         })
                     };
                     let (s1, s2) = (side(pu)?, side(pv)?);
-                    // The off end must lie where a parent's cover puts
-                    // it, read against the carrier's own residual (the
-                    // sign the cover's side is stated in).
+                    // The off end must lie where a parent's cover puts it.
                     let off_end_admitted = || {
-                        let off = if s1 == Sign::Zero { pv } else { pu };
-                        let carrier = y.get_face(face).and_then(|f| y.get_surface(f.surface));
-                        carrier.is_some_and(|surface| {
-                            decide(
-                                "bool_vertex_face_side",
-                                Margin::of(geom_brep::implicit_residual(surface, off)),
-                                band,
-                            )
-                            .is_ok_and(|sign| covers.iter().any(|c| c.admits(sign)))
-                        })
+                        let off = if s1 == Sign::Zero { s2 } else { s1 };
+                        covers.iter().any(|c| c.admits(off))
                     };
                     ((s1 == Sign::Zero) != (s2 == Sign::Zero) && off_end_admitted())
                         .then_some(s1 == Sign::Zero)
