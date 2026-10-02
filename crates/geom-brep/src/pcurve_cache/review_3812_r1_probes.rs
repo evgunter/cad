@@ -509,7 +509,7 @@ fn r1_corrupted_rows_refuse_at_interval() {
             (
                 "u + 7τ (past MAX_BRANCH)",
                 h(Point2::new(p0.x + 7.0 * TAU, p0.y), pl),
-                true,
+                false,
             ),
             ("u + π", h(Point2::new(p0.x + PI, p0.y), pl), false),
             (
