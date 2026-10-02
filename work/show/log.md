@@ -227,3 +227,17 @@ The rework is real, but the delta review found three problems.
 3. **The Pappus oracle passes a visibly wrong loop at 1e-9.**
 
 Ruling: the loop stays. The fragility is gap-commented, the sweep-frame and bindings gaps are filed, the oracle gains a mesh-volume band, and the `circle` attempt remains as a live wall. A scene on a knife edge is acceptable only when the edge is named where a reader will find it, and here a change to it fails loudly.
+
+## 2026-10-02 — tiltedcut reviewed (MERGE WITH FIXES): a new P0 for ZIP
+
+Review of PR 3819. The oracles were confirmed independently. Engraving before the cut is a plausible order, and the scene discloses it.
+
+**The new ZIP row is a P0.** A one-arc annular sector refuses `SeamOrientation` on plain planar boxes under every verb tried: pocket, through-cut, and union boss. The kernel's own docs call that error a kernel bug. The sweep threshold depends on the radii.
+
+The fix pass also covers:
+- wall 2 is pose-dependent, so it is re-pinned to the glyph that always refuses;
+- wall 3's pose is corrected;
+- the dangling `pin_frontier` citations;
+- the zip-log note.
+
+**Class noted:** a single scene-wide tessellation delta re-meshes the whole body to suit its smallest feature (lily and tiltedcut). The lane cites or files the per-body delta row.
