@@ -2,11 +2,12 @@
 id: ball-inside-a-two-sphere-body-refuses-at-the-extent-scan
 kind: issue
 title: A ball strictly inside a two-sphere body refuses FallbackExtentUnsupported because the full spheres cross
-status: review
+status: closed
 opened: 2026-10-01
 refs: [sphere-union-sphere-refuses-though-the-section-is-closed-form]
 branch: reach/extent-scan-faces
 pr: 3801
+closed: 2026-10-02
 ---
 
 Found by the delta review of PR 3659 (probe `zz_rv3659b.rs`, `reach-review3659b`).
@@ -77,3 +78,22 @@ section pass's R-tan on a coincident cylinder pair
 `rounded-stack-subtract-and-intersect-refuse-fallback-extent`. The
 carrier-tangency siblings are
 `extent-scan-carrier-tangency-off-the-faces-refuses`.
+
+## Closed (2026-10-02, PR 3801)
+
+A ball inside or holding a two-sphere body (the snowman, a lens, a
+three-ball chain), a ball inside a cylinder, and a lens beside a slab all
+build. Each result matches a slice-integral oracle at ε 1e-9, 1e-6 and
+1e-12, in both operand orders. The extent scan refused because the
+CARRIERS crossed, when the FACES on them were apart. It now asks the
+section certificate's per-pair question (L1) for every face pair the boxes
+let through. Sphere × cylinder pairs go to the section pass, as torus and
+cone pairs already did. A trimmed sphere group the faces certify apart is
+no longer read as an escape.
+
+The rounded stack's union refuses at a different site (two fillets on one
+cylinder carrier), so it stays on its own item. Residue:
+- `extent-scan-carrier-tangency-off-the-faces-refuses` (the tangency
+  siblings);
+- the plane arm's `near_boundary` box test refuses a ball holding a whole
+  cylinder (box looseness, not this class).
