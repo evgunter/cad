@@ -85,16 +85,17 @@
 //!   non-star patch adjacency); and boundary-on-boundary
 //!   configurations that are not pure REST contacts (the original
 //!   `Join(UnpairedLooseEnds)` surfaces verbatim).
-//! - **Reflex-corner-vertex tilted crossings** (PR 5.5 review): a
-//!   seam through the VERTEX of a reflex boundary corner under a
-//!   tilted section plane (a 315°-corner pierced by a z-sheared
-//!   brick's cap) can refuse `SeamOrientation`. Root cause: the
-//!   angular strut spike order (`bool_strut_order`) is FORCED only on
-//!   sectors of width W ≤ π (which covers the whole crossing-minted
-//!   corpus class — edge-interior sites are exact half-planes);
-//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in
-//!   the unforced window. Face-interior and convex-corner crossings
-//!   of the same shape succeed exactly.
+//! - **Reflex-corner vertex–vertex sites under a tilted cap**: where a
+//!   vertex of the other operand coincides with a 315° reflex corner
+//!   and the caps meet at a tilt, the op can refuse
+//!   (`SeamOrientation`, `JoinDesync`, `Join(UnpairedLooseEnds)`;
+//!   `work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).
+//!   The cause is unmeasured. The angular strut spike order
+//!   (`bool_strut_order`) is forced only on sectors of width W ≤ π, so
+//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in an
+//!   unforced window, but no refusal has been traced to it. The
+//!   vertex-on-face form of the same corner (the corner piercing a
+//!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -926,11 +927,11 @@ pub(crate) struct PairVerdict {
     /// The pair's face of A.
     pub a_face: FaceKey,
     /// Its kind.
-    pub a_kind: geom_brep::SurfaceKind,
+    pub a_kind: geom::SurfaceKind,
     /// The pair's face of B.
     pub b_face: FaceKey,
     /// Its kind.
-    pub b_kind: geom_brep::SurfaceKind,
+    pub b_kind: geom::SurfaceKind,
     /// A's face is one the path names in its refusal.
     pub a_named: bool,
     /// Each component's witness, or the pair's refusal.
@@ -945,9 +946,9 @@ impl PairVerdict {
     ) -> (
         Operand,
         FaceKey,
-        geom_brep::SurfaceKind,
+        geom::SurfaceKind,
         FaceKey,
-        geom_brep::SurfaceKind,
+        geom::SurfaceKind,
     ) {
         if self.a_named {
             (
@@ -1093,9 +1094,9 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: *fa,
-                a_kind: geom_brep::SurfaceKind::of(sa),
+                a_kind: sa.kind(),
                 b_face: *fb,
-                b_kind: geom_brep::SurfaceKind::of(sb),
+                b_kind: sb.kind(),
                 a_named: path.names(sa),
                 verdict,
             });
@@ -2580,11 +2581,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,
-                            kind: geom_brep::SurfaceKind::of(y.get_surface(yfd.surface).ok_or(
-                                BooleanError::ClassificationInvariant {
+                            kind: y
+                                .get_surface(yfd.surface)
+                                .ok_or(BooleanError::ClassificationInvariant {
                                     what: "extent scan: face surface lost",
-                                },
-                            )?),
+                                })?
+                                .kind(),
                         });
                     }
                     None => {
@@ -3214,7 +3216,7 @@ mod tests {
         // Door 1 — the placeholder is unbounded, so the pair is a
         // candidate and the crossing layer refuses it by kind.
         let BooleanError::CurvedBooleanUnsupported {
-            kind: geom_brep::SurfaceKind::Nurbs,
+            kind: geom::SurfaceKind::Nurbs,
             ..
         } = err
         else {

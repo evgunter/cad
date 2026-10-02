@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};

@@ -16,12 +16,17 @@
 //! — both bounding edges below, interior crossing above) becomes the
 //! **dangling** null edge: the strut site `Fan { he, he }` at the
 //! sector's CW-next half-edge, splicing the strut inside that sector's
-//! corner.
+//! corner. A run holding every real edge of the orbit is the mirror
+//! case: `next(mate(last))` comes back to `first`, `mev` builds a strut
+//! inside the one sector whose bisector crossed below, and the old
+//! vertex keeps the whole ABOVE run.
 //!
-//! Orientation is **data** (F9): the minted copy takes the ABOVE run,
-//! so `mev_null(..., NewVertexSide::Above)` records
-//! `NullEdge { below_end: old vertex, above_end: copy }` — no he1/he2
-//! slot convention anywhere. The copy's side verdict is cached ON
+//! Orientation is **data** (F9): the end holding the ABOVE run is the
+//! above end. The minted copy takes the run, so
+//! `mev_null(..., NewVertexSide::Above)` records
+//! `NullEdge { below_end: old vertex, above_end: copy }`, save the
+//! whole-orbit strut, whose copy is the below end — no he1/he2 slot
+//! convention anywhere. The copy's side verdict is cached ON
 //! (bitwise-coincident point: structural coincidence).
 
 use slotmap::SecondaryMap;
@@ -86,7 +91,8 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
         let mut real = members.filter(|e| e.kind == SectorEntryKind::Edge);
         let first = real.next();
         let last = real.next_back().or(first);
-        let (site, dangling) = match (first, last) {
+        // `whole_orbit`: the copy is the strut tip in a Below sector.
+        let (site, dangling, whole_orbit) = match (first, last) {
             (Some(first), Some(last)) => {
                 // he2 at execution time: the current orbit successor of
                 // the run's last half-edge (module docs).
@@ -96,7 +102,13 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
                     .get_half_edge(mate)
                     .ok_or(SplitReduceError::CorruptOperand { vertex })?
                     .next;
-                (MevSite::Fan { he1: first.he, he2 }, false)
+                // A run holding every real edge of the orbit leaves the
+                // Below side inside one physical sector: `he2` comes
+                // back to `first.he`, and the empty fan is a strut
+                // spliced in that sector's corner. The base vertex keeps
+                // the Above run, so the strut tip is the Below copy.
+                let whole = he2 == first.he;
+                (MevSite::Fan { he1: first.he, he2 }, whole, whole)
             }
             // Dup-only run: the dangling strut inside the wide sector.
             // The entry after a bisector duplicate is always the next
@@ -110,18 +122,32 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
                         he2: after.he,
                     },
                     true,
+                    false,
                 )
             }
         };
-        let created = body.mev_null(site, NewVertexSide::Above)?;
+        let side = if whole_orbit {
+            NewVertexSide::Below
+        } else {
+            NewVertexSide::Above
+        };
+        let created = body.mev_null(site, side)?;
         sides.insert(created.vertex, PlaneSide::On);
+        let attr = if whole_orbit {
+            NullEdge {
+                below_end: created.vertex,
+                above_end: vertex,
+            }
+        } else {
+            NullEdge {
+                below_end: vertex,
+                above_end: created.vertex,
+            }
+        };
         records.push(NullEdgeRecord {
             at_vertex: vertex,
             edge: created.edge,
-            attr: NullEdge {
-                below_end: vertex,
-                above_end: created.vertex,
-            },
+            attr,
             dangling,
         });
     }

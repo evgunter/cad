@@ -33,7 +33,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{EdgeDescription, SurfaceKind};
+use geom::SurfaceKind;
+use geom_brep::EdgeDescription;
 use geom_core::{Band, ErrorTextReading, Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;

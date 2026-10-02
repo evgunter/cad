@@ -228,8 +228,8 @@ fn a_general_circle_refuses_the_closed_form_sphere_door_typed() {
     assert!(matches!(
         err,
         geom_brep::PcurveCertifyError::UnsupportedCarrier {
-            chart: geom_brep::SurfaceKind::Sphere,
-            carrier: geom_brep::CurveKind::Circle,
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
             class: geom_brep::UncoveredClass::SphereGeneralCircle,
         }
     ));

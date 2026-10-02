@@ -10,13 +10,11 @@
 //!   layer used to keep its pierce door. Square to the axes (the lane's
 //!   square arm) and with the prism tilted (its half-angle
 //!   arm), every boolean builds and meters at the closed form.
-//! - **A genuine pierce reaches the sector side.** Two parallel
+//! - **A genuine pierce reaches the pierce ring.** Two parallel
 //!   equal-radius cylinders staggered in height: each rim circle pierces
-//!   the other wall, the lane certifies where, and the pierce's sector
-//!   side is refused against the wall's bend
-//!   (`work/reach/slab-cut-cylinder-refuses-sector-side.md`). Nearly
-//!   apart, the same pair's pierce lands where the wall face carries the
-//!   pierce ring (`work/tang/pierce-ring-has-no-join-arm.md`).
+//!   the other wall, the lane certifies where, the pierce's sector side
+//!   certifies, and the pierced wall face carries the pierce ring, which
+//!   has no join arm (`work/tang/pierce-ring-has-no-join-arm.md`).
 //!
 //! #347's own poses — one height, coaxial, Steinmetz — are pinned with
 //! their doors in `verbs_cylcyl_probe.rs` and `verbs_germarms2.rs`.
@@ -174,17 +172,17 @@ fn a_d_prism_beside_a_cylinder_builds_under_every_boolean() {
     }
 }
 
-/// **Two parallel equal-radius cylinders that pierce reach the sector
-/// side.** Staggered in height, each rim circle crosses the other wall
-/// inside its trim: a pierce, certified by the root lane. Its sector
-/// side is then read to first order against the wall's sagitta, which
-/// swamps it — a definite refusal, not an in-band one, at every
-/// offset. The refusal names no edge, so the sweep's trace is asked
-/// which events it took: each operand's rim circles on the other's wall.
+/// **Two parallel equal-radius cylinders that pierce stop at the pierce
+/// ring.** Staggered in height, each rim circle crosses the other wall
+/// inside its trim: a pierce, certified by the root lane, whose sector
+/// side certifies. The pierced wall face then carries the pierce ring,
+/// which has no join arm, at every offset from deep overlap to a thin
+/// lens. The refusal names no edge, so the sweep's trace is asked which
+/// events it took: each operand's rim circles on the other's wall.
 #[test]
-fn parallel_cylinders_that_pierce_stop_at_the_sector_side() {
+fn parallel_cylinders_that_pierce_stop_at_the_pierce_ring() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    for d in [0.3, 0.8, 1.2, 1.6] {
+    for d in [0.3, 0.8, 1.2, 1.6, 1.9] {
         let b = cyl(d, 0.0, 1.0, 0.5, 2.5);
         let (ab, ba) = circle_wall_events(&a, &b);
         assert!(
@@ -192,53 +190,29 @@ fn parallel_cylinders_that_pierce_stop_at_the_sector_side() {
             "d {d}: each rim circle meets the other wall: {ab} + {ba}"
         );
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-            let err = run(op, &a, &b).expect_err("no sector-side lane for an arc on a wall");
-            let BooleanError::CurvedSectorSideUnsupported { verdict } = &err else {
-                panic!("d {d}, {op:?}: expected the sector-side door, got {err:?}");
-            };
+            let err = run(op, &a, &b).expect_err("no join arm for a pierce ring");
             assert!(
-                matches!(verdict, geom_brep::recourse::Refused::Negative { .. }),
-                "d {d}, {op:?}: the sagitta definitely swamps the departure: {verdict:?}"
+                matches!(
+                    err,
+                    BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                        case: topo::ArcWindowCase::NoChartedRun,
+                        ..
+                    })
+                ),
+                "d {d}, {op:?}: expected the pierce ring's door, got {err:?}"
             );
         }
     }
 }
 
-/// **Nearly apart, the pierce lands on the ring door.** At `d = 1.9`
-/// the walls cross in a thin lens, and the rim pierce's sector side
-/// passes; the pierced wall face then carries the pierce ring, which
-/// has no join arm.
+/// **A tilted rod through a rim takes the half-angle arm and reaches the
+/// germ frame.** A thin rod tilted 30° off the cylinder's axis passes
+/// through its top rim: the rim circle against the rod's wall is a
+/// degree-2 residual the ladder certifies, the pierce's sector side
+/// certifies, and the two walls' axes are skew, a pair the germ-frame
+/// dispatch has no arm for.
 #[test]
-fn nearly_apart_parallel_cylinders_stop_at_the_pierce_ring() {
-    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let b = cyl(1.9, 0.0, 1.0, 0.5, 2.5);
-    let (ab, ba) = circle_wall_events(&a, &b);
-    assert!(
-        ab > 0 && ba > 0,
-        "each rim circle meets the other wall: {ab} + {ba}"
-    );
-    for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-        let err = run(op, &a, &b).expect_err("no join arm for a pierce ring");
-        assert!(
-            matches!(
-                err,
-                BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                    case: topo::ArcWindowCase::NoChartedRun,
-                    ..
-                })
-            ),
-            "{op:?}: expected the pierce ring's door, got {err:?}"
-        );
-    }
-}
-
-/// **A tilted rod through a rim takes the half-angle arm and stops at
-/// the sector side too.** A thin rod tilted 30° off the cylinder's axis
-/// passes through its top rim: the rim circle against the rod's wall is
-/// a degree-2 residual the ladder certifies, and the pierce's sector
-/// side is refused as the parallel pair's is.
-#[test]
-fn a_tilted_rod_through_a_rim_stops_at_the_sector_side() {
+fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let turn = Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
@@ -255,10 +229,17 @@ fn a_tilted_rod_through_a_rim_stops_at_the_sector_side() {
     let (ab, _) = circle_wall_events(&a, &rod);
     assert!(ab > 0, "the cylinder's rim circle meets the rod's wall");
     for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-        let err = run(op, &a, &rod).expect_err("no sector-side lane for an arc on a wall");
+        let err = run(op, &a, &rod).expect_err("no germ frame for skew cylinders");
         assert!(
-            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
-            "{op:?}: expected the sector-side door, got {err:?}"
+            matches!(
+                err,
+                BooleanError::GermFrameUnsupported {
+                    a_kind: geom::SurfaceKind::Cylinder,
+                    b_kind: geom::SurfaceKind::Cylinder,
+                    ..
+                }
+            ),
+            "{op:?}: expected the germ-frame door, got {err:?}"
         );
     }
 }

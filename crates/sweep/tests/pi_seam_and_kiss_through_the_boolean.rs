@@ -29,7 +29,7 @@
 
 use core::f64::consts::PI;
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
 use sweep::{Extrusion, Revolution, extrude};
@@ -43,7 +43,7 @@ const H: f64 = 2.0;
 
 fn faces_of(b: &Body<f64>, kind: SurfaceKind) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(_, f)| b.get_surface(f.surface).map(SurfaceKind::of) == Some(kind))
+        .filter(|(_, f)| b.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect()
 }
