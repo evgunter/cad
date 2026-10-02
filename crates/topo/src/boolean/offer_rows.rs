@@ -2137,6 +2137,12 @@ fn top_level_fn(line: &str) -> Option<String> {
 /// decision, mentions)`.
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
+        "carrier_cross.rs",
+        "escalated",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
         "circle_cylinder.rs",
         "-",
         "BooleanDecision::ArcCylinderRoots",
