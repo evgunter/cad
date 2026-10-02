@@ -138,7 +138,9 @@ use crate::query::all_faces;
 
 /// The label [`pair_finding`]'s refusal carries for a pair one of
 /// whose faces has no readable consumed extent: no `decide` ran, so it
-/// names the door's input rather than a margin.
+/// names the door's input rather than a margin. A typed finding in its
+/// place is filed
+/// (`work/tang/a-flush-pair-with-no-readable-extent-has-no-typed-finding.md`).
 pub const EXTENT_UNREAD: &str = "carrier_pair_extent";
 
 /// Which rung of the verify ladder decided a finding.

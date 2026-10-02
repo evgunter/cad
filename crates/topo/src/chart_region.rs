@@ -1079,9 +1079,10 @@ fn face_boundary_points<T: Decide>(
 /// attained at a vertex: `m` is EXACT over the region, not a
 /// small-angle bound.
 ///
-/// **The lever is the pair's own extent, per vertex.** Door 1 meters
-/// the same disagreement as an angle levered at a ball enclosing both
-/// faces (`bool_plane_parallel` via `carrier_eq::at_consumed_extent`).
+/// **The lever is the pair's own extent, per vertex.** Door 1 reads
+/// the same disagreement as one displacement over a ball enclosing both
+/// faces, the tilt levered to the ball's far reach and summed with the
+/// offset (`bool_plane_reach` via `carrier_eq::declared_reading`).
 /// Here the tilt's contribution to each term is `r·sin θ` with `r` that
 /// vertex's own distance from the carrier origin, and the offset term
 /// rides in the same length. A tilt a peg absorbs and a tilt that opens
@@ -1210,10 +1211,11 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 ///
 /// # The carrier gates (the cylinder `carrier_agreement`)
 ///
-/// Door 1's ladder decided the same data over a ball enclosing both
-/// faces (`carrier_cyl_axis_parallel` levered by
-/// `carrier_eq::at_consumed_extent`, `carrier_cyl_axis_offset`,
-/// `carrier_cyl_radius`); the enclosure re-decides at the PAIR'S OWN
+/// Door 1's ladder read the same data as one displacement over a ball
+/// enclosing both faces (`carrier_cyl_reach` via
+/// `carrier_eq::declared_reading`: the axis offset at a pivot, the tilt
+/// levered from it, the radius difference, summed); the enclosure
+/// re-decides at the PAIR'S OWN
 /// TRIMS (fixed order, D9). The quantity the gates must bound is the
 /// TRANSFER ERROR `E(p) = φ_A(T(u, v)) − p` — not merely the
 /// carriers' radial separation — and to first order it decomposes as

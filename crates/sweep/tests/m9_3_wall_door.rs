@@ -110,13 +110,31 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
     let decls = wall_declarations(&bored, &peg, ContactClass::Rest);
     let bracket = Bracket::open();
     let out = topo::union_with(&bored, &peg, &decls, Tol::witness());
-    let v = bracket.finish().verdicts;
+    let log = bracket.finish();
+    let v = log.verdicts;
     // The carrier ladder's declared cylinder reading ran — the declared
     // descent executed rather than being skipped past (telemetry from
-    // birth).
+    // birth) — and read every declared wall pair coincident: the peg
+    // fills the bore exactly, so each reach decides zero, and none
+    // escalates.
+    let reach: Vec<_> = v
+        .iter()
+        .filter(|x| x.predicate == "carrier_cyl_reach")
+        .collect();
     assert!(
-        v.iter().any(|x| x.predicate == "carrier_cyl_reach"),
+        !reach.is_empty(),
         "carrier_cyl_reach never reached the funnel — the declared descent did not run"
+    );
+    assert!(
+        reach.iter().all(|x| x.sign == geom_core::Sign::Zero),
+        "every declared wall pair reads coincident: {reach:?}"
+    );
+    assert!(
+        !log.escalations
+            .iter()
+            .any(|e| e.source.predicate == Some("carrier_cyl_reach")),
+        "no declared wall pair's reach escalates: {:?}",
+        log.escalations
     );
     match out {
         Ok(BooleanResult::Body(b)) => {

@@ -625,7 +625,7 @@ pub(crate) fn unreadable_extent(face: rest::PairFace) -> BooleanError {
 /// extent is neither bridged nor contradicted
 /// ([`carrier_eq::CarrierEqError::Unsettled`]), read under `class`.
 pub(crate) fn unsettled_rest(class: BooleanCoincidence, diag: Indeterminate) -> BooleanError {
-    BooleanError::coincidence(Coincide::Contact, DeclarationRead::Spent(class), diag)
+    BooleanError::coincidence(Coincide::DeclaredReach, DeclarationRead::Spent(class), diag)
 }
 
 /// A face tagged with the operand it belongs to, ordered A before B;

@@ -497,7 +497,9 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             // Only a declared reading is unsettled.
             Err(PlaneEqError::Unsettled { diag }) => {
                 return Err(super::unsettled_rest(
-                    class.unwrap_or(super::BooleanCoincidence::REST),
+                    class.ok_or(BooleanError::ClassificationInvariant {
+                        what: "an undeclared coplanar sector's carrier reading was unsettled",
+                    })?,
                     diag,
                 ));
             }

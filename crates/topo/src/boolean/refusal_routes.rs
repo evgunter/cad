@@ -476,6 +476,15 @@ pub enum Coincide {
     /// Whether a declared contact holds along its witness: the contact
     /// table's rows pass on different sets.
     Contact,
+    /// Whether two faces declared on one carrier (`Rest` or a
+    /// continuation) lie within the band of one another at every point
+    /// of both: the pair's displacement, bounded above over a ball
+    /// enclosing the faces, stands past the band, and no point known to
+    /// lie on them stands definitely off (`carrier_eq`'s
+    /// `CarrierEqError::Unsettled`). Only an in-band bound passes, and
+    /// the bound is what stands past it, so no sign of the margin
+    /// passes.
+    DeclaredReach,
     /// Where the surfaces of a face of each solid meet (a section's
     /// pose): the pose rows pass on different sets.
     Section,
@@ -517,6 +526,11 @@ impl Coincide {
             Self::TangentLocus => "where two faces of the two solids touch tangentially",
             Self::Rim => "whether a face of each solid ends on one circle",
             Self::Contact => "whether a declared contact holds along its witness",
+            Self::DeclaredReach => {
+                "whether two faces declared on one surface stay within the tolerance of one another at \
+                 every point of both, which neither a bound over the faces nor a point on them \
+                 settles"
+            }
             Self::Section => "where the surfaces of a face of each solid meet",
             Self::Join => "how the sections' ends pair up where the two solids meet",
         }
@@ -561,6 +575,7 @@ impl Coincide {
                 | Self::TangentLocus
                 | Self::Rim
                 | Self::Contact
+                | Self::DeclaredReach
                 | Self::Section
                 | Self::Join,
                 Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation,
@@ -596,6 +611,7 @@ impl Coincide {
                 LeverPass::ByRung,
             ),
             Self::Contact | Self::Section => Ending::Lever(proximity_lever!(), LeverPass::ByRung),
+            Self::DeclaredReach => Ending::Lever(DECLARED_REACH_LEVER, LeverPass::Never),
         }
     }
 
@@ -632,11 +648,17 @@ impl Coincide {
             | Self::TangentLocus
             | Self::Rim
             | Self::Contact
+            | Self::DeclaredReach
             | Self::Section
             | Self::Join => self.ending(),
         }
     }
 }
+
+/// [`Coincide::DeclaredReach`]'s lever: a declared pair is settled by
+/// geometry that reads one way or the other over both faces.
+const DECLARED_REACH_LEVER: &str =
+    "move the parts so the declared faces clearly coincide, or clearly do not";
 
 /// A coincidence whose geometry lever is to make the parts clearly meet
 /// or clearly stand apart, passing on `passes`: an in-band gap on a side
@@ -1886,6 +1908,11 @@ mod tests {
             Coincide::TangentLocus => "where two faces of the two solids touch tangentially",
             Coincide::Rim => "whether a face of each solid ends on one circle",
             Coincide::Contact => "whether a declared contact holds along its witness",
+            Coincide::DeclaredReach => {
+                "whether two faces declared on one surface stay within the tolerance of one another at \
+                 every point of both, which neither a bound over the faces nor a point on them \
+                 settles"
+            }
             Coincide::Section => "where the surfaces of a face of each solid meet",
             Coincide::Join => "how the sections' ends pair up where the two solids meet",
         }
@@ -1954,6 +1981,10 @@ mod tests {
                  declared between faces that end on one circle. There is no way through yet",
             ),
             Coincide::Contact => Ending::Lever(MEET, LeverPass::ByRung),
+            Coincide::DeclaredReach => Ending::Lever(
+                "Recourse: move the parts so the declared faces clearly coincide, or clearly do not",
+                LeverPass::Never,
+            ),
             Coincide::Section => Ending::Lever(MEET, LeverPass::ByRung),
             Coincide::Join => Ending::Sized(MEET, SizedPass::AnySign),
         }
@@ -1989,6 +2020,7 @@ mod tests {
             | Coincide::TangentLocus
             | Coincide::Rim
             | Coincide::Contact
+            | Coincide::DeclaredReach
             | Coincide::Section
             | Coincide::Join => None,
         }
@@ -2478,6 +2510,7 @@ mod tests {
                 | Coincide::TangentLocus
                 | Coincide::Rim
                 | Coincide::Contact
+                | Coincide::DeclaredReach
                 | Coincide::Section
                 | Coincide::Join => &[],
             }
@@ -3152,8 +3185,8 @@ mod tests {
     /// positive margin alone, where the Boolean's passes on either sign.
     /// Real raises of the declared rung, routed as the merge routes them
     /// (`declared_pair_verdict`): coincident planes facing the same way
-    /// (positive margins) and opposite ways (negative), at a shared-edge
-    /// chord in the zero band, in the ambiguity band, and definite. The
+    /// (positive margins) and opposite ways (negative), over a reach in
+    /// the zero band, in the ambiguity band, and definite. The
     /// same-facing definite pair glues; every other arm names the one
     /// lever toward that pass, no declaration, no stage label and no
     /// face key; a positive margin offers the tolerance it gives, and a
@@ -3169,7 +3202,7 @@ mod tests {
         use crate::entity::FaceKey;
         use crate::merge_faces::declared_pair_verdict;
         const LEVER: &str = "Recourse: turn one of the two faces so both clearly face the same \
-                             way, across a shared edge whose ends lie clearly apart";
+                             way, on faces that clearly span a length";
         let b = band();
         let (z, e) = (b.zero(), b.escalate());
         let (f1, f2) = (FaceKey::default(), FaceKey::default());

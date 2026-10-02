@@ -3679,6 +3679,97 @@ mod declaration_order_rows {
     /// settle these poses
     /// (`work/hone/a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces.md`).
     /// The other class is contradicted as well.
+    /// **The lump takes a sector's in-band residue where the door
+    /// bridges it**: the two poses of the row below at a tilt the door
+    /// reads in band over both faces (standing at `1.2·ε`, sunk at
+    /// `2·ε`; standing at `2·ε` the zip refuses
+    /// `RestZipUnsupported { ChordBetweenIsolatedPierces }`). Undeclared,
+    /// the sector offers the class the senses make the pair; following
+    /// the offer, the union builds at the volume box arithmetic gives,
+    /// and the other class is contradicted.
+    #[test]
+    fn a_coplanar_sectors_in_band_residue_builds_through_the_lump_where_the_door_bridges_it() {
+        use crate::test_support_fixtures::{brick, mapped_cube};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let phi = 5.0_f64.to_radians();
+        let p = Point3::new(0.5, 0.2, 1.0);
+        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block_volume = 3.0 * 4.5;
+        for (label, theta, sunk, facing, offered, other, volume) in [
+            (
+                "standing on the block",
+                1.2 * band.zero(),
+                false,
+                -1.0,
+                BooleanCoincidence::REST,
+                BooleanCoincidence::Continuation,
+                // The parallelepiped's volume: its base
+                // parallelogram's area, `sin φ`, times its height.
+                block_volume + phi.sin(),
+            ),
+            (
+                "sunk into the block",
+                2.0 * band.zero(),
+                true,
+                1.0,
+                BooleanCoincidence::Continuation,
+                BooleanCoincidence::REST,
+                block_volume,
+            ),
+        ] {
+            let (ea, eb) = (
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+                geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
+            );
+            let wedge = mapped_cube::<f64>(
+                move |u, v, w| {
+                    let z = if sunk { 0.5 * (w - 1.0) } else { w };
+                    p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
+                },
+                tol,
+            );
+            let pair = (
+                face_facing(&block, [0.0, 0.0, 1.0]),
+                face_facing(&wedge, [0.0, 0.0, facing]),
+            );
+            let undeclared = union_declared(&block, &wedge, pair, None);
+            assert!(
+                matches!(
+                    decision_of(label, &undeclared),
+                    BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
+                        if s.class() == offered
+                ),
+                "{label}: the lookup offers {offered:?}: {undeclared:?}"
+            );
+            let decls = BooleanDeclarations {
+                coincident_faces: vec![FacePairDeclaration::new(pair.0, pair.1, offered)],
+                ..BooleanDeclarations::none()
+            };
+            let built = crate::boolean::union_with(&block, &wedge, &decls, tol)
+                .unwrap_or_else(|e| panic!("{label}: following the offer, it builds: {e:?}"));
+            let body = &built.body().expect("a union is not empty").body;
+            let got = crate::mass_properties(body, tol)
+                .expect("its volume")
+                .volume;
+            // The lump takes an in-band residue: the face it glues
+            // moves by less than the band over less than unit area.
+            assert!(
+                (got - volume).abs() <= band.escalate(),
+                "{label}: {got} vs {volume}"
+            );
+            let contradicted = union_declared(&block, &wedge, pair, Some(other));
+            assert!(
+                matches!(
+                    contradicted,
+                    Err(BooleanError::ContactContradicted { .. }
+                        | BooleanError::ContinuationContradicted { .. })
+                ),
+                "{label}: declared {other:?}: {contradicted:?}"
+            );
+        }
+    }
+
     #[test]
     fn a_coplanar_sectors_in_band_parallelism_offers_a_declaration_the_door_reads_across_the_faces()
     {

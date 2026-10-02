@@ -658,14 +658,14 @@ impl MergeDecision {
 /// shared edge. Only a pair that faces the same way glues, so it passes
 /// on a positive margin, and [`MergeCoplanarError::DeclaredOppositeOrientation`]
 /// is its sign-certain arm. The margin is the outward normals' cosine
-/// levered at the shared edge's chord, asked once parallelism has read
-/// within the zero band there, so `|cos| ≈ 1` and what an undecided
-/// margin measures is the chord: the lever names both moves a refusal
+/// levered at the radius of a ball enclosing both faces, so `|cos| ≈ 1`
+/// wherever the planes stand near parallel, and what an undecided
+/// margin measures is that reach: the lever names both moves a refusal
 /// may need.
 const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
-    lever: "turn one of the two faces so both clearly face the same way, across a shared edge \
-            whose ends lie clearly apart",
-    size: "distance between the ends of the edge the faces share",
+    lever: "turn one of the two faces so both clearly face the same way, on faces that clearly \
+            span a length",
+    size: "span of the two faces",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     at_zero: None,
@@ -2141,7 +2141,6 @@ impl<T: Decide> Body<T> {
             && ctx.eq.same(k1, k2)
         {
             let band = ctx.band;
-            let arm = self.edge_chord_len(plus.start, minus.start)?;
             let id = PlaneIdentity {
                 s1: None,
                 s2: None,
@@ -2159,16 +2158,29 @@ impl<T: Decide> Body<T> {
                 origin: o2,
                 normal: plane_outward_normal(face2, n2).vec(),
             };
-            // The offsets read at the origin and the angular data at the
-            // shared edge's chord, as ever; the faces' vertices are the
-            // points known to be consumed, so a face standing definitely
-            // off the other's plane contradicts the declaration. A
-            // boundary that does not walk knows no point, which only
-            // leaves a lie unsettled rather than contradicted.
-            let on = |f| crate::boolean::rest::face_witnesses(self, f).unwrap_or_default();
-            let (on1, on2) = (on(f1), on(f2));
+            // The pair is read over a ball enclosing both faces, and
+            // their vertices, the points known to be consumed: the
+            // glue holds at every point of both faces, and a face
+            // standing definitely off the other's plane contradicts the
+            // declaration. A boundary key that does not resolve is
+            // announced by name; a face whose extent does not read
+            // otherwise has no reach to settle, which the reach
+            // decision names.
+            let (on1, on2) = (self.boundary_points(f1)?, self.boundary_points(f2)?);
+            let reach =
+                crate::boolean::rest::pair_extent(self, f1, self, f2, band).map_err(|_| {
+                    MergeCoplanarError::Escalated {
+                        decision: MergeDecision::DeclaredReach,
+                        diag: Indeterminate {
+                            margin: geom_core::MarginDiag::INVALID,
+                            band,
+                            predicate: Some("merge_declared_extent"),
+                            terminal_sliver: false,
+                        },
+                    }
+                })?;
             let extent = crate::boolean::ConsumedExtent {
-                reach: geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm),
+                reach: reach.reach,
                 on: [&on1, &on2],
             };
             return declared_pair_verdict(oriented_plane_eq(&p1, &p2, id, &extent, band), f1, f2);
@@ -2176,15 +2188,14 @@ impl<T: Decide> Body<T> {
         Ok(false)
     }
 
-    /// The chord length between an edge's two ends, `a` and `b` (its
-    /// halves' start vertices) — the lever arm metering the
-    /// declared-pair verification at that edge.
-    ///
-    /// # Errors
-    ///
-    /// The vertex or point that does not resolve: a length is never
-    /// stood in for one it could not read.
-    fn edge_chord_len(&self, a: VertexKey, b: VertexKey) -> Result<T, DanglingRef> {
+    /// The face's boundary vertex positions, outer loop then rings
+    /// (an empty loop contributes its lone vertex), each key that does
+    /// not resolve named: the points the declared rung knows lie on
+    /// the face.
+    fn boundary_points(&self, face: FaceKey) -> Result<Vec<geom_core::Point3<T>>, DanglingRef> {
+        let f = self
+            .get_face(face)
+            .ok_or(DanglingRef::Entity(EntityId::Face(face)))?;
         let point = |v: VertexKey| {
             let key = self
                 .get_vertex(v)
@@ -2194,7 +2205,28 @@ impl<T: Decide> Body<T> {
                 .copied()
                 .ok_or(DanglingRef::Geometry(GeomRef::Point(key)))
         };
-        Ok((point(b)? - point(a)?).norm())
+        let mut out = Vec::new();
+        for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+            let l = self
+                .get_loop(lk)
+                .ok_or(DanglingRef::Entity(EntityId::Loop(lk)))?;
+            match l.boundary {
+                crate::entity::LoopBoundary::Empty { vertex } => out.push(point(vertex)?),
+                crate::entity::LoopBoundary::Cycle { first } => {
+                    let cycle = self
+                        .loop_cycle(first)
+                        .ok_or(DanglingRef::Entity(EntityId::HalfEdge(first)))?;
+                    for he in cycle {
+                        let start = self
+                            .get_half_edge(he)
+                            .ok_or(DanglingRef::Entity(EntityId::HalfEdge(he)))?
+                            .start;
+                        out.push(point(start)?);
+                    }
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Merges one group into `rep`, its survivor (see the
@@ -2963,8 +2995,8 @@ mod tests {
 
     /// **Every key the adjacency test reads that does not resolve is
     /// announced by name** — not `false`, which drops a mergeable
-    /// adjacency without a word, and not a unitless `1` standing in
-    /// for the chord that levers the declared rung. A face's surface is
+    /// adjacency without a word, and not an extent read over a boundary
+    /// the declared rung could not walk. A face's surface is
     /// resolved by the kind census, so its tear refuses there; the
     /// adjacency test announces a face the census did not meet and an
     /// end vertex or point. Asked of the census and the helper
@@ -5372,6 +5404,108 @@ mod winding_arm_tests {
         match t.body.planar_run_winding_decided(h1, h2, n, b) {
             Ok(Some(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
             other => panic!("the run winds: {other:?}"),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod declared_reach_rows {
+    use crate::body::Body;
+    use crate::entity::{FaceKey, LoopBoundary, VertexKey};
+    use crate::euler::{FaceSurface, MefSite};
+    use crate::test_support_fixtures::{line, prism_z};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::MergeCoplanarError;
+
+    /// The half-edge of `face`'s outer loop that starts at `v`.
+    fn leaving(
+        body: &Body<f64>,
+        face: FaceKey,
+        v: VertexKey,
+    ) -> Option<crate::entity::HalfEdgeKey> {
+        let f = body.get_face(face).expect("a live face");
+        let LoopBoundary::Cycle { first } = body.get_loop(f.outer).expect("a loop").boundary else {
+            panic!("a cycle");
+        };
+        body.loop_cycle(first)
+            .expect("the loop walks")
+            .into_iter()
+            .find(|&he| body.get_half_edge(he).expect("live").start == v)
+    }
+
+    /// **A declared pair glues only where both faces lie in band of one
+    /// plane**, read through the public merge: a dart prism whose top
+    /// is split along its 1 cm inner diagonal, one half re-described
+    /// as a plane tilted about that diagonal by 10, 50 and 90 Kε per
+    /// metre. The other half's far tip stands 10 m off the hinge, so
+    /// the tilted plane passes it 100 to 900 Kε away. Read over the
+    /// shared edge's chord (1 cm), the tilt reads at or under the band
+    /// and the pair glued; read over a ball enclosing both faces, with
+    /// their vertices as the consumed points, the tip contradicts the
+    /// declaration.
+    #[test]
+    fn a_tilt_in_band_at_the_shared_edge_but_past_it_across_the_faces_is_contradicted() {
+        let tol = Tol::witness();
+        let k_eps = Band::linear(tol).expect("the witness band").escalate();
+        for per_metre in [10.0, 50.0, 90.0] {
+            let theta = per_metre * k_eps;
+            // A(0,0) → D(10,−10) → C(1 cm, 0) → B(10,10): reflex at C,
+            // so A–C is an interior diagonal.
+            let prism = prism_z::<f64>(
+                &[(0.0, 0.0), (10.0, -10.0), (0.01, 0.0), (10.0, 10.0)],
+                0.0,
+                1.0,
+                tol,
+            );
+            let mut body = prism.body;
+            let (top, a, c) = (prism.top_face, prism.top[0], prism.top[2]);
+            let at = |body: &Body<f64>, v: VertexKey| {
+                *body
+                    .get_point(body.get_vertex(v).expect("live").point)
+                    .expect("live")
+            };
+            let (pa, pc) = (at(&body, a), at(&body, c));
+            let flat = body
+                .get_surface(body.get_face(top).expect("live").surface)
+                .expect("live")
+                .clone();
+            let he1 = leaving(&body, top, a).expect("A is on the top");
+            let he2 = leaving(&body, top, c).expect("C is on the top");
+            let split = body
+                .mef(
+                    MefSite::Chords { he1, he2 },
+                    line(pa, pc),
+                    FaceSurface::New {
+                        surface: flat,
+                        sense: true,
+                    },
+                    tol,
+                )
+                .expect("the diagonal splits the top");
+            // The half holding B (+y) turns about the x-axis hinge at
+            // z = 1; the half holding D stays flat.
+            let b_side = if leaving(&body, split.face, prism.top[3]).is_some() {
+                split.face
+            } else {
+                top
+            };
+            let tilted = body.get_face(b_side).expect("live").surface;
+            *body.surfaces.get_mut(tilted).expect("live") = geom::Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 1.0),
+                normal: Vec3::new(0.0, -theta, 1.0).normalize(),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let flat_key = body
+                .get_face(if b_side == top { split.face } else { top })
+                .expect("live")
+                .surface;
+            let got = body.merge_coplanar_faces_declared(&[(flat_key, tilted)], tol);
+            assert!(
+                matches!(got, Err(MergeCoplanarError::DeclarationContradicted { .. })),
+                "{per_metre} Kε/m: {got:?}"
+            );
         }
     }
 }

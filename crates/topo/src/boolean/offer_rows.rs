@@ -2229,7 +2229,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "SelfCheck::CarrierLadder",
         1,
     ),
-    ("mod.rs", "unsettled_rest", "Coincide::Contact", 1),
+    ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
     (
         "mod.rs",
         "verify_tangent_declaration",

@@ -780,7 +780,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// [`face_oriented_source`], and the pair's consumed extent through
 /// [`pair_extent`]: a declared verdict that bridges is one whose
 /// displacement stays in band at every point of both faces
-/// ([`super::carrier_eq::carrier_eq_verdict`]). One door for the
+/// ([`super::carrier_eq::pair_door_verdict`]). One door for the
 /// verify-at-use site and the detector's candidate-generation mode.
 ///
 /// # Errors
@@ -824,7 +824,7 @@ pub fn carrier_pair_verdict<T: Decide>(
         s2: gb.as_ref(),
         declared,
     };
-    Ok(super::carrier_eq::carrier_eq_verdict(
+    Ok(super::carrier_eq::pair_door_verdict(
         &ca,
         &cb,
         id,

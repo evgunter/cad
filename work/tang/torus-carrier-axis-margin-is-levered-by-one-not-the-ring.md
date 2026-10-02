@@ -72,11 +72,12 @@ lever: a ball enclosing the faces a verdict is consumed on, and
 position datum. `rest::pair_reach` builds it for a declared pair (the
 torus's and the sphere's own ball; otherwise the ball around
 `census::face_reach`'s box), `carrier_eq::at_consumed_extent`
-re-anchors each kind's datum nearest the ball's centre and returns the
-arm (plane: the radius; cylinder: from the foot on the second axis;
+re-anchors each kind's datum nearest the ball's centre for the
+undeclared readings (a declared pair is read through
+`carrier_eq::declared_reading`, below) and returns the arm (plane: the radius; cylinder: from the foot on the second axis;
 torus: `R + r` from its centre), and `tangent_locus` takes the same
 ball. The ball is measured once, on the operands at rest
-(`DeclaredPairs::measured`), and the mid-operation sites (`insert`,
+(`DeclaredPairs::build`), and the mid-operation sites (`insert`,
 `recl`, `vtxfac`) read it from there via `DeclaredPairs::reach_of`:
 mid-operation, a face whose boundary carries null scaffolding has no
 readable box (filed as

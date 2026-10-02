@@ -500,6 +500,46 @@ fn a_wedge_sweep_bridges_then_escalates_then_contradicts() {
     }
 }
 
+/// **The Boolean names the unsettled reach as its own question.** At
+/// `d = 0.75·Kε` the sweep above reads unsettled at the door: the
+/// upper bound stands past the band, and no corner is shown off. The
+/// union refuses on that question, stating the bound as past the band,
+/// and does not speak of a contact's witness, which no step of it read.
+#[test]
+fn an_unsettled_declared_pair_refuses_as_its_reach() {
+    let k = Band::linear(Tol::witness()).unwrap().escalate();
+    let (block, top, wedge, bottom, door) = wedge_on_the_top(0.75 * k, 0.0);
+    assert!(
+        matches!(door, Err(topo::ContactRefusal::Escalated { .. })),
+        "the door reads it unsettled: {door:?}"
+    );
+    let mut decls = topo::BooleanDeclarations::none();
+    decls
+        .coincident_faces
+        .push(topo::FacePairDeclaration::rest(top, bottom));
+    let err = union_with(&block, &wedge, &decls, Tol::witness()).expect_err("it refuses");
+    assert!(
+        matches!(
+            err,
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(topo::Coincide::DeclaredReach, _),
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    let text = err.to_string();
+    assert!(
+        text.contains("lies past the ambiguity band")
+            && !text.contains("inside the ambiguity band")
+            && !text.contains("witness")
+            && text.ends_with(
+                "Recourse: move the parts so the declared faces clearly coincide, or clearly do not"
+            ),
+        "{text}"
+    );
+}
+
 /// The pierce germ line, read at the sector's reach: a wedge on the
 /// block's top whose 1 mm edge lies on that face while its 10 m edge
 /// RISES `500·ε` and its third edge descends into the block. The

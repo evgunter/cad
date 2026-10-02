@@ -167,9 +167,11 @@ pub(super) fn require_same<T: Decide>(
         }
         // Only a declared reading is unsettled.
         Err(PlaneEqError::Unsettled { diag }) => Err(super::unsettled_rest(
-            declared
-                .class_of(o1, s1.face, o2, s2.face)
-                .unwrap_or(super::BooleanCoincidence::REST),
+            declared.class_of(o1, s1.face, o2, s2.face).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "an undeclared sector pair's carrier reading was unsettled",
+                },
+            )?,
             diag,
         )),
     }

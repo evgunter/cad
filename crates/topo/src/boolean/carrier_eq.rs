@@ -288,10 +288,30 @@ pub fn carrier_eq_verdict<T: Decide>(
     band: Band,
 ) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
     if id.declared {
-        return declared_verdict(c1, c2, id, extent, band);
+        declared_verdict(c1, c2, id, extent, band)
+    } else {
+        undeclared_ladder(c1, c2, id, extent, band)
     }
-    let verdict = undeclared_ladder(c1, c2, id, extent, band);
-    match verdict {
+}
+
+/// [`carrier_eq_verdict`] at the FACE-PAIR door, whose undeclared
+/// coincidence is an offer of the declaration the declared door then
+/// reads over the same extent: the coincidence stands only where the
+/// declared reading would ([`coincident_as_declared`]). The corner
+/// sites read their own arm, not a pair's extent, and take
+/// [`carrier_eq_verdict`] as it is.
+///
+/// # Errors
+///
+/// As [`carrier_eq_verdict`].
+pub(super) fn pair_door_verdict<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    id: PlaneIdentity<'_>,
+    extent: &ConsumedExtent<'_, T>,
+    band: Band,
+) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
+    match carrier_eq_verdict(c1, c2, id, extent, band) {
         Err(CarrierEqError::Undeclared { diag, relation }) if diag.margin.is_invalid() => {
             coincident_as_declared(c1, c2, extent, relation, band)
                 .map_err(|diag| CarrierEqError::Undeclared { diag, relation })?;
@@ -590,14 +610,8 @@ fn declared_verdict<T: Decide>(
         | (CarrierDesc::Torus { outward: w1, .. }, CarrierDesc::Torus { outward: w2, .. }) => {
             source_rung(id, *w1 != *w2)
         }
-        // A declaration that a plane is a cylinder is contradicted by
-        // the structural fact that no radius makes it one.
-        _ => {
-            return Err(CarrierEqError::Contradicted {
-                fact: Contradiction::KindsDiffer,
-                diag: definite("carrier_kind", band),
-            });
-        }
+        // Two kinds share no source; the reading refuses the pair.
+        _ => None,
     };
     match same_source {
         Some(relation) => Ok((relation, ContactVerdict::Definite)),
@@ -702,13 +716,11 @@ pub(super) fn declared_reading<T: Decide>(
                 CarrierRelation::SameOpposite
             },
         ),
-        _ => {
-            return Err(CarrierEqError::Contradicted {
-                fact: Contradiction::KindsDiffer,
-                diag: definite("carrier_kind", band),
-            });
-        }
+        // Two kinds: no orientation to read, and no reading below.
+        _ => (T::one(), CarrierRelation::Distinct),
     };
+    // A declaration that a plane is a cylinder is contradicted by the
+    // structural fact that no radius makes it one.
     let Some(Reading {
         names: [upper_name, floor_name],
         upper,
@@ -721,6 +733,11 @@ pub(super) fn declared_reading<T: Decide>(
             diag: definite("carrier_kind", band),
         });
     };
+    // A witness is a consumed point, so the displacement there bounds
+    // the upper bound from below whatever ball the caller passed: a
+    // ball that does not enclose a witness never bridges past it.
+    let floor = across.max(witnessed).max(T::zero());
+    let upper = upper.max(floor);
     let unsettled = |margin| CarrierEqError::Unsettled {
         diag: Indeterminate {
             margin,
@@ -744,19 +761,16 @@ pub(super) fn declared_reading<T: Decide>(
         Ok(Decided {
             sign: Sign::Positive,
             margin,
-        }) => {
-            let floor = across.max(witnessed).max(T::zero());
-            match decide(floor_name, Margin::of(floor), band) {
-                Ok(Sign::Positive) => {
-                    let (name, fact) = attribution(&data, band);
-                    Err(CarrierEqError::Contradicted {
-                        fact,
-                        diag: definite(name, band),
-                    })
-                }
-                _ => Err(unsettled(margin)),
+        }) => match decide(floor_name, Margin::of(floor), band) {
+            Ok(Sign::Positive) => {
+                let (name, fact) = attribution(&data, band);
+                Err(CarrierEqError::Contradicted {
+                    fact,
+                    diag: definite(name, band),
+                })
             }
-        }
+            _ => Err(unsettled(margin)),
+        },
     }
 }
 
@@ -1168,6 +1182,65 @@ mod tests {
             s2: None,
             declared: true,
         }
+    }
+
+    /// **The declared sum reads at the face-pair door only.** Two
+    /// spheres whose centres stand `0.6·ε` apart and whose radii differ
+    /// by `0.6·ε`: each datum decides zero, their sum (`1.2·ε`) does not.
+    /// The ladder as the corner sites read it calls the pair coincident
+    /// (a margin decided at zero); the face-pair door, whose coincidence
+    /// offers the declaration the declared door reads over the same
+    /// extent, refuses it with the sum's in-band reading instead.
+    #[test]
+    fn the_declared_sum_reads_at_the_pair_door_and_not_at_the_corners() {
+        let e = band().zero();
+        let a = sphere([0.0, 0.0, 0.0], 2.0, true);
+        let b = sphere([0.6 * e, 0.0, 0.0], 2.0 + 0.6 * e, true);
+        match carrier_eq_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
+            Err(CarrierEqError::Undeclared { diag, .. }) => {
+                assert!(diag.margin.is_invalid(), "every datum zero: {diag:?}");
+            }
+            other => panic!("the corner sites' ladder: {other:?}"),
+        }
+        match pair_door_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
+            Err(CarrierEqError::Undeclared { diag, .. }) => {
+                assert!(
+                    !diag.margin.is_invalid() && diag.predicate == Some("carrier_sphere_reach"),
+                    "the sum in band: {diag:?}"
+                );
+            }
+            other => panic!("the pair door: {other:?}"),
+        }
+    }
+
+    /// **A witness bounds the reading from below whatever ball it is
+    /// read over.** Two planes through the origin, one tilted `90·Kε`
+    /// per metre about the x-axis, read over a 1 cm ball about the
+    /// origin: the tilt there reads under the band. A point on the flat
+    /// face 10 m off the hinge stands `900·Kε` from the tilted plane, past
+    /// the ball, so the ball does not enclose the faces; the witness
+    /// still contradicts the declaration rather than the ball bridging
+    /// past it.
+    #[test]
+    fn a_witness_past_a_ball_that_misses_it_contradicts() {
+        let theta = 90.0 * band().escalate();
+        let flat = CarrierDesc::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let tilted = CarrierDesc::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(0.0, -theta, 1.0).normalize(),
+        };
+        assert!(matches!(
+            declared_reading(&flat, &tilted, &at(0.01), band()),
+            Ok((_, ContactVerdict::Definite | ContactVerdict::Bridged))
+        ));
+        let on = [Point3::new(10.0, -10.0, 0.0)];
+        assert!(matches!(
+            declared_reading(&flat, &tilted, &witnessed(0.01, [&on, &[]]), band()),
+            Err(CarrierEqError::Contradicted { .. })
+        ));
     }
 
     /// The peg-in-bore row: value-equal radii, opposed material
