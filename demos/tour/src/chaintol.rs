@@ -10,6 +10,44 @@
 //!
 //! The certified scalar is its entire subject.
 //!
+//! # As built: the placed rows' loop continuity is the wall
+//!
+//! Since the extrude closes with the pcurve mint (PCERT, PRs 3759 and
+//! 3812), `transform_rigid` re-certifies every placed link's pcurve
+//! rows, and the loop walk compares two stored chart azimuths at every
+//! joint (`pcurve_loop_continuity`). Over a box both azimuths carry the
+//! link's rotation as opaque `atan2` atoms, so that margin's enclosure
+//! grows with the box, as does check 5's test of each row's chart box
+//! against its window. Those two now set the certifiable box at EVERY
+//! link count, the one-link chain included, well below the walls the
+//! rest of this header measured before the mint:
+//!
+//! | links | `Sym<Interval>`, first refusal over the whole study | widest box that certifies whole |
+//! |---|---|---|
+//! | 1 | `pcurve_loop_continuity` | `6.510e-7` of the study |
+//! | 2 | `pcurve_loop_continuity` | `2.216e-7` |
+//! | 3 | `dihedral_arm` (met first; ε-independent, as before) | `1.117e-7` |
+//! | 4 | `dihedral_arm` | `6.751e-8` |
+//!
+//! ([`crate::chain::CERTIFIABLE_FRACTION_BY_LINKS`], at the default ε.)
+//! Just above each fraction the first refusal is the placed rows'
+//! `pcurve_loop_continuity` or check 5's `pcurve_trim_containment`,
+//! both angular comparisons of a stored azimuth
+//! (`the_wall_is_the_placed_rows_angular_comparisons`). The
+//! tip's certified half-width is again one number past one link
+//! ([`crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS`]), because this
+//! margin grows with the same tip box the wedge's did.
+//!
+//! **The follow-on that restates it** is
+//! `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`:
+//! the chart's angular comparisons (loop continuity, closure, the pole
+//! joint, trim containment) restated as a 3-D identity plus a branch
+//! margin. Measured in scratch on PR 3812's head, with those
+//! comparisons dropped this cell's published `[1.0, 0.3702, 0.1851,
+//! 0.111]` reproduce and the wall is `dihedral_wedge` again, so the rest
+//! of this header (written before the mint) is what the cell reads once
+//! that unit lands.
+//!
 //! # Why this is a measurement and not a demonstration
 //!
 //! A widened ROTATION ANGLE has never been carried on this lane. The
@@ -20,7 +58,7 @@
 //! is the first document that does it, and the table below is the
 //! answer either way: the walls it finds are filed, not fixed here.
 //!
-//! # The table, measured (σ = 0.01 rad at every joint, release)
+//! # The table before the mint (σ = 0.01 rad at every joint, release)
 //!
 //! One leaf over the whole declared box, no splitting, in the driver's
 //! own lane. The costs are one box's wall clock and move with the
@@ -62,7 +100,7 @@
 //! tier discharges exactly that identity, which is the whole
 //! difference between the two lanes here.
 //!
-//! # The widest box that certifies whole, and what sets it
+//! # The widest box that certifies whole before the mint, and what set it
 //!
 //! Bisected: `1.000` of the study at one link, then `0.370`, `0.185`,
 //! `0.111` ([`crate::chain::CERTIFIABLE_FRACTION_BY_LINKS`]). Those
@@ -324,9 +362,10 @@ pub fn narration(tol: Tol) {
         // `n(n+1)/2` is the tip's lever sum over the joints above it,
         // so `L · 3σ · f · n(n+1)/2` is how far the tip may move over
         // the certified box. THAT is the quantity that is the same at
-        // every link count — half the pin radius — and the ANGLE below
-        // is it divided by the fixed link length, which is why the
-        // angle looked like the invariant and is not one.
+        // every link count past one (`chain::CERTIFIED_TIP_OVER_PIN_RADIUS`
+        // of the pin radius; half of it before the pcurve mint) — and the
+        // ANGLE below is it divided by the fixed link length, which is
+        // why the angle looked like the invariant and is not one.
         let lever: f64 = (links * (links + 1) / 2) as f64;
         let swing = 3.0 * JOINT_SIGMA * f * lever;
         println!(
@@ -340,12 +379,14 @@ pub fn narration(tol: Tol) {
     }
 
     // **Whether that box still certifies HERE.** The fraction moves
-    // with ε — MEASURED, `1.083e-1` at ε = 1e-6 against `1.110e-1` at
-    // the default — and WHY it moves is not established: the refusal
-    // at the wall is the wedge's poisoned margin, which is not a
-    // quantity the band classifies
+    // with ε — MEASURED, `6.747e-5` at ε = 1e-6 against `6.751e-8` at
+    // the default — because the wall is an enclosure escalating against
+    // the band (the placed rows' angular comparisons since the extrude
+    // closes with the pcurve mint), so the box is ε-relative. Before
+    // the mint the wall was the wedge's poisoned margin and why it moved
+    // was not established
     // (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`).
-    // So the cell asks rather than reasoning: it declares the
+    // Either way the cell asks rather than reasoning: it declares the
     // frontier instead of assuming its own published number
     // (`demos/tour/tests/eps_regression.rs` on a declared frontier),
     // and one leaf is what it costs to know.
@@ -366,7 +407,7 @@ pub fn narration(tol: Tol) {
         );
         println!(
             "   the published box does NOT certify at this run's ε — it is the default ε's \
-             number, and the box moves with ε (1.083e-1 at 1e-6, measured). No enclosure is \
+             number, and the box moves with ε (6.747e-5 at 1e-6, measured). No enclosure is \
              reported here; the cell's CI row measures the fraction at the default ε."
         );
         return;
@@ -392,16 +433,16 @@ pub fn narration(tol: Tol) {
     if crate::tolerance::at_the_ci_row(tol) {
         assert_pin_boxes_are_published(&boxes);
     }
-    // …and WHAT that tip half-width is: half the pin radius, which is
-    // the invariant the four fractions are four spellings of. Printed
-    // beside the ratio's published value so the sentence and the
-    // number are read together rather than the sentence alone.
+    // …and WHAT that tip half-width is, over the pin radius: the
+    // invariant the fractions are spellings of. Printed beside the
+    // ratio's published value so the sentence and the number are read
+    // together rather than the sentence alone.
     let tip = boxes.last().expect("a chain has a tip pin").1;
     println!(
-        "   the tip's is {:.4} of the pin radius ({:.2} mm) — the invariant across link \
-         counts, and a property of THIS document's geometry rather than of the tier: \
-         `chain::CERTIFIED_TIP_OVER_PIN_RADIUS` = {:.4}, and doubling the radius doubles \
-         the certified swing",
+        "   the tip's is {:.4e} of the pin radius ({:.2} mm) — the invariant across link \
+         counts past one: `chain::CERTIFIED_TIP_OVER_PIN_RADIUS` = {:.4e}. Since the \
+         extrude closes with the pcurve mint the placed rows' angular comparisons set it; \
+         before, the wedge did, at half the radius",
         tip / crate::chain::PIN_RADIUS,
         crate::chain::PIN_RADIUS * MM,
         crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS
@@ -420,13 +461,13 @@ pub fn narration(tol: Tol) {
 /// transform, on the rigid map's own isometry check: an interval
 /// `cos`/`sin` makes `cos² + sin²` a bracket around 1 rather than 1,
 /// and the column-unit predicate is what notices. The symbolic tier
-/// discharges that identity, so the ONE-link chain certifies whole over
-/// the study a user actually has — and the wall MOVES rather than going
-/// away: from two links on it is a transversality margin during the
-/// mapped edge's re-certification, not the isometry. The table names
-/// WHICH predicate per link count, so that is what is asserted, not
-/// merely that some dihedral refused: the two are different predicates
-/// with different answers, and the header once said the wrong one.
+/// discharges that identity, and the wall MOVES rather than going
+/// away: since the extrude closes with the pcurve mint, the placed
+/// rows' `pcurve_loop_continuity` refuses the whole study at one and
+/// two links, and at three and four the transversality arm's straddle
+/// is met first (the one-link chain certified the whole study before
+/// the mint). The table names WHICH predicate per link count, so that
+/// is what is asserted, not merely that something refused.
 fn assert_row(row: &Row) {
     let links = row.links;
     let first = || {
@@ -461,10 +502,19 @@ fn assert_row(row: &Row) {
                  {links} link(s) it was still the first refusal: {}",
                 first()
             );
+            // Over the WHOLE study the first refusal is an evaluation-order
+            // fact: the placed rows' loop continuity at one and two links,
+            // and the transversality arm's straddle, met first, at three
+            // and four (the header's table).
+            let predicate = if links <= 2 {
+                "pcurve_loop_continuity"
+            } else {
+                "dihedral_arm"
+            };
             assert!(
-                first().contains("pcurve_loop_continuity"),
+                first().contains(predicate),
                 "the table says the first refusal at {links} link(s) over the whole study \
-                 is the placed rows' `pcurve_loop_continuity` \
+                 is `{predicate}` \
                  (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`); \
                  it was: {}",
                 first()
@@ -612,7 +662,7 @@ fn certifiable_fraction(links: usize, tol: Tol) -> f64 {
     // last accepted probe, re-measured by
     // `the_published_certifiable_fractions_are_the_measured_ones`),
     // and 1.02× that width REFUSES
-    // (`the_wall_is_the_placed_rows_loop_continuity`). What is ASSUMED is
+    // (`the_wall_is_the_placed_rows_angular_comparisons`). What is ASSUMED is
     // monotonicity BELOW the answer — that no narrower box refuses.
     //
     // That assumption used to be argued here from the shape of the
@@ -707,25 +757,28 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 mod tests {
     use super::*;
 
-    /// **What BOUNDS the certifiable box is the placed rows'
-    /// `pcurve_loop_continuity`**, at every link count.
+    /// **What BOUNDS the certifiable box is the placed rows' angular
+    /// comparisons**: `pcurve_loop_continuity`, or check 5's
+    /// `pcurve_trim_containment`, at every link count.
     ///
     /// Since the extrude closes with the pcurve mint, `transform_rigid`
     /// re-certifies each placed link's pcurve rows, and the loop walk
     /// compares two stored chart azimuths at every joint. Over a box both
     /// carry the link's rotation as opaque `atan2` atoms, so the
-    /// continuity margin's enclosure grows with the box and refuses
-    /// first, far below the `dihedral_wedge` wall this cell measured
+    /// continuity margin's enclosure grows with the box, and so does the
+    /// trim-containment test of each row's chart box against its window;
+    /// one of the two refuses first, far below the `dihedral_wedge` wall
+    /// this cell measured
     /// before the mint (the follow-on that restates it:
     /// `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`,
     /// whose scratch measurement puts the wedge wall back at the
     /// published `[1.0, 0.3702, 0.1851, 0.111]` once the angular
     /// comparisons are restated). The question the box answers is asked
     /// just above the wall: at `1.02×` and `1.10×` of each link count's
-    /// certifiable fraction, the first refusal is that margin's
-    /// escalation.
+    /// certifiable fraction, the first refusal is one of the two
+    /// escalating.
     #[test]
-    fn the_wall_is_the_placed_rows_loop_continuity() {
+    fn the_wall_is_the_placed_rows_angular_comparisons() {
         let tol = Tol::witness();
         for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate() {
             let links = i + 1;
@@ -738,9 +791,11 @@ mod tests {
                 );
                 let first = row.first.expect("a refusing row names its first refusal");
                 assert!(
-                    first.contains("pcurve_loop_continuity"),
-                    "the header says the WALL is the placed rows' `pcurve_loop_continuity`; \
-                     at {links} links, {over}× the fraction, the first refusal was: {first}"
+                    first.contains("pcurve_loop_continuity")
+                        || first.contains("pcurve_trim_containment"),
+                    "the header says the WALL is the placed rows' angular comparisons \
+                     (`pcurve_loop_continuity`, `pcurve_trim_containment`); at {links} \
+                     links, {over}× the fraction, the first refusal was: {first}"
                 );
                 assert!(
                     first.contains("cannot be classified"),
@@ -799,15 +854,16 @@ mod tests {
     /// any of them is a change in that claim.
     ///
     /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
-    /// the default — because the fractions move with ε: `1.110e-1` at
-    /// the default against `1.083e-1` at `1e-6`, measured. What makes
-    /// them move is not established; the wall's refusal is a poisoned
-    /// margin, which is not a quantity a band classifies.
+    /// the default — because the fractions move with ε: `6.751e-8` at
+    /// the default against `6.747e-5` at `1e-6`, measured (an
+    /// escalating wall, so ε-relative; before the pcurve mint the wall
+    /// was a poisoned margin and the fractions moved a few percent for
+    /// a reason not established).
     ///
     /// It also runs the check the bisection's monotonicity assumption
     /// owes (see `certifiable_fraction`): each answer is re-certified
     /// at 1/2 and 1/4 of its width, so a refusal returning at a
-    /// NARROWER box — which the poisoned wall gives no argument
+    /// NARROWER box — which a poisoned wall would give no argument
     /// against — reds here.
     #[test]
     fn the_published_certifiable_fractions_are_the_measured_ones() {
