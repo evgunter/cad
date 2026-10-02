@@ -181,7 +181,7 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// section (a curved face's graze) REFUSES (`DegenerateSection`,
 /// exactly as [`super::split`] does) rather than reporting a
 /// degenerate trace.
-pub fn plane_section<T: geom_core::Decide>(
+pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

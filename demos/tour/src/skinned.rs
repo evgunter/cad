@@ -9,13 +9,22 @@
 //!
 //! # The scenes and the corpus (montage-v3 curation)
 //!
-//! - `lofts` — ONE cell carrying BOTH lofts, side by side, since the
-//!   montage-v3 curation (Ev, 2026-08-30). Two adjacent cells were
-//!   not showing a minimal pair: `compose_montage.py` trims and scales
-//!   every cell independently, so the panels arrived at two different
-//!   scales and the silhouette comparison was distorted by the
-//!   composer. One frame gives them one camera AND one scale. The two
-//!   bodies keep their own names, exports and narration lines.
+//! - `lofts` — ONE cell carrying the lofts of one section stack, side
+//!   by side, since the montage-v3 curation (Ev, 2026-08-30). Two
+//!   adjacent cells were not showing a minimal pair:
+//!   `compose_montage.py` trims and scales every cell independently,
+//!   so the panels arrived at two different scales and the silhouette
+//!   comparison was distorted by the composer. One frame gives them
+//!   one camera AND one scale. Each body keeps its own name, export
+//!   and narration line.
+//! - `twisted_loft` — the third thing a loft reads from its author:
+//!   `loft_prism`'s sections at its placements, the top square's
+//!   corners listed from the second. The loft pairs corners by where
+//!   each loop starts, so the walls twist a quarter turn by
+//!   correspondence alone. The kernel's door and the document's
+//!   `Node::Loft` read the start the same way (the section's own
+//!   vertex order), so the cell spells it where its siblings are
+//!   spelled, at `loft_body`. Rendered `2 · LOFT_PAIR_GAP` along +x.
 //! - `loft_prism` — the same BODY as the corpus fixture
 //!   `step-export/tests/common/mod.rs::loft_prism()` (recipe-layer
 //!   twin: `editor-core/tests/corpus/loft_prism.rs`; acceptance + the
@@ -212,7 +221,7 @@ pub fn narration(tol: Tol) {
 
     println!(
         "   the loft/sweep BODIES are scenes now (frontier fully retired): \
-         lofts (loft_prism + nonuniform_loft in one cell), s_duct — \
+         lofts (loft_prism + nonuniform_loft + twisted_loft in one cell), s_duct — \
          see the stops below"
     );
 }
@@ -272,7 +281,9 @@ const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1
 /// prism reaches half-width 1.375 (its trapezoid) and the non-uniform
 /// skin overshoots to 1.646, so 4 m leaves 4 − 1.375 − 1.646 ≈ 0.98 m
 /// of clear air between the two silhouettes at the shared camera —
-/// separated without either shrinking to make room.
+/// separated without either shrinking to make room. The twisted loft
+/// stands at twice the gap; its turning walls reach 1.38 m toward the
+/// pair (MEASURED off its mesh), leaving the same ≈ 0.98 m.
 const LOFT_PAIR_GAP: f64 = 4.0;
 
 /// The S-duct's arc radius (scene-local; the corpus elbow's is
@@ -474,10 +485,59 @@ fn prism_sections(tol: Tol) -> Vec<Section<ConstructedLoop<f64>>> {
     ]
 }
 
-/// The three skin scenes, in tour order: the two lofts as the
-/// corpus's MINIMAL PAIR (same sections, same degree, same builder —
-/// only the section spacing differs, so they share a camera and read
-/// as a pair on the sheet), then the curved-path sweep.
+/// The prism's sections with the TOP square authored from its second
+/// corner: the same four points, so the same section, but a loft pairs
+/// corners by where each loop starts, so every bottom corner `c_k` now
+/// runs to the top's `c_{k+1}` — a quarter turn the author wrote.
+fn twisted_sections(tol: Tol) -> Vec<Section<ConstructedLoop<f64>>> {
+    let mut top = PRISM_SQUARE;
+    top.rotate_left(1);
+    vec![
+        quad(PRISM_SQUARE, tol),
+        quad(PRISM_TRAPEZOID, tol),
+        quad(top, tol),
+    ]
+}
+
+/// Every edge from the bottom cap (z = 0) to the top cap (z = 2), as
+/// the plan positions of its (bottom, top) ends, sorted.
+fn struts(body: &pncad::topo::Body<f64>) -> Vec<[f64; 4]> {
+    let at = |v| pncad::topo::readback::vertex_point(body, v).expect("a live vertex");
+    let mut out: Vec<[f64; 4]> = body
+        .edges()
+        .filter_map(|(_, e)| {
+            let a = body
+                .get_half_edge(e.he_plus)
+                .expect("a live half-edge")
+                .start;
+            let b = body.half_edge_end(e.he_plus).expect("a forward half");
+            let (p, q) = (at(a), at(b));
+            let (lo, hi) = if p.z < q.z { (p, q) } else { (q, p) };
+            (lo.z == 0.0 && hi.z == 2.0).then_some([lo.x, lo.y, hi.x, hi.y])
+        })
+        .collect();
+    out.sort_by(|a, b| a.partial_cmp(b).expect("finite corners"));
+    out
+}
+
+/// Every vertex point of `body`, sorted — what its placements put
+/// where.
+fn corner_points(body: &pncad::topo::Body<f64>) -> Vec<[f64; 3]> {
+    let mut out: Vec<[f64; 3]> = body
+        .vertices()
+        .map(|(v, _)| {
+            let p = pncad::topo::readback::vertex_point(body, v).expect("a live vertex");
+            [p.x, p.y, p.z]
+        })
+        .collect();
+    out.sort_by(|a, b| a.partial_cmp(b).expect("finite corners"));
+    out
+}
+
+/// The skin scenes, in tour order: the three lofts of one section
+/// stack in one cell (the corpus's minimal pair — only the spacing
+/// differs — and the twist, where only the correspondence differs),
+/// then the sweeps.
 pub fn stops(tol: Tol) -> Vec<Stop> {
     // Both lofts are 2 m tall columns flaring in x at one height, so
     // the story-bearing silhouette is the xz PROFILE: a near-face-on
@@ -592,6 +652,86 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         tol,
     )
     .expect("the non-uniform loft is placed beside its twin");
+    // The third body: the prism's sections at the prism's placements,
+    // the top square authored from its second corner
+    // ([`twisted_sections`]). Every slice is still planar at
+    // z(v) = L1 + 2·L2 (Lagrange basis on the nodes 0, t, 1), and its
+    // corners are Q_k = (1 − L2)·c_k + L2·R·c_k + d·L1·e_k, R the
+    // quarter turn (R·c_k = c_{k+1}) and e_k the flare's direction at
+    // the two bottom corners. (1 − L2)I + L2·R is a similarity of
+    // determinant (1 − L2)² + L2², and the flare's mixed shoelace term
+    // is 2(1 − L2), so the slice's area is
+    // 4((1 − L2)² + L2²) + 2d·L1·(1 − L2). Integrating it against z′:
+    // V = 16/3 + (8t + d(1 + 12t − 10t²)) / (30t²(1 − t)²).
+    // t is the first strip's chord average (`skin_parameters`): both
+    // rows step √73/8 to the trapezoid, then 5√17/8 and √329/8 to the
+    // top corner they are now paired with.
+    let twist_t = {
+        let (a, b, c) = (73f64.sqrt(), 5.0 * 17f64.sqrt(), 329f64.sqrt());
+        0.5 * (a / (a + b) + a / (a + c))
+    };
+    let twisted_places = lofted_at_z(&[0.0, 1.0, 2.0]);
+    let twist_params =
+        pncad::sweep::loft_parameters(&twisted_sections(tol), &twisted_places, 2, tol)
+            .expect("the twisted sections skin");
+    assert!(
+        twist_params.len() == 3
+            && twist_params[0] == 0.0
+            && twist_params[2] == 1.0
+            && (twist_params[1] - twist_t).abs() <= 4.0 * f64::EPSILON,
+        "the narrated chord average t = {twist_t} is no longer what the twisted skin chose: \
+         {twist_params:?}"
+    );
+    let twist_narrated = 16.0 / 3.0
+        + (8.0 * twist_t + flare * (1.0 + 12.0 * twist_t - 10.0 * twist_t * twist_t))
+            / (30.0 * twist_t * twist_t * (1.0 - twist_t) * (1.0 - twist_t));
+    let twisted_at_origin =
+        pncad::sweep::loft_body::<f64>(&twisted_sections(tol), &twisted_places, 2, tol)
+            .expect("the twisted loft builds")
+            .body;
+    assert_eq!(
+        corner_points(&twisted_at_origin),
+        corner_points(&prism),
+        "the twisted loft's corners left the prism's: its sections and placements are the \
+         prism's, so only which corners are joined may differ"
+    );
+    let corners = PRISM_SQUARE.map(|(x, y)| [x, y]);
+    let paired = |shift: usize| {
+        let mut want: Vec<[f64; 4]> = (0..4)
+            .map(|k| {
+                let (a, b) = (corners[k], corners[(k + shift) % 4]);
+                [a[0], a[1], b[0], b[1]]
+            })
+            .collect();
+        want.sort_by(|a, b| a.partial_cmp(b).expect("finite corners"));
+        want
+    };
+    assert_eq!(
+        struts(&prism),
+        paired(0),
+        "the prism's struts rise straight"
+    );
+    assert_eq!(
+        struts(&twisted_at_origin),
+        paired(1),
+        "each twisted strut runs from c_k to c_(k+1): the top square starts one corner on"
+    );
+    let twist_props = pncad::topo::mass_properties(&twisted_at_origin, tol)
+        .expect("the twisted loft has a volume");
+    assert!(
+        twist_props.volume_pad <= PRISM_PAD_MAX
+            && (twist_props.volume - twist_narrated).abs() <= twist_props.volume_pad,
+        "twisted_loft's V = {} ± {} does not bracket the {twist_narrated} m³ its \
+         correspondence derives",
+        twist_props.volume,
+        twist_props.volume_pad
+    );
+    let twisted = pncad::topo::transform_rigid(
+        &twisted_at_origin,
+        &Affine3::translation(Vec3::new(2.0 * LOFT_PAIR_GAP, 0.0, 0.0)),
+        tol,
+    )
+    .expect("the twisted loft is placed beside the pair");
     // ONE CELL, BOTH BODIES (montage-v3 curation, Ev 2026-08-30).
     // Two adjacent cells were not showing the pair the pair claims to
     // be: `compose_montage.py` trims and scales EVERY cell
@@ -665,7 +805,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let mut stops = vec![
         Stop {
             name: "lofts",
-            caption: "the loft pair (same sections, only the middle spacing moves)".to_string(),
+            caption: "three lofts of one section stack (spacing, then correspondence, moves)"
+                .to_string(),
             montage: true,
             story: "R5 shape (iii) and its TRUE minimal pair, in one frame. Three \
                     polyline quad sections — squares at the ends, a trapezoid between \
@@ -677,10 +818,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     moved, to z = 0/0.15/2 — the degree-2 skin interpolates through the \
                     crowded spacing and OVERSHOOTS, bulging to half-width 1.646, wider \
                     than any authored section (the trapezoid stops at 1.375), peaking \
-                    at 32.6% of the height with a long taper above",
+                    at 32.6% of the height with a long taper above. FAR RIGHT: the SAME \
+                    sections at the SAME z = 0/1/2 as the left, with ONE change: the top \
+                    square is authored from its second corner. Same four points, so the \
+                    same section — but a loft joins corners by where each loop starts, so \
+                    every bottom corner now rises to its neighbour's place on top, and the \
+                    walls become ruled twists: a straight line across every height, \
+                    turning a quarter turn as it climbs",
             ops: "sweep::loft_body(square, trapezoid, square, v_degree 2) twice — \
-                  @ z = 0/1/2, and @ z = 0/0.15/2 -> topo::transform_rigid for the \
-                  pair's +x offset",
+                  @ z = 0/1/2, and @ z = 0/0.15/2; then the same @ z = 0/1/2 with the top \
+                  square's corners listed from the second -> topo::transform_rigid for \
+                  each body's +x offset",
             delta: 6e-3,
             note: Some(format!(
                 "[loft_prism] the corpus fixture's body, section for section \
@@ -718,12 +866,35 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  along +x by transform_rigid, which maps the described NURBS walls by \
                  their control points (knots and weights untouched), so the rendered \
                  solid is the exact image of the body every number above is stated \
-                 about"
+                 about.\n   \
+                 [twisted_loft] the prism's sections at the prism's placements (the \
+                 scene checks every vertex is bitwise one of the prism's), the top \
+                 square authored from (1, -1): the loft takes each loop's start as \
+                 authored, so strut k runs c_k -> c_(k+1) (checked, against the \
+                 prism's c_k -> c_k) — a quarter turn, which is what shifting a \
+                 square's start one vertex IS. Derivation: v comes from the first \
+                 strip's chord average, both rows stepping sqrt(73)/8 to the \
+                 trapezoid and then 5*sqrt(17)/8 and sqrt(329)/8 to their new top \
+                 corners, so t = (sqrt(73)/(sqrt(73)+5*sqrt(17)) + \
+                 sqrt(73)/(sqrt(73)+sqrt(329)))/2 = {twist_t} (asked of \
+                 sweep::loft_parameters and pinned) — the twist moved the middle \
+                 section's parameter off the prism's 1/2. Each slice is planar at \
+                 z(v) = L1 + 2*L2 (Lagrange basis on 0, t, 1) with corners \
+                 (1-L2)*c_k + L2*R*c_k + d*L1*e_k, R the quarter turn; (1-L2)I + L2*R \
+                 is a similarity of determinant (1-L2)^2 + L2^2 and the flare's mixed \
+                 shoelace term is 2(1-L2), so the slice area is \
+                 4((1-L2)^2 + L2^2) + 2d*L1*(1-L2), and integrating against z' gives \
+                 V = 16/3 + (8t + d(1 + 12t - 10t^2))/(30t^2(1-t)^2) = \
+                 {twist_narrated:.10} m^3 (quadrature agrees inside its certified pad; \
+                 at t = 1/2 the same formula reads 112/15 + 12d/5). Placed \
+                 {twist_gap} m along +x by transform_rigid",
+                twist_gap = 2.0 * LOFT_PAIR_GAP
             )),
             view: loft_view(),
             bodies: vec![
                 SceneBody::plain("loft_prism", [0.55, 0.72, 0.52], prism),
                 SceneBody::plain("nonuniform_loft", [0.45, 0.62, 0.78], nonuniform),
+                SceneBody::plain("twisted_loft", [0.80, 0.62, 0.42], twisted),
             ],
         },
         Stop {

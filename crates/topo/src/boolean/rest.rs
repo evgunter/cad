@@ -1048,7 +1048,7 @@ type VertexPair = (VertexKey, VertexKey);
 /// for the segment where it has one. `Ok(None)`: a segment does not
 /// resolve structurally — not this lane's frontier (pre-identification
 /// phase).
-fn realize_seam<T: Decide>(
+fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     other: &Body<T>,
     segments: &[(VertexPair, Option<EdgeKey>, VertexPair)],
@@ -1127,7 +1127,7 @@ fn interior_edges<T: Decide>(
 /// vertex of the other solid interior to the region), a closed one, or
 /// one whose host is not a single patch face — not this lane's frontier.
 #[allow(clippy::too_many_arguments)] // both solids, the vertex map, and the split bookkeeping `mint_chord` takes
-fn mirror_edges<T: Decide>(
+fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     other: &Body<T>,
     other_interior: &[(VertexKey, VertexKey)],
@@ -1296,7 +1296,7 @@ impl<T: Decide> Twin<T> {
 /// `twin`'s carrier where the other solid has the edge (a rim arc stays
 /// an arc), and as a straight chord where it has none.
 /// `Ok(None)`: no unique host face — not this lane's frontier.
-fn mint_chord<T: Decide>(
+fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     u: VertexKey,
     v: VertexKey,
@@ -1749,7 +1749,7 @@ fn shared_run<T: Decide>(
 /// that is an isolated vertex (a pierce ring no segment reached) is
 /// outside both arguments: the flood passes over it, and its promotion
 /// or its cycle read below refuses as a lane desync.
-fn glue_pair<T: Decide>(
+fn glue_pair<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     fa: FaceKey,
     fb: FaceKey,
@@ -1868,7 +1868,7 @@ fn glue_pair<T: Decide>(
 /// own transient face (`mfkrh`) and zipped by the same folded-loop
 /// zipper that finishes the outer cycle — the genus drop of closing a
 /// band lives in those promotions, never in ad-hoc surgery.
-fn slit_zip<T: Decide>(
+fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     fa: FaceKey,
     fb: FaceKey,
@@ -2120,7 +2120,7 @@ fn edge_of<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, Boolea
 /// pair and a `kef` retires the b copy, and the final coincident pair
 /// retires face and b copy together (the a copy survives as a seam
 /// edge, absorbed by the b-side neighbor's loop).
-fn zip_folded<T: Decide>(
+fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     a_edges: &SecondaryMap<EdgeKey, ()>,
