@@ -5,12 +5,12 @@
 //! circle/ellipse carriers.
 
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, UnitVec3};
 use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::entity::VertexKey;
+use crate::entity::{FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 
@@ -21,7 +21,8 @@ use crate::validate::decide;
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
 /// plane MAY meet it: its certified reach box (`census::face_reach`,
-/// the boolean's `FaceBoxRule` at this body's scalar), padded by the
+/// the boolean's `FaceBoxRule` at this body's scalar, a sphere face's
+/// tightened to its latitude zone by [`gate_face_reach`]), padded by the
 /// boolean sweep's pad, is cleared when all eight corners are
 /// definitely on one side of the plane ([`box_clears`]). Behind a box
 /// that clears, the face has no vertex on or across the plane, no
@@ -40,7 +41,7 @@ pub(super) fn gate_operand<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let face_clears = |face| box_clears(crate::census::face_reach(body, face, band), plane, band);
+    let face_clears = |face| box_clears(gate_face_reach(body, face, band), plane, band);
     for (face_key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
             return Err(SplitReduceError::CurvedBooleanUnsupported {
@@ -77,9 +78,8 @@ pub(super) fn gate_operand<T: Decide>(
                 geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                     let bounding =
                         [edge.he_plus, edge.he_minus].map(|he| body.face_of_half_edge(he));
-                    let clears =
-                        box_clears(crate::census::edge_reach(body, edge_key), plane, band)
-                            || bounding.into_iter().flatten().any(face_clears);
+                    let clears = box_clears(crate::census::edge_reach(body, edge_key), plane, band)
+                        || bounding.into_iter().flatten().any(face_clears);
                     if !clears {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
@@ -89,6 +89,75 @@ pub(super) fn gate_operand<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// K name: a sphere face's polar axis, read as a unit direction for
+/// its latitude zone's slab.
+const SPLIT_GATE_SPHERE_AXIS: &str = "split_gate_sphere_axis";
+
+/// A face's reach for the gate: `census::face_reach`, except that a
+/// sphere face whose chart trim pins a latitude window
+/// (`solid_contain::sphere_chart_trim`) is boxed by the zone between
+/// its two extreme latitudes — the axial slab over that window, met
+/// with the ball. The ball alone is the whole sphere, which a plane
+/// through any part of it meets: a cap on a cylinder would refuse
+/// every cut of the cylinder. A face outside the trim's class, or one
+/// whose trim escalates, keeps the ball.
+fn gate_face_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Option<(Point3<T>, Point3<T>)> {
+    use crate::boolean::boxes::{Span, SpanBox, UnitSpanBox, meet, slab_extent};
+    let ball = crate::census::face_reach(body, face, band)?;
+    let Some(geom::Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    }) = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+    else {
+        return Some(ball);
+    };
+    let (Ok(Some(trim)), Ok(unit)) = (
+        crate::boolean::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band),
+        UnitVec3::new(*axis, SPLIT_GATE_SPHERE_AXIS, band),
+    ) else {
+        return Some(ball);
+    };
+    // `lat_lo` is the extreme nearest the `+axis` pole, so the larger
+    // axial offset; a `None` end reaches its pole.
+    let h = Span {
+        lo: trim.lat_hi.map_or(T::zero() - *radius, |(h, _)| h),
+        hi: trim.lat_lo.map_or(*radius, |(h, _)| h),
+    };
+    let zone = slab_extent(
+        &SpanBox::point(*center),
+        &UnitSpanBox::exact(unit),
+        h,
+        *radius,
+    );
+    let ball = SpanBox {
+        x: Span {
+            lo: ball.0.x,
+            hi: ball.1.x,
+        },
+        y: Span {
+            lo: ball.0.y,
+            hi: ball.1.y,
+        },
+        z: Span {
+            lo: ball.0.z,
+            hi: ball.1.z,
+        },
+    };
+    let met = meet(zone, ball);
+    Some((
+        Point3::new(met.x.lo, met.y.lo, met.z.lo),
+        Point3::new(met.x.hi, met.y.hi, met.z.hi),
+    ))
 }
 
 /// K name: a corner of an unarmed entity's padded reach box, its
@@ -116,7 +185,11 @@ fn box_clears<T: Decide>(
     let mut sides = [false; 2];
     for i in 0..8 {
         let pick = |bit: usize, l: T, h: T| if i & bit == 0 { l } else { h };
-        let corner = Point3::new(pick(1, lo.x, hi.x), pick(2, lo.y, hi.y), pick(4, lo.z, hi.z));
+        let corner = Point3::new(
+            pick(1, lo.x, hi.x),
+            pick(2, lo.y, hi.y),
+            pick(4, lo.z, hi.z),
+        );
         let margin = Margin::of(crate::sector_shape::plane_offset(
             plane.origin,
             plane.normal.get(),

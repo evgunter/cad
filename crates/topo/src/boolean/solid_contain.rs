@@ -2985,7 +2985,7 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
 /// # Errors
 ///
 /// [`PointInSolidError`] — escalations from the class predicates.
-pub(super) fn sphere_chart_trim<T: Decide>(
+pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     center: Point3<T>,
@@ -3218,7 +3218,7 @@ pub(super) fn sphere_chart_trim<T: Decide>(
 /// as a margin against the pole is what keeps the margins honest:
 /// `sin(v - v_pole)` degenerates to `sin v`, which is Zero at BOTH
 /// poles and would call the far pole a graze.
-pub(super) struct SphereChartTrim<T> {
+pub(crate) struct SphereChartTrim<T> {
     /// The azimuth window, or `None` for a full period.
     pub az: Option<(T, T)>,
     /// The extreme latitude nearest the `+axis` pole, or `None` when
