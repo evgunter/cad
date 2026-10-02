@@ -395,31 +395,77 @@ pub fn carrier_eq_verdict<T: Decide>(
     }
 }
 
-/// **The lever arm for a verdict consumed over `reach`**: the extent's
-/// farthest reach from the PIVOT at which the kind's position datum is
-/// read, so a relative tilt levered here reads the largest displacement
-/// it induces anywhere on the consumed faces
-/// ([`geom_brep::ExtentBall`]'s module docs):
+/// **The pair as the ladder reads it when its verdict is consumed over
+/// `reach`**: each description anchored where its position datum is
+/// read nearest the extent's centre, and the lever arm for its angular
+/// data, the extent's farthest reach from that pivot
+/// ([`geom_brep::ExtentBall`]'s module docs). A tilt that reads inside
+/// the band at that arm, beside a position datum inside the band at the
+/// pivot, stands inside the band across every consumed point.
 ///
-/// - plane — the world origin, where `d = n̂·origin` reads the offset;
-/// - cylinder — the second carrier's axis point, where the axis offset
-///   is read;
-/// - torus — the second carrier's centre, about which its tube turns;
-///   a torus face's extent is its carrier's ball, so the arm is `R + r`.
+/// - plane — the ladder reads the offset `n̂·origin` from the world
+///   origin, so both descriptions are shifted to put the extent's
+///   centre there; the arm is the extent's radius;
+/// - cylinder — the axis offset is read at the second description's
+///   axis point, which moves along its axis to the foot of the
+///   extent's centre;
+/// - torus — the datum is the centre, which a face's extent (its
+///   carrier's ball) is centred on: the arm is `R + r`.
 ///
-/// Sphere pairs and mixed kinds carry no angular datum, and the arm is
-/// read from the world origin only so that the function is total.
-pub fn consumed_arm<T: geom_core::Real>(
+/// Sphere pairs and mixed kinds carry no angular datum; they pass
+/// through with the arm read from the extent's centre.
+pub fn at_consumed_extent<T: geom_core::Real>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     reach: geom_brep::ExtentBall<T>,
-) -> T {
-    let pivot = match (c1, c2) {
-        (CarrierDesc::Cylinder { .. }, CarrierDesc::Cylinder { origin, .. }) => *origin,
-        (CarrierDesc::Torus { .. }, CarrierDesc::Torus { center, .. }) => *center,
-        _ => Point3::origin(),
+) -> (CarrierDesc<T>, CarrierDesc<T>, T) {
+    let centre = reach.center();
+    let shift = |origin: Point3<T>| Point3::origin() + (origin - centre);
+    let (c1, c2, pivot) = match (*c1, *c2) {
+        (
+            CarrierDesc::Plane {
+                origin: o1,
+                normal: n1,
+            },
+            CarrierDesc::Plane {
+                origin: o2,
+                normal: n2,
+            },
+        ) => (
+            CarrierDesc::Plane {
+                origin: shift(o1),
+                normal: n1,
+            },
+            CarrierDesc::Plane {
+                origin: shift(o2),
+                normal: n2,
+            },
+            centre,
+        ),
+        (c1, CarrierDesc::Cylinder {
+            origin,
+            axis,
+            radius,
+            outward,
+        }) if matches!(c1, CarrierDesc::Cylinder { .. }) => {
+            let foot = reach.foot_on(origin, axis);
+            (
+                c1,
+                CarrierDesc::Cylinder {
+                    origin: foot,
+                    axis,
+                    radius,
+                    outward,
+                },
+                foot,
+            )
+        }
+        (c1, c2 @ CarrierDesc::Torus { center, .. }) if matches!(c1, CarrierDesc::Torus { .. }) => {
+            (c1, c2, center)
+        }
+        (c1, c2) => (c1, c2, centre),
     };
-    reach.lever_from(pivot)
+    (c1, c2, reach.lever_from(pivot))
 }
 
 /// Rung 1 for the curved arms: both descriptions carry the same

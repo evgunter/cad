@@ -574,7 +574,7 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// compare (the REST lane treats it as an invariant violation at its
 /// own site; [`carrier_pair_relation`] is where a caller asks the
 /// same question of any carrier the ladder names) — or a face whose
-/// extent cannot be read ([`face_reach`]).
+/// extent cannot be read ([`pair_reach`]).
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -588,64 +588,35 @@ pub fn flush_pair_relation<T: Decide>(
     carrier_pair_relation(a, fa, b, fb, declared, band)
 }
 
-/// **A face's consumed extent**: a ball enclosing every point of the
-/// face, the region over which a verdict about its carrier is consumed
-/// (the lever arm of [`super::carrier_eq::consumed_arm`] and of
-/// [`geom_brep::tangent_locus`]).
-///
-/// A bounded carrier's own ball where it has one
-/// ([`ExtentBall::of_carrier`]: sphere, torus, NURBS); otherwise the
-/// face is on a ruled carrier and its boundary bounds it, so the ball
-/// hulls every boundary edge's ([`ExtentBall::of_curve`]) and every
-/// isolated ring vertex.
-///
-/// `None` where no enclosing ball can be read: a lookup that does not
-/// resolve, a boundary edge with no certified carrier (scaffolding,
-/// which tier 2 bans at rest), or a ruled face with no outer boundary
-/// (its locus is unbounded).
-pub(crate) fn face_reach<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<ExtentBall<T>> {
+/// **A face's consumed extent**: a ball enclosing every point of it,
+/// the region over which a verdict about its carrier is consumed
+/// ([`pair_reach`]). A sphere's or a torus's own ball
+/// ([`ExtentBall::of_carrier`]: the torus's `R + r`, whatever the
+/// trim); otherwise the ball around the face's certified box, from the
+/// kernel's one kind→box rule (`census::face_reach`). `None` where that
+/// box has no claim to make (a lookup that does not resolve, a NURBS
+/// placeholder, a boundary it cannot read).
+fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<ExtentBall<T>> {
     let f = body.get_face(face)?;
     if let Some(ball) = ExtentBall::of_carrier(body.get_surface(f.surface)?) {
         return Some(ball);
     }
-    let point = |v: VertexKey| {
-        body.get_vertex(v)
-            .and_then(|v| body.get_point(v.point))
-            .copied()
-    };
-    let mut reach: Option<ExtentBall<T>> = None;
-    let mut grow = |ball: ExtentBall<T>| {
-        reach = Some(reach.map_or(ball, |r| r.hull(ball)));
-    };
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        match body.get_loop(lk)?.boundary {
-            LoopBoundary::Empty { .. } if lk == f.outer => return None,
-            LoopBoundary::Empty { vertex } => grow(ExtentBall::point(point(vertex)?)),
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first)? {
-                    let h = body.get_half_edge(he)?;
-                    let end = point(body.get_half_edge(h.next)?.start)?;
-                    let carrier = body
-                        .get_curve_geom(body.get_edge(h.edge)?.curve)?
-                        .certified()?
-                        .carrier();
-                    grow(ExtentBall::of_curve(carrier, point(h.start)?, end));
-                }
-            }
-        }
-    }
-    reach
+    let (lo, hi) = crate::census::face_reach(body, face)?;
+    Some(ExtentBall::of_box(lo, hi))
 }
 
-/// A declared face pair's consumed extent: the hull of both faces'
-/// [`face_reach`], since the verdict is consumed on each.
+/// **A declared face pair's consumed extent**: one ball enclosing both
+/// faces ([`face_ball`]), since the verdict is consumed on each — the
+/// lever arm of [`super::carrier_eq::at_consumed_extent`] and of
+/// [`geom_brep::tangent_locus`]. `None` where either face cannot be
+/// enclosed.
 pub(crate) fn pair_reach<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
 ) -> Option<ExtentBall<T>> {
-    Some(face_reach(a, fa)?.hull(face_reach(b, fb)?))
+    ExtentBall::enclosing(&[face_ball(a, fa)?, face_ball(b, fb)?])
 }
 
 /// The face's **oriented carrier description** — the curved
@@ -709,14 +680,14 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// Descriptions through [`face_carrier`], identity through
 /// [`face_oriented_source`], and the angular data levered at the pair's
 /// consumed extent ([`pair_reach`], through
-/// [`super::carrier_eq::consumed_arm`]): a declared verdict that
+/// [`super::carrier_eq::at_consumed_extent`]): a declared verdict that
 /// bridges a tilt is one whose displacement stays in band across both
 /// faces. One door for the verify-at-use site and the detector's
 /// candidate-generation mode.
 ///
 /// `None`: a face whose surface kind is outside the ladder's
 /// inventory — there is no description to compare — or whose extent
-/// cannot be read ([`face_reach`]).
+/// cannot be read ([`pair_reach`]).
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -740,8 +711,11 @@ pub fn carrier_pair_verdict<T: Decide>(
     declared: bool,
     band: Band,
 ) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
-    let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
-    let arm = super::carrier_eq::consumed_arm(&ca, &cb, pair_reach(a, fa, b, fb)?);
+    let (ca, cb, arm) = super::carrier_eq::at_consumed_extent(
+        &face_carrier(a, fa)?,
+        &face_carrier(b, fb)?,
+        pair_reach(a, fa, b, fb)?,
+    );
     let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
@@ -1934,7 +1908,7 @@ mod tests {
 mod lever_rows {
     use super::*;
     use crate::boolean::boxes::tests::torus_wall;
-    use crate::boolean::carrier_eq::{carrier_eq_verdict, consumed_arm};
+    use crate::boolean::carrier_eq::{at_consumed_extent, carrier_eq_verdict};
     use crate::contact::{ContactRefusal, ContactVerdict};
     use crate::test_support::{CylFrame, cyl_wall_sheet};
     use geom_core::{Point3, Tol, Vec3};
@@ -1965,7 +1939,7 @@ mod lever_rows {
             ),
             "{what}: at a 1 m arm the tilt reads in band and the declaration bridges it: {metre:?}"
         );
-        let arm = consumed_arm(&ca, &cb, pair_reach(a, fa, b, fb).unwrap());
+        let (_, _, arm) = at_consumed_extent(&ca, &cb, pair_reach(a, fa, b, fb).unwrap());
         assert!(
             (lo..=hi).contains(&arm),
             "{what}: the door levers the tilt over the faces, {lo}..={hi} m, read {arm}"
@@ -2015,7 +1989,9 @@ mod lever_rows {
 
     /// A 10 m cylinder wall against its twin tilted by `0.5·K·ε` about
     /// `y` through the shared axis point at its foot: `0.5·Kε` at one
-    /// metre, `5·Kε` at the far rim, `√(10² + 1²)` from that point.
+    /// metre, while the far rim stands `5·Kε` off. The door reads the
+    /// pair from the wall's middle, so its arm is at least half the
+    /// wall's length.
     #[test]
     fn a_cylinder_tilt_is_read_at_the_far_rim() {
         let tol = Tol::witness();
@@ -2030,7 +2006,7 @@ mod lever_rows {
         bridged_at_a_metre_contradicted_at_the_extent(
             (&a, fa),
             (&b, fb),
-            (101.0f64.sqrt(), 30.0),
+            (5.0, 12.0),
             "cylinder",
         );
     }

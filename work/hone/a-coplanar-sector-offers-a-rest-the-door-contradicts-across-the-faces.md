@@ -1,0 +1,38 @@
+---
+id: a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces
+kind: issue
+title: a coplanar sector's in-band refusal offers a Rest declaration that the door then contradicts, once the door levers the tilt across the faces
+status: open
+opened: 2026-10-02
+---
+
+
+## What
+
+The coplanar-sector refusal (`reduce.rs`, the `Coincide::Sectors`
+decision) reads a sector pair's normals at the CORNER's arm, finds them
+in band, and offers "declare the coincidence" with `Rest` as the class
+the door admits on a planar pierced face. The `Rest` door
+(`rest::carrier_pair_verdict`) levers the same tilt at the declared
+pair's consumed extent — a ball around BOTH faces
+(`carrier_eq::at_consumed_extent`, since TANG's
+`torus-carrier-axis-margin-is-levered-by-one-not-the-ring`). Where a
+face reaches far from the corner, the tilt that read in band at the
+corner reads definite across the faces, and the declaration the
+refusal offered is contradicted (`ContactContradicted`,
+`PlanesNotParallel`).
+
+Pinned by `reduce.rs`'s
+`a_coplanar_sectors_in_band_parallelism_offers_a_declaration_the_door_reads_across_the_faces`:
+a 5° wedge tilted `5.5ε` on a 3 m × 4.5 m block top. Undeclared it
+offers the declaration; declared, the door contradicts it. The pose
+with the tilt at `2ε`, which the door accepts, then refuses
+`RestZipUnsupported { ChordBetweenIsolatedPierces }`.
+
+## Shape of a fix
+
+The offer is a menu entry; it should be offered only where the door
+would take it, i.e. where the pair's in-band reading also holds at the
+door's lever (`offer_rows`' `Withdrawn` mechanism is the existing
+vocabulary for an offer shown false). Measure which other
+sector-level offers read a tilt at a shorter arm than the door.

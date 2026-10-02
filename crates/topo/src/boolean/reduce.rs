@@ -3346,17 +3346,21 @@ mod declaration_order_rows {
         }
     }
 
-    /// **A coplanar sector's in-band parallelism offers the declaration
-    /// that settles it**, on a union: a thin block whose bottom face,
-    /// cornered at a point of the other block's top face by a 5° wedge,
-    /// is tilted by an in-band angle about the wedge's one edge, so the
-    /// wedge's two edges read on that face while its normal reads
-    /// in-band parallel at the corner's arm. Undeclared, the sector
-    /// refuses and offers the declaration; declared `Rest`, which the
-    /// door verifies, the pair's class is read before the parallelism
-    /// refuses, the lump takes the residue, and the union builds.
+    /// **A coplanar sector's in-band parallelism offers a declaration,
+    /// which the door reads across the faces**, on a union: a thin block
+    /// whose bottom face, cornered at a point of the other block's top
+    /// face by a 5° wedge, is tilted by an in-band angle about the
+    /// wedge's one edge, so the wedge's two edges read on that face
+    /// while its normal reads in-band parallel at the corner's arm.
+    /// Undeclared, the sector refuses and offers the declaration. The
+    /// top face reaches far enough from the tilt axis that each of its
+    /// corners reads definitely off the wedge's bottom plane, so a
+    /// declared `Rest` is contradicted at the door, which levers the
+    /// tilt across both faces: the offer does not settle this pose
+    /// (`work/hone/a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces.md`).
     #[test]
-    fn a_coplanar_sectors_in_band_parallelism_is_settled_by_the_declaration_it_offers() {
+    fn a_coplanar_sectors_in_band_parallelism_offers_a_declaration_the_door_reads_across_the_faces()
+    {
         use crate::test_support_fixtures::{brick, mapped_cube};
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the witness band");
@@ -3371,8 +3375,6 @@ mod declaration_order_rows {
             move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
             tol,
         );
-        // Its top face reaches far enough from the tilt axis that each
-        // of its corners reads definitely off the wedge's bottom plane.
         let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
         let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
             let hits: Vec<_> = wedge
@@ -3407,8 +3409,14 @@ mod declaration_order_rows {
         );
         let declared = union_declared(&block, &wedge, pair, Some(ContactClass::Rest));
         assert!(
-            declared.is_ok(),
-            "declared Rest, the union builds: {declared:?}"
+            matches!(
+                declared,
+                Err(BooleanError::ContactContradicted {
+                    fact: Some(crate::boolean::refusal_routes::Contradiction::PlanesNotParallel),
+                    ..
+                })
+            ),
+            "declared Rest, the tilt across the block's top contradicts it: {declared:?}"
         );
     }
 }

@@ -1479,10 +1479,23 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0),
         );
         let tilted = Vec3::new(0.0, mid.sin(), mid.cos());
-        let plane =
-            |n: Vec3<f64>| crate::test_support_fixtures::plane(&[o, o + x, o + n.cross(x)], tol);
-        let (b1, f1) = face_on(plane(z));
-        let (b2, f2) = face_on(plane(tilted));
+        // Unit blocks whose tops meet at `o`, the second's tilted by
+        // `mid` about `x`: the door levers the tilt across their tops.
+        let top = |body: &crate::body::Body<f64>| {
+            body.faces()
+                .map(|(k, _)| k)
+                .find(|&k| {
+                    matches!(crate::boolean::face_carrier(body, k),
+                        Some(crate::boolean::CarrierDesc::Plane { normal, .. }) if normal.z > 0.99)
+                })
+                .expect("a top face")
+        };
+        let b1 = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (-1.0, 0.0), tol);
+        let b2 = crate::test_support_fixtures::mapped_cube(
+            move |u, v, w| Point3::new(u, v, w - 1.0 - mid.tan() * v),
+            tol,
+        );
+        let (f1, f2) = (top(&b1), top(&b2));
         let sector = |face, normal: Vec3<f64>| BoolSector {
             he: crate::entity::HalfEdgeKey::default(),
             start: x,

@@ -272,10 +272,10 @@ pub enum ChartRegionError {
     /// certifying a false overlap.
     PeriodFold,
     /// A declared pair's two carrier DESCRIPTIONS are definitely apart
-    /// somewhere over the pair's OWN extent. Door 1 certified the
-    /// carriers at its pinned 1 m arm; at this pair's actual size they
-    /// do not agree, so neither description can stand as the pair's
-    /// representative chart. Emitters, each metering its own quantity:
+    /// somewhere over the pair's OWN extent. Door 1 bounds the tilt
+    /// over a ball enclosing both faces; measured at the trims here,
+    /// the descriptions do not agree, so neither can stand as the
+    /// pair's representative chart. Emitters, each metering its own quantity:
     /// the planar arm's `chart_region_carrier_tilt` (the carriers'
     /// separation at the trims' own vertices) and the cylinder arm's
     /// `chart_region_cyl_radius` / `chart_region_cyl_tilt` /
@@ -1079,13 +1079,12 @@ fn face_boundary_points<T: Decide>(
 /// attained at a vertex: `m` is EXACT over the region, not a
 /// small-angle bound.
 ///
-/// **The lever is not a constant.** Door 1 meters the same
-/// disagreement as an angle at a PINNED 1 m arm (`bool_plane_parallel`
-/// via `carrier_pair_verdict`'s `T::one()`), which prices a peg and a
-/// table identically. Here the tilt's contribution to each term is
+/// **The lever is the pair's own extent, per vertex.** Door 1 meters
+/// the same disagreement as an angle levered at a ball enclosing both
+/// faces (`bool_plane_parallel` via `carrier_pair_verdict`'s
+/// `consumed_arm`). Here the tilt's contribution to each term is
 /// `r·sin θ` with `r` that vertex's own distance from the carrier
-/// origin — so the pair's own extent IS the lever, per vertex, and the
-/// offset term rides in the same length. A tilt a peg absorbs and a
+/// origin, and the offset term rides in the same length. A tilt a peg absorbs and a
 /// tilt that opens a millimetre across a table get different answers,
 /// which is the whole point.
 ///
@@ -1212,11 +1211,10 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 ///
 /// # The carrier gates (the cylinder `carrier_agreement`)
 ///
-/// Door 1's ladder decided the same data at its pinned 1 m arm
-/// (`carrier_cyl_axis_parallel`·1 m, `carrier_cyl_axis_offset`,
-/// `carrier_cyl_radius`); as with the planar arm, that prices a peg
-/// and a table identically, so the enclosure re-decides at the PAIR'S
-/// OWN EXTENT (fixed order, D9). The quantity the gates must bound is
+/// Door 1's ladder decided the same data over a ball enclosing both
+/// faces (`carrier_cyl_axis_parallel` at `consumed_arm`,
+/// `carrier_cyl_axis_offset`, `carrier_cyl_radius`); the enclosure
+/// re-decides at the PAIR'S OWN TRIMS (fixed order, D9). The quantity the gates must bound is
 /// the TRANSFER ERROR `E(p) = φ_A(T(u, v)) − p` — not merely the
 /// carriers' radial separation — and to first order it decomposes as
 /// `|E| ≤ |Δr| + g⊥ + sin θ · ‖p − o_b‖`, where the last term is the

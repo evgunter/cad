@@ -257,7 +257,10 @@ cases! {
         Valued => turned_wedge(2, true, 200.0, 5.0, 1.0, -D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
-    tangent_screen_of_a_tilted_block: "Coincidence(Planes)", D / 4.0, Public,
+    // The tilt, `D/4` a metre, levered at the declared pair's extent:
+    // the ball around both faces' 3 m × 3 m footprint, `1.5·√2`.
+    tangent_screen_of_a_tilted_block: "Coincidence(Planes)",
+        D / 4.0 * 1.5 * core::f64::consts::SQRT_2, Public,
         Withdrawn(Because::Refuses("UnsupportedDeclarationClass")) =>
         tilted_block_declared_tangent();
     membership_along_a_curved_flank: "Coincidence(CurvedFlankSense)", D, Door::Site(

@@ -58,11 +58,12 @@ pub enum TangentLocusError {
 ///
 /// - `tangent_locus_axis_parallel` — the axis/plane (or axis/axis)
 ///   angular deviation `|d × n̂|` (a sine of unit vectors) levered by
-///   `reach`'s extent from the point the gap row is read at (the
-///   cylinder's axis point; the second cylinder's, for a pair): a tilt
-///   moves the ruling by that angle times the distance from there, so
-///   the row reads the displacement the tilt induces across the faces
-///   the locus is consumed on. `reach` is the declared pair's consumed
+///   `reach`'s extent from the point the gap row is read at — the foot
+///   of the extent's centre on the cylinder's axis (the second
+///   cylinder's, for a pair). A tilt moves the ruling by that angle
+///   times the distance from there, so beside a gap in band there the
+///   row reads the displacement the tilt induces across the faces the
+///   locus is consumed on. `reach` is the declared pair's consumed
 ///   extent, the one `topo`'s carrier-pair doors lever their ladder at.
 /// - `tangent_locus_gap` — the metre gap at the tangency: for
 ///   plane×cylinder the axis-to-plane distance minus the radius; for
@@ -129,6 +130,7 @@ pub fn tangent_locus<T: Decide>(
         ) => {
             // Ruling tangency needs the axis IN the plane's direction
             // space: |axis · n̂| is the sine of the axis' elevation.
+            let co = &reach.foot_on(*co, *axis);
             match decide(
                 "tangent_locus_axis_parallel",
                 Margin::levered(axis.dot(*normal).abs(), reach.lever_from(*co)),
@@ -181,6 +183,7 @@ pub fn tangent_locus<T: Decide>(
                 ..
             },
         ) => {
+            let o2 = &reach.foot_on(*o2, *a2);
             match decide(
                 "tangent_locus_axis_parallel",
                 Margin::levered(a1.cross(*a2).norm(), reach.lever_from(*o2)),
