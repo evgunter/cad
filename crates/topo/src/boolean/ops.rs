@@ -1006,16 +1006,85 @@ pub(crate) fn place_witness<T: Decide>(
     }
 }
 
+/// One face of a section-certificate pair: its operand, body, face,
+/// surface and certified box.
+type PairSide<'s, T> = (
+    Operand,
+    &'s Body<T>,
+    FaceKey,
+    &'s geom::Surface<T>,
+    &'s bvh::Aabb,
+);
+
+/// **The section certificate's per-pair rule** for `f` (the section's
+/// `F`) against `g` (its `G`), whose boxes overlap: the pair's
+/// classified section and every component's witness, or the pair's
+/// refusal. The reach — the ball about the two boxes' overlap, which
+/// pivots and levers the angular margins — is built here
+/// ([`super::section_cert`]'s module docs).
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a face whose loops do
+/// not resolve.
+fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    f: PairSide<'_, T>,
+    g: PairSide<'_, T>,
+    band: Band,
+    evented: bool,
+    charts: &mut ChartCache,
+) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError>
+{
+    use super::section_cert::{Refusal, Side, certify, classify};
+    let (f_is, f_body, ff, sf, box_f) = f;
+    let (g_is, g_body, fg, sg, box_g) = g;
+    if has_lone_vertex(f_body, ff)? || has_lone_vertex(g_body, fg)? {
+        return Ok(Err(Refusal::LoneVertex));
+    }
+    let (lo, hi) = (
+        Vec3::new(
+            box_f.min_x.max(box_g.min_x),
+            box_f.min_y.max(box_g.min_y),
+            box_f.min_z.max(box_g.min_z),
+        ),
+        Vec3::new(
+            box_f.max_x.min(box_g.max_x),
+            box_f.max_y.min(box_g.max_y),
+            box_f.max_z.min(box_g.max_z),
+        ),
+    );
+    let reach = super::section_cert::Reach {
+        centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_f64),
+        radius: T::from_f64((hi - lo).norm() * 0.5),
+    };
+    let section = classify(sf, sg, reach, band);
+    Ok(certify(
+        &section,
+        evented,
+        |side| {
+            let (operand, body, face, surface) = match side {
+                Side::F => (f_is, f_body, ff, sf),
+                Side::G => (g_is, g_body, fg, sg),
+            };
+            charts.describes(operand, body, face, surface, band)
+        },
+        |p| {
+            [
+                place_witness(f_body, ff, sf, p, band),
+                place_witness(g_body, fg, sg, p, band),
+            ]
+        },
+    ))
+}
+
 /// **The section certificate over every in-scope pair** of `a` × `b`
 /// whose certified boxes overlap and which `skip` does not exempt, in
 /// arena order. `evented` says whether the reduction recorded an event
 /// on the pair `(A face, B face)`. With `stop` the scan returns at the
 /// first refusing pair.
 ///
-/// `chart_boundary` is asked once per face and cached; the pair's
-/// reach — the ball about the two boxes' overlap, which pivots and
-/// levers the angular margins — is built here
-/// ([`super::section_cert`]'s module docs).
+/// `chart_boundary` is asked once per face and cached; each pair is
+/// [`pair_verdict`]'s.
 ///
 /// # Errors
 ///
@@ -1030,7 +1099,6 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: impl Fn(FaceKey, FaceKey) -> bool,
     stop: bool,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
-    use super::section_cert::{Refusal, Side, certify, classify};
     let lost = || BooleanError::ClassificationInvariant {
         what: "section certificate: a face surface is lost",
     };
@@ -1052,44 +1120,13 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
             if !path.scope(sa, sb) || !box_a.overlaps(box_b) || skip(*fa, *fb) {
                 continue;
             }
-            let verdict = if has_lone_vertex(a, *fa)? || has_lone_vertex(b, *fb)? {
-                Err(Refusal::LoneVertex)
-            } else {
-                let (lo, hi) = (
-                    Vec3::new(
-                        box_a.min_x.max(box_b.min_x),
-                        box_a.min_y.max(box_b.min_y),
-                        box_a.min_z.max(box_b.min_z),
-                    ),
-                    Vec3::new(
-                        box_a.max_x.min(box_b.max_x),
-                        box_a.max_y.min(box_b.max_y),
-                        box_a.max_z.min(box_b.max_z),
-                    ),
-                );
-                let reach = super::section_cert::Reach {
-                    centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_f64),
-                    radius: T::from_f64((hi - lo).norm() * 0.5),
-                };
-                let section = classify(sa, sb, reach, band);
-                certify(
-                    &section,
-                    evented(*fa, *fb),
-                    |side| {
-                        let (operand, body, face, surface) = match side {
-                            Side::F => (Operand::A, a, *fa, sa),
-                            Side::G => (Operand::B, b, *fb, sb),
-                        };
-                        charts.describes(operand, body, face, surface, band)
-                    },
-                    |p| {
-                        [
-                            place_witness(a, *fa, sa, p, band),
-                            place_witness(b, *fb, sb, p, band),
-                        ]
-                    },
-                )
-            };
+            let verdict = pair_verdict(
+                (Operand::A, a, *fa, sa, box_a),
+                (Operand::B, b, *fb, sb, box_b),
+                band,
+                evented(*fa, *fb),
+                &mut charts,
+            )?;
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: *fa,
@@ -2247,7 +2284,7 @@ struct SphereRecut<T: Real> {
 ///
 /// Determinism (D9): face-arena order throughout; the first escape's
 /// normal is the alignment target.
-fn sphere_extent_scan<T: Decide + Bounds>(
+fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     band: Band,
@@ -2269,6 +2306,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     let pad = boxes::sweep_pad(band);
+    let mut section_charts = ChartCache::default();
     let mut out: Vec<SphereRecut<T>> = Vec::new();
     for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
         // The scope is the whole operand: what the escape arm re-charts
@@ -2505,14 +2543,19 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 let big = radius.max(r2);
                                 let small = radius.min(r2);
                                 // Neither separated nor strictly nested:
-                                // the two boundaries meet while the
+                                // the CARRIERS cross in a circle while the
                                 // crossing layer found no edge crossing a
-                                // face. Whatever the two spheres share
-                                // lies off every edge, the join's
-                                // sphere-pair arm had no chord to run,
-                                // and this scan, which reads the
-                                // SURFACES, cannot certify the shell
-                                // disjoint from the other boundary.
+                                // face. Whether the FACES meet is the
+                                // section certificate's question, asked
+                                // of every face on this sphere against
+                                // `yf`: with no event anywhere, a circle
+                                // certified out of one face of each pair
+                                // leaves the two boundaries disjoint.
+                                // A circle inside both faces, or one no
+                                // witness places, refuses: whatever the
+                                // faces share lies off every edge, and
+                                // the join's sphere-pair arm had no
+                                // chord to run.
                                 let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
@@ -2520,11 +2563,22 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 )
                                 .map_err(esc(SphereQuestion::Nested))?;
                                 if let Some(verdict) = Refused::of(nested, band) {
-                                    return Err(BooleanError::SpheresMeet {
-                                        operand: x_is,
-                                        face,
-                                        verdict,
-                                    });
+                                    let crossing =
+                                        matches!(verdict, Refused::Negative { .. });
+                                    if !(crossing
+                                        && sphere_faces_apart(
+                                            (x_is, x, fd.surface),
+                                            (y, yf),
+                                            band,
+                                            &mut section_charts,
+                                        )?)
+                                    {
+                                        return Err(BooleanError::SpheresMeet {
+                                            operand: x_is,
+                                            face,
+                                            verdict,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -2624,6 +2678,51 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     Ok(out)
+}
+
+/// **Whether every face on `x`'s sphere `surface` is certified apart
+/// from `y`'s face `yf`**, a sphere whose carrier crosses that sphere's:
+/// each pair whose boxes overlap clears every component of its section
+/// by the section certificate's rule, on the no-event path. `false`
+/// when any pair does not clear.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a face whose surface
+/// or loops do not resolve, and the box builder's own errors.
+fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    (x_is, x, surface): (Operand, &Body<T>, SurfaceKey),
+    (y, yf): (&Body<T>, FaceKey),
+    band: Band,
+    charts: &mut ChartCache,
+) -> Result<bool, BooleanError> {
+    let lost = || BooleanError::ClassificationInvariant {
+        what: "extent scan: face surface lost",
+    };
+    let pad = boxes::sweep_pad(band);
+    let sy = y
+        .get_face(yf)
+        .and_then(|fd| y.get_surface(fd.surface))
+        .ok_or_else(lost)?;
+    let sx = x.get_surface(surface).ok_or_else(lost)?;
+    let box_y = boxes::face_box(y, yf, pad)?;
+    for (xf, _) in x.faces().filter(|(_, fd)| fd.surface == surface) {
+        let box_x = boxes::face_box(x, xf, pad)?;
+        if !box_x.overlaps(&box_y) {
+            continue;
+        }
+        let verdict = pair_verdict(
+            (x_is, x, xf, sx, &box_x),
+            (x_is.other(), y, yf, sy, &box_y),
+            band,
+            false,
+            charts,
+        )?;
+        if verdict.is_err() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**

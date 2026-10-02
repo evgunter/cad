@@ -603,3 +603,86 @@ fn the_snowman_waist_fillets() {
         }
     }
 }
+
+/// The boolean's body, `None` for an empty result; a refusal fails
+/// with the payload.
+fn run_or_empty(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
+    let out = match op {
+        BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
+        BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
+        BooleanOp::Subtract => topo::boolean::subtract(a, b, Tol::witness()),
+    }
+    .unwrap_or_else(|e| panic!("{op:?} refused: {e:?}"));
+    out.body().map(|b| b.body.clone())
+}
+
+/// The union (`max`) or intersection (`min`) of the balls `(r, c)` on
+/// the y axis, as an [`Axi`].
+fn axi_balls(balls: &'static [(f64, f64)], union: bool) -> Axi {
+    Axi {
+        r2: Box::new(move |y| {
+            let slices = balls
+                .iter()
+                .map(|&(r, c)| (r * r - (y - c).powi(2)).max(0.0));
+            if union {
+                slices.fold(0.0, f64::max)
+            } else {
+                slices.fold(f64::INFINITY, f64::min)
+            }
+        }),
+        breaks: balls.iter().flat_map(|&(r, c)| [c - r, c + r]).collect(),
+    }
+}
+
+/// **A ball strictly inside a body of two or three spheres**, or
+/// holding one, with no boundary crossing. Each small ball's sphere
+/// crosses the CARRIER of a big sphere face in a circle on the part
+/// that face's trim has cut away, so the carriers meet while the faces
+/// do not; the extent scan asks the faces, through the section
+/// certificate's witness on that circle, and every op builds — in both
+/// operand orders, against the slice integral.
+#[test]
+fn a_ball_inside_a_two_sphere_body_builds() {
+    const SNOWMAN: &[(f64, f64)] = &[(R1, 0.0), (R2, D)];
+    const CHAIN: &[(f64, f64)] = &[(R1, 0.0), (R2, D), (0.6, 2.3)];
+    let snowman = run(BooleanOp::Union, &ball(R1, 0.0), &ball(R2, D));
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let chain = run(BooleanOp::Union, &snowman, &ball(0.6, 2.3));
+    for (label, body, balls, union, (r, c)) in [
+        ("snowman", &snowman, SNOWMAN, true, (0.5, 0.75)),
+        ("lens", &lens, SNOWMAN, false, (0.6, 0.8)),
+        ("lens in", &lens, SNOWMAN, false, (0.9, 1.0)),
+        ("chain", &chain, CHAIN, true, (0.5, 1.9)),
+    ] {
+        let small = ball(r, c);
+        let mut spheres = balls.to_vec();
+        spheres.push((r, c));
+        let (big_axi, small_axi) = (axi_balls(balls, union), axi_ball(r, c, f64::INFINITY));
+        for op in OPS {
+            for (name, x, y, x_axi, y_axi) in [
+                (
+                    format!("{label} {op:?} ball({r}, {c})"),
+                    body,
+                    &small,
+                    &big_axi,
+                    &small_axi,
+                ),
+                (
+                    format!("ball({r}, {c}) {op:?} {label}"),
+                    &small,
+                    body,
+                    &small_axi,
+                    &big_axi,
+                ),
+            ] {
+                let want = axi_op(op, x_axi, y_axi, &spheres);
+                match run_or_empty(op, x, y) {
+                    Some(out) => assert_body(&name, &out, want),
+                    // Nested operands leave nothing only where the
+                    // oracle does: the inner one less the outer.
+                    None => assert!(want.abs() <= 1e-12, "{name}: empty against {want}"),
+                }
+            }
+        }
+    }
+}
