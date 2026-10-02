@@ -166,10 +166,6 @@ mod verbs_shell;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
-#[path = "join1_r2_probes.rs"]
-mod join1_r2_probes;
-#[path = "join1_r2_rand.rs"]
-mod join1_r2_rand;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
 #[path = "band_ruled_cap_ring.rs"]
@@ -230,6 +226,10 @@ mod extrude_acceptance;
 mod extrude_interval;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
+#[path = "join1_r2_probes.rs"]
+mod join1_r2_probes;
+#[path = "join1_r2_rand.rs"]
+mod join1_r2_rand;
 #[path = "join_whole_orbit_cylinder.rs"]
 mod join_whole_orbit_cylinder;
 #[path = "k_report.rs"]
@@ -565,12 +565,14 @@ mod germ_interior_saddle;
 mod germ_sphere_no_crossings;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
+#[path = "germ_torus_rods.rs"]
+mod germ_torus_rods;
+#[path = "join1_mechanisms.rs"]
+mod join1_mechanisms;
 #[path = "join1_r1_probes.rs"]
 mod join1_r1_probes;
 #[path = "join1_r1_rows.rs"]
 mod join1_r1_rows;
-#[path = "germ_torus_rods.rs"]
-mod germ_torus_rods;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]

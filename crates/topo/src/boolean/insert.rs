@@ -66,8 +66,15 @@ pub(super) fn insert_null_pairs<T: Decide>(
     declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
-    let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) =
-        records.iter().zip(raw).filter(|(r, _)| r.intersect).unzip();
+    // A-major order: `pair_search` mints records in it, and an edge-edge
+    // germ minted after it (`recl::place_germ`) takes its place in it.
+    let mut ordered: Vec<(&PairRecord, &PairRecord)> = records
+        .iter()
+        .zip(raw)
+        .filter(|(r, _)| r.intersect)
+        .collect();
+    ordered.sort_by_key(|(r, _)| (r.a, r.b));
+    let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) = ordered.into_iter().unzip();
     let mut out = InsertOut {
         edges: Vec::new(),
         pairs: Vec::new(),
@@ -135,22 +142,32 @@ pub(super) fn insert_null_pairs<T: Decide>(
         // direction is chosen.
         let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
         let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
-        let g0_dir = record_germ_dir(
-            a_body,
-            b_body,
-            &a_sectors[r0.a],
-            &b_sectors[r0.b],
-            declared,
-            band,
-        )?;
-        let g1_dir = record_germ_dir(
-            a_body,
-            b_body,
-            &a_sectors[r1.a],
-            &b_sectors[r1.b],
-            declared,
-            band,
-        )?;
+        // A germ along an edge of BOTH solids runs along that common
+        // edge: its two flankers may be coplanar (an edge-edge germ is
+        // the pair of the two solids' own fold flankers), so the planes'
+        // intersection is not its direction; the A flanker's bound read
+        // On is.
+        let germ_dir = |i: usize, r: &PairRecord| match loci[i] {
+            (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => {
+                let s = &a_sectors[r.a];
+                let bound = if raw[i].sa.0 == SideCode::On {
+                    s.start
+                } else {
+                    s.end
+                };
+                Ok(bound.normalize())
+            }
+            _ => record_germ_dir(
+                a_body,
+                b_body,
+                &a_sectors[r.a],
+                &b_sectors[r.b],
+                declared,
+                band,
+            ),
+        };
+        let g0_dir = germ_dir(i0, r0)?;
+        let g1_dir = germ_dir(i1, r1)?;
         let (a_rec, a_swapped) = mint_directed(
             a_body,
             Operand::A,

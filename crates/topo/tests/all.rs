@@ -121,6 +121,8 @@ mod interval_body;
 mod issue86_double_subtract;
 #[path = "issue93_nested_islands.rs"]
 mod issue93_nested_islands;
+#[path = "join1_r2_topo_probes.rs"]
+mod join1_r2_topo_probes;
 #[path = "join_star_fixture.rs"]
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]
@@ -227,8 +229,6 @@ mod review_m3_pr4;
 mod review_m3_pr5;
 #[path = "review_m3_pr55.rs"]
 mod review_m3_pr55;
-#[path = "join1_r2_topo_probes.rs"]
-mod join1_r2_topo_probes;
 #[path = "review_m3_pr6.rs"]
 mod review_m3_pr6;
 #[path = "review_m4_pr2_transform.rs"]

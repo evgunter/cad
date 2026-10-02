@@ -393,7 +393,7 @@ pub(super) fn bool_connect<T: Decide>(
         // Still-loose halves (choose_roles' separation constraint —
         // a role order must not wall a pending half off from its match
         // partner). The chosen halves themselves are being consumed.
-        let (mut a_loose, mut b_loose) = loose_partners(&open, red, band)?;
+        let (mut a_loose, mut b_loose) = loose_partners(&open, red, &sa, &sb, band)?;
         a_loose.remove(ea);
         a_loose.remove(ra);
         b_loose.remove(eb);
@@ -449,161 +449,142 @@ pub(super) fn bool_connect<T: Decide>(
         use crate::chord_join::{JoinLane, face_azimuth_window};
         use crate::splitting::SplitPlane;
         use geom::Surface as Sf;
-        match (&ga, &gb) {
-            (
-                Sf::Plane {
-                    origin: oa,
-                    normal: na,
-                    ..
-                },
-                Sf::Plane {
-                    origin: ob,
-                    normal: nb,
-                    ..
-                },
-            ) => {
-                // Each side's section is the PARTNER's plane: the chord
-                // runs along the two planes' common line, and a conic
-                // on this side's face boundary (a cap disk's rim) lies
-                // on that section only if it lies in the partner plane.
-                sa.joiner
-                    .join(
+        // A segment along an edge of both solids is that edge in both:
+        // each solid's chord copies its own edge and no section is read
+        // (the germ's two faces may share one carrier).
+        let along_both = matches!(
+            (germ.a_locus, germ.b_locus),
+            (super::Locus::OnEdge(_), super::Locus::OnEdge(_))
+        );
+        if along_both {
+            sa.joiner
+                .join(&mut red.a, a1, a2, JoinLane::AlongEdge, seg_a, tol)
+                .map_err(BooleanError::Join)?;
+            sb.joiner
+                .join(&mut red.b, b1, b2, JoinLane::AlongEdge, seg_b, tol)
+                .map_err(BooleanError::Join)?;
+        } else {
+            match (&ga, &gb) {
+                (Sf::Plane { .. }, Sf::Plane { .. }) => {
+                    // The chord runs along the two planes' common line:
+                    // straight on both sides.
+                    sa.joiner
+                        .join(&mut red.a, a1, a2, JoinLane::Planar, seg_a, tol)
+                        .map_err(BooleanError::Join)?;
+                    sb.joiner
+                        .join(&mut red.b, b1, b2, JoinLane::Planar, seg_b, tol)
+                        .map_err(BooleanError::Join)?;
+                }
+                (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
+                | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => {
+                    let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
+                        .map_err(BooleanError::Join)?
+                        .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                    sa.join_bool_planar(
                         &mut red.a,
-                        a1,
-                        a2,
-                        JoinLane::Planar {
-                            plane: SplitPlane {
-                                origin: *ob,
-                                normal: *nb,
-                            },
-                        },
+                        (a1, a2),
+                        gb.clone(),
+                        window,
+                        germ.b_face,
                         seg_a,
                         tol,
-                    )
-                    .map_err(BooleanError::Join)?;
-                sb.joiner
-                    .join(
+                    )?;
+                    let plane = SplitPlane {
+                        origin: *origin,
+                        normal: *normal,
+                    };
+                    sb.join_split(
                         &mut red.b,
-                        b1,
-                        b2,
-                        JoinLane::Planar {
-                            plane: SplitPlane {
-                                origin: *oa,
-                                normal: *na,
-                            },
-                        },
+                        (b1, b2),
+                        plane,
+                        AuxDatum::Partner(germ.a_face),
                         seg_b,
                         tol,
-                    )
-                    .map_err(BooleanError::Join)?;
-            }
-            (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
-            | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => {
-                let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
-                    .map_err(BooleanError::Join)?
-                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                sa.join_bool_planar(
-                    &mut red.a,
-                    (a1, a2),
-                    gb.clone(),
-                    window,
-                    germ.b_face,
-                    seg_a,
-                    tol,
-                )?;
-                let plane = SplitPlane {
-                    origin: *origin,
-                    normal: *normal,
-                };
-                sb.join_split(
-                    &mut red.b,
-                    (b1, b2),
-                    plane,
-                    AuxDatum::Partner(germ.a_face),
-                    seg_b,
-                    tol,
-                )?;
-            }
-            (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
-            | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
-                let plane = SplitPlane {
-                    origin: *origin,
-                    normal: *normal,
-                };
-                sa.join_split(
-                    &mut red.a,
-                    (a1, a2),
-                    plane,
-                    AuxDatum::Partner(germ.b_face),
-                    seg_a,
-                    tol,
-                )?;
-                let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
-                    .map_err(BooleanError::Join)?
-                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                sb.join_bool_planar(
-                    &mut red.b,
-                    (b1, b2),
-                    ga.clone(),
-                    window,
-                    germ.a_face,
-                    seg_b,
-                    tol,
-                )?;
-            }
-            // **The sphere pair rides its RADICAL PLANE.** Two spheres
-            // meet in a circle lying in the one plane both residuals
-            // agree on, so on each side the section is that sphere cut
-            // by that plane: the wall-side chord lane of the plane×sphere
-            // pair above, run on BOTH sides against the same plane. The
-            // plane is computed from the pair's own C5 Circle, once per
-            // germ, so the two sides' chords are sections of one datum;
-            // each body's aux copy of it is keyed by the two spheres it
-            // depends on ([`AuxDatum::Radical`]). The arc-side rule's
-            // polar premise is the plane×sphere arm's own gate in
-            // `chord_join::section_case`: a radical plane tilted against
-            // either chart's polar axis refuses there, typed.
-            (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
-                let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
-                    Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
-                        center,
-                        axis,
-                        ..
-                    })) => SplitPlane {
-                        origin: center,
-                        normal: axis,
-                    },
-                    Ok(_) => {
-                        return Err(desync("germ pair's sphere×sphere section is not a circle"));
-                    }
-                    Err(geom_brep::SectionError::Escalated(diag)) => {
-                        return Err(BooleanError::coincidence(
-                            Coincide::Section,
-                            DeclarationRead::Moot,
-                            diag,
-                        ));
-                    }
-                    Err(_) => return Err(desync("germ pair's section refused at join time")),
-                };
-                let datum = |own, partner| AuxDatum::Radical { own, partner };
-                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), seg_a, tol)?;
-                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), seg_b, tol)?;
-            }
-            (a_s, b_s) => {
-                // No wired join arm for this germ pair (cyl×cyl's
-                // equal-radius ellipse pair, cyl×sphere's rung-3
-                // fitted chords, plane×NURBS behind PR 7b): typed,
-                // citing the kind whose join arm is missing.
-                let (operand, face, s) = if matches!(a_s, Sf::Plane { .. }) {
-                    (Operand::B, germ.b_face, b_s)
-                } else {
-                    (Operand::A, germ.a_face, a_s)
-                };
-                return Err(BooleanError::CurvedBooleanUnsupported {
-                    operand,
-                    face,
-                    kind: geom_brep::SurfaceKind::of(s),
-                });
+                    )?;
+                }
+                (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
+                | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
+                    let plane = SplitPlane {
+                        origin: *origin,
+                        normal: *normal,
+                    };
+                    sa.join_split(
+                        &mut red.a,
+                        (a1, a2),
+                        plane,
+                        AuxDatum::Partner(germ.b_face),
+                        seg_a,
+                        tol,
+                    )?;
+                    let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
+                        .map_err(BooleanError::Join)?
+                        .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                    sb.join_bool_planar(
+                        &mut red.b,
+                        (b1, b2),
+                        ga.clone(),
+                        window,
+                        germ.a_face,
+                        seg_b,
+                        tol,
+                    )?;
+                }
+                // **The sphere pair rides its RADICAL PLANE.** Two spheres
+                // meet in a circle lying in the one plane both residuals
+                // agree on, so on each side the section is that sphere cut
+                // by that plane: the wall-side chord lane of the plane×sphere
+                // pair above, run on BOTH sides against the same plane. The
+                // plane is computed from the pair's own C5 Circle, once per
+                // germ, so the two sides' chords are sections of one datum;
+                // each body's aux copy of it is keyed by the two spheres it
+                // depends on ([`AuxDatum::Radical`]). The arc-side rule's
+                // polar premise is the plane×sphere arm's own gate in
+                // `chord_join::section_case`: a radical plane tilted against
+                // either chart's polar axis refuses there, typed.
+                (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
+                    let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
+                        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
+                            center,
+                            axis,
+                            ..
+                        })) => SplitPlane {
+                            origin: center,
+                            normal: axis,
+                        },
+                        Ok(_) => {
+                            return Err(desync(
+                                "germ pair's sphere×sphere section is not a circle",
+                            ));
+                        }
+                        Err(geom_brep::SectionError::Escalated(diag)) => {
+                            return Err(BooleanError::coincidence(
+                                Coincide::Section,
+                                DeclarationRead::Moot,
+                                diag,
+                            ));
+                        }
+                        Err(_) => return Err(desync("germ pair's section refused at join time")),
+                    };
+                    let datum = |own, partner| AuxDatum::Radical { own, partner };
+                    sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), seg_a, tol)?;
+                    sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), seg_b, tol)?;
+                }
+                (a_s, b_s) => {
+                    // No wired join arm for this germ pair (cyl×cyl's
+                    // equal-radius ellipse pair, cyl×sphere's rung-3
+                    // fitted chords, plane×NURBS behind PR 7b): typed,
+                    // citing the kind whose join arm is missing.
+                    let (operand, face, s) = if matches!(a_s, Sf::Plane { .. }) {
+                        (Operand::B, germ.b_face, b_s)
+                    } else {
+                        (Operand::A, germ.a_face, a_s)
+                    };
+                    return Err(BooleanError::CurvedBooleanUnsupported {
+                        operand,
+                        face,
+                        kind: geom_brep::SurfaceKind::of(s),
+                    });
+                }
             }
         }
         open[m.entry].a[m.entry_slot].1 = true;
@@ -720,23 +701,12 @@ fn find_match<T: Decide>(
     sb: &SolidJoin,
     band: Band,
 ) -> Result<Option<Match>, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
-        let v = red
-            .a
-            .get_half_edge(he)
-            .ok_or(desync("germ half no longer resolves"))?
-            .start;
-        red.a
-            .get_vertex(v)
-            .and_then(|vd| red.a.get_point(vd.point).copied())
-            .ok_or(desync("germ vertex has no point"))
-    };
     // Unused germ slots of one record side (half tied to germ slot —
     // the mint facing is honest data for every lane, struts included).
     fn slots<T: geom_core::Real>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
         (0..2).filter(|&g| !side[g].1).collect()
     }
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     let mut best: Option<(T, Match)> = None;
     for (cand, rec) in open.iter().enumerate() {
         for (entry, e) in open.iter().enumerate() {
@@ -744,58 +714,11 @@ fn find_match<T: Decide>(
                 continue;
             }
             for &cs in &slots(&rec.a) {
-                let rga = rec.a[cs].0;
-                let r_he = rga.he;
                 for &es in &slots(&e.a) {
-                    let ega = e.a[es].0;
-                    let e_he = ega.he;
-                    if ega.a_locus != rga.a_locus || ega.b_locus != rga.b_locus {
+                    let Some(dist) = partners(open, red, sa, sb, (cand, cs), (entry, es), band)?
+                    else {
                         continue;
-                    }
-                    for (germ, b_germ) in [(rga, rec.b[cs].0), (ega, e.b[es].0)] {
-                        locus_at_site(&red.a, germ.a_locus, germ.he)?;
-                        locus_at_site(&red.b, germ.b_locus, b_germ.he)?;
-                    }
-                    if sa.is_up(&red.a, e_he)? == sa.is_up(&red.a, r_he)? {
-                        continue;
-                    }
-                    // Mutual facing along the germ line (spatially
-                    // shared between the bodies — decided on the A
-                    // clone's coincident copies).
-                    let p_c = point_of(r_he)?;
-                    let p_e = point_of(e_he)?;
-                    let chord = p_e - p_c;
-                    let dist = chord.norm();
-                    let escalate = |diag| {
-                        BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag)
                     };
-                    match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
-                        Sign::Positive => {}
-                        _ => continue, // coincident sites: no polygon edge
-                    }
-                    // Locus-aware mutual facing (fix pass, dev 4):
-                    // straight germ lines take the M3 chord test
-                    // bit-identically; conic germ loci compare
-                    // rotational senses about the section frame.
-                    let frame = germ_section_frame(red, &rga, band)?;
-                    if !germs_face_each_other(frame, &rga, &ega, p_c, p_e, band)? {
-                        continue;
-                    }
-                    // The B side at the SAME slots — mirror checks, not
-                    // freedom: shared-germ loci and the
-                    // anti-correlation theorem make disagreement a
-                    // kernel bug, refused loudly.
-                    let (rgb, egb) = (rec.b[cs].0, e.b[es].0);
-                    if rgb.a_locus != rga.a_locus
-                        || rgb.b_locus != rga.b_locus
-                        || egb.a_locus != ega.a_locus
-                        || egb.b_locus != ega.b_locus
-                    {
-                        return Err(desync("B germ loci differ at matched slots"));
-                    }
-                    if sb.is_up(&red.b, egb.he)? == sb.is_up(&red.b, rgb.he)? {
-                        return Err(desync("B senses agree at a matched pair"));
-                    }
                     let m = Match {
                         entry,
                         cand,
@@ -820,9 +743,93 @@ fn find_match<T: Decide>(
     Ok(best.map(|(_, m)| m))
 }
 
+/// **Whether two unused germ slots are match partners** — the one
+/// criterion [`find_match`] pairs on and [`loose_partners`] counts
+/// partners with, so the separation constraint sees the partners the
+/// matcher will take: the A germs carry the SAME loci, each `OnEdge`
+/// locus at its own site ([`locus_at_site`]); the two halves' senses
+/// oppose in A; the sites are distinct (`bool_join_chord`) and FACE
+/// each other along the germ line (the locus-aware facing); and the B
+/// germs at the same slots mirror them — same loci, opposed senses —
+/// or the join has desynced. `Some(chord length)` when they are
+/// partners. Two slots of one record never are.
+fn partners<T: Decide>(
+    open: &[OpenRecord<T>],
+    red: &BooleanReduction<T>,
+    sa: &SolidJoin,
+    sb: &SolidJoin,
+    (cand, cs): (usize, usize),
+    (entry, es): (usize, usize),
+    band: Band,
+) -> Result<Option<T>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    if cand == entry {
+        return Ok(None);
+    }
+    let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
+        let v = red
+            .a
+            .get_half_edge(he)
+            .ok_or(desync("germ half no longer resolves"))?
+            .start;
+        red.a
+            .get_vertex(v)
+            .and_then(|vd| red.a.get_point(vd.point).copied())
+            .ok_or(desync("germ vertex has no point"))
+    };
+    let (rec, e) = (&open[cand], &open[entry]);
+    let (rga, ega) = (rec.a[cs].0, e.a[es].0);
+    if ega.a_locus != rga.a_locus || ega.b_locus != rga.b_locus {
+        return Ok(None);
+    }
+    for (germ, b_germ) in [(rga, rec.b[cs].0), (ega, e.b[es].0)] {
+        locus_at_site(&red.a, germ.a_locus, germ.he)?;
+        locus_at_site(&red.b, germ.b_locus, b_germ.he)?;
+    }
+    if sa.is_up(&red.a, ega.he)? == sa.is_up(&red.a, rga.he)? {
+        return Ok(None);
+    }
+    // Mutual facing along the germ line (spatially shared between the
+    // bodies — decided on the A clone's coincident copies).
+    let p_c = point_of(rga.he)?;
+    let p_e = point_of(ega.he)?;
+    let dist = (p_e - p_c).norm();
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
+    match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
+        Sign::Positive => {}
+        _ => return Ok(None), // coincident sites: no polygon edge
+    }
+    // Locus-aware mutual facing (fix pass, dev 4): straight germ lines
+    // take the M3 chord test bit-identically; conic germ loci compare
+    // rotational senses about the section frame.
+    let frame = germ_section_frame(red, &rga, band)?;
+    if !germs_face_each_other(frame, &rga, &ega, p_c, p_e, band)? {
+        return Ok(None);
+    }
+    // The B side at the SAME slots — mirror checks, not freedom:
+    // shared-germ loci and the anti-correlation theorem make
+    // disagreement a kernel bug, refused loudly.
+    let (rgb, egb) = (rec.b[cs].0, e.b[es].0);
+    if rgb.a_locus != rga.a_locus
+        || rgb.b_locus != rga.b_locus
+        || egb.a_locus != ega.a_locus
+        || egb.b_locus != ega.b_locus
+    {
+        return Err(desync("B germ loci differ at matched slots"));
+    }
+    if sb.is_up(&red.b, egb.he)? == sb.is_up(&red.b, rgb.he)? {
+        return Err(desync("B senses agree at a matched pair"));
+    }
+    Ok(Some(dist))
+}
+
 /// An `OnEdge` germ's edge runs from the germ's site: one of its ends
-/// is an end of the null half facing the germ. A locus naming an edge
-/// anywhere else is a kernel bug, refused before it is matched on.
+/// is a vertex of the site the null half facing the germ belongs to —
+/// the copies null edges tie its ends to
+/// ([`crate::chord_join::null_site`]); at a site holding several null
+/// edges the edge may hang on another copy than this half's. A locus
+/// naming an edge anywhere else is a kernel bug, refused before it is
+/// matched on.
 fn locus_at_site<T: Decide>(
     body: &Body<T>,
     locus: super::Locus,
@@ -837,11 +844,14 @@ fn locus_at_site<T: Decide>(
             .map(|d| d.start)
             .ok_or(desync("germ half no longer resolves"))
     };
-    let site = [
-        start(he)?,
-        body.half_edge_end(he)
-            .ok_or(desync("germ half no longer resolves"))?,
-    ];
+    let site = crate::chord_join::null_site(
+        body,
+        &[
+            start(he)?,
+            body.half_edge_end(he)
+                .ok_or(desync("germ half no longer resolves"))?,
+        ],
+    );
     let e = body
         .get_edge(edge)
         .ok_or(desync("an OnEdge germ's edge no longer resolves"))?;
@@ -874,6 +884,27 @@ fn germ_section_frame<T: Decide>(
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
+    // A germ along an edge of both solids lies on that edge: its frame
+    // is the edge's own curve (a line is straight, a circle or an
+    // ellipse turns about its centre and axis), whatever the two faces
+    // the germ was recorded against — which may share one carrier.
+    if let (super::Locus::OnEdge(edge), super::Locus::OnEdge(_)) = (germ.a_locus, germ.b_locus) {
+        let curve = red
+            .a
+            .get_edge(edge)
+            .and_then(|e| red.a.get_curve_geom(e.curve))
+            .and_then(crate::null::CurveGeom::certified)
+            .ok_or(desync("an OnEdge germ's edge carries no certified curve"))?;
+        return match *curve.carrier() {
+            geom::Curve3::Line { .. } => Ok(None),
+            geom::Curve3::Circle { center, axis, .. }
+            | geom::Curve3::Ellipse { center, axis, .. } => Ok(Some((center, axis))),
+            _ => Err(desync(
+                "an OnEdge germ's edge is neither a line nor a conic (the operand gates refuse \
+                 the kinds)",
+            )),
+        };
+    }
     let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
         body.get_face(f)
             .and_then(|fd| body.get_surface(fd.surface))
@@ -1413,8 +1444,8 @@ pub(super) fn germs_face_each_other<T: Decide>(
 type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 
 /// Still-unused null-edge halves, each mapped to its geometric MATCH
-/// PARTNER's half in the same solid: the nearest mutually-facing loose
-/// germ with the same loci — [`find_match`]'s own criteria,
+/// PARTNER's half in the same solid: the nearest loose germ that is its
+/// partner by [`partners`] — [`find_match`]'s own criterion,
 /// static in the germ geometry, so a captured partner PAIR can still
 /// join (same face) while splitting a pair walls one side off. Germ
 /// meta is shared between the solids, so the (record, slot) partner
@@ -1424,21 +1455,11 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 fn loose_partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
+    sa: &SolidJoin,
+    sb: &SolidJoin,
     band: Band,
 ) -> Result<(LooseMap, LooseMap), BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
     let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
-    let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
-        let v = red
-            .a
-            .get_half_edge(he)
-            .ok_or(desync("germ half no longer resolves"))?
-            .start;
-        red.a
-            .get_vertex(v)
-            .and_then(|vd| red.a.get_point(vd.point).copied())
-            .ok_or(desync("germ vertex has no point"))
-    };
     let loose: Vec<(usize, usize)> = open
         .iter()
         .enumerate()
@@ -1447,31 +1468,14 @@ fn loose_partners<T: Decide>(
     let mut a_map: LooseMap = SecondaryMap::new();
     let mut b_map: LooseMap = SecondaryMap::new();
     for &(i, s) in &loose {
-        let g = open[i].a[s].0;
-        let p = point_of(g.he)?;
         let mut best: Option<(T, (usize, usize))> = None;
         for &(j, t) in &loose {
-            if (j, t) == (i, s) {
+            // The matcher's own criterion ([`partners`]): the separation
+            // constraint must count partners with the matcher's eyes or
+            // roles get walled off wrongly.
+            let Some(dist) = partners(open, red, sa, sb, (i, s), (j, t), band)? else {
                 continue;
-            }
-            let g2 = open[j].a[t].0;
-            if g2.a_locus != g.a_locus || g2.b_locus != g.b_locus {
-                continue;
-            }
-            let p2 = point_of(g2.he)?;
-            let chord = p2 - p;
-            let dist = chord.norm();
-            match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
-                Sign::Positive => {}
-                _ => continue,
-            }
-            // The SAME locus-aware facing as find_match (dev 4): the
-            // separation constraint must count partners with the
-            // matcher's own eyes or roles get walled off wrongly.
-            let frame = germ_section_frame(red, &g, band)?;
-            if !germs_face_each_other(frame, &g, &g2, p, p2, band)? {
-                continue;
-            }
+            };
             best = match best {
                 None => Some((dist, (j, t))),
                 Some((bd, bm)) => {
@@ -1485,7 +1489,7 @@ fn loose_partners<T: Decide>(
             };
         }
         let partner = best.map(|(_, jt)| jt);
-        a_map.insert(g.he, partner.map(|(j, t)| open[j].a[t].0.he));
+        a_map.insert(open[i].a[s].0.he, partner.map(|(j, t)| open[j].a[t].0.he));
         b_map.insert(open[i].b[s].0.he, partner.map(|(j, t)| open[j].b[t].0.he));
     }
     Ok((a_map, b_map))

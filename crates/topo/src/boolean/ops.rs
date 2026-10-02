@@ -1773,7 +1773,12 @@ pub(super) fn describe_minted_edges<T: Decide>(
                         !(c.surface == s1 && c.surface == s2)
                     }
                     geom_brep::EdgeDescription::Chart(c) => !(c.surface == s1 || c.surface == s2),
-                    geom_brep::EdgeDescription::Scaffold(_) => false,
+                    // A scaffold at rest is fenced whatever it names (the
+                    // split finish restates it the same way): a minted
+                    // chord that comes to rest on a smooth seam — an
+                    // edge-edge segment both solids folded In, kept by ∪
+                    // between two coplanar faces — is described here.
+                    geom_brep::EdgeDescription::Scaffold(_) => true,
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order, exactly as the tier-3

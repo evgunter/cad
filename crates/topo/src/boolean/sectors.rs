@@ -815,6 +815,33 @@ pub(super) fn fold_on_bound(before: SideCode, after: SideCode) -> SideCode {
     }
 }
 
+/// One of an on-bound's two flanking sectors, in orbit order: `Before`
+/// holds the bound as its START, `After` as its END.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Flank {
+    /// The flanker holding the on-bound as its start.
+    Before,
+    /// The flanker holding the on-bound as its end.
+    After,
+}
+
+/// **Where [`fold_on_bound`] puts the crossing** at an on-bound whose
+/// flankers' other bounds read `before` and `after`: on the flanker
+/// whose key is not the fold, since the on-bound joins the run its
+/// fold names and the transition lies across that flanker. `None` when
+/// both keys read the fold: the run goes on through the bound and
+/// nothing crosses there. Every attribution of a crossing along an
+/// edge calls this: the vertex-vertex edge-sector and edge-edge
+/// resolutions ([`super::recl`]).
+pub(super) fn crossing_flank(before: SideCode, after: SideCode) -> Option<Flank> {
+    let fold = fold_on_bound(before, after);
+    match (before == fold, after == fold) {
+        (true, false) => Some(Flank::After),
+        (false, true) => Some(Flank::Before),
+        _ => None,
+    }
+}
+
 /// **The cell a germ lies in** ([`super::Locus`]), derived from the
 /// sector the germ was attributed to and its bounds' readings against
 /// the partner face as first read, before any rewrite. The germ ray is

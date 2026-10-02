@@ -17,7 +17,9 @@ fn zprism(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
     let lp = bulge_loop(pts.iter().map(|&(a, b)| (Point2::new(a, b), 0.0)).collect());
     let p = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(&p, Extrusion::Distance(z.1 - z.0), tol()).unwrap().body
+    extrude(&p, Extrusion::Distance(z.1 - z.0), tol())
+        .unwrap()
+        .body
 }
 
 fn hull(mut p: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
@@ -190,12 +192,12 @@ fn r2_rand_seed2_case390() {
                     Some(bb) => {
                         let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
                         println!(
-                        "[r2-390] {ord} {op}: BUILDS vol {:?} want {want}; t2 {:?}; t3' {:?}; cert {:?}",
-                        topo::mass_properties(&bb.body, tol()).map(|m| m.volume),
-                        topo::validate_closed(&bb.body),
-                        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
-                        topo::validate_geometric_certificate(&bb.body, tol()).map(|_| ()),
-                    );
+                            "[r2-390] {ord} {op}: BUILDS vol {:?} want {want}; t2 {:?}; t3' {:?}; cert {:?}",
+                            topo::mass_properties(&bb.body, tol()).map(|m| m.volume),
+                            topo::validate_closed(&bb.body),
+                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                            topo::validate_geometric_certificate(&bb.body, tol()).map(|_| ()),
+                        );
                         bad.extend(t3.err().map(|e| format!("{ord} {op}: tier 3′ {e:?}")));
                     }
                 },

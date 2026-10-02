@@ -2655,6 +2655,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         )?;
         recl::recl_edges(
             &mut records,
+            &mut raw,
             &a_sectors,
             &b_sectors,
             &a,

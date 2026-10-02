@@ -1,4 +1,4 @@
-//! **The torus doors of a union, up to the join** — the dumbbell with a
+//! **The torus doors of a union, through the join** — the dumbbell with a
 //! torus waist, walked door by door.
 //!
 //! The fixture is two halves of a dumbbell, each a FULL revolve about
@@ -40,9 +40,10 @@
 //! torus × plane arm; the sweep traces, which stop before that, are
 //! what those rows read.
 //!
-//! Past every torus door the union stops at the chord join, exactly
-//! where the same dumbbell with a CYLINDER handle stops — the control
-//! row says so, and the stop is not a torus door.
+//! Past every torus door the union builds, as the same dumbbell with a
+//! CYLINDER handle does — the control row says so: the joint's seam
+//! semicircles are edges of both halves, and the chord join copies them
+//! (JOIN-1).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -55,8 +56,8 @@ use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::{Revolution, revolve};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, ContactClass, EulerOpError, FaceContainment, FaceKey,
-    FacePairDeclaration, SplitJoinError,
+    Body, BooleanDeclarations, BooleanError, ContactClass, FaceContainment, FaceKey,
+    FacePairDeclaration,
 };
 
 /// The waist's tube.
@@ -264,18 +265,21 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_once_premerged() {
 /// What admission must NOT do is turn a torus pair nobody vouched for
 /// into a body: undeclared, the coincident waists still refuse typed —
 /// at the circle rung, where the sampled clearance is what it is and no
-/// declared cover exists to take the endpoint posture.
+/// declared cover exists to take the endpoint posture. Declared, the
+/// union builds (`the_torus_waisted_union_builds_like_the_cylinder_control`).
 #[test]
 fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    for class in [None, Some(ContactClass::Rest)] {
-        let err = topo::union_with(&a, &b, &declarations(&a, &b, class), Tol::witness())
-            .expect_err("no torus union builds a body yet");
-        assert!(
-            !matches!(err, BooleanError::CurvedPairUnsupported { .. }),
-            "the gate must admit the torus ({class:?}): {err:?}"
-        );
-    }
+    let built = topo::union_with(
+        &a,
+        &b,
+        &declarations(&a, &b, Some(ContactClass::Rest)),
+        Tol::witness(),
+    );
+    assert!(
+        !matches!(built, Err(BooleanError::CurvedPairUnsupported { .. })),
+        "the gate must admit the torus: {built:?}"
+    );
     let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
         .expect_err("an undeclared coincident torus pair must refuse");
     let BooleanError::CurvedPierceUnsupported { operand, face, .. } = err else {
@@ -365,16 +369,14 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
 /// **The declared waists pass the crossing layer.** With both waist
 /// pairs declared `Rest`, the seam meridian reaches the declared-cover
 /// rung through the carrier identity, and neither the circle rung's
-/// frontier nor its escalation is what the union answers.
+/// frontier nor its escalation is what the union answers: it builds.
 #[test]
 fn the_declared_waists_pass_the_circle_rung() {
-    let err = t2(Handle::Torus).expect_err("the union still stops downstream");
+    let built = t2(Handle::Torus);
     assert!(
-        !matches!(
-            err,
-            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
-        ),
-        "the carrier-identity rung must carry the declared waists past the circle rung: {err:?}"
+        built.is_ok(),
+        "the carrier-identity rung must carry the declared waists past the circle rung: \
+         {built:?}"
     );
 }
 
@@ -750,43 +752,55 @@ fn three_face_cylinder() -> Body<f64> {
 // Door 4, the sector walk, and where the union stops.
 // -------------------------------------------------------------------
 
-/// **Past every torus door, the union stops in the join, as the
-/// cylinder-handled dumbbell does.** The torus-waisted union used to
-/// refuse `CurvedBooleanUnsupported { kind: Torus }` at the sector walk;
-/// with the torus arm it reaches the chord join. The joint's seam
+/// **Past every torus door, the union builds, as the cylinder-handled
+/// dumbbell does.** The torus-waisted union used to refuse
+/// `CurvedBooleanUnsupported { kind: Torus }` at the sector walk; with
+/// the torus arm it reaches the chord join. The joint's seam
 /// semicircles are edges of both halves, and each section segment along
 /// one names that edge on both operands at both of its ends, so the
-/// join matches them. The torus handle then stops at the match's
-/// section frame, which has no torus×plane arm; the straight cylinder
-/// handle, under the same declarations, stops in its first chord: no
-/// germ record at the seam's edge-edge sites folds the seam into the In
-/// run, so the two ends of a segment put their null edges into
-/// different flanks, and the chord's two halves are on two faces
-/// (`NotSameFace`). The declared-REST zip that takes over a refused
-/// declared union does not get past either. Neither stop is a torus
-/// door (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
+/// join matches them; at their edge-edge sites each half folds the seam
+/// by its own membership (the one fold rule), and each half's chord is
+/// a copy of its own semicircle, so neither the torus×plane section
+/// frame nor the face pair the germ was recorded against is read. The
+/// union is the two halves, which only touch: `vol(a) + vol(b)`, sound
+/// at every tier (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
 #[test]
-fn the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control() {
-    let err = t2(Handle::Torus).expect_err("the dumbbell's joint does not zip yet");
-    assert!(
-        matches!(
-            err,
-            BooleanError::GermFrameUnsupported {
-                a_kind: geom_brep::SurfaceKind::Torus,
-                b_kind: geom_brep::SurfaceKind::Plane,
-                ..
-            }
-        ),
-        "torus: {err:?}"
-    );
-    let err = t2(Handle::Cylinder).expect_err("the dumbbell's joint does not zip yet");
-    assert!(
-        matches!(
-            err,
-            BooleanError::Join(SplitJoinError::Euler(EulerOpError::NotSameFace { .. }))
-        ),
-        "cylinder: {err:?}"
-    );
+fn the_torus_waisted_union_builds_like_the_cylinder_control() {
+    for handle in [Handle::Torus, Handle::Cylinder] {
+        let (a, b) = (half(1.0, handle), half(-1.0, handle));
+        let want = [&a, &b]
+            .map(|h| topo::mass_properties(h, Tol::witness()).unwrap().volume)
+            .iter()
+            .sum::<f64>();
+        let r = t2(handle).unwrap_or_else(|e| panic!("{handle:?}: the dumbbell builds: {e:?}"));
+        let bb = r.body().unwrap_or_else(|| panic!("{handle:?}: a body"));
+        assert_eq!(
+            topo::validate_closed(&bb.body),
+            Ok(()),
+            "{handle:?}: tier 2"
+        );
+        assert_eq!(
+            topo::validate_geometric(&bb.body, Tol::witness()),
+            Ok(()),
+            "{handle:?}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+            Ok(()),
+            "{handle:?}: tier 3′"
+        );
+        assert!(
+            topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+            "{handle:?}: the at-rest certificate"
+        );
+        let v = topo::mass_properties(&bb.body, Tol::witness())
+            .unwrap()
+            .volume;
+        assert!(
+            (v - want).abs() < 1e-9,
+            "{handle:?}: the halves only touch, so the union is their sum: {v} against {want}"
+        );
+    }
 }
 
 // -------------------------------------------------------------------

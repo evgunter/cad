@@ -1,10 +1,10 @@
 //! **Box cuts of a cylinder whose cutter face meets a cap along a chord
 //! with ONE rim arc between its ends.** The chord's two ends are then
-//! adjacent on the cap's loop, and the plane×plane join lane asks the
-//! rim arc between them whether it IS the section segment — a conic
-//! edge on a planar face, answered against the partner germ plane.
-//! It never is (a circle or ellipse arc meets that plane only at its
-//! ends), so the chord is minted.
+//! adjacent on the cap's loop, and the join's adjacency skip asks
+//! whether the rim arc between them IS the section segment. On the
+//! boolean lanes that is structural: the segment is that edge only when
+//! the matched germs' locus names it, and a chord across the cap lies
+//! inside the cap, so the arc is never it and the chord is minted.
 //!
 //! The rod is `r = 0.5` about `z` over `z ∈ [0, 4]`, an extruded
 //! circle: two semicircles meeting at `(±0.5, 0)`, so its wall carries

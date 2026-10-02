@@ -382,8 +382,9 @@ fn a_multi_spike_shared_corner_vertex() {
     .body;
     // A shared corner VERTEX of z-parallel prisms puts AB's vertical
     // corner edge along C's: the section segment up that edge names the
-    // edge at both ends in both solids, and the corner site's germs fold
-    // the edge into the In run alike at both ends, so the joint builds.
+    // edge at both ends in both solids, and each solid folds the edge
+    // into its In run by its own membership at both ends, so the joint
+    // builds.
     match topo::intersect_with(
         &ab,
         &c,
@@ -392,6 +393,15 @@ fn a_multi_spike_shared_corner_vertex() {
     ) {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
+            assert_eq!(
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+                Ok(()),
+                "tier 3′"
+            );
+            assert!(
+                topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+                "the at-rest certificate"
+            );
             assert_eq!(vol(&bb.body), 0.5, "corner-vertex meet EXACT");
         }
         Ok(BooleanResult::Empty) => panic!("nonempty overlap"),
