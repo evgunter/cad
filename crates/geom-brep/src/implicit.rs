@@ -2075,3 +2075,138 @@ mod arc_clearance_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod conic_tests {
+    //! The ellipse readings of the conic algebra, each against the
+    //! residual evaluated pointwise at the carrier's own points — never
+    //! against the harmonics' algebra itself.
+
+    use core::f64::consts::TAU;
+
+    use super::*;
+
+    /// Unit, orthogonal frames at several tilts and eccentricities.
+    fn ellipses() -> Vec<Conic<f64>> {
+        let frame = |n: [f64; 3], u: [f64; 3]| {
+            let n = Vec3::from_array(n).normalize();
+            let u = Vec3::from_array(u);
+            let u = (u - n * u.dot(n)).normalize();
+            (n, u)
+        };
+        [
+            ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.1, -0.2, 0.3], 0.6, 0.25),
+            ([0.3, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.5], 0.5234, 0.5),
+            ([1.0, 2.0, 0.5], [0.0, 1.0, 1.0], [0.4, 0.1, -0.2], 0.9, 0.3),
+            ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.2, 0.0, 0.1], 0.4, 0.39),
+        ]
+        .into_iter()
+        .map(|(n, u, c, major, minor)| {
+            let (axis, u_ref) = frame(n, u);
+            Conic {
+                center: Point3::from_array(c),
+                axis,
+                u_ref,
+                major,
+                minor,
+            }
+        })
+        .collect()
+    }
+
+    /// One surface of every kind with an enclosure.
+    fn surfaces() -> Vec<Surface<f64>> {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        vec![
+            Surface::Sphere {
+                center: Point3::new(0.2, 0.1, 0.3),
+                radius: 0.45,
+                axis: z,
+                u_ref: x,
+            },
+            Surface::Cylinder {
+                origin: Point3::new(0.0, 0.3, 0.0),
+                axis: Vec3::new(0.2, 0.0, 1.0).normalize(),
+                radius: 0.5,
+                u_ref: Vec3::new(1.0, 0.0, -0.2).normalize(),
+            },
+            Surface::Torus {
+                center: Point3::new(0.1, 0.0, 0.2),
+                axis: Vec3::new(0.0, 0.3, 1.0).normalize(),
+                major_radius: 0.8,
+                minor_radius: 0.25,
+                u_ref: x,
+            },
+        ]
+    }
+
+    /// The sphere and cylinder residuals along an ellipse ARE the
+    /// degree-2 trigonometric polynomial: at every sampled parameter the
+    /// harmonics agree with the residual of the point to rounding.
+    #[test]
+    fn the_harmonics_are_the_residual_along_an_ellipse() {
+        for (i, conic) in ellipses().iter().enumerate() {
+            for s in &surfaces()[..2] {
+                let h = match *s {
+                    Surface::Sphere { center, radius, .. } => {
+                        conic_sphere_harmonics(conic, center, radius)
+                    }
+                    Surface::Cylinder {
+                        origin,
+                        axis,
+                        radius,
+                        ..
+                    } => conic_cylinder_harmonics(conic, origin, axis, radius),
+                    _ => unreachable!(),
+                };
+                for k in 0..360 {
+                    let t = TAU * f64::from(k) / 360.0;
+                    let poly = h.c0
+                        + h.c1 * t.cos()
+                        + h.s1 * t.sin()
+                        + h.c2 * (2.0 * t).cos()
+                        + h.s2 * (2.0 * t).sin();
+                    let direct = implicit_residual(s, conic.point(t));
+                    assert!(
+                        (poly - direct).abs() < 1e-14,
+                        "ellipse {i} against {s:?} at θ = {t}: {poly} vs {direct}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **The enclosures enclose, on an ellipse**: over arcs of several
+    /// spans, the arc range and the whole-carrier extremes hold every
+    /// one of a dense run of pointwise residuals — the torus arm's
+    /// curvature bound read at the semi-major axis included.
+    #[test]
+    fn the_arc_enclosures_hold_a_dense_ellipse_sampling() {
+        for (i, conic) in ellipses().iter().enumerate() {
+            for s in &surfaces() {
+                let (lo, hi) = conic_residual_extremes(s, conic).expect("an enclosure");
+                for (t0, span) in [(0.0, TAU), (0.4, 1.3), (-2.0, 0.2), (2.5, 3.0)] {
+                    let t1 = t0 + span;
+                    let (alo, ahi) =
+                        conic_arc_residual_range(s, conic, t0, t1).expect("an enclosure");
+                    for k in 0..=20_000 {
+                        let t = t0 + span * f64::from(k) / 20_000.0;
+                        let r = implicit_residual(s, conic.point(t));
+                        assert!(
+                            alo <= r && r <= ahi,
+                            "ellipse {i} against {s:?} on [{t0}, {t1}] at {t}: {r} outside \
+                             the arc's [{alo}, {ahi}]"
+                        );
+                        assert!(
+                            lo <= r && r <= hi,
+                            "ellipse {i} against {s:?} at {t}: {r} outside the carrier's \
+                             [{lo}, {hi}]"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
