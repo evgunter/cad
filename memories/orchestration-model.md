@@ -145,6 +145,10 @@ Ev's standing instructions for implementation work:
   for more than a few seconds, you may combine the work in flight
   into a single PR. Anything that waits on Ev keeps its own PR, so it cannot
   hold the rest hostage.
+- **Lanes may run in their own cloud sessions (Ev, 2026-10-02)**:
+  when this container's CPU, RAM or disk is the constraint, or to run
+  more lanes in parallel than one container holds, launch a lane as
+  its own Claude Code Remote session rather than as a subagent here.
 - **Friction is a finding (Ev, 2026-09-28)** — say so when something
   slows you down. The bars: CI takes 15 min at most and typically
   under 10, and so does any local development step; binaries are
