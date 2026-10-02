@@ -891,8 +891,7 @@ impl core::fmt::Display for SsiError {
                 f,
                 "ssi: {side} lies within the tolerance of the plane, and the wall's certified \
                  slope across it does not clear the tolerance band (slope margin {} m): the \
-                 surfaces may be tangent along that edge, which is not shown, and the pass does \
-                 not report a region there",
+                 surfaces may be tangent along that edge, and no region is reported there",
                 verdict.margin_text()
             ),
             Self::EndNotOnLocus { side, bracket } => write!(
@@ -1106,7 +1105,7 @@ impl SsiError {
                 | FitError::Lsq(_),
             ) => Unsized::LastResort.recourse(RefusedArm::SignCertain, reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
-            Self::BoundaryGraze { verdict, .. } => GRAZE.recourse(verdict.arm(), reading),
+            Self::BoundaryGraze { side, verdict, .. } => graze_recourse(*side, verdict, reading),
             // The surfaces' tangency along the side: the march's own
             // transversality decision, read across the wall's edge.
             Self::BoundaryTangent { verdict, .. } => {
@@ -1558,15 +1557,31 @@ pub(crate) const TRACE_UNRESOLVED_RECOURSE: &str = "Recourse: for a curve longer
      intersection clear of its faces";
 
 /// The graze decision (`ssi_boundary_crossing`): a crossing of a
-/// boundary curve passes on a slope clear of the band. The payload names
-/// the side.
+/// boundary curve passes on a slope clear of the band. On a wall's
+/// side, [`graze_recourse`] names the side in its lever.
 const GRAZE: SizedDecision = SizedDecision {
-    lever: "move the plane or the wall so the intersection crosses that side at a clear angle",
+    lever: "move the plane or the curve so they cross at a clear angle",
     size: "crossing angle",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
+
+/// What [`graze_recourse`] replaces with the side's name.
+const GRAZE_SIDE: &str = "the plane or the curve so they cross";
+
+/// The graze's ending, its lever naming `side` where the curve is one.
+fn graze_recourse(side: Option<ChartSide>, verdict: &BandVerdict, reading: Reading) -> String {
+    let text = GRAZE.recourse(verdict.arm(), reading);
+    match side {
+        Some(side) => text.replacen(
+            GRAZE_SIDE,
+            &format!("the plane or the wall so the intersection crosses {side}"),
+            1,
+        ),
+        None => text,
+    }
+}
 
 /// A short branch's candidate the certificate refused
 /// ([`SsiError::ShortBranchUncertified`]): its length is a size the user
