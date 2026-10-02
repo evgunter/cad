@@ -3813,7 +3813,12 @@ fn verify_seam_declaration<T: Decide>(
                 radius: rim.radius,
                 u_ref: rim.u_ref,
             };
-            (circle, T::zero(), T::from_f64(core::f64::consts::TAU), Some(rim))
+            (
+                circle,
+                T::zero(),
+                T::from_f64(core::f64::consts::TAU),
+                Some(rim),
+            )
         }
     };
     // 3. The C4 `Tangent` table, B's sense reversed.

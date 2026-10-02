@@ -1,6 +1,6 @@
 //! The wire form of a contact class — the mate node's `class` field
 //! and, through [`pairs`], a [`Node::Declare`](crate::Node) payload's
-//! coincidences (a contact class, or `continuation`). ONE vocabulary,
+//! coincidences (a contact class, `continuation` or `seam`). ONE vocabulary,
 //! one wire spelling of it, one table (ASM-R2a D-1).
 //!
 //! Lowercase because the class vocabulary was minted straight into a
@@ -154,11 +154,13 @@ pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ContactCla
 }
 
 /// The wire spelling of a boolean node's coincidence: a contact under
-/// its class's spelling ([`tag`]), the continuation as `continuation`.
+/// its class's spelling ([`tag`]), the continuation as `continuation`
+/// and the seam as `seam`.
 fn coincidence_tag(c: BooleanCoincidence) -> Option<&'static str> {
     match c {
         BooleanCoincidence::Contact(class) => tag(class),
         BooleanCoincidence::Continuation => Some("continuation"),
+        BooleanCoincidence::Seam => Some("seam"),
     }
 }
 

@@ -221,11 +221,7 @@ fn tube_and_half_ball_volume() -> f64 {
 
 /// The walls of `x` and `y` declared under `class`, and their discs at
 /// `z = H` declared `Rest`, in `x`'s operand order.
-fn walls_and_discs(
-    x: &Body<f64>,
-    y: &Body<f64>,
-    class: BooleanCoincidence,
-) -> BooleanDeclarations {
+fn walls_and_discs(x: &Body<f64>, y: &Body<f64>, class: BooleanCoincidence) -> BooleanDeclarations {
     let curved = |b: &Body<f64>| {
         let mut f = faces_of(b, SurfaceKind::Cylinder);
         f.extend(faces_of(b, SurfaceKind::Sphere));
@@ -274,7 +270,11 @@ fn the_sphere_capped_tube_builds_with_its_walls_declared_a_seam() {
     let want = tube_and_half_ball_volume();
     for (label, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
         let d = walls_and_discs(x, y, BooleanCoincidence::Seam);
-        assert_eq!(d.coincident_faces.len(), 5, "{label}: two by two walls, one disc pair");
+        assert_eq!(
+            d.coincident_faces.len(),
+            5,
+            "{label}: two by two walls, one disc pair"
+        );
         let r = topo::union_with(x, y, &d, tol);
         let body = match &r {
             Ok(BooleanResult::Body(b)) => b.body.clone(),
@@ -290,9 +290,17 @@ fn the_sphere_capped_tube_builds_with_its_walls_declared_a_seam() {
             (5, 8, 5, 1),
             "{label}: two walls, two sphere faces, the floor disc"
         );
-        assert_eq!(records, [0, 0, 0, 0], "{label}: no contact survives a union");
+        assert_eq!(
+            records,
+            [0, 0, 0, 0],
+            "{label}: no contact survives a union"
+        );
         let rims = tangent_intersections(&body);
-        assert_eq!(rims.len(), 2, "{label}: the rim's two semicircles: {rims:?}");
+        assert_eq!(
+            rims.len(),
+            2,
+            "{label}: the rim's two semicircles: {rims:?}"
+        );
         for k in rims {
             let geom::Curve3::Circle { center, radius, .. } = carrier_of(&body, k) else {
                 panic!("{label}: the rim is a circle");
@@ -376,14 +384,28 @@ fn the_sphere_capped_tube_refuses_undeclared_and_under_every_other_class() {
         let BooleanError::ContactContradicted { margin, .. } = &e else {
             panic!("the walls declared Rest: contradicted: {e:?}");
         };
-        assert_eq!(margin.predicate, Some("carrier_kind"), "on carrier kind: {e}");
+        assert_eq!(
+            margin.predicate,
+            Some("carrier_kind"),
+            "on carrier kind: {e}"
+        );
         let e = run(BooleanCoincidence::Continuation).expect_err("a continuation refuses");
         let BooleanError::ContinuationContradicted { margin, .. } = &e else {
             panic!("the walls declared a continuation: contradicted: {e:?}");
         };
-        assert_eq!(margin.predicate, Some("carrier_kind"), "on carrier kind: {e}");
+        assert_eq!(
+            margin.predicate,
+            Some("carrier_kind"),
+            "on carrier kind: {e}"
+        );
     }
-    for e in union_both_orders(&tube, &hemi, &cap_t, &cap_h, Some(BooleanCoincidence::TANGENT)) {
+    for e in union_both_orders(
+        &tube,
+        &hemi,
+        &cap_t,
+        &cap_h,
+        Some(BooleanCoincidence::TANGENT),
+    ) {
         assert!(
             matches!(e, BooleanError::ContactContradicted { .. }),
             "the cap discs declared Tangent: one plane, contradicted: {e:?}"
@@ -778,7 +800,13 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
     let mut flats = planes_at_z(&slab, 0.5);
     flats.extend(planes_at_z(&slab, -0.5));
     let walls = faces_of(&rod, SurfaceKind::Cylinder);
-    for e in union_both_orders(&slab, &rod, &flats, &walls, Some(BooleanCoincidence::TANGENT)) {
+    for e in union_both_orders(
+        &slab,
+        &rod,
+        &flats,
+        &walls,
+        Some(BooleanCoincidence::TANGENT),
+    ) {
         let BooleanError::ContactContradicted { margin, .. } = &e else {
             panic!("declared Tangent: contradicted: {e:?}");
         };
@@ -788,7 +816,7 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
             "the seam's outward normals agree, which the witness lane reads as \
              containment: {e}"
         );
-    }    // Declared a `Seam`, the same lane verifies it along the ruling with
+    } // Declared a `Seam`, the same lane verifies it along the ruling with
     // the sense bit reversed. Undeclared, the rod's end discs are flush
     // continuations of the slab's sides; declared, the union stops at
     // the curved coplanar-lump site, whose second-order arm reads a
@@ -809,11 +837,16 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
         for (ex, yx) in ends(x) {
             for (ey, yy) in ends(y) {
                 if (yx - yy).abs() < 1e-12 {
-                    d.coincident_faces.push(FacePairDeclaration::continuation(ex, ey));
+                    d.coincident_faces
+                        .push(FacePairDeclaration::continuation(ex, ey));
                 }
             }
         }
-        assert_eq!(d.coincident_faces.len(), 6, "two flats by two walls, two flush ends");
+        assert_eq!(
+            d.coincident_faces.len(),
+            6,
+            "two flats by two walls, two flush ends"
+        );
         let r = topo::union_with(x, y, &d, tol);
         // The rod-first order escalates on the contact-vertex margin
         // the undeclared row's does, at an ε-dependent band.
@@ -858,7 +891,13 @@ fn a_ball_seated_in_its_own_bore_refuses_declared_or_not() {
             "undeclared: the crossing layer's refusal: {e:?}"
         );
     }
-    for e in union_both_orders(&bored, &ball, &bore, &sph, Some(BooleanCoincidence::TANGENT)) {
+    for e in union_both_orders(
+        &bored,
+        &ball,
+        &bore,
+        &sph,
+        Some(BooleanCoincidence::TANGENT),
+    ) {
         assert!(
             matches!(
                 e,
@@ -868,7 +907,8 @@ fn a_ball_seated_in_its_own_bore_refuses_declared_or_not() {
             ),
             "declared Tangent: the class refusal: {e:?}"
         );
-    }    for e in union_both_orders(&bored, &ball, &bore, &sph, Some(BooleanCoincidence::Seam)) {
+    }
+    for e in union_both_orders(&bored, &ball, &bore, &sph, Some(BooleanCoincidence::Seam)) {
         assert!(
             matches!(
                 e,
@@ -1049,7 +1089,6 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     }
 }
 
-
 /// **A G1 joint authored inside one profile needs no declaration**: it
 /// is the structural form of the seam. The capsule revolved from one
 /// profile — the tube's side, then a quarter arc tangent to it, the
@@ -1075,7 +1114,9 @@ fn a_g1_joint_authored_inside_one_profile_needs_no_declaration() {
         origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    let at0 = sweep::revolve(&pr, axis, Revolution::Full, tol).unwrap().body;
+    let at0 = sweep::revolve(&pr, axis, Revolution::Full, tol)
+        .unwrap()
+        .body;
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
     let mut capsule = topo::transform_rigid(&at0, &turn, tol).unwrap();
     capsule.merge_coplanar_faces(tol).unwrap();

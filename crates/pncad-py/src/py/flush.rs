@@ -49,9 +49,10 @@ pub(crate) enum ContactClass {
 }
 
 /// What a boolean node may declare about a face pair: a contact of a
-/// class (`Rest`, `Tangent`), or a `Continuation` — one carrier with
-/// aligned senses, two stacked parts' outer walls. A mate takes a
-/// `ContactClass`; a union's declaration takes this.
+/// class (`Rest`, `Tangent`), a `Continuation` — one carrier with
+/// aligned senses, two stacked parts' outer walls — or a `Seam` — two
+/// carriers joining G1 with aligned senses, a cap on a tube. A mate
+/// takes a `ContactClass`; a union's declaration takes this.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
@@ -62,6 +63,7 @@ pub(crate) enum BooleanCoincidence {
     Rest,
     Tangent,
     Continuation,
+    Seam,
 }
 
 /// Which rung of the verify ladder decided a finding.
@@ -177,7 +179,8 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
 
 /// Crossing helper: the kernel coincidence as the Python mirror. A
 /// contact crosses through [`contact_class`], so a class this binding
-/// predates refuses typed there; the continuation crosses as itself.
+/// predates refuses typed there; the continuation and the seam cross
+/// as themselves.
 pub(crate) fn boolean_coincidence(
     py: Python<'_>,
     c: s::BooleanCoincidence,
@@ -188,6 +191,7 @@ pub(crate) fn boolean_coincidence(
             ContactClass::Tangent => BooleanCoincidence::Tangent,
         }),
         s::BooleanCoincidence::Continuation => Ok(BooleanCoincidence::Continuation),
+        s::BooleanCoincidence::Seam => Ok(BooleanCoincidence::Seam),
     }
 }
 

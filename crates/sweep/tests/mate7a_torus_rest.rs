@@ -660,10 +660,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         &wall_declarations(&a, &b, TUBE, ContactClass::Tangent),
     ) {
         let err = r.expect_err(op);
-        assert!(
-            is_tangent_on_a_seam(&err),
-            "the chain, {op}: {err:?}"
-        );
+        assert!(is_tangent_on_a_seam(&err), "the chain, {op}: {err:?}");
     }
     let (a, b) = kissing_pair();
     for (op, r) in subtract_both_orders_and_intersect(
@@ -952,9 +949,11 @@ fn a_seam_declared_on_the_kissing_torus_pair_is_contradicted() {
         let mut decls = BooleanDeclarations::none();
         for fa in walls(x) {
             for fb in walls(y) {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::new(fa, fb, topo::BooleanCoincidence::Seam));
+                decls.coincident_faces.push(FacePairDeclaration::new(
+                    fa,
+                    fb,
+                    topo::BooleanCoincidence::Seam,
+                ));
             }
         }
         let err = topo::union_with(x, y, &decls, Tol::witness()).expect_err("contradicted");

@@ -160,7 +160,8 @@ verified records in the `BooleanBody` wrapper, never persisted. Replay
 is scalar-generic; an indeterminate verification at an interval scalar
 aborts. Failures, all typed: `UndeclaredContact` (the census) and
 `UndeclaredCoincidence` (the boolean), `ContactContradicted`
-(at use and at rest), `ContinuationContradicted` (at use),
+(at use and at rest), `ContinuationContradicted` and
+`SeamContradicted` (at use),
 `StaleContactDeclaration`, `CensusEscalated`.
 Invariant: every definite verdict wins over every declaration.
 

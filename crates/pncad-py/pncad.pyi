@@ -4706,14 +4706,17 @@ class ContactClass:
 
 class BooleanCoincidence:
     """What a boolean node may declare about a face pair: a contact
-    (`Rest`, `Tangent`), or a `Continuation` — one carrier with aligned
+    (`Rest`, `Tangent`), a `Continuation` — one carrier with aligned
     senses, as two stacked parts' outer walls are, which the union
-    merges. The flush detector reports `Rest` for an opposed pair and
-    `Continuation` for an aligned one."""
+    merges — or a `Seam` — two carriers joining G1 with aligned senses,
+    as a cap on a tube does. The flush detector reports `Rest` for an
+    opposed pair and `Continuation` for an aligned one; it never reports
+    a seam."""
 
     Rest: Final[BooleanCoincidence]
     Tangent: Final[BooleanCoincidence]
     Continuation: Final[BooleanCoincidence]
+    Seam: Final[BooleanCoincidence]
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:

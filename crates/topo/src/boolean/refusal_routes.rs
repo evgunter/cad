@@ -467,11 +467,12 @@ pub enum Coincide {
     /// tangentially touch: its rungs pass on different sets, and the
     /// escalation does not say which refused.
     TangentLocus,
-    /// Whether a face of each solid ends on one circle, asked only at a
-    /// declared-`Tangent` pair's door: every verdict goes on to a
+    /// Whether a face of each solid ends on one circle, asked at a
+    /// declared-`Tangent` pair's door, where every verdict goes on to a
     /// refusal of that declaration (the rim's routing, or the class
     /// unsupported), so no verdict passes the operation
-    /// ([`RIM_FRONTIER`]).
+    /// ([`RIM_FRONTIER`]); and at a declared seam's, where the one
+    /// circle is its locus ([`RIM_SEAM_LEVER`]).
     Rim,
     /// Whether a declared contact holds along its witness: the contact
     /// table's rows pass on different sets.
@@ -686,11 +687,17 @@ const PLANES_FRONTIER: &str = "Whichever way it reads, the Boolean cannot yet ac
 
 /// Whether the faces of a declared-`Tangent` pair end on one circle
 /// ([`Coincide::Rim`]): every verdict goes on to a refusal, whatever
-/// the rims are (one rim: `RimSeamNotDeclarable`, `RimCuspArmUnbuilt` or
-/// `ContactContradicted`; none: `UnsupportedDeclarationClass`), so no
-/// move of the parts passes under that declaration.
+/// the rims are (one rim: `RimCuspArmUnbuilt` or `ContactContradicted`;
+/// none: `UnsupportedDeclarationClass`), so no move of the parts passes
+/// under that declaration.
 const RIM_FRONTIER: &str = "Whichever way it reads, the Boolean cannot yet act on a Tangent \
                             contact declared between faces that end on one circle";
+
+/// Whether the faces of a declared seam end on one circle
+/// ([`Coincide::Rim`] under a spent `Seam`): the one circle is the
+/// locus the seam is verified along, so only a shared rim passes.
+const RIM_SEAM_LEVER: &str = "move the parts so the faces declared a seam clearly end on one \
+                              shared circle";
 
 /// A curved flank's membership tie ([`Coincide::CurvedFlankSense`]):
 /// either sense goes on to the curved flank, which the Boolean cannot
@@ -1438,6 +1445,12 @@ impl BooleanDecision {
                 Coincide::FlankSense,
                 DeclarationRead::Spent(BooleanCoincidence::REST | BooleanCoincidence::Continuation),
             ) => Ending::Sized(CORNER_SENSE),
+            // A declared seam is verified along the rim the two faces
+            // share: one circle passes, and a definitely different one
+            // leaves the seam without a locus, refused as a class.
+            Self::Coincidence(Coincide::Rim, DeclarationRead::Spent(BooleanCoincidence::Seam)) => {
+                Ending::Lever(RIM_SEAM_LEVER, LeverPass::ZeroOnly)
+            }
             Self::Coincidence(which, _) => which.ending(),
             // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
             // and the offset rung asks next: a declared `Rest` pair's
@@ -2057,6 +2070,18 @@ mod tests {
             ) => (
                 coincide_subject(Coincide::FlankSense),
                 Ending::Sized(LONGER, SizedPass::NonZero),
+            ),
+            // A declared seam's rim is its locus: the shared circle passes.
+            BooleanDecision::Coincidence(
+                Coincide::Rim,
+                DeclarationRead::Spent(BooleanCoincidence::Seam),
+            ) => (
+                coincide_subject(Coincide::Rim),
+                Ending::Lever(
+                    "Recourse: move the parts so the faces declared a seam clearly end on one \
+                     shared circle",
+                    LeverPass::ZeroOnly,
+                ),
             ),
             BooleanDecision::Coincidence(
                 which,

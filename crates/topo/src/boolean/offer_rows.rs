@@ -2230,6 +2230,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
+    ("mod.rs", "verify_seam_declaration", "Coincide::Contact", 1),
+    ("mod.rs", "verify_seam_declaration", "Coincide::Rim", 2),
+    (
+        "mod.rs",
+        "verify_seam_declaration",
+        "Coincide::TangentLocus",
+        1,
+    ),
     (
         "mod.rs",
         "verify_tangent_declaration",

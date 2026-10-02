@@ -480,8 +480,12 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "RimSeamNotDeclarable",
-            BooleanError::RimSeamNotDeclarable { declaration },
+            "SeamContradicted",
+            BooleanError::SeamContradicted {
+                a: face,
+                b: face,
+                margin: diag,
+            },
         ),
         (
             "RimCuspArmUnbuilt",
