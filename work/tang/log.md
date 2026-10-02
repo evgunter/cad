@@ -125,6 +125,32 @@ Held: the torus lever (its fix is written in the row, but it edits
 `rest::carrier_pair_verdict` while the m9-3 lane moves code in that
 file), so it follows the m9-3 lane.
 
+## 2026-10-01 — DEV-1 circle arm: the pair's first reports, and a measurement before reconciling (TANG orchestrator)
+
+Both designers rejected the brief's framing. The orchestrator's
+statement was stale: the residual-sign obstacle it named is already
+measured and satisfied (`verbs_cylsph_tangent_residuals.rs`). Both
+also found the motivating fixture in the wrong class. A sphere-capped
+tube's rim is a wedge-π seam with aligned normals, not a `Tangent`
+contact. Their recommended final states agree on the core: no
+cylinder×sphere arm now; the circle locus is built as a curve carrier
+read through `tangent_at(p)`; and it is sequenced with the kiss and cusp
+consumers.
+
+They disagree on one checkable fact: whether an abutting π seam between
+distinct carriers already builds through the join, or dies at the
+reduce frontier with no licence. One design adds a second fork on that
+point, how a π seam is licensed. A measurement lane
+(`tang/pi-seam-measure`) settles the fact before the reconciliation
+round, so neither designer argues a premise the tree can answer.
+
+Filed from the reports' off-question findings:
+`tangent-locus-re-meters-the-section-classifiers-tangency` (P1),
+`covered-circle-rung-reads-a-negative-endpoint-as-a-crossing` (P3), and
+`declared-tangency-docs-name-the-wrong-blockers` (P4, E).
+
+Lesson for the orchestrator's own briefs: re-read a row's precondition
+against the tree before handing it to designers as the problem.
 ## 2026-10-01 — re-measure lands (PR 3748); arc-aware-point-in-loop closes (TANG orchestrator)
 
 Review tier: orchestrator's read. It is a measurement lane, and its
@@ -149,3 +175,27 @@ inherited from main (`work/props/thread-count-digest-moved-on-main-loft-area-pad
 PRs 3746, 3747 and 3748 all fail it identically, and none of them
 changes kernel code. Merged over it, annotated on the PR, per the
 inherited-red rule.
+
+## 2026-10-01 — the π-seam and kiss measurement lands (PR 3746) (TANG orchestrator)
+
+Review tier: orchestrator's read. It is a measurement lane, and its
+code is pinned tests only. It settled the fact the DEV-1 pair disagreed
+on, then ran the decider one designer proposed:
+
+- No wedge-π seam between distinct carriers builds through the boolean,
+  declared or not: the capped tube, tube ∪ ball, the stadium and the
+  torus chain. Every declaration is refused, each under a different
+  name.
+- **The gap is not seam-specific.** A cap abutting a tube on an
+  equal-radius rim refuses `CurvedPierceUnsupported` whatever the corner
+  (π, a transverse dome, or the same carrier continuing), even with its
+  end discs declared `Rest`. `curved_face_arm` covers an edge only when
+  the edge's own face is declared against the face it touches. Filed P0:
+  `a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`.
+  The licence question goes back to the designer pair for round 2 with
+  this framing.
+- `m9_3_zip.rs`'s "tube chain" is a wedge-2π kiss, not the π seam its
+  header says. The fix rides PR 3747's fix pass.
+
+`test` is red only on main's inherited thread-count golden (PROPS's
+row). Merged over it, annotated on the PR.

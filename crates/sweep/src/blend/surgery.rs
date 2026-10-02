@@ -105,10 +105,14 @@
 //! carry-through honesty check, **`fillet3_ring_clearance`**: a Q1
 //! trilean whose margin (meters) is the closed-form clearance between
 //! a support face's ring and a blend's trimline — circle-vs-line and
-//! circle-vs-circle, exact, never sampled — and, on a transverse cap a
-//! convex ruled band cuts off, between each edge the cut leaves on the
-//! cap and a region enclosing the sliver it removes. Positive carries
-//! the ring or edge through; zero/negative refuses typed
+//! circle-vs-circle, exact, never sampled — between each other
+//! outer-boundary edge of a closed rim's support and that support's
+//! trim (a line or circle exactly; an ellipse, spiric or NURBS edge
+//! through a certified bound — [`boxed_reach`] — whose refusal says it
+//! is one), and, on a transverse cap a convex ruled band cuts off,
+//! between each edge the cut leaves on
+//! the cap and a region enclosing the sliver it removes. Positive
+//! carries the ring or edge through; zero/negative refuses typed
 //! ([`BlendError::RingClearance`]); in-band escalates with the same
 //! recourse (two-tolerance, D4 ¶1 addendum). And the must-carry rule
 //! over every contact edge at the description pass (`attach_contact`,
@@ -180,6 +184,7 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom::curves::boxes;
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, edge_extent,
     must_carry_over_edge,
@@ -2028,8 +2033,9 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
 /// slot order. `classify_arm` keys `trim_a` to `face_a`, and `face_a` is
 /// whichever support carries `he_plus`, which the request does not
 /// choose; the `(Sphere, Plane)` arm swaps its own trims for exactly
-/// this reason. Callers pass `host_is_a = (link.face_a == the link's own
-/// host)`;
+/// this reason. Callers pass `first_is_a = (link.face_a == face)` for
+/// the support `face` whose trim they want FIRST — the link's host for
+/// the (host, mate) pair, or either support to read its own trim;
 /// reading `trim_a` blind would take the mate's trim for the host's on
 /// exactly the links where the two disagree. Pinned by
 /// `tests::trim_selection_is_by_support_kind`.
@@ -2037,9 +2043,9 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
 fn rim_trim_circles<T: Real>(
     edge: EdgeKey,
     blend: &EdgeBlend<T>,
-    host_is_a: bool,
+    first_is_a: bool,
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
-    let (host_trim, mate_trim) = if host_is_a {
+    let (first_trim, other_trim) = if first_is_a {
         (&blend.trim_a.0, &blend.trim_b.0)
     } else {
         (&blend.trim_b.0, &blend.trim_a.0)
@@ -2048,22 +2054,22 @@ fn rim_trim_circles<T: Real>(
         center: pc,
         radius: pr,
         ..
-    } = *host_trim
+    } = *first_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
-            "a rim blend's host trimline is not a circle",
+            "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
     let Curve3::Circle {
         center: sc,
         radius: sr,
         ..
-    } = *mate_trim
+    } = *other_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
-            "a rim blend's mate trimline is not a circle",
+            "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
     Ok(((pc, pr), (sc, sr)))
@@ -2109,6 +2115,7 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
     face: FaceKey,
     chain: Convexity,
     margin: T,
+    bounded: bool,
     band: Band,
 ) -> Result<(), BlendError> {
     let decision = BlendDecision::RingClearance;
@@ -2118,6 +2125,7 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
             face,
             chain,
             margin: super::battery::classified(decision, margin, band, sign),
+            bounded,
         }),
     }
 }
@@ -2145,8 +2153,8 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 /// `other_inside_trim`.
 ///
 /// A host's OUTER boundary is not read here: its edges are arcs and
-/// segments, not whole circles, and the ladder walk meters each over
-/// its own window ([`piece_distance`]).
+/// segments, not whole circles, and [`ring_clearance_pass`]'s
+/// support-boundary walk meters each over its own window.
 ///
 /// **The containment reading is the same real predicate 2's
 /// boundary-pair screen computes, in closed form.** For any two circles
@@ -2461,13 +2469,15 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     margin: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    ring_clearance(face, chain, margin, band)
+    ring_clearance(face, chain, margin, false, band)
 }
 
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
-/// margin, in closed form — and every edge a convex ruled cut-off
-/// leaves on its cap must clear the sliver it removes.
+/// margin, in closed form; every other outer-boundary edge of a closed
+/// rim's supports must clear that support's trim; and every edge a
+/// convex ruled cut-off leaves on its cap must clear the sliver it
+/// removes.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
     opens: &[AdmittedOpen<'_, T>],
@@ -2541,12 +2551,13 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 // shared construction, never by cancellation.
                 let _ = dir;
                 let margin = (c - origin).dot(m) - a;
-                ring_clearance(face, o.convexity(), margin, band)?;
+                ring_clearance(face, o.convexity(), margin, false, band)?;
             }
         }
     }
-    // (b) Rims: each widened trim circle against the host face's
-    // OTHER rings and its straight outer boundary edges.
+    // (b) Rims: each trim circle against its host face's OTHER rings,
+    // and each support's trim against the rest of that support's outer
+    // boundary.
     for rim in rims {
         // A rim's host side may be several faces (of one surface), and
         // each face's rings are its own question — so the walk is over
@@ -2580,75 +2591,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 } else {
                     m.external
                 };
-                ring_clearance(host, rim.chain.first().convexity, margin, band)?;
+                ring_clearance(host, rim.chain.first().convexity, margin, false, band)?;
             }
         }
-        let l0 = rim.chain.first();
-        let ((ci, si), _) = rim_trim_circles(l0.edge, &l0.blend, l0.face_a == rim.host0())?;
-        // Outer boundary — a LADDER rim's question only. There the rim
-        // is a ring, so the host's outer boundary is a separate cycle
-        // the widened trim circle must clear. An ANNULUS rim's trim
-        // circle IS the replacement for part of that outer boundary, so
-        // metering it against the cycle it replaces is not a question
-        // this walk can put; the rest of that cycle is separated from
-        // it by predicate 2's boundary-pair consumption sweep, which
-        // meters exactly those pairs at the arm's own setbacks. What
-        // the annulus rim gets from this pass instead is the RING
-        // meter above, which is a different question.
-        //
-        // **The exactness step-down is on this QUESTION, not on the
-        // annulus rim.** Both rim shapes get the closed-form RING meter
-        // above; what a ladder rim additionally gets is this walk, so
-        // its host's OUTER BOUNDARY is decided in closed form where an
-        // annulus rim's is left to predicate 2's sampled sweep alone.
-        // What makes that acceptable is that the pairs at issue are the
-        // ones the screen is exact on: an annulus support's boundary is
-        // two coaxial latitude circles and one meridian seam, and
-        // `CHAIN_SAMPLES` points on a circle of a coaxial pair bound the
-        // true gap from above by a term that vanishes with the sample
-        // spacing, never from below. It stops holding when an annulus
-        // support carries a boundary whose closest approach is BETWEEN
-        // samples — a non-coaxial ring, or a trimmed wall. Such bodies
-        // exist and are rowed (an off-axis bore's cap,
-        // `review_ring_clearance_r1_probes`), so this is a live gap on
-        // the boundary question, not a hypothetical one.
-        let RimShape::Ladder { .. } = rim.shape else {
-            continue;
-        };
-        // Each boundary EDGE — its carrier over its stored window, not
-        // the carrier — must keep the trim circle off it: every point
-        // of the edge farther from the trim centre than the trim radius
-        // ([`piece_distance`]'s `near`). On a circle edge that is the
-        // arc's own reading of both relations a boundary circle can
-        // stand in to the trim ([`CircleMargins`]: containing it, or a
-        // convex arc merely separated from it), and both failing is the
-        // carve consuming its own host. An edge of any OTHER carrier
-        // kind, or one whose geometry is not certified, is skipped: this
-        // walk is the closed-form one, and nothing exact can be said
-        // about a NURBS boundary from stored data, so those pairs are
-        // left to predicate 2's sampled sweep alone — which reads each
-        // at its sample stations only, and so can pass a gap that
-        // closes between them: the same one-sided gap the annulus
-        // paragraph above names, on this walk's skipped edges.
-        let outer = face_cycle(body, rim.host0()).ok_or_else(|| {
-            not_intact(
-                EntityId::Face(rim.host0()),
-                "a rim's host support has no outer cycle that walks",
-            )
-        })?;
-        for he in outer {
-            let edge = body
-                .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim host's boundary"))?
-                .edge;
-            let Some((carrier, window)) = stored_piece(body, edge)? else {
-                continue;
-            };
-            let Some((near, _)) = piece_distance(carrier, window, ci) else {
-                continue;
-            };
-            ring_clearance(rim.host0(), rim.chain.first().convexity, near - si, band)?;
-        }
+        support_boundary_clearance(body, rim, band)?;
     }
     // (c) Ruled cut-offs: the cut-off `mef` runs one arc across a cap
     // and moves the run from foot to foot through the old vertex off
@@ -2662,8 +2608,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // arc, and a clear edge of another cycle is neither crossed nor
     // carried off with the sliver. An edge whose carrier has no closed
     // form here, one with no certified geometry, or a lone-vertex
-    // cycle refuses rather than being skipped: unlike (b)'s host
-    // boundary, no sampled screen meters a cap.
+    // cycle refuses rather than being skipped: no sampled screen meters
+    // a cap.
     for plan in ruled {
         for s in plan.removed_slivers() {
             let fd = body
@@ -2700,12 +2646,235 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                              which the sliver meter needs",
                         )
                     })?;
-                    ring_clearance(s.cap, plan.link().convexity(), margin, band)?;
+                    ring_clearance(s.cap, plan.link().convexity(), margin, false, band)?;
                 }
             }
         }
     }
     Ok(())
+}
+
+/// **Each support's OUTER boundary against that support's trim**, for
+/// one closed rim: on every distinct host and mate face, each edge of
+/// its outer cycle the carve does not replace, over its own stored
+/// window. The carve excises the strip between the rim and the trim, so
+/// every other boundary edge must lie wholly on the trim's FAR side
+/// from the rim. Side and reach are read through a function whose level
+/// sets on the support are its latitude circles: the distance from the
+/// trim's centre on a PLANE (perpendicular to the axis), the height
+/// along the axis on a cylinder, cone or sphere, where a latitude is
+/// one height.
+///
+/// Not metered, because the carve replaces them: the rim's arcs, and
+/// the one seam or meridian each support drops into every rim vertex
+/// (the incidence [`resolve_rim`]'s routes admit), which the carve
+/// splits at the trim. A line or circle edge is read exactly
+/// ([`piece_distance`], [`piece_along`]); any other carrier through
+/// [`boxed_reach`], a certified bound (an ellipse arc's box over its
+/// window, a spiric oval's over its period, a NURBS curve's control
+/// hull) whose refusal says it is a bound. An edge with no certified carrier refuses.
+///
+/// Its own function, and so a compound bound of its own in this file:
+/// it is the edge-blend seam's ring carry-through pass split by arm,
+/// reading brackets only where [`ring_clearance`] and the piece meters
+/// already do, plus one selection — which side of the trim the rim
+/// lies on — that is definite by a setback (DL5(b), as
+/// [`CircleFrame::misses`]' selection).
+fn support_boundary_clearance<T: Decide + Bounds>(
+    body: &Body<T>,
+    rim: &RimPlan<'_, T>,
+    band: Band,
+) -> Result<(), BlendError> {
+    let arcs: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
+    let rim_vertices: Vec<VertexKey> = rim.chain.links().flat_map(|l| [l.start, l.end]).collect();
+    let replaced = |edge: EdgeKey| {
+        arcs.contains(&edge) || rim_vertices.iter().any(|&v| edge_touches(body, edge, v))
+    };
+    let convexity = rim.chain.first().convexity;
+    let sides = rim
+        .chain
+        .links()
+        .zip(rim.hosts.iter())
+        .chain(rim.chain.links().zip(rim.mates.iter()));
+    let mut seen: Vec<FaceKey> = Vec::with_capacity(2 * rim.hosts.len());
+    for (l, &face) in sides {
+        if seen.contains(&face) {
+            continue;
+        }
+        seen.push(face);
+        let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
+        let Some((rim_carrier, _)) = stored_piece(body, l.edge)? else {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(l.edge),
+                "a rim arc carries no certified carrier",
+            ));
+        };
+        let Some(rim_frame) = CircleFrame::of(rim_carrier) else {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(l.edge),
+                "a closed rim's arc is not a circle",
+            ));
+        };
+        let fd = body
+            .get_face(face)
+            .ok_or_else(|| not_intact(EntityId::Face(face), "a rim's support"))?;
+        // The latitude function: `None` the distance from the trim
+        // centre, `Some(axis)` the height along the axis.
+        let direction = match body.get_surface(fd.surface) {
+            Some(Surface::Plane { .. }) => None,
+            Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
+                Some(rim_frame.axis)
+            }
+            Some(_) => {
+                return Err(unbuilt_geometry(
+                    EntityId::Face(face),
+                    "a rim's support is not a plane, cylinder, cone or sphere, whose \
+                     latitudes the support-boundary meter reads",
+                ));
+            }
+            None => return Err(not_intact(EntityId::Face(face), "a rim support's surface")),
+        };
+        // The latitude function's range over one piece, and whether that
+        // range is a bound rather than the piece's own.
+        let reach = |carrier: &Curve3<T>, (ta, tb): (T, T)| match carrier {
+            Curve3::Line { .. } | Curve3::Circle { .. } => match direction {
+                None => piece_distance(carrier, (ta, tb), ci),
+                Some(u) => piece_along(carrier, (ta, tb), ci, u),
+            }
+            .map(|r| (r, false)),
+            Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                let ends = (carrier.eval(ta), carrier.eval(tb));
+                boxed_reach(carrier, (ta, tb), ends, ci, direction).map(|r| (r, true))
+            }
+        };
+        // The rim's own value: its radius on a plane (coplanar and
+        // coaxial with the trim), its height along the axis on a wall.
+        let (at_trim, rim_at) = match direction {
+            None => (si, rim_frame.radius),
+            Some(u) => (T::zero(), (rim_frame.center - ci).dot(u)),
+        };
+        // The rim lies one setback off the trim, so this bracket read is
+        // definite wherever the trim exists; it selects which end of an
+        // edge's range is decided, and an indefinite read refuses.
+        let rim_above = (rim_at - at_trim).lo() > 0.0;
+        if !rim_above && (rim_at - at_trim).hi() >= 0.0 {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(l.edge),
+                "a rim and its trim are not separated on their support",
+            ));
+        }
+        let outer = face_cycle(body, face).ok_or_else(|| {
+            not_intact(
+                EntityId::Face(face),
+                "a rim's support has no outer cycle that walks",
+            )
+        })?;
+        for he in outer {
+            let edge = body
+                .get_half_edge(he)
+                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim support's boundary"))?
+                .edge;
+            if replaced(edge) {
+                continue;
+            }
+            let Some((carrier, window)) = stored_piece(body, edge)? else {
+                return Err(unbuilt_geometry(
+                    EntityId::Edge(edge),
+                    "an outer-boundary edge of a rim's support carries no certified carrier",
+                ));
+            };
+            let ((low, high), bounded) = reach(carrier, window).ok_or_else(|| {
+                unbuilt_geometry(
+                    EntityId::Edge(edge),
+                    "an outer-boundary edge of a rim's support has no finite certified box",
+                )
+            })?;
+            let margin = if rim_above {
+                at_trim - high
+            } else {
+                low - at_trim
+            };
+            ring_clearance(face, convexity, margin, bounded, band)?;
+        }
+    }
+    Ok(())
+}
+
+/// **A certified range of the latitude function over one piece whose
+/// carrier has no windowed closed form here** — an ellipse, a spiric
+/// oval or a NURBS curve: `(low, high)` bounding the distance from `c`
+/// (`u` absent) or the height `(p − c)·u` along the unit `u`, for every
+/// point `p` of `carrier` over `window`, whose ends are `ends`.
+///
+/// Read off the certified box `geom::curves::boxes` mints: an ellipse
+/// arc's over its window, a spiric oval's over its whole period, a
+/// NURBS curve's over its control hull. A range that holds the box
+/// holds the piece. An ellipse's HEIGHT is also read exactly over its
+/// whole period — a sinusoid of the parameter in any frame, which a
+/// world-axis box overstates once the axis is tilted — and the two
+/// ranges are intersected. Every range here is a BOUND, not the piece's
+/// own. `None` for a box that is not finite (poison) or a carrier the
+/// boxes do not take.
+fn boxed_reach<T: Bounds>(
+    carrier: &Curve3<T>,
+    (ta, tb): (T, T),
+    (end0, end1): (Point3<T>, Point3<T>),
+    c: Point3<T>,
+    u: Option<Vec3<T>>,
+) -> Option<(T, T)> {
+    let aabb = match carrier {
+        Curve3::Ellipse { .. } => boxes::ellipse_arc_aabb(carrier, ta, tb, end0, end1)?,
+        Curve3::Spiric { .. } => boxes::spiric_arc_aabb(carrier, end0, end1)?,
+        Curve3::Nurbs(n) => boxes::nurbs_curve_aabb(n),
+        Curve3::Line { .. } | Curve3::Circle { .. } => return None,
+    };
+    let lo = [aabb.min_x, aabb.min_y, aabb.min_z];
+    let hi = [aabb.max_x, aabb.max_y, aabb.max_z];
+    if lo.iter().chain(hi.iter()).any(|v| !v.is_finite()) {
+        return None;
+    }
+    let corner = |i: usize| {
+        let pick = |k: usize| T::from_f64(if i >> k & 1 == 0 { lo[k] } else { hi[k] });
+        Point3::new(pick(0), pick(1), pick(2))
+    };
+    let first = corner(0) - c;
+    match u {
+        None => {
+            // Nearest: the box's own distance from `c`, per axis the
+            // overshoot past either face; farthest: a corner.
+            let gap = |k: usize, ck: T| {
+                (T::from_f64(lo[k]) - ck)
+                    .max(ck - T::from_f64(hi[k]))
+                    .max(T::zero())
+            };
+            let near = (gap(0, c.x).powi(2) + gap(1, c.y).powi(2) + gap(2, c.z).powi(2)).sqrt();
+            let far = (1..8).fold(first.norm(), |m, i| m.max((corner(i) - c).norm()));
+            Some((near, far))
+        }
+        Some(u) => {
+            let h0 = first.dot(u);
+            let (low, high) = (1..8).fold((h0, h0), |(l, h), i| {
+                let v = (corner(i) - c).dot(u);
+                (l.min(v), h.max(v))
+            });
+            match carrier {
+                Curve3::Ellipse {
+                    center,
+                    axis,
+                    major,
+                    minor,
+                    u_ref,
+                } => {
+                    let mid = (*center - c).dot(u);
+                    let amp = ((*major * u_ref.dot(u)).powi(2)
+                        + (*minor * axis.cross(*u_ref).dot(u)).powi(2))
+                    .sqrt();
+                    Some((low.max(mid - amp), high.min(mid + amp)))
+                }
+                _ => Some((low, high)),
+            }
+        }
+    }
 }
 
 /// A link edge's midpoint (the trimline inward direction's anchor).
@@ -4872,6 +5041,110 @@ mod tests {
             piece_along(&line, (1.0, 2.0), o, Vec3::new(1.0, 0.0, 0.0)).expect("line");
         close(low, 1.0, "a segment's low is an end");
         close(high, 2.0, "and its high the other");
+    }
+
+    /// **The boxed reach holds every point of its piece.** An
+    /// enumeration over the carriers it serves — an ellipse in both
+    /// spellings of its axes (tier 3 does not order `major` and
+    /// `minor`, and a STEP `ELLIPSE` stores its semi-axes as given), a
+    /// spiric oval and a NURBS curve — each sampled densely over a
+    /// window, from a point and a direction in general position.
+    #[test]
+    fn boxed_reach_holds_every_point_of_its_piece() {
+        use std::sync::Arc;
+
+        use geom::{Curve3, NurbsCurve3};
+        use geom_core::spline::KnotVector;
+
+        use super::boxed_reach;
+        use core::f64::consts::TAU;
+
+        let c = Point3::new(0.3, -1.1, 0.7);
+        let u = Vec3::new(1.0, 2.0, -2.0) * (1.0 / 3.0);
+        let ellipse = |major: f64, minor: f64| Curve3::Ellipse {
+            center: Point3::new(1.0, 0.5, -0.2),
+            axis: Vec3::new(0.0, 0.6, 0.8),
+            major,
+            minor,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let nurbs = Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 2.0, 0.5),
+                    Point3::new(2.5, -1.0, 1.0),
+                    Point3::new(3.0, 0.5, -0.5),
+                ],
+                vec![1.0, 2.0, 0.5, 1.0],
+            )
+            .unwrap(),
+        ));
+        let spiric = Curve3::Spiric {
+            center: Point3::new(-0.5, 0.2, 0.1),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            offset: 0.7,
+        };
+        for (name, carrier, window) in [
+            ("ellipse", ellipse(2.0, 0.5), (0.3, 2.9)),
+            ("swapped ellipse", ellipse(0.5, 2.0), (0.3, 2.9)),
+            (
+                "swapped ellipse, a whole turn",
+                ellipse(0.5, 2.0),
+                (0.0, TAU),
+            ),
+            ("spiric", spiric.clone(), (-0.4, 1.7)),
+            ("nurbs", nurbs.clone(), (0.2, 0.9)),
+        ] {
+            let ends = (carrier.eval(window.0), carrier.eval(window.1));
+            let (near, far) = boxed_reach(&carrier, window, ends, c, None).expect(name);
+            let (low, high) = boxed_reach(&carrier, window, ends, c, Some(u)).expect(name);
+            for i in 0..=4096 {
+                let t = window.0 + (window.1 - window.0) * f64::from(i) / 4096.0;
+                let p = carrier.eval(t);
+                let (d, h) = ((p - c).norm(), (p - c).dot(u));
+                assert!(
+                    near <= d && d <= far,
+                    "{name}: distance {d} within [{near}, {far}]"
+                );
+                assert!(
+                    low <= h && h <= high,
+                    "{name}: height {h} within [{low}, {high}]"
+                );
+            }
+        }
+    }
+
+    /// Review probe (PR 3715): tier 3 certifies an ellipse whose
+    /// `minor` exceeds its `major`, and a distance bound built on
+    /// `major` alone misses most of the carrier.
+    #[test]
+    fn band_review_3715_swapped_ellipse_distance_ball_encloses() {
+        use geom::Curve3;
+
+        use super::boxed_reach;
+        use core::f64::consts::TAU;
+
+        let ellipse = Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: 0.5,
+            minor: 2.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let c = Point3::new(0.0, 0.0, 0.0);
+        let ends = (ellipse.eval(0.0), ellipse.eval(TAU));
+        let (near, far) = boxed_reach(&ellipse, (0.0, TAU), ends, c, None).expect("a finite box");
+        let p = ellipse.eval(core::f64::consts::FRAC_PI_2);
+        let d = (p - c).norm();
+        assert!(
+            near <= d && d <= far,
+            "distance {d} of a carrier point outside the bound [{near}, {far}]"
+        );
     }
 
     /// **`CircleFrame::misses` is the bracket read it always was**: the
