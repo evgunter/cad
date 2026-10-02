@@ -2197,32 +2197,44 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
     //    — the ruling that put it there is M9-5's, and the demand
     //    signal is this probe.
-    // The carve builds; drawing it is what refuses. The mesher is an
-    // f64 door, so the carve it draws is the f64 one, as a user's
-    // would be.
-    let lantern_f64 = match (lant as &dyn core::any::Any).downcast_ref::<Body<f64>>() {
-        Some(b) => b.clone(),
-        None => {
-            plant::<f64>(tol)
-                .into_iter()
-                .find(|p| p.name == "lily_lantern")
-                .expect("named lily piece")
-                .body
-        }
+    // The carve builds; drawing it is what refuses. The carve runs at
+    // the walls' own scalar, so its decisions record under the probe
+    // scalar like every other wall's; the mesher is an f64 door, so
+    // what it draws is the f64 carve, as a user's would be.
+    let carve = |lantern: &Body<S>| {
+        pncad::topo::subtract(
+            lantern,
+            &ball::<S>(Point3::new(-2.80, 0.0, 0.90), 0.16, tol),
+            tol,
+        )
     };
     wall(
         7,
         "carve a tepal seam into the lantern and draw it (sphere x sphere by \
          geometry; the seam's section is tilted against the zone's chart)",
-        pncad::topo::subtract(
-            &lantern_f64,
-            &ball::<f64>(Point3::new(-2.80, 0.0, 0.90), 0.16, tol),
-            tol,
-        )
-        .map_err(Wall7::Carve)
-        .and_then(|carved| {
+        carve(lant).map_err(Wall7::Carve).and_then(|carved| {
             let body = &carved.body().expect("the carve leaves the lantern").body;
-            pncad::mesh::tessellate(body, 2e-3, tol).map_err(Wall7::Draw)
+            let drawn = match (body as &dyn core::any::Any).downcast_ref::<Body<f64>>() {
+                Some(b) => b.clone(),
+                None => {
+                    let lantern = plant::<f64>(tol)
+                        .into_iter()
+                        .find(|p| p.name == "lily_lantern")
+                        .expect("named lily piece")
+                        .body;
+                    pncad::topo::subtract(
+                        &lantern,
+                        &ball::<f64>(Point3::new(-2.80, 0.0, 0.90), 0.16, tol),
+                        tol,
+                    )
+                    .map_err(Wall7::Carve)?
+                    .body()
+                    .expect("the carve leaves the lantern")
+                    .body
+                    .clone()
+                }
+            };
+            pncad::mesh::tessellate(&drawn, 2e-3, tol).map_err(Wall7::Draw)
         }),
         |e| {
             matches!(
