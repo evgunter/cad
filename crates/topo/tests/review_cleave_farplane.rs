@@ -512,23 +512,25 @@ fn corner_fuzz_f64_and_interval() {
 
 /// A ray parallel to a face's carrier within the band, from a point in
 /// band of that carrier whose foot is outside the face, may still meet
-/// the face: here the +x ray from q runs `1.5e-10` above the carrier of
-/// the edge (0, 1) → (1, 1 + m) and crosses that face at x ≈ 0.5, where
-/// it enters the material. Skipping the face as "parallel" read the
-/// exit through the next face and answered `In`; q is outside, 5e-7
-/// above the edge (−1, 1 − 1e-6) → (0, 1). Both lanes.
+/// the face: here the +x ray from q runs `0.15ε` above the carrier of
+/// the edge (0, 1) → (1, 1 + m), `m = 0.3ε`, and crosses that face at
+/// x ≈ 0.5, where it enters the material. Skipping the face as
+/// "parallel" read the exit through the next face and answered `In`; q
+/// is outside, `500ε` above the edge (−1, 1 − 1000ε) → (0, 1). Both
+/// lanes; the pose scales with ε, so it reads the same at every row.
 #[test]
 fn a_ray_along_a_carrier_q_is_in_band_of_is_not_skipped() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let (m, phi, e) = (3e-10, 1e-6, 1.5e-10);
+    let eps = tol.get().eps;
+    let (m, phi, e) = (0.3 * eps, 1000.0 * eps, 0.15 * eps);
     let profile = [
         (-1.0, 0.0),
         (2.0, 0.0),
         (2.0, 1.0 + m - phi),
         (1.0, 1.0 + m),
         (0.0, 1.0),
-        (-1.0, 1.0 - 1e-6),
+        (-1.0, 1.0 - phi),
     ];
     fn read<T: Decide + topo::AtRestPolicy>(
         profile: &[(f64, f64)],
