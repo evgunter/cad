@@ -454,3 +454,22 @@ Three lanes each saw `projectbox/cutaway_above` faces 20–23 permuted against t
 - **Class:** three sibling round functions share the exit.
 
 Raised to P0 and noted on QUAD's log in the fix pass. This is the most consequential kernel finding SHOW has made today.
+
+## 2026-10-02 — bench fixed
+
+PR 3840's fix pass is in: head `f1f6a624f`, green.
+
+New rows filed:
+- `wire/a-placement-cannot-turn-about-a-point-or-an-axis`
+- `recipe/a-partly-applied-regauge-then-mate-list-declares-silently`
+- `place/a-part-resting-on-a-gauge-cannot-follow-a-part-edit`, flagged for MSOLVE because it touches A11 (2)
+
+The update walk now includes the crate and pins two walls. Knobs varied before pinning:
+- mate kind
+- the authored side
+- the gauge height as an expression, which refuses because an assembly cannot name a part's parameter
+- re-gauging
+
+The gap is the nested gauge itself.
+
+The pivot intent is now asserted: the shelf's centroid stays on PIVOT.
