@@ -109,7 +109,7 @@
 //! outer-boundary edge of a closed rim's support and that support's
 //! trim (a line or circle exactly; an ellipse, spiric or NURBS edge
 //! through a certified bound — [`boxed_reach`] — whose refusal says it
-//! is one), and, on a transverse cap a convex ruled band cuts off,
+//! is one; an edge requested in the same call at its own trim), and, on a transverse cap a convex ruled band cuts off,
 //! between each edge the cut leaves on
 //! the cap and a region enclosing the sliver it removes. Positive
 //! carries the ring or edge through; zero/negative refuses typed
@@ -2592,7 +2592,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 ring_clearance(host, rim.chain.first().convexity, margin, false, band)?;
             }
         }
-        support_boundary_clearance(body, rim, band)?;
+        support_boundary_clearance(body, rim, opens, rims, band)?;
     }
     // (c) Ruled cut-offs: the cut-off `mef` runs one arc across a cap
     // and moves the run from foot to foot through the old vertex off
@@ -2672,6 +2672,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// window, a spiric oval's over its period, a NURBS curve's control
 /// hull) whose refusal says it is a bound. An edge with no certified carrier refuses.
 ///
+/// An edge that is itself requested in the same call is read where its
+/// own carve leaves this face's boundary — at its trim on this face,
+/// as the ring readers widen a requested ring ([`co_requested_trim`]).
+///
 /// Its own function, and so a compound bound of its own in this file:
 /// it is the edge-blend seam's ring carry-through pass split by arm,
 /// reading brackets only where [`ring_clearance`] and the piece meters
@@ -2681,6 +2685,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 fn support_boundary_clearance<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,
+    opens: &[AdmittedOpen<'_, T>],
+    rims: &[RimPlan<'_, T>],
     band: Band,
 ) -> Result<(), BlendError> {
     let arcs: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
@@ -2775,11 +2781,16 @@ fn support_boundary_clearance<T: Decide + Bounds>(
             if replaced(edge) {
                 continue;
             }
-            let Some((carrier, window)) = stored_piece(body, edge)? else {
+            let Some((stored, stored_window)) = stored_piece(body, edge)? else {
                 return Err(unbuilt_geometry(
                     EntityId::Edge(edge),
                     "an outer-boundary edge of a rim's support carries no certified carrier",
                 ));
+            };
+            let trim = co_requested_trim(edge, face, stored, stored_window, opens, rims)?;
+            let (carrier, window) = match &trim {
+                Some((c, w)) => (c, *w),
+                None => (stored, stored_window),
             };
             let ((low, high), bounded) = reach(carrier, window).ok_or_else(|| {
                 unbuilt_geometry(
@@ -2796,6 +2807,75 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         }
     }
     Ok(())
+}
+
+/// **Where an outer-boundary edge requested in the same call bounds
+/// `face` once its own carve has run**: its trim on that face, as a
+/// piece the support-boundary meter reads in place of the stored one;
+/// `None` for an edge no chain of the call requests.
+///
+/// - An OPEN link's trim on `face` is a line parallel to the edge
+///   (arm (a) of [`ring_clearance_pass`] refuses any other), read over
+///   the stored window projected onto it. On a planar band that
+///   segment holds the trim, whose ends the corner feet pull inward
+///   along it; on a ruled band it IS the trim, both running cap to cap
+///   between planes perpendicular to them.
+/// - A closed rim's arc on a support it shares with this rim reads its
+///   rim's WHOLE trim circle on `face`: a latitude of the same surface,
+///   so coaxial with this rim's trim, and every latitude reader takes
+///   the whole circle's value there, which is the arc's.
+fn co_requested_trim<T: Decide>(
+    edge: EdgeKey,
+    face: FaceKey,
+    stored: &Curve3<T>,
+    (ta, tb): (T, T),
+    opens: &[AdmittedOpen<'_, T>],
+    rims: &[RimPlan<'_, T>],
+) -> Result<Option<(Curve3<T>, (T, T))>, BlendError> {
+    let on_face = |l: &Link<T>| -> Option<Curve3<T>> {
+        if l.face_a == face {
+            Some(l.blend.trim_a.0.clone())
+        } else if l.face_b == face {
+            Some(l.blend.trim_b.0.clone())
+        } else {
+            None
+        }
+    };
+    if let Some(l) = opens
+        .iter()
+        .map(AdmittedOpen::link)
+        .find(|l| l.edge == edge)
+    {
+        let Some(trim) = on_face(l) else {
+            return Err(not_intact(
+                EntityId::Edge(edge),
+                "an outer-boundary edge of a face does not have that face as a support",
+            ));
+        };
+        let Curve3::Line { origin, dir } = trim else {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(edge),
+                "an open link's trimline is not a line",
+            ));
+        };
+        let at = |p: Point3<T>| (p - origin).dot(dir) / dir.dot(dir);
+        let window = (at(stored.eval(ta)), at(stored.eval(tb)));
+        return Ok(Some((trim, window)));
+    }
+    if let Some(l) = rims
+        .iter()
+        .flat_map(|r| r.chain.links())
+        .find(|l| l.edge == edge)
+    {
+        let Some(trim) = on_face(l) else {
+            return Err(not_intact(
+                EntityId::Edge(edge),
+                "an outer-boundary edge of a face does not have that face as a support",
+            ));
+        };
+        return Ok(Some((trim, (T::zero(), T::tau()))));
+    }
+    Ok(None)
 }
 
 /// **A certified range of the latitude function over one piece whose
