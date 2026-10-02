@@ -441,6 +441,42 @@ pub enum StepFault {
     DoesNotMove,
 }
 
+/// Which rungs held a march's steps short ([`SsiError::StepBudget`]):
+/// the cap a caller's knobs set, the curvature, or both. A rung holding
+/// fewer than [`STEP_BOUND_MINORITY`] of the steps is not named.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepBound {
+    /// The curvature rungs. The fit's between-sample rung shrinks with
+    /// ε, so loosening the tolerance lengthens it exactly. The relative
+    /// heuristic's two rungs do not read ε at all; they bind only where
+    /// the radius of curvature is within a few hundred tolerances or
+    /// the torsion is extreme, and there the tolerance is an
+    /// approximate lever. No extent lengthens any of them.
+    Curvature,
+    /// The cap: a fraction of the feature extent, or the domain's
+    /// diagonal.
+    Cap,
+    /// Each held at least [`STEP_BOUND_MINORITY`] of the steps.
+    Both,
+}
+
+/// The share of a march's steps a rung must hold to be named in
+/// [`StepBound`]: a quarter.
+pub const STEP_BOUND_MINORITY: (usize, usize) = (1, 4);
+
+impl StepBound {
+    /// The rungs `curvature` of `steps` steps name.
+    fn of(curvature: usize, steps: usize) -> Self {
+        let (num, den) = STEP_BOUND_MINORITY;
+        let named = |n: usize| n * den >= steps * num;
+        match (named(curvature), named(steps - curvature)) {
+            (true, true) => Self::Both,
+            (true, false) => Self::Curvature,
+            (false, _) => Self::Cap,
+        }
+    }
+}
+
 /// How a certified branch ends.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BranchEnd {
@@ -776,6 +812,7 @@ where
     let mut min_sigma = f64::INFINITY;
     let mut left_start = false;
     let mut steps = 0usize;
+    let mut curvature_bound = 0usize;
 
     while steps < ctx.max_steps {
         // ---- 1. the local decomposition ----
@@ -844,13 +881,13 @@ where
         }
 
         // ---- 4./5. the step ----
-        let (dx, h_meters) = match mode {
+        let (dx, h_meters, bound) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
                 let h = [step_cap / speed, ctx.diagonal()]
                     .into_iter()
                     .fold((SSI_IDEALIZED_STEP * ctx.extent) / speed, Real::min);
-                (scale(&d1, h), h * speed)
+                (scale(&d1, h), h * speed, StepBound::Cap)
             }
             StepperMode::Realized => {
                 let b2 = sys.rhs2(&x, &d1);
@@ -905,15 +942,21 @@ where
                 } else {
                     f64::INFINITY
                 };
-                let h_max = step_cap / speed;
-                let h = [h_cub, h_fit, h_max, ctx.diagonal()]
-                    .into_iter()
-                    .fold(h_quad, Real::min);
+                let h_curve = [h_cub, h_fit].into_iter().fold(h_quad, Real::min);
+                let h_cap = Real::min(step_cap / speed, ctx.diagonal());
+                let h = Real::min(h_curve, h_cap);
+                // Bookkeeping for the budget's refusal only: a poisoned
+                // `h` reaches the step guard below whichever rung is named.
+                let bound = if h_curve < h_cap {
+                    StepBound::Curvature
+                } else {
+                    StepBound::Cap
+                };
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
                     *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
                 }
-                (step, h * speed)
+                (step, h * speed, bound)
             }
         };
 
@@ -968,6 +1011,9 @@ where
         };
         next = refined;
         steps += 1;
+        if bound == StepBound::Curvature {
+            curvature_bound += 1;
+        }
 
         // ---- the lane's exit ----
         if let Some(end) = exit.after_step(sys, &mut states, x, next, &ctx, band)? {
@@ -1039,6 +1085,7 @@ where
     Err(SsiError::StepBudget {
         mode: mode.name(),
         budget: ctx.max_steps,
+        bound: StepBound::of(curvature_bound, steps),
     })
 }
 
@@ -1505,7 +1552,7 @@ mod tests {
                         fault: StepFault::SpeedUnusable,
                     }
                     .ending(crate::recourse::Reading::Build);
-                    assert_eq!(ending.as_deref(), Some(geom_core::KERNEL_DEFECT_ENDING));
+                    assert_eq!(ending, geom_core::KERNEL_DEFECT_ENDING);
                 }
                 Err(SsiError::Escalated { decision, .. }) => panic!(
                     "WRONG DIAGNOSIS: a march speed of {speed:e} escalated on \
@@ -1590,9 +1637,7 @@ mod tests {
             assert_eq!(named.to_bits(), speed.to_bits(), "the speed it names");
             let ending = r.unwrap_err().ending(crate::recourse::Reading::Build);
             assert!(
-                ending
-                    .as_deref()
-                    .is_some_and(|e| e.starts_with("Recourse: bring the operands")),
+                ending.starts_with("Recourse: bring the operands"),
                 "speed {speed:e}: {ending:?}"
             );
         }
@@ -1672,7 +1717,7 @@ mod tests {
                     // A poisoned margin names no lever of the decision's:
                     // the arm gate ends as transversality's unreadable
                     // margin, the rest as the kernel's defect.
-                    let ending = e.ending(crate::recourse::Reading::Build).unwrap();
+                    let ending = e.ending(crate::recourse::Reading::Build);
                     if guard == TraceDecision::TransversalityArm {
                         assert!(
                             ending.ends_with(geom_core::UNREADABLE_MARGIN_NOTE),
@@ -1833,5 +1878,22 @@ mod tests {
         assert!(r.reach <= 1.0 + 1.0e-12, "{r:?}");
         let tol = MarchTol::from_band(band, r).unwrap();
         assert_eq!(tol.settling(), SSI_NEWTON_TOL * band.zero());
+    }
+
+    /// **A rung is named from a quarter of the steps**, on either side
+    /// of the line, for each rung.
+    #[test]
+    fn a_rung_is_named_from_a_quarter_of_the_steps() {
+        use super::StepBound;
+        for (curvature, want) in [
+            (0, StepBound::Cap),
+            (4, StepBound::Cap),
+            (5, StepBound::Both),
+            (15, StepBound::Both),
+            (16, StepBound::Curvature),
+            (20, StepBound::Curvature),
+        ] {
+            assert_eq!(StepBound::of(curvature, 20), want, "{curvature} of 20");
+        }
     }
 }
