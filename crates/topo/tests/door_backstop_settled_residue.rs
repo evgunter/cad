@@ -17,8 +17,11 @@
 //!   crosses `vol(A) − vol(B)`;
 //! - every other op and tilt builds at the box arithmetic.
 //!
-//! A crossing refuses wherever the interval margin certifies it; the
-//! sunk intersect's does at every ε.
+//! A crossing refuses wherever the interval margin certifies it. Each
+//! row pins the verdict measured at ε = 1e-9, 1e-6 and 1e-12: the sunk
+//! intersect refuses at all three, and the standing union and the sunk
+//! `A ∖ B` (13.5 m³ bodies, whose sums round coarser) refuse down to
+//! 1e-9 and build within the gap at 1e-12.
 //!
 //! Sunk at `2ε` the intersect and subtract refuse in the join instead
 //! (`work/join/a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync.md`).
@@ -63,12 +66,11 @@ fn declared(a: topo::FaceKey, b: topo::FaceKey, class: BooleanCoincidence) -> Bo
 enum Want {
     /// Build at this volume (`0` is empty), within the gap.
     Builds(f64),
-    /// The result crosses this bound by up to the gap: the volume
-    /// backstop refuses it naming the bound wherever the interval
-    /// margin certifies the crossing, and below the interval's own
-    /// rounding (the two larger bodies at ε = 1e-12) it builds within
-    /// the gap.
-    Crosses(&'static str, f64),
+    /// The result crosses this bound by up to the gap. At every ε
+    /// down to the third field the volume backstop refuses it naming
+    /// the bound; below it the crossing is under the interval's own
+    /// rounding and builds within the gap at this volume.
+    Crosses(&'static str, f64, f64),
     /// The join refuses.
     Join,
 }
@@ -99,7 +101,7 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             standing,
             rest,
             [
-                Crosses(union_cap, block_volume + wedge(1.0)),
+                Crosses(union_cap, block_volume + wedge(1.0), 1e-9),
                 Builds(0.0),
                 Builds(block_volume),
                 Builds(wedge(1.0)),
@@ -136,8 +138,8 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             cont,
             [
                 Builds(block_volume),
-                Crosses(cap, wedge(0.5)),
-                Crosses(floor, block_volume - wedge(0.5)),
+                Crosses(cap, wedge(0.5), 1e-12),
+                Crosses(floor, block_volume - wedge(0.5), 1e-9),
                 Builds(0.0),
             ],
         ),
@@ -149,7 +151,6 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             [Builds(block_volume), Join, Join, Builds(0.0)],
         ),
     ];
-    let mut refused = 0;
     for (pose, over_eps, (height, depth, facing), class, wants) in rows {
         let theta = over_eps * band.zero();
         let gap = 0.5 * theta.abs() * phi.sin().powi(2);
@@ -192,11 +193,12 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             };
             match (want, out) {
                 (Builds(want), out) => builds(out, want),
-                (Crosses(bound, _), Err(BooleanError::ResultVolumeImplausible { which, .. })) => {
-                    assert_eq!(which, bound, "{label}");
-                    refused += 1;
-                }
-                (Crosses(_, want), out) => builds(out, want),
+                (Crosses(bound, _, down_to), out) if band.zero() >= down_to => assert!(
+                    matches!(out, Err(BooleanError::ResultVolumeImplausible { which, .. })
+                        if which == bound),
+                    "{label}: refuses {bound}: {out:?}"
+                ),
+                (Crosses(_, want, _), out) => builds(out, want),
                 (Join, out) => assert!(
                     matches!(out, Err(BooleanError::JoinDesync { .. })),
                     "{label}: the join refuses: {out:?}"
@@ -204,5 +206,4 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             }
         }
     }
-    assert!(refused >= 1, "no crossing refused at ε = {}", band.zero());
 }

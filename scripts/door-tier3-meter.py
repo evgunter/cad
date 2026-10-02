@@ -7,7 +7,7 @@ the door builds (`crates/topo/src/boolean/door_meter.rs`), and prints
 the table `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`
 reports.
 
-    python3 scripts/door-tier3-meter.py [--crates topo sweep] [--skip-run]
+    python3 scripts/door-tier3-meter.py [--crates topo sweep] [--records DIR [--skip-run]]
 
 Set `CAD_TOLERANCE_EPS` and `CARGO_TARGET_DIR` as for any suite run.
 """
@@ -36,8 +36,9 @@ FIELDS = [
 
 
 def run(crate: str, path: str) -> None:
-    if os.path.exists(path):
-        os.remove(path)
+    # The meter's sink is compiled in (`env!`), so the path rides on the
+    # build: a fresh file per run, which a concurrent run cannot share.
+    env = dict(os.environ, CAD_DOOR_TIER3_METER_OUT=path)
     subprocess.run(
         [
             "cargo",
@@ -52,6 +53,7 @@ def run(crate: str, path: str) -> None:
             "topo/door-tier3-meter",
         ],
         check=False,
+        env=env,
     )
 
 
@@ -88,21 +90,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--crates", nargs="+", default=["topo", "sweep"])
     parser.add_argument(
-        "--skip-run", action="store_true", help="summarize the last run's records only"
+        "--skip-run", action="store_true", help="summarize --records without running"
+    )
+    parser.add_argument(
+        "--records",
+        help="the directory the per-crate records go to (default: a fresh one)",
     )
     args = parser.parse_args()
-    path = os.path.join(tempfile.gettempdir(), "door-tier3-meter.tsv")
+    if args.skip_run and not args.records:
+        parser.error("--skip-run reads an earlier run's --records directory")
+    out = args.records or tempfile.mkdtemp(prefix="door-tier3-meter-")
     print(
         "| corpus | results | tier 3 refuses | of those, shipped | shipped with "
         "tier-3-clean operands | tier 3 / op time | median / p90 / max | backstop / op |"
     )
     print("|---|---|---|---|---|---|---|---|")
     for crate in args.crates:
-        kept = f"{path}.{crate}"
+        path = os.path.join(out, f"{crate}.tsv")
         if not args.skip_run:
+            if os.path.exists(path):
+                os.remove(path)
             run(crate, path)
-            os.replace(path, kept)
-        summarize(crate, kept)
+        summarize(crate, path)
 
 
 if __name__ == "__main__":

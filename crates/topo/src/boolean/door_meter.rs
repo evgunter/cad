@@ -5,14 +5,20 @@
 //! feature on, the door also runs the scalar's at-rest gate
 //! ([`crate::AtRestPolicy::gate_at_rest`]) on the result and on both
 //! operands after the volume backstop, and appends one tab-separated
-//! line per result to `door-tier3-meter.tsv` in the system temporary
-//! directory:
+//! line per result to the file the build names in
+//! `CAD_DOOR_TIER3_METER_OUT`. The path is fixed when the crate is
+//! compiled (`option_env!`), so the kernel reads no environment at run
+//! time and the caller — `scripts/door-tier3-meter.py`, which names a
+//! fresh file per run and refuses an empty table — chooses the sink. A
+//! build that names none (an `--all-features` build, say) leaves the
+//! meter inert: it runs no tier 3 and writes nothing.
 //!
 //! `test op scalar faces op_µs tier3_µs backstop_µs backstop_ok
 //! tier3_verdict a_tier3_ok b_tier3_ok`
 //!
 //! It changes no result: the verdicts are recorded and the door goes on
-//! exactly as it would without them. `scripts/door-tier3-meter.py` runs
+//! exactly as it would without them. A line it cannot write panics, so
+//! the table never undercounts in silence. `scripts/door-tier3-meter.py` runs
 //! the suites with it on and prints the table
 //! `work/reach/boolean-door-tier-3-waits-on-the-description-gap.md`
 //! reports.
@@ -41,8 +47,12 @@ impl Meter {
     }
 
     /// Runs tier 3 on the result and both operands and appends the
-    /// line. A file that will not open drops the line: the meter never
-    /// changes what the door does.
+    /// line.
+    ///
+    /// # Panics
+    ///
+    /// When the sink will not open or take the line: an instrument that
+    /// drops a record reports a table it did not measure.
     pub(super) fn record<T: AtRestPolicy>(
         self,
         op: BooleanOp,
@@ -53,6 +63,9 @@ impl Meter {
         tol: geom_core::Tol,
     ) {
         let backstop = self.backstop_start.elapsed();
+        let Some(path) = option_env!("CAD_DOOR_TIER3_METER_OUT") else {
+            return;
+        };
         let start = Instant::now();
         let tier3 = T::gate_at_rest(result, tol);
         let tier3_time = start.elapsed();
@@ -77,13 +90,13 @@ impl Meter {
             T::gate_at_rest(a, tol).is_ok(),
             T::gate_at_rest(b, tol).is_ok(),
         );
-        let path = std::env::temp_dir().join("door-tier3-meter.tsv");
-        if let Ok(mut file) = std::fs::OpenOptions::new()
+        let written = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(path)
-        {
-            let _ = file.write_all(line.as_bytes());
+            .and_then(|mut file| file.write_all(line.as_bytes()));
+        if let Err(e) = written {
+            panic!("door-tier3-meter: the sink {path} refused a line: {e}");
         }
     }
 }

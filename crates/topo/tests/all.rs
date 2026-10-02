@@ -318,10 +318,10 @@ mod replace_face_band_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
-#[path = "door_backstop_settled_residue.rs"]
-mod door_backstop_settled_residue;
 #[path = "cleave_mint_doors.rs"]
 mod cleave_mint_doors;
+#[path = "door_backstop_settled_residue.rs"]
+mod door_backstop_settled_residue;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "split_tangent_spur.rs"]

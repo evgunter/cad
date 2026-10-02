@@ -692,7 +692,7 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
 }
 
 /// **A declared rounded continuation that lies inside the other's wall
-/// builds its subtract and intersect, and refuses its union typed.**
+/// builds its subtract and intersect, and refuses A ∪ B typed.**
 /// The rounded plate and a plate of the same outline half as thick,
 /// sunk inside it or flush with its top or bottom, so the thin plate's
 /// walls (fillets included) lie inside the thick one's. Undeclared,
@@ -700,7 +700,7 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
 /// declared, subtract and intersect build at box arithmetic in z over
 /// the outline's area `24 − (4 − π)·R²`: half the thick plate's volume
 /// each, the sunk subtract as two plates of a quarter unit (twenty
-/// faces). The union refuses `FallbackExtentUnsupported`: no crossing
+/// faces). A ∪ B refuses `FallbackExtentUnsupported`: no crossing
 /// event exists, and that pass exempts no declared pair
 /// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
 /// With the declarations keyed for (B, A), B ∖ A, empty (the thin
@@ -708,10 +708,12 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
 /// builds the thick plate, its walls left split where the thin plate's
 /// lay (18 faces sunk, 14 flush, against the plate's 10): the union
 /// refuses in one operand order only.
-/// The
-/// flush-top intersect is the thin plate itself, whose `f64` volume
-/// rounds two ulps above the operand's through another face order; the
-/// backstop re-derives that tie in interval arithmetic and builds it.
+///
+/// Two results here are an operand itself measured through another
+/// face order, so their `f64` volumes round a few ulps past the operand
+/// they are bounded by: the flush-top intersect (the thin plate) and
+/// the sunk B ∪ A (the thick plate). The backstop re-derives each tie
+/// in interval arithmetic and builds it.
 #[test]
 fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
     let none = BooleanDeclarations::default();

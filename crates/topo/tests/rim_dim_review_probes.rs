@@ -44,7 +44,6 @@ const FIXED: &[&str] = &[
     "volume_backstop",
     "volume_backstop_violation",
     "volume_backstop_operand",
-    "volume_backstop_positive",
     "witness_at_mid_parameter",
 ];
 
@@ -114,7 +113,6 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
         "volume_backstop",
         "volume_backstop_violation",
         "volume_backstop_operand",
-        "volume_backstop_positive",
     ] {
         assert!(
             counts.get(gate).is_some_and(|c| c.1 > 0),
@@ -127,7 +125,7 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
     // 2 mm cube's 8e-9 m³ inside the default band, read that as "not
     // certifiably bounded", and skipped the bound entirely. Each of the
     // two subtracts reaches both arms of both its bounds (∖ ≤ A and
-    // ∖ ≥ A − B): 4 samples under each name, and the +V read once each.
+    // ∖ ≥ A − B): 4 samples under each name.
     for arm in ["volume_backstop", "volume_backstop_violation"] {
         assert_eq!(
             counts.get(arm).map(|c| c.0),
@@ -136,11 +134,6 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
              lower count is the pre-F3 silent skip coming back"
         );
     }
-    assert_eq!(
-        counts.get("volume_backstop_positive").map(|c| c.0),
-        Some(2),
-        "volume_backstop_positive: each subtract's result reads its sign once"
-    );
 }
 
 use geom_core::Sign;
