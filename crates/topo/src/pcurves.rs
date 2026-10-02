@@ -3744,17 +3744,11 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                     .find(|v| !matches!(v, Ok(Sign::Zero)))
                 {
                     None => {}
-                    Some(Ok(_)) => {
-                        findings.push(PcurveMintError::RowInterval { half_edge: he });
-                        continue;
-                    }
-                    Some(Err(cause)) => {
-                        findings.push(PcurveMintError::Escalated {
-                            half_edge: he,
-                            cause,
-                        });
-                        continue;
-                    }
+                    Some(Ok(_)) => findings.push(PcurveMintError::RowInterval { half_edge: he }),
+                    Some(Err(cause)) => findings.push(PcurveMintError::Escalated {
+                        half_edge: he,
+                        cause,
+                    }),
                 }
                 let mate = mate_surface(body, he);
                 if let Err(error) =
