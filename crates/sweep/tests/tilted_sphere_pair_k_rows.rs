@@ -33,7 +33,9 @@ use sweep::test_support::revolved_about_y_at;
 use topo::{Body, BooleanResult};
 
 /// `tools/k-lint`'s `BASELINE_FLOOR_MARGIN`: the bottom edge of the
-/// corpus's ε-independent definite margins.
+/// corpus's ε-independent definite margins. k-lint is a separate cargo
+/// root, so the value is spelled here, and k-lint's
+/// `the_sweep_rows_metre_floor_is_the_lints` pins the two equal.
 const METRE_FLOOR: f64 = 4.0e-5;
 
 /// A ball of radius `r` centred at `c`, poles on world `y`, lifted to

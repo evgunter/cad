@@ -169,6 +169,10 @@ pub enum ArcSideCase {
     /// where leaving on the run's left does not put an arc inside the
     /// face's sector there.
     ReflexRunEnd,
+    /// The divided face's loop holds no certified edge beside the run,
+    /// so the corner at a run end, which decides whether that end's
+    /// reading counts, has no second side to read.
+    NothingBesideRun,
 }
 
 impl core::fmt::Display for ArcSideCase {
@@ -191,6 +195,11 @@ impl core::fmt::Display for ArcSideCase {
                 f,
                 "an end of the joined run is a reflex corner or a cusp of the divided face, \
                  where the run's side does not decide the arc"
+            ),
+            Self::NothingBesideRun => write!(
+                f,
+                "the divided face's loop carries no certified edge beside the joined run, so \
+                 the corner at a run end cannot be read"
             ),
         }
     }
@@ -616,7 +625,9 @@ impl SplitJoinError {
                         "the section pierces this face as a ring, which has no join arm yet; \
                          move the geometry so the section crosses the face's boundary"
                     }
-                    ArcSideCase::EndsDisagree | ArcSideCase::ReflexRunEnd => "move the geometry",
+                    ArcSideCase::EndsDisagree
+                    | ArcSideCase::ReflexRunEnd
+                    | ArcSideCase::NothingBesideRun => "move the geometry",
                 },
             ),
         }
@@ -1557,8 +1568,9 @@ fn run_corner_opens<T: Decide>(
 ///
 /// [`SplitJoinError::SectionArcSide`] when the run has no certified
 /// edge, when the section is tangent to the run at an end, when a run
-/// end is a reflex corner or a cusp of the divided face, or when the
-/// two ends name different candidates; [`SplitJoinError::Escalated`] on
+/// end is a reflex corner or a cusp of the divided face, when the loop
+/// holds no certified edge beside the run to read that corner from, or
+/// when the two ends name different candidates; [`SplitJoinError::Escalated`] on
 /// an in-band side, corner or end match.
 #[allow(clippy::too_many_arguments)] // one internal rule, each argument a named duty
 fn select_arc_by_run_side<T: Decide>(
@@ -1631,7 +1643,7 @@ fn select_arc_by_run_side<T: Decide>(
                 // The reading counts only at a smooth or convex corner
                 // of the divided face (fn docs).
                 let beside =
-                    beside_run(body, he, is_start)?.ok_or(refuse(ArcSideCase::NoCertifiedRun))?;
+                    beside_run(body, he, is_start)?.ok_or(refuse(ArcSideCase::NothingBesideRun))?;
                 let (arrive, depart) = if is_start {
                     (beside, travel)
                 } else {
@@ -3807,6 +3819,83 @@ mod tests {
         assert!(opens(x, x), "straight on is a smooth boundary point");
         assert!(!opens(x, -y), "a right turn is a reflex corner");
         assert!(!opens(x, -x), "a reversal is a cusp");
+    }
+
+    /// **A run end at a reflex corner refuses by name, at the rule's own
+    /// call.** The top face of a chevron prism, `(0,0) → (2,1) → (0,2) →
+    /// (0.5,1)`, ccw seen from `+z`, has one reflex corner, at
+    /// `(0.5, 1)`. The run is the edge arriving there from the convex
+    /// corner `(0, 2)`, and the chord is a circle arc between the run's
+    /// two ends, in the face's plane. The start end reads its side at a
+    /// convex corner. The end end's corner turns right, so its reading
+    /// does not count, and the rule refuses `ReflexRunEnd` rather than
+    /// letting that end vote (or disagree).
+    #[test]
+    fn a_reflex_run_end_refuses_at_the_rule() {
+        let tol = Tol::witness();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let profile = [(0.0, 0.0), (2.0, 1.0), (0.0, 2.0), (0.5, 1.0)];
+        let prism = crate::test_support_fixtures::prism_z::<f64>(&profile, 0.0, 1.0, tol);
+        let body = &prism.body;
+        let (c, d) = (Point3::new(0.0, 2.0, 1.0), Point3::new(0.5, 1.0, 1.0));
+        let at = |he: HalfEdgeKey| {
+            let v = body.get_half_edge(he).unwrap().start;
+            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+        };
+        let near = |p: Point3<f64>, q: Point3<f64>| (p - q).norm() < 1e-12;
+        // The face whose outward normal is `+z`, and its half-edge
+        // running from `c` into the reflex corner `d`.
+        let (face, run) = body
+            .faces()
+            .filter_map(|(k, f)| {
+                let crate::LoopBoundary::Cycle { first } = body.get_loop(f.outer)?.boundary else {
+                    return None;
+                };
+                let he = body.loop_cycle(first)?.into_iter().find(|&he| {
+                    let next = body.get_half_edge(he).unwrap().next;
+                    near(at(he), c) && near(at(next), d)
+                })?;
+                Some((k, he))
+            })
+            .find(|&(k, _)| {
+                face_normal::face_outward_normal_at(body, k, c, band)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|n| n.vec().z > 0.5)
+            })
+            .expect("the chevron's top face carries the run c → d");
+        // A circle through the run's two ends, in the face's plane.
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        let mid = Point3::new(0.25, 1.5, 1.0);
+        let off = Vec3::new(1.0, 0.5, 0.0) / Vec3::new(1.0, 0.5, 0.0).norm();
+        let center = mid + off * 2.0;
+        let radius = (c - center).norm();
+        let major = (c - center) / radius;
+        let conic = SectionConic {
+            center,
+            normal,
+            major,
+            sa: radius,
+            sb: radius,
+            carrier: geom::Curve3::Circle {
+                center,
+                axis: normal,
+                radius,
+                u_ref: major,
+            },
+            azimuth_monotone: false,
+        };
+        let got = select_arc_by_run_side(body, band, face, &conic, &[run], c, d);
+        assert!(
+            matches!(
+                got,
+                Err(SplitJoinError::SectionArcSide {
+                    case: ArcSideCase::ReflexRunEnd,
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
     }
 
     /// **The anti-re-fork row for the arc-side rule.** Each of the

@@ -4810,18 +4810,24 @@ fn run_fitted_checks<T: Decide>(
     // not a certificate. It is NOT folded into `max_residual` (the
     // sampled max and the sup bound stay separate statements).
     //
-    // **A circle's envelope is recorded under its own name.** Its image
-    // is refined until the Hermite bound is a quarter of the band
-    // ([`sphere_circle_image_lane`]), so this margin sits just under
-    // `ε/4` at every ε by construction: it scales with ε, unlike the
-    // closed-form lanes' envelopes, which are rounding-sized. The K
-    // lint judges it against that target (`tools/k-lint`'s
-    // `CONSTRUCTION_COUPLED`), so it must not share a name with the
-    // envelopes the metre rules still watch.
-    let envelope_name = if matches!(carrier, Curve3::Circle { .. }) {
-        "pcurve_envelope_hermite"
-    } else {
-        "pcurve_envelope"
+    // **The Hermite construction's envelope is recorded under its own
+    // name**, keyed on the statement the lane returns, not on the
+    // carrier kind. `fitted_lane` states `MapResidualHermite` for the
+    // image `sphere_circle_image_lane` refines until the Hermite bound
+    // is a quarter of the band, so this margin sits just under `ε/4` at
+    // every ε by construction: it scales with ε, unlike the closed-form
+    // and composite envelopes, which are rounding-sized. The K lint
+    // judges it against that target (`tools/k-lint`'s
+    // `CONSTRUCTION_COUPLED`, whose pin reads this match). Another
+    // construction states its own statement and keeps the shared name
+    // until it is ruled.
+    let envelope_name = match statement {
+        EnvelopeStatement::MapResidualHermite => "pcurve_envelope_hermite",
+        EnvelopeStatement::MapResidualClosedForm
+        | EnvelopeStatement::MapResidualComposite
+        | EnvelopeStatement::OnLocusHull
+        | EnvelopeStatement::MapResidualIsoHull
+        | EnvelopeStatement::SpiricIdentity => "pcurve_envelope",
     };
     let mut envelope_margin = T::zero();
     check_residual(

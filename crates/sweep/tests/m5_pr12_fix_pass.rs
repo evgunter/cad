@@ -281,10 +281,14 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
                 (e.carrier.eval(t) - center) / radius
             })
             .collect();
+        // Van Oosterom–Strackee, through `atan2` so the excess is right
+        // past π too (a patch over a quarter of its sphere), where the
+        // denominator goes negative and a plain `atan` would fold it.
         let excess = 2.0
-            * (u[0].dot(u[1].cross(u[2])).abs()
-                / (1.0 + u[0].dot(u[1]) + u[1].dot(u[2]) + u[2].dot(u[0])))
-            .atan();
+            * u[0]
+                .dot(u[1].cross(u[2]))
+                .abs()
+                .atan2(1.0 + u[0].dot(u[1]) + u[1].dot(u[2]) + u[2].dot(u[0]));
         let surface = f.body.get_surface(face.surface).unwrap();
         let area = geom_brep::props::curved_face(surface, &outer, face.sense, band)
             .expect("the patch measures")

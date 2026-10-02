@@ -4,7 +4,7 @@ kind: issue
 title: A sphere face whose boundary encodes no side (the rimless band, a tilted-circle face with a pole on its loop) is measured under its sense bit alone, so a flipped bit measures the complement silently
 status: open
 opened: 2026-10-02
-priority: P3
+priority: P2
 cost: M
 refs: [sphere-flux-arm-carries-two-closed-forms-for-one-face-kind]
 ---
@@ -30,6 +30,18 @@ either of A's or B's remnant faces (pole vertices on the seams) gives
 bitten cap in `A ∖ B` are refused by name
 (`crates/sweep/tests/tilted_sphere_pair.rs`,
 `a_flipped_tilted_face_is_refused_by_name`).
+
+**How much of the flip population this is** (the delta review of PR
+3817, over `47b16394c2..1d29d4bc81`). Over 480 oracle bodies, every face
+was flipped alone: 1,646 single-face flips in all. The sense
+cross-check refused 274 of them by name. The other 1,372 (83%) are this
+item's pose family: the pole-bearing remnants of a sphere cut off its
+chart's polar axis, the faces of the union, of `A ∖ B` and of `B ∖ A`
+that keep a ball's original pole vertices on their seam. Each of those
+flips returns a WRONG volume from `mass_properties`, and
+`validate_geometric` sees only `LaminaWedge`. A corrupted sense bit on
+the commonest face of a tilted carve is measured silently, which is
+why this is P2 and not P3.
 
 ## What a fix owes
 

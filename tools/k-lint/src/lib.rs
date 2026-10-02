@@ -225,10 +225,14 @@
 //! for a general circle's chart image on a sphere. `geom-brep`'s
 //! `sphere_circle_image_lane` refines that image by trisection "until
 //! every span's certified bound is a quarter of the band"
-//! (`hermite_image(…, 0.25 * band.zero())`). The name is split from
-//! `pcurve_envelope` at the mint for this rule: the closed-form lanes'
-//! envelopes are rounding-sized (~1e-15 m, ε-independent), keep the old
-//! name, and stay under the metre rules.
+//! (`hermite_image(…, 0.25 * band.zero())`). `run_fitted_checks` mints
+//! the name for the envelope whose statement is `MapResidualHermite`,
+//! the construction `fitted_lane` states for that image. The name is
+//! keyed on the construction, not on the carrier kind, so a later
+//! circle lane with another construction keeps `pcurve_envelope` until
+//! it is ruled. The closed-form lanes' envelopes are rounding-sized
+//! (~1e-15 m, ε-independent), keep that name, and stay under the metre
+//! rules.
 //!
 //! Measured on the first sweep that carried the rows: a fresh
 //! `scripts/k_probe_sweep.sh` over the corpus and the demo scenes at the
@@ -254,9 +258,16 @@
 //! name.
 //!
 //! **The premise is pinned at its source.**
-//! `tests/construction_coupled.rs` reds if the mint stops spelling the
-//! name, or if the lane's refinement stops reading `0.25 * band.zero()`.
-//! The target here and the target there cannot drift apart silently.
+//! `tests/construction_coupled.rs` reads `pcurve_cache.rs` through the
+//! shared lexer. It reds if the name is minted anywhere but the
+//! `MapResidualHermite` arm of `run_fitted_checks`, if that statement is
+//! stated anywhere but `fitted_lane`, or if `sphere_circle_image_lane`
+//! stops refining to `0.25 * band.zero()`. The target here and the
+//! target there cannot drift apart silently.
+//!
+//! Rule 5 tallies under its own number ([`Reason::rule`]), so a run's
+//! per-rule line says how many findings are a construction off its
+//! target. It is decided, like rules 2 and 3, and demotes with them.
 //!
 //! # Rule (2)'s discrimination floor
 //!
@@ -571,7 +582,7 @@ pub enum Reason {
 }
 
 impl Reason {
-    /// **Which RULE of the module's three this reason belongs to.**
+    /// **Which RULE this reason belongs to, as the CLI tallies it.**
     ///
     /// The distinction is load-bearing since M10-6: rule 1 detects a
     /// margin the run could not decide at all (`indeterminate`) or a
@@ -583,17 +594,22 @@ impl Reason {
     /// toward zero by construction will make in bulk without anything
     /// being wrong.
     ///
-    /// A consumer may demote 2 and 3 with a recorded justification
+    /// Rule 5 is the construction-coupled names' own rule (module
+    /// docs, "The construction-coupled families"). It tallies under its
+    /// own number so a run says how many of its findings are a
+    /// construction off its target rather than a margin near the band.
+    /// It is decided, like rules 2 and 3, and demotes with them. Rule 4's
+    /// floor tallies under rule 3, the floor it recalibrates.
+    ///
+    /// A consumer may demote 2, 3 and 5 with a recorded justification
     /// (`docs/K-REPORT.md`'s recourse 2). Demoting rule 1 would demote
     /// the trigger, so nothing offers that.
     pub fn rule(self) -> u8 {
         match self {
             Self::InBand | Self::Invalid => 1,
-            Self::NearBandAbove
-            | Self::NearBandBelow
-            | Self::AboveConstructionTarget
-            | Self::ConstructionRefused => 2,
+            Self::NearBandAbove | Self::NearBandBelow => 2,
             Self::BelowBaselineFloor | Self::BelowEpsCoupledFloor => 3,
+            Self::AboveConstructionTarget | Self::ConstructionRefused => 5,
         }
     }
 
@@ -1507,8 +1523,8 @@ mod tests {
         for r in Reason::ALL {
             let rule = r.rule();
             assert!(
-                (1..=3).contains(&rule),
-                "{r:?} claims rule {rule}, which is not one of the module's three"
+                [1, 2, 3, 5].contains(&rule),
+                "{r:?} claims rule {rule}, which is not one the CLI tallies"
             );
         }
         // Rule 1 is exactly the two undecided outcomes: the trigger E6

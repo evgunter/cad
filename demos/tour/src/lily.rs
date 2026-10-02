@@ -665,6 +665,14 @@ const LEAF_A_BASE: Point3<f64> = Point3::new(0.04, 0.05, 0.03);
 const LEAF_A_DIR: Vec3<f64> = Vec3::new(-0.72, 0.52, 0.16);
 /// See [`LEAF_A_BASE`].
 const LEAF_A_UP: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
+/// Wall 7's carving ball, the one that cuts a tepal seam into the
+/// lantern's zone sphere off its chart's polar axis: its centre, and
+/// [`WALL7_BALL_RADIUS`]. The wall carves with it at the walls' scalar
+/// and again in `f64` to draw, and a review row measures it, so it is
+/// spelled once.
+const WALL7_BALL_CENTER: Point3<f64> = Point3::new(-2.80, 0.0, 0.90);
+/// See [`WALL7_BALL_CENTER`].
+const WALL7_BALL_RADIUS: f64 = 0.16;
 /// See [`LEAF_A_BASE`].
 const LEAF_A_LEN: f64 = 5.10;
 /// See [`LEAF_A_BASE`]. Negative: the blade arches OVER, which is what
@@ -2204,7 +2212,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     let carve = |lantern: &Body<S>| {
         pncad::topo::subtract(
             lantern,
-            &ball::<S>(Point3::new(-2.80, 0.0, 0.90), 0.16, tol),
+            &ball::<S>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
             tol,
         )
     };
@@ -2224,7 +2232,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                         .body;
                     pncad::topo::subtract(
                         &lantern,
-                        &ball::<f64>(Point3::new(-2.80, 0.0, 0.90), 0.16, tol),
+                        &ball::<f64>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
                         tol,
                     )
                     .map_err(Wall7::Carve)?
@@ -3740,8 +3748,8 @@ mod verbs_gate_r1_probes {
             .find(|p| p.name == "lily_lantern")
             .expect("lantern piece")
             .body;
-        // The carving ball of wall 7, in its own numbers.
-        let (bc, br) = (Point3::new(-2.80, 0.0, 0.90), 0.16);
+        // The carving ball of wall 7.
+        let (bc, br) = (super::WALL7_BALL_CENTER, super::WALL7_BALL_RADIUS);
         let pucker = super::review_probes::pucker_cone_faces(&pieces);
         let mut min_frustum_gap = f64::INFINITY;
         let mut zone_hit = false;
