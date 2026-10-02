@@ -829,7 +829,9 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    println!(
+        "\n-- the rocker plate (fillets in the profile, the branch PICKED, and on the solid) --"
+    );
     for stop in rocker::stops(tol) {
         visit(&stop);
     }
