@@ -316,8 +316,10 @@ fn declare_inserts_the_pair() {
 
 /// **The verification-arm falsifier** (adopted from the #304 review's
 /// planted-drift probe, then aimed both ways). Two resting pairs
-/// TILTED so their angular margins, levered at the SHARED
-/// verification arm, land just inside the ambiguity band's two ends:
+/// TILTED so their angular margins, levered at the pair's consumed
+/// extent — the ball enclosing both faces, about the base's 1 m × 1 m
+/// top centre out to its corner, `√2/2` m — land just inside the
+/// ambiguity band's two ends:
 /// at the correct arm BOTH refuse `PairInBand` at
 /// `bool_plane_parallel`. An arm drifted UP by ~2% turns the
 /// near-escalate tilt definite (silent empty result); an arm drifted
@@ -327,7 +329,8 @@ fn declare_inserts_the_pair() {
 #[test]
 fn tilted_in_band_pairs_pin_the_verification_arm() {
     let tol = geom_core::Tol::witness().get();
-    for theta in [1.01 * tol.eps, 0.99 * tol.k * tol.eps] {
+    let arm = 0.5f64.sqrt();
+    for theta in [1.01 * tol.eps / arm, 0.99 * tol.k * tol.eps / arm] {
         let (c, s) = (theta.cos(), theta.sin());
         let (doc, base) = box_at(
             ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),
