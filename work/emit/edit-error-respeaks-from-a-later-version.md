@@ -2,7 +2,8 @@
 id: edit-error-respeaks-from-a-later-version
 kind: unit
 title: EditError can be spoken again from a later version of its document, so a rename later in its own batch reaches the viewer's line
-status: open
+status: review
+pr: 3832
 opened: 2026-10-02
 priority: P3
 cost: M
