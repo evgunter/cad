@@ -22,7 +22,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::NodeStanding;
-use editor_core::Staged;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -3402,8 +3401,8 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 Some(NodeResult::Failed(error)) => match &error.kind {
                     NodeErrorKind::Part {
                         doc_ref,
-                        fault: fault @ PartFault::PartProduct { kind, .. },
-                    } if *kind == class => row(
+                        fault: fault @ PartFault::PartProduct { refusal },
+                    } if refusal.kind() == class => row(
                         name,
                         NodeErrorKind::Part {
                             doc_ref: *doc_ref,
@@ -3422,7 +3421,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
 /// forwards the kernel's own refusal, which no document reaches: a root
 /// the at-rest gate refuses, an aggregate it refuses, and a graft the
 /// kernel refuses. Each is built as the instance carries it, the
-/// gather's [`editor_core::ProductError::sentence`] beside its class.
+/// gather's refusal whole.
 fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{PartFault, ProductError, SourceFinding};
     let inside_out = || topo::ValidationError::NegativeVolume {
@@ -3463,8 +3462,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Part {
                 doc_ref: doc_ref(),
                 fault: PartFault::PartProduct {
-                    kind: error.kind(),
-                    message: error.sentence().to_string(),
+                    refusal: error.into(),
                 },
             },
         )

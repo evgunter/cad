@@ -40,7 +40,7 @@
 //!
 //! Since M5 PR 13, reversed faces DO reach real output: the notched
 //! prism's concave wall, the washer's bore and under-side annulus, and
-//! the cone's two BASE-DISC halves — which are `PLANE` faces, not the
+//! the cone's BASE DISC — which is a `PLANE` face, not the
 //! conical bands (both `CONICAL_SURFACE` faces of the cone write
 //! `.T.`). That is the general shape of S11's rule: the reversed face
 //! is the one whose material lies against the chart normal, and on a
@@ -393,7 +393,7 @@ fn every_fixture_shell_is_edge_use_coherent() {
         // loop the two uses come from, which is exactly right.
         ("washer", &[8]),
         ("ball", &[2]),
-        ("cone", &[6]),
+        ("cone", &[4]),
         ("donut", &[4]),
     ];
     for (name, counts) in expect {

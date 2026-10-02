@@ -423,9 +423,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     });
     assert!(
         matches!(
-            refused.refusal,
+            &refused.refusal,
             Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                if node == pattern
+                if node.id() == pattern
         ),
         "{:?}",
         refused.refusal

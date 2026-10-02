@@ -260,20 +260,19 @@ fn p3_vase_opened_at_its_bottom_mints_one_annular_rim() {
         (0.0, 0.31),
     ]);
     let chart = plane_chart_at_y(&body, 0.0);
-    assert_eq!(chart.len(), 2, "the base is two half-discs");
+    assert_eq!(chart.len(), 1, "the base is one disc");
     let cup = topo::shell_open(&body, t, &chart, Tol::witness())
         .unwrap_or_else(|e| panic!("[p3] the vase opens at its base, got {e}"))
         .body;
     assert_eq!(cup.shells().count(), 1);
+    let rim = plane_chart_at_y(&cup, 0.0);
+    assert_eq!(rim.len(), 1, "ONE rim face");
+    // The shoulders are annuli too, each plane wall built whole with its
+    // inner circle a ring, so the rim's own ring is the one counted.
     assert_eq!(
-        (rings_of(&cup), genus_of(&cup)),
+        (cup.get_face(rim[0]).unwrap().rings.len(), genus_of(&cup)),
         (1, 0),
         "one rim annulus, genus 0"
-    );
-    assert_eq!(
-        plane_chart_at_y(&cup, 0.0).len(),
-        1,
-        "the two half-discs became ONE rim face"
     );
     let pi = core::f64::consts::PI;
     let v_solid = pi * (0.21f64.powi(2) * 0.07 + 0.34f64.powi(2) * 0.12 + 0.11f64.powi(2) * 0.12);

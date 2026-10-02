@@ -273,29 +273,24 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
 // P4 — a planted ring on a half-band support (claim 4).
 // ------------------------------------------------------------------
 
-/// **The REPAIRED lantern's neck rim CARVES, and a SUBSET of it refuses
-/// followably** — measured on the body a consumer actually holds. A raw
-/// pole-touching revolve is `NonMaximalFaces` at every boolean door, so
-/// any consumer who booleans (the tour's own lily flow) repairs first
-/// with `merge_coplanar_faces`, which merges each cap's two half-disks
-/// into ONE face. The neck rim is then two arcs on ONE plane face, in
-/// that face's own OUTER cycle, with TRIVALENT crossings — the shape
-/// `resolve_rim` routes to the annulus with hostless crossings, whose
-/// host feet are the ladder's struts.
+/// **The lantern's neck rim CARVES, and a SUBSET of it refuses
+/// followably** — measured on the body a consumer holds. A full revolve
+/// builds each cap whole (`crates/sweep/README.md`, "Walls: one per
+/// run"), so the neck rim is two arcs on ONE plane face, in that face's
+/// own OUTER cycle, with TRIVALENT crossings — the shape `resolve_rim`
+/// routes to the annulus with hostless crossings, whose host feet are
+/// the ladder's struts.
 ///
-/// The composed pin the seam-vertex family owes, on the repaired body:
-/// one arc alone refuses at a corner that is NOT `SeamVertex` (the
-/// cap's seam is gone, so the vertex is trivalent), and the whole-rim
-/// request that refusal points at is then followed to a carve here.
-/// Both halves matter — a recourse that names a door has to reach one.
+/// The composed pin the seam-vertex family owes: one arc alone refuses
+/// at a `SeamVertex` (the mate's seam cut the rim; the plane carries
+/// both arcs and has no seam), and the whole-rim request that refusal
+/// names is then followed to a carve here. Both halves matter — a
+/// recourse that names a door has to reach one.
 #[test]
-fn p4_the_repaired_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
-    let mut source = lantern();
-    source
-        .merge_coplanar_faces(tol())
-        .expect("the pole-split caps repair (#1031's pole half)");
+fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
+    let source = lantern();
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2, "the neck rim is still two arcs");
+    assert_eq!(arcs.len(), 2, "the neck rim is two arcs");
     let (a0, b0) = faces_of(&source, arcs[0]);
     let (a1, b1) = faces_of(&source, arcs[1]);
     let planes: Vec<FaceKey> = [a0, b0, a1, b1]
@@ -309,45 +304,42 @@ fn p4_the_repaired_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
             )
         })
         .collect();
-    assert_eq!(
-        planes[0], planes[1],
-        "after the repair one plane face hosts both arcs"
-    );
-    // Every crossing is TRIVALENT: the repair took the plane's own seam,
-    // so only the mate's meridian is left beside the two arcs. That is
-    // what makes the host foot a strut rather than a seam split.
+    assert_eq!(planes[0], planes[1], "one plane face hosts both arcs");
+    // Every crossing is TRIVALENT: the plane has no seam, so only the
+    // mate's meridian is left beside the two arcs. That is what makes
+    // the host foot a strut rather than a seam split.
     for &arc in &arcs {
         let ed = source.get_edge(arc).unwrap();
         for he in [ed.he_plus, ed.he_minus] {
             let v = source.get_half_edge(he).unwrap().start;
             let inc = source.edges_of_vertex(v).unwrap();
-            assert_eq!(inc.len(), 3, "a repaired-rim crossing is trivalent");
+            assert_eq!(inc.len(), 3, "a whole-cap rim crossing is trivalent");
         }
     }
 
-    // ONE ARC: still refused, at a corner that is NOT a seam vertex —
-    // there is no seam at a trivalent crossing to make one.
+    // ONE ARC: refused at the seam vertex, whose recourse names the
+    // whole rim.
     match fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
             assert!(
-                !matches!(corner, CornerConfig::SeamVertex),
-                "a trivalent repaired-rim end is not a seam vertex: {corner}"
+                matches!(corner, CornerConfig::SeamVertex),
+                "a trivalent rim crossing is a seam vertex: {corner}"
             );
         }
-        other => panic!("one repaired arc refuses at a corner door, got {other:?}"),
+        other => panic!("one arc refuses at a corner door, got {other:?}"),
     }
 
     // THE WHOLE RIM CARVES — the recourse that subset refusal names,
     // followed here rather than read. One band over both arcs, tier-3
     // valid, closed-form mass properties.
     let out = fillet_edges(&source, &arcs, 0.05, tol())
-        .expect("the whole repaired neck rim carves through the hostless-crossing annulus");
-    validate_geometric(&out.body, tol()).expect("the repaired neck carve is tier-3 valid");
+        .expect("the whole neck rim carves through the hostless-crossing annulus");
+    validate_geometric(&out.body, tol()).expect("the neck carve is tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "ONE band over both arcs");
     let props = mass_properties(&out.body, tol()).expect("mass properties compute");
     assert_eq!(
         props.volume_pad, 0.0,
-        "every face of the repaired neck carve is closed-form"
+        "every face of the neck carve is closed-form"
     );
 }
 

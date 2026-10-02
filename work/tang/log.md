@@ -253,6 +253,35 @@ over it, annotated on the PR. A class finding from this unit:
 reviewers twice found a claim of mutant coverage that held only at
 function level. Briefs now ask for the mutant run, not the claim.
 
+## 2026-10-02 — second wave dispatched (TANG orchestrator)
+
+- **`torus-carrier-axis-margin-is-levered-by-one-not-the-ring`**
+  (`tang/torus-lever`). Review: single, FULL. It changes a verified
+  contract and re-measures the rows that pin bridged declarations. It
+  was held until PR 3747 landed, because both touch `rest.rs`.
+- **`loop-shape-keeps-three-classes-nothing-reads` and
+  `declared-tangency-docs-name-the-wrong-blockers`**, batched
+  (`tang/e-batch-docs-loopshape`). Review: the orchestrator's read. Both
+  are mechanical: the deletion of dead classes, plus docs.
+- **Held until PR 3752 lands:** the P0 transverse rim
+  (`a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`)
+  and `pi-seam-between-two-operands-has-no-declaration`. Both edit
+  `reduce.rs`'s cover rungs, which 3752's fix pass is changing.
+
+## 2026-10-02 — lanes move to cloud sessions (TANG orchestrator)
+
+The container restarted twice. Each time, a full-parallelism nextest
+run overlapped other lanes' builds on one 15 GB, 4-core box, which
+points to memory pressure. On Ev's suggestion, new lanes run as child
+cloud sessions, each with its own container. A child cannot message
+back: its report is its final message and its PR body, read through
+the session transcript and the PR subscription. Every brief says the
+lane is not an orchestrator. In-process lanes still run with
+`--test-threads 4` under the build slot.
+
+- **`a-pinch-union-refuses-ring-homing-in-one-member-order`** — cloud
+  lane `tang/pinch-union-order`. Review: single, FULL (an
+  order-dependence defect in ring homing).
 ## 2026-10-02 — the E batch lands (PR 3784) (TANG orchestrator)
 
 Review tier: the orchestrator's read (diff read; `gate ok` green).
@@ -274,3 +303,18 @@ other rows' doors (the row's Closed section lists them). Two container
 restarts interrupted this unit; every lane's state was rescued from its
 worktree, and the later lanes ran as cloud sessions.
 - 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+
+## 2026-10-02 — the circle × cylinder cell merged (PR 3752); the P0 rim dispatched (TANG orchestrator)
+
+PR 3752 merged over main's bounds-census red, which comes from PCERT's
+PR 3733 and is filed on PCERT's slate.
+
+- **`a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`**
+  (P0): cloud lane `tang/abutting-rim`. It implements C4's narrowed
+  one-sided cover, ruled on PR 3756: an edge lying identically on a
+  carrier, with distinct parents, is an ON event. It also adds the curved
+  rim edge-on-edge event. Review: dual, concurrent (H). It adds new
+  incidence events in the crossing layer, a broad and hard-to-reverse
+  change.
+- **Held:** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
+  follows it, because both edit `reduce.rs`'s cover rungs.
