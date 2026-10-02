@@ -67,9 +67,10 @@
 
 use std::fmt::Write as _;
 
+use geom::SurfaceKind;
 use geom_brep::{
-    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
-    must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
+    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, edge_extent, must_carry_over_edge,
+    sample_param, tangent_certificate_lane, tangent_second_order,
 };
 use geom_core::{Band, ErrorTextReading, Margin, Sign, Tol, Vec3};
 use sweep::Revolution;
@@ -173,7 +174,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
             .collect();
         let verdict = must_carry_over_edge(s1, s2, carrier, t0, t1, extent, band);
         out.push(ContactReading {
-            kinds: (SurfaceKind::of(s1), SurfaceKind::of(s2)),
+            kinds: (s1.kind(), s2.kind()),
             in_lane,
             stations,
             verdict,

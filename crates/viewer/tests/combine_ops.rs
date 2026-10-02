@@ -745,15 +745,15 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
         eval.value(loose).is_some(),
         "the unfused pattern over the same rule still evaluates"
     );
-    let badge = tree::rows(
-        session.committed_doc(),
-        Some(eval),
-        &viewer::parts::PartFiles::default(),
-    )
-    .into_iter()
-    .find(|row| row.id == crowded)
-    .map(|row| row.status);
-    let Some(RowStatus::Failed { message, .. }) = badge else {
+    let badge = common::status_of(
+        &tree::rows(
+            session.committed_doc(),
+            Some(eval),
+            &viewer::parts::PartFiles::default(),
+        ),
+        crowded,
+    );
+    let RowStatus::Failed { message, .. } = badge else {
         panic!("the tree badge carries the node's own refusal: {badge:?}");
     };
     assert!(
@@ -1125,15 +1125,15 @@ fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
             eval.value(pattern).is_none(),
             "a pattern of {count} instances does not evaluate to a value"
         );
-        let badge = tree::rows(
-            session.committed_doc(),
-            Some(eval),
-            &viewer::parts::PartFiles::default(),
-        )
-        .into_iter()
-        .find(|row| row.id == pattern)
-        .map(|row| row.status);
-        let Some(RowStatus::Failed { message, .. }) = badge else {
+        let badge = common::status_of(
+            &tree::rows(
+                session.committed_doc(),
+                Some(eval),
+                &viewer::parts::PartFiles::default(),
+            ),
+            pattern,
+        );
+        let RowStatus::Failed { message, .. } = badge else {
             panic!("the tree badge carries the node's own refusal: {badge:?}");
         };
         assert!(

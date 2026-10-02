@@ -31,8 +31,9 @@ use crate::common;
 
 use geom::Curve3;
 use geom::NurbsCurve3;
+use geom::SurfaceKind;
+use geom_brep::OutwardNormal;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-use geom_brep::{OutwardNormal, SurfaceKind};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol, Vec3};
 use topo::readback::{

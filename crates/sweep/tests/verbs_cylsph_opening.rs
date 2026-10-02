@@ -112,10 +112,7 @@ fn the_coaxial_union_refuses_at_the_germ_frame() {
         };
         assert_eq!(
             (a_kind, b_kind),
-            (
-                geom_brep::SurfaceKind::Cylinder,
-                geom_brep::SurfaceKind::Sphere
-            ),
+            (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Sphere),
             "{label}: the germ pair is the cylinder's wall and the ball's sphere"
         );
     }
@@ -141,24 +138,30 @@ fn both_poses_take_the_same_door() {
     assert_eq!(doors[0], "GermFrameUnsupported", "{doors:?}");
 }
 
-/// **The non-coaxial transversal pose still refuses in the crossing
-/// layer** — the SSI lane is untouched by this unit. The crossing that
-/// used to keep the pierce door is certified now by the circle ×
-/// cylinder root lane (`topo::boolean::circle_cylinder`), so the door
-/// is the next one in, a pierce whose sector side the wall's curvature
-/// swamps (`work/reach/slab-cut-cylinder-refuses-sector-side.md`), in
-/// both poses.
+/// **The non-coaxial transversal pose crosses and reaches the germ
+/// frame.** The crossing that used to keep the pierce door is certified
+/// now by the circle × cylinder root lane
+/// (`topo::boolean::circle_cylinder`), its pierce's sector side
+/// certifies, and the cylinder × sphere germ pair it mints has no frame
+/// off the coaxial declaration, in both poses.
 #[test]
-fn a_transversal_pose_stops_at_the_sector_side_in_both_poses() {
+fn a_transversal_pose_reaches_the_germ_frame_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
     let s = ball_at(1.5, Vec3::new(0.6, 0.0, 0.0));
     for (label, c, s) in [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ] {
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no sector-side lane");
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("no off-axis cyl×sphere frame");
         assert!(
-            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::GermFrameUnsupported {
+                    a_kind: geom::SurfaceKind::Cylinder,
+                    b_kind: geom::SurfaceKind::Sphere,
+                    ..
+                }
+            ),
             "{label}: {err:?}"
         );
     }
@@ -203,10 +206,9 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
 /// circle×torus crossing has a root lane (`topo::boolean::circle_torus`),
 /// as the OTHER direction's does — a circle of the torus against the
 /// cylinder's wall, the circle × cylinder lane
-/// (`topo::boolean::circle_cylinder`). What refuses is a pierce's
-/// sector side, which the wall's curvature swamps
-/// (`work/reach/slab-cut-cylinder-refuses-sector-side.md`) — never a
-/// body.
+/// (`topo::boolean::circle_cylinder`). Their pierces' sector sides
+/// certify, and what refuses is the cylinder × torus germ pair, which
+/// has no frame — never a body.
 ///
 /// The pair gate's own sentence is pinned on a cone, the kind it still
 /// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
@@ -260,15 +262,17 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
         "a torus circle meets the cylinder's wall"
     );
     let err = topo::union(&a, &torus, Tol::witness())
-        .expect_err("a pierce's sector side is not certified against the wall's bend");
+        .expect_err("a cylinder × torus germ pair has no frame");
     assert!(
-        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
-        "expected the pierce's sector-side door, got {err:?}"
-    );
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("where an edge pierces a curved face") && msg.contains("Recourse:"),
-        "the refusal names the pierce and ends on its recourse: {msg}"
+        matches!(
+            err,
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Torus,
+                ..
+            }
+        ),
+        "expected the germ-frame door, got {err:?}"
     );
 }
 

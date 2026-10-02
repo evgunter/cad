@@ -53,7 +53,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeDescription, MustCarryVerdict, SurfaceKind, must_carry_over_edge};
+use geom_brep::{EdgeDescription, MustCarryVerdict, must_carry_over_edge};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -672,8 +672,8 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
                 geom_brep::tangent_certificate_lane(c.carrier(), &a, &b),
                 "{name}: edge {k:?} presents the rule a triple the certificate's lane \
                  refuses — surfaces {:?} / {:?}",
-                SurfaceKind::of(&a),
-                SurfaceKind::of(&b)
+                a.kind(),
+                b.kind()
             );
         }
         assert!(

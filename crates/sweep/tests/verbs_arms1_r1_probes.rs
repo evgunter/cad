@@ -39,7 +39,7 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::blend::BlendError;
