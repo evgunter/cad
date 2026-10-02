@@ -73,6 +73,8 @@ mod bool4r1_probes;
 mod bool4r2_base_probe;
 #[path = "bool4r2_probes.rs"]
 mod bool4r2_probes;
+#[path = "boolean_covered.rs"]
+mod boolean_covered;
 #[path = "boolean_discards.rs"]
 mod boolean_discards;
 #[path = "box_with_hole.rs"]
@@ -119,6 +121,10 @@ mod interval_body;
 mod issue86_double_subtract;
 #[path = "issue93_nested_islands.rs"]
 mod issue93_nested_islands;
+#[path = "join_star_fixture.rs"]
+mod join_star_fixture;
+#[path = "join_whole_orbit_rows.rs"]
+mod join_whole_orbit_rows;
 #[path = "loop_reparenting_pcurve_rows.rs"]
 mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]

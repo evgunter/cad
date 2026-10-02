@@ -250,7 +250,8 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     // Declared: pair the value-equal flush planes (both bodies' pure
     // ±y carriers at equal signed offsets — dyadic sketch data, so
     // offsets are exact bit-for-bit), then the intersect runs on the
-    // #93 anchors and is exact.
+    // #93 anchors and is exact. Each pair faces the same way, one
+    // carrier with aligned senses: a continuation, not a `Rest`.
     let mut decls = topo::BooleanDeclarations::none();
     let y_planes = |body: &Body<f64>| -> Vec<(topo::FaceKey, f64)> {
         body.faces()
@@ -269,7 +270,7 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
             if da == db {
                 decls
                     .coincident_faces
-                    .push(topo::FacePairDeclaration::rest(fa, fb));
+                    .push(topo::FacePairDeclaration::continuation(fa, fb));
             }
         }
     }

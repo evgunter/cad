@@ -28,7 +28,6 @@
 
 use geom_core::{Point3, Tol, Vec3};
 
-use super::SplitPlane;
 use super::split_scratch;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
@@ -150,10 +149,11 @@ fn reglue_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
 fn reassembly_oracle_generic_cube() {
     let tol = Tol::witness();
     let operand = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.5, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let plane = crate::test_support::split_plane(
+        Point3::new(0.0, 0.5, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let (red, completed, _fragments) = split_scratch(&operand, &plane, tol).unwrap();
     assert_eq!(completed.len(), 1);
     let mut body = red.body;

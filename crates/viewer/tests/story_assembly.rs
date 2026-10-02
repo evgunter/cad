@@ -123,6 +123,7 @@ fn close3(got: Vec3<f64>, want: Vec3<f64>, what: &str) {
 /// asserting it is display state and never a document edit.
 fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     let history_len = session.history().len();
+    let before = session.doc().node(instance).cloned();
     for op in [
         SessionOp::BeginFreeMove { instance },
         SessionOp::PreviewFreeMove {
@@ -141,9 +142,10 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
         history_len,
         "the probe leaves no history state"
     );
-    assert!(
-        session.doc().placements().get(&instance).is_none(),
-        "the probe authors no placement"
+    assert_eq!(
+        session.doc().node(instance).cloned(),
+        before,
+        "the probe leaves the instance's offset where it stood"
     );
 }
 
@@ -466,7 +468,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == hub_i && !mates.is_empty()
+                if instance.id() == hub_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -524,8 +526,11 @@ fn the_windmill_story() {
             instance,
             mates,
         }))) => {
-            assert_eq!(instance, hub_i);
-            assert!(mates.contains(&seat_mate), "the refusal names the mate");
+            assert_eq!(instance.id(), hub_i);
+            assert!(
+                mates.iter().any(|mate| mate.id() == seat_mate),
+                "the refusal names the mate"
+            );
         }
         other => panic!("expected the mate-constrained refusal, got {other:?}"),
     }
@@ -614,7 +619,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == sail_a && !mates.is_empty()
+                if instance.id() == sail_a && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -695,7 +700,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == sail_b && !mates.is_empty()
+                if instance.id() == sail_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \

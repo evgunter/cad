@@ -101,6 +101,7 @@ const COLOR_ISOARC: &str = "#6b2fa0";
 const COLOR_FITTED: &str = "#c1590a";
 const COLOR_GENERAL: &str = "#a01c3c";
 const COLOR_SPIRIC: &str = "#1d7a5f";
+const COLOR_CONE_SECTION: &str = "#8a6d0b";
 
 /// The pcurve form a half-edge's chart image was drawn from.
 ///
@@ -133,6 +134,10 @@ enum Form {
     /// and neither is a spline, so the sheet draws it under its own
     /// name — the sample spacing is the carrier's own minor angle.
     Spiric,
+    /// The exact tilted plane×cone ellipse's chart image: a sinusoid
+    /// in slant over a Kepler-anomaly azimuth, so its samples are
+    /// uneven in `u`.
+    ConeSection,
 }
 
 impl Form {
@@ -144,6 +149,7 @@ impl Form {
             Pcurve::Fitted(_) => Form::Fitted,
             Pcurve::General(_) => Form::General,
             Pcurve::Spiric { .. } => Form::Spiric,
+            Pcurve::ConeSection { .. } => Form::ConeSection,
         }
     }
 
@@ -155,6 +161,7 @@ impl Form {
             Form::Fitted => "fitted",
             Form::General => "general",
             Form::Spiric => "spiric",
+            Form::ConeSection => "conesection",
         }
     }
 
@@ -166,6 +173,7 @@ impl Form {
             Form::Fitted => COLOR_FITTED,
             Form::General => COLOR_GENERAL,
             Form::Spiric => COLOR_SPIRIC,
+            Form::ConeSection => COLOR_CONE_SECTION,
         }
     }
 
@@ -181,6 +189,7 @@ impl Form {
             Form::Fitted => 3,
             Form::General => 4,
             Form::Spiric => 5,
+            Form::ConeSection => 6,
         }
     }
 }

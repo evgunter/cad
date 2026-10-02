@@ -2,12 +2,15 @@
 id: plane-cone-elliptic-section-split-refusal
 kind: issue
 title: topo::split refuses every cone face - the elliptic plane×cone section is a closed form R1 rules out by decision, not by difficulty
-status: open
+status: closed
 opened: 2026-08-31
 github: 1339
 refs: [908, VERBS-CONE, VERBS-C5ARMS]
 priority: P0
 cost: H
+closed: 2026-10-01
+pr: 3688
+branch: reach/plane-cone-ellipse
 ---
 
 ## From GitHub issue 1339
@@ -155,3 +158,35 @@ VERBS: the change lands in `crates/geom-brep/src/intersect.rs` (VERBS territory)
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Closed (2026-10-01, PR 3688)
+
+`topo::split` cuts cones. A tilted plane through a frustum or a pointed
+cone, either way up, splits into valid halves on both nappes. Every half
+matches a slice-integral oracle, at ε 1e-9, 1e-6 and 1e-12. A parabola
+or hyperbola section refuses, naming its conic; a pose within the band
+of the parabolic limit escalates.
+
+Ev ruled on the provenance question on 2026-10-01: R1 permits the exact
+tilted ellipse ("exact ellipses are certainly allowed there"). Parabola
+and hyperbola stay outside the inventory.
+
+What the PR built:
+- the exact tilted plane×cone `Ellipse` and its cone-chart image
+  `Pcurve::ConeSection`, with its certificate;
+- one closed form for every cone face's mass properties;
+- the split lane's cone arms;
+- the apex-closed azimuth window for a cone face that reaches its apex.
+  The dual review found the upright pointed cone splitting into WRONG
+  halves (62 of 144 cuts), and the window is that fix.
+
+Residue, each in its own file:
+- `split-gate-refuses-a-whole-body-for-one-unarmed-face`;
+- GERM's `conic-section-just-past-its-band-fails-certification-downstream`;
+- CONTACT's `cone-chart-trim-reads-a-tilted-section-as-its-vertex-window`
+  (the guard and its narrowing are here; the fix is CONTACT's);
+- RESTFRONT's `tier3-never-checks-a-planar-loop-is-simple`, with
+  evidence on `validate-tier3-curved-boundary-containment`;
+- `trimmed-tessellation-lacks-torus-and-plane-arms`: a tilted cone half
+  does not tessellate yet;
+- PRED's `cone-nappe-is-decided-in-five-places`.

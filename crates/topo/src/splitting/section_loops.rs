@@ -51,8 +51,8 @@ pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>]) -> Option<Vec3<T>> {
 pub(super) enum SenseFault {
     /// [`Torn`].
     Torn,
-    /// The winding has no sign: in the band (`Some`), zero, or (`None`)
-    /// a loop with an edge that states no certified curve.
+    /// The winding has no sign: in the band (`Some`), or (`None`) zero,
+    /// or unread because the loop carries a NURBS or spiric edge.
     Undecided(Option<Indeterminate>),
 }
 

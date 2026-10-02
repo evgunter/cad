@@ -123,7 +123,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     tool.pick(session.doc(), post_top.clone());
     assert!(matches!(
         tool.proposal(doc, eval, asm::seat_choice()),
-        Err(MateToolError::SamePick { head }) if head == bench.post_b
+        Err(MateToolError::SamePick { head }) if head.id() == bench.post_b
     ));
 
     // A vanished pick refuses typed when asked WITHOUT a reconcile
@@ -471,7 +471,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
             Err(MateToolError::NotAnInstancePick {
                 side: MateSide::A,
                 node
-            }) if node == fused
+            }) if node.id() == fused
         ),
         "a boolean is not a pass-through"
     );
@@ -710,9 +710,11 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     for (node, at) in [(shelf_i, asm::SHELF_AT), (post_i, asm::POST_B_AT)] {
         common::edit_into(
             &mut doc,
-            DocEdit::SetPlacement {
-                node,
-                frame: pncad::document::Frame::translation(at),
+            DocEdit::SetOffset {
+                instance: node,
+                offset: Some(pncad::document::Placement::literal(
+                    &pncad::document::Frame::translation(at),
+                )),
             },
             tol,
         );
@@ -899,44 +901,51 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     }
 }
 
-/// **A refusal about a pick names its node by the tag the panel shows.**
-/// The mate panel says a held pick is the face of the node as the
-/// document speaks it, and the two refusals that name a picked node
-/// reach the status line on the frame the panel still shows that pick;
-/// a refusal carries no document, so it names the node by the same tag.
+/// **A refusal about a pick names its node as the panel does**, after
+/// a rename that has not landed. The mate panel says a held pick is the
+/// face of the node as the session's document speaks it; the tool reads
+/// the landed pair, so its refusal is spoken again from that same
+/// document where the panel draws it (`MateToolError::respoken`), and
+/// the two say one label. Driven through `MateTool::proposal`: both
+/// picks on one instance refuse `SamePick`. Red if the refusal says the
+/// label from before the rename, or the instance by its tag alone.
 #[test]
-fn a_mate_refusal_names_the_picked_node_by_the_tag_the_panel_shows() {
-    let tol = pncad::geom_core::Tol::witness();
-    let (doc, node) = viewer::test_support::inserted(
-        &pncad::document::Doc::empty_derived("mate-refusal", tol),
-        viewer::test_support::xy_frame(),
-        tol,
-    );
-    let tag = test_utils::refusal::tag(node.0);
-    let panel = MateToolState::One(FaceSelection {
-        name: pncad::prelude::StableName {
-            kind: pncad::prelude::EntityKind::Face,
-            node,
-            path: vec![RoleSeg::Cap(pncad::prelude::CapEnd::End)],
-        },
-        node,
-        body: 0,
-    })
-    .line(&doc);
+fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
+    let tol = Tol::witness();
+    let bench = asm::bench("mate-refusal", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (post_top, _) = asm::seat_picks(&session, &bench);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), post_top.clone());
+    tool.pick(session.doc(), post_top);
+    let renamed = session.perform(SessionOp::SetLabel {
+        node: bench.post_b,
+        label: Some(pncad::document::Label::new("post").expect("a label")),
+    });
+    assert!(renamed.refusal.is_none(), "{:?}", renamed.refusal);
+    // Not pumped: the rename has not landed, so the tool reads the pair
+    // from before it.
+    let (doc, eval) = session.landed_pair().expect("landed");
     assert_eq!(
-        panel,
-        format!("pick a: face of Datum frame {tag}; pick b: —")
+        doc.label(bench.post_b),
+        None,
+        "the premise: the landed pair predates it"
+    );
+    let refused = tool
+        .proposal(doc, eval, asm::seat_choice())
+        .expect_err("one instance is no pair");
+    let said = refused.respoken(session.doc()).to_string();
+    let spoken = format!(
+        "InstantiatePart \"post\" ({})",
+        test_utils::refusal::tag(bench.post_b.0)
     );
     assert_eq!(
-        MateToolError::NotAnInstancePick {
-            side: MateSide::A,
-            node,
-        }
-        .to_string(),
-        format!("pick a is on node {tag}, which is not a part instance or a copy of one")
+        said,
+        format!("both picks name the same member (head: {spoken}); a mate relates a pair")
     );
-    assert_eq!(
-        MateToolError::SamePick { head: node }.to_string(),
-        format!("both picks name the same member (head: node {tag}); a mate relates a pair")
+    let panel = tool.state().line(session.doc());
+    assert!(
+        panel.contains(&spoken),
+        "the panel says the same node: {panel}"
     );
 }

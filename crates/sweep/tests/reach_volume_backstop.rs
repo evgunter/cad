@@ -490,7 +490,7 @@ fn a_dual_builds_the_tilted_boss_on_the_f64_bits() {
         .points()
         .map(|(_, p)| bits([p.x.value, p.y.value, p.z.value]))
         .collect();
-    let f: Vec<_> = real.points().map(|(_, p)| bits([p.x, p.y, p.z])).collect();
+    let f: Vec<_> = real.points().map(|(_, p)| bits(p.to_array())).collect();
     assert!(!f.is_empty());
     assert_eq!(d, f, "the dual's points are the f64 run's, in arena order");
 }

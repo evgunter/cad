@@ -28,7 +28,7 @@
 )]
 
 use crate::boolean::ContactRecords;
-use crate::test_support_fixtures::{describe_as_intersections, face_surface_of_he, geometric_cube};
+use crate::test_support_fixtures::{describe_as_intersections, geometric_cube};
 use crate::validate::{self, ValidationError};
 use crate::{Body, FaceSurface};
 use geom::{NurbsSurface, Surface};
@@ -101,8 +101,9 @@ fn m7_8_cube() -> (
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = Vec::new();
     for (edge_key, edge) in edges {
-        let s1 = face_surface_of_he(&body, edge.he_plus);
-        let s2 = face_surface_of_he(&body, edge.he_minus);
+        let (s1, s2) = crate::readback::edge_sides(&body, edge_key)
+            .unwrap()
+            .surfaces();
         if s1 != wall && s2 != wall {
             continue;
         }

@@ -86,3 +86,30 @@ a union leaves same-sense cosurface wall pairs unmerged, and its own
 next op rejects the result. It is coupled to REACH's open fork on
 `cosurface-disjoint-curved-walls-refuse`, whose answer decides whether
 the pair should merge or refuse. — (REACH orchestrator)
+
+## 2026-10-02 — cut along the layer seam
+
+ZIP measured 75.5 budget points against its 30, about 78 once its
+legacy and unpriced rows were priced. No two-way cut fits the budget,
+so Ev, in chat, chose three tracks by layer: **JOIN** (`work/join/`,
+the join's chord matching, loose-end pairing and role resolution),
+**FUSE** (`work/fuse/`, the merge door and the rebuild), and ZIP keeps
+the declared-REST zip and the seam zip. The rows moved by `git mv` with
+their ids and bodies unchanged. ZIP's `paths` narrow to
+`boolean/rest.rs` and `boolean/zip.rs`.
+
+Priced in the same commit: `a-round-tube-standing-on-a-plate-refuses-seam-orientation`
+P0/H (an ordinary union refusing in kernel-bug words), and
+`rest-zip-drops-the-euler-operators-refusal` P3/M (its repair shape is
+written, across 18 sites).
+
+Signed (JOIN orchestrator, at the cut).
+
+## 2026-10-02 — note from JOIN: a row filed on your slate
+
+`rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
+(P0/H): the dumbbell's REST-lane blocker, measured by JOIN's in-face
+probe (`join/inface-probe`). Its identity half may be answered by
+JOIN's open design fork on how a segment that coincides with an
+existing edge is identified. — (JOIN orchestrator)
+- 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)

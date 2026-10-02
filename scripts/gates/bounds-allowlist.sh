@@ -465,11 +465,17 @@ BOUNDS_ALLOWLIST=(
   # callers, `interior_loop_verdict` (crossings) and
   # `section_extent_pass` (no crossings), which replaced the torus and
   # cylinder extent gates; and `section_report`, the test door over the
-  # same scan. With `sphere_extent_scan` and the rest of the file's
-  # pre-existing seams the count is 14. `section_cert.rs` itself, the
-  # classifier and the per-pair rule, reads no box and carries no
-  # compound bound.
-  'crates/topo/src/boolean/ops.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
+  # same scan. With the eleven pre-existing seams (the nine public and
+  # pipeline doors, `sphere_extent_scan` and `apply_recuts`) the count
+  # is 15. Four more ride the same seam: `face_rows`, which builds each
+  # face's certified box once; `walk_pairs`, the one walker over
+  # box-overlapping row pairs that `section_pairs` and the extent
+  # scan's face-scoped reading both take; `pair_verdict`, the per-pair
+  # rule's driver, which builds the pair's reach from the two boxes;
+  # and `sphere_faces_apart`, that face-scoped reading of a crossing
+  # sphere pair. 15 + 4 = 19. `section_cert.rs` itself, the classifier
+  # and the per-pair rule, reads no box and carries no compound bound.
+  'crates/topo/src/boolean/ops.rs 19 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
@@ -553,16 +559,31 @@ BOUNDS_ALLOWLIST=(
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/surgery.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
+  # carry-through pass's support-boundary arm split into its own
+  # function — the same edge-blend seam, reading brackets only where
+  # `ring_clearance` and the piece meters already do, plus one
+  # selection definite by a setback (which side of the trim the rim
+  # lies on; DL5(b), as `CircleFrame::misses`), the precedent
+  # `seam_split_param` set in this file.
+  'crates/sweep/src/blend/surgery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/planar.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
-  'crates/geom-brep/src/pcurve_cache.rs 7 M6-2, the SSI rung-3 certificate'
+  # 7 -> 8: the fitted door gained a fourth body,
+  # `sphere_circle_image_lane` (`Decide + Bounds + CertifiedEnclosure`,
+  # the bound its three siblings carry): a sphere chart's general
+  # circle's image, whose f64 structure (C6) it reads off the data's
+  # bracket midpoints — the reading `rational_arc_chain` did for the
+  # same circles' certificate, which left this file when the Circle
+  # arm's check 4 became closed-form arithmetic at `T`. Same seam,
+  # reached only through `FittedLane::certified`.
+  'crates/geom-brep/src/pcurve_cache.rs 8 M6-2, the SSI rung-3 certificate'
   # The fitted lane's door value, beside the bodies it holds:
   # `FittedLane::certified`'s block (`Decide + CertifiedBounds`) is the
   # certification RIGHT the value stands for, so the type cannot be
   # written at a scalar without it, and no bracket is read here — the
-  # door holds three `pcurve_cache` function pointers and hands its
+  # door holds four `pcurve_cache` function pointers and hands its
   # arguments on. The second is `wiring_rows::
   # holds_the_certified_fitted_lane`, which forms that constructor at
   # each certifying scalar and so restates its bound and nothing wider,

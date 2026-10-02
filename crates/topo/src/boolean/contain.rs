@@ -174,37 +174,6 @@ pub fn contfp<T: Decide>(
     Ok(FaceContainment::In)
 }
 
-/// Which exact instrument expresses a loop's region. Tier 3's check 9
-/// reads its [`Self::Disc`] class to decide two whole-circle loops
-/// against each other from their centres and radii ([`LoopCircle`]);
-/// [`contfp`] does not ask it — the carrier walk reads every class
-/// below.
-pub(crate) enum LoopShape<T: geom_core::Real> {
-    /// Every edge is an arc of ONE circle: the region is that circle's
-    /// disc, exactly.
-    Disc(LoopCircle<T>),
-    /// No arc anywhere: the ray-parity walk's polygon IS this loop's
-    /// region, exactly.
-    Polygon,
-    /// Arc-bearing over at least three vertices: the polygon through
-    /// them is a proper region, but it is NOT this loop's region, and
-    /// saying so is this variant's whole job. An arc bowing OUTWARD
-    /// leaves region between the polygon and the boundary, and a point
-    /// there reads `Out` from the polygon when it is in: measured on a
-    /// bored D-rod's transverse cap, whose major arc dips past the chord
-    /// its vertices span and whose bore sits in the lune between them.
-    /// A consumer that would REFUSE a body on an `Out` must not read it
-    /// from that polygon: check 9 places its rings with the carrier walk
-    /// for exactly that reason.
-    ArcParity,
-    /// Arc-bearing over fewer than three vertices: the polygon through
-    /// them is a segment of ZERO AREA, so a polygon walk would answer
-    /// `Out` for every interior point — a half-disc cap, a
-    /// half-cylinder cap, a lens cap (two arcs of two DIFFERENT
-    /// circles, no line edge at all).
-    NoWalk,
-}
-
 /// The circle a disc-class loop bounds — its own type, because three
 /// components of one datum read better named than positional.
 ///
@@ -222,24 +191,11 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
     pub(crate) radius: T,
 }
 
-/// **Which exact instrument expresses this loop's region** — one
-/// carrier pass over the cycle, classifying the loop rather than the
-/// point.
-///
-/// [`crate::splitting::point_in_loop`]'s contract is the planar POLYGON
-/// through a loop's vertices, so a loop with an arc in it is outside
-/// its domain. Four outcomes:
-///
-/// - **[`LoopShape::Disc`]** — every edge is an arc of one circle. The
-///   region is that circle's disc exactly. The planar analog of the curved door's iso-bounded class
-///   ([`curved_face_containment`]).
-/// - **[`LoopShape::Polygon`]** — no arc at all: the polygon IS the
-///   region.
-/// - **[`LoopShape::ArcParity`]** — arcs over ≥ 3 vertices, where the
-///   polygon is a proper region but not the loop's: an arc bowing
-///   outward puts region between the polygon and the boundary.
-/// - **[`LoopShape::NoWalk`]** — arc-bearing over < 3 vertices, where
-///   the polygon has zero area.
+/// **The circle this loop bounds, if it bounds one**: `Some` when every
+/// edge is an arc of ONE circle, so the loop's region is that circle's
+/// disc exactly — the planar analog of the curved door's iso-bounded
+/// class ([`curved_face_containment`]) — and `None` for a loop with a
+/// line, a non-circular conic, a null edge, or arcs of two circles.
 ///
 /// The circle is read from the first edge; every later edge must agree
 /// with it on one metre-valued row folding centre offset, radius
@@ -249,34 +205,26 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
 /// point set, which is all this asks.
 ///
 /// **That row classifies the loop, not a point.** Arcs whose circles
-/// agree to within the band are read as one circle, sound for anything
-/// definitely clear of every boundary arc by more than the band — such a
-/// point cannot lie between two circles that close; check 9 decides a
+/// agree to within the band are read as one circle; check 9 decides a
 /// PAIR of disc-class loops from the circles' centres and radii, a
-/// question the band's own width already bounds. A definite disagreement
-/// is simply not this class; an ESCALATION escalates, exactly as every row of
-/// [`curved_face_containment`] does — an in-band margin is not a
-/// licence to fall through to a walk whose domain this loop is
-/// outside.
+/// question the band's own width already bounds. A definite
+/// disagreement is `None`; an ESCALATION escalates, exactly as every
+/// row of [`curved_face_containment`] does.
 ///
 /// # Errors
 ///
 /// [`ContainError`] — a carrier-agreement escalation, or a loop this
 /// walk cannot read.
-pub(crate) fn loop_shape<T: Decide>(
+pub(crate) fn loop_circle<T: Decide>(
     body: &Body<T>,
     r#loop: crate::entity::LoopKey,
     band: Band,
-) -> Result<LoopShape<T>, ContainError> {
-    let cycle = loop_cycle_points(body, r#loop)?;
-    let vertices = cycle.len();
-    // The WHOLE cycle is walked before anything is decided: a loop's
-    // first edge says nothing about its last, and a half-disc whose
-    // chord comes first would otherwise pass for a polygon.
+) -> Result<Option<LoopCircle<T>>, ContainError> {
+    // The WHOLE cycle is walked: an escalation on a later edge pair
+    // escalates even after an earlier edge has ruled the class out.
     let mut circle: Option<LoopCircle<T>> = None;
     let mut one_circle = true;
-    let mut bears_arc = false;
-    for (_, he, _) in cycle {
+    for (_, he, _) in loop_cycle_points(body, r#loop)? {
         let edge_key = body.get_half_edge(he).ok_or(ContainError::Corrupt)?.edge;
         let carrier = body
             .get_edge(edge_key)
@@ -284,61 +232,41 @@ pub(crate) fn loop_shape<T: Decide>(
             .and_then(crate::null::CurveGeom::certified)
             .map(|c| c.carrier().clone());
         match carrier {
-            // A line edge IS its chord: it costs the polygon nothing
-            // and the disc class everything.
-            Some(geom::Curve3::Line { .. }) => one_circle = false,
             Some(geom::Curve3::Circle {
                 center,
                 axis,
                 radius,
                 ..
-            }) => {
-                bears_arc = true;
-                match circle {
-                    None => {
-                        circle = Some(LoopCircle {
-                            center,
-                            axis,
-                            radius,
-                        });
-                    }
-                    Some(c) => {
-                        let (c0, a0, r0) = (c.center, c.axis, c.radius);
-                        let d =
-                            (center - c0).norm() + (radius - r0).abs() + axis.cross(a0).norm() * r0;
-                        match decide("bool_face_disc_carrier", Margin::of(d), band) {
-                            Ok(Sign::Zero) => {}
-                            Ok(Sign::Positive | Sign::Negative) => one_circle = false,
-                            Err(diag) => return Err(ContainError::Escalated(diag)),
-                        }
+            }) => match circle {
+                None => {
+                    circle = Some(LoopCircle {
+                        center,
+                        axis,
+                        radius,
+                    });
+                }
+                Some(c) => {
+                    let (c0, a0, r0) = (c.center, c.axis, c.radius);
+                    let d = (center - c0).norm() + (radius - r0).abs() + axis.cross(a0).norm() * r0;
+                    match decide("bool_face_disc_carrier", Margin::of(d), band) {
+                        Ok(Sign::Zero) => {}
+                        Ok(Sign::Positive | Sign::Negative) => one_circle = false,
+                        Err(diag) => return Err(ContainError::Escalated(diag)),
                     }
                 }
-            }
-            // A non-circular conic is an arc for the polygon's
-            // purposes — its chord is not its locus either, and
-            // elliptical caps are real (a tilted cut through a
-            // cylinder). It has no exact side row here, so it is never
-            // the disc class; the count decides whether the polygon
-            // may stand in for it.
+            },
+            // A line, a non-circular conic, or null scaffolding (which
+            // the operand gate refuses upstream): not one circle's arc.
             Some(
-                geom::Curve3::Ellipse { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_),
-            ) => {
-                bears_arc = true;
-                one_circle = false;
-            }
-            // Null scaffolding: the operand gate refuses it upstream,
-            // and its chord is a segment like any other. Not the disc
-            // class, and not counted as an arc — this walk does not
-            // invent a refusal for a state it never sees.
-            None => one_circle = false,
+                geom::Curve3::Line { .. }
+                | geom::Curve3::Ellipse { .. }
+                | geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_),
+            )
+            | None => one_circle = false,
         }
     }
-    Ok(match (one_circle, circle) {
-        (true, Some(c)) => LoopShape::Disc(c),
-        _ if bears_arc && vertices < 3 => LoopShape::NoWalk,
-        _ if bears_arc => LoopShape::ArcParity,
-        _ => LoopShape::Polygon,
-    })
+    Ok(circle.filter(|_| one_circle))
 }
 
 /// **Boundary containment** for an on-carrier point against a CURVED
@@ -392,17 +320,8 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            let margin = Margin::norm3(q - *p);
-            match decide("bool_contact_vertex", margin, band) {
-                Ok(Sign::Zero) => return Ok(PrePass::On(FaceContainment::OnVertex(*v))),
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Negative) => {
-                    return Err(ContainError::Escalated(crate::invalid_margin::invalid(
-                        band,
-                        "bool_contact_vertex",
-                    )));
-                }
-                Err(diag) => return Err(ContainError::Escalated(diag)),
+            if super::one_vertex(q, *p, band).map_err(ContainError::Escalated)? {
+                return Ok(PrePass::On(FaceContainment::OnVertex(*v)));
             }
         }
     }
@@ -997,13 +916,13 @@ pub(super) fn point_on_circle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
-    let w = q - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let r_norm = radial.norm();
-    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
+    let d = crate::splitting::containment::circle_miss(q, center, axis, radius);
     match decide("bool_contact_arc", Margin::of(d), band) {
-        Ok(Sign::Zero) => Ok(Some((radial, r_norm))),
+        Ok(Sign::Zero) => {
+            let w = q - center;
+            let radial = w - axis * w.dot(axis);
+            Ok(Some((radial, radial.norm())))
+        }
         Ok(Sign::Positive) => Ok(None),
         Ok(Sign::Negative) => Err(crate::invalid_margin::invalid(band, "bool_contact_arc")),
         Err(diag) => Err(diag),
@@ -1102,13 +1021,11 @@ mod tests {
         );
     }
 
-    /// The disc class is a CLASS, and this is its gate: a loop of
-    /// straight edges is not one, whatever its shape, so the walk that
-    /// can read it keeps the loop. Without this the radius row would
-    /// answer about a circle no boundary edge rides — and the `NoWalk`
-    /// gate must not fire on it either, however few vertices it has.
+    /// A loop of straight edges bounds no disc, whatever its shape:
+    /// read as one, check 9 would decide it against another loop from a
+    /// circle no boundary edge rides.
     #[test]
-    fn a_polygon_loop_is_neither_the_disc_class_nor_gated() {
+    fn a_polygon_loop_bounds_no_disc() {
         let holed = crate::fixtures::ops_holed_box(Tol::witness());
         let body = holed.body;
         let band = Band::linear(Tol::witness()).unwrap();
@@ -1117,11 +1034,10 @@ mod tests {
             for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
                 loops += 1;
                 assert!(
-                    matches!(
-                        loop_shape(&body, lk, band).expect("the box walks"),
-                        LoopShape::Polygon
-                    ),
-                    "a straight-edged loop bounds no disc and needs no gate"
+                    loop_circle(&body, lk, band)
+                        .expect("the box walks")
+                        .is_none(),
+                    "a straight-edged loop bounds no disc"
                 );
             }
         }

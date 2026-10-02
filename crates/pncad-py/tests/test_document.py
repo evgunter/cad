@@ -290,14 +290,14 @@ class TestEvaluation(unittest.TestCase):
         # Since register R3 (LIB-PYG5) the undeclared-contact refusal
         # is the typed MENU: its own stable tag, and the candidate
         # declaration attached as a `FlushFinding` value.
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         self.assertIsNone(caught.exception.through)
         finding = caught.exception.finding
         self.assertIsInstance(finding, pncad.FlushFinding)
         # Both boxes rise from z=0: the shared bottom planes face the
-        # same way — the flush-wall (merge-stage) flavor.
+        # same way — a continuation, not a contact.
         self.assertEqual(finding.relation, pncad.PlaneRelation.SameOriented)
-        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
+        self.assertEqual(finding.class_, pncad.BooleanCoincidence.Continuation)
         self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
         # The pair's names speak the one opaque alphabet: each side is
         # a FACE name of its own operand's evaluation.
@@ -306,7 +306,7 @@ class TestEvaluation(unittest.TestCase):
         # F6 (reopened on review): the MESSAGE is prose stating the
         # problem and the two-armed recourse, not Debug guts.
         message = str(caught.exception)
-        self.assertIn("Boolean refused an undeclared contact", message)
+        self.assertIn("Boolean refused an undeclared coincidence", message)
         self.assertIn("declare the candidate pair", message)
         for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
             self.assertNotIn(guts, message)
@@ -317,6 +317,7 @@ class TestEvaluation(unittest.TestCase):
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
         downstream = doc.insert(Node.boolean(BooleanOp.Union, cut, outer))
+        doc.apply(DocEdit.set_label(cut, "pocket"))
         ev = evaluate(doc)
         with self.assertRaises(EvaluationError) as caught:
             ev.value(downstream)
@@ -324,19 +325,25 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.node, downstream)
         self.assertEqual(caught.exception.through, cut)
         # The root cause's tag rides along: the ancestor's refusal.
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         # The menu payload does NOT ride a poisoning — the recourse
         # belongs to the node that refused; here it is None (attributes
         # never go missing, LIB-DOORS F3).
         self.assertIsNone(caught.exception.finding)
-        self.assertIn("is poisoned by the failure at node", str(caught.exception))
+        # The standing speaks each node as the evaluated document holds
+        # it: kind, label and tag.
+        self.assertIn(
+            f'Boolean {tag(downstream)} is poisoned by the failure at Boolean "pocket" '
+            f"({tag(cut)})",
+            str(caught.exception),
+        )
 
 
 class TestDetectDeclareDoors(unittest.TestCase):
     """LIB-PYG5 (G5): the detect/declare doors' own contracts —
     positive paths through every spelling, adversarial args refused
     typed. The scene-level flips live in `test_north_star.py`
-    (`TestTable`, `TestCrosslapGlued`); the guide's executed block is
+    (`TestTable`, `TestCrosslapAtTheNamingWall`); the guide's executed block is
     the end-to-end menu recourse."""
 
     def stacked(self):
@@ -452,6 +459,22 @@ class TestDetectDeclareDoors(unittest.TestCase):
             str(caught.exception),
         )
 
+    def test_a_flush_refusal_speaks_the_labelled_node_that_has_no_value(self):
+        # The binding holds the evaluated document, so the standing in
+        # the message says the node's kind, label and tag.
+        doc = Doc()
+        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
+        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        doc.apply(DocEdit.set_label(cut, "pocket"))
+        with self.assertRaises(SelectRefusal) as caught:
+            evaluate(doc).find_flush_candidates(outer, cut)
+        self.assertEqual(caught.exception.reason, "node_has_no_value")
+        self.assertIn(
+            f'Boolean "pocket" ({tag(cut)}) failed, so it has no value',
+            str(caught.exception),
+        )
+
     def test_findings_are_values_with_opaque_names(self):
         doc, lower, upper = self.stacked()
         ev = evaluate(doc)
@@ -459,7 +482,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
         # The names are the same alphabet the materializers speak.
         self.assertIn(finding.a, ev.all_faces(lower))
         self.assertIn(finding.b, ev.all_faces(upper))
-        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
+        self.assertEqual(finding.class_, pncad.BooleanCoincidence.Rest)
         self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
         # Value semantics: re-detection answers an equal value.
         self.assertEqual(finding, ev.find_flush_candidates(lower, upper)[0])
@@ -847,23 +870,25 @@ class TestStepExport(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "not_a_body")
         self.assertEqual(caught.exception.kind, "profile")
 
-    def test_the_export_refusal_names_the_node_as_a_bare_id(self):
-        """A node reaches prose as its number, not as a Rust wrapper.
+    def test_the_export_refusal_speaks_the_node_as_the_document_holds_it(self):
+        """A node reaches prose as its kind, label and tag, never as a
+        Rust wrapper.
 
         The one part of an export refusal a caller can act on is which
         node it is about. `RecipeNodeId`'s `Debug` spelling puts a Rust
-        type name in front of that number — a token with no meaning on
+        type name in front of its number — a token with no meaning on
         this side of the boundary.
         """
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
-        profile_node = doc.order()[0]
+        frame = doc.order()[0]
+        doc.apply(DocEdit.set_label(frame, "base sketch"))
         ev = evaluate(doc)
         with self.assertRaises(pncad.ExportError) as caught:
-            ev.step_string(profile_node)
+            ev.step_string(frame)
         message = str(caught.exception)
         self.assertNotIn("RecipeNodeId", message)
-        self.assertIn(f"node {tag(profile_node)} ", message)
+        self.assertIn(f'export: Datum frame "base sketch" ({tag(frame)}) evaluates', message)
 
     def test_every_step_option_reaches_the_written_file(self):
         """The whole `StepOptions` record is the door's keywords.
@@ -1396,7 +1421,7 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(cut)
-        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
         self.assertIsNone(caught.exception.inner_kind)
         self.assertIsNotNone(caught.exception.finding)
 

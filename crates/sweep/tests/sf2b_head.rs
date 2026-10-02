@@ -12,7 +12,7 @@
 
 use crate::common::approx::band;
 use crate::common::charts::hollow_moves;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_brep::intersect::route;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
@@ -161,7 +161,7 @@ fn corner_forms(body: &Body<f64>) -> Vec<(String, usize)> {
         }
         let mut names: Vec<&'static str> = keys
             .iter()
-            .map(|k| SurfaceKind::of(body.get_surface(*k).expect("surface")).name())
+            .map(|k| body.get_surface(*k).expect("surface").kind().name())
             .collect();
         names.sort_unstable();
         let form = format!("{} [{}]", names.len(), names.join(" ∩ "));
@@ -190,18 +190,13 @@ fn edge_pairs(body: &Body<f64>) -> Vec<(String, usize)> {
         }
         let kinds: Vec<SurfaceKind> = keys
             .iter()
-            .map(|k| SurfaceKind::of(body.get_surface(*k).expect("surface")))
+            .map(|k| body.get_surface(*k).expect("surface").kind())
             .collect();
         let carrier = body
             .get_edge(e)
             .and_then(|d| body.get_curve_geom(d.curve))
             .and_then(topo::CurveGeom::certified)
-            .map(|c| match c.carrier() {
-                geom::Curve3::Line { .. } => "Line",
-                geom::Curve3::Circle { .. } => "Circle",
-                geom::Curve3::Ellipse { .. } => "Ellipse",
-                _ => "other",
-            })
+            .map(|c| c.carrier().kind().name())
             .unwrap_or("none");
         let desc = body
             .get_edge(e)

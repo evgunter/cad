@@ -7,7 +7,11 @@
 //! face into the SHRUNK face plus one strip per edge; per edge one `kef`
 //! merges the two strips across the dying sharp edge; per corner three
 //! arc `mef`s, two `kef`s and one `kev` fuse the corner triangles into
-//! the patch and retire the struts and the sharp vertex.
+//! the patch and retire the struts and the sharp vertex; per joint (two
+//! links of one chain on the same two supports, [`Joint`]) one `kef`
+//! and one `kev` fuse the two links' strips into one band face and
+//! retire the joint vertex, leaving its two feet on the band's
+//! trimlines.
 //!
 //! The other open band is [`super::ruled`]; what the two share, and the
 //! seam both rest on, is stated at [`super`].
@@ -21,7 +25,9 @@ use topo::{
     VertexKey,
 };
 
-use crate::blend::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
+use crate::blend::admit::{
+    AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary,
+};
 use crate::blend::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use crate::blend::battery::Convexity;
 use crate::blend::build::{octant_chart, outward_of};
@@ -228,13 +234,74 @@ fn chamfer_feet<T: Decide + Bounds>(
     Ok(feet)
 }
 
+/// One joint, planned: the joint and its foot on each of its two
+/// supports, in [`Joint::faces`] order.
+pub(in crate::blend) struct JointPlan<'a, T: Real> {
+    pub(in crate::blend) joint: &'a Joint,
+    pub(in crate::blend) feet: [Point3<T>; 2],
+}
+
+/// Plan a joint: its foot on each support is the joint vertex
+/// projected onto the arriving link's trimline there.
+///
+/// Both links' arms are one function of the same two planes, so their
+/// trimlines on a support are one line and the projection lands on
+/// both; the arriving link's is read because the joint names it. The
+/// same derivation serves both verbs — a fillet's trimline and a
+/// chamfer's are each a line parallel to the edge — so, unlike a
+/// corner, a joint has no per-verb arm.
+///
+/// # Errors
+///
+/// [`BlendError::BodyNotIntact`] when the joint's arriving link is not
+/// among `opens` or its vertex has no point;
+/// [`BlendError::UnsupportedGeometry`] when a trimline is not a line.
+pub(in crate::blend) fn joint_plan<'a, T: Decide>(
+    body: &Body<T>,
+    joint: &'a Joint,
+    opens: &[AdmittedOpen<'_, T>],
+) -> Result<JointPlan<'a, T>, BlendError> {
+    let vertex = joint.vertex();
+    let link = opens
+        .iter()
+        .find(|o| o.edge() == joint.arriving())
+        .map(AdmittedOpen::link)
+        .ok_or_else(|| {
+            not_intact(
+                EntityId::Vertex(vertex),
+                "a joint's arriving link is not an admitted planar link",
+            )
+        })?;
+    let p = point_of(body, vertex)
+        .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a joint's stored point"))?;
+    let mut feet = [p; 2];
+    for (foot, face) in feet.iter_mut().zip(joint.faces()) {
+        let trim = if link.face_a == face {
+            &link.blend.trim_a.0
+        } else {
+            &link.blend.trim_b.0
+        };
+        let Curve3::Line { origin, dir } = *trim else {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(link.edge),
+                "a planar band's trimline is not a line",
+            ));
+        };
+        *foot = origin + dir * ((p - origin).dot(dir) / dir.dot(dir));
+    }
+    Ok(JointPlan { joint, feet })
+}
+
 /// **What the plan read for the blank carve**, in one value because the
-/// three are one reading of one source body and travel together: the
-/// PLANAR open links, the corners their ends terminate at, and the
-/// support faces they are carved along.
+/// four are one reading of one source body and travel together: the
+/// PLANAR open bands and their links, the corners their ends terminate
+/// at, the joints inside them, and the support faces they are carved
+/// along.
 pub(in crate::blend) struct BlankPlan<'a, T: Real> {
+    pub(in crate::blend) bands: &'a [&'a OpenBand<'a, T>],
     pub(in crate::blend) opens: &'a [AdmittedOpen<'a, T>],
     pub(in crate::blend) corners: &'a [Corner<'a, T>],
+    pub(in crate::blend) joints: &'a [JointPlan<'a, T>],
     pub(in crate::blend) supports: &'a [RequestedBoundary<T>],
 }
 
@@ -247,7 +314,13 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     tol: Tol,
     kind: BlendKind,
 ) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), BlendError> {
-    let (opens, corners, supports) = (plan.opens, plan.corners, plan.supports);
+    let (bands, opens, corners, joints, supports) = (
+        plan.bands,
+        plan.opens,
+        plan.corners,
+        plan.joints,
+        plan.supports,
+    );
     // The carve is one shape for both verbs — struts to the feet,
     // trimline chords between them, a kef per link, three corner
     // chords and the fusion. What differs is what each new edge IS:
@@ -479,14 +552,13 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         for s in struts_here {
             // Every strut was minted by this phase's `mev` above and is
             // killed at most once, in this loop, by the `kef` below.
-            let Some((hp, hm)) = halves_of(body, s) else {
+            let Some((hp, _)) = halves_of(body, s) else {
                 unreachable!(
                     "corner fusion: a strut edge was minted by this phase's strut `mev` \
                      and has not been killed"
                 )
             };
-            let (fa, fb) = (face_of_half(body, hp), face_of_half(body, hm));
-            if fa.is_some() && fa == fb {
+            if topo::readback::edge_sides(body, s).is_ok_and(|x| x.plus.face == x.minus.face) {
                 if spur.replace(s).is_some() {
                     unreachable!(
                         "corner fusion: a SECOND strut survived the fusion — exactly \
@@ -562,14 +634,72 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         corner_faces.push(patch);
     }
 
-    let mut blend_faces = Vec::with_capacity(opens.len());
-    for o in opens {
-        let f = hex_face(body, o.link().edge)
-            .ok_or_else(|| not_intact(EntityId::Edge(o.link().edge), "a merged strip's face"))?;
-        rec.blends.push((f, o.link().edge));
-        // The source edge was excised across its two strips (the kef
-        // above): it is gone from the result.
-        rec.dead.edges.push(o.link().edge);
+    // ---- Per joint: fuse the two links' strips into one band face.
+    // After the link kefs the joint vertex carries only its two struts,
+    // each separating the arriving link's strip from the leaving one's;
+    // a kef across the lower-keyed one merges the strips, and the other
+    // is left a spur whose far vertex is the joint. ----
+    for jp in joints {
+        let vertex = jp.joint.vertex();
+        let mut struts_here: Vec<EdgeKey> = strut_of
+            .iter()
+            .filter(|(v, _, _)| *v == vertex)
+            .map(|(_, _, e)| *e)
+            .collect();
+        struts_here.sort_unstable();
+        let [merge, spur] = struts_here[..] else {
+            return Err(unbuilt_run_out(
+                EntityId::Vertex(vertex),
+                "a joint did not receive a strut on each of its two supports",
+            ));
+        };
+        let Some((hp, _)) = halves_of(body, merge) else {
+            unreachable!("joint fusion: a strut edge was minted by this phase's strut `mev`")
+        };
+        sources.kef_minted(body, hp, "joint-strut kef", tol)?;
+        let Some((hp, hm)) = halves_of(body, spur) else {
+            unreachable!(
+                "joint fusion: the spur strut was minted by this phase and the kef above \
+                 killed the other strut"
+            )
+        };
+        let dying = if body.half_edge_end(hm) == Some(vertex) {
+            hm
+        } else {
+            hp
+        };
+        debug_assert!(
+            body.kev_merged_members(dying).is_ok_and(|m| m.is_empty()),
+            "joint kev: the spur's far vertex has valence one"
+        );
+        body.kev(dying).map_err(|e| op("joint kev", e))?;
+        rec.dead.vertices.push(vertex);
+    }
+
+    // One band face per band: the face every link's surviving strip
+    // loop now belongs to — a joint's kef killed one of each pair.
+    let mut blend_faces = Vec::with_capacity(bands.len());
+    for band in bands {
+        let mut live = band.links().filter_map(|o| hex_face(body, o.edge()));
+        let first = band.first().edge();
+        let f = live
+            .next()
+            .ok_or_else(|| not_intact(EntityId::Edge(first), "a merged strip's face"))?;
+        if live.any(|g| g != f) {
+            return Err(not_intact(
+                EntityId::Edge(first),
+                "a band's links did not fuse into one face across their joints",
+            ));
+        }
+        let edges: Vec<EdgeKey> = band.links().map(|o| o.edge()).collect();
+        // The source edges were excised across their strips (the kefs
+        // above): they are gone from the result.
+        rec.dead.edges.extend(edges.iter().copied());
+        if let [edge] = edges[..] {
+            rec.blends.push((f, edge));
+        } else {
+            rec.joined_blends.push((f, edges));
+        }
         blend_faces.push(f);
     }
     Ok((blend_faces, corner_faces, described))
@@ -582,7 +712,7 @@ mod tests {
 
     use geom::Surface;
 
-    use super::{AdmittedOpen, BlendKind, CornerLinks, corner_plan};
+    use super::{AdmittedOpen, BlendKind, CornerLinks, OpenBand, corner_plan};
     use crate::blend::battery::{Chain, ChainClosure, Convexity, Link};
     use crate::test_support::{L, R, all_links, cube};
 
@@ -635,7 +765,11 @@ mod tests {
             let chains: Vec<Chain<f64>> = flipped.into_iter().map(open_chain).collect();
             let admitted: Vec<AdmittedOpen<'_, f64>> = chains
                 .iter()
-                .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
+                .map(|c| {
+                    OpenBand::admit(&body, c)
+                        .expect("a cube's links are plane–plane")
+                        .first()
+                })
                 .collect();
             let mut here = admitted.iter().filter(|o| {
                 let l = o.link();

@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};

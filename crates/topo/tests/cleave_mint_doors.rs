@@ -132,18 +132,16 @@ where
             },
         )
         .unwrap();
+    let sides = |k| topo::readback::edge_sides(&body, k).unwrap().surfaces();
     let (edge, e) = body
         .edges()
-        .find(|(_, e)| {
-            common::face_surface_of_he(&body, e.he_plus) == wall
-                || common::face_surface_of_he(&body, e.he_minus) == wall
+        .find(|(k, _)| {
+            let (a, b) = sides(*k);
+            a == wall || b == wall
         })
         .map(|(k, e)| (k, e.clone()))
         .unwrap();
-    let (s1, s2) = (
-        common::face_surface_of_he(&body, e.he_plus),
-        common::face_surface_of_he(&body, e.he_minus),
-    );
+    let (s1, s2) = sides(edge);
     let point = |he| {
         let v = body.get_half_edge(he).unwrap().start;
         *body.get_point(body.get_vertex(v).unwrap().point).unwrap()

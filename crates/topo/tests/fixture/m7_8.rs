@@ -54,8 +54,9 @@ where
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = 0;
     for (edge_key, edge) in edges {
-        let s1 = topo::test_support::face_surface_of_he(&body, edge.he_plus);
-        let s2 = topo::test_support::face_surface_of_he(&body, edge.he_minus);
+        let (s1, s2) = topo::readback::edge_sides(&body, edge_key)
+            .unwrap()
+            .surfaces();
         let start = body.get_half_edge(edge.he_plus).unwrap().start;
         let end = body.half_edge_end(edge.he_plus).unwrap();
         let p0 = *body

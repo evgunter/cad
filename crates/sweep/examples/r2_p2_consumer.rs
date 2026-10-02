@@ -361,16 +361,7 @@ fn main() {
             Ok(p) => format!("{p:?}"),
             Err(e) => format!("REFUSED {e:?}"),
         };
-        println!(
-            "  {he:?}: carrier {} -> {kind}",
-            match &cc {
-                geom::Curve3::Line { .. } => "Line",
-                geom::Curve3::Nurbs(_) => "Nurbs",
-                geom::Curve3::Circle { .. } => "Circle",
-                geom::Curve3::Spiric { .. } => "Spiric",
-                _ => "other",
-            }
-        );
+        println!("  {he:?}: carrier {} -> {kind}", cc.kind().name());
         if let Ok(p) = d {
             boxes.push((he, p, ct0, ct1));
         }

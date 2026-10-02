@@ -92,7 +92,9 @@ fn lid_meridian() -> LoopProgram {
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         tol,
         &pncad::document::RefusingReach,
     )
@@ -214,7 +216,7 @@ fn seam_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, k: usize, tol: Tol) -> 
     StableName {
         kind: EntityKind::Edge,
         node: lid,
-        path: vec![RoleSeg::Meridian(MeridianEnd::Seam, piece)],
+        path: vec![RoleSeg::Meridian(MeridianEnd::Seam, piece.into())],
     }
 }
 

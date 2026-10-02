@@ -26,7 +26,7 @@ use crate::common::approx::band;
 use crate::common::charts::{charts, moves_by};
 use crate::common::cone_nappe::{
     H, R_NARROW, R_WIDE, T, cone_faces, corners, mirror_frustum, opening_frustum, reanchor_cone,
-    revolved, stations, surface_of,
+    revolved, rim_refusal_gap, stations, surface_of,
 };
 
 fn cone_of(body: &topo::Body<f64>, face: FaceKey) -> Surface<f64> {
@@ -168,8 +168,9 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
 /// reachability sweep, asserted rather than reported).
 ///
 /// Below `ε/sin α` the rims still land on their carriers and the door
-/// builds; above it the caps refuse `ReanchorOffCarrier` at the gap
-/// `|d|·sin α`. Both nappes, both signs, one threshold — so the door's
+/// builds; above it the caps refuse — `ReanchorOffCarrier` at the gap
+/// `|d|·sin α`, or the rim's re-chart where the door reaches that edge
+/// first (`common::cone_nappe::rim_refusal_gap`). Both nappes, both signs, one threshold — so the door's
 /// reachability is a statement about ε and the fixture, never about the
 /// nappe.
 #[test]
@@ -190,13 +191,15 @@ fn the_per_chart_doors_reach_is_a_threshold_in_the_rim_tolerance() {
                 let mut work = body.clone();
                 let got = topo::replace_faces_offset(&mut work, &faces, signed, tol);
                 if mag > threshold {
-                    let Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) = got else {
+                    let Some(gap) = rim_refusal_gap(&got) else {
                         panic!("{what} d={signed:e}: wanted the rim refusal, got {got:?}");
                     };
-                    assert!(
-                        (gap - mag * alpha.sin()).abs() <= 1e-15 * gap.max(1.0),
-                        "{what} d={signed:e}: the gap is |d|·sin α, got {gap:e}"
-                    );
+                    if let Some(gap) = gap {
+                        assert!(
+                            (gap - mag * alpha.sin()).abs() <= 1e-15 * gap.max(1.0),
+                            "{what} d={signed:e}: the gap is |d|·sin α, got {gap:e}"
+                        );
+                    }
                 } else {
                     got.unwrap_or_else(|e| {
                         panic!("{what} d={signed:e}: below the rim tolerance the door builds: {e}")
@@ -253,7 +256,7 @@ fn the_apex_window_gate_fires_on_both_nappes_at_the_same_reach() {
                          (v [{v_min}, {v_max}], shift {shift})"
                     );
                 }
-                (Err(ReplaceFaceError::ReanchorOffCarrier { .. }), false) => {}
+                (refused, false) if rim_refusal_gap(refused).is_some() => {}
                 other => panic!(
                     "{what} d={d}: wanted {}, got {other:?}",
                     if expect_window {

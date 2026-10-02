@@ -286,9 +286,9 @@ pub mod test_support {
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, RingFaceOps, StraddleSeat,
         assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
-        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, face_surface_of_he,
-        flush_declarations, geometric_cube, holed_block, identity_map, line, mapped_cube, plane,
-        plant_ring_face, prism, prism_ops, prism_z, straddle_seat,
+        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
+        geometric_cube, holed_block, identity_map, line, mapped_cube, plane, plant_ring_face,
+        prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_samples::validation_error_samples;
@@ -585,24 +585,24 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
-    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact,
-    DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, LeverArm, NeighbourOffset,
-    NullEdgePairRecord, Operand, OperandKeys, PairRefusalSite, PairSite, PatchContact,
-    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
-    PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TangentLocus,
-    TangentLocusError, TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_locus,
+    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction,
+    CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, HeldEdge,
+    LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite,
+    PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
+    PlaneRelation, PlaneRung, PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling,
+    SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
+    TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
+    VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
+    contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
+    fragment_root, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
+    point_in_solid, point_in_solid_faces, point_in_solid_of, subtract, subtract_with,
     tangent_pair_relation, union, union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
-pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
+pub use boolean::{PlantedDegradation, sweep_records, sweep_traces, sweep_traces_with_pad};
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
@@ -612,8 +612,9 @@ pub use census::{CensusStrategy, CensusTrace, SweepPairs};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
-    ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
+    BooleanCoincidence, CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE,
+    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
+    FIT_DEFERRAL_FOR_USERS,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -670,10 +671,12 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // identity, like `readback`'s.
 pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use query::{
-    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
-    SEL_DATUM_DISTANCE, SurfaceKindSet,
+    CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
+    SurfaceKind, SurfaceKindSet,
 };
-pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
+pub use readback::{
+    DanglingRef, EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError,
+};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};

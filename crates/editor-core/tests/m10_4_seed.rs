@@ -151,7 +151,7 @@ fn two_param_web() -> ProfileDoc {
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: Node::measure(with_depth, refs).expect("indices in range"),
+            node: Box::new(Node::measure(with_depth, refs).expect("indices in range")),
         },
     );
     doc

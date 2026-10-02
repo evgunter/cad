@@ -106,7 +106,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     // per-operand, so ONE Declare serves both operand orders).
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(
+        Node::declare_continuation(vec![(
             SitedRef::new(a, fixture::fname(a, RoleSeg::Cap(CapEnd::Start))),
             SitedRef::new(b, fixture::fname(b, RoleSeg::Cap(CapEnd::Start))),
         )]),
@@ -743,7 +743,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         // B side is read at the TRANSFORM, the subtract's operand.
         let (doc, decl) = insert(
             doc,
-            Node::declare_rest(vec![(
+            Node::declare_continuation(vec![(
                 SitedRef::new(cube, fixture::fname(cube, RoleSeg::Cap(CapEnd::End))),
                 SitedRef::new(tr, fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
             )]),
@@ -883,20 +883,20 @@ fn wire_doors_refuse_typed() {
     // the edit door, so the document never carries the mis-wire.
     let refused = doc.apply(
         &editor_core::DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
                 a: u,
                 b: base,
                 declare: Some(ax),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     assert!(
         matches!(
-            refused,
-            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input == ax
+            &refused,
+            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input.id() == ax
         ),
         "expected the declare edge's kind refusal, got {refused:?}"
     );

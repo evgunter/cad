@@ -7,9 +7,9 @@ D8) plus named parameters, the recorded tolerance ε, per-node witness data,
 appearance attributes and metadata. All mutation goes through the typed
 `DocEdit` vocabulary and `apply(doc, edit, tol, reach) -> Applied`
 (`src/edit.rs`) — pure over the document and the mated parts' reach — which
-returns a new document with the cluster-record maintenance the edit performed;
-undo is keeping the prior value, and replay re-applies the recorded maintenance
-without a solve. A mate being inserted passes the solve's own per-mate
+returns a new document with what the edit maintained — the offsets the mate
+door cleared, the names a delete stranded; undo is keeping the prior value, and
+replay re-applies the edits alone, without a solve. A mate being inserted passes the solve's own per-mate
 admission at that door (`EditError::MateRefused`, the solve's fault unaltered),
 so what the coset table refuses about a mate alone is met where the mate is
 authored; the doors decide edits and the solve decides states, so a verdict
@@ -220,10 +220,12 @@ function: `section_of` calls `prepare_profile` and runs pass 2 as a gate only �
 a section's geometry stays f64 (the skinned surface's structure must be
 lane-identical), so a seed on a parameter the section reads refuses
 `SeedPinnedSection` rather than arriving as a zero. **The sketch plane, by
-frame kind.** An AUTHORED frame's plane stays f64 under every lift
-(`mint_frame_placement`, from the frame node's own slots, carried on its
-value and read by `profile_plane_f64`), so its profile's placed
-coordinates are exact points at every scalar. A DERIVED frame
+frame kind.** An AUTHORED frame's plane is the f64 plane embedded
+under the pinned lift (`mint_frame_placement`, from the frame node's
+own slots, carried on its value and read by `profile_plane_f64`), so
+its profile's placed coordinates are exact points there; under the
+guided lift it is placed at the lane scalar's own reading of those
+slots (`frame_plane_lane`). A DERIVED frame
 (`Datum::FaceFrame`, `crates/editor-core/REFERENCES.md` DM1) has no document
 elaboration — its value is read off the evaluated body — so its profile
 is placed at the lane scalar through `frame_plane_lane` under every

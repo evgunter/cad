@@ -2747,7 +2747,7 @@ mod tests {
             .collect();
         assert_eq!(members.iter().map(|m| m.edge).collect::<Vec<_>>(), in_orbit);
         let tip = [2.0, 0.0, 0.0];
-        let xyz = |q: Point3<f64>| [q.x, q.y, q.z];
+        let xyz = |q: Point3<f64>| q.to_array();
         for m in &members {
             let (start, end) = (xyz(m.start), xyz(m.end));
             if m.edge == seg.edge {

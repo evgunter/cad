@@ -261,9 +261,9 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
             });
             assert!(
                 matches!(
-                    refused.refusal,
+                    &refused.refusal,
                     Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                        if node == wrong
+                        if node.id() == wrong
                 ),
                 "{:?}",
                 refused.refusal
@@ -287,7 +287,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         )
     };
     assert!(
-        matches!(**error, EditError::DuplicateInput { input, .. } if input == a),
+        matches!(&**error, EditError::DuplicateInput { input, .. } if input.id() == a),
         "{error:?}"
     );
     // **The WHOLE sentence, deliberately.** This is what a person reads
@@ -302,7 +302,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         refused.refusal.as_ref().expect("refused").to_string(),
         format!(
             "the edit was refused: the node this edit writes would be invalid: \
-             node {} is taken as an input twice — a node's inputs are pairwise \
+             Extrude {} is taken as an input twice — a node's inputs are pairwise \
              distinct. Recourse: replace one of the two with a different node",
             test_utils::refusal::tag(a.0)
         )
@@ -362,9 +362,9 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Plane })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -376,8 +376,8 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
     });
     assert!(
         matches!(
-            refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node == plane
+            &refused.refusal,
+            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node.id() == plane
         ),
         "{:?}",
         refused.refusal
@@ -453,9 +453,9 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             let refused = session.perform(op);
             assert!(
                 matches!(
-                    refused.refusal,
+                    &refused.refusal,
                     Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                        if node == wrong
+                        if node.id() == wrong
                 ),
                 "{:?}",
                 refused.refusal
@@ -611,8 +611,8 @@ fn the_pattern_door_spells_its_count_structurally() {
     });
     assert!(
         matches!(
-            refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Axis }) if node == body
+            &refused.refusal,
+            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Axis }) if node.id() == body
         ),
         "{:?}",
         refused.refusal
@@ -745,15 +745,15 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
         eval.value(loose).is_some(),
         "the unfused pattern over the same rule still evaluates"
     );
-    let badge = tree::rows(
-        session.committed_doc(),
-        Some(eval),
-        &viewer::parts::PartFiles::default(),
-    )
-    .into_iter()
-    .find(|row| row.id == crowded)
-    .map(|row| row.status);
-    let Some(RowStatus::Failed { message, .. }) = badge else {
+    let badge = common::status_of(
+        &tree::rows(
+            session.committed_doc(),
+            Some(eval),
+            &viewer::parts::PartFiles::default(),
+        ),
+        crowded,
+    );
+    let RowStatus::Failed { message, .. } = badge else {
         panic!("the tree badge carries the node's own refusal: {badge:?}");
     };
     assert!(
@@ -1125,15 +1125,15 @@ fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
             eval.value(pattern).is_none(),
             "a pattern of {count} instances does not evaluate to a value"
         );
-        let badge = tree::rows(
-            session.committed_doc(),
-            Some(eval),
-            &viewer::parts::PartFiles::default(),
-        )
-        .into_iter()
-        .find(|row| row.id == pattern)
-        .map(|row| row.status);
-        let Some(RowStatus::Failed { message, .. }) = badge else {
+        let badge = common::status_of(
+            &tree::rows(
+                session.committed_doc(),
+                Some(eval),
+                &viewer::parts::PartFiles::default(),
+            ),
+            pattern,
+        );
+        let RowStatus::Failed { message, .. } = badge else {
             panic!("the tree badge carries the node's own refusal: {badge:?}");
         };
         assert!(
@@ -1511,7 +1511,11 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                     seat.name(),
                     seat.wants(),
                 );
-                assert_eq!(node, wrong(seat.wants()), "it names the node it refused");
+                assert_eq!(
+                    node.id(),
+                    wrong(seat.wants()),
+                    "it names the node it refused"
+                );
             }
             other => panic!(
                 "the {} seat took a {:?} without refusing: {other:?}",
@@ -3201,13 +3205,26 @@ fn duplicating_a_several_body_value_is_refused() {
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
+    session.perform(SessionOp::SetLabel {
+        node: placed,
+        label: Some(pncad::document::Label::new("moved").expect("a label")),
+    });
     session.pump();
     let before = session.committed_doc().clone();
     let out = session.perform(SessionOp::Duplicate { input: placed });
+    let said = out
+        .refusal
+        .as_ref()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    assert!(
+        said.starts_with("Transform \"moved\" ("),
+        "it names the input as labelled: {said}"
+    );
     assert!(
         matches!(
-            out.refusal,
-            Some(Refusal::Duplicate(DuplicateFault::NotOneBody { input })) if input == placed
+            &out.refusal,
+            Some(Refusal::Duplicate(DuplicateFault::NotOneBody { input })) if input.id() == placed
         ),
         "{:?}",
         out.refusal
@@ -3242,12 +3259,15 @@ fn duplicating_a_failed_body_says_its_standing() {
         panic!("a duplicate refusal, got {:?}", out.refusal);
     };
     assert!(
-        matches!(fault, DuplicateFault::NoValue(carried) if *carried == standing),
+        matches!(fault, DuplicateFault::NoValue { standing: carried, .. } if *carried == standing),
         "{fault:?}"
     );
     assert_eq!(
         fault.to_string(),
-        format!("there is no body to copy: {standing}")
+        format!(
+            "there is no body to copy: {}",
+            pncad::document::spoken_by(&standing, session.committed_doc())
+        )
     );
     assert!(session.committed_doc().bit_eq(&before), "nothing committed");
 }

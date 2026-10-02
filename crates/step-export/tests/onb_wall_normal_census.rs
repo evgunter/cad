@@ -220,11 +220,7 @@ fn the_direction_records_every_stored_frame_is_written_to() {
             }
             let mut m = [normal.x.abs(), normal.y.abs(), normal.z.abs()];
             m.sort_by(f64::total_cmp);
-            let line = u_ref_records(
-                &text,
-                [normal.x, normal.y, normal.z],
-                [u_ref.x, u_ref.y, u_ref.z],
-            );
+            let line = u_ref_records(&text, normal.to_array(), u_ref.to_array());
             println!(
                 "| {name} | ({:?}, {:?}, {:?}) | ({:?}, {:?}, {:?}) | {minted} | {} | {line} |",
                 normal.x,

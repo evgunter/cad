@@ -16,13 +16,14 @@
 //!   off it, and from either side;
 //! - a LAP (the cutter from `z = 3` past the far cap, so one end wall
 //!   sits inside the rod) off the axis, or through the axis across the
-//!   rulings (`x = 0`), refuses `CurvedSectorSideUnsupported` — the
-//!   first-order sector-side frontier;
+//!   rulings (`x = 0`), refuses at the join where the cutter's edges
+//!   pierce the wall: a pierce ring has no join arm yet
+//!   (`work/tang/pierce-ring-has-no-join-arm`);
 //! - a lap in the plane `y = 0`, which holds both ruling edges, refuses
 //!   `Join(UnpairedLooseEnds)` — and so does the all-planar diamond
 //!   prism whose side edges sit in that same plane, which is what says
 //!   the refusal is the edge-in-face class
-//!   (`work/zip/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`),
+//!   (`work/join/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`),
 //!   not anything conic;
 //! - OBLIQUE caps (ellipse rims, from the plane split) flatted the same
 //!   way take the same arm with an ellipse arc, mint their chords, and
@@ -31,11 +32,11 @@
 //! - a flat cutter with a thin half-rod on the axis leaves role
 //!   resolution only the rim's CHORD midpoint to probe, which is on
 //!   neither flanking region, and the join refuses `SectionLoopMixed`
-//!   (`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`);
+//!   (`work/join/role-resolution-interior-tiers-certify-only-planar-region-faces`);
 //! - a blind D pocket in a block builds from the bottom face (its floor's
 //!   chord has the D's arc between its ends) and refuses `JoinDesync`
 //!   from the top
-//!   (`work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`).
+//!   (`work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -137,12 +138,14 @@ fn axis_lap_refuses_where_its_planar_twin_does() {
     }
 }
 
-/// Laps off the rulings: the cutter's end wall crosses the rod's wall
-/// inside a face, and that crossing's sector side is the frontier — the
-/// plane through the axis at `x = 0` included, so the axis alone is not
-/// what the lap above refuses on.
+/// Laps off the rulings: the cutter's end-wall edges pierce the rod's
+/// wall inside a face, the plane through the axis at `x = 0` included,
+/// so the axis alone is not what the lap above refuses on. Each pierce
+/// mints a ring in the wall, and a ring has no join arm yet
+/// (`work/tang/pierce-ring-has-no-join-arm`): the run that divides the
+/// wall carries only null scaffolding, so it has no azimuth window.
 #[test]
-fn laps_off_the_rulings_refuse_sector_side() {
+fn laps_off_the_rulings_stop_at_the_wall_pierce_ring() {
     for (x, y) in [
         (ACROSS, (0.2, 1.0)),
         (ACROSS, (0.35, 1.0)),
@@ -151,7 +154,13 @@ fn laps_off_the_rulings_refuse_sector_side() {
     ] {
         let err = cut(&rod(), x, y, LAP).expect_err("the lap refuses");
         assert!(
-            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::Join(SplitJoinError::SectionArcWindow {
+                    case: topo::ArcWindowCase::NoChartedRun,
+                    ..
+                })
+            ),
             "lap at x ∈ {x:?}, y ∈ {y:?}: {err:?}"
         );
     }
@@ -200,10 +209,11 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
     let part = |body: &Body<f64>, z0: f64, above: bool| -> Body<f64> {
         let split = topo::split(
             body,
-            &topo::SplitPlane {
-                origin: Point3::new(0.0, 0.0, z0),
+            &topo::test_support::split_plane(
+                Point3::new(0.0, 0.0, z0),
                 normal,
-            },
+                geom_core::Tol::witness(),
+            ),
             tol(),
         )
         .expect("the oblique split runs");
@@ -225,19 +235,19 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
     );
 }
 
-/// **Role resolution's chord-midpoint probe is unsound on a curved
-/// edge.** The cutter is the half-space `y ≥ 0` over the rod's whole
-/// length, with a thin half-rod (`r = 0.1`) on the axis, bulging either
-/// way. Every rod vertex sits on the cutter's boundary, so role
-/// resolution falls to its `Anchor::ChordMidpoint` chord midpoints, and
-/// a rim semicircle's is the circle's centre — a point on neither
-/// flanking region, whose one verdict both loops then take. The join
-/// refuses `SectionLoopMixed` rather than resolving. Pinned at that
-/// outcome; the fix is
-/// `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`.
+/// **Role resolution reads a curved edge at a point ON it.** The cutter
+/// is the half-space `y ≥ 0` over the rod's whole length, with a thin
+/// half-rod (`r = 0.1`) on the axis, bulging either way. Every rod
+/// vertex sits on the cutter's boundary, so each loop's regions decide
+/// at an edge: a rim semicircle's midpoint along its carrier, never its
+/// chord midpoint (the circle's centre, on neither flanking region,
+/// which once read both loops alike). The half rod remains, less the
+/// bump where it bulges into it and plus the bump where it bulges away.
 #[test]
-fn a_chord_midpoint_probe_reads_both_loops_alike() {
-    for bulge in [1.0, -1.0] {
+fn a_rim_semicircle_decides_role_resolution_at_its_own_midpoint() {
+    let half = PI * R * R / 2.0;
+    let bump = PI * 0.1 * 0.1 / 2.0;
+    for (bulge, area) in [(1.0, half - bump), (-1.0, half + bump)] {
         let cutter = extruded(
             SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -1.0))),
             bulge_loop(vec![
@@ -250,15 +260,10 @@ fn a_chord_midpoint_probe_reads_both_loops_alike() {
             ]),
             6.0,
         );
-        let r = topo::subtract(&rod(), &cutter, tol());
-        assert!(
-            matches!(
-                r,
-                Err(BooleanError::Join(SplitJoinError::SectionLoopMixed { .. }))
-            ),
-            "bulge {bulge}: {:?}",
-            r.err()
-        );
+        let r = topo::subtract(&rod(), &cutter, tol())
+            .unwrap_or_else(|e| panic!("bulge {bulge}: {e:?}"));
+        let body = &r.body().expect("a half rod remains").body;
+        assert_sound(body, area * LEN, &format!("bulge {bulge}"));
     }
 }
 
@@ -290,7 +295,7 @@ fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
 /// over the pocket's depth `0.5`. Entering through the TOP face it
 /// refuses `JoinDesync` in the join's internal words (the ring-run
 /// winding decides `Zero`), which
-/// `work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`
+/// `work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`
 /// carries.
 #[test]
 fn a_blind_d_pocket_builds_from_below_and_refuses_from_above() {
@@ -327,10 +332,11 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
     let theta = (R / (R + difference)).acos();
     let err = topo::split(
         &rod(),
-        &topo::SplitPlane {
-            origin: Point3::new(0.0, 0.0, LEN / 2.0),
-            normal: Vec3::new(0.0, -theta.sin(), theta.cos()),
-        },
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, LEN / 2.0),
+            Vec3::new(0.0, -theta.sin(), theta.cos()),
+            geom_core::Tol::witness(),
+        ),
         tol(),
     )
     .expect_err("the section's kind is undecided");

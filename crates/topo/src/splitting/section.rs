@@ -77,8 +77,8 @@ pub enum SectionError<T: Real> {
     /// [`super::split`] (a pure-tangency section included).
     Split(SplitError),
     /// Whether a section polygon is an outline or a hole cannot be
-    /// read: its winding is in the band (`diag`), zero, or (`None`) it
-    /// has an edge that states no certified curve.
+    /// read: its winding is in the band (`diag`), or (`None`) zero, or
+    /// unread because the polygon carries a spiric or NURBS edge.
     WindingUndecided {
         /// A corner of the polygon.
         corner: Point3<T>,
@@ -130,8 +130,8 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
             Self::WindingUndecided { diag: None, .. } => write!(
                 f,
                 "whether a polygon of the section is an outline or a hole cannot be read: it \
-                 encloses no area, or has an edge with no curve. Recourse: move the section \
-                 plane"
+                 encloses no area, or has a spiric or NURBS edge, whose winding the kernel \
+                 does not read. Recourse: move the section plane"
             ),
             Self::UnplacedHole { .. } => write!(
                 f,
@@ -193,7 +193,7 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
-    let normal = section_loops::section_normal(plane.normal, PlaneSide::Below);
+    let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);
 
     let mut u_ref = None;
     let mut v_ref = None;
