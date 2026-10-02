@@ -25,8 +25,8 @@
 //!   still reads there and can refuse a pose the enclosures alone would
 //!   answer.
 //! - **coaxial** — the swing `A₁` in the zero band: the residual is
-//!   constant, so `c₀` alone decides it — definite is a
-//!   [`CircleRoots::Miss`], zero is [`CircleRoots::OnSurface`].
+//!   constant to within `A₁` plus the harmonics' `noise`, and
+//!   [`constant_residual_roots`] decides it.
 //! - **extreme**, on `c₀ − A₁` and `c₀ + A₁` — definitely one-signed is a
 //!   miss, definitely straddling is two roots, and either extreme in the
 //!   zero band is a tangency, which is not a crossing at any order this
@@ -49,6 +49,19 @@
 //! extremes put it in the zero band, where the ladder, deciding on a
 //! discriminant rather than on the range, can certify a miss
 //! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
+//!
+//! # A constant residual
+//!
+//! A coaxial carrier's residual is ONE value `c` only to within the
+//! carrier's in-band offset and tilt: in the band, not zero. Its spread
+//! `s` about `c` — a bound each door derives from that offset and tilt,
+//! never from the band — is charged into the one decision every
+//! constant-residual answer takes ([`constant_residual_roots`]): the
+//! carrier is a [`CircleRoots::Miss`] when `c − s` is definitely
+//! positive or `c + s` definitely negative, [`CircleRoots::OnSurface`]
+//! when both are in the zero band, and otherwise `Uncertain`. Read at
+//! `c` alone, an in-band spread can cross zero while `c` sits past the
+//! escalation threshold whenever `K` is near 1.
 //!
 //! # The half-angle ladder
 //!
@@ -146,7 +159,7 @@
 //! cylinder wall, filed on GERM
 //! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use super::solid_contain::{QuarticRows, TorusRoots, depressed_quartic_roots};
 use super::{BooleanDecision, BooleanError};
@@ -397,6 +410,29 @@ pub(super) fn half_angle_roots<T: Decide>(
     Ok(CircleRoots::Uncertain)
 }
 
+/// **The answer for a residual constant along the carrier to within
+/// `spread`** about `value` (module docs, "A constant residual"), both in
+/// metres, decided under `row`. `spread` must bound the residual's
+/// distance from `value` everywhere on the carrier.
+///
+/// # Errors
+///
+/// The band's escalation when `value ∓ spread` lies in its gap.
+pub(super) fn constant_residual_roots<T: Decide>(
+    value: T,
+    spread: T,
+    row: &'static str,
+    band: Band,
+) -> Result<CircleRoots<T>, Indeterminate> {
+    let lo = decide(row, Margin::of(value - spread), band)?;
+    let hi = decide(row, Margin::of(value + spread), band)?;
+    Ok(match (lo, hi) {
+        (Sign::Positive, _) | (_, Sign::Negative) => CircleRoots::Miss,
+        (Sign::Zero, Sign::Zero) => CircleRoots::OnSurface,
+        _ => CircleRoots::Uncertain,
+    })
+}
+
 /// A residual `c₀ + A₁ cos(θ − φ)` along a circle, `φ = atan2(sin_part, cos_part)`,
 /// in metres of residual, with `noise` the metres its harmonics may be
 /// off by (their rounding, and any term the caller dropped to reach
@@ -460,10 +496,11 @@ pub(super) fn first_harmonic_roots<T: Decide>(
         Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
     }
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
-        // A constant residual: its one value decides the whole carrier.
-        return Ok(match decide(rows.extreme, Margin::of(c0), band)? {
-            Sign::Zero => CircleRoots::OnSurface,
-            Sign::Positive | Sign::Negative => CircleRoots::Miss,
+        return constant_residual_roots(c0, a1 + noise, rows.extreme, band).map_err(|diag| {
+            BooleanError::Escalated {
+                decision: rows.decision,
+                diag,
+            }
         });
     }
     let lo = decide(rows.extreme, Margin::of(c0 - a1), band)?;

@@ -243,6 +243,38 @@ mod tests {
         ));
     }
 
+    /// **A near-coaxial carrier that comes within the zero band is not a
+    /// miss**, at any admissible `K`. The sphere's centre is `0.99·zero`
+    /// off the carrier's axis, so the swing `A₁` is in the zero band, and
+    /// its mean residual `−1.6e-9` is past the escalation threshold at
+    /// `K = 1.5`; the swing carries the residual's top to `−7e-10`, inside
+    /// the zero band, where the extremes read a tangency.
+    #[test]
+    fn a_near_coaxial_carrier_reaching_the_zero_band_is_not_a_miss() {
+        let zero = 1e-9;
+        let r = (1.25_f64 + 3.2e-9 * 1.25_f64.sqrt()).sqrt();
+        let c = [0.99 * zero, 0.0, 0.5];
+        let top = off_sphere(core::f64::consts::PI, c, r);
+        let bottom = off_sphere(0.0, c, r);
+        assert!(
+            top > -zero && bottom < -1.5 * zero,
+            "the pose's premise: the residual spans {bottom} .. {top}"
+        );
+        for k in [1.5, 1.2, 2.0, 3.0, 10.0] {
+            let got = circle_sphere_roots(
+                &circle(1.0),
+                0.0,
+                6.0,
+                &sphere(c, r),
+                Band::new(zero, k * zero).unwrap(),
+            );
+            assert!(
+                !matches!(got, Ok(CircleRoots::Miss)),
+                "K = {k}: a residual reaching the zero band certified a miss"
+            );
+        }
+    }
+
     #[test]
     fn a_tangent_sphere_is_uncertain() {
         // Externally tangent at (1, 0, 0): a touch, not a crossing.
