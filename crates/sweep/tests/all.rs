@@ -234,6 +234,10 @@ mod extrude_acceptance;
 mod extrude_interval;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
+#[path = "join1_r2_probes.rs"]
+mod join1_r2_probes;
+#[path = "join1_r2_rand.rs"]
+mod join1_r2_rand;
 #[path = "join_whole_orbit_cylinder.rs"]
 mod join_whole_orbit_cylinder;
 #[path = "k_report.rs"]
@@ -590,6 +594,14 @@ mod germ_sphere_no_crossings;
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]
 mod germ_torus_rods;
+#[path = "join1_delta_probes.rs"]
+mod join1_delta_probes;
+#[path = "join1_mechanisms.rs"]
+mod join1_mechanisms;
+#[path = "join1_r1_probes.rs"]
+mod join1_r1_probes;
+#[path = "join1_r1_rows.rs"]
+mod join1_r1_rows;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]
@@ -839,3 +851,6 @@ mod review_ring2_r1_e2e;
 mod full_turn_bore_mate;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
+
+#[path = "join1_delta2_harness.rs"]
+mod join1_delta2_harness;

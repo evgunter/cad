@@ -585,7 +585,7 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
-    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction,
+    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction, Corruption,
     CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, HeldEdge,
     LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite,
     PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
@@ -594,7 +594,7 @@ pub use boolean::{
     TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
     VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
     contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    fragment_root, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
+    insert_void, insert_voids, intersect, intersect_with, lineage_root, oriented_plane_eq,
     point_in_solid, point_in_solid_faces, point_in_solid_of, subtract, subtract_with,
     tangent_pair_relation, union, union_with,
 };
@@ -693,7 +693,8 @@ pub use splitting::{
     LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionError,
     SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
     SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,
-    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
+    split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{
