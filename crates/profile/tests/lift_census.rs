@@ -248,10 +248,8 @@ fn the_fidelity_report_is_honest() {
     // inoperative on this row (4.39e18 ulp, a straddle of zero), so only
     // the 1e-12 absolute floor applied: 300x the residue actually
     // measured. Its residue is the same class as the bracket's — four
-    // fillet arcs re-derived as tangent arcs, each leaving on the
-    // tangent its stored sweep gives and each `line(len)` after it
-    // carrying that direction's rounding forward — so it gets the same
-    // kind of ceiling, sized to what it does.
+    // fillet arcs re-deriving their bulge — so it gets the same kind of
+    // ceiling, sized to what it does.
     match lift_checked(&rounded_rect(4.0, 3.0, 0.5), Tol::witness()) {
         LiftOutcome::Lifted {
             fidelity,
@@ -262,8 +260,8 @@ fn the_fidelity_report_is_honest() {
             assert_eq!(fidelity, Fidelity::ValueEqual);
             assert!(worst_ulps > 0, "value-equal means some bit moved");
             assert!(
-                worst_abs < 5e-14,
-                "the fillet arcs' re-derivation, and nothing more: {worst_abs:e}"
+                worst_abs < 1e-14,
+                "the fillet arcs' bulge re-derivation, and nothing more: {worst_abs:e}"
             );
         }
         other => panic!("rounded_rect should lift: {}", describe(&other)),

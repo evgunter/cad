@@ -647,11 +647,11 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// moved at this row or at 1e-6; at 1e-12 two loops that escalated a
 /// near-coincidence between the fillet arc and its arc neighbour now
 /// validate (`line x arc c=32 r=0.5`, `c=128 r=0.2`).
-const GOLDEN_DEFAULT: u64 = 0x65ea_dcba_dc14_499b;
+const GOLDEN_DEFAULT: u64 = 0x0632_d9da_12be_22cd;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0x0ec3_b4e1_0197_49d0;
+const GOLDEN_1E6: u64 = 0xcdc7_162d_b9ba_c162;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x16f7_f8cb_0f92_b114;
+const GOLDEN_1E12: u64 = 0x75c5_aa3c_e3c6_6a6e;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

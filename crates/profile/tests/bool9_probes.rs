@@ -169,10 +169,10 @@ fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
             ..
         } => {
             // The entry declares nothing, so the arc leaving it is
-            // written about its stored centre (`arc_to(Center)`); its
-            // replay stores that centre and reads the radius and sweep
-            // off it, and on this stadium they come back bit for bit.
-            assert_eq!(fidelity, Fidelity::BitIdentical);
+            // written about its stored centre (`arc_to(Center)`), whose
+            // replay re-derives the sweep from the endpoint angles:
+            // value-equal, in the last bits.
+            assert_eq!(fidelity, Fidelity::ValueEqual);
             assert!(worst_abs < 1e-15, "{worst_abs:e}");
             assert!(
                 matches!(

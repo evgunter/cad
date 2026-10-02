@@ -2913,17 +2913,20 @@ fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
     d1.perp_dot(d2) / (d1.norm() * d2.norm() + d1.dot(d2))
 }
 
-/// **The tangent arc's one conversion**: the arc leaving `a` along the
-/// unit `u` and ending at `b`, lowered from its chord
-/// ([`crate::bulge_leg`]) with X the tangent of half the angle δ from
-/// `u` to the chord — the arc turns 2δ, so X is tan(θ/4) — spelled
-/// `across / (|d| + along)`, `d = b − a` resolved along and across
-/// `u`. `b` straight ahead is X = 0, the line the lowering rule stores;
-/// straight behind is the pole, the door's to refuse.
-fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
-    let d = b - a;
-    let x = u.perp_dot(d) / (d.norm() + u.dot(d));
-    crate::bulge_leg(a, b, x)
+/// **The tangent arc's one conversion**: the arc leaving `a` and
+/// ending at `b`, lowered from its chord ([`crate::bulge_leg`]) with X
+/// the tangent of half the tangent-chord angle `delta` — the arc turns
+/// 2·`delta`, so X is tan(θ/4). `b` straight ahead is X = 0, the line
+/// the lowering rule stores; straight behind is the pole, the door's to
+/// refuse.
+///
+/// `delta` is the door's `atan2` of the target across and along the
+/// departure. The algebraic spelling of X, `across / (|d| + along)`, is
+/// one the symbolic tier does not close on a half-turn whose chord is a
+/// parameter: `r2_link`'s tangent arcs refuse at their certification
+/// under it.
+fn tangent_arc<T: Real>(a: Point2<T>, b: Point2<T>, delta: T) -> Option<BuiltArc<T>> {
+    crate::bulge_leg(a, b, (delta / T::from_f64(2.0)).tan())
 }
 
 /// The tip's record of a leg's carrier, read off the stored arc (none
@@ -3220,7 +3223,8 @@ fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> Pat
 
 /// **The fillet's one conversion**: the arc a fillet resolution built,
 /// stored as built — its own carrier (the centre the resolution
-/// derived, the radius as authored) and Δθ = 4·atan(b), `b` the
+/// derived, the authored radius as its magnitude `|r|`, as
+/// [`circle_loop`] stores it) and Δθ = 4·atan(b), `b` the
 /// resolution's quarter-tangent, algebraic in the corner's data
 /// ([`line_line_fillet_trims`]'s half-angle identity, or
 /// `arc_fillet`'s chord-and-apothem form).
@@ -3236,7 +3240,7 @@ fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T) -> BuiltArc<T> {
     BuiltArc {
         arc: Arc2 {
             centre: carrier.center,
-            radius: carrier.radius,
+            radius: carrier.radius.abs(),
             sweep: T::from_f64(4.0) * bulge.atan(),
         },
         facts: crate::Facts::Registered,
@@ -4045,9 +4049,11 @@ fn circle_split_kernel<T: Decide>(
 }
 
 /// **The circle forms' one conversion**: the vertices on the authored
-/// carrier, each with the arc on it — the authored centre and radius
-/// and the same `sweep` — to the next, the last closing back to the
-/// first.
+/// carrier, each with the arc on it — the authored centre, the authored
+/// radius as the magnitude `|r|` (the door gated it positive; the
+/// magnitude is non-negative in the symbolic tier's own syntax, which
+/// is what lets it fold the rim at a vertex onto it) and the same
+/// `sweep` — to the next, the last closing back to the first.
 ///
 /// **Its endpoint facts are theorems**, registered at `tol`: each
 /// vertex is the centre plus the radius along a unit direction, and
@@ -4065,7 +4071,7 @@ fn circle_loop<T: Real>(
     let arc = BuiltArc {
         arc: Arc2 {
             centre,
-            radius,
+            radius: radius.abs(),
             sweep,
         },
         facts: crate::Facts::Registered,
@@ -4571,10 +4577,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         // A target ON the departure line is not a carrier question —
         // the 2026-09-02 ruling took those away — but it is still a
         // GEOMETRY one, and only forward of the tip is it answerable:
-        // the arc's quarter-tangent `across / (|d| + along)` is 0 ahead
-        // of the tip and unbounded behind it, where no arc spans the
-        // chord. Gated here so the
-        // infinity cannot reach a segment.
+        // `delta` is `atan2(0, along)`, which is 0 ahead of the tip (a
+        // zero-bulge arc, the straight segment the declaration asks
+        // for) and π behind it, where the quarter-tangent
+        // `tan(delta/2)` is unbounded and no arc spans the chord. Gated
+        // here so the infinity cannot reach a segment.
         let band = linear_band(tol)?;
         if let Ok(Sign::Zero) = decide("path_collinear_target", Margin::of(across), band) {
             match decide("path_leg_length", Margin::of(along), band) {
@@ -4587,8 +4594,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 Err(source) => return Err(PathError::Escalated { source }),
             }
         }
-        let arc = tangent_arc(at, u, p);
-        let end_ang = Dir::from_angle(ang.ang + sweep_of(arc));
+        let delta = across.atan2(along);
+        let arc = tangent_arc(at, p, delta);
+        let end_ang = Dir::from_angle(ang.ang + delta + delta);
         let chord = d.norm_squared().sqrt();
         Ok(TangentArcGeom {
             arc,

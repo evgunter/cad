@@ -369,7 +369,8 @@ pub(crate) fn via_carrier<T: Decide>(
 /// The endpoint-free legs' shared derivation ([`Sweep`] / [`ArcLen`]):
 /// carrier centre from the directed start (as [`radius_carrier`]), the
 /// endpoint by rotating the start about it through the swept angle in
-/// the side's travel sense, and the leg's arc — the authored radius,
+/// the side's travel sense, and the leg's arc — the authored radius as
+/// its magnitude `|r|`,
 /// and Δθ = 4·atan(tan(θ/4)) of the signed swept angle θ. Everything
 /// closed-form; the swept angle is gated definitely positive
 /// (`path_arc_sweep`).
@@ -386,7 +387,7 @@ pub struct TangentArcLeg<T: Real> {
     pub end: Point2<T>,
     /// The travel sense (from the side bit).
     pub winding: ArcSweep,
-    /// The leg's arc: the derived centre, the authored radius and the
+    /// The leg's arc: the derived centre, the authored radius (as `|r|`) and the
     /// signed sweep.
     pub arc: geom_core::Arc2<T>,
     /// The end tangent (departure rotated by the signed sweep).
@@ -424,7 +425,7 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
         winding: side.winding(),
         arc: geom_core::Arc2 {
             centre,
-            radius: r,
+            radius: r.abs(),
             sweep: four * (signed / four).tan().atan(),
         },
         end_dir,

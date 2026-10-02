@@ -280,7 +280,7 @@ fn r2_the_new_value_row_has_a_ceiling_of_its_own() {
         } => {
             assert_eq!(fidelity, Fidelity::ValueEqual);
             println!("r2: rounded_rect worst_abs = {worst_abs:e}, worst_ulps = {worst_ulps}");
-            assert!(worst_abs < 5e-14, "the observed figure: {worst_abs:e}");
+            assert!(worst_abs < 1e-14, "the observed figure: {worst_abs:e}");
             assert!(
                 worst_abs > 1e-16,
                 "a residue this small is a different row than the one \
@@ -303,7 +303,7 @@ fn r2_the_new_value_row_has_a_ceiling_of_its_own() {
     );
     assert!(
         census.contains("rounded_rect(4.0, 3.0, 0.5), Tol::witness()")
-            && census.contains("worst_abs < 5e-14"),
+            && census.contains("worst_abs < 1e-14"),
         "the census no longer pins `rounded_rect` against a ceiling of \
          its own — the coarse 1e-12 bucket is holding it again, which \
          is 300x the residue this row just measured"
