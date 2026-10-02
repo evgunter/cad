@@ -1836,6 +1836,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
+        | BooleanErrorKind::CoincidentShell
         | BooleanErrorKind::SeamOrientation
         | BooleanErrorKind::ZipCorrespondence
         | BooleanErrorKind::ResultInvalid

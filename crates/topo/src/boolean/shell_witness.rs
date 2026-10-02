@@ -3,7 +3,7 @@
 //! where the other operand's boundary does not cut it. Two questions
 //! read it:
 //!
-//! - **the uncut-shell witness** ([`shell_side`]): the containment
+//! - **the uncut-shell witness** ([`shell_verdict`]): the containment
 //!   fallback's per-shell verdict and the uncut-component probe of
 //!   `setopfinish`. The containment fallback runs only when the
 //!   operands have no crossings, and for a curved boundary the extent
@@ -59,14 +59,36 @@
 //! along as evidence only. A complex whose vertices and edges all lie on
 //! the other boundary and whose faces off it are all curved reaches this
 //! (tier 3 reads planar faces only).
+//!
+//! # The `On` verdict
+//!
+//! An uncut shell every witness of which reads `OnBoundary` (none
+//! in-band) may lie wholly ON the other operand's boundary: one body
+//! twice, or one operand's shell carried unchanged into the other. The
+//! ladder cannot say so, because no point of such a shell is off that
+//! boundary; the coincidence ladder can. The question is asked of the
+//! pairs the reduction SETTLED one carrier (`BooleanReduction`'s
+//! `coincident`: shared recipe source, or a verified declaration),
+//! never of values and never of how many witnesses read `OnBoundary`.
+//! The shell is `On` a shell of the other operand when every face of
+//! each is in a settled pair with a face of the other ([`on_verdict`]),
+//! the pairs between the two agree on orientation, and the partner
+//! reads `On` back ([`check_mutual`]). The two then hold one surface,
+//! and [`on_kept`] keeps or drops each copy by the classic rule for a
+//! coincident face pair. Where the pairs certify less — a face with no
+//! settled pair, mixed orientations, no partner covered back — the
+//! boolean refuses [`BooleanError::CoincidentShell`].
 
 use geom_core::{Band, Decide, Point3, Tol, Vec3};
 use slotmap::SecondaryMap;
+use std::collections::BTreeSet;
 
 use super::solid_contain::{
     PointInSolidError, SolidContainment, face_plane, point_in_face, point_in_solid,
 };
-use super::{BooleanError, ContactRecords, Operand, SideCode};
+use super::{
+    BooleanError, BooleanOp, CarrierRelation, ContactRecords, Operand, SettledPair, SideCode,
+};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
 use crate::splitting::PointInLoopError;
@@ -205,22 +227,62 @@ fn inconclusive(e: &PointInSolidError) -> bool {
     )
 }
 
-/// The side of `other` the uncut `shell` of `body` lies on: the
-/// ladder (module docs) over the shell's faces.
+/// What an uncut shell of one operand is to the other operand: on one
+/// side of its boundary, or `On` it (module docs).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ShellVerdict {
+    /// The ladder's first decisive witness: `In` or `Out`.
+    Side(SideCode),
+    /// The shell lies on `partner`, a shell of the other operand, and
+    /// `partner` lies on it.
+    On {
+        /// The other operand's shell, in the other body's keys.
+        partner: ShellKey,
+        /// `SameOriented` or `SameOpposite`, read off the settled pairs
+        /// between the two shells.
+        relation: CarrierRelation,
+    },
+}
+
+/// What a shell's settled coincidence pairs say about its orientation
+/// against the other operand, where they do not certify it `On`
+/// ([`BooleanError::CoincidentShell`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShellOrientation {
+    /// Every pair is aligned, but the faces paired are not one shell
+    /// of the other operand lying back on this one.
+    Same,
+    /// Every pair is opposed, with the same shortfall.
+    Opposite,
+    /// Some pairs are aligned and some opposed.
+    Mixed,
+    /// `face` has no settled pair, so no orientation is read.
+    Unpaired {
+        /// The shell's first face, in arena order of the shell's face
+        /// list, that no settled pair names.
+        face: FaceKey,
+    },
+}
+
+/// The verdict on the uncut `shell` of `body` against `other`: the
+/// ladder (module docs) over the shell's faces, then, where every
+/// witness read `OnBoundary`, the `On` question ([`on_verdict`]).
 ///
 /// # Errors
 ///
 /// [`BooleanError::Containment`] when a probe refuses other than
 /// in-band; [`BooleanError::ShellWitnessExhausted`] when no witness
-/// decides; [`BooleanError::JoinDesync`] when the shell does not walk.
-pub(super) fn shell_side<T: Decide>(
-    body: &Body<T>,
-    shell: ShellKey,
+/// decides and one read in-band; [`BooleanError::CoincidentShell`]
+/// when every witness lies on the other boundary and the settled pairs
+/// do not certify `On`; [`BooleanError::JoinDesync`] when the shell
+/// does not walk.
+pub(super) fn shell_verdict<T: Decide>(
+    (body, shell, operand): (&Body<T>, ShellKey, Operand),
     other: &Body<T>,
-    operand: Operand,
+    coincident: &[SettledPair],
     band: Band,
     tol: Tol,
-) -> Result<SideCode, BooleanError> {
+) -> Result<ShellVerdict, BooleanError> {
     let faces = &body
         .get_shell(shell)
         .ok_or(BooleanError::JoinDesync {
@@ -228,7 +290,10 @@ pub(super) fn shell_side<T: Decide>(
         })?
         .faces;
     match complex_side(body, faces, other, band, tol)? {
-        Reading::Side(s) => Ok(s),
+        Reading::Side(s) => Ok(ShellVerdict::Side(s)),
+        Reading::Undecided(t) if t.in_band == 0 => {
+            on_verdict((shell, operand), faces, other, coincident)
+        }
         Reading::Undecided(t) => Err(BooleanError::ShellWitnessExhausted {
             operand,
             shell,
@@ -237,6 +302,170 @@ pub(super) fn shell_side<T: Decide>(
             first_in_band: t.first_in_band,
         }),
     }
+}
+
+/// **The `On` question, this shell's half** (module docs): is every
+/// face of `shell` in a settled coincidence pair with a face of exactly
+/// one shell of `other`, at one orientation? The other half — that
+/// shell answering the same of this one — is [`check_mutual`]'s.
+///
+/// Coverage, not counts: a face may pair with several faces of the
+/// partner, and the partner's faces with several of this shell's.
+fn on_verdict<T: Decide>(
+    (shell, operand): (ShellKey, Operand),
+    faces: &[FaceKey],
+    other: &Body<T>,
+    coincident: &[SettledPair],
+) -> Result<ShellVerdict, BooleanError> {
+    let refuse = |orientation| BooleanError::CoincidentShell {
+        operand,
+        shell,
+        orientation,
+    };
+    let mine: BTreeSet<FaceKey> = faces.iter().copied().collect();
+    // (this shell's face, the paired face's shell, the relation)
+    let mut pairs: Vec<(FaceKey, ShellKey, CarrierRelation)> = Vec::new();
+    for p in coincident {
+        let (f, g) = match operand {
+            Operand::A => (p.a, p.b),
+            Operand::B => (p.b, p.a),
+        };
+        if mine.contains(&f) {
+            let theirs = other
+                .get_face(g)
+                .map(|f| f.shell)
+                .ok_or(BooleanError::JoinDesync {
+                    what: "a settled pair names a face the other operand lacks",
+                })?;
+            pairs.push((f, theirs, p.relation));
+        }
+    }
+    if let Some(&face) = faces.iter().find(|&&f| !pairs.iter().any(|q| q.0 == f)) {
+        return Err(refuse(ShellOrientation::Unpaired { face }));
+    }
+    let orientation = |within: Option<ShellKey>| {
+        let mut read = pairs
+            .iter()
+            .filter(|q| within.is_none_or(|s| q.1 == s))
+            .map(|q| q.2);
+        match read.next() {
+            Some(CarrierRelation::SameOpposite)
+                if read.all(|x| x == CarrierRelation::SameOpposite) =>
+            {
+                ShellOrientation::Opposite
+            }
+            Some(CarrierRelation::SameOriented)
+                if read.all(|x| x == CarrierRelation::SameOriented) =>
+            {
+                ShellOrientation::Same
+            }
+            _ => ShellOrientation::Mixed,
+        }
+    };
+    let mut partners: Vec<ShellKey> = pairs.iter().map(|q| q.1).collect();
+    partners.sort();
+    partners.dedup();
+    partners.retain(|&s| {
+        mine.iter()
+            .all(|&f| pairs.iter().any(|q| q.0 == f && q.1 == s))
+    });
+    let [partner] = partners[..] else {
+        return Err(refuse(orientation(None)));
+    };
+    match orientation(Some(partner)) {
+        ShellOrientation::Same => Ok(ShellVerdict::On {
+            partner,
+            relation: CarrierRelation::SameOriented,
+        }),
+        ShellOrientation::Opposite => Ok(ShellVerdict::On {
+            partner,
+            relation: CarrierRelation::SameOpposite,
+        }),
+        o => Err(refuse(o)),
+    }
+}
+
+/// **The keep rule for an `On` shell**, per operand (module docs):
+///
+/// | the shells' orientation | ∪ | ∩ | A − B |
+/// |---|---|---|---|
+/// | same | A's copy | A's copy | neither |
+/// | opposite | neither | neither | A's |
+pub(super) fn on_kept(op: BooleanOp, operand: Operand, relation: CarrierRelation) -> bool {
+    match (op, relation) {
+        (BooleanOp::Union | BooleanOp::Intersect, CarrierRelation::SameOriented)
+        | (BooleanOp::Subtract, CarrierRelation::SameOpposite) => operand == Operand::A,
+        _ => false,
+    }
+}
+
+/// Is `verdict` kept under `op` for `operand`?
+pub(super) fn kept(op: BooleanOp, operand: Operand, verdict: ShellVerdict) -> bool {
+    match verdict {
+        ShellVerdict::Side(s) => s == super::finish::kept_side(op, operand),
+        ShellVerdict::On { relation, .. } => on_kept(op, operand, relation),
+    }
+}
+
+/// One shell with its verdict.
+pub(super) type Verdict = (ShellKey, ShellVerdict);
+
+/// **`On` is mutual**: each `On` shell's partner reads `On` back, naming
+/// it, at the same orientation. `verdicts` holds each operand's working
+/// body and its shells' verdicts, A then B; `pristine` the operands at
+/// rest, whose keys a partner is named in. A working shell's faces are
+/// its pristine faces (it is uncut), so a face crosses between the two.
+///
+/// # Errors
+///
+/// [`BooleanError::CoincidentShell`] for the first `On` shell whose
+/// partner does not read it back; [`BooleanError::JoinDesync`] for a
+/// face that resolves in one key space and not the other.
+pub(super) fn check_mutual<T: Decide>(
+    verdicts: [(&Body<T>, &[Verdict]); 2],
+    pristine: [&Body<T>; 2],
+) -> Result<(), BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let first_face = |body: &Body<T>, s: ShellKey| {
+        body.get_shell(s)
+            .and_then(|sh| sh.faces.first().copied())
+            .ok_or(desync("an On shell has no face"))
+    };
+    for (i, operand) in [(0, Operand::A), (1, Operand::B)] {
+        let j = 1 - i;
+        let (working, mine) = verdicts[i];
+        let (their_working, theirs) = verdicts[j];
+        for &(shell, verdict) in mine {
+            let ShellVerdict::On { partner, relation } = verdict else {
+                continue;
+            };
+            let at_rest = pristine[i]
+                .get_face(first_face(working, shell)?)
+                .map(|f| f.shell)
+                .ok_or(desync("an On shell's face is not its operand's at rest"))?;
+            let t = their_working
+                .get_face(first_face(pristine[j], partner)?)
+                .map(|f| f.shell)
+                .ok_or(desync("an On partner's face left its working copy"))?;
+            let back = theirs.iter().find(|(s, _)| *s == t).map(|(_, v)| *v);
+            if back
+                != Some(ShellVerdict::On {
+                    partner: at_rest,
+                    relation,
+                })
+            {
+                return Err(BooleanError::CoincidentShell {
+                    operand,
+                    shell,
+                    orientation: match relation {
+                        CarrierRelation::SameOpposite => ShellOrientation::Opposite,
+                        _ => ShellOrientation::Same,
+                    },
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The first candidate strictly inside planar `face` (module docs,

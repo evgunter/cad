@@ -181,6 +181,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "on_verdict.rs"]
+mod on_verdict;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]
