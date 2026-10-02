@@ -72,3 +72,12 @@ Dispatched, each as its own lane:
 Designer pairs (`docs/prompts/designer.md`), on the two `design: true`
 rows: `two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted`
 and `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made`.
+
+## 2026-10-02 — the descendant chase lands (PR 3874)
+
+`descendant-chase-spends-its-budget-into-a-dropped-contact-record`
+closed. The face chase and the vertex fold both refuse typed on a
+corrupt record. The vertex half was the review's in-scope finding and
+came in a fix pass. The unchecked `survivor` readers elsewhere are
+ZIP's row, priced P1/E here, since a silent drop of a declared contact
+is the class this unit closed.
