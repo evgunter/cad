@@ -31,9 +31,11 @@
 //!   definite-zero coincidence margin IS the affirmative answer.
 //!
 //! So a pair this detector calls flush cannot be a pair the declared
-//! rung then contradicts — one verdict ladder, one set of `decide`
-//! sites, one verification arm, reached by one call, and both
-//! postures decided out of the same `data_rungs` traversal.
+//! rung then contradicts — one verdict ladder, reached by one call:
+//! the detector's affirmative is every datum decided zero AND their
+//! sum, the displacement the declared rung reads over the pair's
+//! consumed extent, decided zero too, so the declared rung verifies
+//! that pair `Definite`.
 //!
 //! Consequences, all deliberate:
 //!
@@ -41,8 +43,8 @@
 //!   the identity above rather than by care;
 //! - detection's decisions go through the funnel at the VERIFIER'S
 //!   sites — `bool_plane_parallel` / `bool_plane_orient` /
-//!   `bool_plane_offset` on the planar rung, and the curved rungs'
-//!   own sites (`carrier_sphere_*`, `carrier_cyl_*`,
+//!   `bool_plane_offset` / `bool_plane_reach` on the planar rung, and
+//!   the curved rungs' own sites (`carrier_sphere_*`, `carrier_cyl_*`,
 //!   `carrier_torus_*`) on the others. The detector mints no site of
 //!   its own and owes no ledger row. It interprets nothing the
 //!   verifier doesn't.
@@ -127,12 +129,19 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
 
 use crate::body::Body;
 use crate::boolean::{
-    BooleanDeclarations, CarrierEqError, CarrierRelation, FacePairDeclaration,
+    BooleanDeclarations, CarrierEqError, CarrierRelation, FacePairDeclaration, PairUnread,
     carrier_pair_relation,
 };
 use crate::contact::BooleanCoincidence;
 use crate::entity::FaceKey;
 use crate::query::all_faces;
+
+/// The label [`pair_finding`]'s refusal carries for a pair one of
+/// whose faces has no readable consumed extent: no `decide` ran, so it
+/// names the door's input rather than a margin. A typed finding in its
+/// place is filed
+/// (`work/tang/a-flush-pair-with-no-readable-extent-has-no-typed-finding.md`).
+pub const EXTENT_UNREAD: &str = "carrier_pair_extent";
 
 /// Which rung of the verify ladder decided a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -226,7 +235,8 @@ impl core::error::Error for FlushRefusal {}
 /// the door's relation and deciding rung), `Ok(None)` = definitely not
 /// a candidate (a face kind outside the `Rest` ladder's inventory, or
 /// definitely distinct carriers), `Err` = the door could not decide
-/// definitively (in-band, escalated, or poisoned).
+/// definitively (in-band, escalated, or poisoned), or had no extent to
+/// read a face over ([`EXTENT_UNREAD`]).
 ///
 /// This is the rung both seats delegate to: the body seat's
 /// [`find_flush_candidates`] enumerates over it, and the document
@@ -255,11 +265,23 @@ pub fn pair_finding<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<FlushEvidence>, Indeterminate> {
-    let Some(relation) = carrier_pair_relation(a, fa, b, fb, false, band) else {
+    let relation = match carrier_pair_relation(a, fa, b, fb, false, band) {
+        Ok(relation) => relation,
         // A kind outside the `Rest` ladder's inventory (cone, NURBS,
         // `Approx`): there is no description to compare, so the pair
         // is not a candidate, honestly.
-        return Ok(None);
+        Err(PairUnread::OutsideInventory) => return Ok(None),
+        // A face whose consumed extent cannot be read gives the
+        // ladder no lever, so the pair is neither flush nor apart:
+        // named, under the door's own label, never dropped.
+        Err(PairUnread::Extent(_)) => {
+            return Err(Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band,
+                predicate: Some(EXTENT_UNREAD),
+                terminal_sliver: false,
+            });
+        }
     };
     match relation {
         Ok(CarrierRelation::Distinct) => Ok(None),
@@ -296,7 +318,9 @@ pub fn pair_finding<T: Decide>(
         }
         Err(CarrierEqError::Escalated { diag, .. }) => Err(diag),
         // Unreachable with `declared: false`; kept typed.
-        Err(CarrierEqError::Contradicted { diag, .. }) => Err(diag),
+        Err(CarrierEqError::Contradicted { diag, .. } | CarrierEqError::Unsettled { diag }) => {
+            Err(diag)
+        }
     }
 }
 

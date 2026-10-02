@@ -375,7 +375,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
@@ -608,7 +608,11 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             faces: [f1, f2],
             offset,
         };
-        match super::plane_eq::plane_eq_typed(&p1, &p2, id, arm, band) {
+        let extent = super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+            geom_core::Point3::origin(),
+            arm,
+        ));
+        match super::plane_eq::plane_eq_typed(&p1, &p2, id, &extent, band) {
             Ok(super::PlaneRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
@@ -632,6 +636,15 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // Unreachable with `declared: false`; kept typed.
             Err(LadderRefusal::Refused(super::PlaneEqError::Contradicted { fact, .. })) => {
                 return Err(BooleanError::DeclarationContradicted { fact });
+            }
+            // Unreachable with `declared: false` (only a declared
+            // reading is unsettled); kept typed as the gate's in-band.
+            Err(LadderRefusal::Refused(super::PlaneEqError::Unsettled { diag })) => {
+                return Err(BooleanError::plane_identity(
+                    super::PlaneRung::Parallel,
+                    super::PlaneDoor::Neighbours,
+                    diag,
+                ));
             }
         }
     }
@@ -685,7 +698,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
 pub(super) fn refuse_undeclared_continuations<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     pad: f64,
     face_box: impl Fn(&Body<T>, FaceKey) -> Result<bvh::Aabb, BooleanError>,
@@ -713,8 +726,16 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
             if declared.class_of(Operand::A, fa, Operand::B, fb).is_some() {
                 continue;
             }
-            let Some(relation) = super::carrier_pair_relation(a, fa, b, fb, false, band) else {
-                continue;
+            let relation = match super::carrier_pair_relation(a, fa, b, fb, false, band) {
+                Ok(relation) => relation,
+                Err(super::PairUnread::OutsideInventory) => continue,
+                // The operands passed the gates, whose face boxes read;
+                // a face with no extent to compare it over is named.
+                Err(super::PairUnread::Extent(_)) => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "continuation scan: an operand face's consumed extent cannot be read",
+                    });
+                }
             };
             let Err(super::CarrierEqError::Undeclared {
                 diag,
@@ -938,7 +959,7 @@ fn edge_face_read<T: geom_core::Real>(
     x_is: Operand,
     edge: &crate::entity::Edge,
     face: FaceKey,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     question: Coincide,
 ) -> DeclarationRead {
     let pairs: Vec<_> = [
@@ -957,7 +978,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     x: &mut Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     strategy: SweepStrategy,
@@ -1500,7 +1521,7 @@ pub(super) fn curved_face_arm<T: Decide>(
     face: FaceKey,
     pu: Point3<T>,
     pv: Point3<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
@@ -2170,7 +2191,7 @@ fn on_declared_shared_carrier<T: Decide>(
     x_is: Operand,
     edge: &crate::entity::Edge,
     face: FaceKey,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
 ) -> bool {
     [
         x.face_of_half_edge(edge.he_plus),
@@ -3069,7 +3090,7 @@ mod declaration_order_rows {
             carried_a: Default::default(),
             carried_b: Default::default(),
         };
-        let declared = DeclaredPairs::without_struts(&decls, Default::default());
+        let declared = DeclaredPairs::<f64>::without_struts(&decls, Default::default());
         let mut acc = ContactAcc::default();
         curved_face_arm(
             &x,
@@ -3239,7 +3260,7 @@ mod declaration_order_rows {
         } else {
             Default::default()
         };
-        let declared = DeclaredPairs::without_struts(&decls, one);
+        let declared = DeclaredPairs::<f64>::without_struts(&decls, one);
         let door = class.map(|class| {
             crate::boolean::contact_pair_verdict(&x, xw, &y, yw, class, None, b).is_ok()
         });
@@ -3500,7 +3521,7 @@ mod declaration_order_rows {
                 .expect("a live point")
         };
         let declared =
-            DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
         let mut acc = ContactAcc::default();
         let got = curved_face_arm(
             &x,
@@ -3651,12 +3672,107 @@ mod declaration_order_rows {
     /// it, its top face flush with the block's top and aligned with it.
     /// Undeclared, the sector refuses and offers the one-carrier
     /// coincidence the senses make the pair (`Rest` opposed, a
-    /// continuation aligned). Following the offer, the door verifies the
-    /// declaration, the pair's class is read before the parallelism
-    /// refuses, the lump takes the residue, and the union builds at the
-    /// volume box arithmetic gives; the other class is contradicted.
+    /// continuation aligned). The block's top reaches far enough from
+    /// the tilt axis that its corners read definitely off the wedge's
+    /// plane, so the door, which reads the pair across both faces,
+    /// contradicts the offered declaration too: the offer does not
+    /// settle these poses
+    /// (`work/hone/a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces.md`).
+    /// The other class is contradicted as well.
+    /// **The lump takes a sector's in-band residue where the door
+    /// bridges it**: the two poses of the row below at a tilt the door
+    /// reads in band over both faces (standing at `1.2·ε`, sunk at
+    /// `2·ε`; standing at `2·ε` the zip refuses
+    /// `RestZipUnsupported { ChordBetweenIsolatedPierces }`). Undeclared,
+    /// the sector offers the class the senses make the pair; following
+    /// the offer, the union builds at the volume box arithmetic gives,
+    /// and the other class is contradicted.
     #[test]
-    fn a_coplanar_sectors_in_band_parallelism_is_settled_by_the_declaration_it_offers() {
+    fn a_coplanar_sectors_in_band_residue_builds_through_the_lump_where_the_door_bridges_it() {
+        use crate::test_support_fixtures::{brick, mapped_cube};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let phi = 5.0_f64.to_radians();
+        let p = Point3::new(0.5, 0.2, 1.0);
+        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block_volume = 3.0 * 4.5;
+        for (label, theta, sunk, facing, offered, other, volume) in [
+            (
+                "standing on the block",
+                1.2 * band.zero(),
+                false,
+                -1.0,
+                BooleanCoincidence::REST,
+                BooleanCoincidence::Continuation,
+                // The parallelepiped's volume: its base
+                // parallelogram's area, `sin φ`, times its height.
+                block_volume + phi.sin(),
+            ),
+            (
+                "sunk into the block",
+                2.0 * band.zero(),
+                true,
+                1.0,
+                BooleanCoincidence::Continuation,
+                BooleanCoincidence::REST,
+                block_volume,
+            ),
+        ] {
+            let (ea, eb) = (
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+                geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
+            );
+            let wedge = mapped_cube::<f64>(
+                move |u, v, w| {
+                    let z = if sunk { 0.5 * (w - 1.0) } else { w };
+                    p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
+                },
+                tol,
+            );
+            let pair = (
+                face_facing(&block, [0.0, 0.0, 1.0]),
+                face_facing(&wedge, [0.0, 0.0, facing]),
+            );
+            let undeclared = union_declared(&block, &wedge, pair, None);
+            assert!(
+                matches!(
+                    decision_of(label, &undeclared),
+                    BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
+                        if s.class() == offered
+                ),
+                "{label}: the lookup offers {offered:?}: {undeclared:?}"
+            );
+            let decls = BooleanDeclarations {
+                coincident_faces: vec![FacePairDeclaration::new(pair.0, pair.1, offered)],
+                ..BooleanDeclarations::none()
+            };
+            let built = crate::boolean::union_with(&block, &wedge, &decls, tol)
+                .unwrap_or_else(|e| panic!("{label}: following the offer, it builds: {e:?}"));
+            let body = &built.body().expect("a union is not empty").body;
+            let got = crate::mass_properties(body, tol)
+                .expect("its volume")
+                .volume;
+            // The lump takes an in-band residue: the face it glues
+            // moves by less than the band over less than unit area.
+            assert!(
+                (got - volume).abs() <= band.escalate(),
+                "{label}: {got} vs {volume}"
+            );
+            let contradicted = union_declared(&block, &wedge, pair, Some(other));
+            assert!(
+                matches!(
+                    contradicted,
+                    Err(BooleanError::ContactContradicted { .. }
+                        | BooleanError::ContinuationContradicted { .. })
+                ),
+                "{label}: declared {other:?}: {contradicted:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_coplanar_sectors_in_band_parallelism_offers_a_declaration_the_door_reads_across_the_faces()
+    {
         use crate::test_support_fixtures::{brick, mapped_cube};
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the witness band");
@@ -3670,17 +3786,12 @@ mod declaration_order_rows {
         // Its top face reaches far enough from the tilt axis that each
         // of its corners reads definitely off the wedge's tilted plane.
         let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
-        let block_volume = 3.0 * 4.5;
-        // The parallelepiped's volume: its base parallelogram's area,
-        // `sin φ`, times its height.
-        let wedge_volume = |height: f64| phi.sin() * height;
         type Pose = (
             &'static str,
             crate::body::Body<f64>,
             f64,
             BooleanCoincidence,
             BooleanCoincidence,
-            f64,
         );
         let poses: [Pose; 2] = [
             (
@@ -3692,7 +3803,6 @@ mod declaration_order_rows {
                 -1.0,
                 BooleanCoincidence::REST,
                 BooleanCoincidence::Continuation,
-                block_volume + wedge_volume(1.0),
             ),
             (
                 "sunk into the block",
@@ -3705,10 +3815,9 @@ mod declaration_order_rows {
                 1.0,
                 BooleanCoincidence::Continuation,
                 BooleanCoincidence::REST,
-                block_volume,
             ),
         ];
-        for (label, wedge, facing, offered, other, volume) in poses {
+        for (label, wedge, facing, offered, other) in poses {
             let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
                 let hits: Vec<_> = wedge
                     .faces()
@@ -3750,17 +3859,25 @@ mod declaration_order_rows {
                 coincident_faces: vec![FacePairDeclaration::new(pair.0, pair.1, offered)],
                 ..BooleanDeclarations::none()
             };
-            let built = crate::boolean::union_with(&block, &wedge, &decls, tol)
-                .unwrap_or_else(|e| panic!("{label}: following the offer, it builds: {e:?}"));
-            let body = &built.body().expect("a union is not empty").body;
-            let got = crate::mass_properties(body, tol)
-                .expect("its volume")
-                .volume;
-            // The lump takes an in-band residue: the face it glues
-            // moves by less than the band over less than unit area.
+            let followed = crate::boolean::union_with(&block, &wedge, &decls, tol);
             assert!(
-                (got - volume).abs() <= band.escalate(),
-                "{label}: {got} vs {volume}"
+                matches!(
+                    followed,
+                    Err(BooleanError::ContactContradicted {
+                        fact: Some(
+                            crate::boolean::refusal_routes::Contradiction::PlanesNotParallel
+                        ),
+                        ..
+                    } | BooleanError::ContinuationContradicted {
+                        fact: Some(
+                            crate::boolean::refusal_routes::Contradiction::PlanesNotParallel
+                        ),
+                        ..
+                    })
+                ),
+                "{label}: following the offer, the tilt across the block's top contradicts it: \
+                 {:?}",
+                followed.err()
             );
             let contradicted = union_declared(&block, &wedge, pair, Some(other));
             assert!(
