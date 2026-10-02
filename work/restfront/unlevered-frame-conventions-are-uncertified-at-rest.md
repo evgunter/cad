@@ -65,3 +65,33 @@ normalized `dir`) and the convention is dropped.
 
 Track P. `crates/topo/src/validate.rs` (check 1, check 9);
 `crates/geom/src/lib.rs`'s conventions paragraph is `props` ground.
+
+## Evidence from PR 3768's review (2026-10-02)
+
+**A further consumer that reads a plane's `normal` as unit: the
+plane×conic sections.** `geom_brep::plane_cylinder_section`
+(`crates/geom-brep/src/intersect.rs:923`) takes the tilted semi-major
+as `r / |axis·n|` and the parallel lane's gap as `(o − q)·n`; the
+plane×sphere, ×cone and ×torus arms read the gap the same way. Fed a
+plane whose `normal` is 1.264 long, the cylinder arm minted an
+ellipse off the cylinder or a circle-shaped "ellipse" refused as
+`CircularAxes` — measured on main at 5ab36cc95 through `topo::split`
+(`work/tquery/split-refuses-cylindrical-feature-box.md`, Diagnosis).
+PR 3768 closed the SPLIT door (`SplitPlane.normal: UnitVec3`), but
+the boolean's germ planes still reach the same arms with a
+`Surface::Plane` carrier's bare normal
+(`crates/topo/src/boolean/join.rs:451-500`, through
+`chord_join::SectionPlane`, `crates/topo/src/chord_join.rs:641`,
+and back into a transient `Surface::Plane` at `chord_join.rs:1331`).
+`SectionPlane`'s doc calls those carriers "unit under the surfaces'
+at-rest rule", which is the convention this row records as
+uncertified (`crates/geom/src/lib.rs:69-71`). No public door that
+mints a non-unit plane carrier on that head was found by the review
+(step-import divides a non-unit `DIRECTION` by its norm; the split now
+mints unit section faces), so the hole is latent rather than shown.
+
+**The measured 0.26-off-unit demos plane is very likely the cutaway's
+section face.** `|(0.75, 0.1875, 1)| = 1.264`, and before PR 3768 the
+split stored the caller's normal verbatim on every section face it
+minted. Once PR 3768 is on main, the "What" section's demos-job
+measurement wants re-taking before it is cited.

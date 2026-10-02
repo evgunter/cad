@@ -350,3 +350,112 @@ tier 3 accepts for every curved body in the kernel, broad and hard to
 reverse.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — PR 3733's review: not mergeable; a ruling on doorless scalars
+
+The full review of PR 3733 (general-circle fitted route) found two
+MAJORs, both by execution. (1) The new fitted image sits off its
+carrier between samples — 1.08e-4 m on the oblique octant's rows at
+ε = 1e-9, up to 1e-2 near a pole — and certifies with envelope 0,
+because its interpolation nodes coincide with the certification
+samples, so check 3 cannot see the error (planted corruption of every
+off-sample node left 30 rows green). The fix pass gives the lane a
+sound between-samples bound, adaptive density, off-node sampling, and a
+typed refusal where nothing converges. (2) Retiring the exemption broke
+the oblique fillet at `Dual64`.
+
+**Ruling (orchestrator, from ratified D-L1 and C4):** at a scalar with
+no fitted door, a face only the fitted lane can image is not owed rows —
+that scalar certifies nothing fitted — so neither the mint nor tier 3
+demands them there; one predicate, the scalar's missing door. Sent to
+both PR 3733's lane and the at-rest unit's. Not put to Ev as a fork: it
+is D-L1 applied to C4, not a new choice; reported to Ev.
+
+Also from the review: D36's sphere incidence trilean meters over 2R,
+under-reading a circle inside the sphere by up to 2× (lenient
+direction, sliver band); the fix pass gives the residual one home with
+the sound lever.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-02 — PR 3759 (the at-rest unit) up; dual review; a design question it raised
+
+PR 3759 implements C4: tier 3 dry-mints a rowless face and reports why,
+re-certifies a half-minted face's rows against a window derived from
+the face, and every public producer now mints (`extrude` raised to
+`AtRestPolicy`). It also discloses a heavy cost: at the certified
+scalars the pcurve certificate's `pcurve_envelope` and
+`pcurve_map_residual` — zero by construction for a closed-form wall
+image — widen past the band over a parameter box, and now run on every
+extrude. M10-7's plate certifies only to 3.9e2·ε; the m10_3 hole drive
+certifies no leaf above ε/8; sym11's certified lane refuses.
+
+**Sequencing (orchestrator):** PR 3759 does not merge with that
+regression. The widening is put to the designer pair (where a
+zero-by-construction certified quantity is discharged — the certificate's
+form, PCERT's ground, or the symbolic tier's registration, SYM's), and
+its fix lands first or with 3759. The alternative — merge C4 now and
+take the regression until a fix — was rejected: it trades a headline
+capability (certified parametric studies) for a correctness rule whose
+own cost is the regression's cause.
+
+**Review:** DUAL, concurrent arm (unit cost H), two Opus reviewers on
+frozen head `8d0b2c2` (R1, R2). Designers D1 and D2 dispatched on the
+widening; byte on `analysis/design-fork/pcert-certificate-widening-2026-10-02`.
+
+PR 3733's fix pass replaced the cubic image with a quintic Hermite one
+carrying a Cauchy-estimate bound on the sixth derivative, a new
+statement `MapResidualHermite`, and re-worded C4 to name it (re-wording
+because the code moved; the statement is stronger than `OnLocusHull`).
+A delta review on the bound follows its implementer report.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-02 — the widening fork converges; 3733 delta review
+
+- **The certificate-widening question** (the regression in PR 3759) was weighed by two designers.
+  - Round 1 split: a SYM tier rule for trig of `atan2`, against restating the certificate in the carrier's coefficients.
+  - Round 2 converged on the restatement. The tier rule's own author measured the restated terms as theorems at a ±1e-3 box, and found its rule cannot reach the UV-angle rows. Both now lean to moving a `Harmonic` row's schedule (check 3) off the box certificate.
+  - That is a C4 revision, so it went to Ev on `[ev]` PR 3781 (fork-log row 43).
+  - Restating check 4 is needed under either answer, so it is dispatched now as `pcurve-certificate-states-incidence-and-fidelity`, part 1 only, on a branch whose PR bases on 3759's branch.
+  - 3759 stays held until that lands. Logged alternative: land 3759 re-baselined to "certifies nothing" now. Not taken: it would re-baseline the flagship tour into a refusal, and both designers and the implementer lean to holding.
+- **3759 dual review.** R2 is in: not mergeable as-is. Its findings:
+  - nine undisclosed reds of the widening class (editor-core slow set, demo tour);
+  - two surviving mutants;
+  - the uncovered exemption is kept against C4's text;
+  - cycle-order masking.
+
+  R1 had its review drafted but held waiting for a go-ahead, so I told it to post. Adjudication waits on R1.
+- **3733 delta review: merge after fixes.**
+  - The Hermite constant, the Cauchy step and the chart factor hold.
+  - Check 4's glue is unsound for foreign images: per-end branch choice (a span winding a whole turn certifies), no image-domain check, and `max` where the derivation sums.
+  - The fix list went to the implementer.
+
+## 2026-10-02 — Ev rules on 3781; 3759 adjudicated; 3733 delta pass
+
+- **[ev] PR 3781, merged as c0b9b35.** Ev took (i): C4 leads with the closed-form envelope as the whole statement, with the schedule as the fallback where no closed form exists. Two rounds of rewording came from Ev's comments. The unit `pcurve-certificate-states-incidence-and-fidelity` now builds both parts.
+- **3759 dual review adjudicated.**
+  - R1's report reached me only as its session transcript. R1 declined to post on a cross-session go-ahead, so its findings were taken from the draft summary, with probes on `pcert/review-3759-r1`.
+  - Bilateral findings:
+    - the undisclosed widening reds;
+    - the untested half-minted window (M1 / p5);
+    - masking by the first uncovered edge;
+    - merge-faces re-mint dropping rows.
+  - R1 only: wrong-branch rows silent on a complete face; "no decision was lost" is false (shallow-arc 54→51).
+  - R2 only:
+    - M6;
+    - the C4 exemption, and `DESIGN.md:489`;
+    - stale prose;
+    - `cert_m3r1`'s filter_map;
+    - the AtRestPolicy overclaim.
+  - All of it went to the implementer as one list. The widening rows are not re-baselined.
+- **3733.** The delta fix pass is green at d0f1fe6. The round-2 delta verification is dispatched.
+
+## 2026-10-02 — 3733 merged
+
+- **PR 3733 merged as 6cd3c66.** The round-2 delta verification said merge, and all eight probes flipped.
+  - I merged main into it myself to resolve the C4 README conflict with 3781's rewording. The Hermite envelope now sits in the "no closed form" fallback, as a whole-span bound that keeps its schedule.
+  - CI was green on 14239df.
+  - `mint-has-no-route-to-the-fitted-general-circle-arm` is closed. The sphere general circle is the first uncovered class retired under the 3617 ruling.
+- The incidence/fidelity unit is dispatched (session_01QjnkkS1HoEHDzjjkW3CCWq, branch `pcert/certificate-incidence-fidelity`).
+- 2026-10-02 — Seam note from TANG: main is red on `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` because `pcurve_cache::circle_image_envelope` (PR 3733) has no roster line. Filed as `circle-image-envelope-is-a-sole-bracket-door-missing-from-the-bounds-roster` (P0, E) on your slate; it reds every geom-core-touching PR. (TANG orchestrator)

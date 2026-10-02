@@ -2363,7 +2363,7 @@ mod tests {
             ext_node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -2440,7 +2440,7 @@ mod tests {
             ext_node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -2518,7 +2518,7 @@ mod tests {
             ext_node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -2582,7 +2582,7 @@ mod tests {
             ext_node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -2648,7 +2648,7 @@ mod tests {
             ext_node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -2721,7 +2721,7 @@ mod tests {
             ext_node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -2800,7 +2800,7 @@ mod tests {
             ext_node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -2907,7 +2907,7 @@ mod tests {
             ext_node,
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .unwrap();
@@ -3192,7 +3192,7 @@ mod split_edge_lineage {
             body,
             &SplitPlane {
                 origin: *origin,
-                normal: normal.get(),
+                normal: *normal,
             },
             Tol::witness(),
         )

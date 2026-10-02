@@ -1495,9 +1495,10 @@ merge onto it and the rim's name is that face's), so name first the
 face you want to carry the rim's identity. An empty list is the
 SEALED hollow — a closed thin solid with a cavity and no rim — which
 is legal and not a refusal. And a face is designated together with
-every face on its chart: a full revolve's cap is two half-faces on
-one plane, and naming one of them refuses (`shell`, the kernel's
-partial-chart gate) rather than silently opening both.
+every face on its chart: where two faces share one plane, naming one
+of them refuses (`shell`, the kernel's partial-chart gate) rather than
+silently opening both. (A full revolve's planar cap is ONE face — it
+sweeps a planar wall whole.)
 
 ```python
 from pncad import (
@@ -1569,8 +1570,10 @@ is a name you would have to hand-write — the serialized form, field by
 field, with no compiler and no door checking any of it.
 
 So a revolve's roles have MINTING doors, the same five `pncad::select`
-gives Rust: `band(node, piece)` and `band_pi(node, piece)` are the two
-halves of the face swept from a meridian piece, `band_rim(node, piece)`
+gives Rust: `band(node, piece)` is the face swept from a meridian
+piece and `band_pi(node, piece)` its `[pi, 2pi)` half where a full
+revolve splits a CURVED wall in two (a planar wall is one face, its
+`band`), `band_rim(node, piece)`
 is the latitude rim standing at the vertex the piece starts at,
 `meridian_vertex(end, node, piece)` is that vertex itself, and
 `carried(node, inner)` is the name a survivor of `node` wears one op

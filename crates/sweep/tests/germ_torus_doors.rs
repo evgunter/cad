@@ -11,14 +11,11 @@
 //! circle. The union declares the joint discs and every torus×torus
 //! pair `Rest`.
 //!
-//! **The halves are PRE-MERGED** with `Body::merge_coplanar_faces`. A
-//! full revolve mints its planar walls split in two along the meridian
-//! half-planes, which the F7 maximal-faces gate refuses; whether the
-//! revolve should mint them whole is a separate question (in front of
-//! Ev), and this suite is about what happens past F7, so the fixture
-//! merges them the way a caller can today. The curved walls stay split
-//! (a periodic wall keeps its parameterization cut), which is the
-//! canonical maximal form.
+//! **The halves are used as built.** A full revolve builds each planar
+//! wall as one face (`crates/sweep/README.md`, "Walls: one per run"), so
+//! the F7 maximal-faces gate has nothing to refuse. The curved walls
+//! stay split (a periodic wall keeps its parameterization cut), which is
+//! the canonical maximal form.
 //!
 //! The doors, in the order the union meets them, each with the row that
 //! holds it:
@@ -36,10 +33,9 @@
 //! this fixture never reaches it (no line edge of one half meets a
 //! torus face of the other), so its rows run on a donut and a bar. The
 //! donut's pierces go on to the pierce lane's outward normal, which
-//! has a torus arm too, and then to the curved-sector sagitta charge,
-//! which refuses a pierce vertex's near-tangent in-face bisectors on a
-//! torus exactly as it does on a cylinder; the sweep traces, which stop
-//! before that classification, are what those rows read.
+//! has a torus arm too, and then to the join's germ frame, which has no
+//! torus × plane arm; the sweep traces, which stop before that, are
+//! what those rows read.
 //!
 //! Past every torus door the union stops at the chord join, exactly
 //! where the same dumbbell with a CYLINDER handle stops — the control
@@ -80,9 +76,9 @@ enum Handle {
 }
 
 /// One half of the dumbbell, `sign = +1` above the joint plane and `−1`
-/// below it, fully revolved and, unless `premerge` is off, pre-merged
-/// (module docs).
-fn half_as(sign: f64, handle: Handle, premerge: bool) -> Body<f64> {
+/// below it, fully revolved: its end disc, shoulder annulus and joint
+/// disc are each built as one face.
+fn half(sign: f64, handle: Handle) -> Body<f64> {
     let s = sign;
     // CCW in the (ρ, y) half-plane.
     let (mut chain, tangent_joint) = match handle {
@@ -128,23 +124,14 @@ fn half_as(sign: f64, handle: Handle, premerge: bool) -> Body<f64> {
         Some(j) => bulge_loop(chain).with_tangent_joints(vec![j]),
         None => bulge_loop(chain),
     };
-    let mut body = revolve(
+    revolve(
         &validated(vec![lp]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
     .expect("the half revolves")
-    .body;
-    if premerge {
-        body.merge_coplanar_faces(Tol::witness())
-            .expect("the split planar walls merge");
-    }
-    body
-}
-
-fn half(sign: f64, handle: Handle) -> Body<f64> {
-    half_as(sign, handle, true)
+    .body
 }
 
 fn surface(body: &Body<f64>, f: FaceKey) -> &geom::Surface<f64> {
@@ -211,13 +198,13 @@ fn t2(handle: Handle) -> Result<topo::BooleanResult<f64>, BooleanError> {
 // -------------------------------------------------------------------
 
 /// **The halves are what the module says they are**: valid at every
-/// tier once pre-merged, each carrying its waist on the `R = 0.8`,
-/// `r = 0.5` torus about `y` — a FAT ring (`R < 2r`), which is what
-/// makes the waist bend harder along its inner equator than across
-/// the tube. And the pre-merge is load-bearing: the revolve's own split
-/// planar walls are refused by F7 before any torus door is reached.
+/// tier as built, each carrying its waist on the `R = 0.8`, `r = 0.5`
+/// torus about `y` — a FAT ring (`R < 2r`), which is what makes the
+/// waist bend harder along its inner equator than across the tube. And
+/// no pre-merge is owed: the revolve builds its planar walls whole, so
+/// F7's maximal-faces door never answers on them.
 #[test]
-fn the_half_dumbbell_is_a_valid_torus_waisted_solid_once_premerged() {
+fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
     for sign in [1.0, -1.0] {
         let body = half(sign, Handle::Torus);
         assert_eq!(topo::validate(&body), Ok(()));
@@ -240,15 +227,17 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_once_premerged() {
             assert!((minor_radius - MINOR).abs() < 1e-12);
         }
     }
-    let (a, b) = (
-        half_as(1.0, Handle::Torus, false),
-        half_as(-1.0, Handle::Torus, false),
-    );
+    let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
+    for body in [&a, &b] {
+        let mut m = body.clone();
+        let out = m.merge_coplanar_faces(Tol::witness()).unwrap();
+        assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
+    }
     let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
-        .expect_err("the unmerged halves carry split planar walls");
+        .expect_err("no torus union builds a body yet");
     assert!(
-        matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "without the pre-merge the op stops at F7: {err:?}"
+        !matches!(err, BooleanError::NonMaximalFaces { .. }),
+        "F7 does not answer on the halves as built: {err:?}"
     );
 }
 
@@ -533,8 +522,8 @@ fn a_segment_through_the_tube_is_pierced_at_both_quartic_roots() {
 /// event there. Nothing lands on the outer face — a chord recorded
 /// against it would be an incidence that does not exist.
 ///
-/// What the union meets next is the curved-sector sagitta charge, the
-/// door every line×torus pierce stops at.
+/// What the union meets next is the join's germ-frame dispatch, which
+/// has no torus × plane section arm.
 #[test]
 fn a_chord_across_the_hole_is_pierced_not_passed() {
     let d = donut();
@@ -572,11 +561,18 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
         inner.iter().copied().collect(),
         "every event lands on the inner face; the chords record nothing on the outer one"
     );
-    let err = topo::union(&d, &b, Tol::witness())
-        .expect_err("the pierce vertices meet the sagitta charge");
+    let err =
+        topo::union(&d, &b, Tol::witness()).expect_err("the germ frame has no torus × plane arm");
     assert!(
-        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
-        "past the chord, the union stops at the sagitta charge: {err:?}"
+        matches!(
+            err,
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom::SurfaceKind::Torus,
+                b_kind: geom::SurfaceKind::Plane,
+                ..
+            }
+        ),
+        "past the chord, the union stops at the germ frame: {err:?}"
     );
 }
 
@@ -682,9 +678,12 @@ fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
 /// **The relaxation opens no cylinder body.** The same rod through the
 /// three-face wall, under every op: the chord is no event on the third
 /// face now, and what each op meets next is a typed door, never a body.
-/// Measured: every op stops at the curved-sector sagitta charge, where
-/// the rod's pierce vertices sit on a wall — the door the torus pierces
-/// stop at too.
+/// Measured: every op stops at the join, where the rod's pierces mint
+/// rings in the wall and a ring has no join arm yet
+/// (`work/tang/pierce-ring-has-no-join-arm`). The rod is asymmetric
+/// about the axis, and the arc-window door it lands on is
+/// `NeitherContained`, the sub-case that unit holds the pairing
+/// question for.
 #[test]
 fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
     let cyl = three_face_cylinder();
@@ -702,7 +701,13 @@ fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
     ] {
         let err = r.expect_err(what);
         assert!(
-            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                    case: topo::ArcWindowCase::NeitherContained,
+                    ..
+                })
+            ),
             "{what}: {err:?}"
         );
     }
@@ -1157,9 +1162,9 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// reaches the same doors as their unions:
 ///
 /// - a bar through the tube (near-perpendicular, belly, chord across
-///   the hole) stops at the curved-sector sagitta charge, or at the
-///   crossing layer's pierce door where the run's band puts the
-///   near-perpendicular root there;
+///   the hole) stops at the join's germ frame, which has no torus ×
+///   plane arm, or at the crossing layer's pierce door where the run's
+///   band puts the near-perpendicular root there;
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and two tori meeting in an oval, or a cylinder grazing
 ///   the outer equator, have no section classification (R-reach);
@@ -1200,7 +1205,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             assert!(
                 matches!(
                     err,
-                    BooleanError::CurvedSectorSideUnsupported { .. }
+                    BooleanError::GermFrameUnsupported { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "{name}, {op}: {err:?}"

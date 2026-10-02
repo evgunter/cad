@@ -1314,8 +1314,8 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     );
 }
 
-/// The gather's OTHER refusals cross the seam as a CLASS beside their
-/// sentence, so a consumer branches instead of substring-matching.
+/// The gather's OTHER refusals cross the seam whole, so a consumer
+/// branches on their class instead of substring-matching.
 ///
 /// Two documents refuse the gather for two different reasons, and both
 /// arrive as [`PartFault::PartProduct`]: the prose differs, which is
@@ -1361,13 +1361,16 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     let ev = run(&doc, &opts);
 
     let kind_of = |fault: &PartFault| match fault {
-        PartFault::PartProduct { kind, message } => {
+        PartFault::PartProduct { refusal } => {
+            let said = fault.to_string();
+            let sentence = said
+                .strip_prefix("the part has no product: ")
+                .unwrap_or_else(|| panic!("the part's own header: {said}"));
             assert!(
-                !message.starts_with("product"),
-                "the gather's own sentence travels beside the class, without the gather's \
-                 stage word: {message}"
+                !sentence.starts_with("product"),
+                "the part says the gather's sentence without the gather's stage word: {said}"
             );
-            *kind
+            refusal.kind()
         }
         other => panic!("expected PartProduct, got {other:?}"),
     };

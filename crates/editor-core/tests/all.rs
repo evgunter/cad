@@ -84,6 +84,8 @@ mod asm_upd_pin_update;
 mod assemble_one_local_battery;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
+#[path = "band_run_wall_names.rs"]
+mod band_run_wall_names;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -182,6 +184,8 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "reach_slab_cut_sector_side.rs"]
+mod reach_slab_cut_sector_side;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
 #[path = "refusal_concision_at_rest.rs"]
@@ -697,3 +701,5 @@ mod emit_union_borders;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "run_wall_offers.rs"]
+mod run_wall_offers;

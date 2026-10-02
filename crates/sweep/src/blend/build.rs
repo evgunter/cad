@@ -233,6 +233,16 @@ pub(super) fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec
     body.loop_cycle(first)
 }
 
+/// The edges of a face's boundary cycle, in cycle order; `None` where
+/// [`face_cycle`] is, or where a member does not resolve, so a caller
+/// refuses one unreadable boundary rather than reading what is left.
+pub(super) fn face_cycle_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<EdgeKey>> {
+    face_cycle(body, face)?
+        .into_iter()
+        .map(|he| body.get_half_edge(he).map(|h| h.edge))
+        .collect()
+}
+
 /// The octant's chart pick at one trivalent corner. The criterion:
 /// the octant is an iso-parameter
 /// rectangle exactly when the chart is aimed along an incident edge

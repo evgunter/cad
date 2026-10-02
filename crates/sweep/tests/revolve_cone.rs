@@ -36,18 +36,21 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     let vp = validated(vec![triangle()]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(counts(&t.body), (4, 6, 4, 0));
-    // Two surfaces total (one plane, one cone), each shared by its
-    // two band faces.
+    // The apex, the base rim's two vertices; the rim's two halves and
+    // the cone's two meridians; the cone's two bands and ONE base disc
+    // (a plane wall is built whole, its centre no vertex).
+    assert_eq!(counts(&t.body), (3, 4, 3, 0));
+    // Two surfaces total (one plane, one cone; the cone's two band
+    // faces share it).
     assert_eq!(t.body.surfaces().count(), 2);
     // Walls: segment 0 (base) a plane, segment 1 (slant) a cone with
     // apex (0, 1, 0) and half-angle π/4; segment 2 (axis) omitted.
-    let base = t.walls[0][0].expect("base wall");
+    let base = t.walls()[0][0].expect("base wall");
     assert!(matches!(
         t.body.get_surface(t.body.get_face(base).unwrap().surface),
         Some(Surface::Plane { .. })
     ));
-    let slant = t.walls[0][1].expect("slant wall");
+    let slant = t.walls()[0][1].expect("slant wall");
     let Some(&Surface::Cone {
         apex, half_angle, ..
     }) = t.body.get_surface(t.body.get_face(slant).unwrap().surface)
@@ -56,7 +59,7 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     };
     assert!(apex.distance(geom_core::Point3::new(0.0, 1.0, 0.0)) < 1e-12);
     assert!((half_angle - FRAC_PI_4).abs() < 1e-12);
-    assert_eq!(t.walls[0][2], None);
+    assert_eq!(t.walls()[0][2], None);
     let RevolvedKind::Full {
         meridians, pi_rims, ..
     } = &t.kind
@@ -83,29 +86,26 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     // (Seam) on the slant. U2 made both chart images, so the variant
     // no longer discriminates; the two facts that DO are the seam flag
     // and the authority record (U2 Q3), and both were always the real
-    // content of this line. The base plane annulus has no seam to be
-    // (a plane chart is not periodic), so its meridian is an ordinary
-    // image whose locus the profile segment declared; the cone is
-    // periodic, so its angle-0 meridian is the chart's own seam,
-    // derived. Each is also pinned to ITS OWN wall's chart, which the
-    // variant test never checked.
-    let base_key = t.body.get_face(base).unwrap().surface;
+    // content of this line. The base disc has no meridian at all (a
+    // plane wall is built whole); the cone is periodic, so its angle-0
+    // meridian is the chart's own seam, derived, pinned to ITS OWN
+    // wall's chart.
     let slant_key = t.body.get_face(slant).unwrap().surface;
-    assert_declared_image_in(&t.body, meridians[0].unwrap(), base_key);
+    assert!(meridians[0].is_none(), "a plane disc has no meridian");
     assert_seam_of(&t.body, meridians[1].unwrap(), slant_key);
     assert!(meridians[2].is_none());
-    // Orientation oracle: interior lift points per band face (the
-    // band boundaries are coplanar — see the ball suite): band 1
-    // covers z < 0, band 2 covers z > 0.
+    // Orientation oracle: interior lift points per face (the band
+    // boundaries are coplanar — see the ball suite): band 1 covers
+    // z < 0, band 2 covers z > 0, the base disc both.
     let RevolvedKind::Full { pi_walls, .. } = &t.kind else {
         panic!("full revolve");
     };
+    assert!(pi_walls[0].is_none(), "a plane disc has no π twin");
     let v = signed_volume_lifted(
         &t.body,
         &[
-            (base, geom_core::Point3::new(0.3, 0.0, -0.3)),
+            (base, geom_core::Point3::new(0.2, 0.0, 0.1)),
             (slant, geom_core::Point3::new(0.0, 0.5, -0.5)),
-            (pi_walls[0].unwrap(), geom_core::Point3::new(0.3, 0.0, 0.3)),
             (pi_walls[1].unwrap(), geom_core::Point3::new(0.0, 0.5, 0.5)),
         ],
     );
