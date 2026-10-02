@@ -328,8 +328,12 @@ mod r1_probes_issue1362_donut;
 mod r2_sense_fold_probes;
 #[path = "ray_wall_margin_twins.rs"]
 mod ray_wall_margin_twins;
+#[path = "reach_aligned_half_rods.rs"]
+mod reach_aligned_half_rods;
 #[path = "reach_cone_split.rs"]
 mod reach_cone_split;
+#[path = "reach_continuation.rs"]
+mod reach_continuation;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]
@@ -821,5 +825,7 @@ mod review_3701_probes;
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;
 
+#[path = "full_turn_bore_mate.rs"]
+mod full_turn_bore_mate;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;

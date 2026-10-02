@@ -112,10 +112,9 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 /// someone opens the file and wonders what they are looking at.
 ///
 /// A count, never a verdict: the registry reports, it does not gate
-/// (`editor_core::checks`), and the one scene that legitimately
-/// reports today — the heatsink, whose fins are unioned into its base
-/// in this demo's own `solidify()` and never in the recipe — is a
-/// scene-authoring gap, not a reason to refuse to write its file.
+/// (`editor_core::checks`), and the scenes that report today —
+/// `checks`, whose finding is its subject, and the teapot, four solids
+/// the operand gate cannot join — are no reason to refuse their files.
 fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
     let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
     match run_checks(doc, &evaluation, &ChecksConfig::default(), tol) {
@@ -206,9 +205,10 @@ mod tests {
                 doc: crate::heatsink::gallery_document(tol),
                 roots: 1,
                 separation: 0,
-                why: "one root, and nothing in the document interpenetrates: the fin \
-                      group is a PlacedUnion and a Boolean folds it into the base, so \
-                      the whole part is in the recipe (#1344)",
+                why: "one root, and nothing in the document interpenetrates: the base \
+                      is rounded by a Fillet, the fin group is a PlacedUnion, and a \
+                      Boolean folds the group into the rounded base, so the whole part \
+                      is in the recipe",
             },
             Shape {
                 name: "teapot",
@@ -260,9 +260,12 @@ mod tests {
                 .filter(|finding| finding.check == CheckId::Separation)
                 .count();
             assert_eq!(
-                separation, shape.separation,
-                "{}: separation findings ({}) — {report}",
-                shape.name, shape.why
+                separation,
+                shape.separation,
+                "{}: separation findings ({}) — {}",
+                shape.name,
+                shape.why,
+                report.spoken(&shape.doc)
             );
         }
     }

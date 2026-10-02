@@ -292,8 +292,8 @@ author the undeclared boolean, read the typed menu, declare, succeed:
 
 ```python
 from pncad import (
+    BooleanCoincidence,
     BooleanOp,
-    ContactClass,
     Doc,
     EvaluationError,
     Expr,
@@ -330,10 +330,14 @@ try:
     ev.value(naive)
     raise AssertionError("the undeclared union must refuse")
 except EvaluationError as err:
-    assert err.kind == "undeclared_contact"
+    assert err.kind == "undeclared_coincidence"
     menu = err.finding                      # the candidate declaration
-    assert menu.relation == PlaneRelation.SameOpposite  # resting contact
-    assert menu.class_ == ContactClass.Rest
+    # The slabs share a footprint, so besides the resting contact at
+    # z = 10 mm their four walls carry on across it, one surface each:
+    # continuations. The menu names the first undeclared pair the
+    # boolean meets, which here is a wall.
+    assert menu.relation == PlaneRelation.SameOriented
+    assert menu.class_ == BooleanCoincidence.Continuation
 
 # 2. The declare arm: detect, INSPECT, declare. The detector is the
 #    boolean's own verifier run in candidate-generation mode, so a

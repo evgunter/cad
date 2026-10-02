@@ -420,6 +420,11 @@ const ROSTER: &[Site] = &[
         why: Payload("as `bracket_point`, over a vector"),
     },
     Site {
+        path: "crates/topo/src/boolean/boxes.rs",
+        subject: "bracketed",
+        why: Payload("as `bracket_vector`, over a decided unit direction (`UnitSpanBox`)"),
+    },
+    Site {
         path: "crates/topo/src/chart_region.rs",
         subject: "definite_diag",
         why: Payload("echoes a classified margin's conservative end into a diagnostic"),

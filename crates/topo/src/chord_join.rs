@@ -240,16 +240,18 @@ pub enum SplitJoinError {
     },
     /// Ring re-homing could not decide (escalation or exhaustion).
     RingHoming(PointInLoopError),
-    /// A ring's representative landed ON the divided face's outer
-    /// loop — containment is ambiguous (ill-conditioned operand).
+    /// Every vertex of a ring landed ON the run dividing its face off,
+    /// so no vertex says which side the ring is on: a ring an
+    /// ill-conditioned operand put on the run, or a pierce's strut at a
+    /// pinch, every vertex of which is the pinch point.
     RingHomingAmbiguous {
         /// The undecidable ring.
         ring: LoopKey,
     },
     /// The divided face's outer loop carries an edge the containment
     /// walk has no crossing row for (a spiric, a spline), and the ray
-    /// schedule from the ring's representative ran out with at least
-    /// one ray abandoned because it could meet that edge.
+    /// schedule from the first ring vertex off the run ran out with at
+    /// least one ray abandoned because it could meet that edge.
     RingHomingUncrossable {
         /// The unplaced ring.
         ring: LoopKey,
@@ -259,15 +261,18 @@ pub enum SplitJoinError {
     /// at its far vertex, so a vertex's germs agree with the sections
     /// that reach it; what can still disagree is an edge leaving a
     /// vertex tangent to the surface it is read against (read to first
-    /// order in the boolean, to second in the split), a corrupt
-    /// reduction, or a kernel defect.
+    /// order in the boolean, to second in the split), a coincidence of
+    /// the two solids the join has no rule for (a declared continuation
+    /// over a rabbet's step reaches it,
+    /// `work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`),
+    /// a corrupt reduction, or a kernel defect.
     UnpairedLooseEnds {
         /// How many halves remained.
         count: usize,
     },
     /// A section loop mixed above copies with below-side vertices —
     /// the joining invariant (heads join heads, tails join tails)
-    /// failed (kernel bug, loudly).
+    /// failed, loudly.
     ///
     /// The join's role probe reads each copy's side through
     /// `point_in_solid`, so a misread there arrives here too: a planar
@@ -457,8 +462,8 @@ impl SplitJoinError {
             },
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
-                "a hole loop sits on the divided face's outer boundary, so which piece \
-                 holds it cannot be decided. Recourse: {recourse}"
+                "every vertex of a hole loop lies on the boundary of the piece being \
+                 divided off, so which piece holds it cannot be decided. Recourse: {recourse}"
             ),
             Self::RingHomingUncrossable { .. } => write!(
                 f,
@@ -471,11 +476,14 @@ impl SplitJoinError {
                 "{count} section ends found no partner: the sides read at the vertices do \
                  not close into section polygons. An edge leaving a vertex tangent to the \
                  surface it is read against, whose side is then read to finite order, can \
-                 cause this; otherwise it is a kernel defect"
+                 cause this, as can a coincidence of the two solids the join has no rule \
+                 for yet"
             ),
             Self::SectionLoopMixed { face } => write!(
                 f,
-                "null face {face:?} has a side-mixed section loop (kernel bug)"
+                "null face {face:?} has a side-mixed section loop: its two copies do not \
+                 read as one above and one below, so which one bounds the result is \
+                 undecided"
             ),
             Self::CutInvariant { edge } => write!(
                 f,
@@ -2645,14 +2653,12 @@ impl ChordJoiner {
             if ring == remainder {
                 continue;
             }
-            let rep = ring_representative(body, ring)?;
-            match point_in_carrier_loop(body, run, normal, rep, self.band)? {
-                Some(LoopContainment::In) => body.ring_move(ring, newf)?,
-                Some(LoopContainment::Out) => {}
-                Some(LoopContainment::OnBoundary) => {
+            match ring_side(body, ring, run, normal, self.band)? {
+                LoopContainment::In => body.ring_move(ring, newf)?,
+                LoopContainment::Out => {}
+                LoopContainment::OnBoundary => {
                     return Err(SplitJoinError::RingHomingAmbiguous { ring });
                 }
-                None => return Err(SplitJoinError::RingHomingUncrossable { ring }),
             }
         }
         Ok(())
@@ -2751,6 +2757,43 @@ fn face_plane_normal<T: Decide>(
                    a plane (arm not wired)",
         }),
     }
+}
+
+/// Which side of `run` a bystander ring lies on, read at its first
+/// vertex off `run`'s boundary: a ring disjoint from the run cannot
+/// cross it, but it may touch it at a vertex — a pinch, where two
+/// sections meet at one point — so its anchor alone can land `OnBoundary`
+/// on a ring that is plainly on one side. `OnBoundary` only when every
+/// vertex does.
+fn ring_side<T: Decide>(
+    body: &Body<T>,
+    ring: LoopKey,
+    run: LoopKey,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<LoopContainment, SplitJoinError> {
+    let vertices = match body
+        .get_loop(ring)
+        .ok_or_else(|| corrupt_loop(ring))?
+        .boundary
+    {
+        LoopBoundary::Cycle { first } => body
+            .loop_cycle(first)
+            .ok_or_else(|| corrupt_he(first))?
+            .into_iter()
+            .map(|he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start))
+            .collect::<Result<Vec<_>, SplitJoinError>>()?,
+        LoopBoundary::Empty { vertex } => vec![vertex],
+    };
+    for v in vertices {
+        let p = vertex_point(body, v)?;
+        match point_in_carrier_loop(body, run, normal, p, band)? {
+            Some(LoopContainment::OnBoundary) => {}
+            Some(side) => return Ok(side),
+            None => return Err(SplitJoinError::RingHomingUncrossable { ring }),
+        }
+    }
+    Ok(LoopContainment::OnBoundary)
 }
 
 /// A representative point of a loop (its anchor vertex).

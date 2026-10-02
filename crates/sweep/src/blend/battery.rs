@@ -464,12 +464,6 @@ fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
-/// The face on a half-edge's side.
-fn face_of<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
-    let h = body.get_half_edge(he)?;
-    Some(body.get_loop(h.parent_loop)?.face)
-}
-
 /// The sample parameters of a link, and its carrier.
 fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T, T)> {
     let e = body.get_edge(edge)?;
@@ -911,10 +905,9 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     kind: BlendKind,
 ) -> Result<Link<T>, BlendError> {
     let broken = || BlendError::ChainNotConnected { edge };
-    let e = body.get_edge(edge).ok_or_else(broken)?;
-    let (he_plus, he_minus) = (e.he_plus, e.he_minus);
-    let face_a = face_of(body, he_plus).ok_or_else(broken)?;
-    let face_b = face_of(body, he_minus).ok_or_else(broken)?;
+    let sides = topo::readback::edge_sides(body, edge).map_err(|_| broken())?;
+    let he_plus = sides.plus.half_edge;
+    let (face_a, face_b) = sides.faces();
     let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
@@ -1638,9 +1631,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
 /// stored arena keys, so a co-surface seam is recognized by identity
 /// rather than by comparing two placed surfaces for equality.
 fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey, SurfaceKey)> {
-    let e = body.get_edge(edge)?;
-    let a = body.get_face(face_of(body, e.he_plus)?)?.surface;
-    let b = body.get_face(face_of(body, e.he_minus)?)?.surface;
+    let (a, b) = topo::readback::edge_sides(body, edge).ok()?.surfaces();
     Some(if a <= b { (a, b) } else { (b, a) })
 }
 
@@ -1831,14 +1822,10 @@ pub(super) fn cap_incidence<T: Decide>(
     let [_, _, _] = incident[..] else {
         return None;
     };
-    let faces_of = |e: EdgeKey| -> Option<(FaceKey, FaceKey)> {
-        let ed = body.get_edge(e)?;
-        Some((face_of(body, ed.he_plus)?, face_of(body, ed.he_minus)?))
-    };
     let mut rim_a: Option<(EdgeKey, FaceKey)> = None;
     let mut rim_b: Option<(EdgeKey, FaceKey)> = None;
     for e in incident.into_iter().filter(|e| *e != crease) {
-        let (f1, f2) = faces_of(e)?;
+        let (f1, f2) = topo::readback::edge_sides(body, e).ok()?.faces();
         let on = |f: FaceKey| f == face_a || f == face_b;
         let (support, third) = match (on(f1), on(f2)) {
             (true, false) => (f1, f2),

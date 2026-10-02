@@ -493,7 +493,8 @@ fn select_refusal_is_exhaustive(e: &SelectRefusal) {
         | SelectRefusal::NotALength { .. }
         | SelectRefusal::PairInBand { .. }
         | SelectRefusal::BadValue(_)
-        | SelectRefusal::Band(_) => (),
+        | SelectRefusal::Band(_)
+        | SelectRefusal::DistinctFinding(_) => (),
         other => panic!("`SelectRefusal` grew a variant with no arm here: {other:?}"),
     }
 }
@@ -520,6 +521,7 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
             "PairInBand",
             "BadValue",
             "Band",
+            "DistinctFinding",
         ],
     );
 
@@ -637,6 +639,10 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 escalate: 5e-324,
             }),
             vec!["ambiguity band", "ambient tolerance", "not below"],
+        ),
+        (
+            SelectRefusal::DistinctFinding(topo::flush::DistinctFinding),
+            vec!["DISTINCT carriers", "no finding carries"],
         ),
     ];
     assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
