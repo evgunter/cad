@@ -706,7 +706,10 @@ pub(crate) fn through_the_join<T: geom_core::Decide>(
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
 /// (no degenerate body is ever emitted), and
-/// [`SplitFinishError::SectionCusp`] from either run.
+/// [`SplitFinishError::SectionCusp`] from either run. Each run gates
+/// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
+/// mirrored run whose side is not a closed solid surfaces the direct
+/// run's refusal, as any other mirror failure does.
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
@@ -778,8 +781,13 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
 ) -> Result<SplitResult<T>, SplitError> {
     let (red, completed, fragments) = split_scratch(operand, plane, tol)?;
     let mut result = finish::split_finish(red, &completed, fragments, tol)?;
-    for part in [&mut result.above, &mut result.below] {
+    for (side, part) in [
+        (PlaneSide::Above, &mut result.above),
+        (PlaneSide::Below, &mut result.below),
+    ] {
         if let finish::SplitPart::Body(body) = part {
+            crate::validate::validate_closed(body)
+                .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             crate::pcurves::mint_pcurves(body, tol)?;
         }
     }

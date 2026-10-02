@@ -217,6 +217,16 @@ pub enum SplitFinishError {
         /// The hole's section face (in the discarded scratch body).
         hole: FaceKey,
     },
+    /// A finished side fails tier 2 ([`crate::validate_closed`]): a
+    /// split never returns a body that is not a closed solid. Reached
+    /// by a kernel defect, or by an operand that was not a closed
+    /// solid to begin with — the split takes its operand unchecked.
+    ResultInvalid {
+        /// The side whose body failed.
+        side: PlaneSide,
+        /// The validator's findings.
+        errors: Vec<crate::validate::ValidationError>,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -287,6 +297,18 @@ impl core::fmt::Display for SplitFinishError {
                 "the split plane is tangent to a curved face where it cuts, so a piece \
                  would taper to a knife edge nobody asked for. Recourse: move the split \
                  plane off the tangency"
+            ),
+            Self::ResultInvalid { side, errors } => write!(
+                f,
+                "the piece on the {} side of the plane is not a closed solid ({} \
+                 finding(s)). {}",
+                match side {
+                    super::PlaneSide::Below => "below",
+                    super::PlaneSide::On => "on",
+                    super::PlaneSide::Above => "above",
+                },
+                errors.len(),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
         }
     }

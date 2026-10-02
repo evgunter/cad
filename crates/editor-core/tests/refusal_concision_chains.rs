@@ -1500,6 +1500,15 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "NestingContradiction",
             F::NestingContradiction { hole: face },
         ),
+        (
+            "ResultInvalid",
+            F::ResultInvalid {
+                side: topo::PlaneSide::Below,
+                errors: vec![topo::ValidationError::ScaffoldingEmptyLoop {
+                    loop_: topo::LoopKey::default(),
+                }],
+            },
+        ),
     ]
     .map(|(n, e)| (format!("Finish/{n}"), SplitError::Finish(e)));
     reduce
