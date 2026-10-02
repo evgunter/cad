@@ -549,12 +549,20 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
             ]),
             Revolution::Full,
         );
-        assert_eq!(body.faces().count(), 2, "station {v}: one wall in two π-bands");
+        assert_eq!(
+            body.faces().count(),
+            2,
+            "station {v}: one wall in two π-bands"
+        );
         let mut cavity = body.clone();
         let band = geom_core::Band::linear(tol()).expect("band");
         topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
             .unwrap_or_else(|e| panic!("station {v}: the door takes it, got {e}"));
-        assert_eq!(topo::validate_geometric(&cavity, tol()), Ok(()), "station {v}: tier 3");
+        assert_eq!(
+            topo::validate_geometric(&cavity, tol()),
+            Ok(()),
+            "station {v}: tier 3"
+        );
         let props = topo::mass_properties(&cavity, tol()).expect("props");
         let want = 4.0 / 3.0 * PI * (r - t).powi(3);
         assert!(

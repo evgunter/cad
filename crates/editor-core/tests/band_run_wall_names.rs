@@ -8,8 +8,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    EntityKind, LoopProgram, MeridianEnd, Node, PieceRun, ProfileDoc, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, RoleSeg, StableName,
+    EntityKind, LoopProgram, MeridianEnd, Node, PieceRun, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, StableName,
 };
 use geom_core::Tol;
 
@@ -301,20 +301,18 @@ fn a_reversed_extrusion_names_each_wall_by_its_own_pieces() {
 }
 
 /// A D on `x = x0`: the half circle of radius 1 centred `(x0, 0)` drawn
-/// as two quarter arcs (segments 0 and 1, one run), closed by its
+/// as a quarter arc and, across a declared tangent joint, the tangent
+/// arc that continues it (segments 0 and 1, one run), closed by its
 /// diameter.
 fn d_of_two_arcs(x0: f64) -> Vec<ProgramStep> {
-    let quarter = (std::f64::consts::PI / 8.0).tan();
-    let arc = |x: f64, y: f64| {
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: to(x, y),
-            b: scl(quarter),
-        })
-    };
     vec![
         ProgramStep::At(len2([x0, -1.0])),
-        arc(x0 + 1.0, 0.0),
-        arc(x0, 1.0),
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: to(x0 + 1.0, 0.0),
+            b: scl((std::f64::consts::PI / 8.0).tan()),
+        }),
+        ProgramStep::Tangent,
+        ProgramStep::TangentArcTo(to(x0, 1.0)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]
 }
@@ -360,7 +358,7 @@ fn a_run_of_arcs_is_named_by_its_pieces() {
     }
     for angle in [std::f64::consts::FRAC_PI_2, std::f64::consts::TAU] {
         let full = angle == std::f64::consts::TAU;
-        let (doc, rev) = revolved(d_of_two_arcs(1.0), angle);
+        let (doc, rev) = revolved(d_of_two_arcs(2.0), angle);
         let ev = run(&doc, &Default::default());
         let t = table(&ev, rev);
         let band = |pieces: &[usize]| {
@@ -377,7 +375,10 @@ fn a_run_of_arcs_is_named_by_its_pieces() {
             assert!(rim.is_none(), "a station has no rim");
         } else {
             for k in [0, 1] {
-                assert!(t.lookup(&band(&[k])).is_some(), "{angle}: the band of arc {k}");
+                assert!(
+                    t.lookup(&band(&[k])).is_some(),
+                    "{angle}: the band of arc {k}"
+                );
             }
             assert!(rim.is_some(), "{angle}: the rim between the arcs' bands");
         }

@@ -438,8 +438,17 @@ fn arc_runs_build_one_wall_each() {
                 let e = extrude(&v, Extrusion::Distance(d), tol()).unwrap();
                 assert_eq!(e.walls[0].len(), 2, "{label}: the arc run and the diameter");
                 let z0 = if d > 0.0 { 0.5 } else { -1.5 };
-                holds(&label, &e.body, Some(4), &[cube(0.5, -0.5, z0, 1.0, 1.0, 1.0)]);
-                assert_eq!(curved_same_key_adjacency(&e.body), 0, "{label}: a curved wall split");
+                holds(
+                    &label,
+                    &e.body,
+                    Some(4),
+                    &[cube(0.5, -0.5, z0, 1.0, 1.0, 1.0)],
+                );
+                assert_eq!(
+                    curved_same_key_adjacency(&e.body),
+                    0,
+                    "{label}: a curved wall split"
+                );
             }
             // (label, axis offset, full faces, quarter-turn faces): a
             // sphere's full revolve is its wall's two π-bands; the
@@ -456,7 +465,12 @@ fn arc_runs_build_one_wall_each() {
                     let r = revolve(&v, y_axis(), rev, tol())
                         .unwrap_or_else(|e| panic!("{label}: {e:?}"));
                     if matches!(rev, Revolution::Full) {
-                        holds(&label, &r.body, faces, &[cube(x0 + 0.5, -0.5, 0.3, 1.0, 1.0, 1.0)]);
+                        holds(
+                            &label,
+                            &r.body,
+                            faces,
+                            &[cube(x0 + 0.5, -0.5, 0.3, 1.0, 1.0, 1.0)],
+                        );
                         continue;
                     }
                     assert_eq!(r.body.faces().count(), quarter, "{label}: one wall per arc");
@@ -473,11 +487,19 @@ fn arc_runs_build_one_wall_each() {
     }
     for k in 2..=4usize {
         let label = format!("extruded circle of {k} arcs");
-        let e = extrude(&prof(vec![circle_of_arcs(0.0, k)]), Extrusion::Distance(2.0), tol())
-            .unwrap();
+        let e = extrude(
+            &prof(vec![circle_of_arcs(0.0, k)]),
+            Extrusion::Distance(2.0),
+            tol(),
+        )
+        .unwrap();
         assert_eq!(e.walls[0].len(), k, "{label}: the cut is kept");
         holds(&label, &e.body, Some(k + 2), &[]);
-        assert_eq!(curved_same_key_adjacency(&e.body), k, "{label}: k cut struts");
+        assert_eq!(
+            curved_same_key_adjacency(&e.body),
+            k,
+            "{label}: k cut struts"
+        );
         for (rev, faces) in [
             (Revolution::Full, k),
             (Revolution::Partial(core::f64::consts::FRAC_PI_2), k + 2),
@@ -588,7 +610,9 @@ fn seam_vertex_fires_only_where_rim_of_lists_the_rim() {
     let arcs = circle_arcs_at_z(&disc, 1.0);
     assert_eq!(arcs.len(), 2);
     let rim = topo::query::rim_of(&disc, arcs[0]).expect("rim_of lists a disc of arcs");
-    assert!(arcs.iter().all(|a| rim.contains(a)), "the rim holds both arcs");
+    assert!(
+        arcs.iter().all(|a| rim.contains(a)),
+        "the rim holds both arcs"
+    );
     assert!(refuses_seam_vertex(&disc, &arcs[..1]));
 }
-

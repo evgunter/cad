@@ -246,7 +246,10 @@ fn a_near_full_revolves_gap_is_out_at_both_doors() {
 fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
     let b = band();
     let s30 = 0.5f64;
-    let lp = bulge_loop(vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();

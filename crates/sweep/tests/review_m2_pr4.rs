@@ -800,12 +800,19 @@ fn survives_notched_circle_wrap_join_builds_one_wall() {
     // Walls: [arc, line, line, arc]; the run {3, 0} is one wall.
     let sides = &t.side_faces()[0];
     assert_eq!(sides[0], sides[3], "the wrap-joined arcs sweep one wall");
-    assert_eq!(t.walls[0].len(), 3, "one wall per run: the arc run and two lines");
+    assert_eq!(
+        t.walls[0].len(),
+        3,
+        "one wall per run: the arc run and two lines"
+    );
     // 2 caps + 1 cylinder + 2 planes, one face each.
     assert_eq!(t.body.surfaces().count(), 5);
     assert_eq!(t.body.faces().count(), 5);
     let struts = &t.strut_edges()[0];
-    assert_eq!(struts[0], None, "the start vertex is a station inside the run");
+    assert_eq!(
+        struts[0], None,
+        "the start vertex is a station inside the run"
+    );
     for j in [1usize, 2, 3] {
         assert!(matches!(
             description(&t.body, struts[j].unwrap()),
@@ -1137,7 +1144,10 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
     // in the one shared cylinder (corner struts get re-described as
     // Intersection, discarding the vec payload, and a station inside a
     // run has no strut), so the stored vector is observable.
-    let lp = bulge_loop(vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 1.0),
+    ]);
     let t = extrude(&validated(vec![lp]), Extrusion::Vector(v), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // Stored vector bitwise = input.

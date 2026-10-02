@@ -703,7 +703,9 @@ pub(crate) fn wall_runs<T: Real, S: SweptChord<T>>(
         // Every join continues one carrier, and a cosurface pair never
         // mixes kinds, so the loop is all lines or all arcs.
         if is_line(0) {
-            unreachable!("a run of collinear lines closes the whole loop, which validation refuses");
+            unreachable!(
+                "a run of collinear lines closes the whole loop, which validation refuses"
+            );
         }
         return (0..n).map(|first| Run { first, len: 1 }).collect();
     }
