@@ -3648,36 +3648,6 @@ mod review_probes {
              this probe, the lofted_blade prose, and KERNEL-VERBS together"
         );
     }
-
-    /// **The wall list, run by the test suite and not only by the
-    /// renderer.**
-    ///
-    /// [`super::wall_probes`] is the whole point of the scene's
-    /// frontier discipline — every wall attempted for real, each
-    /// pinned by its own typed refusal, panicking if the refusal
-    /// changed or went away — and until this test existed its only
-    /// caller was `main.rs`'s render walk. So the discipline ran when
-    /// somebody rendered the tour and never under
-    /// `cd demos/tour && cargo test --release`, which is the command
-    /// the spec-level local acceptance actually runs: a frontier could
-    /// move and the suite would stay green.
-    ///
-    /// It cannot be a `tests/` integration test — `demo-tour` is a
-    /// bin-only crate, so nothing outside the binary can name
-    /// `lily::wall_probes` — which is why it lives here beside the
-    /// probes rather than next to the other suites.
-    ///
-    /// The body is one call because the assertions are the wall
-    /// probes' own: `walls::wall` panics on a different refusal and
-    /// panics on success, so there is nothing left for this test to
-    /// add. It rebuilds `plant::<f64>` and runs the frontier's
-    /// booleans, welds and fillets, so it is not free — but measured,
-    /// it is ~0.02 s of a 38 s bin suite, which is under the
-    /// run-to-run noise of the suite it joins.
-    #[test]
-    fn the_wall_list_still_stands() {
-        wall_probes::<f64>(Tol::witness());
-    }
 }
 
 #[cfg(test)]

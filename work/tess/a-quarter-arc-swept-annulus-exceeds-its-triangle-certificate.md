@@ -34,9 +34,11 @@ that row is the first place to look.
 Annulus `R ± WALL/2` = 0.275 / 0.225 m, each wall `circle_split(centre,
 r, n, 0.0)`, swept by `sweep::sweep_body` along a degree-3 interpolant
 through 49 exact points of two tangent arcs of radius 1.2 m (270° then
-90°, world xz-plane), from `path_start_frame` at (0, 0, 3). Every cell
-below passes tier 3 (`validate_geometric`) at ε = 1e-9; the column is
-`mesh::tessellate(&body, 1e-2, Tol::witness())`.
+90°, world xz-plane), from `path_start_frame` at (0, 0, 3). The columns
+are `mesh::tessellate(&body, 1e-2, Tol::witness())`; every cell passes
+tier 3 (`validate_geometric`) at ε = 1e-9 except 4 arcs at 9 stations,
+v-degree 3, which refuses `QuadratureBudget` (the quad row's ground,
+`a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
 
 | n | stations | v-deg 2 | v-deg 3 |
 |---|---|---|---|

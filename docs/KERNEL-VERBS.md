@@ -202,9 +202,9 @@ the table.
   path that ended behind where it started refused `ReversedStacking`
   wholesale, no matter how well every consecutive pair stacked. It is
   now a FOLD over the consecutive pairs, each decided against its own
-  base section's plane normal, and the Klein bottle's top loop sweeps
-  as one body (klein wall 5 asserts that build; the scene still draws
-  it as two elbows, which is a scene change and not a kernel wall).
+  base section's plane normal, and the Klein bottle's top loop is one
+  such sweep (the `klein` scene builds it — off the exact half turn
+  only by its interpolated spine's end-tangent tilt, klein's wall 9).
   The wall that remains is PER-SLAB, at per-slab turn π — total turn
   `(stations − 1)·π` — so it is a statement about how coarsely the
   path is sampled rather than about how far it goes, and the refusal

@@ -848,7 +848,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
+    println!("\n-- the Klein bottle: a non-orientable surface, two bodies deep --");
     for stop in klein::stops(tol) {
         visit(&stop);
     }

@@ -884,8 +884,8 @@ mod wall_probes_run_here {
     //!
     //! It has to be an in-bin test: `demo-tour` is bin-only (no
     //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
-    //! can name `torusvessel::wall_probes` at all. `lily` and `teapot`
-    //! carry theirs for the same reason.
+    //! can name `torusvessel::wall_probes` at all. `teapot` carries its
+    //! own for the same reason.
     //!
     //! There is nothing here to assert that the probe does not already
     //! assert: `crate::walls::wall` panics on BOTH off-nominal
