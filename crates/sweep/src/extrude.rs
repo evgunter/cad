@@ -641,7 +641,7 @@ struct LoopBase {
 /// decisions, Newell failures, and every operator/certification
 /// refusal (D4 ¶2 reports surface inside
 /// [`EulerOpError::Certification`]).
-pub fn extrude<T: Decide>(
+pub fn extrude<T: Decide + topo::AtRestPolicy>(
     profile: &ValidatedProfile<T>,
     extrusion: Extrusion<T>,
     tol: Tol,
@@ -943,7 +943,7 @@ pub fn extrude<T: Decide>(
 /// faces and top rims in swept order, and the walls.
 #[allow(clippy::too_many_arguments)] // one internal call site; the
 // arguments are the sweep's fixed context, not a configuration surface.
-fn sweep_loop<T: Decide>(
+fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     loop_index: usize,
     segs: &[WallSeg<T>],
@@ -1359,7 +1359,7 @@ fn side_surface<T: Decide>(
 #[allow(clippy::too_many_arguments)] // two call sites in one loop; the
 // arguments are the upgrade's fixed context, not a configuration
 // surface.
-fn upgrade_rim<T: Decide>(
+fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     cap: SurfaceKey,

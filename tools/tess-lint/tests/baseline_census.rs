@@ -513,15 +513,15 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1666, "rows in the committed baseline");
-    assert_eq!(sized.len(), 88, "of them sized");
+    assert_eq!(all.len(), 1680, "rows in the committed baseline");
+    assert_eq!(sized.len(), 92, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
         s.sort_unstable();
         s.dedup();
         s
     };
-    assert_eq!(sized_scenes.len(), 15, "scenes carrying a sized face");
+    assert_eq!(sized_scenes.len(), 16, "scenes carrying a sized face");
 
     // The census over the SIZED rows — the one that matters, because
     // an unsized swap costs rule 2 nothing.
@@ -559,8 +559,8 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // what it measures is the size of the hole the sized-row census
     // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 29_915, "pairs across every row");
-    assert_eq!(all_scenes.len(), 81, "scenes carrying one, corpus-wide");
+    assert_eq!(all_pairs, 26_517, "pairs across every row");
+    assert_eq!(all_scenes.len(), 84, "scenes carrying one, corpus-wide");
 }
 
 /// The other half of the paragraph: WHICH identity entries actually
@@ -653,7 +653,7 @@ fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows(
 /// corpus, so the most it can pin is the baseline's side of that
 /// question, and the names below are exactly it: the scenes a fresh
 /// sweep re-keys at a FINDING however the fresh side reads, because
-/// the committed side alone already gates them. The remaining 60 are
+/// the committed side alone already gates them. The remaining 64 are
 /// notes only while the fresh sweep leaves them unsized too — that
 /// half is a two-sided reading this file cannot take, and the
 /// conversion the day one of them gains a sized face is pinned in
@@ -664,7 +664,7 @@ fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows(
 /// census asserts its scene list: a count is the weaker pin, and this
 /// one is already asserted 130 lines up over an identical predicate
 /// over the identical corpus, so a second count here would exercise
-/// nothing. The note count is `81 − 15` by construction — every scene
+/// nothing. The note count is `84 − 16` by construction — every scene
 /// is one or the other — so it is arithmetic and is stated in this
 /// sentence rather than asserted. An assertion no perturbation can
 /// reach is the defect this file exists to keep out of its own
@@ -682,12 +682,12 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
         .into_iter()
         .collect();
 
-    // 81 twice in this file, and NOT one figure asserted twice: this
-    // is every scene of the corpus, where the pair census's 81 is the
+    // 84 twice in this file, and NOT one figure asserted twice: this
+    // is every scene of the corpus, where the pair census's 84 is the
     // scenes carrying an indistinguishable pair among ALL rows. They
     // agree only because every scene currently carries one, and a
     // re-cut can end that without either assertion being wrong.
-    assert_eq!(scenes.len(), 81, "scenes in the committed baseline");
+    assert_eq!(scenes.len(), 84, "scenes in the committed baseline");
     assert_eq!(
         gating,
         [
@@ -700,6 +700,7 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
             "lily/lily_sepal_c",
             "lofts/loft_prism",
             "lofts/nonuniform_loft",
+            "lofts/twisted_loft",
             "s_duct/s_duct",
             "teapot/teapotspout",
             "twisted_duct/twisted_duct",
@@ -708,7 +709,7 @@ fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
             "twisted_tube/twisted_tube",
         ],
         "the scenes carrying a sized face, where a re-key is a FINDING; \
-         in every other scene of the 81 it is a NOTE"
+         in every other scene of the 84 it is a NOTE"
     );
 
     // The SCENE-level spelling of "carries a sized face", which cannot
@@ -990,9 +991,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 394_240, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 441_860, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 291_438,
+        t.nurbs_triangles, 333_508,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -1002,14 +1003,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 123_270.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 147_755.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 144_130.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 169_409.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 129_346.0,
+        t.opt_cells, 149_983.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 115_478.0,
+        t.span_opt_cells, 136_115.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -1017,11 +1018,11 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.1986).abs() < 5e-4,
+        (held - 1.1754).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.0675).abs() < 5e-4,
+        (recoverable - 1.0589).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }

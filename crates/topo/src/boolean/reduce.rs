@@ -974,7 +974,7 @@ fn edge_face_read<T: geom_core::Real>(
 }
 
 #[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, declarations, sinks, band, strategy, plant, trace)
-pub(super) fn sweep_direction<T: Decide + Bounds>(
+pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
@@ -1519,7 +1519,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// REPORTED here and performed there rather than the body being
 /// threaded in for one branch.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn curved_face_arm<T: Decide>(
+pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
     x: &Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
@@ -1637,6 +1637,39 @@ pub(super) fn curved_face_arm<T: Decide>(
     // door, and an in-band clearance escalates (two-tolerance on the
     // arm, definite ones included). Ellipse/NURBS carriers keep the M5
     // unconditional door.
+    let side = |p: Point3<T>| {
+        decide(
+            "bool_vertex_face_side",
+            Margin::of(geom_brep::implicit_residual(&surface, p)),
+            band,
+        )
+    };
+    // **An uncovered arc with an end ON the carrier is never asked its
+    // clearance.** Its residual is exactly zero at that end, so its true
+    // one-sidedness margin is at most zero and the clearance can never
+    // read `Positive`, the one answer that returns early. Every other
+    // answer an uncovered arc against these kinds can get (`Zero`,
+    // `Negative`, escalated) falls through to the endpoint arms below.
+    // So asking would decide nothing. What it would RECORD is the
+    // sampled enclosure's own chord-dip charge, read as `−charge` about
+    // that zero end: a margin of the enclosure, not of the geometry,
+    // ε-independent and micrometres small, which the K telemetry reads as
+    // a feature crowding its floor. That is the split fragment of a
+    // carved sphere's meridian, ending on the cut. The endpoint sides
+    // are therefore decided first, here, and handed to the endpoint arms
+    // rather than decided twice. A held escalation surfaces where it
+    // always did, in those arms. It is dropped only when the clearance
+    // reads definitely clear, which an in-band end cannot let happen.
+    let early_ends = (!covered
+        && matches!(curve.carrier(), geom::Curve3::Circle { .. })
+        && matches!(
+            surface,
+            geom::Surface::Torus { .. }
+                | geom::Surface::Sphere { .. }
+                | geom::Surface::Cylinder { .. }
+        ))
+    .then(|| (side(pu), side(pv)));
+    let end_on_carrier = matches!(early_ends, Some((Ok(Sign::Zero), _) | (_, Ok(Sign::Zero))));
     match *curve.carrier() {
         geom::Curve3::Line { .. } => {}
         geom::Curve3::Circle {
@@ -1644,7 +1677,10 @@ pub(super) fn curved_face_arm<T: Decide>(
             axis,
             radius,
             u_ref,
-        } => {
+        } => 'clearance: {
+            if end_on_carrier {
+                break 'clearance;
+            }
             // **The carrier-identity rung, consulted FIRST.** An edge
             // bounding a face whose carrier the door verified to BE
             // `face`'s carrier lies on `face`'s carrier identically, so
@@ -1812,13 +1848,6 @@ pub(super) fn curved_face_arm<T: Decide>(
         }
         _ => return Err(frontier()),
     }
-    let side = |p: Point3<T>| {
-        decide(
-            "bool_vertex_face_side",
-            Margin::of(geom_brep::implicit_residual(&surface, p)),
-            band,
-        )
-    };
     // The one-sided cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
@@ -1826,8 +1855,10 @@ pub(super) fn curved_face_arm<T: Decide>(
         let which = Coincide::VertexOnCurvedFace;
         BooleanError::coincidence(which, read(which), diag)
     };
-    let s1 = side(pu).map_err(on_face)?;
-    let s2 = side(pv).map_err(on_face)?;
+    let (s1, s2) = match early_ends {
+        Some((s1, s2)) => (s1.map_err(on_face)?, s2.map_err(on_face)?),
+        None => (side(pu).map_err(on_face)?, side(pv).map_err(on_face)?),
+    };
     match (s1, s2) {
         // The one-sided cover rung: a covered line with endpoint(s) ON
         // the carrier takes the planar sweep's endpoint posture — the
@@ -2322,7 +2353,7 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 /// placements, which record nothing, or is `None`, which the caller
 /// turns into the frontier that ends the op, so no record or split made
 /// here outlives a certificate that did not hold.
-fn lying_on<T: Decide>(
+fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     arc: &ArcOnCarrier<'_, T>,
     y: &mut Body<T>,
     contacts: &mut ContactAcc,
@@ -3068,7 +3099,7 @@ impl Placement {
 /// trim, so nothing at all is known and the caller's typed frontier is
 /// the only honest answer.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn vertex_on_curved_face<T: Decide>(
+pub(super) fn vertex_on_curved_face<T: Decide + crate::props::AtRestPolicy>(
     x_is: Operand,
     y: &mut Body<T>,
     vx: VertexKey,
@@ -3084,7 +3115,7 @@ pub(super) fn vertex_on_curved_face<T: Decide>(
 /// [`vertex_on_curved_face`], also naming the vertex of `y` a recorded
 /// v-v contact paired `vx` with (`None` for a v-f record, or no record).
 #[allow(clippy::too_many_arguments)]
-fn vertex_on_curved_face_at<T: Decide>(
+fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     x_is: Operand,
     y: &mut Body<T>,
     vx: VertexKey,
@@ -3211,7 +3242,7 @@ fn push_vv(contacts: &mut ContactAcc, x_is: Operand, wx: VertexKey, wy: VertexKe
 /// — the differential suite's accepted-pair channel; recording changes
 /// no classification.
 #[allow(clippy::too_many_arguments)]
-fn vertex_on_face<T: Decide>(
+fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     x_is: Operand,
     y: &mut Body<T>,
     vx: VertexKey,
@@ -3234,7 +3265,7 @@ fn vertex_on_face<T: Decide>(
     Ok(true)
 }
 
-fn split_at<T: Decide>(
+fn split_at<T: Decide + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     x_is: Operand,
     edge: EdgeKey,
@@ -3278,7 +3309,7 @@ fn split_at<T: Decide>(
 /// [`BooleanError::PointSplitCarrierUnsupported`], its own variant
 /// because this precondition is NOT the operand gate's — the gate
 /// admits `Ellipse` and this lane cannot take it.
-fn split_other_at_point<T: Decide>(
+fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     y: &mut Body<T>,
     y_is: Operand,
     edge: EdgeKey,
@@ -4156,9 +4187,13 @@ mod declaration_order_rows {
     /// The other class is contradicted as well.
     /// **The lump takes a sector's in-band residue where the door
     /// bridges it**: the two poses of the row below at a tilt the door
-    /// reads in band over both faces (standing at `1.2·ε`, sunk at
-    /// `2·ε`; standing at `2·ε` the zip refuses
-    /// `RestZipUnsupported { ChordBetweenIsolatedPierces }`). Undeclared,
+    /// reads in band over both faces (standing tilted down by `1.2·ε`,
+    /// sunk at `2·ε`; standing at `2·ε` the zip refuses
+    /// `RestZipUnsupported { ChordBetweenIsolatedPierces }`). Standing
+    /// tilted UP, the union's residue crosses `vol(A) + vol(B)` and the
+    /// volume backstop refuses it
+    /// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
+    /// pinned in `topo/tests/door_backstop_settled_residue.rs`). Undeclared,
     /// the sector offers the class the senses make the pair; following
     /// the offer, the union builds at the volume box arithmetic gives,
     /// and the other class is contradicted.
@@ -4174,7 +4209,7 @@ mod declaration_order_rows {
         for (label, theta, sunk, facing, offered, other, volume) in [
             (
                 "standing on the block",
-                1.2 * band.zero(),
+                -1.2 * band.zero(),
                 false,
                 -1.0,
                 BooleanCoincidence::REST,

@@ -47,6 +47,30 @@ Two things that meter leaves on the table:
    the two feet, which leaves a thin wedge of kept material near each
    foot inside the region on corners where the two differ.
 
+   **Witness, the cut cycle's own edge** (the tour's `rocker`,
+   `demos/tour/src/rocker.rs`, `crease_narration`, wall 2): a keyhole
+   through a plate (disc `R = 1/2`, slot half-width `w = 1/5`, slot
+   end `0.8` from the disc's centre). Its two convex creases carve at
+   the closed form below `r* = 0.3097` and refuse `RingClearance` on a
+   cap from `r*` on, with margin exactly `‖E − c‖ − ‖V − c‖`, `E =
+   (0.8, w)` the slot end edge's corner nearest the crease: `−1.5e-4`
+   at `r = 0.31`, `−0.00884` at `r = 0.33`, `−0.03263` at `r = 0.4`,
+   `−0.05264` at `r = 0.49`. `r*` is derived from that margin, not
+   read off a sweep: `E` and `V` share the wall line and `c` sits `r`
+   above it, so the margin changes sign where `cx = (x0 + 0.8)/2`, and
+   `cx² = x0² + 2r(R − w)` gives `r* = (cx² − x0²)/(2(R − w))`
+   (`ring_clearance_onset` in the scene, which pins it from both sides
+   at ±1 %).
+   The slot end edge is clear of the sliver at every one of those
+   radii — the sliver ends at the wall foot
+   `x = √((R + r)² − (w + r)²)` (`0.639` at `r = 0.33`, `0.671` at
+   `r = 0.4`), short of the slot's end — and it is the case above: at
+   `r = 0.33` its upper end is short of the floor but inside `reach`,
+   its lower part past the floor but beyond `reach`, so no one face
+   clears it whole. The enclosure refuses an edge the band does not
+   touch, and the rendered sentence says that edge "lies in the part of
+   a face the blend cuts away", which it does not.
+
 ## What the taker owes
 
 An exact sliver-membership classification for a circle ring (a

@@ -13,7 +13,7 @@ opened: 2026-09-29
 
 ## What
 
-D7 says an adopted entity's caches are "recomputed from its description by our own algorithms and certified at ε", with ε_in governing interpretation only. The adoption code does not do that. Each rung is "a full `set_edge_curve` certification of the **parsed carrier**" (`crates/step-import/src/adopt.rs` module docs, `adopt_edges` → `set_edge_curve_nurbs_lane(…, tol)`), and `crates/step-import/src/lib.rs` ("Two tolerances") calls the ε_in-consuming stage "M7-2+", i.e. unbuilt. So a residual refusal at import measures the file's print precision against ε.
+D7 says an adopted entity's caches are "recomputed from its description by our own algorithms and certified at ε", with ε_in governing interpretation only. The adoption code does not do that. Each rung is "a full `set_edge_curve` certification of the **parsed carrier**" (`crates/step-import/src/adopt.rs` module docs, `adopt_edges` → `set_edge_curve(…, tol)`), and `crates/step-import/src/lib.rs` ("Two tolerances") calls the ε_in-consuming stage "M7-2+", i.e. unbuilt. So a residual refusal at import measures the file's print precision against ε.
 
 **Witness:** `crates/step-import/tests/tier_gate.rs`, `(NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE))`. `nist_ftc_09` declares ε_in ≈ 3.4e-5 m and prints about 12 digits. It imports at ambient 1e-9, but refuses at 1e-12 on an endpoint residual that lies within its own declared coincidence distance.
 
