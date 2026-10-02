@@ -388,7 +388,7 @@ pub(super) fn sweep_loop<T: Decide>(
     // SHOULD-1 lesson). Pairs across a pinned (on-axis) segment are
     // structurally false: the run is broken by the axis contact.
     let pair = loop_pairs(segs, cls, loop_index, band)?;
-    let runs = crate::swept::wall_runs(segs, &pair, walled);
+    let runs = crate::swept::wall_runs(segs, &pair, walled, crate::swept::CurvedRuns::Split);
     let lead = crate::swept::run_leads(&runs, n);
 
     // Struts: one latitude arc per off-axis vertex that leads a run, in
@@ -449,8 +449,9 @@ pub(super) fn sweep_loop<T: Decide>(
             let WallClass::Wall { kind, sense } = cls.walls[j] else {
                 return Ok(None);
             };
-            // Sharing shape (PR 4 SHOULD-1's precompute), for cocircular
-            // arcs (`swept::shared_wall`). A wall whose material lies
+            // Cocircular arcs share one key across their walls
+            // (`swept::shared_wall`; this verb splits a curved run,
+            // `swept::CurvedRuns::Split`). A wall whose material lies
             // against its revolution surface's chart normal (bore
             // cylinder, inward cone, under-side plane annulus, concave
             // sphere/torus band) states `sense: false`, classified from

@@ -225,8 +225,11 @@ fn a_near_full_revolves_gap_is_out_at_both_doors() {
 }
 
 /// **A sphere face that reads a whole turn but does not wrap alone is
-/// not served as one.** A unit ball revolved from three arcs (south cap,
-/// the ±30° zone, north cap) is six half-faces. `kef_minting` merges the
+/// not served as one.** A unit ball (one arc, revolved, two π-bands)
+/// cut by hand at ±30° into south cap, zone and north cap is six
+/// half-faces — the revolve builds an arc run whole, so the latitude
+/// rims are cut through the Euler door
+/// ([`crate::common::latitude_seam::ring_on_wall_at`]). `kef_minting` merges the
 /// zone's two halves across their seam, then merges the zone with ONE
 /// north-cap half across their rim arc. That face's walk reads the whole
 /// turn and the latitudes from −30° to the pole, but north of +30° it
@@ -242,14 +245,8 @@ fn a_near_full_revolves_gap_is_out_at_both_doors() {
 #[test]
 fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
     let b = band();
-    let (s30, c30) = (0.5f64, 0.75f64.sqrt());
-    let bulge = (core::f64::consts::FRAC_PI_3 / 4.0).tan();
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, -1.0), bulge),
-        (Point2::new(c30, -s30), bulge),
-        (Point2::new(c30, s30), bulge),
-        (Point2::new(0.0, 1.0), 0.0),
-    ]);
+    let s30 = 0.5f64;
+    let lp = bulge_loop(vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -260,6 +257,14 @@ fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
     let mut body = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
+    let sphere = body
+        .faces()
+        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .expect("the sphere")
+        .1
+        .surface;
+    crate::common::latitude_seam::ring_on_wall_at(&mut body, sphere, -s30);
+    crate::common::latitude_seam::ring_on_wall_at(&mut body, sphere, s30);
     let pose = Pose::new(false, Point3::new(0.0, 0.0, 0.0));
     let on_sphere = |pol: f64, a: f64| pose.at(pol.sin(), pol.cos(), a);
     let sphere_faces = |body: &Body<f64>| -> Vec<FaceKey> {

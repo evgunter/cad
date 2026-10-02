@@ -530,8 +530,44 @@ fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
     });
 }
 
+/// **A sphere revolved from a run of arcs hollows to its closed form.**
+/// The run is one meridian arc of a half turn (`crates/sweep/README.md`,
+/// "Walls: one per run"), whose end the run's last arc states, so its
+/// centre and ends sit an ulp off the exact half turn; the axial door
+/// re-authors it about the moved circle on the turn it had, not on
+/// whichever side of `atan2`'s cut the moved ends land.
+#[test]
+fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
+    let (r, t) = (1.0, 0.05);
+    for v in [PI / 4.0, -PI / 4.0, 0.0, PI / 3.0] {
+        let (s, c) = v.sin_cos();
+        let body = revolved(
+            bulge_loop(vec![
+                (Point2::new(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+                (Point2::new(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+                (Point2::new(0.0, r), 0.0),
+            ]),
+            Revolution::Full,
+        );
+        assert_eq!(body.faces().count(), 2, "station {v}: one wall in two π-bands");
+        let mut cavity = body.clone();
+        let band = geom_core::Band::linear(tol()).expect("band");
+        topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
+            .unwrap_or_else(|e| panic!("station {v}: the door takes it, got {e}"));
+        assert_eq!(topo::validate_geometric(&cavity, tol()), Ok(()), "station {v}: tier 3");
+        let props = topo::mass_properties(&cavity, tol()).expect("props");
+        let want = 4.0 / 3.0 * PI * (r - t).powi(3);
+        assert!(
+            (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+            "station {v}: cavity volume {} vs {want}",
+            props.volume
+        );
+    }
+}
+
 /// **A sphere authored as two cocircular arcs shells to its closed
-/// form.** R1's fixture: one sphere in four faces with a same-surface
+/// form.** R1's fixture ([`crate::common::latitude_seam::two_arc_sphere`],
+/// the seam cut by hand): one sphere in four faces with a same-surface
 /// LATITUDE seam at `v = π/4`, which the sphere's own seam arm could
 /// not take and the latitude posture does. Through the direct door the
 /// cavity is tier-3 valid at `4/3·π(r−t)³` (`3.591364001828731` in
@@ -548,16 +584,8 @@ fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
 #[test]
 fn a_two_arc_sphere_shells_to_its_closed_form() {
     let (r, t) = (1.0, 0.05);
-    let v = PI / 4.0;
-    let (s, c) = v.sin_cos();
-    let body = revolved(
-        bulge_loop(vec![
-            (Point2::new(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            (Point2::new(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            (Point2::new(0.0, r), 0.0),
-        ]),
-        Revolution::Full,
-    );
+    let s = (PI / 4.0).sin();
+    let body = crate::common::latitude_seam::two_arc_sphere();
     let concentric = |(rho, hh): (f64, f64)| {
         (rho > 1e-6 && (hh - r * s).abs() <= 1e-9).then(|| {
             let n = rho.hypot(hh);

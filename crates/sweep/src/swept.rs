@@ -176,6 +176,28 @@ impl<T: Real> Traversed<T> {
         Self(SegmentKind::Arc { arc, turn })
     }
 
+    /// The run this traversal continues into `next` on one carrier
+    /// (the full revolve's collapsed run, `revolve::full::Collapsed`):
+    /// a line stays a line; an arc keeps its carrier and turn, its
+    /// sweep the two summed — same turn, so same sign. A pair of
+    /// different kinds is no run (the cosurface verdict never joins
+    /// one).
+    pub(crate) fn continued(self, next: Self) -> Self {
+        Self(match (self.0, next.0) {
+            (SegmentKind::Line, SegmentKind::Line) => SegmentKind::Line,
+            (SegmentKind::Arc { arc, turn }, SegmentKind::Arc { arc: more, .. }) => {
+                SegmentKind::Arc {
+                    arc: Arc2 {
+                        sweep: arc.sweep + more.sweep,
+                        ..arc
+                    },
+                    turn,
+                }
+            }
+            _ => unreachable!("a run never joins a line and an arc"),
+        })
+    }
+
     /// The carrier class, in this traversal's orientation.
     pub(crate) fn get(self) -> SegmentKind<T> {
         self.0
@@ -656,26 +678,34 @@ impl Run {
 /// segment `j` continues segment `j − 1`'s carrier (`pair[0]` is the
 /// wrap join), and `walled(j)` whether segment `j` sweeps a wall.
 ///
-/// A run joins LINE segments only. Cocircular arcs keep one wall each on
-/// one shared surface key (a curved same-key pair is the maximal-faces
-/// gate's canonical form) until curved runs are built whole
-/// (`work/band/swept-cocircular-arc-runs-build-one-wall.md`). So no run
-/// is the whole closed loop: collinear lines cannot close a simple
-/// profile loop.
+/// A run joins collinear lines, and cocircular same-turn arcs where
+/// `arcs` says the verb builds a curved run whole (crate README, "Walls:
+/// one per run"); an arc it does not join keeps its own wall on the
+/// run's one surface key ([`shared_wall`]). A loop every join of which
+/// continues one carrier is a circle cut into arcs — collinear lines
+/// cannot close a simple loop — and it keeps its canonical cut (C12.5):
+/// each arc its own run, the walls sharing one surface key across the
+/// meridian struts between them.
 pub(crate) fn wall_runs<T: Real, S: SweptChord<T>>(
     segs: &[S],
     pair: &[bool],
     walled: impl Fn(usize) -> bool,
+    arcs: CurvedRuns,
 ) -> Vec<Run> {
     let n = segs.len();
     let is_line = |j: usize| matches!(segs[j].kind().get(), SegmentKind::Line);
     let joined = |j: usize| {
         let p = (j + n - 1) % n;
-        pair[j] && walled(p) && walled(j) && is_line(p) && is_line(j)
+        pair[j] && walled(p) && walled(j) && (arcs == CurvedRuns::Whole || is_line(j))
     };
     let starts: Vec<usize> = (0..n).filter(|&j| !joined(j)).collect();
     if starts.is_empty() {
-        unreachable!("a run of collinear lines closes the whole loop, which validation refuses");
+        // Every join continues one carrier, and a cosurface pair never
+        // mixes kinds, so the loop is all lines or all arcs.
+        if is_line(0) {
+            unreachable!("a run of collinear lines closes the whole loop, which validation refuses");
+        }
+        return (0..n).map(|first| Run { first, len: 1 }).collect();
     }
     starts
         .iter()
@@ -727,8 +757,21 @@ pub(crate) fn run_leads(runs: &[Run], n: usize) -> Vec<bool> {
     lead
 }
 
+/// Whether a verb's run joins cocircular arcs ([`wall_runs`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CurvedRuns {
+    /// A run of cocircular arcs is one wall.
+    Whole,
+    /// Each arc keeps its own wall, on the run's one surface key: the
+    /// partial revolve, whose sphere and torus walls would carry a
+    /// meridian in pieces mass properties do not fold
+    /// (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
+    Split,
+}
+
 /// The wall whose SURFACE KEY segment `j`'s wall shares, when `j`
-/// leads a run that continues an earlier wall's carrier: `pair[j]`
+/// leads a run that continues an earlier wall's carrier — an arc
+/// [`wall_runs`] did not join, or a circle's canonical cut: `pair[j]`
 /// shares the previous wall's key, and a run reaching `origin` (the
 /// first run's lead) through the wrap shares the first wall's key. The
 /// first run (rank 0) shares nothing. `faces` holds the walls minted so

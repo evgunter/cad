@@ -104,22 +104,25 @@
 //!   reads under ε. What a definitely-smooth rim stores, and which
 //!   rims reach that arm, is `extrude`'s (its module docs, step 6);
 //!   such a body is refused at rest as `SliverDihedral`.
-//! - **Cosurface sharing**: smooth joins whose side faces lie on the
+//! - **Cosurface runs**: adjacent segments on the
 //!   identical-by-construction surface — collinear line segments (one
-//!   plane), tangent arcs on one carrier circle (one cylinder) — share
-//!   the surface **key** (`FaceSurface::Shared`, stating the wall's
-//!   own `sense` beside it), decided by the named
-//!   predicates `side_planes_cosurface` (margin: perpendicular distance
-//!   of the next chord's far endpoint from the previous carrier line)
-//!   and `side_cylinders_cosurface` (margin: center distance plus
-//!   radius difference, meters). All of a loop's consecutive-pair
-//!   decisions (including the wrap pair at the canonical start vertex)
-//!   are made **before any wall is minted**, so a same-carrier run that
-//!   crosses the canonical start still resolves to one key — its
-//!   `u_ref` comes from the run's first segment in sweep order, which
-//!   for a wrap-crossing run is segment 0. Smooth joins across
-//!   genuinely distinct surfaces (line–arc tangency: plane–cylinder)
-//!   keep distinct surfaces and a conventional join edge.
+//!   plane), same-turn arcs on one carrier circle (one cylinder) — are
+//!   one run, decided by the named predicates `side_planes_cosurface`
+//!   (margin: perpendicular distance of the next chord's far endpoint
+//!   from the previous carrier line) and `side_cylinders_cosurface`
+//!   (margin: center distance plus radius difference, meters), and a
+//!   run sweeps ONE wall (crate README, "Walls: one per run"). All of a
+//!   loop's consecutive-pair decisions (including the wrap pair at the
+//!   canonical start vertex) are made **before any wall is minted**, so
+//!   a run that crosses the canonical start is one wall too; its
+//!   surface is built from the run's first segment in sweep order, a
+//!   cylinder's `u_ref` aimed at the run's leading vertex. Where arcs
+//!   on one carrier keep separate walls — a circle's canonical cut, a
+//!   partial revolve's arcs — the walls share the surface **key**
+//!   (`FaceSurface::Shared`, stating each wall's own `sense` beside
+//!   it). Smooth joins across genuinely distinct surfaces (line–arc
+//!   tangency: plane–cylinder) keep distinct surfaces and a
+//!   conventional join edge.
 //! - **Caps** via `geom_brep::newell_plane` over the loop vertices in
 //!   `next` order (outer loop in next order ⇒ outward normal).
 //!

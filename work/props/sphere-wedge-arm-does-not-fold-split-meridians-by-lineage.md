@@ -22,3 +22,12 @@ which is the precedent and the shape of the fix: fold the sphere
 boundary's meridian pieces by lineage before the count, so a split
 meridian measures as the wedge it is instead of refusing as three
 edges. Measured, not acted on; difficulty S–M.
+
+## Also reached from the sweep (2026-10-02)
+
+A partial revolve that builds a run of cocircular arcs as one sphere
+wall hands this arm a meridian in pieces on every such body (the station
+stays on both wedge caps), and the body fails tier 3 here. The sweep
+keeps one wall per arc in a partial revolve until this folds
+(`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`,
+which also needs the sweep to mint those pieces with split lineage).

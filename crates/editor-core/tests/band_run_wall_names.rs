@@ -1,6 +1,7 @@
 //! **Swept walls over a run, named** (`names/README.md`, N1 "Swept walls
 //! over a run"): an extrude or a revolve builds one wall over a run of
-//! collinear profile pieces, and its role-path segment holds the run —
+//! collinear or cocircular profile pieces, and its role-path segment
+//! holds the run —
 //! its pieces in authored order — while rims and cap vertices stay per
 //! piece and a station inside the run mints no `LateralEdge` or
 //! `BandRim`.
@@ -13,7 +14,7 @@ use editor_core::{
 use geom_core::Tol;
 
 use crate::fixture::{
-    ang, axis_in_plane, frame, insert, len, len2, minted, piece, run, table, vpiece,
+    ang, axis_in_plane, frame, insert, len, len2, minted, piece, run, scl, table, vpiece,
 };
 
 fn to(x: f64, y: f64) -> ProgramTarget {
@@ -297,4 +298,88 @@ fn a_reversed_extrusion_names_each_wall_by_its_own_pieces() {
         (o.x - 2.0).abs() < 1e-12 && n.x.abs() > 0.99,
         "the x = 2 wall: {o:?} {n:?}"
     );
+}
+
+/// A D on `x = x0`: the half circle of radius 1 centred `(x0, 0)` drawn
+/// as two quarter arcs (segments 0 and 1, one run), closed by its
+/// diameter.
+fn d_of_two_arcs(x0: f64) -> Vec<ProgramStep> {
+    let quarter = (std::f64::consts::PI / 8.0).tan();
+    let arc = |x: f64, y: f64| {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: to(x, y),
+            b: scl(quarter),
+        })
+    };
+    vec![
+        ProgramStep::At(len2([x0, -1.0])),
+        arc(x0 + 1.0, 0.0),
+        arc(x0, 1.0),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]
+}
+
+/// **A run of cocircular arcs is named by its pieces** exactly as a
+/// straight run is: an extrude's one cylinder `Lateral` over both
+/// quarters, no `LateralEdge` at the station, a rim per piece; a full
+/// revolve's one torus `Band` with no `BandRim` at the station. A
+/// partial revolve keeps one wall per arc
+/// (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`),
+/// so it names a `Band` per piece and the `BandRim` between them.
+#[test]
+fn a_run_of_arcs_is_named_by_its_pieces() {
+    let (doc, ex) = extruded(d_of_two_arcs(0.0));
+    let ev = run(&doc, &Default::default());
+    let t = table(&ev, ex);
+    let wall = minted(
+        EntityKind::Face,
+        ex,
+        RoleSeg::Lateral(run_of(&doc, ex, &[0, 1])),
+    );
+    assert!(t.lookup(&wall).is_some(), "the arc run's wall: {wall:?}");
+    assert_eq!(
+        rows_with(&ev, ex, |s| matches!(s, RoleSeg::Lateral(_))).len(),
+        2,
+        "the arc run and the diameter"
+    );
+    let station = vpiece(&doc, ex, 0, 1);
+    assert!(
+        t.lookup(&minted(EntityKind::Edge, ex, RoleSeg::LateralEdge(station)))
+            .is_none(),
+        "a station has no strut"
+    );
+    for end in [editor_core::CapEnd::Start, editor_core::CapEnd::End] {
+        for k in [0, 1] {
+            let rim = minted(
+                EntityKind::Edge,
+                ex,
+                RoleSeg::RimEdge(end, piece(&doc, ex, 0, k)),
+            );
+            assert!(t.lookup(&rim).is_some(), "{end:?} rim of arc {k}");
+        }
+    }
+    for angle in [std::f64::consts::FRAC_PI_2, std::f64::consts::TAU] {
+        let full = angle == std::f64::consts::TAU;
+        let (doc, rev) = revolved(d_of_two_arcs(1.0), angle);
+        let ev = run(&doc, &Default::default());
+        let t = table(&ev, rev);
+        let band = |pieces: &[usize]| {
+            minted(
+                EntityKind::Face,
+                rev,
+                RoleSeg::Band(run_of(&doc, rev, pieces)),
+            )
+        };
+        let station = vpiece(&doc, rev, 0, 1);
+        let rim = t.lookup(&minted(EntityKind::Edge, rev, RoleSeg::BandRim(station)));
+        if full {
+            assert!(t.lookup(&band(&[0, 1])).is_some(), "the arc run's band");
+            assert!(rim.is_none(), "a station has no rim");
+        } else {
+            for k in [0, 1] {
+                assert!(t.lookup(&band(&[k])).is_some(), "{angle}: the band of arc {k}");
+            }
+            assert!(rim.is_some(), "{angle}: the rim between the arcs' bands");
+        }
+    }
 }
