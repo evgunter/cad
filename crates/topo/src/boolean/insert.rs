@@ -1002,4 +1002,37 @@ mod tests {
             );
         }
     }
+    /// REVIEW (join/reflex-corner-review): two germs decidedly apart in
+    /// angle (each germ's side `(g × e)·n` decides at these spacings),
+    /// but both beside a half-turn bound, where the cosine is flat: the
+    /// cosine difference is second order in the spacing and falls inside
+    /// the band. The strut order must then either order them rightly or
+    /// escalate; a decided zero read as "the second is nearer" is a
+    /// silent wrong pick.
+    #[test]
+    fn review_the_strut_order_never_misorders_germs_beside_a_half_turn_bound() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |deg: f64| {
+            let t = -deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), 0.0)
+        };
+        let mut wrong = Vec::new();
+        for (g0, g1) in [
+            (0.001, 0.002),
+            (179.998, 179.999),
+            (180.0, 180.001),
+            (180.001, 180.002),
+            (359.998, 359.999),
+            (0.002, 0.001),
+            (180.001, 180.0),
+        ] {
+            let truth = g0 < g1;
+            match strut_order(e, n, (at(g0), at(g1)), 1.0, band) {
+                Ok(got) if got != truth => wrong.push(format!("{g0}°/{g1}°: got {got}")),
+                _ => {}
+            }
+        }
+        assert!(wrong.is_empty(), "silently misordered: {wrong:?}");
+    }
 }
