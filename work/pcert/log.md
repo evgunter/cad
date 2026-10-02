@@ -450,3 +450,11 @@ Signed (PCERT orchestrator).
     - the AtRestPolicy overclaim.
   - All of it went to the implementer as one list. The widening rows are not re-baselined.
 - **3733.** The delta fix pass is green at d0f1fe6. The round-2 delta verification is dispatched.
+
+## 2026-10-02 — 3733 merged
+
+- **PR 3733 merged as 6cd3c66.** The round-2 delta verification said merge, and all eight probes flipped.
+  - I merged main into it myself to resolve the C4 README conflict with 3781's rewording. The Hermite envelope now sits in the "no closed form" fallback, as a whole-span bound that keeps its schedule.
+  - CI was green on 14239df.
+  - `mint-has-no-route-to-the-fitted-general-circle-arm` is closed. The sphere general circle is the first uncovered class retired under the 3617 ruling.
+- The incidence/fidelity unit is dispatched (session_01QjnkkS1HoEHDzjjkW3CCWq, branch `pcert/certificate-incidence-fidelity`).
