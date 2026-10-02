@@ -568,21 +568,16 @@ pub(super) fn gate_maximal_faces<T: Decide>(
     operand: Operand,
     band: Band,
 ) -> Result<(), BooleanError> {
-    for (edge_key, edge) in body.edges() {
-        let (Some(f1), Some(f2)) = (
-            body.face_of_half_edge(edge.he_plus),
-            body.face_of_half_edge(edge.he_minus),
-        ) else {
+    for (edge_key, _) in body.edges() {
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
+        let (f1, f2) = sides.faces();
         if f1 == f2 {
             continue; // seam/strut inside one face: not a coplanar PAIR
         }
-        let (k1, k2) = (
-            body.get_face(f1).map(|f| f.surface),
-            body.get_face(f2).map(|f| f.surface),
-        );
-        if k1.is_some() && k1 == k2 {
+        let (k1, k2) = sides.surfaces();
+        if k1 == k2 {
             // Same-key CURVED adjacency is the CANONICAL maximal form
             // (M5 PR 9, C12.5): a periodic wall cannot be one face
             // without its parameterization cut, so two half-walls
@@ -590,8 +585,8 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // exactly what a maximal-faced curved operand looks like
             // (the cosurface merge itself KEEPS such a cut). Only the
             // PLANAR same-key pair is the F7 defect.
-            let planar = k1
-                .and_then(|k| body.get_surface(k))
+            let planar = body
+                .get_surface(k1)
                 .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }));
             if planar {
                 return Err(BooleanError::NonMaximalFaces {
