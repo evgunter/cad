@@ -2,11 +2,12 @@
 id: lofts-correspondence-twist
 kind: unit
 title: the lofts cell gains a third body: the same sections with a shifted start vertex, so the loft twists by correspondence alone
-status: review
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
 pr: 3816
+closed: 2026-10-02
 ---
 
 ## What

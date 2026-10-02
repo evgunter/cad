@@ -533,3 +533,48 @@ Four slate rows remain undispatched. Each is held on a file an open PR holds:
 - helix
 - projectbox sixteenths
 - per-body delta
+
+## 2026-10-02 — the queue merged; render tag settled; two harness fixes
+
+**Render flow (Ev).** #3791 merged the `[render]` subject tag. Ev then
+asked why the bot commits had dropped `[skip ci]`; the premise had been
+that GITHUB_TOKEN pushes start nothing, and the snowman render showed
+otherwise (each bot commit's pull_request run sat at
+`action_required`). #3850 (Ev's sign-off, merged) restored `[skip ci]`
+on the render commits, retired the `ci-on-new-head` re-gate, and the
+merge rule now reads "docs, comments or renders"
+(`memories/orchestration-model.md`): CI on the tagged commit runs
+beside the render, and the bot commits merge on that gate.
+
+**Render-lane bug, found by looking.** The klein render's freecad lane
+said "matches this render" over a frame its own artifact showed
+re-drawn: lanes sharing one job checkout re-baselined in turn, and the
+first lane's `git reset --hard` discarded the next lane's cells before
+its drift check (only cells new to the branch, being untracked,
+survived). #3854 commits each lane from a scratch worktree; reproduced
+against main's action in a scratch repo first. The freecad montage then
+caught up through 3811's second render.
+
+**Main red, round three.** #3787 added the `snowman` stop with no
+north-star audit row; `the_north_star_audit_has_a_row_for_every_tour_stop`
+failed on main, unselected by the snowman PR's demos-only CI (evidence
+added to `work/ciw/demos-row-skips-kernel-changes-to-doors-the-tour-calls.md`).
+#3852 graded it YES* (the bodies transfer; the waist's selection needs a
+datum bracket the scene never states) and renumbered rows 18 onward.
+
+**Merged, in order, each on a `[render]` main merge with its frames
+looked at:** 3787 snowman, 3793 heatsink, 3792 klein, 3811 projectbox,
+3816 lofts, 3819 tiltedcut, 3824 teapot lid, 3834 rocker keyhole, 3836
+letterforms, 3840 bench, 3842 bracket split. Each merge re-derived the
+tess census by composing its branch's deltas onto main's pins, and a
+full-tree sweep of the merged head matched the committed baseline
+everywhere but twopeg (main's drift, filed on TESS). Merge-time fixes:
+heatsink took main's `UndeclaredCoincidence` rename; teapot and bracket
+rows took their current stable names (name column only); the audit
+re-counted at each of klein (42/50), snowman (43/51) and bench (45/53).
+
+**Open.** 3838 (lily) conflicts semantically with main's rootstock
+rework; a lane is merging it. The rider
+`klein-bottle-loop-sweeps-from-a-world-axis-placement-not-the-paths-normal-plane`
+closed with its unit. Undispatched: gallery, helix, projectbox
+sixteenths, per-body delta, and `lily-rootstock-joins-at-its-socket`.

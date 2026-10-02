@@ -2,11 +2,12 @@
 id: tiltedcut-engraved-face
 kind: unit
 title: the tilted cut's faces carry engraved blind pockets: lettering cut into the round cap, or the elliptical section face if it admits it
-status: review
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
 pr: 3819
+closed: 2026-10-02
 ---
 
 ## What

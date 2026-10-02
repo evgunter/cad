@@ -2,11 +2,12 @@
 id: projectbox-section-cuts-through-bores
 kind: unit
 title: the projectbox section cuts through bored bosses, so its section faces are annular rings, one per half
-status: review
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
 pr: 3811
+closed: 2026-10-02
 ---
 
 ## What

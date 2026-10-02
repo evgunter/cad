@@ -2,11 +2,12 @@
 id: bench-on-a-gauge
 kind: unit
 title: bench places its shelf subassembly on a gauge whose pose is a document parameter: three poses, one edit each
-status: review
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: H
 pr: 3840
+closed: 2026-10-02
 ---
 
 ## What
