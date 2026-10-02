@@ -978,6 +978,12 @@ BOUND_AS = {
     # it could not build was the one whose third field this façade did
     # not carry.
     "MetaVersionError": "EditError.inner_variant",
+    # `CountMismatch` is what `EditError::PlacementRuleMismatch` carries:
+    # which answer to "how many placements" the node gives twice, three
+    # shapes with three different repairs, crossing at the carrier's
+    # second word (`listed_with_count`, `stepped_without_count`,
+    # `listed_on_pattern`).
+    "CountMismatch": "EditError.inner_variant",
     # THE PERSISTENCE DOOR'S PAYLOAD, under the same rule at the
     # carrier that wraps the most refusals of other layers.
     # `PersistError.variant` says WHICH stage refused; three of these

@@ -2519,8 +2519,8 @@ class Node:
         node's `Count` slot (`DocEdit.bind_count_param`). Below one
         refuses at `evaluate`
         (`non_positive_count`); an `explicit` rule refuses at
-        `Doc.insert` (`placement_rule_mismatch`), since it carries its
-        own placements."""
+        `Doc.insert` (`placement_rule_mismatch`, `inner_variant`
+        `listed_on_pattern`), since it carries its own placements."""
 
     @staticmethod
     def part(of: NodeId, select: PartSelect) -> Node:

@@ -21,8 +21,8 @@ use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
 use crate::node::{
-    AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
-    StableName, StepId,
+    AssertionBoundFault, CountMismatch, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault,
+    SlotId, StableName, StepId,
 };
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
@@ -1274,13 +1274,12 @@ pub enum EditError {
         mate: SpokenNode,
     },
     /// A placement-rule node whose rule and count slot would give two
-    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
-    /// `Explicit` rule paired with a count slot, a stepped rule with
-    /// none — or a `Pattern` carrying an `Explicit` rule at all, since
-    /// its count is a non-optional field.
+    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN).
     PlacementRuleMismatch {
         /// The offending node.
         node: SpokenNode,
+        /// Which answer it gives twice.
+        shape: CountMismatch,
     },
     /// A placement-rule node whose `Explicit` rule lists NO placements
     /// (GROUP-BOOLEAN-DESIGN): the list IS the count, so an empty one
@@ -1686,7 +1685,7 @@ impl EditError {
             | Self::DuplicateWitnessEntry { node }
             | Self::OffsetOnNonInstance { node }
             | Self::GaugeOnNonPlaced { node }
-            | Self::PlacementRuleMismatch { node }
+            | Self::PlacementRuleMismatch { node, shape: _ }
             | Self::EmptyPlacementList { node }
             | Self::ImproperPlacement {
                 node,
@@ -2461,13 +2460,23 @@ impl EditError {
                 write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)?;
                 tail.recourse(f, format_args!("list at least one placement"))
             }
-            Self::PlacementRuleMismatch { node } => {
-                write!(f, "{node}: {}", PlacementRuleFault::CountSpelling)?;
+            Self::PlacementRuleMismatch { node, shape } => {
+                write!(
+                    f,
+                    "{node}: {}",
+                    PlacementRuleFault::CountSpelling { shape: *shape }
+                )?;
                 tail.recourse(
                     f,
                     format_args!(
-                        "give a stepped rule a count and a listed rule none, and list placements \
-                         on a placed union rather than a pattern"
+                        "{}",
+                        match shape {
+                            CountMismatch::ListedWithCount =>
+                                "insert it without a count, since the list is the count",
+                            CountMismatch::SteppedWithoutCount => "insert it with a count",
+                            CountMismatch::ListedOnPattern =>
+                                "insert a placed union to list the placements, since a pattern steps",
+                        }
                     ),
                 )
             }
@@ -4584,10 +4593,12 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     // lists at least one placement, and its frames meet the SAME bar
     // every placement's literal steps are held to
     // (`Frame::admission_fault`).
-    // Checked over the whole document rather than per arm because a
-    // structural slot edit can reach a bad state from a node that was
-    // consistent before; in document order, so where one edit breaks
-    // two nodes the refusal names the one placed first.
+    // A rule's shape and its listed frames are written only by the
+    // insert that authors its node, but a listed frame is admitted at
+    // the `tol` this edit is applied at, which need not be the one its
+    // insert was; so the whole document is checked, in document order,
+    // and where one edit breaks two nodes the refusal names the one
+    // placed first.
     for (&node, n) in new
         .order
         .iter()
@@ -4596,9 +4607,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
         let listed = |index| FrameSite::Listed { index };
         match n.placement_rule_fault(tol) {
             None => {}
-            Some(PlacementRuleFault::CountSpelling) => {
+            Some(PlacementRuleFault::CountSpelling { shape }) => {
                 return Err(EditError::PlacementRuleMismatch {
                     node: written(doc, node, n),
+                    shape,
                 });
             }
             Some(PlacementRuleFault::NoPlacements) => {

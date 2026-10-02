@@ -186,10 +186,6 @@ Ruling 10 of `docs/EDIT-PLACEMENT-SPEC.md`'s P2, against the five arms still on 
 
 ## Built (2026-10-02, PR 3909) — the two placement-rule arms; the row closes
 
-Both arms are live: one raise site each, the placement-rule backstop at the end of `apply` (`crates/editor-core/src/edit.rs`), over `Node::placement_rule_fault`. A rule's shape (its kind, its count's presence, its listed frames) is written only by the `InsertNode` that authors a `Pattern` or `PlacedUnion` — `SetStructuralParam` and `SetExpression` replace a present slot's expression and no edit adds or removes one — so the recourse is that insert's. Forwarding doors (split, inline, replay) render `EditError::problem` and state their own.
-- `EmptyPlacementList`: "… Recourse: list at least one placement".
-- `PlacementRuleMismatch`: "… Recourse: give a stepped rule a count and a listed rule none, and list placements on a placed union rather than a pattern" — the arm carries no word for which of the three shapes it met, so the recourse covers all three.
-
-`crates/viewer/tests/refusal_concision_edits.rs`'s `FILED_NO_RECOURSE` no longer names either arm (its roster now speaks the node kinds that raise them, `Pattern` and `PlacedUnion`). `crates/editor-core/tests/lib_placedunion.rs`'s `a_placement_rule_refusals_recourse_gets_through` refuses each of the four shapes and applies the node its recourse names. Planted mutant: `EmptyPlacementList`'s recourse removed reds the edits roster ("states no recourse"). Python tag words unchanged; no pinned text moved.
+`EmptyPlacementList` and `PlacementRuleMismatch` state a recourse, the inserting edit's (a rule's shape is written only by the insert that authors its node). `PlacementRuleMismatch` carries which of its three shapes it met (`CountMismatch`, also Python's `inner_variant`) and states that shape's one recourse. `crates/editor-core/tests/lib_placedunion.rs`'s `a_placement_rule_refusals_recourse_gets_through` follows each recourse word for word. Details in the PR body.
 
 Nothing remains on this row.

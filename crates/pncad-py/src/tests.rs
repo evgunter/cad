@@ -2507,7 +2507,9 @@ fn inner_arm_tags_are_stable() {
     // would say the same thing in two places.
     assert_eq!(
         pair(&NodeErrorKind::PlacementRule(
-            PlacementRuleFault::CountSpelling
+            PlacementRuleFault::CountSpelling {
+                shape: pncad::document::CountMismatch::ListedOnPattern,
+            }
         )),
         ("placement_rule_mismatch", None)
     );
@@ -2733,7 +2735,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input"],
     );
     carries(&E::WouldStartPlacing { mate: sp(1) }, &["node"]);
-    carries(&E::PlacementRuleMismatch { node: sp(1) }, &["node"]);
+    carries(
+        &E::PlacementRuleMismatch {
+            node: sp(1),
+            shape: pncad::document::CountMismatch::ListedOnPattern,
+        },
+        &["node"],
+    );
     carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::NonFinitePlacement {
@@ -4767,6 +4775,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "count_mismatch_tag",
+        values: &[
+            "listed_on_pattern",
+            "listed_with_count",
+            "stepped_without_count",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "declare_error_tag",
         values: &["no_findings", "no_minted_id"],
         delegates: &["edit_error_tag"],
@@ -4876,6 +4893,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
         delegates: &[
+            "count_mismatch_tag",
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "mate_fault_tag",

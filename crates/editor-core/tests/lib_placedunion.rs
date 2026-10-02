@@ -20,8 +20,9 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult, PatternKind,
-    PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload, apply,
+    BooleanOp, CountMismatch, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult,
+    PatternKind, PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload,
+    apply,
 };
 use fixture::{ang, len, scl};
 
@@ -481,8 +482,8 @@ fn the_edit_door_refuses_a_two_spelling_count() {
 /// **Each placement-rule refusal's recourse gets through.** A rule's
 /// shape is written only by the insert that authors its node, so the
 /// recourse is that insert's: each refused shape below is refused with
-/// a recourse, and the node it names, inserted as the recourse says,
-/// applies.
+/// its own recourse, and the node it names, changed exactly as that
+/// recourse says, applies.
 #[test]
 fn a_placement_rule_refusals_recourse_gets_through() {
     let (doc, fin) = fin_only();
@@ -501,53 +502,76 @@ fn a_placement_rule_refusals_recourse_gets_through() {
         spacing: len(2.0),
     };
     let listed = || PatternKind::Explicit(vec![Frame::IDENTITY]);
-    for (label, refused, followed) in [
+    let rows = [
         (
-            "a listed rule with a count, given none",
+            "a placed union's list, with a count",
             Node::PlacedUnion {
                 input: fin,
                 count: Some(Expr::count(1)),
                 kind: listed(),
             },
-            Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+            Some(CountMismatch::ListedWithCount),
+            "insert it without a count, since the list is the count",
+            Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: listed(),
+            },
         ),
         (
-            "a stepped rule without a count, given one",
+            "a placed union's stepped rule, without a count",
             Node::PlacedUnion {
                 input: fin,
                 count: None,
                 kind: linear(),
             },
-            Node::placed_union(fin, Expr::count(2), linear()).expect("a stepped rule"),
+            Some(CountMismatch::SteppedWithoutCount),
+            "insert it with a count",
+            Node::PlacedUnion {
+                input: fin,
+                count: Some(Expr::count(2)),
+                kind: linear(),
+            },
         ),
         (
-            "a pattern's list, on a placed union",
+            "a pattern given a list",
             Node::Pattern {
                 input: fin,
                 count: Expr::count(1),
                 kind: listed(),
             },
-            Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+            Some(CountMismatch::ListedOnPattern),
+            "insert a placed union to list the placements, since a pattern steps",
+            Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: listed(),
+            },
         ),
         (
-            "an empty list, given a placement",
+            "a placed union's empty list",
             Node::placed_union_at(fin, Vec::new()),
+            None,
+            "list at least one placement",
             Node::placed_union_at(fin, vec![Frame::IDENTITY]),
         ),
-    ] {
+    ];
+    // Each row's shape: the count mismatch it is, or `None` for an
+    // empty list.
+    for (label, refused, shape, recourse, followed) in rows {
         let error = insert(refused).expect_err(label);
+        let refused_as = match &error {
+            EditError::PlacementRuleMismatch { shape, .. } => Some(*shape),
+            EditError::EmptyPlacementList { .. } => None,
+            other => panic!("{label} refuses as a placement rule: {other:?}"),
+        };
+        assert_eq!(refused_as, shape, "{label} refuses as its shape");
+        let line = error.to_string();
         assert!(
-            matches!(
-                error,
-                EditError::PlacementRuleMismatch { .. } | EditError::EmptyPlacementList { .. }
-            ),
-            "{label} refuses as a placement rule: {error:?}"
+            line.ends_with(&format!("Recourse: {recourse}")),
+            "{label} states its own recourse, {recourse:?}: {line}"
         );
-        assert!(
-            error.to_string().contains("Recourse: "),
-            "{label} states its recourse: {error}"
-        );
-        assert!(insert(followed).is_ok(), "{label} applies");
+        assert!(insert(followed).is_ok(), "{label}, followed, applies");
     }
 }
 

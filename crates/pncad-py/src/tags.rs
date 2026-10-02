@@ -131,14 +131,14 @@ use pncad::analysis::{
 use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
-    DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
-    FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
-    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError,
-    PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced,
-    UpdateError,
+    CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
+    EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
+    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
+    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck,
+    ParseError, PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    Subgroup, Unplaced, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -1253,7 +1253,8 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::NotAGauge { .. } => None,
         EditError::GaugeCycle { .. } => None,
         EditError::WouldStartPlacing { .. } => None,
-        EditError::PlacementRuleMismatch { .. } => None,
+        // Which answer the rule gives twice is the arm.
+        EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
         EditError::ImproperPlacement { .. } => None,
         EditError::NonFinitePlacement { .. } => None,
@@ -1279,6 +1280,18 @@ pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
         MetaVersionError::NotAMap => "not_a_map",
         MetaVersionError::MissingVersion => "missing_version",
         MetaVersionError::VersionNotInt => "version_not_int",
+    }
+}
+
+/// The stable tag for which answer to "how many placements" a
+/// placement-rule node gives twice — the shape
+/// `EditError::PlacementRuleMismatch` carries, published on
+/// `inner_variant`. Its three shapes are three different repairs.
+pub fn count_mismatch_tag(shape: &CountMismatch) -> &'static str {
+    match shape {
+        CountMismatch::ListedWithCount => "listed_with_count",
+        CountMismatch::SteppedWithoutCount => "stepped_without_count",
+        CountMismatch::ListedOnPattern => "listed_on_pattern",
     }
 }
 

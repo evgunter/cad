@@ -4286,7 +4286,9 @@ fn stepped_map<T: Decide>(
         // An explicit rule's frames ARE the maps.
         PatternKind::Explicit(_) => {
             return Err(NodeErrorKind::PlacementRule(
-                crate::node::PlacementRuleFault::CountSpelling,
+                crate::node::PlacementRuleFault::CountSpelling {
+                    shape: crate::node::CountMismatch::ListedOnPattern,
+                },
             ));
         }
     };
@@ -4314,7 +4316,9 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     // an explicit placement list, and this is the hand-built backstop.
     if kind.placements().is_some() {
         return Err(NodeErrorKind::PlacementRule(
-            crate::node::PlacementRuleFault::CountSpelling,
+            crate::node::PlacementRuleFault::CountSpelling {
+                shape: crate::node::CountMismatch::ListedOnPattern,
+            },
         ));
     }
     let value = value_of(results, input)?;
