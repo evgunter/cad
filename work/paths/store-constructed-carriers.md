@@ -153,3 +153,33 @@ it.
 4. Re-check `FilletArcFlattenedInStorage` and
    `profile-fillet-radius-off-at-eps-1e-6`, and whether 3 resolves
    `sketch-segment-eval-could-be-exact-at-both-ends`.
+
+## 5b on #3774 (2026-10-02): what landed, and what stopped it
+
+**Landed.** The emission core keeps (vertex, built arc) pairs; each mode's
+lowering is its one conversion and registers only what its algebra proves
+(`crate::Facts`). `Center` stores the authored centre (radius `‖a − c‖`,
+sweep `4·atan(σh/(r + σp))`, nothing registered); `Via` lowers from the
+chord with X = `(d₁ × d₂)/(|d₁||d₂| + d₁·d₂)`; fillet arcs store the
+resolution's centre and the authored radius; arc-side runs store the side's
+own circle; `circle`/`circle_split` store the authored carrier. Authored
+radii are stored as `|r|`. `Arc2::from_chord` is the one chord lowering
+(`seg::arc_carrier`, `path.rs::arc_carrier` and the geom-brep test copy
+go). `segment_curve` reads what `eval` reads.
+
+**Stopped on, for a ruling** (options on the PR):
+- the tangent arc's X: the algebraic `across/(|d| + along)` leaves
+  `r2_link`'s half-turns uncertifiable at Sym, so main's `atan2` spelling
+  stays;
+- `Sweep`/`ArcLen` and `circle_split` keep `4·atan(tan(θ/4))`: storing the
+  authored angle needs the over-full refusal
+  (`sweep-arclen-legs-fold-an-over-full-angle`) first;
+- the fillet centre: the resolution's offset centre loses 15 Sym decisions
+  on `r2_filleted_bracket` to numeric (`dihedral_wedge` 8 gated,
+  `tangent_normal_parallel` 7 theorems); the chord spelling keeps them but
+  breaks the 1e-12 fillet rows.
+
+**Not re-baselined yet** (they move with those answers): the editor-core
+Sym and drive pins (`m10_9`, `m10_10`, `m10_3_driver`, `m10_4_stackup`,
+`m10_sym_profile`, `sym_9_retry`, `decide_3`) and the f64/Interval digests
+(`m10_p_fence`, `seat7_sweep_lowering`).
