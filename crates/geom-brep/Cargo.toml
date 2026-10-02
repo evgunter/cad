@@ -40,6 +40,8 @@ slotmap = { workspace = true }
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
 proptest = { workspace = true }
+# Exact dyadic arithmetic for the oracle rows of the running bounds.
+num-bigint = { workspace = true }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
