@@ -217,3 +217,13 @@ Brief addition from the klein lesson: a pinned refusal names the knobs that were
 - **In review:**
   - tiltedcut (PR 3819, engraved before the cut; four walls; a new ZIP row on a SeamOrientation refusal that the kernel calls a bug);
   - klein's rework (PR 3792, delta review).
+
+## 2026-10-02 — klein delta review (MERGE WITH FIXES): the loop rides a float knife edge
+
+The rework is real, but the delta review found three problems.
+
+1. **The loop builds only on a float knife edge.** An exact U-turn spine refuses `PathTangentReversal`: `sweep_places` turns every station from the base tangent. The interpolated spine builds only because its end tilts mirror each other. That puts it on the C6 float knife edge, which `review_m5_pr10` pins as "executed behaviour, not intent". No public door pins end tangents or joins arcs.
+2. **The Python audit row is false.** Python cannot author the sweep, so the north-star audit row 15 no longer holds.
+3. **The Pappus oracle passes a visibly wrong loop at 1e-9.**
+
+Ruling: the loop stays. The fragility is gap-commented, the sweep-frame and bindings gaps are filed, the oracle gains a mesh-volume band, and the `circle` attempt remains as a live wall. A scene on a knife edge is acceptable only when the edge is named where a reader will find it, and here a change to it fails loudly.
