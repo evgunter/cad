@@ -30,7 +30,7 @@ strut half the `kev` removes was the loop's `first`. In 25 the rows are
 still the pass's byte for byte; in 23, across six tests
 (`m9_3_zip::two_peg_plate_union_is_exactly_additive`,
 `m9_3_wall_door::declared_rest_two_peg_reaches_downstream_of_classification`,
-`curved_mergedoor::consumed_side_of_the_pair_is_gone_and_one_record_ships`
+`curved_mergedoor::consumed_side_of_the_pair_is_gone_and_one_record_ships` (now `consumed_side_of_the_pair_leaves_the_door_nothing_to_record`)
 and three `r1_probes_m9_3` probes), every row of the loop differs from
 the pass's in its image or interval — in the row inspected, the image
 alone: `p0.x` is `2π` where the pass has `0`. The pass was run at the

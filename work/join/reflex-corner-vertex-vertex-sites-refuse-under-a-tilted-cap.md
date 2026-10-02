@@ -52,3 +52,32 @@ Every profile refuses somewhere. One example: the unit square
 
 The probe file is not committed. It is the loop above, in
 `crates/topo/tests` style.
+
+## Re-measured (JOIN-1 fix pass, PR 3790, 2026-10-02)
+
+R1's rebuild of this probe (`crates/sweep/tests/join1_r1_probes.rs`
+`join1_r1_reflex_battery`: twelve profiles — the four squares, four
+diamonds and four profiles whose edge runs through the corner — the 24
+shears, ∩, ∪ and `a ∖ b` with `flush_declarations`; 864 cases), release
+build:
+
+| outcome | main 0abf909cb | JOIN-1 fix-pass head |
+|---|---|---|
+| builds sound | 533 | 653 |
+| `SeamOrientation` | 129 | 159 |
+| `Join(UnpairedLooseEnds)` | 124 | 0 |
+| `JoinDesync` "every chord arc separates a loose scaffolding pair" | 34 | 16 |
+| `JoinDesync` "B senses agree at a matched pair" | 19 | 19 |
+| `Euler(FanStartMismatch)` | 12 | 16 |
+| `RestZipUnsupported` | 8 | 0 |
+| a WRONG body | 5 | 1 |
+
+So 326 refuse on main and 210 on the head. The one wrong body is the
+`sqQ1` union at `(sx, sy) = (−0.5, 0.25)`, volume 16 against 15.979, the
+same on main (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`);
+the other four wrong on main now refuse `FanStartMismatch`. Where the
+head's `SeamOrientation` rows came from is
+`work/join/locus-matching-moves-frontier-refusals-to-join-desync`.
+(`b ∖ a` with the same declarations refuses `InvalidDeclaration` or
+`ContactContradicted` on both, the declarations being for the `(a, b)`
+order; the battery's fourth op is left out of the table.)

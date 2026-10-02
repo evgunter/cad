@@ -383,7 +383,7 @@ Announce each crossing in the PR body.
   - `inline(split(d))` equals `d` up to node ids for S1, S2, S7, F1, F4 (where admitted), C1 and the nested-gauge shapes.
   - Compare through the composed node map, with the hoisted gauge mapped to the minted one: node payloads (gauge references, offsets, mate alignments and heads), roots as a set, parameters, and labels.
   - Build the comparator once, in the test substrate. Name the remapping it uses: `refactor::remap_node`, through `test_support`.
-  - D1's two shapes are pinned to the evaluation-equal result until Ev rules on D1. The F rows join R1 in P2-face, and C1 in P2-carry.
+  - D1's two shapes are pinned to the evaluation-equal result until Ev rules on D1. The F rows join R1 in P2-face. C1's round trip joins R1 when P2-split builds the comparator; P2-carry pins it on offsets alone.
 
 **Mutants** (plant, run, revert; report which rows go red):
 - the gauge hoist ignoring a cut instance on the anchor (S2, R1);

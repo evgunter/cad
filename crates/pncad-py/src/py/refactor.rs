@@ -420,8 +420,9 @@ impl SplitOutcome {
     ///
     /// The document and the maintenance its edits performed travel
     /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
-    /// the record `remainder_edits` produced rather than an empty
-    /// list that would read as "nothing moved".
+    /// the record `remainder_edits` produced, net of what a later edit
+    /// in the same split took back, rather than an empty list that
+    /// would read as "nothing moved".
     #[getter]
     fn remainder(&self) -> Doc {
         Doc {
@@ -433,8 +434,9 @@ impl SplitOutcome {
     /// The new part document, carrying the cut nodes.
     ///
     /// Its `last_maintenance` is what building the part from empty
-    /// reported — an offset a cut mate's insert cleared as it joined
-    /// two groups.
+    /// reported, net of what a later edit in the same split took back.
+    /// An offset a cut mate's insert cleared as it joined two groups
+    /// is re-stated by a later edit, so it is not reported.
     #[getter]
     fn part(&self) -> Doc {
         Doc {
@@ -769,7 +771,8 @@ impl InlineOutcome {
     ///
     /// The document and the maintenance its edits performed travel
     /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
-    /// what the splice's edits reported.
+    /// what the splice's edits reported, net of what a later edit in
+    /// the same inline took back.
     #[getter]
     fn doc(&self) -> Doc {
         Doc {
