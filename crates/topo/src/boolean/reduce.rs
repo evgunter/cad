@@ -1201,7 +1201,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// cylinder only rulings do, and a ruling answers `Constant`; no line
 /// lies on a torus). What the door then does is
 /// point-in-face containment on a chart, which is a trim question and
-/// not a gluing one.
+/// not a gluing one. The one on-carrier edge the arm takes is an arc
+/// whose every parent is decided a DIFFERENT carrier (`LiesOn`, below):
+/// it is a curve where two carriers meet, so it asks no cosurface
+/// question either.
 ///
 /// Returns what the caller must do about the pair — see
 /// [`CurvedEvent`]. The split itself needs `&mut x` and the worklist,
@@ -1605,9 +1608,10 @@ pub(super) fn curved_face_arm<T: Decide>(
                 // hold a zero endpoint: both CONTRADICT the endpoint
                 // rows that routed here, and a contradiction between
                 // two certified predicates keeps the door.
-                SpanVerdict::Constant | SpanVerdict::Miss | SpanVerdict::Unsettled => {
-                    Err(frontier())
-                }
+                SpanVerdict::Constant
+                | SpanVerdict::LiesOn
+                | SpanVerdict::Miss
+                | SpanVerdict::Unsettled => Err(frontier()),
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
                     // UNDECLARED: the undeclared `NoInterior` rule
                     // ([`Placement::undeclared_no_interior`]), over this
@@ -1636,9 +1640,9 @@ pub(super) fn curved_face_arm<T: Decide>(
         //   LINE: the lines that lie on a wall are its rulings, which
         //   answer `Constant`, and no line lies on a sphere or a torus.
         //   For a CIRCLE against a sphere: a circle lying on it is
-        //   centred on its axis, answered `Constant`. For a CIRCLE
+        //   centred on its axis, answered `LiesOn`. For a CIRCLE
         //   against a torus: a circle lying on it is either coaxial (a
-        //   rim or latitude circle, answered `Constant`) or has `F ≡ 0`,
+        //   rim or latitude circle, answered `LiesOn`) or has `F ≡ 0`,
         //   whose pole no anchor can put definitely off the torus
         //   (`Unsettled`). So the undeclared cosurface question
         //   (CONTACT-DESIGN C2/C4) keeps its door, and so does a
@@ -1650,6 +1654,16 @@ pub(super) fn curved_face_arm<T: Decide>(
         //
         // So the ends decide, under the same rule as the mixed-sign arm
         // ([`Placement::undeclared_no_interior`]).
+        //
+        // **An arc LYING on the carrier is an ON event** (C4's one-sided
+        // cover, narrowed to touches): exactly on by the circle root
+        // door, and every surface of a face it bounds decided distinct
+        // from `face`'s by the carrier ladder, so the arc is a curve
+        // where two different carriers meet, not a cosurface question.
+        // It takes the coplanar conic's posture, endpoint processing
+        // only, once its interior is certified to meet this face's
+        // boundary nowhere it does not run along ([`lying_on`]). A
+        // parent the ladder does not decide distinct keeps the door.
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
@@ -1657,6 +1671,11 @@ pub(super) fn curved_face_arm<T: Decide>(
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
                     Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
+                }
+                SpanVerdict::LiesOn if parents_distinct_from(x, edge, y, face, band) => {
+                    let ends = [(u, pu), (v, pv)];
+                    lying_on(x, y, x_is, edge_key, ends, face, contacts, band, tol)?
+                        .ok_or_else(frontier)
                 }
                 _ => Err(frontier()),
             }
@@ -1711,7 +1730,9 @@ pub(super) fn curved_face_arm<T: Decide>(
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
                     Ok(CurvedEvent::None)
                 }
-                SpanVerdict::Constant | SpanVerdict::Unsettled => Err(frontier()),
+                SpanVerdict::Constant | SpanVerdict::LiesOn | SpanVerdict::Unsettled => {
+                    Err(frontier())
+                }
             }
         }
         // Both inside: the residual along a line is convex (cylinder,
@@ -1818,7 +1839,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                         // verdict, levered by the selection's reach,
                         // because its pre-pass has put `q` definitely off
                         // the wall.)
-                        SpanVerdict::Constant => Err(frontier()),
+                        SpanVerdict::Constant | SpanVerdict::LiesOn => Err(frontier()),
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
                 }
@@ -1893,6 +1914,234 @@ fn on_declared_rest_carrier<T: Decide>(
     .any(|pf| declared.verified_one_carrier(x_is, pf, x_is.other(), face))
 }
 
+/// **An arc lying on `face`'s carrier, its parents distinct from it:**
+/// the endpoint records, once the arc's interior is certified to cross
+/// `face`'s boundary nowhere. Two certificates do that, and anything
+/// else keeps the door (`None`):
+///
+/// - **clear of the boundary**: every boundary vertex of the face is
+///   decided strictly on one side of the arc's own plane, and no boundary
+///   edge meets that plane inside its span ([`boundary_off_plane`]), so
+///   the arc lies wholly inside the face or wholly outside it, and its
+///   ends must agree — both placed outside is no event, both recorded is
+///   the endpoint posture;
+/// - **along edges of the partner**: both ends were paired with
+///   vertices of `y`, and `y` has a chain of circle arcs between them,
+///   each leaving along this arc's tangent where it starts
+///   ([`super::rest::arcs_along`]) and arriving at a point decided on
+///   this arc's circle. A circle through two points with a given tangent
+///   at one is unique (this arc is a circle, as only a circle answers
+///   `LiesOn`), so the chain IS this arc, and edges of a valid body
+///   cross no face's interior: the end records, with the chain's inner
+///   vertices that the other direction's sweep records on this arc, are
+///   every incidence it has.
+#[allow(clippy::too_many_arguments)]
+fn lying_on<T: Decide>(
+    x: &Body<T>,
+    y: &mut Body<T>,
+    x_is: Operand,
+    edge_key: EdgeKey,
+    ends: [(VertexKey, Point3<T>); 2],
+    face: FaceKey,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<Option<CurvedEvent<T>>, BooleanError> {
+    let curve = x
+        .get_edge(edge_key)
+        .and_then(|e| x.get_curve_geom(e.curve))
+        .and_then(CurveGeom::certified)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "an arc on a carrier: the edge's curve is lost",
+        })?;
+    let geom::Curve3::Circle {
+        center,
+        axis,
+        radius,
+        ..
+    } = *curve.carrier()
+    else {
+        return Ok(None);
+    };
+    let clear = boundary_off_plane(y, face, center, axis, band)?;
+    let mut placed = [(Placement::Undecided, None); 2];
+    for (slot, (w, pw)) in placed.iter_mut().zip(ends) {
+        *slot = vertex_on_curved_face_at(x_is, y, w, pw, face, contacts, band, tol)?;
+    }
+    let all = |p: Placement| placed.iter().all(|(q, _)| *q == p);
+    if clear {
+        return Ok(if all(Placement::Recorded) {
+            Some(CurvedEvent::Recorded)
+        } else if all(Placement::Elsewhere) {
+            Some(CurvedEvent::None)
+        } else {
+            None
+        });
+    }
+    let [(_, Some(wu)), (_, Some(wv))] = placed else {
+        return Ok(None);
+    };
+    let mut dir =
+        arc_departure(x, edge_key, ends[0].0).ok_or(BooleanError::ClassificationInvariant {
+            what: "an arc on a carrier: no departure tangent at its own end",
+        })?;
+    let escalated =
+        |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
+    // A chain visits each edge of `y` at most once.
+    let mut at = wu;
+    for _ in 0..y.edges().count() {
+        let steps = super::rest::arcs_along(y, at, None, dir, band)?.map_err(escalated)?;
+        let [step] = steps[..] else {
+            return Ok(None);
+        };
+        if step.to == wv {
+            return Ok(Some(CurvedEvent::Recorded));
+        }
+        let p = y
+            .get_vertex(step.to)
+            .and_then(|vd| y.get_point(vd.point))
+            .copied()
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "an arc on a carrier: a chain vertex has no point",
+            })?;
+        let off = p - center;
+        let h = off.dot(axis);
+        let rho = (off - axis * h).norm();
+        let miss = (h.powi(2) + (rho - radius).powi(2)).sqrt();
+        match decide("bool_arc_chain_on_circle", Margin::of(miss), band).map_err(escalated)? {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => return Ok(None),
+        }
+        at = step.to;
+        dir = step.arrival;
+    }
+    Ok(None)
+}
+
+/// Whether `face`'s whole boundary lies strictly on one side of the plane
+/// through `origin` with normal `normal`: every boundary vertex decided
+/// on one common side, and no conic boundary edge meeting the plane
+/// strictly inside its span (the splitting lane's certified roots,
+/// [`crate::splitting::conic_plane_crossing_roots`]); a line edge
+/// between two vertices on one side cannot meet it. Anything undecided,
+/// and any carrier but a line or a conic, answers `false`.
+fn boundary_off_plane<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    origin: Point3<T>,
+    normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let lost = || BooleanError::ClassificationInvariant {
+        what: "an arc on a carrier: the face's boundary is not walkable",
+    };
+    let f = y.get_face(face).ok_or_else(lost)?;
+    let point = |v: VertexKey| {
+        y.get_vertex(v)
+            .and_then(|vd| y.get_point(vd.point))
+            .copied()
+            .ok_or_else(lost)
+    };
+    let mut side: Option<Sign> = None;
+    let mut same_side = |p: Point3<T>| -> bool {
+        match decide(
+            "bool_arc_plane_side",
+            Margin::of((p - origin).dot(normal)),
+            band,
+        ) {
+            Ok(s @ (Sign::Positive | Sign::Negative)) => *side.get_or_insert(s) == s,
+            Ok(Sign::Zero) | Err(_) => false,
+        }
+    };
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        match y.get_loop(lk).ok_or_else(lost)?.boundary {
+            crate::entity::LoopBoundary::Empty { vertex } => {
+                if !same_side(point(vertex)?) {
+                    return Ok(false);
+                }
+            }
+            crate::entity::LoopBoundary::Cycle { first } => {
+                for he in y.loop_cycle(first).ok_or_else(lost)? {
+                    let h = y.get_half_edge(he).ok_or_else(lost)?;
+                    if !same_side(point(h.start)?) {
+                        return Ok(false);
+                    }
+                    let e = y.get_edge(h.edge).ok_or_else(lost)?;
+                    let Some(c) = y.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
+                        return Ok(false);
+                    };
+                    if !matches!(
+                        c.carrier(),
+                        geom::Curve3::Line { .. }
+                            | geom::Curve3::Circle { .. }
+                            | geom::Curve3::Ellipse { .. }
+                    ) {
+                        return Ok(false);
+                    }
+                    let (t0, t1) = c.params();
+                    match crate::splitting::conic_plane_crossing_roots(
+                        c.carrier(),
+                        t0,
+                        t1,
+                        origin,
+                        normal,
+                        band,
+                    ) {
+                        Err(()) | Ok(ConicPlaneMeet::Miss | ConicPlaneMeet::Parallel { .. }) => {}
+                        Ok(ConicPlaneMeet::Roots(Ok(roots))) if roots.is_empty() => {}
+                        Ok(ConicPlaneMeet::Roots(_)) => return Ok(false),
+                    }
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// The departure tangent of the certified conic edge `edge` at its end
+/// `at`: the carrier's derivative at the start of the span when `at` is
+/// the start of `he_plus`, its negated derivative at the end otherwise.
+fn arc_departure<T: Decide>(
+    x: &Body<T>,
+    edge: EdgeKey,
+    at: VertexKey,
+) -> Option<geom_core::Vec3<T>> {
+    let e = x.get_edge(edge)?;
+    let curve = x.get_curve_geom(e.curve).and_then(CurveGeom::certified)?;
+    let (t0, t1) = curve.params();
+    Some(if x.get_half_edge(e.he_plus)?.start == at {
+        curve.carrier().deriv(t0)
+    } else {
+        -curve.carrier().deriv(t1)
+    })
+}
+
+/// Whether the carrier ladder decides EVERY surface of a face the edge
+/// bounds definitely distinct from `face`'s carrier. Undeclared: a
+/// same-source pair, an undeclared coincidence, an escalation or a kind
+/// outside the ladder's inventory is not a decision, and answers false.
+fn parents_distinct_from<T: Decide>(
+    x: &Body<T>,
+    edge: &crate::entity::Edge,
+    y: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> bool {
+    [
+        x.face_of_half_edge(edge.he_plus),
+        x.face_of_half_edge(edge.he_minus),
+    ]
+    .into_iter()
+    .all(|pf| {
+        pf.is_some_and(|pf| {
+            matches!(
+                super::rest::carrier_pair_relation(x, pf, y, face, false, band),
+                Some(Ok(super::carrier_eq::CarrierRelation::Distinct))
+            )
+        })
+    })
+}
+
 /// What the certified carrier × wall roots say about ONE edge span.
 #[derive(Debug, Clone, Copy)]
 enum SpanVerdict<T: geom_core::Real> {
@@ -1910,7 +2159,7 @@ enum SpanVerdict<T: geom_core::Real> {
     /// carrier outside the face's trim. Distinct certified roots also
     /// certify that the edge does not LIE on the carrier (a line: not a
     /// ruling of a wall, and no line lies on a sphere or a torus; a
-    /// circle on a sphere or a wall answers `Constant`, and on a torus a
+    /// circle on a sphere or a wall answers [`Self::LiesOn`], and on a torus a
     /// certified count needs a pole definitely off the torus, which a
     /// circle lying on it has nowhere), which is what separates a chord
     /// from an on-carrier edge. What the
@@ -1934,6 +2183,12 @@ enum SpanVerdict<T: geom_core::Real> {
     /// whose endpoints are definitely off the wall and a cosurface
     /// question for one whose endpoints are on it.
     Constant,
+    /// The circle LIES on the surface: its residual is a zero constant,
+    /// decided exactly on by the circle root door
+    /// ([`super::circle_roots::CircleRoots::OnSurface`]; in band it
+    /// escalates there). Unlike [`Self::Constant`] this is a verdict
+    /// on the side as well as the shape.
+    LiesOn,
     /// The line definitely misses the wall entirely.
     Miss,
     /// The roots did not settle the span and the caller keeps its own
@@ -2009,7 +2264,7 @@ fn wall_crossing<T: Decide>(
                 // A circle ON the surface: its residual is a zero
                 // constant, the circle rung's analogue of the ruling that
                 // lies on a wall.
-                CircleRoots::OnSurface => (Err(SpanVerdict::Constant), radius),
+                CircleRoots::OnSurface => (Err(SpanVerdict::LiesOn), radius),
                 CircleRoots::Uncertain => (Err(SpanVerdict::Unsettled), radius),
                 CircleRoots::Miss => (Err(SpanVerdict::Miss), radius),
                 CircleRoots::CountDisagrees => {
@@ -2340,6 +2595,22 @@ pub(super) fn vertex_on_curved_face<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<Placement, BooleanError> {
+    vertex_on_curved_face_at(x_is, y, vx, px, face, contacts, band, tol).map(|(p, _)| p)
+}
+
+/// [`vertex_on_curved_face`], also naming the vertex of `y` a recorded
+/// v-v contact paired `vx` with (`None` for a v-f record, or no record).
+#[allow(clippy::too_many_arguments)]
+fn vertex_on_curved_face_at<T: Decide>(
+    x_is: Operand,
+    y: &mut Body<T>,
+    vx: VertexKey,
+    px: Point3<T>,
+    face: FaceKey,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<(Placement, Option<VertexKey>), BooleanError> {
     let placement = super::contain::curved_face_placement(y, face, px, band)
         .map_err(|e| esc(e, x_is.other()))?;
     let verdict = match placement {
@@ -2349,19 +2620,19 @@ pub(super) fn vertex_on_curved_face<T: Decide>(
     match verdict {
         Some(FaceContainment::OnVertex(vy)) => {
             push_vv(contacts, x_is, vx, vy);
-            return Ok(Placement::Recorded);
+            return Ok((Placement::Recorded, Some(vy)));
         }
         Some(FaceContainment::OnEdge(ey)) => {
             let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
             push_vv(contacts, x_is, vx, wy);
-            return Ok(Placement::Recorded);
+            return Ok((Placement::Recorded, Some(wy)));
         }
         // Strictly inside the curved face's chart trim: the same
         // v-f record the planar sweep writes ([`vertex_on_face`]),
         // now that the trim can say so.
         Some(FaceContainment::In) => {
             contacts.vf(x_is, VfContact { vertex: vx, face });
-            return Ok(Placement::Recorded);
+            return Ok((Placement::Recorded, None));
         }
         // Definitely outside this face's trim, or no verdict at all:
         // fall through to the face-free question below.
@@ -2395,7 +2666,7 @@ pub(super) fn vertex_on_curved_face<T: Decide>(
         match decide("bool_contact_vertex", Margin::norm3(px - py), band) {
             Ok(Sign::Zero) => {
                 push_vv(contacts, x_is, vx, vy);
-                return Ok(Placement::Recorded);
+                return Ok((Placement::Recorded, Some(vy)));
             }
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative) => {
@@ -2421,10 +2692,13 @@ pub(super) fn vertex_on_curved_face<T: Decide>(
     // reaches this door with the endpoint's residual decided `Zero`, so
     // an off-carrier answer contradicts that decision and is not
     // evidence the incidence lives elsewhere: it keeps the door.
-    Ok(match placement {
-        CurvedPlacement::Trim(Some(FaceContainment::Out)) => Placement::Elsewhere,
-        _ => Placement::Undecided,
-    })
+    Ok((
+        match placement {
+            CurvedPlacement::Trim(Some(FaceContainment::Out)) => Placement::Elsewhere,
+            _ => Placement::Undecided,
+        },
+        None,
+    ))
 }
 
 fn esc(e: ContainError, operand: Operand) -> BooleanError {

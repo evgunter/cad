@@ -19,9 +19,11 @@
 //!    a kissing torus pair classifies wedge 2π (the cusp family, whose
 //!    certified rim witness is defined and unbuilt). Each refuses
 //!    typed naming the arm the geometry earned.
-//! 4. **∖ and ∩ stop where ∪ does.** The torus is on the revert
-//!    roster, so each fixture under a subtract (both orders) or an
-//!    intersect refuses at the door its union meets.
+//! 4. **∖ and ∩ stop where ∪ does**, except on the socket. The torus is
+//!    on the revert roster, so each fixture under a subtract (both
+//!    orders) or an intersect refuses at the door its union meets; the
+//!    socket's union is built by the declared-REST zip, which is a
+//!    union lane, and its ∖ and ∩ stop at the section pass.
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
@@ -30,7 +32,8 @@
 //! before the sampled clearance, whose `±charge` about an identically
 //! zero residual would read definitely negative — and stops at the
 //! no-crossings fallback's section pass, on the coincident pair's
-//! tangency.
+//! tangency. The peg seated in its socket goes further: its union
+//! builds, through the declared-REST zip.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -206,28 +209,29 @@ fn wall_declarations(
 /// are ONE carrier with opposed material sides, which is what `Rest`
 /// means; the declaration is now admitted and the ladder runs on it.
 ///
-/// What the op then does is the next row's subject. This one is about
-/// the door, so it asserts only that the refusal is no longer the
-/// door's.
+/// The union then builds through the declared-REST zip: the peg and
+/// the socket share no interior, so the body is valid at tier 3 and
+/// holds exactly their two volumes.
 #[test]
 fn a_declared_torus_rest_pair_passes_the_declaration_door() {
+    let tol = Tol::witness();
     let (s, p) = (socket(), segment_a());
     let decls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
     assert!(
         !decls.coincident_faces.is_empty(),
         "the socket's bore and the peg's wall must both be torus faces"
     );
-    let err = topo::union_with(&s, &p, &decls, Tol::witness())
-        .expect_err("the lane still stops downstream — see the frontier row");
+    let body = match topo::union_with(&s, &p, &decls, tol) {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("the admitted torus Rest pair's union builds: {other:?}"),
+    };
+    assert_eq!(topo::validate_geometric(&body, tol), Ok(()), "tier 3");
+    let volume = |b: &Body<f64>| topo::mass_properties(b, tol).unwrap().volume;
+    let want = volume(&s) + volume(&p);
     assert!(
-        !matches!(
-            err,
-            BooleanError::InvalidDeclaration { .. }
-                | BooleanError::ContactContradicted { .. }
-                | BooleanError::UndeclaredCoincidence { .. }
-        ),
-        "the torus Rest declaration must be admitted and verified, not refused at the \
-         declaration door: {err:?}"
+        (volume(&body) - want).abs() <= 1e-12 * want,
+        "the peg fills the socket: {} vs {want}",
+        volume(&body)
     );
 }
 
@@ -344,17 +348,17 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
 /// nothing but two boxes: the outer wall stands 0.03 m clear of the
 /// peg, and the two faces' windows are one rectangle about one spine
 /// circle, so no sound box separates them. With the torus on the KIND
-/// roster the pair's boxes decide nothing, and the op runs on to a
-/// typed refusal downstream — never the gate's, never a body.
+/// roster the pair's boxes decide nothing, and the op runs on past the
+/// gate: the union builds.
 #[test]
 fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
     let (s, p) = (socket(), segment_a());
     let decls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
-    let err = topo::union_with(&s, &p, &decls, Tol::witness())
-        .expect_err("the peg-in-socket union does not build yet");
+    let r = topo::union_with(&s, &p, &decls, Tol::witness());
     assert!(
-        !matches!(err, BooleanError::CurvedPairUnsupported { .. }),
-        "the uncovered outer wall must not gate: {err:?}"
+        matches!(r, Ok(BooleanResult::Body(_))),
+        "the uncovered outer wall must not gate: {:?}",
+        r.err()
     );
 }
 

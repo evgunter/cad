@@ -25,25 +25,31 @@
 //! gates, coincidence doors, sweep splitting, classification — runs
 //! unchanged first; this lane consumes its RECORDS:
 //!
-//! 1. **Segments**: the null-pair germ records are matched into seam
-//!    segments by the SAME mutual-facing/nearest tests as the join
-//!    (`bool_join_chord` / `bool_join_facing` / `bool_join_nearest` —
-//!    reused predicate funnels, no new numeric predicate), with the
-//!    ambiguous face-pair identity dropped. Incomplete matching ⇒
-//!    not this frontier (the original join refusal stands).
+//! 1. **Segments**: the null-pair germ records are read, the
+//!    scaffolding is undone (step 3), and the germs are matched into
+//!    seam segments: first along circle arcs both operands carry
+//!    between the two sites ([`arcs_along`]), each such segment naming
+//!    its two arcs, then by facing along the straight chord through the
+//!    join's predicate funnels (`bool_join_chord` / `bool_join_facing` /
+//!    `bool_join_nearest`), with the ambiguous face-pair identity
+//!    dropped. Incomplete matching ⇒ not this frontier (the original
+//!    join refusal stands).
 //! 2. **Lane door**: every declared face pair is verified through
 //!    [`super::oriented_plane_eq`]'s declared rung — a false
 //!    declaration refuses [`BooleanError::ContactContradicted`]
 //!    here, never a silent no-op. Opposite-oriented verified pairs
 //!    name the REST-contact surfaces.
-//! 3. **Undo the scaffolding**: the classification's null-edge struts
-//!    are removed (`kev`, reverse mint order) from clones of the
-//!    annotated operands — the sweep's edge splits and the pierce-ring
-//!    vertices remain (both are load-bearing: they make the seam
-//!    vertex sets congruent across the mate).
+//! 3. **Undo the scaffolding**, inside step 1 between reading the germs
+//!    and matching them, so the arcs are found on the operands' own
+//!    vertex orbits: the classification's null-edge struts are removed
+//!    (`kev`, reverse mint order) from clones of the annotated operands
+//!    — the sweep's edge splits and the pierce-ring vertices remain
+//!    (both are load-bearing: they make the seam vertex sets congruent
+//!    across the mate).
 //! 4. **Seam realization** (splitting machinery reused): per segment
 //!    and per solid, either the segment already IS an operand edge
-//!    (structural fan walk — reused as the seam, minted nowhere), or
+//!    (the arc it was matched along, or a structural fan walk — reused
+//!    as the seam, minted nowhere), or
 //!    it is minted ONCE as a real chord through the standard
 //!    `mef`/`mekr` machinery in the unique face bounded by both
 //!    endpoints. No new region algebra: a segment that does not
@@ -117,13 +123,16 @@ fn unsupported(what: RestZipFrontier) -> BooleanError {
 
 /// One seam segment: the two end sites, as vertex keys per operand
 /// (the pre-insertion site vertices — they survive the scaffolding
-/// undo).
+/// undo), and, for a segment that runs along an arc of both operands,
+/// those two arcs ([`arc_along`]): two vertices can bound more than
+/// one arc, so the ends alone do not name it.
 #[derive(Clone, Copy, Debug)]
 struct Segment {
     a_u: VertexKey,
     a_v: VertexKey,
     b_u: VertexKey,
     b_v: VertexKey,
+    arcs: Option<(EdgeKey, EdgeKey)>,
 }
 
 /// The declared-REST union lane (module docs). `red` is the finished
@@ -157,7 +166,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
     // ---- 1. Segments from the germ records (A-side geometry — the
     // site points are bitwise-shared between the solids). ----
-    let Some(segments) = enumerate_segments(&red, band)? else {
+    let Some(segments) = enumerate_segments(&mut red, band)? else {
         return Ok(None);
     };
 
@@ -199,9 +208,6 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
 
-    // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
-    undo_struts(&mut red)?;
-
     // Pierce-ring vertices: ring vertex → host face, per operand.
     let mut a_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
     let mut b_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
@@ -217,7 +223,10 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut b_fragments = Vec::new();
     let a_seam = realize_seam(
         &mut red.a,
-        &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
+        &segments
+            .iter()
+            .map(|s| (s.a_u, s.a_v, s.arcs.map(|(ea, _)| ea)))
+            .collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
         tol,
@@ -227,7 +236,10 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
     let b_seam = realize_seam(
         &mut red.b,
-        &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
+        &segments
+            .iter()
+            .map(|s| (s.b_u, s.b_v, s.arcs.map(|(_, eb)| eb)))
+            .collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
         tol,
@@ -424,10 +436,12 @@ fn patch_discards<T: Decide>(
 
 /// Matches the germ records into seam segments — [`super::join`]'s
 /// mutual-facing/nearest tests with the (REST-ambiguous) face-pair
-/// identity dropped. `None`: matching did not complete — not this
-/// lane's frontier.
+/// identity dropped, after the arcs ([`arc_along`]). The germs are read
+/// first and the null-edge scaffolding is then undone (step 3), so the
+/// arcs are found on the operands' own vertex orbits. `None`: matching
+/// did not complete — not this lane's frontier.
 fn enumerate_segments<T: Decide>(
-    red: &BooleanReduction<T>,
+    red: &mut BooleanReduction<T>,
     band: Band,
 ) -> Result<Option<Vec<Segment>>, BooleanError> {
     let mut a_by_edge: SecondaryMap<EdgeKey, &BoolNullEdgeRecord<T>> = SecondaryMap::new();
@@ -482,7 +496,39 @@ fn enumerate_segments<T: Decide>(
             diag,
         )
     };
+    // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
+    undo_struts(red)?;
     let mut segments = Vec::new();
+    // **Arcs first.** An arc's end germs need not face each other
+    // along its chord (a half circle's are square to it), so the
+    // straight test cannot pair them; a germ that runs along a circle
+    // arc of BOTH operands, seen so from both ends, pairs with that
+    // arc's other end.
+    for i in 0..germs.len() {
+        for j in 0..germs.len() {
+            if germs[i].used || germs[j].used || germs[i].pair == germs[j].pair {
+                continue;
+            }
+            let ((au, bu), (av, bv)) = (sites[germs[i].pair], sites[germs[j].pair]);
+            let along = |body: &Body<T>, u, v| -> Result<Option<EdgeKey>, BooleanError> {
+                let there = arc_along(body, u, v, germs[i].dir, band)?;
+                let back = arc_along(body, v, u, germs[j].dir, band)?;
+                Ok(there.filter(|&e| back == Some(e)))
+            };
+            let (Some(ea), Some(eb)) = (along(&red.a, au, av)?, along(&red.b, bu, bv)?) else {
+                continue;
+            };
+            germs[i].used = true;
+            germs[j].used = true;
+            segments.push(Segment {
+                a_u: au,
+                a_v: av,
+                b_u: bu,
+                b_v: bv,
+                arcs: Some((ea, eb)),
+            });
+        }
+    }
     loop {
         // Globally nearest mutually-facing unused pair (the join's
         // scan order and tie discipline).
@@ -539,12 +585,129 @@ fn enumerate_segments<T: Decide>(
             a_v: av,
             b_u: bu,
             b_v: bv,
+            arcs: None,
         });
     }
     if germs.iter().any(|g| !g.used) {
         return Ok(None); // leftover germs: not a pure REST seam
     }
     Ok(Some(segments))
+}
+
+/// One circle arc [`arcs_along`] found: the edge, the vertex it arrives
+/// at, and its tangent there in the direction of travel.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ArcStep<T: geom_core::Real> {
+    pub(super) edge: EdgeKey,
+    pub(super) to: VertexKey,
+    pub(super) arrival: geom_core::Vec3<T>,
+}
+
+/// The circle arcs of `body` leaving `u` (and arriving at `v`, when
+/// given) whose departure tangent at `u` is decided ALIGNED with `dir`.
+/// A circle through two points with a given tangent at one of them is
+/// unique, and so is its arc leaving along that tangent, so an arc
+/// found this way between two given points is the one arc that leaves
+/// `u` along `dir` and arrives at `v`; in a valid body there is at most
+/// one.
+///
+/// The outer error is corruption (an unwalkable orbit); the inner one
+/// is the alignment's escalation — a tangent in band of `dir` is
+/// neither along it nor off it.
+pub(super) fn arcs_along<T: Decide>(
+    body: &Body<T>,
+    u: VertexKey,
+    v: Option<VertexKey>,
+    dir: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Result<Vec<ArcStep<T>>, geom_core::Indeterminate>, BooleanError> {
+    let corrupt = |what| BooleanError::ClassificationInvariant { what };
+    let Some(anchor) = body.get_vertex(u).and_then(|vd| vd.emanating) else {
+        return Ok(Ok(Vec::new()));
+    };
+    let orbit = body
+        .vertex_orbit(anchor)
+        .ok_or_else(|| corrupt("arc lookup: vertex orbit not walkable"))?;
+    let d = dir.normalize();
+    let mut found: Vec<ArcStep<T>> = Vec::new();
+    for he in orbit {
+        let Some(to) = body.half_edge_end(he) else {
+            return Err(corrupt("arc lookup: orbit half has no end"));
+        };
+        if v.is_some_and(|v| v != to) {
+            continue;
+        }
+        let e = body
+            .get_half_edge(he)
+            .ok_or_else(|| corrupt("arc lookup: orbit half no longer resolves"))?
+            .edge;
+        let edge = body
+            .get_edge(e)
+            .ok_or_else(|| corrupt("arc lookup: orbit edge no longer resolves"))?;
+        let Some(curve) = body
+            .get_curve_geom(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)
+        else {
+            continue;
+        };
+        let geom::Curve3::Circle { radius, .. } = *curve.carrier() else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        let (tangent, arrival) = if he == edge.he_plus {
+            (curve.carrier().deriv(t0), curve.carrier().deriv(t1))
+        } else {
+            (-curve.carrier().deriv(t1), -curve.carrier().deriv(t0))
+        };
+        let tangent = tangent.normalize();
+        let off = match decide(
+            "bool_arc_along",
+            Margin::levered(tangent.cross(d).norm(), radius),
+            band,
+        ) {
+            Ok(s) => s,
+            Err(diag) => return Ok(Err(diag)),
+        };
+        let ahead = match decide(
+            "bool_arc_ahead",
+            Margin::levered(tangent.dot(d), radius),
+            band,
+        ) {
+            Ok(s) => s,
+            Err(diag) => return Ok(Err(diag)),
+        };
+        if off == Sign::Zero && ahead == Sign::Positive && found.iter().all(|f| f.edge != e) {
+            found.push(ArcStep {
+                edge: e,
+                to,
+                arrival,
+            });
+        }
+    }
+    Ok(Ok(found))
+}
+
+/// [`arcs_along`] for the seam lane: the one arc, `None` when there is
+/// none, and the typed refusals for an escalation or two such arcs.
+fn arc_along<T: Decide>(
+    body: &Body<T>,
+    u: VertexKey,
+    v: VertexKey,
+    dir: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Option<EdgeKey>, BooleanError> {
+    let arcs = arcs_along(body, u, Some(v), dir, band)?.map_err(|diag| {
+        BooleanError::coincidence(
+            Coincide::Join,
+            DeclarationRead::Spent(ContactClass::Rest),
+            diag,
+        )
+    })?;
+    match arcs[..] {
+        [] => Ok(None),
+        [step] => Ok(Some(step.edge)),
+        _ => Err(unsupported(RestZipFrontier::ParallelSeamEdges)),
+    }
 }
 
 // ---------------------------------------------------------------
@@ -859,13 +1022,14 @@ struct SeamSet {
     per_segment: Vec<EdgeKey>,
 }
 
-/// Realizes the seam in one solid: per segment, the existing operand
-/// edge (fan walk) or a minted chord through the standard splitting
-/// machinery. `Ok(None)`: a segment does not resolve structurally —
-/// not this lane's frontier (pre-identification phase).
+/// Realizes the seam in one solid: per segment, the arc it was matched
+/// along, else the existing operand edge (fan walk), else a minted chord
+/// through the standard splitting machinery. `Ok(None)`: a segment does
+/// not resolve structurally — not this lane's frontier
+/// (pre-identification phase).
 fn realize_seam<T: Decide>(
     body: &mut Body<T>,
-    segments: &[(VertexKey, VertexKey)],
+    segments: &[(VertexKey, VertexKey, Option<EdgeKey>)],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -874,8 +1038,12 @@ fn realize_seam<T: Decide>(
         set: SecondaryMap::new(),
         per_segment: Vec::with_capacity(segments.len()),
     };
-    for &(u, v) in segments {
-        let edge = match fan_edge_between(body, u, v)? {
+    for &(u, v, arc) in segments {
+        let found = match arc {
+            Some(e) => Some(e),
+            None => fan_edge_between(body, u, v)?,
+        };
+        let edge = match found {
             Some(e) => e,
             None => match mint_chord(body, u, v, rings, fragments, tol)? {
                 Some(e) => e,
