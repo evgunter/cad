@@ -368,20 +368,20 @@ pub(crate) fn via_carrier<T: Decide>(
 
 /// The endpoint-free legs' shared derivation ([`Sweep`] / [`ArcLen`]):
 /// carrier centre from the directed start (as [`radius_carrier`]), the
-/// endpoint by rotating the start about it through the swept angle in
+/// endpoint by rotating the start about it through the swept angle θ in
 /// the side's travel sense, and the leg's arc — the authored radius as
-/// its magnitude `|r|`,
-/// and Δθ = 4·atan(tan(θ/4)) of the signed swept angle θ. Everything
-/// closed-form; the swept angle is gated definitely positive
-/// (`path_arc_sweep`).
+/// its magnitude `|r|`, and Δθ = 4·atan(X) with X = tan(θ/4) of the
+/// signed angle, the authored angle's own quarter-tangent. The swept
+/// angle is gated definitely positive (`path_arc_sweep`) and definitely
+/// short of a full turn (`path_arc_sweep_full`, on the arc length
+/// `r(2π − θ)`), so 4·atan(tan(θ/4)) is θ over the reals.
 ///
 /// **The arc's endpoint facts are theorems** (the leg registers them):
 /// the centre is the authored radius off the start along the unit
-/// normal, the end is the start rotated about it through θ, and
-/// 4·atan(tan(θ/4)) is θ less a whole number of turns wherever it is
-/// defined, so the rim at each end is the radius and the sweep turns
-/// each end onto the other, over the reals at every value of the
-/// directed start and the authored data.
+/// normal and the end is the start rotated about it through θ, so the
+/// rim at each end is the radius and the sweep turns each end onto the
+/// other, over the reals at every value of the directed start and the
+/// authored data.
 pub struct TangentArcLeg<T: Real> {
     /// The derived endpoint.
     pub end: Point2<T>,
@@ -408,6 +408,9 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     })?;
     gate_positive("path_arc_sweep", angle, band, |value| {
         PathError::DegenerateArcSpec { value }
+    })?;
+    gate_positive("path_arc_sweep_full", r * (T::tau() - angle), band, |_| {
+        PathError::ArcSweepPastFullTurn { angle }
     })?;
     let sgn = side.sign::<T>();
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);

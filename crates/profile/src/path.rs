@@ -1183,6 +1183,17 @@ pub enum PathError<T: Real> {
         /// The refused authored datum (bulge, angle, or length).
         value: T,
     },
+    /// **An endpoint-free arc leg turning a full turn or more**: a
+    /// `Sweep` angle or an `ArcLen` length whose swept angle is not
+    /// definitely short of 2π. D1 holds a stored sweep to
+    /// 0 < |Δθ| ≤ 2π, and a full turn at a chain vertex is a zero
+    /// chord; the closed carrier is `circle` / `circle_split`'s, never
+    /// a chained leg's. Classified through the funnel
+    /// (`path_arc_sweep_full`, on the arc length short of a full turn).
+    ArcSweepPastFullTurn {
+        /// The refused swept angle, radians.
+        angle: T,
+    },
     /// A [`circle_split`] subdivision count outside `2..=u32::MAX`.
     /// One vertex cannot carry a full turn (bulge = tan(θ/4) diverges
     /// at θ = 2π), so the smallest declared subdivision of a closed
@@ -1422,6 +1433,8 @@ pub enum PathErrorKind {
     NonpositiveCircleRadius,
     /// [`PathError::DegenerateArcSpec`].
     DegenerateArcSpec,
+    /// [`PathError::ArcSweepPastFullTurn`].
+    ArcSweepPastFullTurn,
     /// [`PathError::CircleSplitCount`].
     CircleSplitCount,
     /// [`PathError::PolygonTooFewVertices`].
@@ -1480,6 +1493,7 @@ impl<T: Real> PathError<T> {
             Self::NonpositiveFilletRadius { .. } => PathErrorKind::NonpositiveFilletRadius,
             Self::NonpositiveCircleRadius { .. } => PathErrorKind::NonpositiveCircleRadius,
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
+            Self::ArcSweepPastFullTurn { .. } => PathErrorKind::ArcSweepPastFullTurn,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
             Self::PolygonTooFewVertices { .. } => PathErrorKind::PolygonTooFewVertices,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
@@ -1780,6 +1794,13 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  degenerates to the chord (author a line), and a sweep angle or arc length \
                  must be definitely positive",
                 value = num(value)
+            ),
+            Self::ArcSweepPastFullTurn { angle } => write!(
+                f,
+                "this arc leg turns {angle} rad, which is not short of a full turn: a leg \
+                 sweeps less than 2π; a whole circle is circle(c, r), or circle_split(c, r, \
+                 n, phase) to place its seams",
+                angle = num(angle)
             ),
             Self::SeamRetrimsArcFirstSide => write!(
                 f,
