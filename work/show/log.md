@@ -473,3 +473,24 @@ The update walk now includes the crate and pins two walls. Knobs varied before p
 The gap is the nested gauge itself.
 
 The pivot intent is now asserted: the shelf's centroid stays on PIVOT.
+
+## 2026-10-02 — lily fixed; the slate waits on frames
+
+PR 3838's fix pass is in, at head `f1f2ec2ff`, green:
+- the QUAD row is raised to P0, with its mechanism and the class sweep;
+- `BRACKET_CEILING` is in;
+- the ε-aware wall now lives in `walls.rs`;
+- the walls are renumbered to 15 and 16.
+
+Twelve SHOW PRs are reviewed, fixed and green. All wait on their frames:
+3787, 3792, 3793, 3811, 3816, 3819, 3824, 3834, 3836, 3838, 3840.
+
+The render tag (3791) waits on Ev's §3 wording answer: "subject line" (recommended) or "message".
+
+`split-node-chords-by-name-has-no-demo` is in flight.
+
+Not yet dispatched, each held on a file an open PR holds:
+- `gallery-writes-every-document-scene`
+- `long-turn-helix-has-no-demo`
+- `projectbox-offsets-by-sixteenths-to-dodge-coincidence`
+- `a-tour-scene-meshes-every-body-at-one-delta`
