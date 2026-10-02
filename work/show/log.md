@@ -241,3 +241,19 @@ The fix pass also covers:
 - the zip-log note.
 
 **Class noted:** a single scene-wide tessellation delta re-meshes the whole body to suit its smallest feature (lily and tiltedcut). The lane cites or files the per-body delta row.
+
+## 2026-10-02 — lofts twist (PR 3816) passed on the orchestrator's read; teapot lid (PR 3824) in review
+
+Lofts read:
+- the slice-area derivation is correct;
+- the bitwise vertex identity with the prism is asserted;
+- the struts c_k→c_(k+1) are asserted;
+- the chord-average t is pinned at 4 ulp.
+
+It merges once its frame has been looked at. Teapot lid gets a single review.
+
+The two PRs re-pin the same lines of `tools/tess-lint/tests/baseline_census.rs`. Whichever merges second re-pins them during its merge.
+
+Two findings from the lane, not yet homed:
+- **"Chordal, inscribed" is wrong on saddle walls.** The tour's shared per-body line says the mesh is "chordal, inscribed". The twisted loft's saddle walls mesh to a volume ABOVE the exact one, so that sentence is false on saddle walls. It lives in demo-crate narration, so SHOW fixes it in the next unit that touches `main.rs`'s per-body line.
+- **Triangle count.** The twisted loft meshes to 42k triangles, against the prism's 8.9k.
