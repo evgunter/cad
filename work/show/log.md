@@ -265,3 +265,13 @@ PR 3819's fix pass is in: head `bed4d1660`, green. ZIP's new row is P0/H with th
 Declined a follow-up: a lines-only oval nameplate on the section face. It builds for a square and for the T at only one offset. That is a pose lottery, not a door, so the scene keeps the cap.
 
 `letterforms-flush-declared` dispatched.
+
+## 2026-10-02 — projectbox fixed; rocker dispatched; lily waits on klein
+
+- **PR 3811 fix pass in.** Head `c319b3e86`, green.
+  - Round bosses (R = 0.1875); V = 4.0701 on the closed form.
+  - Pad caps derived from what each check must see.
+  - The Python mirror re-measured; the suite runs green locally.
+  - Main briefly carried a `prose_census` red, which a base merge cured.
+- **Rocker dispatched.** `rocker-keyhole-crease-fillets` is out.
+- **Lily held.** `lily-lanceolate-blade-sections` waits until klein's fix pass lands, because that pass deletes lily's duplicate in-bin wall test. Two lanes on `lily.rs` at once would collide.
