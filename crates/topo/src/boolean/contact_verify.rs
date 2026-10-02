@@ -148,7 +148,7 @@ fn rest_pair_verdict<T: Decide>(
     let outcome = super::rest::carrier_pair_verdict(a, fa, b, fb, true, band).ok_or(
         ContactRefusal::NotCertifiable {
             what: "a declared face's surface kind is outside the Rest ladder's inventory \
-                   (plane, sphere, cylinder)",
+                   (plane, sphere, cylinder, torus), or its extent cannot be read",
         },
     )?;
     match outcome {

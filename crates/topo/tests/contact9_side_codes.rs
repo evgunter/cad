@@ -325,6 +325,70 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     }
 }
 
+/// The plane arm's lever, on a 10 m wedge resting at the origin on a
+/// block's top (20 m square), its bottom tilted so the far end stands
+/// `5·K·ε` below: `0.5·Kε` at a one-metre arm, which the ladder there
+/// bridges, and `5·Kε` at the wedge's far end. The declared `Rest`
+/// door levers the tilt at the pair's consumed extent (at least the
+/// wedge's 10 m) and contradicts it, and so does every op that uses
+/// the declaration.
+#[test]
+fn a_declared_plane_tilt_is_read_across_the_faces() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let dip = 5.0 * band.escalate();
+    let block = common::brick::<f64>((-10.0, 10.0), (-10.0, 10.0), (-20.0, 0.0), tol);
+    let wedge = parallelepiped([[10.0, 0.0, -dip], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
+    let (top, bottom) = (
+        face_with_normal(&block, [0.0, 0.0, 1.0]),
+        face_with_normal(&wedge, [0.0, 0.0, -1.0]),
+    );
+    let (ca, cb) = (
+        face_carrier(&block, top).unwrap(),
+        face_carrier(&wedge, bottom).unwrap(),
+    );
+    let declared = topo::PlaneIdentity {
+        s1: None,
+        s2: None,
+        declared: true,
+    };
+    let metre = topo::boolean::carrier_eq::carrier_eq_verdict(&ca, &cb, declared, 1.0, band);
+    assert!(
+        matches!(
+            metre,
+            Ok((topo::PlaneRelation::SameOpposite, topo::ContactVerdict::Bridged))
+        ),
+        "at a 1 m arm the tilt reads in band and the declaration bridges it: {metre:?}"
+    );
+    let door = topo::boolean::contact_pair_verdict(
+        &block,
+        top,
+        &wedge,
+        bottom,
+        topo::ContactClass::Rest,
+        None,
+        band,
+    );
+    assert!(
+        matches!(door, Err(topo::ContactRefusal::Contradicted { .. })),
+        "the door reads the tilt across the faces and contradicts it: {door:?}"
+    );
+    let mut decls = topo::BooleanDeclarations::none();
+    decls
+        .coincident_faces
+        .push(topo::FacePairDeclaration::rest(top, bottom));
+    for (what, r) in [
+        ("block - wedge", subtract_with(&block, &wedge, &decls, tol)),
+        ("union", union_with(&block, &wedge, &decls, tol)),
+    ] {
+        assert!(
+            matches!(r, Err(BooleanError::ContactContradicted { .. })),
+            "{what}: the declared tilt is contradicted, got {:?}",
+            r.as_ref().err()
+        );
+    }
+}
+
 /// The pierce germ line, read at the sector's reach: a wedge on the
 /// block's top whose 1 mm edge lies on that face while its 10 m edge
 /// RISES `500·ε` and its third edge descends into the block. The

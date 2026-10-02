@@ -1922,3 +1922,116 @@ mod tests {
         );
     }
 }
+
+/// **A declared `Rest` bridges a tilt only where it stays in band
+/// across the faces it is consumed on.** Each row poses a pair whose
+/// relative tilt reads inside the band at a one-metre arm, so the ladder
+/// at that arm accepts it, while across the faces it stands more than
+/// Kε off: the door levers the tilt at the pair's consumed extent and
+/// contradicts it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod lever_rows {
+    use super::*;
+    use crate::boolean::boxes::tests::torus_wall;
+    use crate::boolean::carrier_eq::{carrier_eq_verdict, consumed_arm};
+    use crate::contact::{ContactRefusal, ContactVerdict};
+    use crate::test_support::{CylFrame, cyl_wall_sheet};
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// Both halves: at a 1 m arm the ladder bridges the tilt; the door
+    /// levers it at `arm` (inside `lo..=hi`) and is contradicted.
+    fn bridged_at_a_metre_contradicted_at_the_extent(
+        (a, fa): (&Body<f64>, FaceKey),
+        (b, fb): (&Body<f64>, FaceKey),
+        (lo, hi): (f64, f64),
+        what: &str,
+    ) {
+        let (ca, cb) = (face_carrier(a, fa).unwrap(), face_carrier(b, fb).unwrap());
+        let id = PlaneIdentity {
+            s1: None,
+            s2: None,
+            declared: true,
+        };
+        let metre = carrier_eq_verdict(&ca, &cb, id, 1.0, band());
+        assert!(
+            matches!(
+                metre,
+                Ok((CarrierRelation::SameOpposite, ContactVerdict::Bridged))
+            ),
+            "{what}: at a 1 m arm the tilt reads in band and the declaration bridges it: {metre:?}"
+        );
+        let arm = consumed_arm(&ca, &cb, pair_reach(a, fa, b, fb).unwrap());
+        assert!(
+            (lo..=hi).contains(&arm),
+            "{what}: the door levers the tilt over the faces, {lo}..={hi} m, read {arm}"
+        );
+        match crate::boolean::contact_pair_verdict(a, fa, b, fb, ContactClass::Rest, None, band())
+        {
+            Err(ContactRefusal::Contradicted { .. }) => {}
+            other => {
+                panic!("{what}: the tilt at the extent contradicts the declaration: {other:?}")
+            }
+        }
+    }
+
+    /// A torus of `R + r = 2.5 m` against its twin tilted by `0.6·K·ε`
+    /// about `y` through the shared centre: `0.6·Kε` at one metre,
+    /// `1.5·Kε` at the tube. The arm is `R + r`.
+    #[test]
+    fn a_torus_tilt_is_read_at_the_ring() {
+        let theta = 0.6 * band().escalate();
+        let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+        let (a, fa) = torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            u,
+            v,
+        );
+        let (mut b, fb) = torus_wall(
+            Point3::origin(),
+            Vec3::new(theta.sin(), 0.0, theta.cos()),
+            Vec3::new(theta.cos(), 0.0, -theta.sin()),
+            2.0,
+            0.5,
+            u,
+            v,
+        );
+        b.set_face_sense(fb, false).unwrap();
+        bridged_at_a_metre_contradicted_at_the_extent(
+            (&a, fa),
+            (&b, fb),
+            (2.5, 2.5 + 1e-12),
+            "torus",
+        );
+    }
+
+    /// A 10 m cylinder wall against its twin tilted by `0.5·K·ε` about
+    /// `y` through the shared axis point at its foot: `0.5·Kε` at one
+    /// metre, `5·Kε` at the far rim, `√(10² + 1²)` from that point.
+    #[test]
+    fn a_cylinder_tilt_is_read_at_the_far_rim() {
+        let tol = Tol::witness();
+        let theta = 0.5 * band().escalate();
+        let (u, v) = ((0.2, 1.6), (0.0, 10.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        bridged_at_a_metre_contradicted_at_the_extent(
+            (&a, fa),
+            (&b, fb),
+            (101.0f64.sqrt(), 30.0),
+            "cylinder",
+        );
+    }
+}
