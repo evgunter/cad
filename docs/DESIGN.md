@@ -467,27 +467,28 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   stage cannot glue a planar group it was licensed to merge refuses
   the step with the merge's own typed reason, so every boolean output
   is a legal boolean operand; only a curved group's skip is recorded
-  and shipped. Every op's output has **maximal edges**: no vertex of
-  valence 2 between two distinct edges that lie on one carrier
-  between the same two faces (a pole, a circle's canonical cut and
-  every corner where the boundary turns are never such a vertex). A
-  sweep builds one rim edge per run as it builds one wall; a boolean's
-  output stage joins every such vertex after the merge, whatever drew
-  it, so a body is a function of its shape and its declared face
-  partition and a validator can check the form with no history.
-  Load-bearing dependency: `merge_coplanar_faces` **never fuses two
-  vertices into one**. The output stage deletes a vertex in two shapes,
-  both recorded in `killed_vertices`: the free end of a seam edge the
-  glue left dangling inside the merged face (that edge encloses no
-  area, so it and its free end go together, at any angle and
-  repeatedly along a seam chain), and a joined vertex, whose two edges
-  become one. Tier 3′'s strict record-drop rule (a contact record
-  whose vertex pair fused into one vertex is consumed and drops) is
-  correct *because* nothing is fused; a record citing a deleted vertex
-  drops as consumed, since nothing stands at that point any more, and
-  a vertex resting on an edge's interior is the next op's own
-  coincidence, licensed by its declared face pair. Any future fusing
-  re-opens the record-carriage class.
+  and shipped. Load-bearing dependency: `merge_coplanar_faces`
+  **never fuses two vertices into one, and a boolean never removes a
+  vertex an input drew**. A vertex is *drawn* when it descends from an
+  input's vertex through the op's own build records: operand keys,
+  graft rows, zip and weld fusions, and the vertex-to-vertex and
+  vertex-on-face coincidence rows the reduction writes; coincidence of
+  position alone does not count. The output stage deletes a vertex in
+  two shapes, both recorded in `killed_vertices`: the free end of a
+  seam edge the glue left dangling inside the merged face (that edge
+  encloses no area, so it and its free end go together, at any angle
+  and repeatedly along a seam chain), and a *joinable* vertex that no
+  input drew — valence 2, two distinct edges on one carrier between
+  the same two faces — whose two edges become one. For a pair boolean
+  the inputs are its operands; an n-ary union joins again after each
+  fold step with its members as the inputs (DM4). Tier 3′'s strict
+  record-drop rule (a contact record whose vertex pair fused into one
+  vertex is consumed and drops) is correct *because* nothing is fused;
+  a record citing a deleted free end drops as consumed, and no record
+  cites a joined vertex, since every vertex a record can cite is drawn.
+  A vertex where a contact begins or ends is one tier 3′ reconstructs
+  the contact from, so it is never joinable away. Any future fusing,
+  or deletion of a drawn vertex, re-opens the record-carriage class.
 
 **The frontier is typed, named and inventoried elsewhere.** Every
 unbuilt case refuses with a message naming its own blocker (D9 row 2),

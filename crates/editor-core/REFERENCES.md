@@ -191,7 +191,10 @@ So the chain goes, not the link:
   fold of the kernel's pair verb in member order (D9: the order is the
   list's, and the list is data). The fold builds the body. Contact is
   not judged by the fold: it is judged pairwise before the fold (the
-  contact rule below). It sits beside `Boolean(Union)`,
+  contact rule below). After every fold step the union joins each
+  joinable vertex no MEMBER drew (`docs/DESIGN.md`, the merge stage),
+  so the body is normalized against the members, not the steps, and
+  is the same in every member order. It sits beside `Boolean(Union)`,
   which stays for a pair, and beside `PlacedUnion`, which fuses
   instances of one prototype and is a different sentence (`node.rs`).
 - **Naming keys by member, not by depth.** The emitter wraps a

@@ -183,9 +183,8 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   the run: its piece locators in authored order, a one-piece run spelled as
   one locator; a run that wraps through the loop's start begins at its first
   piece after the start vertex. `LateralEdge` and `BandRim` are minted only
-  where an entity exists, so a station inside a run has none; a cap's rim
-  is one edge per run too, and holds the run as the wall does. A run wall
-  is not a merge and never `Merged`.
+  where an entity exists, so a station inside a run has none; rims and cap
+  vertices stay per piece. A run wall is not a merge and never `Merged`.
   Covers and offers (N3) read one constituents view shared by every row
   that holds a set of names — a `Merged` face, and a run held by
   `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`: `Lateral([p0, p1])`

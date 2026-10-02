@@ -46,9 +46,9 @@ continuation, a station kept on a side, a raw collinear polygon). Extrude
 and revolve build ONE wall per run on every carrier kind, so no sweep mints
 a same-key adjacency for a merge to undo. The one exception is a run that
 is the whole closed loop (a circle): it keeps its canonical cut (C12.5).
-A station inside a run has no entity in the body: a cap carries the run as
-one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges). It
-stays in the profile, where `ProfileVertexRef` names it.
+A station inside a run stays a vertex wherever a cap carries the profile
+(extrude's caps, a partial revolve's wedge caps), splitting the rim or
+meridian chain into collinear edges; in a full revolve it has no entity.
 Loft builds one wall per corresponding segment pair: across sections
 nothing declares two walls one surface, and the station pins the ruling.
 
