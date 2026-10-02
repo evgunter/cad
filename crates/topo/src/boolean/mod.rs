@@ -145,7 +145,6 @@ pub use reduce::{SweepStrategy, SweepTrace};
 // arm in one function, shared by the REST lane's verify-at-use and
 // the detector's candidate-generation mode BY CONSTRUCTION.
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
-pub use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 pub use rest::{carrier_pair_relation, carrier_pair_verdict, face_carrier, flush_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
@@ -3337,7 +3336,10 @@ mod tests {
                 stage_prefixes(&msg, &[]).is_empty() && subjectless_escalations(&msg).is_empty(),
                 "{what:?}: {msg}"
             );
-            let holes = what == RestZipFrontier::HoleCyclesIncongruent;
+            let holes = matches!(
+                what,
+                RestZipFrontier::HoleVertexUnmatched | RestZipFrontier::HoleCyclesIncongruent
+            );
             let ending = if holes {
                 HOLES
             } else {

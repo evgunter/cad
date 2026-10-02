@@ -1091,6 +1091,8 @@ pub enum RestZipFrontier {
     /// The two contact patches' face cycles do not match across the
     /// mate.
     PatchCyclesIncongruent,
+    /// A hole's boundary vertex has no partner across the seam.
+    HoleVertexUnmatched,
     /// The two contact patches' holes do not match across the mate, one
     /// for one.
     HoleCyclesIncongruent,
@@ -1122,6 +1124,7 @@ impl RestZipFrontier {
             }
             Self::PatchVertexUnmatched => "patch boundary vertex without a seam correspondent",
             Self::PatchCyclesIncongruent => "patch face cycles not congruent across the mate",
+            Self::HoleVertexUnmatched => "ring boundary vertex without a seam correspondent",
             Self::HoleCyclesIncongruent => "ring cycles not congruent across the mate",
             Self::SlitFaceHoles => "slit-zip face carries rings",
             Self::WholeBoundaryShared => "patch pair shares its whole boundary",
@@ -1138,7 +1141,7 @@ impl RestZipFrontier {
             // The zip glues the holes of the two contact faces pairwise,
             // by congruent cycles: holes that match across the mate are
             // what it takes.
-            Self::HoleCyclesIncongruent => {
+            Self::HoleVertexUnmatched | Self::HoleCyclesIncongruent => {
                 "Recourse: make the holes inside the declared contact match, one for one and \
                  corner for corner, across the two parts"
             }

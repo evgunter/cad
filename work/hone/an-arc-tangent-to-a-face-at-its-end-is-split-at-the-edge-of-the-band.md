@@ -46,4 +46,11 @@ split under the declaration or take the sector arm from the unsplit
 edge. A row that asserts no vertex lands within `sqrt(2·ε·r)` of a
 declared tangency, and that the lump reads the wall's own side.
 
+**Who waits on it.** `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`
+tells `vtxfac`'s whole-sector lump from a per-bound reading only through
+this defect, and
+`work/tang/vtxfac-tangent-sector-should-descend-per-bound.md` is parked
+on it: once it is fixed, re-run that test with `vtxfac` reading per
+bound.
+
 Filed from the TANG m9-3 residues unit (item 1's measurement).

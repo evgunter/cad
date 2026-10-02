@@ -30,30 +30,45 @@ Every site named is `crates/topo/src/boolean/rest.rs` or its neighbours in S-MAT
 
 ## Outcome (TANG m9-3 residues lane, 2026-10-01)
 
-1. **Live, not one rule — kept whole-sector, pinned.** A fixture now
-   reaches `classify_vertex_on_face`'s declared-`Tangent` arm with a
-   CURVED sector (`crates/sweep/tests/m9_3_zip.rs`,
+1. **Live; whole-sector kept for now, per bound parked behind a
+   defect.** A fixture now reaches `classify_vertex_on_face`'s
+   declared-`Tangent` arm with a CURVED sector
+   (`crates/sweep/tests/m9_3_zip.rs`,
    `a_tangent_curved_sector_on_a_face_lumps_whole`: the quarter round on
    a wide slab). Measured per bound, both of the wall sector's bounds
-   read `On` (the ruling exactly; the arc at a 2.1e-8 m arm), and this
-   door refuses two consecutive `On` entries — the per-bound form turned
-   all three ops into `ClassificationInvariant`, where the whole-sector
-   lump answers them right (difference = slab, intersection empty, union
-   to the zip). `recl_sectors` can keep an `On` bound because its edge
-   engine adjudicates one; this door has none. The reason is stated at
-   the site. The 2.1e-8 arm is its own finding:
-   `work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`.
+   read `On`: the ruling exactly, and the arc because the band-edge split
+   leaves it a 2.1e-8 m arm
+   (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`).
+   Two consecutive `On`s refuse, so per bound turned all three ops into
+   `ClassificationInvariant`, where the whole-sector lump answers them
+   right. One `On` would not refuse (`resolve_on_entries` settles an
+   isolated one from its neighbours), so the obstacle is the defect, not
+   the door; and the per-door split is not vtxfac against recl (recl
+   reads per bound at v-v and whole-sector at e-e). The switch is parked
+   on the HONE row: `work/tang/vtxfac-tangent-sector-should-descend-per-bound.md`.
+   The site comment and the test's doc say so.
 2. **Folded.** `HoleCountsDiffer` is gone: a ring-count mismatch is
    holes that do not match one for one, refused as
    `HoleCyclesIncongruent`. Sweeping the family, `HoleVertexUnmatched`
-   could not fire at all (the patch flood stops only at seam edges, so
-   every ring vertex is a segment end or a paired patch face's outer
-   vertex) and is now a lane desync. The family's other
-   variants no row reaches: `work/zip/rest-zip-frontier-refusals-reached-by-no-row.md`.
-3. **Fixed.** `interior` is scoped per glue pair: `rest::settle_glue`
-   checks after each glue that every edge it reported interior is dead
-   and every seam edge that died is one it reported, and a unit row
-   reaches all three arms (including the "did not survive" desync).
+   cannot fire on a plane (the patch flood stops only at seam edges, so
+   a ring vertex is a segment end or, by Jordan, a paired patch face's
+   outer vertex) but can on a periodic carrier, where a cylinder band's
+   outer and ring are designations only; it stays typed, the argument
+   and its limit in `glue_pair`'s doc. The family's variants no row
+   reaches, and that cylinder fixture:
+   `work/zip/rest-zip-frontier-refusals-reached-by-no-row.md`.
+3. **Fixed at function level; no end-to-end reach exists.** `interior`
+   is scoped per glue pair: `rest::settle_glue` checks after each glue
+   that every edge it reported interior is dead and every seam edge that
+   died is one it reported, and a unit row reaches all three arms on
+   hand-fed input. A widening of `interior` by LIVE edges goes red
+   end to end (the review's mutant: seven sweep rows); a widening by
+   seam edges that died in the glue cannot, because a glue that reports
+   every run edge it kills (`slit_zip` does) never produces an
+   unreported death, and measured over all 3826 topo and sweep rows no
+   real glue kills a seam segment edge at all — the band-closure
+   example the old comment gave is reached by no row (now on
+   `work/zip/rest-zip-frontier-refusals-reached-by-no-row.md`).
 4. **Already fixed** before this lane: `contain::boundary_pre_pass` is
    the one pre-pass `contfp` and `curved_boundary_containment` share,
    all-loops-vertex-first, with its red-then-green ringed-face row

@@ -1,7 +1,7 @@
 //! **The closed-form tangent locus** — the DEV-1 witness lane: the
 //! contact line of a tangent carrier pair, for exactly the
 //! configurations whose locus is closed-form. Every numeric decision is
-//! a named row through the crate's one decision door.
+//! a named row through `dihedral::decide`.
 
 use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -57,7 +57,9 @@ pub enum TangentLocusError {
 ///
 /// - `tangent_locus_axis_parallel` — the axis/plane (or axis/axis)
 ///   angular deviation `|d × n̂|` (a sine of unit vectors) levered by
-///   the **1 m verification arm** (`topo`'s carrier-pair door's own):
+///   the **1 m verification arm**, a `T::one()` literal that `topo`'s
+///   carrier-pair doors (`rest::flush_pair_relation`,
+///   `rest::carrier_pair_verdict`) spell too and must agree with:
 ///   tangency along an unbounded ruling is a carrier-level claim,
 ///   metered at the same arm the carrier ladder meters its
 ///   parallelism rungs.

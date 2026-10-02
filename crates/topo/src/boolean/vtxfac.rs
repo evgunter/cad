@@ -298,11 +298,14 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
         // sector's carrier CURVES to relative to the pierced face's
-        // material ([`super::sectors::tangent_lump`]). It is read for the
-        // WHOLE sector, not per bound as `recl_sectors` reads it: a bound
-        // riding the tangency locus reads `On` per bound, and this door
-        // has no edge engine to adjudicate one — two `On` bounds are the
-        // consecutive-`On` refusal below.
+        // material ([`super::sectors::tangent_lump`]), read for the WHOLE
+        // sector. Per bound, the bound riding the locus reads `On`, which
+        // the on-entry resolution below settles from its neighbours; but
+        // an arc tangent at this vertex is split at the band's edge, and
+        // the sliver's arm puts the arc's second-order margin in the zero
+        // band too, so the two `On`s are the consecutive-`On` refusal
+        // (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
+        // pinned by `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`).
         if class == Some(crate::contact::ContactClass::Tangent) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)

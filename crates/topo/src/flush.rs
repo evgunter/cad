@@ -106,11 +106,12 @@
 //! What a finding still does not promise is that the op will BUILD:
 //! the reduction's own frontiers lie downstream of verification
 //! (`CurvedPierceUnsupported` on a purely cylindrical mate, for one),
-//! and a true declaration meets them unchanged. `Tangent` findings
-//! wait on a locus the verifier can check
-//! ([`geom_brep::tangent_locus`]), per
-//! SELECT-DESIGN §3's closing note — tangency, unlike cosurfacing, is
-//! a class the ladder has no verdict for yet.
+//! and a true declaration meets them unchanged. `Tangent` is not
+//! detected: the verifier checks a DECLARED tangency along the
+//! closed-form locus ([`geom_brep::tangent_locus`], plane×cylinder and
+//! parallel cylinders), but this door has no enumeration of tangent
+//! candidates, and the `Rest` ladder it walks has no tangency verdict
+//! (SELECT-DESIGN §3's closing note).
 //!
 //! # The no-fusion boundary (SELECT-DESIGN GS-Q3, RULED)
 //!
@@ -298,7 +299,7 @@ pub fn pair_finding<T: Decide>(
 /// `Rest` is not a default here, it is the whole detector: this door
 /// reports cosurface contact — on any carrier the `Rest` ladder
 /// verifies — and nothing else. When a second CLASS becomes
-/// detectable (`Tangent`, once the verifier has a locus for it), this
+/// detectable (`Tangent`, whose verifier now has its locus), this
 /// function is where it is decided, once, rather than at each seat's
 /// own push.
 #[must_use]

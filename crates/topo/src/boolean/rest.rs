@@ -366,8 +366,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// Settles one glue's deaths against the seam. The surviving seam is
 /// the A-side per-segment edges (the A arena IS the result arena); a
 /// segment INTERIOR to the contact region — an already-fused run the
-/// glue consumed, e.g. the meridian seams of a closed cosurface band —
-/// dies with R's interior, and the glue reports it so. Every edge the
+/// glue consumed — dies with R's interior, and the glue reports it so. Every edge the
 /// glue reports interior is dead after it, and every seam edge that
 /// died in it is one it reports: anything else is a lane desync. `seam`
 /// holds the seam edges alive before the glue and keeps those alive
@@ -553,10 +552,11 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
 /// senses too — REST contact is precisely the `SameOpposite`
 /// verdict), and the verdict through [`super::oriented_plane_eq`] at
-/// the verification arm, which lives HERE and nowhere else: **1 m** —
-/// the declared rung contradicts only on DEFINITE margins, so the arm
-/// only meters the angular sliver band (exact fixtures decide
-/// definitely either way).
+/// the verification arm, **1 m** — a `T::one()` literal, spelled here,
+/// in [`carrier_pair_verdict`] and in [`geom_brep::tangent_locus`],
+/// which must agree. The declared rung contradicts only on DEFINITE
+/// margins, so the arm only meters the angular sliver band (exact
+/// fixtures decide definitely either way).
 ///
 /// **This door has NO in-tree consumer.** Verify-at-use stopped
 /// calling it at M9-1 and the flush detector followed when its scope
@@ -653,7 +653,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// carrier kind the `Rest` table names.
 ///
 /// Same descriptions-plus-identity construction, same verification
-/// arm (**1 m**, living here and nowhere else), same shared-by-
+/// arm (**1 m**, the literal [`flush_pair_relation`] spells), same shared-by-
 /// construction contract between the verify-at-use site and the
 /// detector's candidate-generation mode — only the carrier kind
 /// widens. The planar case reaches exactly the same numbers it
@@ -1333,11 +1333,21 @@ fn shared_run<T: Decide>(
 /// lives (a filled through-peg's handle).
 ///
 /// Rings pair one for one, so differing counts are holes that do not
-/// match, refused as a ring with no congruent partner is. Every ring
-/// vertex has a seam correspondent: the patch flood stops only at seam
-/// edges, so a ring is bounded by seam edges, whose ends are segment
-/// ends, or borders another patch face, whose outer cycle the patch
-/// pairing has already mapped.
+/// match, refused as a ring with no congruent partner is.
+///
+/// On a PLANE a ring vertex always has a seam correspondent: the patch
+/// flood stops only at seam edges, so a ring is bounded by seam edges,
+/// whose ends are segment ends, or encloses another patch face whose
+/// outer cycle the patch pairing has already mapped (the ring is that
+/// face's outer boundary, by Jordan). Neither half holds on a periodic
+/// carrier: a cylinder band's two boundary circles are outer and ring by
+/// designation only, so a ring can border a neighbouring patch face's
+/// RING, whose vertices the pairing never reads (two stacked bands mated
+/// against a band split at another height). The unmatched-vertex
+/// refusal answers that configuration; no row builds it yet. A ring
+/// that is an isolated vertex (a pierce ring no segment reached) is
+/// outside both arguments: the flood passes over it, and its promotion
+/// or its cycle read below refuses as a lane desync.
 fn glue_pair<T: Decide>(
     body: &mut Body<T>,
     fa: FaceKey,
@@ -1388,7 +1398,7 @@ fn glue_pair<T: Decide>(
             .map(|&v| {
                 vmap.get(v)
                     .copied()
-                    .ok_or_else(|| desync("REST lane: a ring vertex has no seam correspondent"))
+                    .ok_or_else(|| unsupported(RestZipFrontier::HoleVertexUnmatched))
             })
             .collect::<Result<_, _>>()?;
         let n = mapped.len();
@@ -1825,6 +1835,12 @@ mod tests {
     /// reported interior that is still alive is one too. The prism is a
     /// key scaffold: only edge liveness is read, so the death is an
     /// arena removal rather than a glue's surgery.
+    ///
+    /// This is the only coverage the unreported-death arm can have: a
+    /// glue that reports every run edge it kills (as `slit_zip` does,
+    /// pushing each before the kill) never feeds it one, so only a
+    /// broken glue reaches it end to end. No suite row has a real glue
+    /// kill a seam segment edge at all.
     #[test]
     fn a_glue_settles_each_seam_death_it_reports_and_no_other() {
         let prism = crate::fixtures::raw_prism(3, Tol::witness());
