@@ -1613,3 +1613,29 @@ Fork-log row 24's decision half is filled in. Ev took B's first recommendation; 
 - `the-create-pane-has-no-extrude-side`;
 - `face-pick-cannot-name-which-face`;
 - the boolean pair.
+
+## 2026-10-02 — AUTH-16 MERGED (`18b436c3`): a mate row says whether it placed its child
+
+Its blocker, MSOLVE's `materole-has-no-display`, closed with PR 3680, so the P1 row was the one unblocked door left. The role is a new `tree::Readout::Role` arm. It is drawn under the row in the kernel's own `Display` sentence, because a 60–70-character sentence does not fit on the row's unwrapped line.
+
+**The trap fired a sixteenth time:** the integration test hand-built a reversed copy of `seat_op_under`, and the row lookup was written out seven times in one file. The review caught both. The fix pass added `common::asm::shelf_on_post_op`, with the faces in one place, and `common::row_of`, and swept every row lookup in nine suites.
+
+The review also caught:
+- the kernel rustdoc's "on the row" claim, now "under the row";
+- `wire.rs`'s silent `unwrap_or(MateRole::Declaring)`, which this unit made visible on screen. It is now an `unreachable!` stating the invariant. I re-checked it before merging: one solve per evaluation, over the same document, records a role or a fault for every mate in `doc.order()`.
+
+Python's `MateRole` has no `__str__`; filed on BIND as `materole-reads-in-words-only-in-rust`.
+
+## 2026-10-02 — AUTHOR closes (Ev, in chat): DOORS and AUTHTAIL open
+
+Ev asked for AUTHOR to close and the remainder to split into successors, after finishing anything worth taking first. I took AUTH-16, then cut the residue. AUTHOR measured 35.5 points against 30, and the residue was two tracks with different owners.
+
+**DOORS** (`blocked`) holds five rows, every one the viewer half of a kernel row, parked on its blocker:
+- the three rulings' doors, blocked on RECIPE;
+- the clearance consumer, blocked on CLEAR.
+
+**AUTHTAIL** (`ready`, 19.5 points) holds the nine unblocked rows. One is new: `drawing-on-a-picked-face-is-a-two-form-trip`. AUTH-1 named that residue and scheduled it on AUTH-3's row, which closed without it, and two code comments still cited the closed row as its carrier.
+
+The ε row closed: PR 3590 had fixed it, and I re-verified it at 1e-6 and 1e-12.
+
+The fifteen AUTH specs are pruned. The done-state of record is `docs/doc-ledger/author-leaves-the-tracker.md`. #3762 (EDIT's exit) re-homed nothing that belonged here, and moving the blocked viewer halves in beside their RECIPE blockers was ruled out by RECIPE's own `keep_out`: viewer builds go to the GUI successors.
