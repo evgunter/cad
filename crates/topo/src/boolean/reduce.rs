@@ -1471,10 +1471,12 @@ pub(super) fn curved_face_arm<T: Decide>(
                 // clearance is against a kind with no root lane; covered,
                 // it definitely crosses. The frontier door either way.
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
-                // An uncovered ESCALATED clearance cannot reach here: the
-                // kinds with a clearance enclosure are the three the arm
-                // above takes, and every other kind returned the frontier
-                // before deciding one. Reaching here is a dispatch desync.
+                // An uncovered ESCALATED clearance cannot reach here: a
+                // plane face never reaches this arm (`face_plane` routes it
+                // to the planar lane first), and cone, NURBS and `Approx`
+                // have no clearance enclosure, so they returned the
+                // frontier before deciding one. The three kinds left are
+                // the arm above's. Reaching here is a dispatch desync.
                 Err(_) if !covered => {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "an uncovered arc's escalated clearance reached the covered \

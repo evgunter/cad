@@ -177,8 +177,8 @@ fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
 
 /// **Pruning loses no contact and no split, corpus-wide** — the guard
 /// behind [`FACE_FREE_RECORDS`]. The realized and idealized sweeps must
-/// record the same contacts and leave operands of the same sizes, on
-/// every pair both sweep. (Adopted from the review of PR 3752.)
+/// record the same contacts and leave operands of the same sizes, and a
+/// pair one of them refuses the other refuses the same way.
 #[test]
 fn n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts() {
     let key = |r: &topo::ContactRecords| {
@@ -192,10 +192,18 @@ fn n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts() {
     for (name, a, b) in corpus() {
         let real = topo::sweep_records(&a, &b, SweepStrategy::Realized, Tol::witness());
         let ideal = topo::sweep_records(&a, &b, SweepStrategy::Idealized, Tol::witness());
-        if let (Ok((rr, rs)), Ok((ir, is))) = (&real, &ideal) {
-            assert_eq!(rs, is, "{name}: the split operands' sizes differ");
-            assert_eq!(key(rr), key(ir), "{name}: the contact records differ");
-            compared.push(name);
+        match (&real, &ideal) {
+            (Ok((rr, rs)), Ok((ir, is))) => {
+                assert_eq!(rs, is, "{name}: the split operands' sizes differ");
+                assert_eq!(key(rr), key(ir), "{name}: the contact records differ");
+                compared.push(name);
+            }
+            (Err(re), Err(ie)) => assert_eq!(
+                core::mem::discriminant(re),
+                core::mem::discriminant(ie),
+                "{name}: the two sweeps refuse differently: {re:?} vs {ie:?}"
+            ),
+            _ => panic!("{name}: one sweep refuses and the other does not: {real:?} vs {ideal:?}"),
         }
     }
     assert!(

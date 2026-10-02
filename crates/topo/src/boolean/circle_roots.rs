@@ -220,9 +220,11 @@ pub(super) struct HalfAngleRows {
 /// Where [`half_angle_roots`] works: the arc `[t0, t1]` of a circle of
 /// `radius`, the ladder's `lever` (a length), and the noise meter's two
 /// inputs: `noise`, a bound on the `f64` evaluation error of `F` from
-/// its harmonics (in `F`'s units), and `f_per_metre`, a floor on
-/// `|F| / |residual|` over the surface's neighbourhood, which turns it
-/// into metres.
+/// its harmonics (in `F`'s units), and `f_per_metre`, `F`'s units per
+/// metre of the residual `residual` reads — a floor on
+/// `|F| / |residual|` near the surface, which turns `noise` into
+/// metres. A door whose `F` IS that residual (its harmonics already in
+/// metres) passes exactly `1`.
 pub(super) struct HalfAngleFrame<T> {
     pub(super) t0: T,
     pub(super) t1: T,
