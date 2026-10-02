@@ -591,6 +591,42 @@ fn split_edge_interiority_band_edges() {
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
 }
 
+/// The parent key survives as the FIRST child (original start → new
+/// vertex) and `new_edge` is the SECOND (new vertex → original end),
+/// read off the keys alone. Every other split row is symmetric in which
+/// child got which key; this one goes red if the retention is reversed.
+#[test]
+fn split_edge_parent_key_keeps_the_start_side() {
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
+    let edge = cube.mevs[0].edge;
+    let ends = |body: &Body<f64>, e: topo::EdgeKey| {
+        let data = body.get_edge(e).unwrap();
+        let start = body.get_half_edge(data.he_plus).unwrap().start;
+        let end = body.half_edge_end(data.he_plus).unwrap();
+        (start, end)
+    };
+    let (u, v) = ends(&cube.body, edge);
+    assert_ne!(u, v, "fixture edge must have distinguishable ends");
+    let created = cube.body.split_edge(edge, 0.5, Tol::witness()).unwrap();
+    let w = created.vertex;
+    assert_eq!(
+        ends(&cube.body, edge),
+        (u, w),
+        "parent key must keep the start side: original start -> new vertex"
+    );
+    assert_eq!(
+        ends(&cube.body, created.new_edge),
+        (w, v),
+        "new_edge must take the end side: new vertex -> original end"
+    );
+    assert_eq!(
+        cube.body.get_edge(created.new_edge).unwrap().he_plus,
+        created.he_plus,
+        "created.he_plus must be new_edge's plus half"
+    );
+}
+
 /// TARGET 4: revert posture on a body WITH a ring and split edges (the
 /// harder inventory than the shipped plain-cube pin): bitwise
 /// involution, D9 determinism, tier-2 currency, tier 3 = exactly
