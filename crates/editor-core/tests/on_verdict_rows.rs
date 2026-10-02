@@ -9,9 +9,10 @@
 use crate::fixture::{Recorder, ang, len, scl};
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Expr, Node,
-    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, SplitHalf, StableName, ValuePayload, declare_all, evaluate, find_flush_candidates,
+    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Expr,
+    ExtrudeSide, Node, NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SplitHalf, StableName, ValuePayload, declare_all, evaluate,
+    find_flush_candidates,
 };
 use geom_core::Tol;
 use topo::{BooleanResultKind, mass_properties};
@@ -45,6 +46,7 @@ fn block(
     r.insert(Node::Extrude {
         profile: p,
         distance: len(h),
+        side: ExtrudeSide::Along,
     })
 }
 
