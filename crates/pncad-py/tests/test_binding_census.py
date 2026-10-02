@@ -3992,6 +3992,11 @@ MEMBERS_NOT_BOUND = {
     # itself and renders from it, so there is no second document to
     # check against and no id to read back.
     "McReport::document": SHAPE,
+    # The same for the checks report and its refusal: Python's
+    # `ChecksReport` holds the evaluated document and speaks from it,
+    # and `CheckRefusal` is raised with the message already spoken.
+    "ChecksReport::document": SHAPE,
+    "CheckRefusal::document": SHAPE,
     # The chain is authored through `Placement`'s constructors and
     # `then`, and read back only as its length: the steps are the
     # `Step` entry's `different-shape` argument, one level in.
