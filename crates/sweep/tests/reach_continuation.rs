@@ -9,8 +9,8 @@
 //! the recorded curved skip; a `Rest` on an aligned pair and a
 //! continuation on an opposed one are each contradicted; the rounded
 //! stack's tangent wall edges are covered through a structural tangency
-//! on EITHER operand, while a tangency in the middle of an edge keeps
-//! its typed refusal; and every output is a legal boolean operand.
+//! on EITHER operand, and a tangency in the middle of an edge builds in
+//! either operand order; and every output is a legal boolean operand.
 //! The rows after them: a kiss or a gap is no continuation; an
 //! overlapping continuation refuses undeclared and builds declared in
 //! every op; and the declared overlaps that still refuse are pinned at
@@ -369,32 +369,132 @@ fn the_tangent_edge_cover_reads_a_strut_on_either_operand() {
     }
 }
 
-/// **A tangency in the middle of an edge keeps its typed refusal.** A
-/// sharp plate stacked on a rounded one: the sharp plate's straight
-/// bottom edges pass the rounded plate's tangent points mid-span, where
-/// the cover — which records endpoints only — has nothing to say, so
-/// the crossing layer refuses as before. (Taken the other way round the
-/// rounded operand's own wall edges are swept first and split the
-/// sharp edges at the tangent points, so the touch lands on endpoints
-/// and the stack builds; that order is the row below the refusal.)
+/// The L: 6 × 6 less its 3 × 3 north-east quarter (area 27), every
+/// corner — the concave one included — rounded by `r`.
+fn ell_rounded(r: f64) -> ProfileLoop<f64> {
+    let t = tol();
+    let mut path = Open
+        .at(Point2::new(3.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .expect("south runs east");
+    for (corner, (dx, dy)) in [
+        (Point2::new(6.0, 1.5), (0.0, 1.0)),
+        (Point2::new(4.5, 3.0), (-1.0, 0.0)),
+        (Point2::new(3.0, 4.5), (0.0, 1.0)),
+        (Point2::new(1.5, 6.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 3.0), (0.0, -1.0)),
+    ] {
+        path = path
+            .fillet(r, t)
+            .expect("a positive radius")
+            .at(corner, t)
+            .expect("the fillet fits")
+            .toward(dx, dy, t)
+            .expect("the next side");
+    }
+    path.fillet(r, t)
+        .expect("a positive radius")
+        .to(Start, t)
+        .expect("the last fillet fits")
+        .into()
+}
+
+fn ell_sharp() -> ProfileLoop<f64> {
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(6.0, 0.0),
+        Point2::new(6.0, 3.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(3.0, 6.0),
+        Point2::new(0.0, 6.0),
+    ])
+}
+
+/// The area one corner fillet of radius `r` takes off a convex corner
+/// (or adds to a concave one): the unit square's corner less a quarter
+/// disc.
+fn corner(r: f64) -> f64 {
+    (1.0 - core::f64::consts::FRAC_PI_4) * r * r
+}
+
+/// **A tangency in the middle of an edge builds in either operand
+/// order, in every op.** A sharp outline stacked on its rounded twin:
+/// the sharp plate's straight bottom edges pass the rounded plate's
+/// fillet tangent points mid-span, where the rounded plate has a vertex
+/// (its flat wall ends there) and the sharp one has none. Whichever
+/// operand's edges are swept first, the touch is read on the edge's
+/// fragments once both directions have split it, and the Rest seam
+/// along each fillet's rim carries the fillet's arc on both sides.
+///
+/// Two outlines, each at r = 0.25, 0.5 and 1: the 6 × 4 plate (four
+/// convex corners), and the 6 × 6 L with its 3 × 3 notch (five convex
+/// corners and a concave one, whose fillet adds material the sharp L
+/// lacks). Volumes are closed form: the plate's area is 24 − 4c and the
+/// L's 27 − 5c + c, where c is [`corner`]. The stacked interiors are
+/// disjoint, so the union is the sum, each difference is its minuend,
+/// and the intersection is empty. Faces: the sharp plate 6, the rounded
+/// one 10, the union 14 (two caps, the four corner overhangs of the
+/// sharp plate's bottom, four merged walls, four fillets); the sharp L
+/// 8, the rounded one 14, the union 20 (two caps, five corner
+/// overhangs, the rounded L's top exposed at the concave fillet, six
+/// merged walls, six fillets).
 #[test]
-fn a_tangency_in_the_middle_of_an_edge_keeps_its_typed_refusal() {
-    let (sharp_q, rounded_p) = (plate(sharp(), 1.0), plate(rounded(R), 0.0));
-    let (mate, walls) = findings(&sharp_q, &rounded_p);
-    let err = topo::union_with(&sharp_q, &rounded_p, &with(&mate, &walls), tol())
-        .expect_err("a mid-edge tangency is a frontier");
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPierceUnsupported {
-                operand: Operand::A,
-                ..
+fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
+    for r in [0.25, 0.5, 1.0] {
+        let poses = [
+            (
+                "plate",
+                plate(sharp(), 1.0),
+                plate(rounded(r), 0.0),
+                (W * H, 6),
+                (W * H - 4.0 * corner(r), 10),
+                14,
+            ),
+            (
+                "L",
+                plate(ell_sharp(), 1.0),
+                plate(ell_rounded(r), 0.0),
+                (27.0, 8),
+                (27.0 - 4.0 * corner(r), 14),
+                20,
+            ),
+        ];
+        for (outline, sharp_q, rounded_p, sharp_vf, rounded_vf, union_faces) in poses {
+            for (order, a, b, (va, fa), (vb, fb)) in [
+                ("sharp is A", &sharp_q, &rounded_p, sharp_vf, rounded_vf),
+                ("rounded is A", &rounded_p, &sharp_q, rounded_vf, sharp_vf),
+            ] {
+                let label = format!("{outline}, r = {r}, {order}");
+                let (mate, walls) = findings(a, b);
+                let ab = with(&mate, &walls);
+                let (mate, walls) = findings(b, a);
+                let ba = with(&mate, &walls);
+                builds(
+                    &format!("{label}: A ∪ B"),
+                    topo::union_with(a, b, &ab, tol()),
+                    va + vb,
+                    union_faces,
+                );
+                builds(
+                    &format!("{label}: A ∖ B"),
+                    topo::subtract_with(a, b, &ab, tol()),
+                    va,
+                    fa,
+                );
+                builds(
+                    &format!("{label}: B ∖ A"),
+                    topo::subtract_with(b, a, &ba, tol()),
+                    vb,
+                    fb,
+                );
+                let meet = topo::intersect_with(a, b, &ab, tol());
+                assert!(
+                    matches!(meet, Ok(BooleanResult::Empty)),
+                    "{label}: A ∩ B, the interiors are disjoint: {meet:?}"
+                );
             }
-        ),
-        "{err:?}"
-    );
-    let (mate, walls) = findings(&rounded_p, &sharp_q);
-    union_honest("rounded is A", &rounded_p, &sharp_q, &with(&mate, &walls));
+        }
+    }
 }
 
 /// **Every output is a legal boolean operand.** Each stack's result is
