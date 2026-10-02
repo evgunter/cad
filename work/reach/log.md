@@ -483,3 +483,74 @@ curved-operand refusals) better than CLEAVE's, and the row itself
 invited a re-home. The design question in it (a root lane per face
 kind, or re-entry through the germ-chord lanes) has not been weighed
 yet. — (CLEAVE orchestrator)
+
+## 2026-10-02 — the boolean door's volume backstop (PR 3844)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR-46), with
+the MAJOR raised by both reviewers; then a fix pass and a delta review.
+The orchestrator checked the last fix pass itself.
+
+- **The rounding tie.** A closed-form tie two ulps past a bound now
+  builds. Interval re-derivation only certifies a violation the
+  rounding cannot move.
+- **New bounds.** The backstop also bounds `∪ ≤ A + B`, `∖ ≥ A − B` and
+  the result's +V sign, read on tier 3's own rule.
+- **The allowance, ruled out.** The first head also widened every
+  margin by an allowance for declared pairs. Both reviewers showed that
+  it let MAJ-1's own wrong component through. Ruling: remove it, not
+  tighten it. A volume allowance forgives a defect of its size anywhere
+  in the body. The settled-coincidence residue it was meant for refuses
+  again and is filed (P2, design).
+- **The stopped half.** Gating tier 3 at the door went to designers.
+  Both found the "description gap" in the gate's doc closed since M3
+  PR 6a. After two reconciliation rounds (a crossover first) they
+  converged: the finished body becomes a type (`AtRestBody`), and verb
+  doors take and return it. That goes to Ev as an `[ev]` PR.
+
+The dual-review row (DR-46) rides this PR's last commit.
+— (REACH orchestrator)
+
+
+## 2026-10-02 — the near-tangent snowman at ε 1e-12 (PR 3847)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR row on this
+commit), both APPROVE-WITH-FIXES with no MAJOR; then one fix pass, which
+the orchestrator checked itself.
+
+- **Built.** δ 1e-5 and 1e-6 at ε 1e-12, every op. At ε 1e-9 the ×1e3
+  and non-unit-radius pairs now build too: 56 ops more than main at each
+  of 1e-12 and 1e-9, and none fewer.
+- **The meter.** Factored extremes with running rounding bounds; the
+  frame's defect charged; the root measured from the near extreme.
+  `geom_core::running` hosts the running-error scalar, and
+  `UNIT_ROUNDOFF` is the one spelling of `u`.
+- **The fix pass.** Pin rows for the near/far selection and for each
+  slack term, each red under its mutant. The bound is checked against an
+  exact dyadic evaluation. The bits that moved are disclosed in the PR
+  body.
+- **Residue.** The f64 floor (δ 1e-7 at ε 1e-12) needs an error-free
+  transform the scalar contract lacks, so it goes to design (P3). Two
+  sibling meters are filed.
+— (REACH orchestrator)
+
+## 2026-10-02 — a mid-edge tangency in either operand order (PR 3846)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR row on this
+commit), both APPROVE-WITH-FIXES with no MAJOR; then one fix pass, which
+the orchestrator checked itself.
+
+- **Built.** Sharp-over-rounded stacks, a concave L and mismatched-radius
+  stacks now build in both operand orders, under every op. Before this,
+  one order refused `CurvedPierceUnsupported`.
+- **How.** A covered line touching a wall or a sphere inside an edge is
+  deferred. It is settled on the edge's fragments once both directions
+  have split it (`settle_deferred`, through one `sweep_and_settle`
+  driver), and the accepted pair is written to the trace.
+- **The fix pass.** Both reviewers showed `settle_held` had no row that
+  could fail. Rows now red under each mutant, including a comb pose
+  whose touch lies in a middle fragment (checked again by the
+  orchestrator on the merged head). The arms no fixture reached were
+  removed, and the README promises only what the code does.
+- **Residue.** Two items filed: a non-convex touch read at a fragment's
+  ends only, and an offset stack that refuses `Join(UnpairedLooseEnds)`.
+— (REACH orchestrator)

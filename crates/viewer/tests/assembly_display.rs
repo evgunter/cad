@@ -355,6 +355,60 @@ fn fused_geometry_refuses_both_display_ops_typed() {
     }
 }
 
+/// **A fused instance's refusal lists the others in document order**,
+/// whatever their ids: the union takes instances until the ones after
+/// the first do not run in id order, so a list read off an id-ordered
+/// set would differ.
+#[test]
+fn a_fused_instances_refusal_lists_the_others_in_document_order() {
+    let tol = Tol::witness();
+    let bench = asm::bench("fusedorder", tol);
+    let fused = |n: usize| {
+        let mut doc = pncad::document::ProfileDoc::empty(
+            pncad::document::DocumentId::derive("gui4-fusedorder"),
+            tol,
+        );
+        let members: Vec<RecipeNodeId> = (0..n)
+            .map(|_| {
+                common::insert_into(
+                    &mut doc,
+                    pncad::document::Node::instantiate_part(bench.post),
+                    tol,
+                )
+            })
+            .collect();
+        let union = common::insert_into(
+            &mut doc,
+            pncad::document::Node::Union {
+                members: members.clone(),
+                declare: None,
+            },
+            tol,
+        );
+        (doc, members, union)
+    };
+    let (doc, members, union) = (3..12)
+        .map(fused)
+        .find(|(_, m, _)| m[1..].windows(2).any(|w| w[0] > w[1]))
+        .expect("some member count puts the later instances out of id order");
+    match display::display_check(&doc, members[0]) {
+        Err(AdmissionFault::FusedGeometry {
+            instance,
+            root,
+            others,
+        }) => {
+            assert_eq!(instance.id(), members[0]);
+            assert_eq!(root.id(), union);
+            assert_eq!(
+                others.iter().map(|o| o.id()).collect::<Vec<_>>(),
+                members[1..],
+                "the others, as the document holds them"
+            );
+        }
+        other => panic!("expected FusedGeometry, got {other:?}"),
+    }
+}
+
 /// **The per-instance section is drawn for a fused instance and its
 /// display controls are not** — the two gates are two different tests,
 /// and the properties pane reads both.

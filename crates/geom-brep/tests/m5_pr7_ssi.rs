@@ -2858,9 +2858,10 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
                 let ending = err.ending(geom_brep::recourse::Reading::Build);
                 let edge = geom_brep::PlaneNurbsRefusal::ChartSpeed(got)
                     .ending(geom_brep::recourse::Reading::Build);
-                assert!(
-                    ending.is_some() && ending == edge,
-                    "{name}: {ending:?} vs {edge:?}"
+                assert_eq!(
+                    Some(ending.as_str()),
+                    edge.as_deref(),
+                    "{name}: the two doors' endings"
                 );
             }
             other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
@@ -2895,7 +2896,11 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
 ///   settle it, and the answer is `StepRefinementFailed` before the
 ///   re-march is reached;
 /// - a shorter branch is a step that collapses into the band, or a
-///   step whose progress the band cannot decide;
+///   step whose progress the band cannot decide, unless the branch's
+///   distance `spread/4` to the net's `z = 0` edge is in the band's
+///   escalation zone: then its seed's open end escalates before it is
+///   marched, as a branch running in the band of the domain's boundary
+///   does;
 /// - from `1e-100` down, the transversality margin is unreadable and
 ///   escalates `ssi_transversality`.
 #[test]
@@ -2937,6 +2942,17 @@ fn a_tiny_net_the_plane_meets_traces_or_refuses_by_the_kind_its_size_earns() {
             assert!(
                 (span - 3.0 * s).abs() <= 1.0e-6 * s,
                 "{at}: the carrier spans {span:e} m"
+            );
+        } else if 0.25 * s > band().zero() && 0.25 * s <= band().escalate() {
+            assert!(
+                matches!(
+                    &r,
+                    Err(SsiError::Escalated {
+                        decision: TraceDecision::BranchOpenEnd,
+                        ..
+                    })
+                ),
+                "{at}: {r:?}"
             );
         } else {
             assert!(
@@ -3515,8 +3531,7 @@ fn trace_unresolved(what: &str, r: Result<geom_brep::SsiOutcome, SsiError>) -> (
     assert!(
         shown.contains("the surfaces touch at a point")
             && shown.contains("runs within the tolerance of the domain's boundary")
-            && shown
-                .contains("Recourse: if the surfaces meet along a curve longer than the tolerance")
+            && shown.contains("Recourse: for a curve longer than the tolerance")
             && !shown.contains("kernel defect"),
         "{what}: {shown}"
     );
@@ -3651,5 +3666,291 @@ fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
             (margin - delta).abs() < 1.0e-2 * delta.abs(),
             "δ = {delta:e}: the open end read {margin:e} m"
         );
+    }
+}
+
+/// **The ℝ³ lane drops a seed Newton settles outside the slab, and
+/// still finds the branch.** The slab's top face `z = 0.996` cuts the
+/// planted north loop, whose height runs from 0.9939 to 0.9988, at a
+/// shallow angle. Near the crossing the curve runs almost along the
+/// face, so min-norm Newton settles the subdivision's cell centre
+/// `(0.0378125, −0.08046875, 0.9944375)` on the loop about 0.1 mm above
+/// the face. That seed is no branch. A seed further in marches the arc
+/// below the face, which certifies as the one branch, ending on the
+/// boundary.
+#[test]
+fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
+    let d = SsiDomain {
+        center: Point3::new(0.03, 0.0, 0.896),
+        half_extent: 0.1,
+        extent: 0.2,
+        floor_scale: 1.0,
+    };
+    let seed = Point3::new(0.0378125, -0.08046875, 0.9944375);
+    match ssi::idealized_trace_r3(&threaded_cylinder(), &sphere(), seed, d, band()) {
+        Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+            margin < -1.0e-5,
+            "the seed settles outside the slab: {margin:e} m"
+        ),
+        other => panic!("the seed at {seed:?} is no branch, got {other:?}"),
+    }
+    let out = match ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band()) {
+        Ok(out) => out,
+        Err(SsiError::FitSampleBudget { .. }) => {
+            vacuity::stood_down(
+                &format!("the clipped north loop, ε {:e}", eps()),
+                "the arc wants more samples than the fit budget allows, so the door's \
+                 handling of the off-slab seed is not asserted at this ε",
+            );
+            return;
+        }
+        Err(e) => panic!("the clipped north loop does not certify: {e:?}"),
+    };
+    assert_eq!(out.branches.len(), 1, "the arc below the face");
+    assert_ne!(
+        out.branches[0].end,
+        BranchEnd::Closed,
+        "the arc ends on the face"
+    );
+}
+
+/// The dome `W(d)`: a clamped quadratic 3×3 net, weights 1, control
+/// points `(i/2, 0, j/2)` with the centre one moved to `y = −d`. Its
+/// surface is `x = s, z = t, y = −4d·s(1−s)·t(1−t)`, with section
+/// curvature `2d` per metre at the centre.
+fn dome_wall(d: f64) -> NurbsSurface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::with_capacity(9);
+    for i in 0..3u8 {
+        for j in 0..3u8 {
+            let y = if i == 1 && j == 1 { -d } else { 0.0 };
+            control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
+        }
+    }
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+}
+
+/// The plane `x + y = 0.5 − d/8` across the dome's dip, and the domain
+/// centred on it.
+fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    let at = Point3::new(0.5, -d / 8.0, 0.5);
+    let plane = Surface::Plane {
+        origin: at,
+        normal: Vec3::new(s2, s2, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let dom = SsiDomain {
+        center: at,
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    (plane, dom)
+}
+
+/// **A seed Newton settles off the wall's chart is no branch.** The
+/// subdivision hands the tilt cut of the dome `W(d)` a seed one cell
+/// from the wall's `t = 0` edge, at `(0.369, 0.00195)` for `d = 1` and
+/// `(0.243, 0.00098)` for `d = 2`, and min-norm Newton settles it at
+/// `t ≈ −1e-3`. Marched from there, the out-of-chart seed reached the
+/// fit, and the cut refused limb 1 by millimetres (1.6 mm and 3.4 mm)
+/// or as a trace of one sample. Settled outside, the seed is no
+/// branch, and a seed further in marches the branch to the edge.
+///
+/// What the cut refuses now is pinned by name and ε:
+/// - `TubeStraddles` at 1e-6
+///   (`work/ssi/plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps.md`);
+/// - limb 2 at 1e-9, inferred but not traced to be cause 4 of
+///   `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
+/// - the fit budget at 1e-12, that row's cause 2.
+///
+/// None of them is a carrier off the wall.
+#[test]
+fn a_seed_settled_off_the_walls_chart_is_no_branch() {
+    let b = band();
+    for (d, seed) in [(1.0, (0.369, 0.00195)), (2.0, (0.243, 0.00098))] {
+        let (plane, dom) = dome_tilt(d);
+        let wall = dome_wall(d);
+        match ssi::trace_plane_nurbs_uncertified(&plane, &wall, seed, dom, b.zero(), b) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+                margin < -1.0e-4,
+                "d = {d}: the seed settles a millimetre off the chart: {margin:e} m"
+            ),
+            other => panic!("d = {d}: the seed {seed:?} is no branch, got {other:?}"),
+        }
+        let r = ssi::plane_nurbs_ssi(&plane, &wall, dom, b);
+        let at = format!("d = {d}, ε {:e}", eps());
+        if let Err(
+            SsiError::CertificateLimb {
+                limb: SsiLimb::OnLocus,
+                ..
+            }
+            | SsiError::TraceUnresolved { .. },
+        ) = r
+        {
+            panic!("{at}: a carrier off the wall's chart: {r:?}");
+        }
+        let pinned = match eps() {
+            1.0e-6 => matches!(r, Err(SsiError::TubeStraddles { .. })),
+            1.0e-9 => matches!(
+                r,
+                Err(SsiError::CertificateLimb {
+                    limb: SsiLimb::HullSup,
+                    ..
+                } | SsiError::CertificateEscalated {
+                    limb: SsiLimb::HullSup,
+                    ..
+                })
+            ),
+            1.0e-12 => matches!(r, Err(SsiError::FitSampleBudget { .. })),
+            _ => {
+                vacuity::stood_down(
+                    &at,
+                    "the cut's remaining refusal is measured at ε 1e-6, 1e-9 and 1e-12 only, \
+                     so which cause refuses it here is not pinned",
+                );
+                true
+            }
+        };
+        assert!(pinned, "{at}: the cut's refusal moved: {r:?}");
+    }
+}
+
+/// **A spent step budget ends by the rung that held the steps short.**
+///
+/// - Curvature: the planted fixture at a thousand times its size, at
+///   ε = 1e-12. The fit's between-sample rung `(ε/κ³)^¼` binds every
+///   step, which no extent lengthens: it names the domain, which cuts an
+///   open branch's step count, and the tolerance as the last resort,
+///   and no extent.
+/// - Cap: the substrate wall traced from its seed with a feature extent
+///   of 1e-4 m, whose `SSI_STEP_MAX` share caps every step far below
+///   the curvature rung at ε = 1e-9. The extent is the lever.
+///
+/// Both run at a band of their own, so the rung under test does not
+/// move with the run's ε.
+#[test]
+fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::StepBound;
+    let s = 1000.0;
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: s,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let cylinder = Surface::Cylinder {
+        origin: Point3::new(0.03 * s, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.08 * s,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let domain = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 1.5 * s,
+        extent: 2.0 * s,
+        floor_scale: 1.0,
+    };
+    match ssi::cylinder_sphere_ssi(&cylinder, &sphere, domain, band_at(1e-12)) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Curvature, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("held short by the curvature against the tolerance")
+                    && shown.contains(
+                        "Recourse: name a domain around just the feature traced, or loosen \
+                         the tolerance",
+                    )
+                    && shown.ends_with(geom_core::KERNEL_LIMIT_LAST_RESORT)
+                    && !shown.contains("feature extent"),
+                "{shown}"
+            );
+        }
+        other => panic!("the scaled planted fixture: expected the step budget, got {other:?}"),
+    }
+
+    let domain = SsiDomain {
+        extent: 1e-4,
+        ..wall_domain()
+    };
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), domain, 1e-9, band_at(1e-9)) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Cap, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("held short by the feature extent or the domain")
+                    && shown
+                        .contains("Recourse: name a feature extent near the size of the feature"),
+                "{shown}"
+            );
+        }
+        other => panic!("the capped wall trace: expected the step budget, got {other:?}"),
+    }
+}
+
+/// A zigzag wall: 41 columns 0.05 m apart along `x`, alternating
+/// ±0.15 m in `y`, cubic in `u`, extruded 0.8 m along `z`. Its section's
+/// curvature swings at every column, so a march along it is held short
+/// by the curvature near the turns and by the cap between them.
+fn zigzag_wall() -> NurbsSurface<f64> {
+    const COLUMNS: usize = 41;
+    let degree = 3;
+    let mut knots = vec![0.0; degree + 1];
+    let spans = COLUMNS - degree;
+    #[allow(clippy::cast_precision_loss)]
+    knots.extend((1..spans).map(|i| i as f64 / spans as f64));
+    knots.extend(vec![1.0; degree + 1]);
+    let ku = KnotVector::clamped(knots, degree).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(2 * COLUMNS);
+    for i in 0..COLUMNS {
+        #[allow(clippy::cast_precision_loss)]
+        let x = 0.05 * i as f64;
+        let y = if i % 2 == 0 { 0.15 } else { -0.15 };
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 2 * COLUMNS]).unwrap()
+}
+
+/// **A branch whose steps both rungs held names both levers.** The
+/// zigzag wall traced from its seed at a feature extent of 3e-3 m and
+/// ε = 1e-12: the cap binds between the turns and the curvature at
+/// them, each for well over a quarter of the steps
+/// (`STEP_BOUND_MINORITY`), so a majority vote would name one lever
+/// and miss the other.
+#[test]
+fn a_step_budget_both_rungs_held_names_both_levers() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::StepBound;
+    let domain = SsiDomain {
+        center: Point3::new(1.0, 0.0, 0.4),
+        half_extent: 1.5,
+        extent: 3e-3,
+        floor_scale: 1.0,
+    };
+    let wall = zigzag_wall();
+    match ssi::trace_plane_nurbs_uncertified(
+        &cutting_plane(),
+        &wall,
+        (0.5, 0.5),
+        domain,
+        1e-12,
+        band_at(1e-12),
+    ) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Both, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("the curvature against the tolerance and by the feature extent")
+                    && shown.contains("name a feature extent near the size of the feature traced")
+                    && shown.contains("loosen the tolerance"),
+                "{shown}"
+            );
+        }
+        other => panic!("the zigzag wall trace: expected the step budget, got {other:?}"),
     }
 }

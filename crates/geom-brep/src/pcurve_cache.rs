@@ -2726,6 +2726,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::StepCollapsed { .. }
         | E::StepUnusable { .. }
         | E::SeedRefinementFailed { .. }
+        | E::SeedOffDomain { .. }
         | E::StepRefinementFailed { .. }
         | E::SelfCrossingLocus { .. }
         | E::Fit(_)
@@ -2733,7 +2734,6 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::FitSampleBudget { .. }
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }
-        | E::Band(_)
         | E::InvalidMarchTol { .. }
         | E::MarchTolMismatch { .. } => (
             None,
