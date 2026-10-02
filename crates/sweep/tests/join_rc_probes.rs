@@ -266,3 +266,115 @@ fn reflex_corner_struts_past_a_half_turn_build_sound() {
         }
     }
 }
+
+/// REVIEW (join/reflex-corner-review): the reflex probe widened —
+/// every probe profile also rotated about the corner, eleven shears per
+/// axis, all four ops — with the legal-operand gate as a column.
+/// `RCW_SHARD="k/n"` runs one shard of the profiles.
+#[test]
+#[ignore = "review battery; run with --ignored --nocapture"]
+fn review_rc_wide_battery() {
+    let shard = std::env::var("RCW_SHARD").unwrap_or_else(|_| "0/1".into());
+    let (k, n): (usize, usize) = {
+        let w: Vec<usize> = shard.split('/').map(|x| x.parse().unwrap()).collect();
+        (w[0], w[1])
+    };
+    let a_prof = ccw(A_PROFILE.to_vec());
+    let a = prism_z::<f64>(&a_prof, 0.0, 1.0, tol()).body;
+    let va = area(&a_prof);
+    let shears = [
+        -0.75, -0.5, -0.3, -0.25, -0.1, 0.0, 0.1, 0.25, 0.3, 0.5, 0.75,
+    ];
+    let rots: [f64; 7] = [0.0, 0.003, 7.0, -20.0, 33.0, 100.0, 190.0];
+    std::panic::set_hook(Box::new(|_| {}));
+    let mut idx = 0;
+    for (name, base) in PROFILES.iter() {
+        for &rot in &rots {
+            idx += 1;
+            if idx % n != k {
+                continue;
+            }
+            let (c, s) = (rot.to_radians().cos(), rot.to_radians().sin());
+            let prof = ccw(base
+                .iter()
+                .map(|&(x, y)| (c * x - s * y, s * x + c * y))
+                .collect());
+            let vb = area(&prof) * 2.0;
+            for &sx in &shears {
+                for &sy in &shears {
+                    if sx == 0.0 && sy == 0.0 {
+                        continue;
+                    }
+                    let mut b = Body::<f64>::new();
+                    prism_ops(
+                        &mut b,
+                        &prof,
+                        (1.0, 3.0),
+                        |x, y, z| geom_core::Point3::new(x, y, z + sx * x + sy * y),
+                        FaceGeometry::Certified,
+                        tol(),
+                    );
+                    describe_as_intersections(&mut b, tol());
+                    // The overlap's height over (x, y) in both profiles is
+                    // min(1, max(0, −L)), L = sx·x + sy·y (b's cap may now
+                    // pass below a's floor): ∫(0 − L)⁺ − ∫(−1 − L)⁺.
+                    let both = clip_convex(&a_prof, &prof);
+                    let len = (sx * sx + sy * sy).sqrt();
+                    let (ux, uy) = (-sy / len, sx / len);
+                    let (ix, iy) = (-sx / len, -sy / len);
+                    let big = 100.0;
+                    let below = |c: f64| {
+                        // ∫ over both ∩ {L < c} of (c − L).
+                        let (ox, oy) = (sx * c / (len * len), sy * c / (len * len));
+                        let half = ccw(vec![
+                            (ox + ux * big, oy + uy * big),
+                            (ox - ux * big, oy - uy * big),
+                            (ox - ux * big + ix * big, oy - uy * big + iy * big),
+                            (ox + ux * big + ix * big, oy + uy * big + iy * big),
+                        ]);
+                        let low = clip_convex(&both, &half);
+                        if low.len() < 3 {
+                            return 0.0;
+                        }
+                        let (mx, my) = moments(&low);
+                        c * area(&low) - (sx * mx + sy * my)
+                    };
+                    let vi = below(0.0) - below(-1.0);
+                    let d = flush_declarations(&a, &b, tol());
+                    for (op, want) in [
+                        ("I", vi),
+                        ("U", va + vb - vi),
+                        ("S_ab", va - vi),
+                        ("S_ba", vb - vi),
+                    ] {
+                        let res = match op {
+                            "I" => topo::intersect_with(&a, &b, &d, tol()),
+                            "U" => topo::union_with(&a, &b, &d, tol()),
+                            "S_ab" => topo::subtract_with(&a, &b, &d, tol()),
+                            _ => topo::subtract_with(&b, &a, &d, tol()),
+                        };
+                        let legal = match &res {
+                            Ok(topo::BooleanResult::Body(bb)) => {
+                                let body = bb.body.clone();
+                                if std::panic::catch_unwind(move || {
+                                    sweep::test_support::assert_legal_operand("rcw", &body, tol())
+                                })
+                                .is_ok()
+                                {
+                                    " legal"
+                                } else {
+                                    " NONOPERAND"
+                                }
+                            }
+                            _ => "",
+                        };
+                        println!(
+                            "RCW {name} rot={rot} sx={sx} sy={sy} {op} => {}{legal}",
+                            outcome(res, want)
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

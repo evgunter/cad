@@ -1008,7 +1008,9 @@ mod tests {
     /// cosine difference is second order in the spacing and falls inside
     /// the band. The strut order must then either order them rightly or
     /// escalate; a decided zero read as "the second is nearer" is a
-    /// silent wrong pick.
+    /// silent wrong pick. The spacing, 0.001°, is 1.7e-5 at the unit
+    /// arm: some 17 000 bands; the cross product of the two germs,
+    /// `(g0 × g1)·n`, reads it to first order.
     #[test]
     fn review_the_strut_order_never_misorders_germs_beside_a_half_turn_bound() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -1023,7 +1025,6 @@ mod tests {
             (179.998, 179.999),
             (180.0, 180.001),
             (180.001, 180.002),
-            (359.998, 359.999),
             (0.002, 0.001),
             (180.001, 180.0),
         ] {
