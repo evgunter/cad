@@ -902,6 +902,9 @@ since no later document holds it.
 run every frame, so `pane::properties::standing_verdict` says its
 `ResolveError`, and its `ResolveIndeterminate` through
 `app::indeterminate_wording`, from that run's document.
+So is the Checks window: its report is the landed run's, and
+`frame::check_rows` says each finding's root, on its button and in its
+sentence, from that run's document.
 
 The landed document lags the committed one by a run. A sentence spoken
 from it says the label the landed run was read under, so a rename that

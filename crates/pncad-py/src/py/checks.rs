@@ -39,6 +39,7 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -473,52 +474,58 @@ impl CheckEvidence {
 /// caller's `Severity` and the caller's `enforce_checks` call.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct CheckFinding(pub(crate) d::CheckFinding);
+pub(crate) struct CheckFinding {
+    finding: d::CheckFinding,
+    /// The document the checks ran over, the one its roots are spoken
+    /// from.
+    doc: Arc<d::ProfileDoc>,
+}
 
 #[pymethods]
 impl CheckFinding {
     /// The check that fired.
     #[getter]
     fn check(&self) -> CheckId {
-        check_id(self.0.check)
+        check_id(self.finding.check)
     }
 
     /// The root whose value carries the subject body.
     #[getter]
     fn root(&self) -> NodeId {
-        NodeId(self.0.root)
+        NodeId(self.finding.root)
     }
 
     /// Which output body of that root — 0 for a single-body root.
     #[getter]
     fn output_ix(&self) -> u32 {
-        self.0.output_ix
+        self.finding.output_ix
     }
 
     /// What was found.
     #[getter]
     fn evidence(&self) -> CheckEvidence {
-        CheckEvidence(self.0.evidence.clone())
+        CheckEvidence(self.finding.evidence.clone())
     }
 
     /// The finding as the library renders one: its subject, then the
-    /// kernel's own story. The recourse is in that story; nothing is
+    /// kernel's own story, each root spoken from the document the
+    /// checks ran over. The recourse is in that story; nothing is
     /// appended here.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        d::Said(&self.finding, d::Speaker::of(&*self.doc)).to_string()
     }
 
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.finding == other.finding
     }
 
     fn __repr__(&self) -> String {
         format!(
             "CheckFinding({}, node {}, output {}, {:?})",
-            self.0.check,
-            self.0.root.full(),
-            self.0.output_ix,
-            check_evidence_tag(&self.0.evidence)
+            self.finding.check,
+            self.finding.root.full(),
+            self.finding.output_ix,
+            check_evidence_tag(&self.finding.evidence)
         )
     }
 }
@@ -530,7 +537,26 @@ impl CheckFinding {
 /// an empty `findings` without reading `skipped` has confused them.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct ChecksReport(pub(crate) d::ChecksReport);
+pub(crate) struct ChecksReport {
+    report: d::ChecksReport,
+    /// The document the checks ran over, the evaluation's own: the
+    /// report's root ids are spelled in it, so its human form speaks
+    /// from it and from no other.
+    doc: Arc<d::ProfileDoc>,
+}
+
+impl ChecksReport {
+    /// `findings`, each carrying the document they are spoken from.
+    fn wrap(&self, findings: &[d::CheckFinding]) -> Vec<CheckFinding> {
+        findings
+            .iter()
+            .map(|finding| CheckFinding {
+                finding: finding.clone(),
+                doc: Arc::clone(&self.doc),
+            })
+            .collect()
+    }
+}
 
 #[pymethods]
 impl ChecksReport {
@@ -539,33 +565,35 @@ impl ChecksReport {
     /// residents in registry order. NOT one global sort.
     #[getter]
     fn findings(&self) -> Vec<CheckFinding> {
-        self.0.findings.iter().cloned().map(CheckFinding).collect()
+        self.wrap(&self.report.findings)
     }
 
     /// The checks that did not run because the caller set them `Off`.
     #[getter]
     fn skipped(&self) -> Vec<CheckId> {
-        self.0.skipped.iter().copied().map(check_id).collect()
+        self.report.skipped.iter().copied().map(check_id).collect()
     }
 
     /// How many findings — `len(report)`.
     fn __len__(&self) -> usize {
-        self.0.findings.len()
+        self.report.findings.len()
     }
 
+    /// The report, each root spoken from the document the checks ran
+    /// over.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        self.report.spoken(&*self.doc)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.report == other.report
     }
 
     fn __repr__(&self) -> String {
         format!(
             "ChecksReport({} finding(s), {} skipped)",
-            self.0.findings.len(),
-            self.0.skipped.len()
+            self.report.findings.len(),
+            self.report.skipped.len()
         )
     }
 }
@@ -674,7 +702,10 @@ pub(crate) fn run_checks(
         .map_err(|m| mispaired_checks(py, m))?;
     evaluation
         .gathered(|memo, doc, ev| crate::product_memo::checks_report(memo, doc, ev, cfg, tol))
-        .map(ChecksReport)
+        .map(|report| ChecksReport {
+            report,
+            doc: evaluation.doc_shared(),
+        })
         .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc())))
 }
 
@@ -707,20 +738,16 @@ pub(crate) fn enforce_checks(
 ) -> PyResult<()> {
     let default = d::ChecksConfig::default();
     let cfg = config.map_or(&default, |c| &c.0);
-    d::enforce_checks(&report.0, cfg).map_err(|refusal| {
-        let findings = refusal
-            .findings
-            .iter()
-            .cloned()
-            .map(CheckFinding)
-            .collect::<Vec<_>>()
+    d::enforce_checks(&report.report, cfg).map_err(|refusal| {
+        let findings = report
+            .wrap(&refusal.findings)
             .into_pyobject(py)
             .map(|v| v.unbind().into_any())
             .unwrap_or_else(|_| py.None());
         typed_err(
             py,
             ErrorClass::Enforce,
-            refusal.to_string(),
+            refusal.spoken(&*report.doc),
             &[("findings", findings)],
         )
     })

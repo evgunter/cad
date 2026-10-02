@@ -1218,7 +1218,10 @@ pub(crate) struct Evaluation {
     /// caller ask this evaluation about a document it is not of, and
     /// answer confidently against the wrong recipe. Pairing the two
     /// here makes that unspellable.
-    doc: d::ProfileDoc,
+    ///
+    /// Shared, so a report taken of the pair keeps the document it
+    /// speaks from without a copy of it.
+    doc: Arc<d::ProfileDoc>,
     /// The document's gathered product, materialized on the first ask
     /// and kept for every later one
     /// ([`crate::product_memo`], which holds the whole of the reasoning).
@@ -1236,6 +1239,12 @@ impl Evaluation {
     /// from it speaks its nodes from.
     pub(crate) fn doc(&self) -> &d::ProfileDoc {
         &self.doc
+    }
+
+    /// [`Self::doc`], shared: what a report taken of this pair keeps to
+    /// speak from.
+    pub(crate) fn doc_shared(&self) -> Arc<d::ProfileDoc> {
+        Arc::clone(&self.doc)
     }
 
     /// The (document, evaluation) pair and the memo over it, as the
@@ -2528,7 +2537,7 @@ pub(crate) fn evaluate(
     Evaluation {
         inner,
         params: doc.inner.param_env::<f64>(),
-        doc: doc.inner.clone(),
+        doc: Arc::new(doc.inner.clone()),
         product: crate::product_memo::ProductMemo::default(),
     }
 }

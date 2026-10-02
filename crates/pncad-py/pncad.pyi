@@ -924,7 +924,8 @@ class CheckRefusal(PncadError):
     The registry's one refusing path, and it refuses on nothing the
     caller did not ask to be refused on — no resident defaults to
     `Error`, and the separation resident's knob cannot express it.
-    `findings` is every refusing finding, in report order."""
+    `findings` is every refusing finding, in report order, and the
+    message speaks each root from the document the checks ran over."""
 
     findings: list[CheckFinding]
 
@@ -6589,7 +6590,9 @@ class CheckFinding:
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
     the body it names; `str()` renders it the way the library renders
-    a finding, recourse included."""
+    a finding, recourse included, each root spoken (kind, label and
+    tag) from the document the checks ran over — the one the
+    evaluation is of. `repr()` keeps the full id."""
 
     @property
     def check(self) -> CheckId: ...
@@ -6607,7 +6610,9 @@ class ChecksReport:
     `skipped` is why this is a report and not a list — "checked and
     fine" and "not checked" are different answers, and an empty
     `findings` read without `skipped` confuses them. `len(report)`
-    counts findings."""
+    counts findings. `str()` speaks each root from the document the
+    checks ran over, the one the evaluation is of: a label set after
+    `evaluate` shows on the next evaluation's report, not this one's."""
 
     @property
     def findings(self) -> list[CheckFinding]:
