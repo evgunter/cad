@@ -2,10 +2,11 @@
 id: stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends
 kind: issue
 title: Two stacked two-half rods with their seams aligned refuse Join(UnpairedLooseEnds) with every finding declared; rotated seams build
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
+closed: 2026-10-02
 ---
 
 Found by the review of PR 3657 (the continuation ruling), measured on
@@ -47,3 +48,9 @@ stacks `rod_z(1, 0, 2)` and `rod_z(1, 2, 1)` (two semicircular wall
 halves each, seams aligned), discs `Rest` and walls continuations, and
 pins 3π, `(6, 10, 6)` faces, edges, vertices, one shell, tier 3 and 3′,
 in both orders. This row can close when PR 3823 lands.
+
+## Closed (2026-10-02, TANG, PR 3823)
+
+With the walls declared `Continuation` (REACH, PR 3657), the stacked
+tube builds under PR 3823's arc-first REST matching: 3π, (6,10,6,1),
+tier 3 and 3′. It is pinned in `curved_mergedoor`.

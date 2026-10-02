@@ -2,10 +2,11 @@
 id: a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall
 kind: issue
 title: Two solids abutting on an equal-radius rim refuse whatever the corner: the transverse rim needs the circle-lies-on-cylinder cell and a curved edge-edge event at the rim (C4 narrowed, PR 3756)
-status: open
+status: closed
 opened: 2026-10-01
 priority: P0
 cost: H
+closed: 2026-10-02
 ---
 
 
@@ -122,3 +123,26 @@ the rim's semicircles as arcs (`rest::arcs_along`).
   crossing layer and stops in the join. Filed as JOIN's
   `a-tube-ending-on-a-ball-refuses-section-loop-mixed`, with evidence on
   GERM's `c5-plane-torus-cone-cylinder-arms`.
+
+## Closed (2026-10-02, TANG, PR 3823)
+
+Two solids abutting on an equal-radius rim now build. Examples: the
+dome on the tube, the turned dome, the lens, the dome sunk into the
+tube, the tube poking through the dome, and (declared `Continuation`
+since REACH's PR 3657) the dumbbell, the peg in its socket and the
+stacked tube.
+- An edge decided to lie on the other operand's carrier is an ON event
+  (`reduce::lying_on`, C4's narrowed one-sided cover), licensed by
+  either certificate:
+  - (a) the partner face's boundary meets the circle only at the
+    recorded ends; this one fails closed on any edge it cannot place;
+  - (b) the arc chain.
+- The REST zip pairs germs along arcs first.
+
+Review: a concurrent dual review (DR row on `docs/DUAL-REVIEW-LOG.md`),
+then a fix pass, a delta review, and a second fix pass. Neither review
+raised a MAJOR. Left open:
+- `a-turned-lens-keeps-the-door`;
+- `a-rim-offset-half-the-zero-band-builds-in-one-member-order-only`;
+- `a-rim-lying-on-a-wall-across-its-seam-ruling-keeps-the-door`;
+- `a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings`.
