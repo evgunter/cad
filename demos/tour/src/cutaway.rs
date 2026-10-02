@@ -6,8 +6,8 @@
 //!
 //! The plane passes through the two bored bosses at `x = 2.375`,
 //! between floor and boss top, so each half's section through a boss
-//! is ONE face with that boss's bore as its ring: an annulus, the hole
-//! the ellipse a tilted plane cuts from a round bore. [`build`] asserts
+//! is ONE face with that boss's bore as its ring: the ellipse a tilted
+//! plane cuts from the boss around the one it cuts from the bore. [`build`] asserts
 //! the halves' section faces and rings; [`sectioned_beside`] reads the
 //! same section back through `topo::plane_section` and checks its
 //! regions against the closed-form areas.
@@ -21,7 +21,7 @@ use pncad::geom_core::{Affine3, Point2, Vec3};
 use pncad::topo::splitting::{PlaneSide, SplitPart, SplitPlane, plane_section, split};
 
 use crate::SceneBody;
-use crate::projectbox::{BORE_AXES, BORE_R};
+use crate::projectbox::{BORE_R, BOSS_AXES, BOSS_R, BOSS_Z, FLOOR_TOP};
 use crate::scalar::{Scalar, split_plane};
 use pncad::geom_core::Tol;
 
@@ -30,10 +30,42 @@ use pncad::geom_core::Tol;
 const NORMAL: (f64, f64, f64) = (0.75, 0.1875, 1.0);
 
 /// A point of the section plane: midway between the two bosses at
-/// `x = 2.375`, at `z = 0.53`, so the plane meets both their bores
-/// between the floor (`z = 0.25`) and the boss tops (`z = 0.875`) and
-/// passes above the box over the other two.
+/// `x = 2.375`, at `z = 0.53`, so the plane meets both bosses between
+/// [`FLOOR_TOP`] and their tops and passes above the box over the
+/// other two ([`crossed_bosses`]).
 const THROUGH: (f64, f64, f64) = (2.375, 1.0, 0.53);
+
+/// The plane's height over `(x, y)`.
+fn plane_z(x: f64, y: f64) -> f64 {
+    THROUGH.2 - (NORMAL.0 * (x - THROUGH.0) + NORMAL.1 * (y - THROUGH.1)) / NORMAL.2
+}
+
+/// How far the plane rises across a boss's radius: its slope times
+/// [`BOSS_R`].
+fn rise_over_a_boss() -> f64 {
+    BOSS_R * NORMAL.0.hypot(NORMAL.1) / NORMAL.2
+}
+
+/// The bosses the plane crosses wholly between the floor top and the
+/// boss top, so each one's section is an island in the cavity; and,
+/// asserted, that there are two of them.
+fn crossed_bosses() -> Vec<(f64, f64)> {
+    let crossed: Vec<(f64, f64)> = BOSS_AXES
+        .into_iter()
+        .filter(|&(x, y)| {
+            let z = plane_z(x, y);
+            z - rise_over_a_boss() > FLOOR_TOP && z + rise_over_a_boss() < BOSS_Z.1
+        })
+        .collect();
+    let missed = BOSS_AXES
+        .iter()
+        .all(|&(x, y)| crossed.contains(&(x, y)) || plane_z(x, y) - rise_over_a_boss() > BOSS_Z.1);
+    assert!(
+        crossed.len() == 2 && missed,
+        "the plane crosses two bosses whole and passes over the others"
+    );
+    crossed
+}
 
 /// The ring count of each section face a half keeps, ascending. Five
 /// faces through the walls and floor, unringed: the open top and the
@@ -119,14 +151,37 @@ pub(crate) fn build<S: Scalar>(
     let ((v_box, vpad_box), (s_box, apad_box)) = props(boxbody, "box props");
     let ((v_above, vpad_above), (s_above, apad_above)) = props(above, "above props");
     let ((v_below, vpad_below), (s_below, apad_below)) = props(below, "below props");
+    // A bracket check is only as sharp as its brackets, so each is
+    // capped at a hundredth of the smallest thing it exists to see, so
+    // losing that thing still lands a hundred brackets out.
+    // The partition would miss a lost piece, the least of which is a
+    // boss top the cut frees: its annulus over its least height, the
+    // boss top less the plane's highest point over the boss.
+    let least_cap = crossed_bosses()
+        .into_iter()
+        .map(|(x, y)| {
+            PI * (BOSS_R * BOSS_R - BORE_R * BORE_R)
+                * (BOSS_Z.1 - plane_z(x, y) - rise_over_a_boss())
+        })
+        .fold(f64::INFINITY, f64::min);
     let gap = (v_above + v_below - v_box).abs();
     let vpad = vpad_above + vpad_below + vpad_box;
+    assert!(
+        vpad <= least_cap * 1e-2,
+        "the volume brackets (± {vpad:.1e}) are too wide to see a freed boss top ({least_cap:.3e})"
+    );
     assert!(
         gap <= vpad + 1e-12,
         "split halves must partition the volume (gap {gap:.3e}, brackets ± {vpad:.1e})"
     );
     let area = (s_above + s_below - s_box) / 2.0;
     let area_pad = (apad_above + apad_below + apad_box) / 2.0;
+    // The section's area would miss a lost bore hole, πr² / cos φ.
+    let hole = PI * BORE_R * BORE_R / cos_tilt();
+    assert!(
+        area_pad <= hole * 1e-2,
+        "the area brackets (± {area_pad:.1e}) are too wide to see a bore hole ({hole:.3e})"
+    );
 
     // Pull the halves apart 0.75 along the section normal: rigid
     // transforms re-mint every moved witness (#84).
@@ -162,19 +217,21 @@ fn twice_area(uv: &[Point2<f64>]) -> f64 {
 struct SectionReading {
     regions: usize,
     holes: usize,
-    /// The regions' area: the outlines' polygon areas less the holes'
-    /// closed-form ellipses.
+    /// The regions' area: the wall regions' polygon areas plus the
+    /// bored bosses' closed-form annuli.
     area: f64,
 }
 
 /// `plane_section` of the box, checked against the closed forms and
 /// against the area the split's halves enclose (`split_area`).
 ///
-/// Every outline here is a polygon, so its area is its corners'; a
-/// bore's section is two arcs between two corners, so a hole's area is
-/// the closed form `π r² / cos φ`. The region a bored boss's section
-/// makes is the boss's square section, `0.375² / cos φ`, around one
-/// such hole.
+/// A wall or floor region is a polygon, so its area is its corners'.
+/// A bored boss's region is the boss's ellipse around the bore's, and
+/// `plane_section` reports each as its two corners, whose shoelace is
+/// 0: the arcs between them are dropped
+/// (`work/cleave/plane-section-polygons-drop-their-arcs.md`). So the
+/// scene checks those corners against the two circles and supplies
+/// the area in closed form, `π (R² − r²) / cos φ`.
 fn read_section(
     boxbody: &pncad::topo::Body<f64>,
     (split_area, split_pad): (f64, f64),
@@ -182,34 +239,37 @@ fn read_section(
 ) -> SectionReading {
     let section = plane_section(boxbody, &section_plane::<f64>(tol), tol)
         .expect("plane_section of the box through its bores");
-    let ellipse = PI * BORE_R * BORE_R / cos_tilt();
-    let boss = 0.375 * 0.375 / cos_tilt();
-    let on_a_bore = |p: &pncad::geom_core::Point3<f64>| {
-        BORE_AXES
-            .iter()
-            .any(|&(cx, cy)| ((p.x - cx).hypot(p.y - cy) - BORE_R).abs() < 1e-9)
+    let annulus = PI * (BOSS_R * BOSS_R - BORE_R * BORE_R) / cos_tilt();
+    let crossed = &crossed_bosses();
+    let on_circle = |r: f64| {
+        move |p: &pncad::geom_core::Point3<f64>| {
+            crossed
+                .iter()
+                .any(|&(cx, cy)| ((p.x - cx).hypot(p.y - cy) - r).abs() < 1e-9)
+        }
     };
     let mut area = 0.0;
     let mut holes = 0;
     for region in &section.regions {
-        let outline = twice_area(&region.outline.uv) / 2.0;
-        assert!(outline > 0.0, "an outline winds counter-clockwise");
-        for hole in &region.holes {
+        let corners = &region.outline.points;
+        if region.holes.is_empty() {
+            let outline = twice_area(&region.outline.uv) / 2.0;
+            assert!(outline > 0.0, "a wall region winds counter-clockwise");
             assert!(
-                hole.points.iter().all(on_a_bore),
-                "a hole's corners lie on a bore: {:?}",
-                hole.points
+                !corners.iter().any(on_circle(BOSS_R)),
+                "a wall region's corners lie off the bosses: {corners:?}"
             );
-        }
-        if !region.holes.is_empty() {
+            area += outline;
+        } else {
             assert_eq!(region.holes.len(), 1, "a boss's region holds its one bore");
+            let hole = &region.holes[0].points;
             assert!(
-                (outline - boss).abs() < 1e-9,
-                "a bored boss's region is its square's section: {outline} against {boss}"
+                corners.iter().all(on_circle(BOSS_R)) && hole.iter().all(on_circle(BORE_R)),
+                "a bored boss's region is its boss around its bore: {corners:?}, {hole:?}"
             );
+            area += annulus;
         }
         holes += region.holes.len();
-        area += outline - ellipse * region.holes.len() as f64;
     }
     assert_eq!(
         section.regions.len(),
@@ -248,14 +308,17 @@ pub(crate) fn sectioned_beside(
     let reading = read_section(boxbody, (n.area, n.area_pad), tol);
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \
-         normal (0.75, 0.1875, 1) — tilted, no axis alignment — through two bored \
-         bosses; each half keeps {faces} section faces, the two through the bosses \
-         annuli ringed by their bores; `plane_section` reads {regions} regions with \
-         {holes} holes, area {area:.9} (outline polygons less pi r^2 / cos phi per \
-         bore) against {split:.9} ± {pad:.1e} from the halves' surface areas; halves partition \
-         the volume within their certified brackets ({v_above:.6} + {v_below:.6} = {v_box:.6}, gap \
-         {gap:.1e}); halves then moved apart by rigid transforms (edge witnesses \
+         through {through:?}, normal {normal:?} — tilted, no axis alignment — through \
+         two bored bosses; each half keeps {faces} section faces, the two through the \
+         bosses annuli ringed by their bores; `plane_section` reads {regions} regions \
+         with {holes} holes, area {area:.9} (wall polygons plus pi (R^2 - r^2) / cos phi \
+         per bored boss, the arcs being dropped from its polygons) against {split:.9} \
+         ± {pad:.1e} from the halves' surface areas; halves partition the volume \
+         within their certified brackets ({v_above:.6} + {v_below:.6} = {v_box:.6}, \
+         gap {gap:.1e}); halves then moved apart by rigid transforms (edge witnesses \
          re-minted, #84) and revalidated",
+        through = THROUGH,
+        normal = NORMAL,
         faces = SECTION_RINGS.len(),
         regions = reading.regions,
         holes = reading.holes,
@@ -276,12 +339,14 @@ pub(crate) fn sectioned_beside(
         vec![
             // The plane frees the two bored bosses' tops: this half is
             // one solid of three outer shells, and the STEP writer's
-            // shell classifier reads no circle edge.
+            // shell classifier reads no circle edge (its first is a
+            // bore's or a boss's arc).
             SceneBody::plain("cutaway_above", [0.40, 0.60, 0.72], above).step_at_frontier(
                 |e| {
                     matches!(
                         e,
-                        pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                        pncad::step_export::StepExportError::CurvedShellClassification { kind, .. }
+                            if kind == "circle curve"
                     )
                 },
                 "the writer classifies curved shells now \

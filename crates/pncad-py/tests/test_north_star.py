@@ -87,14 +87,31 @@ def slab(doc, x, y, z):
     return doc.insert(Node.extrude(profile, Expr.length_in(z[1] - z[0], m)))
 
 
-# The projectbox's boss axes and their bores' radius.
-PROJECTBOX_BORE_AXES = [(0.625, 0.625), (0.625, 1.375), (2.375, 0.625), (2.375, 1.375)]
+# The projectbox's values, mirrored from demos/tour/src/projectbox.rs
+# (`BOSS_AXES`, `BOSS_R`, `BOSS_Z`, `BORE_R`) and cutaway.rs (`THROUGH`,
+# `NORMAL`): a mirror, so a change there is made here by hand.
+PROJECTBOX_BOSS_AXES = [(0.625, 0.625), (0.625, 1.375), (2.375, 0.625), (2.375, 1.375)]
+PROJECTBOX_BOSS_R = 0.1875
+PROJECTBOX_BOSS_Z = (0.1875, 0.875)
 PROJECTBOX_BORE_R = 0.09375
+PROJECTBOX_CUT_THROUGH = (2.375, 1.0, 0.53)
+PROJECTBOX_CUT_NORMAL = (0.75, 0.1875, 1.0)
+
+
+def rod(doc, cx, cy, r, z):
+    """The vertical cylinder of radius `r` about `(cx, cy)`, `z[0]` to `z[1]`."""
+    sketch = doc.insert(
+        Node.profile(
+            [circle((cx * m, cy * m), r * m)],
+            plane=doc.sketch_frame(elevation=Expr.length_in(z[0], m)),
+        )
+    )
+    return doc.insert(Node.extrude(sketch, Expr.length_in(z[1] - z[0], m)))
 
 
 def projectbox(doc):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
-    — cavity, six vent slots, four bosses, and a round through-bore
+    — cavity, six vent slots, four round bosses, and a through-bore
     down each boss and out through the floor. Shared by the
     volume-oracle row and the `cutaway` row, which splits exactly
     this body."""
@@ -107,17 +124,11 @@ def projectbox(doc):
             body = doc.insert(
                 Node.boolean(BooleanOp.Subtract, body, slab(doc, x, y, (0.5, 1.25)))
             )
-    for cx, cy in PROJECTBOX_BORE_AXES:
-        boss = slab(doc, (cx - 0.1875, cx + 0.1875), (cy - 0.1875, cy + 0.1875), (0.1875, 0.875))
+    for cx, cy in PROJECTBOX_BOSS_AXES:
+        boss = rod(doc, cx, cy, PROJECTBOX_BOSS_R, PROJECTBOX_BOSS_Z)
         body = doc.insert(Node.boolean(BooleanOp.Union, body, boss))
-    for cx, cy in PROJECTBOX_BORE_AXES:
-        sketch = doc.insert(
-            Node.profile(
-                [circle((cx * m, cy * m), PROJECTBOX_BORE_R * m)],
-                plane=doc.sketch_frame(elevation=Expr.length_in(-0.125, m)),
-            )
-        )
-        bore = doc.insert(Node.extrude(sketch, Expr.length_in(1.25, m)))
+    for cx, cy in PROJECTBOX_BOSS_AXES:
+        bore = rod(doc, cx, cy, PROJECTBOX_BORE_R, (-0.125, PROJECTBOX_BOSS_Z[1] + 0.25))
         body = doc.insert(Node.boolean(BooleanOp.Subtract, body, bore))
     return body
 
@@ -208,13 +219,13 @@ class TestProjectbox(unittest.TestCase):
         # The scene's own running oracle, term for term:
         #   9 - 2.5*1.5*1.25                     the cavity
         #   - 6 * 0.375*0.25*0.75                the vent slots
-        #   + 4 * 0.375*0.375*0.625              the bosses
+        #   + 4 * pi*R^2*0.625                   the bosses, above the floor top
         #   - 4 * pi*r^2*0.875                   the bores, floor to boss top
         expected = (
             9.0
             - 2.5 * 1.5 * 1.25
             - 6 * 0.375 * 0.25 * 0.75
-            + 4 * 0.375 * 0.375 * 0.625
+            + 4 * math.pi * PROJECTBOX_BOSS_R**2 * 0.625
             - 4 * math.pi * PROJECTBOX_BORE_R**2 * 0.875
         )
         self.assertAlmostEqual(volume_of(doc, body), expected, delta=1e-9)
@@ -4485,15 +4496,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         doc = Doc()
         box = projectbox(doc)
         tool = doc.insert(
-            Node.datum_plane((
-                Expr.length_in(2.375, m),
-                Expr.length_in(1.0, m),
-                Expr.length_in(0.53, m),
-            ), (
-                Expr.literal(0.75),
-                Expr.literal(0.1875),
-                Expr.literal(1.0),
-            ))
+            Node.datum_plane(
+                tuple(Expr.length_in(c, m) for c in PROJECTBOX_CUT_THROUGH),
+                tuple(Expr.literal(c) for c in PROJECTBOX_CUT_NORMAL),
+            )
         )
         cut = doc.insert(Node.split(box, tool))
 
@@ -4518,10 +4524,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.
-        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 48)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 40)
         self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
-        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 58)
-        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 76)
+        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 50)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 68)
 
     def test_the_rocker_outline_is_authorable(self):
         """G12, CLOSED — the flip of the absence this test used to pin.

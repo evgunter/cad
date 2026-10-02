@@ -405,11 +405,12 @@ assert abs(body.mass_properties().volume - (1287 / 2048) * math.pi) < 1e-12
 ```
 
 `die` (a cube less 21 pip pockets, 21 sequential subtracts) and
-`projectbox` (15 ops: boxes, then four round bores) are longer but no
-harder — both are chains of the same `slab` helper, the box's bores a
-`circle` profile extruded. Both reproduce their scene's oracle from
-Python: the die's **exact dyadic** `7.8359375`, and the box's closed
-form `4.3125 − 0.421875 + 0.3515625 − 4·π·0.09375²·0.875` to 1e-9.
+`projectbox` (15 ops: boxes, then four round bosses and their bores)
+are longer but no harder — both are chains of the same `slab` helper,
+the box's bosses and bores a `circle` profile extruded. Both reproduce
+their scene's oracle from Python: the die's **exact dyadic**
+`7.8359375`, and the box's closed form
+`4.3125 − 0.421875 + 4·π·0.1875²·0.625 − 4·π·0.09375²·0.875` to 1e-9.
 
 The G3 family reads the way the captions do. `silhouette3` is three
 letterform prisms and two intersects, and each letter is a polygon on

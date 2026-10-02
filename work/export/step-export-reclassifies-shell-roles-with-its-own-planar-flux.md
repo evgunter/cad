@@ -62,14 +62,17 @@ refusals. The self-retiring rows above then flip, and they say so.
 **A consumer the fix makes export, not flip** (SHOW,
 projectbox-section-cuts-through-bores, 2026-10-02). The tour's
 `projectbox` cell splits the bored enclosure by a tilted plane through
-two bored bosses (`demos/tour/src/cutaway.rs`, `sectioned_beside`).
-The plane frees both boss tops, so the above half is one solid of
-three shells, all OUTER (disjoint lumps, no void), and its bores' arcs
-make it refuse `CurvedShellClassification` (`kind: "circle curve"`).
-The scene pins it with `SceneBody::step_at_frontier`, so its manifest
-`step` is null and the FreeCAD lane draws no above half. With the
-roles read through `classify_shells_of` this body should classify as three
-`Outer` (each shell bounds material; not measured here) and EXPORT, so
-its pin fails as a success and says to drop
-it, unlike the hollow-body pins (klein wall 6, `ring`, `tubewall`,
-`torusvessel`), which flip to `VoidShellUnsupported`.
+two of its round, bored bosses (`demos/tour/src/cutaway.rs`,
+`sectioned_beside`). The plane frees both boss tops, so the above half
+is one solid of three shells (the walls' piece and two caps), and its
+arcs make it refuse `CurvedShellClassification` (`kind: "circle
+curve"`). The scene pins it with `SceneBody::step_at_frontier`, so its
+manifest `step` is null and the FreeCAD lane draws no above half.
+`topo::classify_shells_of` on that half returns `[Outer, Outer, Outer]`,
+measured: the tour asserts it
+(`projectbox::tests::the_bored_box_and_its_halves_pass_their_tiers_and_the_above_half_is_three_outer_shells`),
+and the review measured the same for square bosses and for cuts at
+`z = 0.45` and `0.6`. With the roles read through `classify_shells_of`
+this body would EXPORT, so its pin fails as a success and says to drop it,
+unlike the hollow-body pins (`hollowring`, `hollowtorus`,
+`torusvessel`, `fivewall`), which flip to `VoidShellUnsupported`.
