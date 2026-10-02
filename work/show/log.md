@@ -511,3 +511,25 @@ The day's P0s, all filed by SHOW lanes on their owners' slates:
 - QUAD: check 7 freezes at round 0 against the reporting budget.
 - ZIP: a one-arc sector refuses `SeamOrientation`.
 - BAND: no partial edge-set blend on a box.
+
+## 2026-10-02 — split-by-name fixed; all dispatched units are done
+
+PR 3842's fix pass is in, head `fb03679af`.
+
+- **BAND row:** P0/H/design.
+- **ChainNotG1:** folded into the BAND row.
+- **Walls:** four, one per matrix cell.
+- **Rust authoring friction:** filed on LIB.
+- **Several-shells row:** re-banded to P2.
+- **Orchestrator fix `2e730612f`:** the band row had assumed a gendered pronoun for Ev; it now names Ev. Ev's pronouns are unstated, so committed text names Ev rather than guess.
+
+Thirteen scene PRs are reviewed, fixed and green:
+3787, 3792, 3793, 3811, 3816, 3819, 3824, 3834, 3836, 3838, 3840, 3842, plus the render tag 3791.
+
+Every one waits on Ev's §3 wording answer, then on its frames.
+
+Four slate rows remain undispatched. Each is held on a file an open PR holds:
+- gallery
+- helix
+- projectbox sixteenths
+- per-body delta
