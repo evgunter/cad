@@ -61,9 +61,11 @@ pub enum TangentLocusError {
 ///   `reach`'s extent from the point the gap row is read at — the foot
 ///   of the extent's centre on the cylinder's axis (the second
 ///   cylinder's, for a pair). A tilt moves the ruling by that angle
-///   times the distance from there, so beside a gap in band there the
-///   row reads the displacement the tilt induces across the faces the
-///   locus is consumed on. `reach` is the declared pair's consumed
+///   times the distance from there, so the row reads the displacement
+///   the tilt induces across the faces the locus is consumed on; with
+///   the gap row it mints only where each reads zero, so the ruling
+///   stands within two zero bands of the carriers across the faces,
+///   and the `Tangent` table then verifies it sample by sample. `reach` is the declared pair's consumed
 ///   extent, the one `topo`'s carrier-pair doors lever their ladder at.
 /// - `tangent_locus_gap` — the metre gap at the tangency: for
 ///   plane×cylinder the axis-to-plane distance minus the radius; for

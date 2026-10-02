@@ -290,6 +290,26 @@ pub fn carrier_eq_verdict<T: Decide>(
     if id.declared {
         return declared_verdict(c1, c2, id, extent, band);
     }
+    let verdict = undeclared_ladder(c1, c2, id, extent, band);
+    match verdict {
+        Err(CarrierEqError::Undeclared { diag, relation }) if diag.margin.is_invalid() => {
+            coincident_as_declared(c1, c2, extent, relation, band)
+                .map_err(|diag| CarrierEqError::Undeclared { diag, relation })?;
+            Err(CarrierEqError::Undeclared { diag, relation })
+        }
+        verdict => verdict,
+    }
+}
+
+/// [`carrier_eq_verdict`]'s undeclared posture: each datum read on its
+/// own ([`at_consumed_extent`]).
+fn undeclared_ladder<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    id: PlaneIdentity<'_>,
+    extent: &ConsumedExtent<'_, T>,
+    band: Band,
+) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
     let (c1, c2, arm) = at_consumed_extent(c1, c2, extent.reach);
     match (&c1, &c2) {
         (
@@ -634,43 +654,12 @@ pub(super) fn declared_reading<T: Decide>(
     extent: &ConsumedExtent<'_, T>,
     band: Band,
 ) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
-    let reach = extent.reach;
-    // The displacement at each witness: its distance from the other
-    // carrier, less its own (a vertex stands within rounding of its
-    // own carrier, not on it).
-    let witnessed = extent.on[0]
-        .iter()
-        .map(|&v| distance_to(c2, v) - distance_to(c1, v))
-        .chain(
-            extent.on[1]
-                .iter()
-                .map(|&v| distance_to(c1, v) - distance_to(c2, v)),
-        )
-        .fold(T::zero(), T::max);
-    let opposed = |w1: bool, w2: bool| {
-        if w1 == w2 {
-            CarrierRelation::SameOriented
-        } else {
-            CarrierRelation::SameOpposite
-        }
-    };
-    // (names of the upper and lower readings, relation, upper, the
-    // reading that holds across the ball, the data for attribution)
-    let (names, relation, upper, across, data) = match (*c1, *c2) {
-        (
-            CarrierDesc::Plane {
-                origin: o1,
-                normal: n1,
-            },
-            CarrierDesc::Plane {
-                origin: o2,
-                normal: n2,
-            },
-        ) => {
-            let radius = reach.radius();
-            let (sigma, relation) = match decide_reported(
+    let witnessed = witnessed(c1, c2, extent);
+    let (sigma, relation) = match (*c1, *c2) {
+        (CarrierDesc::Plane { normal: n1, .. }, CarrierDesc::Plane { normal: n2, .. }) => {
+            match decide_reported(
                 "bool_plane_orient",
-                Margin::levered(n1.dot(n2), radius),
+                Margin::levered(n1.dot(n2), extent.reach.radius()),
                 band,
             ) {
                 Ok(Decided {
@@ -701,104 +690,18 @@ pub(super) fn declared_reading<T: Decide>(
                         },
                     });
                 }
-            };
-            let centre = reach.center();
-            let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
-            let swing = Margin::levered((n1 - n2 * sigma).norm(), radius).value();
-            (
-                ["bool_plane_reach", "bool_plane_reach_floor"],
-                relation,
-                offset.abs() + swing,
-                offset.abs() - swing,
-                vec![
-                    (
-                        "bool_plane_parallel",
-                        Contradiction::PlanesNotParallel,
-                        Margin::levered(n1.cross(n2).norm(), radius),
-                    ),
-                    (
-                        "bool_plane_offset",
-                        Contradiction::PlanesApart,
-                        Margin::of(offset),
-                    ),
-                ],
-            )
+            }
         }
-        (
-            CarrierDesc::Sphere {
-                center: p1,
-                radius: r1,
-                outward: w1,
+        (CarrierDesc::Sphere { outward: w1, .. }, CarrierDesc::Sphere { outward: w2, .. })
+        | (CarrierDesc::Cylinder { outward: w1, .. }, CarrierDesc::Cylinder { outward: w2, .. })
+        | (CarrierDesc::Torus { outward: w1, .. }, CarrierDesc::Torus { outward: w2, .. }) => (
+            T::one(),
+            if w1 == w2 {
+                CarrierRelation::SameOriented
+            } else {
+                CarrierRelation::SameOpposite
             },
-            CarrierDesc::Sphere {
-                center: p2,
-                radius: r2,
-                outward: w2,
-            },
-        ) => {
-            let apart = (p1 - p2).norm();
-            (
-                ["carrier_sphere_reach", "carrier_sphere_reach_floor"],
-                opposed(w1, w2),
-                (r1 - r2).abs() + apart,
-                (r1 - r2).abs() - apart,
-                sphere_data(p1, r1, p2, r2),
-            )
-        }
-        (
-            CarrierDesc::Cylinder {
-                origin: o1,
-                axis: a1,
-                radius: r1,
-                outward: w1,
-            },
-            CarrierDesc::Cylinder {
-                origin: o2,
-                axis: a2,
-                radius: r2,
-                outward: w2,
-            },
-        ) => {
-            let pivot = reach.foot_on(o2, a2);
-            let apart = perpendicular(pivot - o1, a1).norm();
-            let arm = reach.lever_from(pivot) + apart;
-            let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
-            (
-                ["carrier_cyl_reach", "carrier_cyl_reach_floor"],
-                opposed(w1, w2),
-                (r1 - r2).abs() + core,
-                (r1 - r2).abs() - core,
-                cylinder_data((o1, a1, r1), (pivot, a2, r2), arm),
-            )
-        }
-        (
-            CarrierDesc::Torus {
-                center: p1,
-                axis: a1,
-                major_radius: r1,
-                minor_radius: t1,
-                outward: w1,
-            },
-            CarrierDesc::Torus {
-                center: p2,
-                axis: a2,
-                major_radius: r2,
-                minor_radius: t2,
-                outward: w2,
-            },
-        ) => {
-            let arm = r1.max(r2);
-            let core = (p1 - p2).norm()
-                + (r1 - r2).abs()
-                + Margin::levered(line_tilt(a1, a2), arm).value();
-            (
-                ["carrier_torus_reach", "carrier_torus_reach_floor"],
-                opposed(w1, w2),
-                (t1 - t2).abs() + core,
-                (t1 - t2).abs() - core,
-                torus_data((p1, a1, r1, t1), (p2, a2, r2, t2), arm),
-            )
-        }
+        ),
         _ => {
             return Err(CarrierEqError::Contradicted {
                 fact: Contradiction::KindsDiffer,
@@ -806,7 +709,18 @@ pub(super) fn declared_reading<T: Decide>(
             });
         }
     };
-    let [upper_name, floor_name] = names;
+    let Some(Reading {
+        names: [upper_name, floor_name],
+        upper,
+        across,
+        data,
+    }) = reading(c1, c2, extent.reach, sigma)
+    else {
+        return Err(CarrierEqError::Contradicted {
+            fact: Contradiction::KindsDiffer,
+            diag: definite("carrier_kind", band),
+        });
+    };
     let unsettled = |margin| CarrierEqError::Unsettled {
         diag: Indeterminate {
             margin,
@@ -844,6 +758,201 @@ pub(super) fn declared_reading<T: Decide>(
             }
         }
     }
+}
+
+/// **The undeclared posture's affirmative, read as the declared rung
+/// would read it.** Rung 4's coincidence (every datum decided zero)
+/// says "a declaration would verify"; the declared rung reads the data's
+/// SUM, so the coincidence stands only where that sum decides zero too
+/// — a declared pair the detector called coincident then verifies
+/// [`ContactVerdict::Definite`], whatever K. Where the sum does not,
+/// the refusal carries its reading, in band or past it, as the
+/// coincidence the detector cannot call.
+fn coincident_as_declared<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    extent: &ConsumedExtent<'_, T>,
+    relation: CarrierRelation,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    let sigma = match relation {
+        CarrierRelation::SameOpposite => -T::one(),
+        CarrierRelation::SameOriented | CarrierRelation::Distinct => T::one(),
+    };
+    let Some(Reading {
+        names: [upper_name, _],
+        upper,
+        ..
+    }) = reading(c1, c2, extent.reach, sigma)
+    else {
+        return Ok(());
+    };
+    match decide_reported(upper_name, Margin::of(upper), band) {
+        Ok(Decided {
+            sign: Sign::Zero, ..
+        }) => Ok(()),
+        Ok(Decided { margin, .. }) => Err(Indeterminate {
+            margin,
+            band,
+            predicate: Some(upper_name),
+            terminal_sliver: false,
+        }),
+        Err(diag) => Err(diag),
+    }
+}
+
+/// The displacement at each witness: its distance from the other
+/// carrier, less its own (a vertex stands within rounding of its own
+/// carrier, not on it). Zero where no point is known.
+fn witnessed<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    extent: &ConsumedExtent<'_, T>,
+) -> T {
+    extent.on[0]
+        .iter()
+        .map(|&v| distance_to(c2, v) - distance_to(c1, v))
+        .chain(
+            extent.on[1]
+                .iter()
+                .map(|&v| distance_to(c1, v) - distance_to(c2, v)),
+        )
+        .fold(T::zero(), T::max)
+}
+
+/// A pair's displacement over the consumed extent ([`declared_reading`]).
+struct Reading<T: Decide> {
+    /// The upper and the lower bound's predicate names.
+    names: [&'static str; 2],
+    /// The upper bound, at every point of the ball.
+    upper: T,
+    /// The lower bound that holds across the whole ball (may read
+    /// negative: no bound).
+    across: T,
+    /// The kind's data, for [`attribution`].
+    data: Vec<Datum<T>>,
+}
+
+/// The [`Reading`] of a same-kind pair over `reach`, the planes'
+/// orientation sign `sigma` decided; `None` for a kind mismatch.
+fn reading<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    reach: geom_brep::ExtentBall<T>,
+    sigma: T,
+) -> Option<Reading<T>> {
+    let (names, upper, across, data) = match (*c1, *c2) {
+        (
+            CarrierDesc::Plane {
+                origin: o1,
+                normal: n1,
+            },
+            CarrierDesc::Plane {
+                origin: o2,
+                normal: n2,
+            },
+        ) => {
+            let (centre, radius) = (reach.center(), reach.radius());
+            let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
+            let swing = Margin::levered((n1 - n2 * sigma).norm(), radius).value();
+            (
+                ["bool_plane_reach", "bool_plane_reach_floor"],
+                offset.abs() + swing,
+                offset.abs() - swing,
+                vec![
+                    (
+                        "bool_plane_parallel",
+                        Contradiction::PlanesNotParallel,
+                        Margin::levered(n1.cross(n2).norm(), radius),
+                    ),
+                    (
+                        "bool_plane_offset",
+                        Contradiction::PlanesApart,
+                        Margin::of(offset),
+                    ),
+                ],
+            )
+        }
+        (
+            CarrierDesc::Sphere {
+                center: p1,
+                radius: r1,
+                ..
+            },
+            CarrierDesc::Sphere {
+                center: p2,
+                radius: r2,
+                ..
+            },
+        ) => {
+            let apart = (p1 - p2).norm();
+            (
+                ["carrier_sphere_reach", "carrier_sphere_reach_floor"],
+                (r1 - r2).abs() + apart,
+                (r1 - r2).abs() - apart,
+                sphere_data(p1, r1, p2, r2),
+            )
+        }
+        (
+            CarrierDesc::Cylinder {
+                origin: o1,
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            CarrierDesc::Cylinder {
+                origin: o2,
+                axis: a2,
+                radius: r2,
+                ..
+            },
+        ) => {
+            let pivot = reach.foot_on(o2, a2);
+            let apart = perpendicular(pivot - o1, a1).norm();
+            let arm = reach.lever_from(pivot) + apart;
+            let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
+            (
+                ["carrier_cyl_reach", "carrier_cyl_reach_floor"],
+                (r1 - r2).abs() + core,
+                (r1 - r2).abs() - core,
+                cylinder_data((o1, a1, r1), (pivot, a2, r2), arm),
+            )
+        }
+        (
+            CarrierDesc::Torus {
+                center: p1,
+                axis: a1,
+                major_radius: r1,
+                minor_radius: t1,
+                ..
+            },
+            CarrierDesc::Torus {
+                center: p2,
+                axis: a2,
+                major_radius: r2,
+                minor_radius: t2,
+                ..
+            },
+        ) => {
+            let arm = r1.max(r2);
+            let core = (p1 - p2).norm()
+                + (r1 - r2).abs()
+                + Margin::levered(line_tilt(a1, a2), arm).value();
+            (
+                ["carrier_torus_reach", "carrier_torus_reach_floor"],
+                (t1 - t2).abs() + core,
+                (t1 - t2).abs() - core,
+                torus_data((p1, a1, r1, t1), (p2, a2, r2, t2), arm),
+            )
+        }
+        _ => return None,
+    };
+    Some(Reading {
+        names,
+        upper,
+        across,
+        data,
+    })
 }
 
 /// The datum a contradicted declaration is named by: the first that
@@ -1450,10 +1559,9 @@ mod tests {
         ));
     }
 
-    /// The plane arm is the OLD arm: `carrier_eq` on two plane
+    /// The plane arm is the plane ladder's: `carrier_eq` on two plane
     /// descriptions agrees with `oriented_plane_eq` called directly,
-    /// verdict for verdict — the generalization moved no planar
-    /// number.
+    /// verdict for verdict.
     #[test]
     fn plane_arm_delegates_unchanged() {
         let p1 = PlaneDesc {

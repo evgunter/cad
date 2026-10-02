@@ -31,9 +31,11 @@
 //!   definite-zero coincidence margin IS the affirmative answer.
 //!
 //! So a pair this detector calls flush cannot be a pair the declared
-//! rung then contradicts — one verdict ladder, one set of `decide`
-//! sites, one verification arm, reached by one call, and both
-//! postures decided out of the same `data_rungs` traversal.
+//! rung then contradicts — one verdict ladder, reached by one call:
+//! the detector's affirmative is every datum decided zero AND their
+//! sum, the displacement the declared rung reads over the pair's
+//! consumed extent, decided zero too, so the declared rung verifies
+//! that pair `Definite`.
 //!
 //! Consequences, all deliberate:
 //!
@@ -41,8 +43,8 @@
 //!   the identity above rather than by care;
 //! - detection's decisions go through the funnel at the VERIFIER'S
 //!   sites — `bool_plane_parallel` / `bool_plane_orient` /
-//!   `bool_plane_offset` on the planar rung, and the curved rungs'
-//!   own sites (`carrier_sphere_*`, `carrier_cyl_*`,
+//!   `bool_plane_offset` / `bool_plane_reach` on the planar rung, and
+//!   the curved rungs' own sites (`carrier_sphere_*`, `carrier_cyl_*`,
 //!   `carrier_torus_*`) on the others. The detector mints no site of
 //!   its own and owes no ledger row. It interprets nothing the
 //!   verifier doesn't.

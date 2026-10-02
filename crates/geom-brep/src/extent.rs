@@ -184,4 +184,63 @@ mod tests {
         assert_eq!(xyz(slab.center()), xyz(square.center()));
         assert_eq!(slab.lever_from(slab.center()), 2.0f64.sqrt());
     }
+    /// A lopsided pair: a point beside a far larger ball, inside it. The
+    /// enclosure sits at the mean of the centres, so it is looser than
+    /// the minimal ball (the large ball itself) by the distance from the
+    /// mean to that ball's centre — and still reaches the large ball's
+    /// far side, which is the direction that matters.
+    #[test]
+    fn a_lopsided_enclosure_reaches_the_large_parts_far_side() {
+        let point = ExtentBall::point(Point3::new(0.0, 0.0, 0.0));
+        let large = ExtentBall::new(Point3::new(10.0, 0.0, 0.0), 100.0);
+        let both = ExtentBall::enclosing(&[point, large]).unwrap();
+        assert_eq!(xyz(both.center()), [5.0, 0.0, 0.0]);
+        assert_eq!(both.radius(), 105.0, "the mean's lever to the far side");
+        for far in [
+            Point3::new(110.0, 0.0, 0.0),
+            Point3::new(-90.0, 0.0, 0.0),
+            Point3::new(10.0, 100.0, 0.0),
+        ] {
+            assert!(
+                (far - both.center()).norm() <= both.radius(),
+                "{far:?} of the large ball is enclosed"
+            );
+        }
+    }
+
+    /// **Rounding.** Parts far from the origin, at coordinates whose
+    /// ulp is coarse next to their radii: the mean rounds, and each
+    /// lever rounds. Sample points on every part's sphere stand within
+    /// a few ulps of the radius — a rounding the band dwarfs, where a
+    /// centre or radius that dropped a part's far side would miss by
+    /// that part's whole radius.
+    #[test]
+    fn an_enclosure_far_from_the_origin_rounds_within_ulps() {
+        let base = 1.0e8;
+        let parts = [
+            ExtentBall::new(Point3::new(base + 0.3, base - 0.7, 1.0), 0.1),
+            ExtentBall::new(Point3::new(base + 3.1, base + 0.2, -2.0), 1.7),
+            ExtentBall::point(Point3::new(base - 1.9, base + 2.3, 0.5)),
+        ];
+        let ball = ExtentBall::enclosing(&parts).unwrap();
+        let slack = 4.0 * f64::EPSILON * (base + ball.radius());
+        let dirs = [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+        ];
+        for part in parts {
+            for d in dirs {
+                let p = part.center() + d * part.radius();
+                let over = (p - ball.center()).norm() - ball.radius();
+                assert!(
+                    over <= slack,
+                    "{p:?} stands {over:e} past the enclosure (slack {slack:e})"
+                );
+            }
+        }
+    }
 }

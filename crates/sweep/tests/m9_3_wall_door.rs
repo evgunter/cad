@@ -107,9 +107,10 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
     let bracket = Bracket::open();
     let out = topo::union_with(&bored, &peg, &decls, Tol::witness());
     let v = bracket.finish().verdicts;
-    // The carrier ladder's cylinder rungs ran — the declared descent
-    // executed rather than being skipped past (telemetry from birth).
-    for name in ["carrier_cyl_axis_parallel", "carrier_cyl_radius"] {
+    // The carrier ladder's declared cylinder reading ran — the declared
+    // descent executed rather than being skipped past (telemetry from
+    // birth).
+    for name in ["carrier_cyl_reach"] {
         assert!(
             v.iter().any(|x| x.predicate == name),
             "{name} never reached the funnel — the declared descent did not run"
