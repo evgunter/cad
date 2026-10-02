@@ -90,6 +90,7 @@ use crate::names::{
 };
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
+use crate::spoken::{Said, Speaker};
 use crate::witness::WitnessBifurcation;
 use geom_core::Tol;
 
@@ -143,30 +144,55 @@ pub enum ResolveError {
 // fields ("the name's minting node …"). Composing layers
 // (`NodeErrorKind`'s two resolve arms) FORWARD this rather than
 // re-stating it.
-impl core::fmt::Display for ResolveError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for ResolveError {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Vanished {
                 name, diagnosis, ..
             } => write!(
                 f,
-                "the {name} no longer resolves in this evaluation: {diagnosis}"
+                "the {} no longer resolves in this evaluation: {}",
+                by.name(name),
+                Said(diagnosis, by)
             ),
             Self::Ambiguous { name, tie, .. } => write!(
                 f,
-                "the {name} is tie-marked: {} equally-admissible \
+                "the {} is tie-marked: {} equally-admissible \
                  candidates at its recorded site — a tie is never broken by picking; \
                  refine the reference until one candidate remains",
+                by.name(name),
                 tie.width
             ),
             Self::NodeGone { name, edit } => write!(
                 f,
-                "the {} name's minting node {} is no longer in the document ({edit}) — \
+                "the {} is stranded: its minting node is no longer in the document ({}) — \
                  the repair is an explicit rebind",
-                name.kind.noun(),
-                name.node
+                by.name(name),
+                Said(edit, by)
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ResolveError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+    }
+}
+
+impl ResolveError {
+    /// **The refusal as the frame holding the resolved document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]), a node it
+    /// does not hold (a deleted one) by its tag. Speak it from the document
+    /// of the run the resolution is about, never the prior run's.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -464,18 +490,18 @@ pub enum GroupCutters {
 /// One cutter as [`GroupCutters`]' sentence names it: its name, and the
 /// role it has in the entity it denotes, in words — so two walls of one
 /// extrude read as two walls rather than as one name twice.
-struct Cutter<'a>(&'a StableName);
+struct Cutter<'a>(&'a StableName, Speaker<'a>);
 
 impl core::fmt::Display for Cutter<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let leaf = descent_leaf(self.0);
-        write!(f, "the {} (", self.0)?;
+        write!(f, "the {} (", self.1.name(self.0))?;
         match leaf.path.first() {
             Some(seg) => role_words(f, seg)?,
             None => write!(f, "no role")?,
         }
         if leaf.node != self.0.node {
-            write!(f, ", minted by node {}", leaf.node)?;
+            write!(f, ", minted by {}", self.1.node(leaf.node))?;
         }
         write!(f, ")")
     }
@@ -611,18 +637,26 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
 }
 
 // The cutter clause of [`Diagnosis::GroupResized`]'s sentence.
-impl core::fmt::Display for GroupCutters {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        fn list(f: &mut core::fmt::Formatter<'_>, names: &[StableName]) -> core::fmt::Result {
+impl crate::spoken::Say for GroupCutters {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        fn list(
+            f: &mut core::fmt::Formatter<'_>,
+            names: &[StableName],
+            by: Speaker<'_>,
+        ) -> core::fmt::Result {
             match names {
-                [one] => write!(f, "{}", Cutter(one)),
+                [one] => write!(f, "{}", Cutter(one, by)),
                 many => {
                     write!(f, "{} cutters (", many.len())?;
                     for (i, n) in many.iter().enumerate() {
                         if i > 0 {
                             write!(f, "; ")?;
                         }
-                        write!(f, "{}", Cutter(n))?;
+                        write!(f, "{}", Cutter(n, by))?;
                     }
                     write!(f, ")")
                 }
@@ -635,7 +669,7 @@ impl core::fmt::Display for GroupCutters {
             Self::Read { gone, new } => {
                 if !gone.is_empty() {
                     write!(f, "the parent's seams with ")?;
-                    list(f, gone)?;
+                    list(f, gone, by)?;
                     write!(f, " are gone")?;
                 }
                 if !new.is_empty() {
@@ -643,7 +677,7 @@ impl core::fmt::Display for GroupCutters {
                         write!(f, ", and ")?;
                     }
                     write!(f, "the parent has new seams with ")?;
-                    list(f, new)?;
+                    list(f, new, by)?;
                 }
                 Ok(())
             }
@@ -670,6 +704,14 @@ impl core::fmt::Display for GroupCutters {
         }
     }
 }
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for GroupCutters {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+    }
+}
+
 
 /// What [`Diagnosis::Upstream`] found upstream of the minting node —
 /// the three with-history lanes, each carrying the node it is AT,
@@ -720,8 +762,12 @@ impl core::fmt::Display for FlipSubject<'_> {
 
 // The CAUSE clause of [`Diagnosis::Upstream`]'s sentence; the arm adds
 // where it sits relative to the name.
-impl core::fmt::Display for UpstreamCause {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for UpstreamCause {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::PredicateFlip {
                 predicate,
@@ -730,20 +776,28 @@ impl core::fmt::Display for UpstreamCause {
                 to,
             } => write!(
                 f,
-                "{} flipped from {from} to {to} at node {}",
+                "{} flipped from {from} to {to} at {}",
                 FlipSubject(predicate),
-                at
+                by.node(*at)
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
-                "a structural parameter changed at node {} (slot {})",
-                node,
+                "a structural parameter changed at {} (slot {})",
+                by.node(*node),
                 param.label()
             ),
-            Self::RecipeEdit { edit } => write!(f, "the recipe changed ({edit})"),
+            Self::RecipeEdit { edit } => write!(f, "the recipe changed ({})", Said(edit, by)),
         }
     }
 }
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for UpstreamCause {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+    }
+}
+
 
 impl Diagnosis {
     /// The total fallback, honest about its limits: the recorded
@@ -773,8 +827,12 @@ impl Diagnosis {
 // Rendered as the WHY clause of [`ResolveError::Vanished`]'s message:
 // each arm states its cause; payload-holding arms forward the
 // payload's own rendering.
-impl core::fmt::Display for Diagnosis {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for Diagnosis {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::PredicateFlip {
                 predicate,
@@ -787,11 +845,11 @@ impl core::fmt::Display for Diagnosis {
             ),
             Self::BorderDelta { node, gone, new } => write!(
                 f,
-                "at node {}, the piece of its face nearest it now no longer borders {} \
+                "at {}, the piece of its face nearest it now no longer borders {} \
                  and borders {} it did not",
-                node,
-                Walls(gone),
-                Walls(new)
+                by.node(*node),
+                Walls(gone, by),
+                Walls(new, by)
             ),
             Self::GroupResized {
                 node,
@@ -800,16 +858,16 @@ impl core::fmt::Display for Diagnosis {
                 cutters,
             } => write!(
                 f,
-                "at node {}, the group this fragment's parent was divided into held \
-                 {was} entities in the last-good run and holds {now} now; {cutters}; and \
+                "at {}, the group this fragment's parent was divided into held \
+                 {was} entities in the last-good run and holds {now} now; {}; and \
                  no verdict flip was found that explains the change",
-                node
+                by.node(*node),
+                Said(cutters, by)
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
-                "a structural parameter changed on the derivation path (node {}, slot \
-                 {})",
-                node,
+                "a structural parameter changed on the derivation path ({}, slot {})",
+                by.node(*node),
                 param.label()
             ),
             // A SITE of difference, not a claim that an edit happened
@@ -818,12 +876,14 @@ impl core::fmt::Display for Diagnosis {
             Self::RecipeEdit { edit } => write!(
                 f,
                 "the recorded reference disagrees with the recipe as it stands on the \
-                 derivation path ({edit})"
+                 derivation path ({})",
+                Said(edit, by)
             ),
             Self::Cascade { through } => write!(
                 f,
-                "the upstream {through} vanished first; its own \
-                 resolution failure carries the root cause"
+                "the upstream {} vanished first; its own resolution failure carries the root \
+                 cause",
+                by.name(through)
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -835,29 +895,45 @@ impl core::fmt::Display for Diagnosis {
             ),
             Self::Upstream { node, cause } => write!(
                 f,
-                "{cause}, upstream of node {}, the name's minting node, but not on its \
-                 derivation path",
-                node
+                "{}, upstream of {}, the name's minting node, but not on its derivation path",
+                Said(cause, by),
+                by.node(*node)
             ),
         }
     }
 }
 
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for Diagnosis {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+    }
+}
+
+impl Diagnosis {
+    /// **The clause as the frame holding the resolved document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
+    }
+}
+
 /// A list of divider walls as a clause: `the X and the Y`, or
 /// `no wall`.
-struct Walls<'a>(&'a [StableName]);
+struct Walls<'a>(&'a [StableName], Speaker<'a>);
 
 impl core::fmt::Display for Walls<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.0 {
             [] => write!(f, "no wall"),
-            [one] => write!(f, "the {one}"),
+            [one] => write!(f, "the {}", self.1.name(one)),
             many => {
                 for (i, w) in many.iter().enumerate() {
                     match i {
-                        0 => write!(f, "the {w}")?,
-                        _ if i + 1 == many.len() => write!(f, " and the {w}")?,
-                        _ => write!(f, ", the {w}")?,
+                        0 => write!(f, "the {}", self.1.name(w))?,
+                        _ if i + 1 == many.len() => write!(f, " and the {}", self.1.name(w))?,
+                        _ => write!(f, ", the {}", self.1.name(w))?,
                     }
                 }
                 Ok(())
@@ -900,20 +976,32 @@ pub enum RecipeEditRef {
 
 // Prose for the edit-reference parentheticals in [`ResolveError`]'s
 // and [`Diagnosis`]'s messages.
-impl core::fmt::Display for RecipeEditRef {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for RecipeEditRef {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            Self::NodeDeleted { node } => write!(f, "node {} was deleted", node),
-            Self::NodeInserted { node } => write!(f, "node {} was inserted", node),
+            Self::NodeDeleted { node } => write!(f, "{} was deleted", by.node(*node)),
+            Self::NodeInserted { node } => write!(f, "{} was inserted", by.node(*node)),
             // A difference statement, not an edit claim — this arm is
             // the diff fallback's site vocabulary.
-            Self::NodeChanged { node } => write!(f, "node {}'s payload differs", node),
+            Self::NodeChanged { node } => write!(f, "{}'s payload differs", by.node(*node)),
             Self::ForeignNode { node } => {
-                write!(f, "node {} was never minted by this document", node)
+                write!(f, "{} was never minted by this document", by.node(*node))
             }
         }
     }
 }
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for RecipeEditRef {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+    }
+}
+
 
 /// The recorded tie a reference ran into (N2's tie mark, as evidence).
 #[derive(Debug, Clone, PartialEq)]
@@ -994,13 +1082,33 @@ pub struct ResolveIndeterminate {
 // is that the reference is indeterminate rather than vanished, so the
 // recourse is always to restore the node's value, never to rebind; the
 // standing supplies which node, what state and where the repair is.
-impl core::fmt::Display for ResolveIndeterminate {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for ResolveIndeterminate {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
             "the reference is indeterminate until its minting node evaluates: {}",
-            self.standing
+            Said(&self.standing, by)
         )
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ResolveIndeterminate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+    }
+}
+
+impl ResolveIndeterminate {
+    /// **The clause as the frame holding the resolved document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 

@@ -278,6 +278,68 @@ impl<P> Doc<P> {
     }
 }
 
+/// **Who says a sentence's nodes**: a refusal's sentence is written
+/// once and said two ways. Its own `Display` says each node by its tag
+/// ([`Speaker::Tag`], where no document is at hand), and the frame that
+/// holds the document the ids are spelled in says each as that
+/// document holds it now ([`Speaker::Doc`]). A value the evaluation
+/// memo reuses, or one a door raised from an evaluation alone, keeps
+/// its bare ids and is said this way by the frame that hands it out.
+#[derive(Clone, Copy)]
+pub(crate) enum Speaker<'a> {
+    /// Each node by its tag: `node <tag>`.
+    Tag,
+    /// Each node as this document holds it ([`Doc::spoken`]).
+    Doc(&'a dyn HoldsNodes),
+}
+
+/// A document a [`Speaker`] reads nodes off, whatever its program.
+pub(crate) trait HoldsNodes {
+    /// The node `id` as this document speaks it.
+    fn speak(&self, id: RecipeNodeId) -> SpokenNode;
+}
+
+impl<P> HoldsNodes for Doc<P> {
+    fn speak(&self, id: RecipeNodeId) -> SpokenNode {
+        self.spoken(id)
+    }
+}
+
+impl Speaker<'_> {
+    /// The node `id`, said.
+    pub(crate) fn node(self, id: RecipeNodeId) -> SpokenNode {
+        match self {
+            Self::Tag => SpokenNode::absent(id),
+            Self::Doc(doc) => doc.speak(id),
+        }
+    }
+
+    /// The name `name`, its minting node said.
+    pub(crate) fn name(self, name: &StableName) -> SpokenName {
+        SpokenName::new(name.clone(), self.node(name.node))
+    }
+}
+
+/// A value whose sentence a [`Speaker`] says.
+pub(crate) trait Say {
+    /// The sentence, each node said by `by`.
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: Speaker<'_>) -> fmt::Result;
+}
+
+/// A value said by a speaker: the `Display` of [`Say::say`].
+pub(crate) struct Said<'a, T: ?Sized>(pub(crate) &'a T, pub(crate) Speaker<'a>);
+
+impl<T: Say + ?Sized> fmt::Display for Said<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.say(f, self.1)
+    }
+}
+
+/// `value`'s sentence as `doc` speaks its nodes now.
+pub(crate) fn spoken_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> String {
+    Said(value, Speaker::Doc(doc)).to_string()
+}
+
 /// **A report renders only from the document it was taken of.** A
 /// node id is not document-scoped: another document can hold the same
 /// id as a different node, so speaking a report's ids from it would

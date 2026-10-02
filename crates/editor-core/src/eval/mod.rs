@@ -333,33 +333,58 @@ impl core::fmt::Display for RootStanding {
     }
 }
 
-impl core::fmt::Display for NodeStanding {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
+impl crate::spoken::Say for NodeStanding {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match *self {
             Self::NotEvaluated { node } => write!(
                 f,
-                "node {} has no result in this evaluation: the run was canceled before it \
+                "{} has no result in this evaluation: the run was canceled before it \
                  reached the node — re-evaluate the document to completion",
-                node
+                by.node(node)
             ),
             Self::NotInDocument { node } => write!(
                 f,
-                "node {} is not a node of the document this evaluation ran over — ask about \
+                "{} is not a node of the document this evaluation ran over — ask about \
                  one of that document's nodes, or evaluate the document the node is in",
-                node
+                by.node(node)
             ),
             Self::Failed { node } => write!(
                 f,
-                "node {} failed, so it has no value — fix the node's own failure",
-                node
+                "{} failed, so it has no value — fix the node's own failure",
+                by.node(node)
             ),
-            Self::Poisoned { node, through } => write!(
-                f,
-                "node {} is poisoned by the failure at node {}, so it has no value — the \
-                 repair is upstream, at node {}",
-                node, through, through
-            ),
+            Self::Poisoned { node, through } => {
+                let through = by.node(through);
+                write!(
+                    f,
+                    "{} is poisoned by the failure at {through}, so it has no value — the \
+                     repair is upstream, at {through}",
+                    by.node(node)
+                )
+            }
         }
+    }
+}
+
+/// The standing where no document is at hand: each node by its tag.
+impl core::fmt::Display for NodeStanding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+    }
+}
+
+impl NodeStanding {
+    /// **The standing as the frame holding the evaluated document says
+    /// it**: each node as `doc` holds it now ([`Doc::spoken`]). A
+    /// standing is answered by an evaluation and carried inside values
+    /// the evaluation memo reuses, so it holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
