@@ -277,10 +277,9 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         "the backstop names the undecidable pair: {errs:?}"
     );
     // The DECLARED direction: a patch record naming the cross-key
-    // pair cannot certify either — it escalates through the chart
-    // predicate's divergence posture (PR deviation 1) or refuses
-    // typed; either way the honest lane for this real assembly class
-    // does not exist yet.
+    // pair certifies — both walls store their rows at rest, so the chart
+    // region measures the contact — and what is left is the backstop's
+    // refusal of the pairs nothing declares.
     let bite = faces[0];
     let pin_wall = *faces.last().unwrap();
     let mut records = topo::ContactRecords::default();
@@ -289,15 +288,15 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         face_b: pin_wall,
     });
     let errs = topo::validate_pseudomanifold(&body, &records, Tol::witness())
-        .expect_err("the cross-key record cannot certify");
+        .expect_err("the undeclared curved proximities still refuse");
+    let names =
+        |e: &topo::ValidationError, f: topo::FaceKey| format!("{e:?}").contains(&format!("{f:?}"));
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::CensusEscalated { .. }
-                | topo::ValidationError::CensusUnsupported { .. }
-                | topo::ValidationError::ContactContradicted { .. }
-        )),
-        "{errs:?}"
+        errs.iter().all(
+            |e| matches!(e, topo::ValidationError::CensusUndecidable { .. })
+                && !(names(e, bite) && names(e, pin_wall))
+        ),
+        "the declared pair certifies; only the backstop speaks, about other pairs: {errs:?}"
     );
 }
 

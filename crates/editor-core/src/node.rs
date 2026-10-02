@@ -3358,12 +3358,12 @@ impl<P> Node<P> {
     /// EVERY node kind — not only the union, the list-input kinds and
     /// the boolean. That is wider than DM5's text, and deliberately:
     ///
-    /// - The duplicate clause is sound everywhere because no node kind
-    ///   in this crate has a meaning for the same input twice. A
-    ///   boolean with `a == b` is a self-operation whose result is one
-    ///   of its own operands; a `Split` cutting a body by itself is the
-    ///   same; a `Mate` between a part and itself has no relative
-    ///   frame. The one kind that could plausibly want a repeat is
+    /// - The duplicate clause is over the same input NODE: one node id
+    ///   at two seats of any kind. It is not a claim about the bodies
+    ///   those seats evaluate to. Two distinct nodes that evaluate to
+    ///   one body (two `Part`s of one split half) are admitted, and the
+    ///   boolean answers them (`A ∪ A = A`, `A − A` empty). The one kind
+    ///   that could plausibly want a repeat is
     ///   [`Node::Measure`], and it does not: its edges come from the
     ///   measurement's own node set, which DEDUPS before `inputs`
     ///   returns, so a measurement over one body twice presents one

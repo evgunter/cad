@@ -203,10 +203,15 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   every point lane builds it (the enclosure straddles the band where
 ///   the point does not), and it builds the triangle everywhere,
 ///   including the cells where both point lanes refuse it.
+/// - **The certified lane builds the stadium** wherever the point lanes
+///   do, its extrude's closing pcurve mint included: the arc walls'
+///   rows are certified over the `r` box by their closed-form envelope,
+///   every term a theorem, the loop walk's branch a literal. The washer,
+///   minted by revolve already, and the arc-free triangle do not move.
 #[rustfmt::skip]
 const TABLE: [[Cell; 4]; 3] = [
-    // ε = 1e-6: nothing refuses anywhere, except the certified lane's
-    // washer at the furthest placement.
+    // ε = 1e-6: the point lanes refuse nothing anywhere; the certified
+    // lane refuses the stadium and the washer at the furthest.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },

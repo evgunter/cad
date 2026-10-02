@@ -368,29 +368,17 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
         );
 
         // The independent check: tier 3 re-derives the mapped
-        // certificate itself, and finds nothing the operand did not
-        // already have. The operand's own baseline is exactly one
-        // finding — check 7 wanting the pcurve caches the seam class
-        // will not mint (see `box_with_approx_cap`) — so this compares
-        // a set of one against a set of one, and names what is in it.
-        let findings = |b: &Body<f64>| match topo::validate_geometric(b, Tol::witness()) {
-            Ok(()) => Vec::new(),
-            Err(e) => e.iter().map(|f| format!("{f:?}")).collect(),
-        };
-        let (here, there) = (findings(&body), findings(&moved));
+        // certificate itself, and finds nothing, either side of the map:
+        // the operand is minted, so check 7 weighs it.
         assert_eq!(
-            there, here,
-            "d = {d}: a rigid map must introduce no tier-3 finding"
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "d = {d}: the operand is valid at rest"
         );
-        assert!(
-            !there
-                .iter()
-                .any(|f| f.contains("Approx") || f.contains("Certif")),
-            "d = {d}: no finding about the mapped approximating surface: {there:?}"
-        );
-        assert!(
-            there.iter().all(|f| f.contains("VolumeUncomputable")),
-            "d = {d}: the only wall is check 7 wanting caches: {there:?}"
+        assert_eq!(
+            topo::validate_geometric(&moved, Tol::witness()),
+            Ok(()),
+            "d = {d}: a rigid map introduces no tier-3 finding"
         );
     }
 }
@@ -884,40 +872,39 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     );
 }
 
-/// **What an `Approx`-capped part still cannot do, pinned so that
-/// lifting any of it is loud.** A user who places one of these bodies
-/// meets three walls after the map, and each is a different door's
-/// gap rather than a property of the map:
+/// **What an `Approx`-capped part can and cannot do once placed,
+/// pinned so that a move either way is loud.** The fixture ends with its
+/// closing mint (rows are mandatory at rest), and every cap edge's row
+/// derives and certifies, so the two doors that want stored caches
+/// answer on the placed part:
 ///
-/// - **mass properties** refuse, because the quadrature wants a stored
-///   pcurve cache on every half-edge of a spline face and the iso
-///   lane's seam class will not mint one over a straight carrier;
-/// - **tessellation** refuses for the same missing caches;
+/// - **mass properties** weigh it, at the operand's own volume and area;
+/// - **tessellation** meshes it;
 /// - **STEP export** refuses by kind: the writer has no printer for an
 ///   approximating surface (`OFFSET_SURFACE` is the entity it would
 ///   need), so it declines rather than emitting the fit as if the fit
 ///   were the described geometry.
 ///
-/// The row asserts each refusal and its shape. When one is built, this
-/// reds, and `work/shell/no-approx-faced-body-is-both-movable-and-valid.md`
-/// is the file to update.
+/// `work/shell/no-approx-faced-body-is-both-movable-and-valid.md` is the
+/// file that tracks the walls.
 #[test]
 fn the_walls_a_placed_approx_capped_part_still_meets() {
     let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
     let placed = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the part places");
 
-    let props = topo::mass_properties(&placed, Tol::witness())
-        .expect_err("the quadrature wants caches this chart cannot mint");
+    let here = topo::mass_properties(&body, Tol::witness()).expect("the operand weighs");
+    let props = topo::mass_properties(&placed, Tol::witness()).expect("the placed part weighs");
     assert!(
-        format!("{props}").contains("no stored pcurve cache"),
-        "mass properties must refuse for the missing caches, got {props}"
+        (props.volume - here.volume).abs() <= props.volume_pad + here.volume_pad
+            && (props.surface_area - here.surface_area).abs() <= props.area_pad + here.area_pad,
+        "a rigid map moves neither volume nor area: {here:?} -> {props:?}"
     );
 
-    let mesh = mesh::tessellate(&placed, 0.05, Tol::witness())
-        .expect_err("tessellation wants the same caches");
-    assert!(
-        format!("{mesh}").contains("no stored pcurve cache"),
-        "tessellation must refuse for the missing caches, got {mesh}"
+    let mesh = mesh::tessellate(&placed, 0.05, Tol::witness()).expect("the placed part meshes");
+    assert_eq!(
+        mesh.patches.len(),
+        placed.faces().count(),
+        "every face of the placed part is meshed"
     );
 
     let step = step_export::step_string(

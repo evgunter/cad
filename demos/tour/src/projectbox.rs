@@ -1,14 +1,15 @@
 //! The project-box enclosure (#91 C3): one part carrying the tour's
 //! longest boolean-of-boolean chain — cavity subtract, then 6 vent
 //! through-slots (each a two-ring tunnel seam through a wall), then 4
-//! round screw bosses unioned to the floor (inset-overlap, the
-//! table-leg pattern), then a through-bore down each boss and out
-//! through the floor: 15 sequential ops, every one against the
-//! closed-form volume oracle (a volume + Seamed-kind gate per op; tier
-//! 3′ with declared contacts runs once, on the FINAL body, in
-//! `crate::run_body`). Coordinates follow the #91 design rule: no two
-//! operand planes coincide anywhere in the chain (all features offset
-//! in 1/16 steps).
+//! round screw bosses standing ON the floor, each union declaring what
+//! the flush detector finds ([`crate::booleans::try_union_declared`]):
+//! the cap-on-floor contact, plus continuations against the disjoint
+//! tops of the bosses already standing, which the union does not need
+//! (work/tang/flush-detector-offers-disjoint-coplanar-pairs-as-continuations.md),
+//! then a through-bore down each boss and out through the floor: 15
+//! sequential ops, every one against the closed-form volume oracle (a
+//! volume + Seamed-kind gate per op; tier 3′ with declared contacts
+//! runs once, on the FINAL body, in `crate::run_body`).
 //!
 //! Retires the abstract `openbox` stop (this is the cavity story with
 //! a real part around it).
@@ -21,7 +22,7 @@ use pncad::document::ExtrudeSide;
 use pncad::topo::BooleanBody;
 
 use crate::bool_bodies::slab;
-use crate::booleans::{check, expect_seamed, try_subtract, try_union};
+use crate::booleans::{check, expect_seamed, try_subtract, try_union_declared};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, validated};
@@ -35,9 +36,9 @@ pub(crate) const BOSS_R: f64 = 0.1875;
 /// The floor's top (m): walls and floor are 0.25 thick.
 pub(crate) const FLOOR_TOP: f64 = 0.25;
 
-/// The bosses' span in `z`: from 1/16 down INTO the floor (below
-/// [`FLOOR_TOP`]) to the boss tops.
-pub(crate) const BOSS_Z: (f64, f64) = (0.1875, 0.875);
+/// The bosses' span in `z`: standing on the floor, [`FLOOR_TOP`] to
+/// the boss tops.
+pub(crate) const BOSS_Z: (f64, f64) = (FLOOR_TOP, 0.875);
 
 /// The bores' radius (m).
 pub(crate) const BORE_R: f64 = 0.09375;
@@ -104,15 +105,14 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
         }
     }
 
-    // Interior screw bosses: 4 cylinders unioned to the floor with a
-    // 1/16 overlap INTO it (flush contact would refuse — ladder rung
-    // (b)); each adds its part above the floor top.
+    // Interior screw bosses: 4 cylinders standing on the floor, their
+    // flush findings declared.
     for (cx, cy) in BOSS_AXES {
-        vol += PI * BOSS_R * BOSS_R * (BOSS_Z.1 - FLOOR_TOP);
+        vol += PI * BOSS_R * BOSS_R * (BOSS_Z.1 - BOSS_Z.0);
         acc = expect_seamed(
             "boss union",
             check(
-                try_union(&acc.body, &rod(cx, cy, BOSS_R, BOSS_Z, tol), tol),
+                try_union_declared(&acc.body, &rod(cx, cy, BOSS_R, BOSS_Z, tol), tol),
                 vol,
                 tol,
             ),
@@ -147,12 +147,14 @@ pub fn stop(tol: Tol) -> Stop {
     let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, tol);
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
-         4 boss unions -> 4 bore subtracts), volume within 1e-9 of the closed-form \
+         4 declared boss unions -> 4 bore subtracts), volume within 1e-9 of the closed-form \
          oracle after every op, final V = {vol} (each boss adds pi R^2 x {boss_h}, \
          R = {BOSS_R}; each bore removes pi r^2 x {BORED_HEIGHT}, r = {BORE_R}); \
-         no two operand planes coincide anywhere in the chain (the #91 design \
-         rule). SECTIONED: {section_note}",
-        boss_h = BOSS_Z.1 - FLOOR_TOP,
+         each boss stands on the floor; each union declares the detector's findings, \
+         its cap-on-floor contact plus continuations against the other bosses' disjoint \
+         tops. \
+         SECTIONED: {section_note}",
+        boss_h = BOSS_Z.1 - BOSS_Z.0,
     );
     Stop {
         name: "projectbox",
@@ -164,7 +166,8 @@ pub fn stop(tol: Tol) -> Stop {
                 bored bosses and pulled apart, a machinist's section whose boss \
                 sections are rings around the bores, showing what the whole one hides",
         ops: "extrude the shell, 7 slab cutters, 4 boss rods, 4 bore rods -> 15 sequential \
-              subtract/union nodes; topo::split(tilted plane) -> 2 bodies -> 2 \
+              subtract/union nodes, each boss union through flush::find_flush_candidates \
+              -> declare_all -> union_with; topo::split(tilted plane) -> 2 bodies -> 2 \
               transform nodes; topo::plane_section(same plane) -> regions with holes",
         delta: 1e-2,
         note: Some(note),

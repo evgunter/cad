@@ -28,6 +28,13 @@ pub const RADIUS: f64 = 1.25e-3;
 /// The nominal web: `SPACING − 2·RADIUS` = 0.6 mm.
 pub const WEB: f64 = SPACING - 2.0 * RADIUS;
 
+/// The study the machinist writes down: ±0.05 mm on the hole spacing…
+pub const SPACING_HALF_WIDTH: f64 = 5.0e-5;
+/// …σ = 0.01 mm on each radius…
+pub const RADIUS_SIGMA: f64 = 1.0e-5;
+/// …and the web asserted at least 0.1 mm under its nominal.
+pub const WEB_BOUND: f64 = WEB - 1.0e-4;
+
 /// **The widest box of this plate that certifies whole, as a fraction
 /// of the real study.** `7.81e2 · ε`, which at the default ε is this.
 ///
@@ -103,6 +110,18 @@ pub struct Plate {
     /// `−x` then `+x`. Carried because a cell that DRAWS the study
     /// needs the built bodies and not only the summary over them.
     pub holes: [RecipeNodeId; 2],
+}
+
+/// **The real study**: the plate the machinist's numbers describe —
+/// the one [`crate::tolerance`]'s stop 1 analyzes, [`crate::mcplate`]
+/// draws, and the gallery writes.
+pub fn real_study(tol: Tol) -> Plate {
+    plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol)
+}
+
+/// The real study's document, as the GUI opens it.
+pub fn gallery_document(tol: Tol) -> ProfileDoc {
+    real_study(tol).doc
 }
 
 pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -> Plate {

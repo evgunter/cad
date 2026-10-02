@@ -2487,7 +2487,15 @@ class Node:
         without one, operands that merely TOUCH refuse with the typed
         menu (`EvaluationError`, `kind == "undeclared_coincidence"`,
         `finding` attached) — the kernel never infers that two faces
-        are the same face."""
+        are the same face.
+
+        A closed surface of one operand that lies wholly on the
+        other's — one body at both seats, or a member carried into a
+        union unchanged — is answered where every face of it is the
+        same face as one of the other's, by recipe or by declaration
+        (`A ∪ A` and `A ∩ A` are `A`, `A − A` is empty); where they
+        do not show that, the evaluation refuses with
+        `inner_kind == "coincident_shell"`."""
 
     @staticmethod
     def union(members: list[NodeId], declare: Optional[NodeId] = None) -> Node:
