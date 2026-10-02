@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "at_rest_pcurve_rows.rs"]
+mod at_rest_pcurve_rows;
 #[path = "axis_source_rows.rs"]
 mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
@@ -185,6 +187,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "on_verdict.rs"]
+mod on_verdict;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]
@@ -275,6 +279,8 @@ mod shell_tolerance_chain;
 mod shell_winding;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "sphere_twin_rows_interval.rs"]
+mod sphere_twin_rows_interval;
 #[path = "split_edge_pcurve_rows.rs"]
 mod split_edge_pcurve_rows;
 #[path = "split_gate_per_face.rs"]

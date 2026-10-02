@@ -1,6 +1,6 @@
 # f64
 quintic_prism v=3f8b436424c4466f a=3fd89d360a67b42b vpad=3e66df15f0615555 apad=3f69215a38e8c900 | verdicts n=32 h=f73b74c08fd0b2f9 esc n=0 h=cbf29ce484222325
-tilted_cut_upper v=3fd921fb544818db a=40096d2e764bb79b vpad=3e83f7d38e800000 apad=3eadf3bd55c00000 | verdicts n=10 h=7eecd91a7373752d esc n=0 h=cbf29ce484222325
+tilted_cut_upper v=3fd921fb544818db a=40096d2e764bb79b vpad=3e83f7d38daaaaab apad=3eadf3bd54800000 | verdicts n=10 h=7eecd91a7373752d esc n=0 h=cbf29ce484222325
 bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000 | verdicts n=18 h=0f29e93459f95d01 esc n=0 h=cbf29ce484222325
 loft_prism v=4022000000000000 a=4039524a6c672fe1 vpad=3d16aaaaaaaaaaab apad=3fc84532b9a1b030 | verdicts n=8 h=682f20aee17acb35 esc n=0 h=cbf29ce484222325
 arc_loft_1e11eps REFUSED at FaceKey(4v1): a face's share of the volume and surface area cannot be computed: integral properties: the certified quadrature enclosure cannot reach the 1.024e-6 m target (which scales with the run's tolerance): its mean boundary displacement is 1.105e-5 m — the schedule's last round's, or the bound every remaining round was proven to exceed — after 1 refinement round(s); certified bounds or typed refusal, never a silently wide answer; loosen the tolerance or simplify the trim | verdicts n=4 h=77e953f037b0ae42 esc n=0 h=cbf29ce484222325
@@ -8,6 +8,6 @@ arc_loft_1e9eps v=4022487ed6a9da0a a=403995a3b53c3c57 vpad=3eb0783c20800000 apad
 thin_strip REFUSED at FaceKey(3v1): a face's share of the volume and surface area cannot be computed: integral properties: the certified quadrature enclosure cannot reach the 1.024e-6 m target (which scales with the run's tolerance): its mean boundary displacement is 9.504e-5 m — the schedule's last round's, or the bound every remaining round was proven to exceed — after 1 refinement round(s); certified bounds or typed refusal, never a silently wide answer; loosen the tolerance or simplify the trim | verdicts n=2 h=bf6dcbf50767c0fd esc n=0 h=cbf29ce484222325
 # sym-session
 sym_arc_loft mass_properties OK decisions=15 sz=0 sg=0 reg=0 rref=0 rcon=0 num=15 frozen=0 shapes=15
-sym_arc_loft validate_geometric OK decisions=660 sz=48 sg=0 reg=0 rref=0 rcon=0 num=612 frozen=568 shapes=660
+sym_arc_loft validate_geometric OK decisions=692 sz=54 sg=0 reg=0 rref=0 rcon=0 num=638 frozen=568 shapes=692
 sym_thin_strip mass_properties REFUSED decisions=2 sz=0 sg=0 reg=0 rref=0 rcon=0 num=2 frozen=0 shapes=2
-sym_thin_strip validate_geometric REFUSED decisions=660 sz=34 sg=0 reg=0 rref=0 rcon=0 num=626 frozen=719 shapes=660
+sym_thin_strip validate_geometric REFUSED decisions=692 sz=38 sg=0 reg=0 rref=0 rcon=0 num=654 frozen=719 shapes=692

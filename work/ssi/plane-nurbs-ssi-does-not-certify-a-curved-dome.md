@@ -181,12 +181,22 @@ measured by central differences of `sys.point` along the approximant.
    The docs name this caveat. On this curve it bites at every
    curvature from 1/m upward.
 
-Three refusals are **not explained here**. `TubeStraddles` refuses the
-level loop at 1e-6 at every d, and the tilt at d = 0.5. Limb 1
-escalates in band (1.3–1.7ε) on the gently curved oblique (d 0.05–0.25)
-at 1e-9 and 1e-12. Once cause (1) is fixed, limb 1 also escalates in
-band on the tilt at d = 3 and ε 1e-9 (`CertificateEscalated { OnLocus }`
-at 6.6ε). That one was masked by cause (1) until then.
+Two refusals are **not explained here**:
+
+- Limb 1 escalates in band (1.3–1.7ε) on the gently curved oblique
+  (d 0.05–0.25), at 1e-9 and at 1e-12.
+- Once cause (1) is fixed, limb 1 also escalates in band on the tilt at
+  d = 3 and ε 1e-9 (`CertificateEscalated { OnLocus }` at 6.6ε). Cause
+  (1) masked this one until then.
+
+A third, `TubeStraddles`, is explained and fixed in
+`plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps`. It refused
+the level loop at 1e-6 at every d, and the tilt at d = 0.5, because
+limb 3 read the wall's derivative off its one span cell whole.
+- At ε 1e-6, the level loop and the tilt now certify at d = 0.5, 1,
+  1.5, 2 and 3.
+- At 1e-9, the tilt at d = 0.5 certifies.
+- d = 0.05–0.25 and d = 4 were not re-measured.
 
 ## Fix shape
 
@@ -220,8 +230,8 @@ a wrong carrier to the certificate.
 **Cause (1) is split out** to `ssi-a-seed-refined-off-the-chart-is-marched`,
 which carries its fix. With that fix in place, the tilt cut refuses as
 follows:
-- At ε 1e-6, `TubeStraddles` at d = 1–3
-  (`plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps`).
+- At ε 1e-6 it certifies at d = 0.5–3, as does the level loop, since
+  `plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps`.
 - At ε 1e-9, limb 2 (`HullSup`) at d = 1–2. Assigning that to cause 4
   is an inference, as it is for the oblique: no one has traced it. At
   d = 3 the cut instead escalates limb 1 at 6.6ε, which is unexplained
@@ -229,5 +239,5 @@ follows:
 - At ε 1e-12, `FitSampleBudget` (cause 2) at d = 1–3.
 
 `a_seed_settled_off_the_walls_chart_is_no_branch` in
-`crates/geom-brep/tests/m5_pr7_ssi.rs` pins the refusals for d = 1 and
+`crates/geom-brep/tests/m5_pr7_ssi.rs` pins the outcomes for d = 1 and
 d = 2.

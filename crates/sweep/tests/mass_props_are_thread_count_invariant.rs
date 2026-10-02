@@ -352,6 +352,16 @@ fn digest() -> String {
 /// Volumes, volume pads, refusals, verdict hashes and the sym-session
 /// counts are unchanged.
 ///
+/// **Re-cut at all three ε when check 4 of the pcurve certificate became
+/// incidence plus fidelity** (`geom_brep::pcurve_cache`, C4). The
+/// quadrature's map-residual honesty pad reads each edge's certificate
+/// envelope, and on `tilted_cut_upper`'s cylinder wall the restated
+/// envelope is smaller. Only that row moves, and only down: `vpad` and
+/// `apad` fall by 2.5e-9 of themselves at ε = 1e-9, by ~5e-12 at
+/// 1e-6, and by 1.3e-6 at 1e-12. The volume's midpoint moves two ulps
+/// with its pad at 1e-6 and 1e-12. Areas, refusals, verdict hashes and
+/// the sym-session counts are unchanged.
+///
 /// **Re-cut at all three ε when a cylinder face's flux became its chart
 /// Green form** (`geom_brep::props::curved_face_loops`, `−∮ v du` over
 /// every loop). Only `bulged_extrusion`'s verdict row moves: its walls

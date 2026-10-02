@@ -91,13 +91,19 @@ page is mostly about.
 
 `demo-tour gallery [dir]` (default `gallery/`) writes each
 **document-authored** scene as a `.pncad` file the GUI can open:
-`bracket`, `checks`, `ring`, `diefillet`, `heatsink`, `teapot` as single documents,
-plus the assembly scene's workspace under `assembly/`. It authors them through the
-same functions the tour renders — the gallery is the scenes, saved, not a
-second spelling of them.
+`bracket`, `checks`, `ring`, `diefillet`, `heatsink`, `teapot`, `impeller`,
+`plate` (the tolerance cells' two-hole plate) and `chain` (the chain cells'
+four-link chain) as single documents, plus the assembly scene's workspace under
+`assembly/`. It authors them through the same functions the tour renders — the
+gallery is the scenes, saved, not a second spelling of them.
 
-Three more scenes already build documents and are not written yet
-(`impeller`, `plate`, `chain`: `work/show/gallery-writes-every-document-scene.md`).
+Every one of them saves and opens, but two do not denote what their scene means.
+`plate.pncad` draws a blank slab, because the document never subtracts its
+holes (`work/show/the-plate-document-never-cuts-its-holes.md`). `chain.pncad`
+draws its nine placed links under a product-fault badge but has no product:
+the gather refuses one link placed four times by transforms, so checks, mass
+properties and export have nothing to read
+(`work/wire/one-shape-placed-n-times-has-no-product.md`).
 The rest of the tour drives the kernel API directly and has no document
 to save; those scenes join the gallery as they are re-authored as
 documents, which is per-scene library work.
@@ -867,18 +873,23 @@ the draws moved.
   each joint's measured lateral range dimensioned on it; the tip panel
   is 48 px/mm on the target pin and the asserted 1 mm position band.
 * **The certified half is on the sheet, unlike the plate's.** The
-  widest box that certifies this chain whole is 0.111 of the study —
-  not `7.81e-7` — so the enclosure per joint is millimetre-scale and
-  DRAWS. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
+  widest box that certifies this chain whole is `6.751e-8` of the study
+  since the extrude closes with the pcurve mint (PCERT): the placed
+  rows' angular comparisons are the wall. Before the mint it was
+  `0.111`, a millimetre-scale enclosure per joint, and the follow-on
+  `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`
+  restores that. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
   across the chain (the worst-case lever sum, every joint at its own
   extreme at once) while the advisory σ grows `1 : 2.24 : 3.74 : 5.48`
   (the quadrature sum). E11's trade, in one picture. Along the chain
   the enclosure is microns, so the box draws as a line and is widened
   to a 5 px floor to be visible at all; the true number is in the
   legend.
-* **The teal is drawn only at the ε it was measured at.** `0.111` is a
-  default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
-  measured; why is `chaintol`'s header, "What sets the wall"), so at
+* **The teal is drawn only at the ε it was measured at.** `6.751e-8` is a
+  default-ε measurement and the box MOVES with ε (`6.747e-5` at `1e-6`,
+  measured: the wall is an enclosure escalating against the band; before
+  the mint it was `0.111` against `0.1083`, for the reason `chaintol`'s
+  header, "What sets the wall", gives), so at
   another ε it is a different box, and `chaintol` (`demo-tour certified`)
   declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
   the frontier where the legend would have gone and draws no band. A

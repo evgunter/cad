@@ -2782,7 +2782,13 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         | M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
         | M::SingularChartJoint { .. }
-        | M::MissingCache { .. } => (WRONG, DEFECT),
+        | M::MissingCache { .. }
+        | M::RowInterval { .. } => (WRONG, DEFECT),
+        // Every row derives and certifies; the producer did not mint.
+        M::Unminted { .. } => (
+            "a curved face stores no certified boundary description",
+            DEFECT,
+        ),
         // A face that stores no rows has no certificate for a fitted
         // or general image: unminted, or uncovered by every lane yet.
         M::UncertifiedImage { .. } => (
@@ -2807,6 +2813,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::UnsupportedCarrier { .. }
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
+                | C::BranchOutOfReach
                 | C::FittedMateMissing => (KIND, NOT_YET),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
