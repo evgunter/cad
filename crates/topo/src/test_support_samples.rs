@@ -178,7 +178,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v.extend(
         [
             "a declared face's surface kind is outside the Rest ladder's inventory \
-             (plane, sphere, cylinder)",
+             (plane, sphere, cylinder, torus)",
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
