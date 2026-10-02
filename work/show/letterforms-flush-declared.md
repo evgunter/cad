@@ -2,10 +2,12 @@
 id: letterforms-flush-declared
 kind: unit
 title: silhouette, silhouette3 and az drop the 1/16 decoupling for natural proportions with declared coincident contacts
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
+pr: 3836
+closed: 2026-10-02
 ---
 
 ## What

@@ -14,8 +14,10 @@
 //!   band under the bar, times the depth. These poses once returned ∩
 //!   bodies missing that face (a wrong volume, negative on some, tier 3
 //!   red): the join took the chord for the section segment and never
-//!   minted the arc (`chord_join`'s `between_edge_is_section`, the
-//!   `bool_between_line_on_wall` arm).
+//!   minted the arc. REACH first fixed it with a geometric test of the
+//!   chord against the wall; the join's adjacency skip now reads the
+//!   segment's locus instead (JOIN-1), and the section segment here
+//!   lies inside the bar's floor, so no edge is ever taken for it.
 //! - **Cubes touching a drum's wall at a corner**, their main diagonal
 //!   along the wall's normal, inside or outside: each op is the cube's
 //!   volume combined with the drum's, exactly.
