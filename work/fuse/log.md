@@ -108,3 +108,20 @@ PR 3874's review found the row's defect in its vertex form:
 `zip::survivor` guards only with `debug_assert!`. The implementer has a
 fix pass. The review's class finding is filed as
 `join-desync-is-the-catch-all-for-cyclic-lineage-records`.
+
+## 2026-10-02 — PR 3889 review adjudicated
+
+FULL review: mergeable after fixes. In scope: `must_carry_over_edge`
+returns at its first deciding station, so an in-band first-order
+station behind a `Transverse` one is stored conventional and then
+refused by tier 3. That is this unit's class at first order, measured
+on the PR's own Villarceau fixture (12 of 400 spans). It goes back to
+the lane as a fix pass, together with a guard that the Smooth arm
+routes through the rule (every new test calls `seam_must_carry`
+directly), the stale ENCL/CLEAVE/PRED rows, and moving the residue row
+to ENCL.
+
+Class finding, logged rather than filed: the floor-plus-resting-cylinder
+fixture and the in-band geometric-mean helper (`in_band()`) are spelled
+separately in at least `offer_rows.rs`, `boolean::ops` tests and two
+sweep test files. That is a test-support home waiting to exist (P4).
