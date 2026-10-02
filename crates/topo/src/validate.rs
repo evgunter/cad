@@ -6131,15 +6131,18 @@ pub(crate) fn tier3_local_checks_marked<
     // statement as the planar arm — the face's two orientation
     // encodings must agree — but the boundary's encoding is read the
     // way the flux lanes read it:
-    // `geom_brep::props::boundary_material_sign` re-runs the rim-side
-    // / meridian-orientation sub-derivations (`props_rim_side`,
-    // `props_rim_level`, `props_circle_axis_class`,
+    // `geom_brep::props::boundary_material_sign_loops` re-runs the
+    // sub-derivations the flux lanes consume: the chart Green form's
+    // sign on a cylinder (`props_chart_area_side`, over every loop, so
+    // a notched or ringed wall is checked, not exempt), and the
+    // rim-side / meridian-orientation reading on the iso kinds
+    // (`props_rim_side`, `props_rim_level`, `props_circle_axis_class`,
     // `props_meridian_orient` — already length-metered named decides).
     // No new comparand exists: the final comparison is two exact ±1s,
     // genuinely combinatorial.
     //
-    // `props_rim_level` — the iso-rectangle premise — is on that list
-    // because the rim-side derivation rests on it: `lo + hi − 2v` is a
+    // `props_rim_level` — the iso-rectangle premise — is on the iso
+    // kinds' list because their rim-side derivation rests on it: `lo + hi − 2v` is a
     // material side only on a domain whose rims all sit at an extreme,
     // and without it a plus-shaped face answered a definite ±1 that
     // depended on where `loop_edges` started the cycle. Such a face now
@@ -6185,10 +6188,18 @@ pub(crate) fn tier3_local_checks_marked<
             // scope.
             continue;
         }
-        let Ok((outer, _hes)) = crate::props::loop_edges(body, face.outer) else {
+        // Every loop: a cylinder face reads its side off its whole
+        // boundary's chart Green form, rings included, as its flux does.
+        let Ok(loops) = core::iter::once(face.outer)
+            .chain(face.rings.iter().copied())
+            .map(|l| crate::props::loop_edges(body, l).map(|(edges, _)| edges))
+            .collect::<Result<Vec<_>, _>>()
+        else {
             continue; // derivation exempt (posture above)
         };
-        match geom_brep::props::boundary_material_sign(surface, &outer, band) {
+        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
+            loops.iter().map(Vec::as_slice).collect();
+        match geom_brep::props::boundary_material_sign_loops(surface, &loops, band) {
             Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
                 // Two exact ±1s: the derived side is definite by
                 // construction, the sense bit is stored — a discrete
