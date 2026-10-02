@@ -70,3 +70,23 @@ way under these rows since they were filed):
   (`analysis/design-fork/tquery-rim-identity`); the dangling-key and
   prose riders wait for the answer (same arms of `RimError`).
 - 2026-10-02 — PR 3768 (split-cyl-feature): both variants were one cause, a non-unit `SplitPlane.normal` (the cutaway's raw 1.264-long direction) read as unit by the tilted plane×cylinder section; fixed by typing it `UnitVec3` (the ratified unit-vector ruling), which also takes the `SplitPlane` half of `split-plane-normal-…`. Full review dispatched. Both 3768 and 3773 wait on REACH's #3755 for the 1e-6 open-sign row (red on main); not ported, as it is another program's in-flight 18-file change. A CLASS note: a precondition held as prose ('unit, unchecked') was the live cause of a P0 — the witness ruling's remaining prose sites are worth the sweep it asks for.
+- 2026-10-02 — Reviews adjudicated, fix passes out on all three units.
+  - 3773 (rim_of): mergeable. The fix pass folds in the reviewer's
+    43-body oracle (the only public-door row that pins the fixed side)
+    and corrects the membership doc (crossing Villarceau circles
+    refuse `Branches`). Two issues filed: no door for an edge's side
+    surfaces (a CLASS, five spellings), and the PR gate skipping the
+    demos job when a door the tour calls changes.
+  - 3777 (kind mirrors): switched to the spec's hand-written fallback.
+    The strum derive copies payload docs onto the fieldless kinds,
+    which makes them false. The tripwire is an exhaustive `kind()`
+    match; `ALL` comes from `VariantArray`.
+  - 3768 (split): `chord_join::SectionPlane` re-minted the defect it
+    closes (a bare "unit" normal into the plane×conic arms, latent on
+    the boolean's germ planes). The fix: one witness end to end, and
+    the boolean normalizes at the germ read.
+  - A CLASS worth carrying: every fix PR in this wave minted a fresh
+    instance of what it closed or left a twin beside it (SectionPlane;
+    a second a/an helper; a second z-poled seed helper), and each time
+    the reviewer, not the author, caught it — the style lane's §1
+    trap, measured again.
