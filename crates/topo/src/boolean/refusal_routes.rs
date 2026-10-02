@@ -552,13 +552,14 @@ impl Coincide {
     /// undeclared one, or meets no declaration its door verifies.
     #[must_use]
     pub const fn settled_by(self, class: BooleanCoincidence) -> bool {
-        use BooleanCoincidence::{Contact, Continuation};
+        use BooleanCoincidence::{Contact, Continuation, Seam};
         match (self, class) {
             (Self::OnPlanes, Contact(ContactClass::Rest) | Continuation)
             | (Self::Sectors, Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation) => {
                 true
             }
-            (Self::OnPlanes, Contact(ContactClass::Tangent))
+            (Self::OnPlanes, Contact(ContactClass::Tangent) | Seam)
+            | (Self::Sectors, Seam)
             | (
                 Self::Planes
                 | Self::VertexOnFace
@@ -578,7 +579,7 @@ impl Coincide {
                 | Self::DeclaredReach
                 | Self::Section
                 | Self::Join,
-                Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation,
+                Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation | Seam,
             ) => false,
         }
     }

@@ -1661,11 +1661,11 @@ pub(super) fn curved_face_arm<T: Decide>(
                 // each endpoint's own side decides its treatment
                 // (existing row): ON the carrier ⇒ boundary
                 // containment (which must decide, or the frontier
-                // stands); definitely clear ⇒ no event at that end (a
-                // TANGENT-covered circle touches the carrier at one
-                // point — a clear endpoint is honestly eventless);
-                // definitely inside ⇒ a crossing, never the covered
-                // posture. An interior-only touch (no endpoint on the
+                // stands); definitely off ⇒ no event at that end (a
+                // covered circle touches the carrier where it meets it
+                // — an off endpoint is honestly eventless), unless the
+                // two ends are off on opposite sides, which only a
+                // crossing reaches. An interior-only touch (no endpoint on the
                 // carrier) keeps the frontier door. Uncovered keeps
                 // both doors verbatim.
                 //
@@ -1723,6 +1723,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                         )
                     };
                     let mut ends = [None, None];
+                    let mut off = None;
                     for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
                         match side(pw).map_err(|diag| {
                             let which = Coincide::VertexOnCoveredFace;
@@ -1733,11 +1734,21 @@ pub(super) fn curved_face_arm<T: Decide>(
                                     x_is, y, w, pw, face, contacts, band, tol,
                                 )?);
                             }
-                            // Definitely clear at this end: honestly
+                            // Definitely off at this end, on the side the
+                            // certificate puts the parent: honestly
                             // eventless, and not an endpoint the rule
-                            // below weighs either way.
-                            Sign::Positive => {}
-                            Sign::Negative => return Err(frontier()),
+                            // below weighs either way. The cover's side
+                            // is either one (a seam's cap lies inside
+                            // the tube's carrier, a tangent strut
+                            // outside its plate's), so the sign alone
+                            // is no crossing; two ends definitely off on
+                            // OPPOSITE sides are, and contradict the
+                            // certificate.
+                            sign @ (Sign::Positive | Sign::Negative) => {
+                                if off.replace(sign).is_some_and(|other| other != sign) {
+                                    return Err(frontier());
+                                }
+                            }
                         }
                     }
                     return if Placement::records_the_pair(ends) {

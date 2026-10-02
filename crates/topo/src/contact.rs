@@ -100,14 +100,16 @@ impl ContactClass {
 }
 
 /// **What a boolean node may declare about a cross-operand face pair**
-/// (C4's continuation clause): a contact, or a continuation.
+/// (C4's continuation and seam clauses): a contact, a continuation, or
+/// a seam.
 ///
 /// The two declaration seats take different types, so each states only
 /// what its consumer can use. A mate, a contact record and the census
 /// speak [`ContactClass`] — the valid inputs to a mate. A boolean node
 /// (`BooleanDeclarations::coincident_faces`, and a `Declare` node at
 /// the recipe layer) speaks this type — the valid inputs to a union,
-/// which are every contact plus the one relation that is not a contact.
+/// which are every contact plus the two relations that are not
+/// contacts.
 ///
 /// - [`Contact`](Self::Contact) — the pair touches, of that class.
 /// - [`Continuation`](Self::Continuation) — the pair lies on ONE
@@ -115,10 +117,15 @@ impl ContactClass {
 ///   the two abut along a boundary curve or overlap on a patch. It is
 ///   verified by `Rest`'s carrier rung with the sense bit reversed
 ///   (opposed senses contradict it), and a union merges it.
+/// - [`Seam`](Self::Seam) — the pair lies on DISTINCT carriers tangent
+///   along a curve with its senses ALIGNED: the two surfaces join G1,
+///   material wedge π. It is verified by `Tangent`'s witness lane along
+///   the locus with the sense bit reversed (opposed senses contradict
+///   it), and the zip mints the smooth seam.
 ///
-/// A continuation is declarable on a boolean node and nowhere else: at
-/// rest two flush walls carry nothing to verify, so no mate can state
-/// one.
+/// Neither a continuation nor a seam is declarable anywhere but a
+/// boolean node: at rest the pair carries nothing to verify, so no mate
+/// can state one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BooleanCoincidence {
     /// The pair is in contact, of this class.
@@ -126,13 +133,17 @@ pub enum BooleanCoincidence {
     /// The pair is one surface carried on, abutting or overlapping:
     /// one carrier, aligned senses.
     Continuation,
+    /// The pair joins G1 along a curve: distinct carriers tangent
+    /// there, aligned senses.
+    Seam,
 }
 
 /// [`BooleanCoincidence::ALL`]'s storage: every contact class in
-/// [`ContactClass::ALL`]'s order, then the continuation, built from
-/// that list at compile time.
-const COINCIDENCES: [BooleanCoincidence; ContactClass::ALL.len() + 1] = {
-    let mut out = [BooleanCoincidence::Continuation; ContactClass::ALL.len() + 1];
+/// [`ContactClass::ALL`]'s order, then the continuation, then the seam,
+/// built from that list at compile time.
+const COINCIDENCES: [BooleanCoincidence; ContactClass::ALL.len() + 2] = {
+    let mut out = [BooleanCoincidence::Continuation; ContactClass::ALL.len() + 2];
+    out[ContactClass::ALL.len() + 1] = BooleanCoincidence::Seam;
     let mut i = 0;
     while i < ContactClass::ALL.len() {
         out[i] = BooleanCoincidence::Contact(ContactClass::ALL[i]);
@@ -148,7 +159,8 @@ impl BooleanCoincidence {
     pub const TANGENT: Self = Self::Contact(ContactClass::Tangent);
 
     /// **Every coincidence this type can name**: each contact class in
-    /// [`ContactClass::ALL`]'s order, then the continuation. The one
+    /// [`ContactClass::ALL`]'s order, then the continuation, then the
+    /// seam. The one
     /// enumeration, for the reason [`ContactClass::ALL`] gives. DERIVED
     /// from [`ContactClass::ALL`], so a class added there is a
     /// coincidence here with nothing to keep by hand.
@@ -159,12 +171,15 @@ impl BooleanCoincidence {
     /// class added later (`Fit`) can take the next small tag without
     /// colliding. Tags are process-internal, never persisted.
     const CONTINUATION_TAG: u64 = 1 << 32;
+    /// The seam's content tag, beside the continuation's.
+    const SEAM_TAG: u64 = (1 << 32) + 1;
 
     /// The coincidence's name, for messages.
     pub fn name(self) -> &'static str {
         match self {
             Self::Contact(class) => class.name(),
             Self::Continuation => "Continuation",
+            Self::Seam => "Seam",
         }
     }
 
@@ -176,6 +191,7 @@ impl BooleanCoincidence {
         match self {
             Self::Contact(class) => class.content_tag(),
             Self::Continuation => Self::CONTINUATION_TAG,
+            Self::Seam => Self::SEAM_TAG,
         }
     }
 
@@ -183,14 +199,14 @@ impl BooleanCoincidence {
     pub fn contact(self) -> Option<ContactClass> {
         match self {
             Self::Contact(class) => Some(class),
-            Self::Continuation => None,
+            Self::Continuation | Self::Seam => None,
         }
     }
 
     /// Whether the declaration asserts ONE carrier (`Rest` or a
     /// continuation) — the claim the classification stages' same-carrier
-    /// treatment and the merge stage consume. A `Tangent` pair's
-    /// carriers are distinct by its own verification.
+    /// treatment and the merge stage consume. A `Tangent` or seam
+    /// pair's carriers are distinct by its own verification.
     pub fn is_one_carrier(self) -> bool {
         matches!(self, Self::REST | Self::Continuation)
     }
@@ -227,6 +243,12 @@ impl From<ContactClass> for BooleanCoincidence {
 /// question really is "is this margin decidable"; contact sites ask
 /// "did anyone declare this", and answer with these two arms.
 pub const CONTACT_RECOURSE: &str = "declare the named contact class, or move the geometry";
+
+/// The steer on a `Tangent` declaration contradicted by aligned senses
+/// at a G1 rim: the class that fits is the seam, which a boolean node
+/// declares.
+pub const SEAM_STEER: &str = "the faces join smoothly with their material on the same side, \
+     which is a `Seam`: declare that on the boolean node";
 
 /// **The `Fit` deferral, named** (AQ6): the recourse sentence for a
 /// declared contact whose carriers are value-equal by authoring but
@@ -478,10 +500,11 @@ mod tests {
         assert_eq!(ContactClass::Rest.name(), "Rest");
         assert_eq!(ContactClass::Tangent.name(), "Tangent");
         assert_eq!(BooleanCoincidence::Continuation.name(), "Continuation");
+        assert_eq!(BooleanCoincidence::Seam.name(), "Seam");
     }
 
-    /// A contact keys as its class always did, and the continuation
-    /// takes a tag no contact holds.
+    /// A contact keys as its class always did, and the continuation and
+    /// the seam take tags no contact holds.
     #[test]
     fn coincidence_tags_extend_the_class_tags_injectively() {
         for &class in ContactClass::ALL {
@@ -499,13 +522,14 @@ mod tests {
         assert_eq!(tags.len(), BooleanCoincidence::ALL.len());
         assert_eq!(
             BooleanCoincidence::ALL.len(),
-            ContactClass::ALL.len() + 1,
-            "ALL holds every contact class and the continuation"
+            ContactClass::ALL.len() + 2,
+            "ALL holds every contact class, the continuation and the seam"
         );
-        // The continuation's tag sits outside the class tags' space, so
+        // The non-contact tags sit outside the class tags' space, so
         // the next class (`Fit`, at the next small tag) cannot collide.
         for &class in ContactClass::ALL {
             assert!(class.content_tag() < BooleanCoincidence::CONTINUATION_TAG);
+            assert!(class.content_tag() < BooleanCoincidence::SEAM_TAG);
         }
     }
 }

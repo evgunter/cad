@@ -1,14 +1,21 @@
 //! **What a π seam between distinct carriers, a cap abutting a tube on
-//! its rim, and a coaxial kiss, do through the boolean.** One row
-//! builds — the transverse rim — and every other is a refusal, pinned by
-//! kind.
+//! its rim, and a coaxial kiss, do through the boolean.** The declared
+//! seam and the transverse rim build; every other row is a refusal,
+//! pinned by kind.
 //!
 //! - **The sphere-capped tube** (cylinder `z ∈ [0, h]` ∪ hemisphere of
 //!   the same radius on its top cap): the two walls meet G1 along the
-//!   rim circle, wedge π. Undeclared it stops at the crossing layer;
-//!   declared `Tangent` across the rim the routing classifies the seam
-//!   and refuses `RimSeamNotDeclarable`; declared `Rest` it is
-//!   contradicted on carrier kind.
+//!   rim circle, wedge π. Its walls declared a `Seam` and its discs
+//!   `Rest`, the union BUILDS in both orders: the tube and the half
+//!   ball, the rim minted `TangentIntersection` — the same body as the
+//!   capsule revolved from one profile with its joint authored, which
+//!   needs no declaration. Undeclared it stops at the crossing layer,
+//!   naming the recourse; declared `Tangent` it is contradicted by its
+//!   aligned senses and steered to the seam; declared `Rest` or a
+//!   continuation it is contradicted on carrier kind.
+//! - **A seam declared where there is none**: the transverse dome is
+//!   contradicted, the cone is outside the declaration inventory, and a
+//!   ball seated in its bore has no locus to verify one along.
 //! - **A cap abutting the tube on its rim, its end discs declared
 //!   `Rest`**, answers by its corner. A transverse 45° spherical dome
 //!   BUILDS, its seams aligned with the tube's or not: each rim circle
@@ -21,9 +28,7 @@
 //! - **A tube ending on a ball, or on a torus's 45° latitude**,
 //!   undeclared: the rim lies inside the partner's face rather than on
 //!   its boundary, and passes the crossing layer the same way; the union
-//!   stops in the join. The G1
-//!   hemisphere stops at the crossing layer on an edge leaving the rim,
-//!   which grazes the partner's wall; a same-radius stacked cylinder
+//!   stops in the join. A same-radius stacked cylinder
 //!   stops there on its own rim, whose parent shares the partner's
 //!   carrier. A cone frustum is refused earlier, at the operand gate,
 //!   on its kind.
@@ -32,11 +37,13 @@
 //! - **The stadium** (slab ∪ cylinder whose wall the slab's top and
 //!   bottom are tangent to along a ruling): a plane×cylinder π seam.
 //!   Undeclared it stops at the crossing layer; declared `Tangent` the
-//!   witness lane contradicts it, because its outward normals AGREE.
+//!   witness lane contradicts it, because its outward normals AGREE;
+//!   declared a `Seam` it verifies and stops at the curved lump site.
 //! - **The kiss** (a ball seated in a bore of its own radius): the
 //!   equator touches the bore wall, wedge 2π. Undeclared it stops at
-//!   the crossing layer; declared `Tangent` the class is refused — the
-//!   two faces share no boundary circle, so the rim routing never runs.
+//!   the crossing layer; declared `Tangent` or a `Seam` the class is
+//!   refused — the two faces share no boundary circle, so the rim
+//!   routing never runs.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -47,8 +54,8 @@ use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
 use sweep::{Extrusion, Revolution, extrude};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FaceKey,
-    FacePairDeclaration,
+    Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
+    FaceKey, FacePairDeclaration,
 };
 
 const R: f64 = 1.0;
@@ -74,7 +81,11 @@ fn planes_at_z(b: &Body<f64>, z: f64) -> Vec<FaceKey> {
         .collect()
 }
 
-fn declared(a: &[FaceKey], b: &[FaceKey], class: ContactClass) -> BooleanDeclarations {
+fn declared(
+    a: &[FaceKey],
+    b: &[FaceKey],
+    class: impl Into<BooleanCoincidence> + Copy,
+) -> BooleanDeclarations {
     let mut d = BooleanDeclarations::none();
     for &fa in a {
         for &fb in b {
@@ -92,7 +103,7 @@ fn union_both_orders(
     b: &Body<f64>,
     fa: &[FaceKey],
     fb: &[FaceKey],
-    class: Option<ContactClass>,
+    class: Option<BooleanCoincidence>,
 ) -> [BooleanError; 2] {
     let run = |x: &Body<f64>, y: &Body<f64>, fx: &[FaceKey], fy: &[FaceKey]| {
         let r = match class {
@@ -203,8 +214,122 @@ fn tube_and_dome_volume() -> f64 {
     PI * R * R * H + PI * rise * rise * (3.0 * 2.0_f64.sqrt() * R - rise) / 3.0
 }
 
+/// The tube's volume plus the half ball on its top cap.
+fn tube_and_half_ball_volume() -> f64 {
+    PI * R * R * H + 2.0 / 3.0 * PI * R.powi(3)
+}
+
+/// The walls of `x` and `y` declared under `class`, and their discs at
+/// `z = H` declared `Rest`, in `x`'s operand order.
+fn walls_and_discs(
+    x: &Body<f64>,
+    y: &Body<f64>,
+    class: BooleanCoincidence,
+) -> BooleanDeclarations {
+    let curved = |b: &Body<f64>| {
+        let mut f = faces_of(b, SurfaceKind::Cylinder);
+        f.extend(faces_of(b, SurfaceKind::Sphere));
+        f
+    };
+    let mut d = declared(&curved(x), &curved(y), class);
+    d.coincident_faces.extend(
+        declared(&planes_at_z(x, H), &planes_at_z(y, H), ContactClass::Rest).coincident_faces,
+    );
+    d
+}
+
+/// The edges of `b` described `TangentIntersection`.
+fn tangent_intersections(b: &Body<f64>) -> Vec<topo::EdgeKey> {
+    b.edges()
+        .filter(|(_, e)| {
+            matches!(
+                b.get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.description()),
+                Some(geom_brep::EdgeDescription::TangentIntersection { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// **The sphere-capped tube builds with its walls declared a `Seam`**
+/// and its discs `Rest`, in both member orders. The seam is verified
+/// along the rim circle (the `Tangent` witness lane, B's sense
+/// reversed), the material wedge routes it to the smooth seam, and the
+/// cover it gives lets each edge leaving the rim record its end there:
+/// the tube's rulings lie outside the sphere, the cap's meridians
+/// inside the tube's carrier.
+///
+/// The body is the tube and the half ball, exactly: the two discs
+/// removed as interior, the rim minted once as two `TangentIntersection`
+/// semicircles, and nothing else of either operand touched. It is the
+/// same body, census and volume, as the capsule revolved from ONE
+/// profile with its joint authored
+/// ([`a_g1_joint_authored_inside_one_profile_needs_no_declaration`]).
 #[test]
-fn the_sphere_capped_tube_refuses_at_every_door() {
+fn the_sphere_capped_tube_builds_with_its_walls_declared_a_seam() {
+    let tol = Tol::witness();
+    let (tube, hemi) = (rod_z(R, 0.0, H), hemisphere_on_the_cap());
+    let want = tube_and_half_ball_volume();
+    for (label, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
+        let d = walls_and_discs(x, y, BooleanCoincidence::Seam);
+        assert_eq!(d.coincident_faces.len(), 5, "{label}: two by two walls, one disc pair");
+        let r = topo::union_with(x, y, &d, tol);
+        let body = match &r {
+            Ok(BooleanResult::Body(b)) => b.body.clone(),
+            other => panic!("{label}: builds: {other:?}"),
+        };
+        let (v, c, records) = built(label, r);
+        assert!(
+            (v - want).abs() <= 1e-12 * want,
+            "{label}: the tube and the half ball: {v} vs {want}"
+        );
+        assert_eq!(
+            c,
+            (5, 8, 5, 1),
+            "{label}: two walls, two sphere faces, the floor disc"
+        );
+        assert_eq!(records, [0, 0, 0, 0], "{label}: no contact survives a union");
+        let rims = tangent_intersections(&body);
+        assert_eq!(rims.len(), 2, "{label}: the rim's two semicircles: {rims:?}");
+        for k in rims {
+            let geom::Curve3::Circle { center, radius, .. } = carrier_of(&body, k) else {
+                panic!("{label}: the rim is a circle");
+            };
+            assert!(
+                (center - Point3::new(0.0, 0.0, H)).norm() < 1e-12 && (radius - R).abs() < 1e-12,
+                "{label}: on the rim at z = H: {center:?}, {radius}"
+            );
+        }
+    }
+    // ∖ and ∩ stop before any crossing, at the fallback's containment
+    // read of the sphere's section against the disc: filed as
+    // `a-declared-seam-subtract-and-intersect-stop-at-the-fallback-extent`.
+    let d = walls_and_discs(&tube, &hemi, BooleanCoincidence::Seam);
+    let e = walls_and_discs(&hemi, &tube, BooleanCoincidence::Seam);
+    for (op, r) in [
+        ("tube ∖ cap", topo::subtract_with(&tube, &hemi, &d, tol)),
+        ("cap ∖ tube", topo::subtract_with(&hemi, &tube, &e, tol)),
+        ("tube ∩ cap", topo::intersect_with(&tube, &hemi, &d, tol)),
+    ] {
+        assert!(
+            matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
+            "{op}: {r:?}"
+        );
+    }
+}
+
+/// **Every other way of stating the rim refuses, each by its own
+/// name**, in both member orders. Undeclared, an edge leaving the rim
+/// grazes the partner's wall and the crossing layer refuses, naming the
+/// declaration as the recourse; so it does with only the discs declared.
+/// A `Tangent` claim on the walls is contradicted by their aligned
+/// senses (`contact_tangent_rim_seam`) and steered to the seam; `Rest`
+/// and a continuation are contradicted on carrier kind, each under its
+/// own type.
+#[test]
+fn the_sphere_capped_tube_refuses_undeclared_and_under_every_other_class() {
     let tube = rod_z(R, 0.0, H);
     let hemi = hemisphere_on_the_cap();
     let v = topo::mass_properties(&hemi, Tol::witness()).unwrap().volume;
@@ -228,38 +353,83 @@ fn the_sphere_capped_tube_refuses_at_every_door() {
 
     for e in union_both_orders(&tube, &hemi, &cyl, &sph, None) {
         assert!(
-            is_pierce(&e),
-            "undeclared: the crossing layer's refusal: {e:?}"
+            is_pierce(&e) && e.to_string().contains("declare the coincidence"),
+            "undeclared: the crossing layer's refusal, naming the recourse: {e:?}"
         );
     }
-    for e in union_both_orders(&tube, &hemi, &cap_t, &cap_h, Some(ContactClass::Rest)) {
+    for e in union_both_orders(&tube, &hemi, &cap_t, &cap_h, Some(BooleanCoincidence::REST)) {
         assert!(
             is_pierce(&e),
             "the cap discs declared Rest: still the crossing layer: {e:?}"
         );
     }
-    for e in union_both_orders(&tube, &hemi, &cyl, &sph, Some(ContactClass::Tangent)) {
-        assert!(
-            matches!(e, BooleanError::RimSeamNotDeclarable { .. }),
-            "the walls declared Tangent: the rim routes to the seam: {e:?}"
-        );
-    }
-    for e in union_both_orders(&tube, &hemi, &cyl, &sph, Some(ContactClass::Rest)) {
+    for (x, y) in [(&tube, &hemi), (&hemi, &tube)] {
+        let run = |class| topo::union_with(x, y, &walls_and_discs(x, y, class), Tol::witness());
+        let e = run(BooleanCoincidence::TANGENT).expect_err("Tangent refuses");
+        let BooleanError::ContactContradicted { margin, steer, .. } = &e else {
+            panic!("the walls declared Tangent: contradicted: {e:?}");
+        };
+        assert_eq!(margin.predicate, Some("contact_tangent_rim_seam"), "{e}");
+        assert_eq!(*steer, Some(topo::SEAM_STEER), "steered to the seam: {e}");
+        assert!(e.to_string().contains("which is a `Seam`"), "{e}");
+        let e = run(BooleanCoincidence::REST).expect_err("Rest refuses");
         let BooleanError::ContactContradicted { margin, .. } = &e else {
             panic!("the walls declared Rest: contradicted: {e:?}");
         };
-        assert_eq!(
-            margin.predicate,
-            Some("carrier_kind"),
-            "on carrier kind: {e}"
-        );
+        assert_eq!(margin.predicate, Some("carrier_kind"), "on carrier kind: {e}");
+        let e = run(BooleanCoincidence::Continuation).expect_err("a continuation refuses");
+        let BooleanError::ContinuationContradicted { margin, .. } = &e else {
+            panic!("the walls declared a continuation: contradicted: {e:?}");
+        };
+        assert_eq!(margin.predicate, Some("carrier_kind"), "on carrier kind: {e}");
     }
-    for e in union_both_orders(&tube, &hemi, &cap_t, &cap_h, Some(ContactClass::Tangent)) {
+    for e in union_both_orders(&tube, &hemi, &cap_t, &cap_h, Some(BooleanCoincidence::TANGENT)) {
         assert!(
             matches!(e, BooleanError::ContactContradicted { .. }),
             "the cap discs declared Tangent: one plane, contradicted: {e:?}"
         );
     }
+}
+
+/// **A seam declared where there is none is refused.** The 45° dome on
+/// the same rim meets the tube transversely: the witness lane finds the
+/// normals definitely apart (`contact_tangent_parallel`) and the seam
+/// is contradicted, in both orders and under every op. The 45° cone
+/// frustum is refused earlier, at the declaration inventory, on its
+/// kind; and the ball seated in a bore of its own radius shares no rim
+/// with it and has no closed-form locus, so the class is refused.
+#[test]
+fn a_seam_declared_on_a_transverse_pair_is_contradicted() {
+    let tol = Tol::witness();
+    let tube = rod_z(R, 0.0, H);
+    let dome = dome_on_the_cap();
+    let d = walls_and_discs(&tube, &dome, BooleanCoincidence::Seam);
+    let e = walls_and_discs(&dome, &tube, BooleanCoincidence::Seam);
+    for (op, r) in [
+        ("tube ∪ dome", topo::union_with(&tube, &dome, &d, tol)),
+        ("dome ∪ tube", topo::union_with(&dome, &tube, &e, tol)),
+        ("tube ∖ dome", topo::subtract_with(&tube, &dome, &d, tol)),
+        ("dome ∖ tube", topo::subtract_with(&dome, &tube, &e, tol)),
+        ("tube ∩ dome", topo::intersect_with(&tube, &dome, &d, tol)),
+    ] {
+        let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
+            panic!("{op}: the seam is contradicted: {r:?}");
+        };
+        assert_eq!(margin.predicate, Some("contact_tangent_parallel"), "{op}");
+    }
+    let frustum = frustum_on_the_cap();
+    let cone = faces_of(&frustum, SurfaceKind::Cone);
+    let cyl = faces_of(&tube, SurfaceKind::Cylinder);
+    let r = topo::union_with(
+        &tube,
+        &frustum,
+        &declared(&cyl, &cone, BooleanCoincidence::Seam),
+        tol,
+    );
+    assert!(
+        matches!(r, Err(BooleanError::InvalidDeclaration { .. })),
+        "the cone is outside the declaration inventory: {r:?}"
+    );
 }
 
 #[test]
@@ -478,7 +648,7 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
     // rim — the tube's rulings, the hemisphere's meridians — graze the
     // other operand's wall there, and a graze needs a declaration or
     // structure. The refused edge is never the rim circle itself.
-    for class in [None, Some(ContactClass::Rest)] {
+    for class in [None, Some(BooleanCoincidence::REST)] {
         let [ab, ba] = union_both_orders(&tube, &hemi, &cap_t, &cap_h, class);
         for (order, e, x) in [(0, ab, &tube), (1, ba, &hemi)] {
             let BooleanError::CurvedPierceUnsupported { edge, .. } = e else {
@@ -508,7 +678,7 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
         faces_of(&tube, SurfaceKind::Cylinder),
         faces_of(&stacked, SurfaceKind::Cylinder),
     );
-    for class in [None, Some(ContactClass::Rest)] {
+    for class in [None, Some(BooleanCoincidence::REST)] {
         for (order, e) in union_both_orders(&tube, &stacked, &cap_t, &cap_s, class)
             .into_iter()
             .enumerate()
@@ -556,7 +726,7 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
     }
     let cone = frustum_on_the_cap();
     let cap_c = planes_at_z(&cone, H);
-    for class in [None, Some(ContactClass::Rest)] {
+    for class in [None, Some(BooleanCoincidence::REST)] {
         for e in union_both_orders(&tube, &cone, &cap_t, &cap_c, class) {
             assert!(
                 matches!(
@@ -608,7 +778,7 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
     let mut flats = planes_at_z(&slab, 0.5);
     flats.extend(planes_at_z(&slab, -0.5));
     let walls = faces_of(&rod, SurfaceKind::Cylinder);
-    for e in union_both_orders(&slab, &rod, &flats, &walls, Some(ContactClass::Tangent)) {
+    for e in union_both_orders(&slab, &rod, &flats, &walls, Some(BooleanCoincidence::TANGENT)) {
         let BooleanError::ContactContradicted { margin, .. } = &e else {
             panic!("declared Tangent: contradicted: {e:?}");
         };
@@ -617,6 +787,45 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
             Some("contact_tangent_opposed"),
             "the seam's outward normals agree, which the witness lane reads as \
              containment: {e}"
+        );
+    }    // Declared a `Seam`, the same lane verifies it along the ruling with
+    // the sense bit reversed. Undeclared, the rod's end discs are flush
+    // continuations of the slab's sides; declared, the union stops at
+    // the curved coplanar-lump site, whose second-order arm reads a
+    // `Tangent` pair only (filed:
+    // `a-declared-line-seam-stops-at-the-curved-lump-site`).
+    let ends = |b: &Body<f64>| -> Vec<(FaceKey, f64)> {
+        b.faces()
+            .filter_map(|(k, f)| match b.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) if normal.y.abs() > 0.5 => {
+                    Some((k, origin.y))
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    for (x, y, fx, fy) in [(&slab, &rod, &flats, &walls), (&rod, &slab, &walls, &flats)] {
+        let mut d = declared(fx, fy, BooleanCoincidence::Seam);
+        for (ex, yx) in ends(x) {
+            for (ey, yy) in ends(y) {
+                if (yx - yy).abs() < 1e-12 {
+                    d.coincident_faces.push(FacePairDeclaration::continuation(ex, ey));
+                }
+            }
+        }
+        assert_eq!(d.coincident_faces.len(), 6, "two flats by two walls, two flush ends");
+        let r = topo::union_with(x, y, &d, tol);
+        // The rod-first order escalates on the contact-vertex margin
+        // the undeclared row's does, at an ε-dependent band.
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::CurvedBooleanUnsupported {
+                    kind: SurfaceKind::Cylinder,
+                    ..
+                } | BooleanError::Escalated { .. })
+            ),
+            "declared Seam: verified, then the curved lump site: {r:?}"
         );
     }
 }
@@ -649,15 +858,25 @@ fn a_ball_seated_in_its_own_bore_refuses_declared_or_not() {
             "undeclared: the crossing layer's refusal: {e:?}"
         );
     }
-    for e in union_both_orders(&bored, &ball, &bore, &sph, Some(ContactClass::Tangent)) {
+    for e in union_both_orders(&bored, &ball, &bore, &sph, Some(BooleanCoincidence::TANGENT)) {
         assert!(
             matches!(
                 e,
                 BooleanError::UnsupportedDeclarationClass {
-                    class: ContactClass::Tangent
+                    class: topo::BooleanCoincidence::TANGENT
                 }
             ),
             "declared Tangent: the class refusal: {e:?}"
+        );
+    }    for e in union_both_orders(&bored, &ball, &bore, &sph, Some(BooleanCoincidence::Seam)) {
+        assert!(
+            matches!(
+                e,
+                BooleanError::UnsupportedDeclarationClass {
+                    class: BooleanCoincidence::Seam
+                }
+            ),
+            "declared Seam: no rim and no closed-form locus, the class refusal: {e:?}"
         );
     }
 }
@@ -828,4 +1047,46 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
         assert_eq!(c, census, "{label}: F, E, V, shells");
         assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
     }
+}
+
+
+/// **A G1 joint authored inside one profile needs no declaration**: it
+/// is the structural form of the seam. The capsule revolved from one
+/// profile — the tube's side, then a quarter arc tangent to it, the
+/// joint authored in the profile's `tangent_joints` — builds with its
+/// joint minted `TangentIntersection`, and it is the declared seam's
+/// union: the same census and the same volume.
+#[test]
+fn a_g1_joint_authored_inside_one_profile_needs_no_declaration() {
+    use profile::RawLoop;
+    let tol = Tol::witness();
+    let bulge = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(R, 0.0), 0.0),
+        (Point2::new(R, H), bulge),
+        (Point2::new(0.0, H + R), 0.0),
+    ])
+    .with_tangent_joints(vec![2]);
+    let pr = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
+    let axis = sweep::RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    };
+    let at0 = sweep::revolve(&pr, axis, Revolution::Full, tol).unwrap().body;
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
+    let mut capsule = topo::transform_rigid(&at0, &turn, tol).unwrap();
+    capsule.merge_coplanar_faces(tol).unwrap();
+    topo::validate_geometric(&capsule, tol).unwrap_or_else(|e| panic!("tier 3: {e:?}"));
+    let v = topo::mass_properties(&capsule, tol).unwrap().volume;
+    let want = tube_and_half_ball_volume();
+    assert!((v - want).abs() <= 1e-12 * want, "{v} vs {want}");
+    assert_eq!(census(&capsule), (5, 8, 5, 1), "the seam union's census");
+    assert_eq!(
+        tangent_intersections(&capsule).len(),
+        2,
+        "the authored joint, minted as two semicircles"
+    );
 }

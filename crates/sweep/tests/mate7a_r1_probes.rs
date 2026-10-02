@@ -430,11 +430,13 @@ fn p2_the_g1_chain_price_is_the_measured_53_rows() {
     let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
         .expect_err("the chain refuses at the routing");
     let log = bracket.finish().verdicts;
-    // The variant SPLIT after this probe was written (fix-pass MIN-6):
-    // the pi arm is built, so the seam case no longer borrows a name
-    // that calls its arm unbuilt. Same claim, current spelling.
+    // A `Tangent` claim on the seam is contradicted by the rim routing.
     assert!(
-        matches!(&err, BooleanError::RimSeamNotDeclarable { .. }),
+        matches!(
+            &err,
+            BooleanError::ContactContradicted { margin, .. }
+                if margin.predicate == Some("contact_tangent_rim_seam")
+        ),
         "the chain's rim is the wedge-π seam: {err:?}"
     );
     let count = |name: &str| log.iter().filter(|v| v.predicate == name).count();
@@ -566,7 +568,7 @@ fn p4_a_definitely_different_rim_radius_keeps_the_class_refusal() {
         matches!(
             err,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "different-radius terminal circles are not one rim: {err:?}"
