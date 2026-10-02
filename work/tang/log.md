@@ -292,3 +292,18 @@ the axis-shaped channel. `tangent_locus`'s doc states the ruled reason
 a circle arm waits. Sweep siblings fixed in `docs/KERNEL-VERBS.md` and
 `verbs_cylsph_tangent_residuals.rs`. Both rows closed.
 - 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+
+## 2026-10-02 — the circle × cylinder cell merged (PR 3752); the P0 rim dispatched (TANG orchestrator)
+
+PR 3752 merged over main's bounds-census red, which comes from PCERT's
+PR 3733 and is filed on PCERT's slate.
+
+- **`a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`**
+  (P0): cloud lane `tang/abutting-rim`. It implements C4's narrowed
+  one-sided cover, ruled on PR 3756: an edge lying identically on a
+  carrier, with distinct parents, is an ON event. It also adds the curved
+  rim edge-on-edge event. Review: dual, concurrent (H). It adds new
+  incidence events in the crossing layer, a broad and hard-to-reverse
+  change.
+- **Held:** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
+  follows it, because both edit `reduce.rs`'s cover rungs.
