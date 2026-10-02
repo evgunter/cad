@@ -465,6 +465,9 @@ fn seam_vertex_fires_only_where_rim_of_lists_the_rim() {
     let arcs = circle_arcs_at_z(&disc, 1.0);
     assert_eq!(arcs.len(), 2);
     let rim = topo::query::rim_of(&disc, arcs[0]).expect("rim_of lists a disc of arcs");
-    assert!(arcs.iter().all(|a| rim.contains(a)), "the rim holds both arcs");
+    assert!(
+        arcs.iter().all(|a| rim.contains(a)),
+        "the rim holds both arcs"
+    );
     assert!(refuses_seam_vertex(&disc, &arcs[..1]));
 }
