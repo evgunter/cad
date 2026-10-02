@@ -431,8 +431,7 @@ fn lantern<S: Scalar>(
 }
 
 /// The **corm**: the swollen underground stem-base a *Calochortus*
-/// rises from each spring — and, since M9-3, the one place on this
-/// plant where two authored bodies are made ONE.
+/// rises from each spring.
 ///
 /// A corm is not a thing the stem stands on; it is the stem's OWN base,
 /// swollen, with the axis running through it. So it is authored as
@@ -526,6 +525,14 @@ const STEM_R: f64 = 0.060;
 /// Where the foot's root end stops, below the corm.
 const FOOT_BOTTOM_Z: f64 = -0.92;
 
+/// A body's exact volume, read out at `f64`.
+fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
+    pncad::topo::mass_properties(b, tol)
+        .expect("the volume integrates")
+        .volume
+        .f()
+}
+
 /// The rootstock's two parts as authored: the [`corm`] and the
 /// [`foot`] threaded through its bore.
 fn rootstock_parts<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>) {
@@ -544,20 +551,16 @@ fn rootstock_parts<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>) {
 
 /// The **rootstock**: the corm and the foot made ONE body, through the
 /// contact they were authored to share — the corm's bore wall against
-/// the foot's, declared by [`crate::booleans::try_union_declared`].
+/// the foot's, declared by [`crate::booleans::try_union_declared`]. It
+/// is the one place on this plant where two authored bodies are made
+/// one.
 ///
 /// The oracle is additivity: the bore is the foot's own cylinder, so
 /// the parts' interiors are disjoint and the union's volume is their
 /// sum, asked of the kernel's three answers.
 fn rootstock<S: Scalar>(tol: Tol) -> BooleanBody<S> {
     let (corm, foot) = rootstock_parts::<S>(tol);
-    let volume = |b: &Body<S>| {
-        pncad::topo::mass_properties(b, tol)
-            .expect("a part's volume")
-            .volume
-            .f()
-    };
-    let parts = volume(&corm) + volume(&foot);
+    let parts = volume(&corm, tol) + volume(&foot, tol);
     expect_seamed(
         "the rootstock (corm unioned with the foot at their declared socket)",
         check(try_union_declared(&corm, &foot, tol), parts, tol),
@@ -600,8 +603,8 @@ fn rootstock<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 /// axis in sketch coordinates ([`sketch_axis`]), so a tilted axis is
 /// spelled by tilting the sketch plane. The segments overlap each
 /// other on purpose and are not joined — gluing them is the same
-/// curved-boolean wall the rest of the plant is stopped by (probes 2
-/// and 7).
+/// curved-boolean wall the stem, flower and leaves are stopped by
+/// (probes 2 and 7).
 ///
 /// **Three, in the return type.** `plant` names the segments with a
 /// `.zip(["lily_bud_a", …])`, which truncates silently against a
@@ -1377,7 +1380,7 @@ fn loft_plan<S: Scalar>(
 /// # They meet the globe TANGENTIALLY, and provably never re-enter it
 ///
 /// Two bodies that overlap are not a modelling error in this scene —
-/// nothing here is joined, and the flower's own throat disk and the
+/// nothing above ground is joined, and the flower's own throat disk and the
 /// arch's end cap are exactly coincident where the two abut. But a
 /// sepal that
 /// merely *starts near* the flower and hopes to miss it is a fudge,
@@ -1834,7 +1837,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 arching stem, a closed globular lantern with three spreading sepals tangent to the \
                 globe, a bud of three nested pre-tepals on a tripod of axes, \
                 one long tapering twisted basal leaf and two shorter \
-                untapered ones; torus/sphere/cone/plane exact to the stored \
+                untapered ones; torus/sphere/cylinder/cone/plane exact to the stored \
                 parameter, blades skinned out of plane",
         ops: "revolve(Full) bored corm + extrude three-arc foot -> \
               find_flush_candidates -> declare_all -> union_with (the \
@@ -3544,7 +3547,8 @@ mod review_probes {
         // And the OTHER flower. Tangency to the globe a sepal stands
         // on says nothing about the bud 1.44 m up the stem, and the
         // kernel will not say anything either: these are separate
-        // bodies, this scene joins none of them, so one solid passing
+        // bodies, this scene joins none of them (its one union is the
+        // rootstock, underground), so one solid passing
         // through another is not a condition any operation here could
         // refuse. It is the SCENE's invariant, so the scene tests it.
         // Sepal 0's radial, unphased, points almost exactly at the bud
@@ -4116,12 +4120,7 @@ mod verbs_gate_r1_probes {
         let x = (d * d + zr * zr - br * br) / (2.0 * d);
         let cap = |r: f64, h: f64| PI * h * h * (3.0 * r - h) / 3.0;
         let lens = cap(zr, zr - x) + cap(br, br - (d - x));
-        let volume = |b: &Body<f64>| {
-            pncad::topo::mass_properties(b, tol)
-                .expect("the volume integrates")
-                .volume
-        };
-        let (va, vb) = (volume(lant), 4.0 / 3.0 * PI * br.powi(3));
+        let (va, vb) = (volume(lant, tol), 4.0 / 3.0 * PI * br.powi(3));
         let built = |label: &str, r: Result<pncad::topo::BooleanResult<f64>, BooleanError>| {
             let r = r.unwrap_or_else(|e| panic!("{label}: the carve builds, got {e:?}"));
             let body = r.body().expect("a body").body.clone();
@@ -4151,7 +4150,7 @@ mod verbs_gate_r1_probes {
                 vb - lens,
             ),
         ] {
-            let got = volume(&body);
+            let got = volume(&body, tol);
             println!("wall-7 probe: {label} volume {got}, lens oracle {want}");
             assert!(
                 (got - want).abs() <= 1e-9 * want.max(1.0),
@@ -4363,12 +4362,10 @@ mod verbs_gate_r1_probes {
             Ok(()),
             "the rootstock is valid at tier 3"
         );
-        let volume = |b: &Body<f64>| {
-            pncad::topo::mass_properties(b, tol)
-                .expect("a volume")
-                .volume
-        };
-        let (got, parts) = (volume(rootstock), volume(corm) + volume(foot));
+        let (got, parts) = (
+            volume(rootstock, tol),
+            volume(corm, tol) + volume(foot, tol),
+        );
         assert!(
             (got - parts).abs() <= 1e-12 * parts,
             "the rootstock's volume is the parts' sum: {got} vs {parts}"
