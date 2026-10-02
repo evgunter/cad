@@ -56,3 +56,13 @@ displacement at both the sector's arm and the reach's length. Pinned
 as `crates/sweep/tests/snowman.rs`,
 `a_bar_through_a_ball_crosses_the_sphere`, which flips when this row
 lands.
+
+## Evidence (2026-10-02, `reach/tilted-sphere-pair`): an off-seam-plane ball pair
+
+Once a sphere pair's tilted section has an arc rule, a pair whose
+centre line leaves the seam plane stops here too: ball(1) at
+`(2, 2, 0.5)` against ball(1) at `(3.3, 2, 0.7)`, and ball(1) at the
+origin against ball(0.7) at `(0.9, 0.3, 0.6)`, refuse
+`CurvedSectorSideUnsupported` under ∪, ∩ and both ∖ (margins −0.36 and
+−0.39), where their in-seam-plane siblings build
+(`crates/sweep/tests/tilted_sphere_pair.rs`, the frontier row).

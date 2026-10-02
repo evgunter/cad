@@ -103,4 +103,4 @@ the tilted plane×sphere section:
 - PR 9c's die-pips smoke shape refused `FallbackExtentUnsupported`
   (tangency) and now refuses `Join(SectionInvariant)`; re-pinned as
   `m5_pr9c_sphere_doors.rs`
-  `the_die_pips_shape_stops_typed_at_its_tilted_section`.
+  `the_die_pips_shape_stops_typed_at_its_pierce_ring`.

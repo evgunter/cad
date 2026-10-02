@@ -44,15 +44,20 @@
 //! which the interior-left rule already ties to the *outward* normal;
 //! `revert` reverses loops and flips `sense` in the same step, so
 //! feeding the bit into a winding-derived term would negate the volume
-//! twice. The bit enters at exactly one site — the **rimless** sphere
-//! band, whose boundary has no rim to read `s_f` off and which
-//! previously hardcoded `+1`. Everything else here is sense-invariant
+//! twice. The bit enters only on the sphere: the **rimless** band,
+//! whose boundary has no rim to read `s_f` off and which previously
+//! hardcoded `+1`, and the face bounded by a tilted circle, whose
+//! Gauss–Bonnet area reads its arcs' curvature against the outward
+//! normal (`curved::sphere_circle_loop`). Everything else here is sense-invariant
 //! by derivation, and the *agreement* of the two encodings is a tier-3
 //! obligation (the validator's loop-role winding check), not this
 //! module's.
 //!
 //! Areas of curved faces come from the chart Jacobians over the face's
-//! iso-parameter rectangle `[u0,u1]×[v0,v1]`; planar face area is
+//! iso-parameter rectangle `[u0,u1]×[v0,v1]` — save a sphere face with
+//! a circle tilted against its chart on the boundary, which has no
+//! rectangle and whose area is Gauss–Bonnet's over its circle arcs
+//! (`curved::sphere_circle_loop`); planar face area is
 //! `‖A⃗_f‖` (rings subtract automatically via their stored opposite
 //! orientation).
 //!

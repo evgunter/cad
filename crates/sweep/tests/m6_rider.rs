@@ -7,8 +7,8 @@
 //! Three rows, the two-tolerance shape on the NEW arm (definite arms
 //! included): definite miss (the strategies re-agree on disjoint
 //! balls — the divergence `die_pips` documented is retired), definite
-//! meet (handed to the circle × sphere roots, never cleared), and an
-//! in-band clearance escalating through the funnel by name.
+//! meet (handed to the circle × sphere roots, never cleared, and cut),
+//! and an in-band clearance escalating through the funnel by name.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -58,21 +58,18 @@ fn far_disjoint_balls_union_under_both_strategies() {
 /// no one-sided verdict exists, and the circle × sphere roots find the
 /// crossings. The pair's centre line runs along X, across both charts'
 /// polar axis (Y), so the section the join hands each side is tilted
-/// and the arc-side rule's polar gate refuses it, typed
-/// (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+/// against both charts; the run-side arc rule takes it and the union
+/// meets the two-cap closed form.
 #[test]
-fn overlapping_balls_stop_at_the_polar_gate() {
+fn overlapping_balls_union_through_their_tilted_section() {
     let a = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.0), Tol::witness());
     let b = ball_poled_y(1.0, Vec3::new(3.2, 2.0, 0.0), Tol::witness());
-    let err = union(&a, &b, SweepStrategy::Realized)
-        .expect_err("a section tilted against both charts has no arc-side rule");
-    assert!(
-        matches!(
-            &err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcSide { .. })
-        ),
-        "expected the polar gate, got {err:?}"
-    );
+    let v = union(&a, &b, SweepStrategy::Realized)
+        .unwrap_or_else(|e| panic!("the tilted section is cut, got {e:?}"));
+    // Two unit balls 1.2 apart share a lens of two caps of height 0.4.
+    let h: f64 = 0.4;
+    let want = 2.0 * 4.0 * PI / 3.0 - 2.0 * PI * h * h * (3.0 - h) / 3.0;
+    assert!((v - want).abs() <= 1e-9 * want, "union volume {v}, want {want}");
 }
 
 /// **In-band clearance escalates by name** (two-tolerance, the F6

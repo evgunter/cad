@@ -16,14 +16,14 @@
 //! * **Offset along X or Y.** The seam circle now meets the other
 //!   sphere, so a seam edge crosses a CURVED face and the circle ×
 //!   sphere roots pierce it. The pair reaches the join, which hands each
-//!   side the pair's radical plane, and the split turns on that plane
-//!   against the CHART: offset along X it is tilted and the arc-side
-//!   rule's polar gate refuses it, typed (`SectionNotPolar`); offset
-//!   along Y (the polar axis) the section is polar for both operands,
-//!   and the union builds because both balls are revolved from the same
-//!   seam — each seam meridian pierces the other sphere ON the other's
-//!   seam. Spin either ball about Y and the pierce lands inside a
-//!   half-band: the pierce-ring door (`snowman.rs`).
+//!   side the pair's radical plane. Offset along Y (the polar axis) the
+//!   section is polar for both operands and the azimuth-window rule
+//!   selects its arcs; offset along X it is tilted against both charts
+//!   and the run-side rule does. Either way the union builds, because
+//!   both balls are revolved from the same seam — each seam meridian
+//!   pierces the other sphere ON the other's seam. Spin either ball
+//!   about Y and the pierce lands inside a half-band: the pierce-ring
+//!   door (`snowman.rs`).
 //!
 //! Nested balls answer, and must keep answering.
 
@@ -167,21 +167,16 @@ fn z_offset_pairs_refuse_at_the_curved_extent_scan() {
 
 /// An in-seam-plane or polar-axis offset drives a seam meridian through
 /// the other ball's sphere face, and the circle × sphere roots pierce
-/// it. What the join makes of the section then turns on the chart: a
-/// polar-axis offset builds, and an in-seam-plane offset refuses at the
-/// polar gate
-/// (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+/// it. Both offsets build, the polar one through the azimuth window and
+/// the in-seam-plane one through the run side, to one lens.
 #[test]
-fn seam_crossing_pairs_reach_the_join() {
+fn seam_crossing_pairs_build() {
     let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));
-    let err = union_err(&a, &ball_at(1.0, Vec3::new(3.4, 2.0, 0.5)));
-    assert!(
-        matches!(
-            &err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcSide { .. })
-        ),
-        "offset along X, in the seam plane: expected the polar gate, got {err:?}"
-    );
+    let joined = topo::union(&a, &ball_at(1.0, Vec3::new(3.4, 2.0, 0.5)), Tol::witness())
+        .unwrap_or_else(|e| panic!("offset along X, in the seam plane: the union builds, got {e:?}"));
+    let tilted = topo::mass_properties(&joined.body().expect("a body").body, Tol::witness())
+        .unwrap()
+        .volume;
     let joined = topo::union(&a, &ball_at(1.0, Vec3::new(2.0, 3.4, 0.5)), Tol::witness())
         .unwrap_or_else(|e| panic!("offset along Y, the polar axis: the union builds, got {e:?}"));
     let joined = &joined.body().expect("a body").body;
@@ -191,10 +186,12 @@ fn seam_crossing_pairs_reach_the_join() {
     // Two unit balls 1.4 apart share a lens of two caps of height 0.3.
     let lens = 2.0 * PI * 0.3_f64.powi(2) * (3.0 - 0.3) / 3.0;
     let want = 2.0 * 4.0 * PI / 3.0 - lens;
-    assert!(
-        (v - want).abs() < 1e-9 * want,
-        "union volume {v}, want {want}"
-    );
+    for (offset, v) in [("Y", v), ("X", tilted)] {
+        assert!(
+            (v - want).abs() < 1e-9 * want,
+            "offset along {offset}: union volume {v}, want {want}"
+        );
+    }
 }
 
 /// Nested balls never reach either door; the outer ball is the answer.

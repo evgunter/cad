@@ -802,10 +802,11 @@ enum SectionCase<T: Real> {
 /// straight chord.
 ///
 /// The sphere lane (M5 S13) classifies through `plane_sphere_section`
-/// — an exact Circle, never a fitted chord — and refuses a section
-/// tilted against the sphere chart's polar axis, because the
-/// azimuth-anchored arc-side rule premises azimuth MONOTONE along the
-/// carrier and that holds on a sphere chart only for polar sections.
+/// — an exact Circle, never a fitted chord — and decides whether the
+/// section is polar for the sphere's chart (`split_sphere_section_polar`):
+/// the azimuth-window rule premises azimuth MONOTONE along the carrier,
+/// which a sphere chart gives for a polar section, and a tilted one is
+/// handed on marked for the run-side rule ([`SectionConic::azimuth_monotone`]).
 /// The cylinder lane is PR 5/PR 9's `plane_cylinder_section`.
 fn section_case<T: Decide>(
     face: FaceKey,
@@ -1179,19 +1180,20 @@ fn oriented_arc<T: Real>(
 ) -> (geom::Curve3<T>, T, T) {
     let tau = T::tau();
     // The arc's own span, forward from `th1` — the `[0, τ)` window for
-    // the same reason the azimuth gap above takes it, and with its jump
-    // in the same place: a span of zero, which is a zero-length or a
-    // whole-circle arc.
+    // the same reason [`select_arc`]'s azimuth gap takes it, and with
+    // its jump in the same place: a span of zero, which is a
+    // zero-length or a whole-circle arc.
     //
     // Only ONE of those two ends is guarded, and by the arm that
     // actually guards it: `BothContained` fires on `width ≥ τ`, so it
     // keeps a whole-period WINDOW off this reduction — the τ end. The
     // zero end is not its business and is not gated here; a
     // zero-length arc reaching this reduction would come back a period
-    // wide, honestly, and the containment classification above is what
-    // makes that configuration not arise rather than what forbids it.
-    // Stated as the split it is, because attributing both ends to one
-    // arm reads as a guarantee that is only half present.
+    // wide, honestly, and the selection rules' classifications are what
+    // make that configuration not arise rather than what forbids it.
+    // On the run-side rule the window arm does not exist: there the τ
+    // end is two chord ends sharing a conic parameter, which the
+    // `split_arc_run_end` match refuses as a degenerate chord.
     if ccw {
         // The ccw arc from p1 lies in the face.
         let span = (th2 - th1).reduce_periodic(tau);
@@ -1319,19 +1321,23 @@ fn run_is_section_arc<T: Decide>(
     let d = curve.mid_point() - conic.center;
     let x = d.dot(conic.major) / conic.sa;
     let y = d.dot(conic.normal.cross(conic.major)) / conic.sb;
-    for (name, margin) in [
-        ("split_arc_run_on_section_plane", Margin::of(d.dot(conic.normal))),
-        (
-            "split_arc_run_on_section_conic",
-            Margin::levered((x * x + y * y).sqrt() - T::one(), conic.sa),
-        ),
-    ] {
-        match decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face, diag })? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => return Ok(false),
-        }
+    let escalated = |diag| SplitJoinError::Escalated { face, diag };
+    let in_plane = decide(
+        "split_arc_run_on_section_plane",
+        Margin::of(d.dot(conic.normal)),
+        band,
+    )
+    .map_err(escalated)?;
+    if in_plane != Sign::Zero {
+        return Ok(false);
     }
-    Ok(true)
+    let on_conic = decide(
+        "split_arc_run_on_section_conic",
+        Margin::levered((x * x + y * y).sqrt() - T::one(), conic.sa),
+        band,
+    )
+    .map_err(escalated)?;
+    Ok(on_conic == Sign::Zero)
 }
 
 /// **The arc-side rule where azimuth is not monotone along the
@@ -1530,6 +1536,10 @@ fn select_arc_by_run_side<T: Decide>(
 /// Seam placement does not enter: rotating the chart's `u_ref` shifts
 /// the window and the chord's endpoint azimuths by the same constant,
 /// and every quantity below is a difference.
+///
+/// A sphere section tilted against the chart's polar axis doubles back
+/// in azimuth, so no window bounds its arc; that section takes
+/// [`select_arc_by_run_side`] on the same run instead.
 #[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
 fn chord_spec<T: Decide>(
     body: &mut Body<T>,
@@ -3315,7 +3325,7 @@ mod tests {
     }
 
     /// **The anti-re-fork row for the arc-side rule.** Each of the
-    /// three rungs the two chord lanes share is decided in exactly ONE
+    /// rungs the two chord lanes share is decided in exactly ONE
     /// place in this crate — counted, not merely located, because the
     /// duplication this row exists against was INSIDE one file: for
     /// most of this module's life `chord_spec` and
@@ -3346,6 +3356,11 @@ mod tests {
             "arc_window",
             "arc_chart_orientation",
             "sphere_section_polar",
+            "arc_run_end",
+            "arc_run_side",
+            "arc_run_along",
+            "arc_run_on_section_plane",
+            "arc_run_on_section_conic",
         ]
         .map(|rung| format!("\"split_{rung}\""));
         let home = crate::source_walk::src_root().join("chord_join.rs");
@@ -3436,6 +3451,7 @@ mod tests {
             sa: ex(1.0),
             sb: ex(1.0),
             carrier,
+            azimuth_monotone: true,
         };
         // The window runs ccw from the straddled edge to half a period
         // on: the start is on `w_min`, which is the whole point.
@@ -3520,6 +3536,7 @@ mod tests {
             sa: ex(1.0),
             sb: ex(1.0),
             carrier,
+            azimuth_monotone: true,
         };
         let window = (
             ex(core::f64::consts::FRAC_PI_2),

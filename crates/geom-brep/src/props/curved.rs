@@ -33,6 +33,7 @@ use geom_core::{
 };
 
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
+use crate::enters::OutwardNormal;
 use crate::dihedral::decide;
 
 /// The flux and area of a curved face from its **outer** loop (curved
@@ -48,9 +49,13 @@ use crate::dihedral::decide;
 /// which the interior-left rule already ties to the outward normal —
 /// `revert` reverses loops and flips `sense` together, so signing
 /// those terms by the sense as well would double-count and negate the
-/// volume twice. `sense` is consumed at exactly one place, the
-/// **rimless** sphere face, for the reason [`SphereFluxSide::Sense`]'s
-/// doc states (the one home of that fact).
+/// volume twice. `sense` is consumed by the sphere faces whose radial
+/// term no rim encodes — the **rimless** face and the face bounded by
+/// a tilted circle ([`sphere_circle_loop`]) — for the reason
+/// [`SphereFluxSide::Sense`]'s doc states (the one home of that fact);
+/// the second also reads its area against the outward normal the bit
+/// gives, paired with the stored traversal as sector algebra pairs
+/// them ([`OutwardNormal::vec`]).
 ///
 /// # Errors
 ///
@@ -2130,7 +2135,10 @@ fn sphere_loop_has_tilted_circle<T: Decide>(
 ///
 /// Verified before integrating: each edge is a circle ON the sphere —
 /// its centre offset parallel to its axis (`props_sphere_circle_on`)
-/// and its radius fitting (`props_rim_fit`) — and the area lies
+/// and its radius fitting (`props_rim_fit`) — each arc ends where the
+/// next begins (`props_sphere_loop_closed`: Gauss–Bonnet reads the loop
+/// as a closed curve, so its closure is checked here rather than
+/// trusted from the vertex tags), and the area lies
 /// strictly between 0 and the whole sphere (`props_sphere_loop_area`),
 /// which a loop whose traversal disagrees with the sense bit fails.
 ///
@@ -2146,12 +2154,12 @@ fn sphere_circle_loop<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let sigma = if sense { T::one() } else { -T::one() };
+    let outward = |p: Point3<T>| OutwardNormal::from_chart((p - center) / radius, sense).vec();
     let tau = T::pi() + T::pi();
     let mut turning = T::zero();
-    // Each arc's traversal tangents at its two ends, for the vertex
-    // turning angles.
-    let mut ends: Vec<(Vec3<T>, Vec3<T>, Point3<T>)> = Vec::with_capacity(edges.len());
+    // Each arc's traversal tangent and point at its start and its end,
+    // for the vertex turning angles and the loop's closure.
+    let mut ends: Vec<(Vec3<T>, Point3<T>, Vec3<T>, Point3<T>)> = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle {
             center: c_c,
@@ -2178,18 +2186,26 @@ fn sphere_circle_loop<T: Decide>(
             Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
             band,
         )?;
-        let s = if e.forward { T::one() } else { -T::one() };
-        turning = turning + s * sigma * (w.dot(n_c) / radius) * (e.t1 - e.t0);
-        let tangent = |p: Point3<T>| {
-            let d = n_c.cross(p - c_c) * s;
-            d / d.norm()
-        };
         let (p_start, p_end) = e.traversal_ends();
-        ends.push((tangent(p_start), tangent(p_end), p_end));
+        // `N·â` is the same at every point of the arc, `(C − c)·â` over
+        // `R` under the sense bit; read at the traversal start.
+        let curvature = outward(p_start).dot(n_c) * (e.t1 - e.t0);
+        turning = if e.forward {
+            turning + curvature
+        } else {
+            turning - curvature
+        };
+        let tangent = |p: Point3<T>| {
+            let d = n_c.cross(p - c_c);
+            let d = d / d.norm();
+            if e.forward { d } else { -d }
+        };
+        ends.push((tangent(p_start), p_start, tangent(p_end), p_end));
     }
-    for (i, &(_, arrive, at)) in ends.iter().enumerate() {
-        let depart = ends[(i + 1) % ends.len()].0;
-        let normal = (at - center) * (sigma / radius);
+    for (i, &(_, _, arrive, at)) in ends.iter().enumerate() {
+        let (depart, from, _, _) = ends[(i + 1) % ends.len()];
+        require_zero("props_sphere_loop_closed", Margin::of((from - at).norm()), band)?;
+        let normal = outward(at);
         require_cusp_free(arrive, depart, radius, band)?;
         turning = turning + normal.dot(arrive.cross(depart)).atan2(arrive.dot(depart));
     }
@@ -2207,7 +2223,7 @@ fn sphere_circle_loop<T: Decide>(
         }
     }
     let va = loop_vector_area(edges, center)?;
-    let flux = sigma * radius * area + (center - Point3::origin()).dot(va);
+    let flux = SphereFluxSide::Sense(sense).signed(radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
 }
 
@@ -2245,13 +2261,16 @@ fn require_cusp_free<T: Decide>(
 /// carries the bit rather than declining to answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SphereFluxSide {
-    /// The rimless face, two-band or wedge: the face's `Face::sense`
-    /// BIT is its flux side. **This is the one home of that fact.** It
-    /// is the only flux sign in the props module that the boundary does
-    /// not encode: with no rim there is no traversal to read a side off,
-    /// and a rimless face's meridians are traversed the same way
-    /// whichever side is material, so [`MaterialSign`] answers
-    /// `Unencoded` for it and nothing cross-checks the bit. `Face::sense`
+    /// The rimless face, two-band or wedge, and the face bounded by a
+    /// tilted circle: the face's `Face::sense` BIT is its flux side.
+    /// **This is the one home of that fact.** It is the only flux sign
+    /// in the props module that the boundary does not encode: with no
+    /// rim there is no traversal to read a side off, and a rimless
+    /// face's meridians are traversed the same way whichever side is
+    /// material, so [`MaterialSign`] answers `Unencoded` for it and
+    /// nothing cross-checks the bit. A tilted circle is no rim either,
+    /// and [`sphere_circle_loop`] does not read the rims a face of that
+    /// kind may also carry: one encoding, on every face it measures. `Face::sense`
     /// (M5 S10) is exactly the missing bit — `true` where the chart
     /// normal already points out of the material — and an inward-facing
     /// rimless band is representable only through it. The wedge arm

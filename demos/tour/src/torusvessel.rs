@@ -80,9 +80,10 @@
 //!    inventory, at the cap's loop area (an elliptic integral, no
 //!    closed form; the torus wall behind it routes to the quadrature
 //!    lane, whose chart gate has no torus arm either). Probed live
-//!    below (wall 1). The sphere half of the same rim family stands
-//!    at the same door on a different premise
-//!    (`torax_the_sphere_lune_next_door_is_the_props_inventory`). The
+//!    below (wall 1). The sphere half of the same rim family hollows
+//!    through: its cavity's lens face is bounded by circles tilted
+//!    against the sphere's chart, which the flux arm measures by
+//!    Gauss–Bonnet (`torax_the_sphere_lune_hollows_to_its_closed_form`). The
 //!    props quadrature lane for a spiric-bounded face is the spiric
 //!    unit's next PR, so this wall is measured-red until it lands.
 
@@ -807,11 +808,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  VolumeUncomputable. The klein elbow's wall \
                  (`torax_the_klein_elbow_hollows_to_the_props_door`) mints the same \
                  carrier and stops at the same door. The SPHERE half of the \
-                 same rim family stands at the same door on a different premise: it is \
-                 the CAVITY's lens face — bounded by the moved caps' off-centre \
-                 sections — whose volume the flux arm cannot give tier 3 \
-                 (`props_meridian_great`; \
-                 `torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \
+                 same rim family hollows through: the CAVITY's lens face — bounded by \
+                 the moved caps' off-centre sections, circles tilted against the \
+                 sphere's chart — measures by Gauss–Bonnet over its arcs \
+                 (`torax_the_sphere_lune_hollows_to_its_closed_form`). THE \
                  SEALED BODY'S OWN WALL IS STEP: the writer's outward/void classifier \
                  has closed forms for planar faces only, so this multi-shell CURVED \
                  solid refuses CurvedShellClassification — declared at the body and \

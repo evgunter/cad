@@ -1920,6 +1920,14 @@ fn wall<T, E: core::fmt::Debug>(
     crate::walls::wall("lily", n, what, outcome, pinned, retire);
 }
 
+/// Where wall 7 stops: the carve itself, or drawing what it built.
+#[derive(Debug)]
+#[allow(dead_code)] // the payloads are read through `Debug` in the wall's report
+enum Wall7 {
+    Carve(BooleanError),
+    Draw(pncad::mesh::TessellateError),
+}
+
 /// The lily's frontier, run live: every shape the plant WANTED and the
 /// kernel would not state, attempted for real and pinned by its own
 /// typed refusal.
@@ -2184,12 +2192,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    operation. The F7 door used to answer next; it no longer
     //    does, because the scene REPAIRS the operand first (below) and
     //    a repaired lantern is maximal-faced. The crossing layer has
-    //    circle × sphere roots now, so the sweep gets through and the
-    //    JOIN answers: the sphere pair's chord rides the two spheres'
-    //    radical plane, and this ball sits off the lantern's axis, so
-    //    that plane is tilted against the lantern's polar axis and the
-    //    arc-side rule refuses it typed
-    //    (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+    //    circle × sphere roots, the sphere pair's chord rides the two
+    //    spheres' radical plane, and although this ball sits off the
+    //    lantern's axis — the plane is tilted against the zone's polar
+    //    axis — the join selects the section's arcs by the side of the
+    //    run they leave on, and the carved zone measures by
+    //    Gauss–Bonnet. So the CARVE builds, and what refuses is drawing
+    //    it: the mesher has no lane for a sphere face bounded by a
+    //    circle tilted against its chart
+    //    (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
     //    The payload is quoted rather than described, the wall-7
     //    lesson about reading a locus off a comment instead of a dump.
     //
@@ -2218,19 +2229,40 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
     //    — the ruling that put it there is M9-5's, and the demand
     //    signal is this probe.
+    // The carve builds; drawing it is what refuses. The mesher is an
+    // f64 door, so the carve it draws is the f64 one, as a user's
+    // would be.
+    let lantern_f64 = match (&repaired_lantern as &dyn core::any::Any).downcast_ref::<Body<f64>>() {
+        Some(b) => b.clone(),
+        None => {
+            let mut b = plant::<f64>(tol)
+                .into_iter()
+                .find(|p| p.name == "lily_lantern")
+                .expect("named lily piece")
+                .body;
+            b.merge_coplanar_faces(tol)
+                .expect("the lantern's pole-split caps repair (#1031's pole half)");
+            b
+        }
+    };
     wall(
         7,
-        "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
-         operand's own shape answers first)",
+        "carve a tepal seam into the lantern and draw it (sphere x sphere by \
+         geometry; the seam's section is tilted against the zone's chart)",
         pncad::topo::subtract(
-            &repaired_lantern,
-            &ball::<S>(Point3::new(-2.80, 0.0, 0.90), 0.16, tol),
+            &lantern_f64,
+            &ball::<f64>(Point3::new(-2.80, 0.0, 0.90), 0.16, tol),
             tol,
-        ),
+        )
+        .map_err(Wall7::Carve)
+        .and_then(|carved| {
+            let body = &carved.body().expect("the carve leaves the lantern").body;
+            pncad::mesh::tessellate(body, 2e-3, tol).map_err(Wall7::Draw)
+        }),
         |e| {
             matches!(
                 e,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionArcSide { .. })
+                Wall7::Draw(pncad::mesh::TessellateError::UnsupportedCurvedShape { .. })
             )
         },
         "give the lanterns their three tepal seams",
@@ -3812,6 +3844,7 @@ mod verbs_gate_r1_probes {
         let pucker = super::review_probes::pucker_cone_faces(&pieces);
         let mut min_frustum_gap = f64::INFINITY;
         let mut zone_hit = false;
+        let mut zone = None;
         for (k, f) in lant.faces() {
             match lant.get_surface(f.surface) {
                 Some(&Surface::Cone {
@@ -3856,6 +3889,7 @@ mod verbs_gate_r1_probes {
                     let d = (center - bc).norm();
                     if d <= radius + br && d + br >= radius {
                         zone_hit = true;
+                        zone = Some((center, radius));
                     }
                 }
                 _ => {}
@@ -3916,9 +3950,6 @@ mod verbs_gate_r1_probes {
         repaired
             .merge_coplanar_faces(tol)
             .expect("the lantern's caps repair (#1031's pole half)");
-        let refusal = pncad::topo::subtract(&repaired, &ball_body, tol)
-            .expect_err("the tepal seam is still refused, somewhere");
-        println!("wall-7 probe: the kernel answers {refusal:?}");
         // **The measured outcome, and it is neither branch the review
         // anticipated.** With the axial window taken from the
         // boundary's own locus, the pucker's box clears the ball by
@@ -3929,23 +3960,56 @@ mod verbs_gate_r1_probes {
         // same-key CURVED adjacency is the canonical maximal form —
         // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
         //
-        // With the repair landed and the crossing layer's circle ×
-        // sphere roots, the pair reaches the join: the section rides the
-        // radical plane, tilted against the lantern's polar axis, and the
-        // arc-side rule's polar gate refuses it
-        // (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+        // With the repair landed, the crossing layer's circle × sphere
+        // roots, the radical-plane join and its run-side arc rule for a
+        // section tilted against the zone's polar axis, the carve
+        // builds under every op, and each answer meets the lens the
+        // ball and the zone's sphere share, from the radii and the
+        // centre distance alone. What stops the scene is drawing it.
         assert!(
             tightest < 0.0,
             "the pucker's box must clear the ball's for the gate to admit; it does \
-             not, so this row's reading of the refusal below is wrong"
+             not, so this row's reading of the carve below is wrong"
         );
+        let (zc, zr) = zone.expect("the zone's sphere");
+        let d = (zc - bc).norm();
+        let x = (d * d + zr * zr - br * br) / (2.0 * d);
+        let cap = |r: f64, h: f64| PI * h * h * (3.0 * r - h) / 3.0;
+        let lens = cap(zr, zr - x) + cap(br, br - (d - x));
+        let volume = |b: &Body<f64>| {
+            pncad::topo::mass_properties(b, tol)
+                .expect("the volume integrates")
+                .volume
+        };
+        let (va, vb) = (volume(&repaired), 4.0 / 3.0 * PI * br.powi(3));
+        let built = |label: &str, r: Result<pncad::topo::BooleanResult<f64>, BooleanError>| {
+            let r = r.unwrap_or_else(|e| panic!("{label}: the carve builds, got {e:?}"));
+            let body = r.body().expect("a body").body.clone();
+            assert_eq!(pncad::topo::validate_geometric(&body, tol), Ok(()), "{label}");
+            body
+        };
+        let carved = built("A ∖ B", pncad::topo::subtract(&repaired, &ball_body, tol));
+        for (label, body, want) in [
+            ("A ∖ B", carved.clone(), va - lens),
+            ("A ∪ B", built("A ∪ B", pncad::topo::union(&repaired, &ball_body, tol)), va + vb - lens),
+            ("A ∩ B", built("A ∩ B", pncad::topo::intersect(&repaired, &ball_body, tol)), lens),
+            ("B ∖ A", built("B ∖ A", pncad::topo::subtract(&ball_body, &repaired, tol)), vb - lens),
+        ] {
+            let got = volume(&body);
+            println!("wall-7 probe: {label} volume {got}, lens oracle {want}");
+            assert!(
+                (got - want).abs() <= 1e-9 * want.max(1.0),
+                "{label}: volume {got} against the lens oracle {want}"
+            );
+        }
+        let draw = pncad::mesh::tessellate(&carved, 2e-3, tol);
+        println!("wall-7 probe: drawing the carve answers {draw:?}");
         assert!(
             matches!(
-                &refusal,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionArcSide { .. })
+                draw,
+                Err(pncad::mesh::TessellateError::UnsupportedCurvedShape { .. })
             ),
-            "the gate admits, the REPAIRED lantern is maximal-faced and the crossing \
-             layer pierces, so what refuses is the join's polar gate — got {refusal:?}"
+            "the carve's tilted-circle face has no tessellation lane — got {draw:?}"
         );
     }
 

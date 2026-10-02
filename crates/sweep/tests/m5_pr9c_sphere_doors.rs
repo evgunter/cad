@@ -256,14 +256,16 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// face's carrier plane, poles and all, so the sweep records both poles
 /// on that face (a conic lying in a plane face's plane takes the line
 /// lane's endpoint posture). With those events the reduction takes the
-/// crossings path, and the join refuses the section it meets there —
-/// the great circle `z = 0`, tilted against the ball's `y` polar axis —
-/// as a typed frontier. The ball is also exactly TANGENT to the top
+/// crossings path to the join, whose section there — the great circle
+/// `z = 0`, tilted against the ball's `y` polar axis — takes the
+/// run-side arc rule, and the run it is handed carries no certified
+/// edge: the poles land as a pierce ring, refused typed
+/// (`ArcSideCase::NoCertifiedRun`). The ball is also exactly TANGENT to the top
 /// face's carrier (`z = 1`), which the extent scan refused when the
 /// sweep did not see the poles. (Nudge the ball off both coincidences
 /// and the S13 lanes cut it — the pips suite.)
 #[test]
-fn the_die_pips_shape_stops_typed_at_its_tilted_section() {
+fn the_die_pips_shape_stops_typed_at_its_pierce_ring() {
     let slab = validated(vec![profile::ProfileLoop::polygon([
         Point2::new(-2.0, -2.0),
         Point2::new(2.0, -2.0),
@@ -275,8 +277,12 @@ fn the_die_pips_shape_stops_typed_at_its_tilted_section() {
         .body;
     let b = ball();
     let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
-    let topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide { .. }) = &err else {
-        panic!("expected the join's tilted-section frontier, got {err:?}");
+    let topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide {
+        case: topo::ArcSideCase::NoCertifiedRun,
+        ..
+    }) = &err
+    else {
+        panic!("expected the join's pierce-ring run, got {err:?}");
     };
     // The retired claims must be GONE from the surfaced text: revert is
     // wired, the gate is not wholesale, and the sphere class is no

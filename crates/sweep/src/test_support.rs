@@ -531,11 +531,11 @@ pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: To
 /// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
 ///
 /// The axis matters: `revolve` puts the ball's poles on the sketch
-/// axis, and a plane×sphere section taken against a chart whose polar
-/// axis is TILTED to the plane is a typed frontier of the split-join
-/// (`SplitJoinError::SectionNotPolar`). A pip
-/// is cut by a face plane, so its ball is charted with the pole along
-/// that face's normal and the section stays polar by construction.
+/// axis, and a plane×sphere section is polar for the ball's chart only
+/// when the plane is normal to that axis. A pip is cut by a face plane,
+/// so its ball is charted with the pole along that face's normal and
+/// the section stays polar by construction, which keeps its faces
+/// inside the iso-rectangle inventory the tessellator walks.
 /// [`ball_poled_y`] and [`ball_poled_z`] name the two poles suites use
 /// most; this door takes any.
 pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> {

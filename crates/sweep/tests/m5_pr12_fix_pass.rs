@@ -15,7 +15,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
-use topo::{Body, BooleanDeclarations, MassPropsError, ValidationError};
+use topo::{Body, BooleanDeclarations};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = bulge_loop(
@@ -162,23 +162,27 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 
 /// **F4, deviation 3's missing fixture.** A genuinely OBLIQUE
 /// trihedron — a cube with one corner sliced by a tilted plane — has
-/// no incident edge whose chart makes the octant an iso-rectangle. The
-/// body still builds and passes tiers 1 and 2; tier 3 reports
-/// `VolumeUncomputable` because the closed-form mass-properties
-/// inventory has no spherical-triangle form. The gap is in `props`,
-/// not in the body, and this row is what says so out loud.
+/// no incident edge whose chart makes the octant an iso-rectangle, so
+/// each corner patch is a spherical triangle bounded by circles tilted
+/// against its chart. The body builds and passes all three tiers: the
+/// sphere flux arm measures those patches by Gauss–Bonnet over their
+/// arcs.
 ///
 /// **It is also the pin on tier 3's curved check-6 EXEMPTION.** Five
 /// of this body's faces are exactly the input on which
-/// `boundary_material_sign` refuses, and check 6 must stay silent on
-/// them: the refusal is not a sense disagreement, and check 7 — gated
-/// on `errors.is_empty()` — is the check that owns it and names its
-/// cause. So the two halves are asserted together and structurally: no
-/// `CurvedSenseInverted`, and a `VolumeUncomputable` carrying
-/// `NotIsoRectangle`. Turn that exemption into a raise and the second
-/// half vanishes with the first.
+/// `boundary_material_sign` refuses (no rim encodes their side), and
+/// check 6 must stay silent on them: the refusal is not a sense
+/// disagreement. A raise there would fail tier 3 here.
+///
+/// The volume is held to a bracket that reads nothing of the kernel's
+/// fillet: rounding a convex edge of length `ℓ` and interior angle `θ`
+/// at radius `r` removes `r²·(cot(θ/2) − (π − θ)/2)·ℓ` at most (less
+/// where blends meet at corners), which is under `r²·ℓ` for every
+/// `θ` above 50°, and this clip's dihedrals are all within 0.4 rad of
+/// a right angle; so the rounded body lies strictly between the clip's
+/// volume and that less `r²·Σℓ`.
 #[test]
-fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
+fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
     let c2 = prism(&[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)], 3.0);
     let c2 = topo::transform_rigid(
@@ -211,29 +215,33 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     .body
     .clone();
     let edges = query::all_edges(&clipped);
-    let f = fillet_edges(&clipped, &edges, 0.08, Tol::witness())
+    let r = 0.08;
+    let f = fillet_edges(&clipped, &edges, r, Tol::witness())
         .expect("an oblique trihedron still builds");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
-    let errs = topo::validate_geometric(&f.body, Tol::witness())
-        .expect_err("tier 3 cannot meter a spherical triangle at M5");
-    assert!(
-        !errs
-            .iter()
-            .any(|e| matches!(e, ValidationError::CurvedSenseInverted { .. })),
-        "check 6 must EXEMPT a face whose material-side derivation refuses: {errs:?}"
+    assert_eq!(
+        topo::validate_geometric(&f.body, Tol::witness()),
+        Ok(()),
+        "tier 3 meters the spherical triangles, and check 6 exempts them"
     );
+    let total_length: f64 = edges
+        .iter()
+        .map(|&k| {
+            let curve = clipped
+                .get_edge(k)
+                .and_then(|e| clipped.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .expect("a certified edge");
+            let (t0, t1) = curve.params();
+            (curve.carrier().eval(t1) - curve.carrier().eval(t0)).norm()
+        })
+        .sum();
+    let volume = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let (clip, rounded) = (volume(&clipped), volume(&f.body));
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            ValidationError::VolumeUncomputable {
-                source: MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle { .. },
-                    ..
-                },
-                ..
-            }
-        )),
-        "the refusal must name the props inventory's gap: {errs:?}"
+        rounded < clip && rounded > clip - r * r * total_length,
+        "rounded {rounded} outside ({}, {clip})",
+        clip - r * r * total_length
     );
 }
