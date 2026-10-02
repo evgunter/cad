@@ -2191,7 +2191,7 @@ pub(super) fn curved_face_arm<T: Decide>(
 /// Against a torus the carrier enclosure is the whole turn's sampled
 /// one, levered by a curvature bound that is loose in the direction that
 /// refuses: on grazes within 40 bands it certified none at ε 1e-12 and
-/// 1e-9 and three at 1e-6, each clear under the oracle
+/// 1e-9 and a handful at 1e-6, each clear under the oracle
 /// (`clearance_rows`). Against a cone there is no enclosure (`None`, the
 /// frontier).
 ///
@@ -4811,8 +4811,9 @@ mod clearance_rows {
 
     /// **No certified clearance on a graze, through the rung.** Circles,
     /// and ellipses in all eight stored orders and signs (eccentricity
-    /// up to 40), metre- or kilometre-sized, centred up to a kilometre
-    /// out, each meeting a sphere or a wall (radius 1 µm to 1 m, the
+    /// up to 40), metre- or kilometre-sized, centred up to a metre, a
+    /// kilometre or a hundred kilometres out (where a sampled residual's
+    /// coordinate rounding, `u·|p|`, passes the band at 1e-12), each meeting a sphere or a wall (radius 1 µm to 1 m, the
     /// wall's axis across the outward normal) at a vertex, set off along
     /// the outward normal by `gap`, −40 to 40 bands. The vertex is the
     /// carrier's least distance from the surface (the carrier bends away
@@ -4851,7 +4852,7 @@ mod clearance_rows {
                 if !circle && combo & 4 != 0 {
                     minor = -minor;
                 }
-                let far = if rng.below(2) == 0 { 1.0 } else { 1000.0 };
+                let far = [1.0, 1e3, 1e5][usize::try_from(rng.below(3)).unwrap()];
                 let center = Point3::new(
                     rng.range(-far, far),
                     rng.range(-far, far),
