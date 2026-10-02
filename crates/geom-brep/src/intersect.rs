@@ -1550,13 +1550,12 @@ pub fn cylinder_cylinder_section<T: Decide>(
 /// resolves the ladder; this module consumes the verdict, then
 /// *verifies* it against the geometry (declared ≠ unchecked).
 ///
-/// **No production caller can supply `Declared` today**, and that is
-/// stated rather than papered over: the honest carrier for a
-/// parameter-level identity between a cylinder's axis and a sphere's
-/// centre is the parameter-identity channel (#1372), which does not
-/// exist. Until it does, every in-tree consumer passes [`Self::None`]
-/// and the pair routes to the general rung — the arm below is reached
-/// only by direct tests.
+/// **No production caller can supply `Declared` today.** Coaxiality is
+/// a fact about placement (an axis, a centre), so its honest carrier is
+/// the axis-shaped identity channel (`docs/AXIS-DECLARATION-DESIGN.md`),
+/// which is unbuilt. Until it is, every in-tree consumer passes
+/// [`Self::None`] and the pair routes to the general rung — the arm
+/// below is reached only by direct tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoaxialEvidence {
     /// Coaxiality is structural or declared through the ladder.

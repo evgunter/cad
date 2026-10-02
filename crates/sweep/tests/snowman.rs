@@ -512,10 +512,11 @@ fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
 
 /// **A straight edge through a ball** reaches the line × sphere roots
 /// through a public op: a square bar poking out of a ball, its long
-/// edges straddling the sphere. They pierce, and the op goes on to the
-/// pierce point's sector side, where the curved-sector sagitta charge
-/// stops it (`work/reach/slab-cut-cylinder-refuses-sector-side.md`). A
-/// refusal at the pierce door would mean the root lane went dark.
+/// edges straddling the sphere. They pierce, the pierce points' sector
+/// sides certify, and the op goes on to the join, where the pierced
+/// sphere face carries a ring with no charted run: the pierce-ring door
+/// (`work/tang/pierce-ring-has-no-join-arm.md`). A refusal at the
+/// pierce door would mean the root lane went dark.
 #[test]
 fn a_bar_through_a_ball_crosses_the_sphere() {
     let a = ball(R1, 0.0);
@@ -524,9 +525,15 @@ fn a_bar_through_a_ball_crosses_the_sphere() {
     for op in OPS {
         let e = refusal(op, &a, &bar);
         assert!(
-            matches!(e, topo::BooleanError::CurvedSectorSideUnsupported { .. }),
+            matches!(
+                e,
+                topo::BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                    case: topo::ArcWindowCase::NoChartedRun,
+                    ..
+                })
+            ),
             "bar through a ball under {op:?}: expected to cross the sphere and stop at the \
-             sector side, got {e:?}"
+             pierce-ring door, got {e:?}"
         );
     }
 }

@@ -3512,8 +3512,8 @@ pub enum RingContact {
         /// The ring's edge it stands on.
         ring_edge: EdgeKey,
     },
-    /// The ring and the outer loop are two WHOLE circles — both in
-    /// [`crate::boolean::LoopShape`]'s disc class — that cross or
+    /// The ring and the outer loop are two WHOLE circles — each read
+    /// by [`crate::boolean::loop_circle`] — that cross or
     /// touch: their centre distance lies between the difference of
     /// their radii and the sum, both ends included. Named by LOOP,
     /// because a crossing need not put a ring vertex outside, or
@@ -6344,7 +6344,7 @@ pub(crate) fn tier3_local_checks_marked<
     // that is a vertex of neither — a transversal crossing or a
     // one-point tangency (circle-circle internal or external,
     // line-circle). That last shape has two arms: two WHOLE circles
-    // (arm 4, both loops in `loop_shape`'s `Disc` class) are decided
+    // (arm 4, both loops read by `loop_circle`) are decided
     // exactly by the centre distance against the radii's sum and
     // difference, with no trim to test; every other pair of `Line` and
     // `Circle` edges (arm 5) has its carriers' meeting points computed
@@ -6803,7 +6803,7 @@ fn edge_trim<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: 
 /// end it sits at, so a candidate within the band of an edge's
 /// ACTUAL end, measured as a distance, counts as inside that trim.
 ///
-/// - **Arm 4, both loops whole circles** ([`crate::boolean::LoopShape::Disc`]
+/// - **Arm 4, both loops whole circles** ([`crate::boolean::loop_circle`]
 ///   on each): [`circle_pair`], exact without any trim.
 /// - **Arm 5, every other pair of `Line` and `Circle` edges**
 ///   ([`segments_meet`]): the carriers' meeting points, each tested
@@ -6834,9 +6834,9 @@ fn ring_outer_meeting<T: Decide>(
     };
 
     // ---- Arm 4: two whole circles. ----
-    if let (Ok(crate::boolean::LoopShape::Disc(o)), Ok(crate::boolean::LoopShape::Disc(r))) = (
-        crate::boolean::loop_shape(body, outer, band),
-        crate::boolean::loop_shape(body, ring, band),
+    if let (Ok(Some(o)), Ok(Some(r))) = (
+        crate::boolean::loop_circle(body, outer, band),
+        crate::boolean::loop_circle(body, ring, band),
     ) {
         return match circle_pair(o.center, o.radius, r.center, r.radius, band) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
@@ -11088,8 +11088,7 @@ mod tests {
     /// right edge of a 10 x 10 square re-carried as an arc bowing
     /// OUTWARD, to `x = 5 + 5√2`, leaves a lune between the chord
     /// `x = 10` and the arc that the polygon through the four vertices
-    /// does not hold — `boolean::loop_shape`'s `ArcParity` class. A
-    /// ring in the lune is inside the loop and certifies, although the
+    /// does not hold. A ring in the lune is inside the loop and certifies, although the
     /// polygon walk reads its every vertex `Out` (asserted, so the
     /// fixture provably reaches the lune); a ring past the arc is
     /// outside it and is refused by name.
@@ -11103,13 +11102,6 @@ mod tests {
         ] {
             let (body, face) = bowed_square_with_ring(x0, x1, tol);
             let outer_loop = body.get_face(face).unwrap().outer;
-            assert!(
-                matches!(
-                    crate::boolean::loop_shape(&body, outer_loop, band),
-                    Ok(crate::boolean::LoopShape::ArcParity)
-                ),
-                "{name}: one outward arc over four vertices is the ArcParity class"
-            );
             let f = body.get_face(face).unwrap();
             let normal = plane_chart_normal(&body, f.surface).expect("a planar face");
             let ring_loop = f.rings[0];
@@ -11324,7 +11316,7 @@ mod tests {
     }
 
     /// A circle of radius 10 about the origin split at −0.01, 0.01 and
-    /// π, carried as three arcs of it (the `Disc` class, asserted), on
+    /// π, carried as three arcs of it (one circle to `loop_circle`, asserted), on
     /// a lamina: the body, its outer loop, the chart normal, the radius.
     fn split_circle(band: Band) -> (Body<f64>, LoopKey, geom_core::Vec3<f64>, f64) {
         let tol = Tol::witness();
@@ -11344,8 +11336,8 @@ mod tests {
         recarry_loop(&mut body, outer_loop, Point3::new(0.0, 0.0, 0.0), tol);
         assert!(
             matches!(
-                crate::boolean::loop_shape(&body, outer_loop, band),
-                Ok(crate::boolean::LoopShape::Disc(_))
+                crate::boolean::loop_circle(&body, outer_loop, band),
+                Ok(Some(_))
             ),
             "three arcs of one circle are the disc class"
         );
@@ -11378,7 +11370,7 @@ mod tests {
 
     /// **Near an arc's end the walk decides what the radial row does.**
     /// A circle of radius 10 split at −0.01, 0.01 and π — one circle,
-    /// so `boolean::loop_shape` reads the `Disc` class — and a query
+    /// so `boolean::loop_circle` reads one circle — and a query
     /// just below the short arc's end at angle 0.01, at 20ε to 80ε
     /// from the ray line through it (ε = 1e-9, K = 10). The radial
     /// margin is ten metres; only the rays are ever near anything. The
@@ -11407,7 +11399,7 @@ mod tests {
     /// refuses an empty loop at rest (`ScaffoldingEmptyLoop`), so this
     /// is the arm's own contract on a ring the arm is written to read.
     /// The outer loop is four quarter arcs of one circle (centre (5, 5),
-    /// radius 1), which `boolean::loop_shape` reads as the `Disc` class;
+    /// radius 1), which `boolean::loop_circle` reads as one circle;
     /// inside is `Inside`, outside names the lone vertex, and a margin
     /// strictly between the band's coincidence and escalation
     /// thresholds is `Undecided` — never read as nested. On a CYCLE
@@ -11436,8 +11428,8 @@ mod tests {
         let f = body.get_face(face).unwrap();
         assert!(
             matches!(
-                crate::boolean::loop_shape(&body, f.outer, band),
-                Ok(crate::boolean::LoopShape::Disc(_))
+                crate::boolean::loop_circle(&body, f.outer, band),
+                Ok(Some(_))
             ),
             "one circle on every outer edge is the disc class"
         );

@@ -1510,29 +1510,18 @@ pub(super) fn curved_face_arm<T: Decide>(
         // negative between): it is the witness lane's SEPARATION
         // INVARIANT — every pair `tangent_locus` admits has each
         // carrier wholly in ONE closed residual half-space of the
-        // other (the contract sentence on [`super::rest::tangent_locus`];
+        // other (the contract sentence on [`geom_brep::tangent_locus`];
         // a `Rest` cover's shared carrier is residual-zero
         // identically) — so a covered on-carrier edge's residual is
         // one-signed and a Zero endpoint is a touch, never an entry.
         // A configuration without that one-sign story must not be
-        // admitted to the lane. **The coaxial cylinder×sphere circle
-        // arm is no longer an EXAMPLE of one, and this citation is
-        // corrected rather than left standing**: #974 recorded that arm
-        // as blocked on the one-sign story, and VERBS-CYLSPH MEASURED
-        // the story and it PASSES — at the only coaxial tangency the
-        // sphere lies wholly in the cylinder's closed inside and the
-        // cylinder wholly outside the sphere. The orientations are
-        // OPPOSITE per direction, which this contract never forbade:
-        // the internally tangent parallel cylinder pair the lane
-        // already admits has exactly that structure
-        // (`crates/topo/tests/verbs_cylsph_tangent_residuals.rs` pins
-        // both halves). What keeps that arm out is downstream and
-        // structural, and is stated at [`super::rest::tangent_locus`]
-        // itself: `TangentLocus` carries a LINE only and no consumer of
-        // it has a circle story. The RULE this comment states is
-        // unchanged; only the example it reached for was superseded. A
-        // NEGATIVE partner is a genuine crossing — never the covered
-        // posture. Uncovered keeps both frontier doors verbatim.
+        // admitted to the lane. The coaxial cylinder×sphere pair has
+        // one (`crates/topo/tests/verbs_cylsph_tangent_residuals.rs`);
+        // what keeps its circle arm out — no consumer builds the kiss
+        // edge yet, and the arm must not pre-empt the rim routing — is
+        // stated at [`geom_brep::tangent_locus`]. A NEGATIVE partner is
+        // a genuine crossing — never the covered posture. Uncovered
+        // keeps both frontier doors verbatim.
         (Sign::Zero, Sign::Zero) if covered => {
             debug_assert!(
                 on_line,
@@ -1804,23 +1793,17 @@ pub(super) fn curved_face_arm<T: Decide>(
                             Ok(CurvedEvent::None)
                         }
                         // **`Constant` is NOT a clearance here.** It
-                        // reports that the axis-parallel test —
-                        // `|d_perp|²/2r`, a SQUARED transverse
-                        // component — did not come back definitely
-                        // positive, which is an L²-amplified window: a
-                        // direction a band-width off the axis has a
-                        // transverse component of order `sqrt(band)`,
-                        // and the residual it accumulates over a long
-                        // span is not the constant this verdict would
-                        // read it as. Clearing on it would be a silent
-                        // wrong answer at exactly the poses the belly
-                        // arm exists for, so it keeps the door. (The
-                        // ray lane's sibling at
-                        // `solid_contain::cast_ray` skips the face on
-                        // the same verdict and is not touched here: its
-                        // pre-pass has already put `q` definitely off
-                        // the wall, which is the one-sign story this
-                        // arm does not have.)
+                        // says the edge drifts off its distance from the
+                        // axis by less than the band over its span, so
+                        // the residual is constant along it, but not on
+                        // which side of the wall: an edge running along
+                        // the wall in band is a coincidence, and nothing
+                        // upstream put this one definitely off it. So it
+                        // keeps the door. (`solid_contain::cast_ray`
+                        // skips the face on its own axis-parallel
+                        // verdict, levered by the selection's reach,
+                        // because its pre-pass has put `q` definitely off
+                        // the wall.)
                         SpanVerdict::Constant => Err(frontier()),
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
@@ -1983,7 +1966,7 @@ fn wall_crossing<T: Decide>(
     // `Line` carrier's convention, which nothing checks.
     let (count, metres_per_param) = match *carrier {
         geom::Curve3::Line { origin, dir } => (
-            line_wall_root_count(origin, dir, surface, &mut roots, band)?,
+            line_wall_root_count(origin, dir, (t1 - t0).abs(), surface, &mut roots, band)?,
             dir.norm(),
         ),
         // The circle × sphere first harmonic ([`super::circle_sphere`]).
@@ -2128,10 +2111,12 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
 
 /// The certified LINE × wall roots, per kind, written into `roots`:
 /// `Ok(count)` for a certified root set, `Err(verdict)` for the answers
-/// that are not one.
+/// that are not one. `span` is the run of the line's parameter the
+/// edge covers, the lever the wall's axis-parallel rung is metered over.
 fn line_wall_root_count<T: Decide>(
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
+    span: T,
     surface: &geom::Surface<T>,
     roots: &mut [T; 4],
     band: Band,
@@ -2147,11 +2132,13 @@ fn line_wall_root_count<T: Decide>(
             axis,
             radius,
             ..
-        } => match super::solid_contain::line_wall_roots(origin, dir, c_origin, axis, radius, band)
-            .map_err(|fault| BooleanError::Escalated {
-                decision: BooleanDecision::WallRoots(fault.rung),
-                diag: fault.diag,
-            })? {
+        } => match super::solid_contain::line_wall_roots(
+            origin, dir, c_origin, axis, radius, span, band,
+        )
+        .map_err(|fault| BooleanError::Escalated {
+            decision: BooleanDecision::WallRoots(fault.rung),
+            diag: fault.diag,
+        })? {
             super::solid_contain::WallRoots::Two(ts) => {
                 roots[..2].copy_from_slice(&ts);
                 Ok(2)
@@ -3422,16 +3409,16 @@ mod wall_root_tests {
 
     /// **The line × wall root lane escalates as its own decision, on a
     /// real raise**: a line across the axis of a unit cylinder, at the
-    /// distance from it that puts the discriminant `disc/(2r)² =
-    /// (r² − d²)/4r²` in the band. The refusal names the rung's
-    /// question and the one lever that reaches it, no tolerance (the
-    /// margin is no length) and no declaration: no face pair says
-    /// where an edge crosses a wall.
+    /// distance from it that puts the discriminant's depth `(r² − d²)/2r`
+    /// in the band. The refusal names the rung's question and the one
+    /// lever that reaches it, no tolerance (the arms that read it pass on
+    /// different sets) and no declaration: no face pair says where an
+    /// edge crosses a wall.
     #[test]
     fn the_wall_root_lane_escalates_as_its_own_decision() {
         let b = Band::linear(Tol::witness()).expect("the witness band");
         let mid = (b.zero() + b.escalate()) / 2.0;
-        let d = (1.0 - 4.0 * mid).sqrt();
+        let d = (1.0 - 2.0 * mid).sqrt();
         let wall = geom::Surface::Cylinder {
             origin: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
@@ -3442,6 +3429,7 @@ mod wall_root_tests {
         let got = line_wall_root_count(
             Point3::new(d, -2.0, 0.5),
             Vec3::new(0.0, 1.0, 0.0),
+            4.0,
             &wall,
             &mut roots,
             b,
@@ -3464,6 +3452,51 @@ mod wall_root_tests {
                  misses it",
                 diag.payload()
             )
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod edge_span_tests {
+    use super::{SpanVerdict, wall_crossing};
+    use crate::{Body, entity::FaceKey};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **The axis-parallel rung is levered by the edge's own span.** A
+    /// line outside a unit wall, drifting off its distance from the axis
+    /// by `δ` per unit of its parameter, over two runs: `[−2, 2]`, where
+    /// `4δ` is past the band, so the roots are found and lie far outside
+    /// the run; and `[1000, 1001]`, where `δ` is inside the zero band, so
+    /// the residual is constant over the run. A lever of `1` reads the
+    /// first in band; a lever of the far end, or of the run's distance
+    /// from the line's origin, reads the second past it.
+    #[test]
+    fn the_axis_parallel_rung_reads_the_edges_own_span() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let y = Body::<f64>::new();
+        let crossing = |delta: f64, (t0, t1): (f64, f64)| {
+            let line = geom::Curve3::Line {
+                origin: Point3::new(2.0, 0.0, 0.0),
+                dir: Vec3::new(delta, 0.0, 1.0),
+            };
+            wall_crossing(&y, FaceKey::default(), &wall, &line, t0, t1, band)
+        };
+        let long = crossing(0.4 * band.escalate(), (-2.0, 2.0));
+        assert!(
+            matches!(long, Ok(SpanVerdict::NoInterior)),
+            "drifting past the band over [−2, 2], the roots are found outside it: {long:?}"
+        );
+        let far = crossing(0.5 * band.zero(), (1000.0, 1001.0));
+        assert!(
+            matches!(far, Ok(SpanVerdict::Constant)),
+            "drifting inside the band over [1000, 1001], the residual is constant: {far:?}"
         );
     }
 }

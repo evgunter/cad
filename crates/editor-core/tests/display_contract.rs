@@ -2172,7 +2172,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
 
 /// A mate-solve contradiction states WHO is at fault. Two mates that
 /// cannot both hold are named as a pair; one mate that contradicts
-/// itself is named ONCE, because "mates 6 and 6" reads as an indexing
+/// itself is named ONCE, because "mate 6 and mate 6" reads as an indexing
 /// fault and hides the shape the payload states.
 ///
 /// Both shapes end on [`editor_core::CONTRADICTORY_RECOURSE`], which
@@ -2189,7 +2189,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert_f6(
         &pair,
         &[
-            "mates 000000000003 and 000000000005 cannot both hold",
+            "mate 000000000003 and mate 000000000005 cannot both hold",
             "a clash of 0.01 m",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
@@ -2221,7 +2221,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert!(
         !itself
             .to_string()
-            .contains("mates 000000000006 and 000000000006"),
+            .contains("mate 000000000006 and mate 000000000006"),
         "one mate at fault is named once: {itself}"
     );
 }
@@ -2278,7 +2278,7 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
     };
     let shown = fault.to_string();
     for want in [
-        "mates 000000000003 and 000000000005 cannot both hold",
+        "mate 000000000003 and mate 000000000005 cannot both hold",
         "the relative rotation is not the identity",
         "a dimensionless residual of 0.25",
         "on a 4 m arm",
@@ -3463,4 +3463,33 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             assert_ne!(word, noun, "the noun is said twice before {spoken}: {text}");
         }
     }
+}
+
+/// **The clearance goldening form prints a selection's node in full**: it
+/// is a machine channel, where two ids must never print alike, while the
+/// refusal's words say the node by its tag.
+#[test]
+fn a_clearance_selection_payload_prints_the_full_id_and_its_words_the_tag() {
+    use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
+    let node = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
+    let refusal = ClearanceRefusal::Selection(SelectionRefusal::NoSuchBody { node, index: 2 });
+    assert_eq!(
+        refusal.payload(),
+        "no_such_body node=3fa9c1d2a0b10042 index=2"
+    );
+    let ClearanceRefusal::Selection(selection) = &refusal else {
+        unreachable!("built above");
+    };
+    assert_eq!(
+        selection.to_string(),
+        "node 3fa9c1d2a0b1's value carries no body at index 2"
+    );
+    let standing = SelectionRefusal::NodeDidNotBuild(editor_core::NodeStanding::Poisoned {
+        node,
+        through: RecipeNodeId(7),
+    });
+    assert_eq!(
+        standing.payload(),
+        "node_did_not_build poisoned node=3fa9c1d2a0b10042 through=0000000000000007"
+    );
 }

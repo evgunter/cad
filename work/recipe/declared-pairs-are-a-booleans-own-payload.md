@@ -9,7 +9,7 @@ cost: H
 ---
 
 
-**Ruled by Ev on #3587 (2026-10-01): A2.** The decision record is in `work/author/a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added.md`, its "Declaring a contact on a live boolean" and "Ruled" sections. The designers' reports are on #3587. Fork-log row 24.
+**Ruled by Ev on #3587 (2026-10-01): A2.** The decision record is in `work/doors/a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added.md`, its "Declaring a contact on a live boolean" and "Ruled" sections. The designers' reports are on #3587. Fork-log row 24.
 
 ## Why
 

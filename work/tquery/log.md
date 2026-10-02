@@ -25,3 +25,4 @@ is filed on GUARD.
 - 2026-10-02 — `split-edges-key-retention-…` closed by PR 3761 (orchestrator's read; one comment line trimmed).
 - 2026-10-02 — Ev ruled 3763 (one kind mirror per enum, in `geom`; authoring delegated → derived); unit `one-kind-mirror-per-geometry-enum` opened and dispatched (single full review).
 - 2026-10-02 — Ev ruled 3767: the structural rim; `NotAnArc` kept with an in-code note that it extends to non-circles. Relayed to the build lane.
+- 2026-10-02 — PR 3773 merged: the structural `rim_of` (Ev's 3767 ruling). Closes `rim-of-compares-point-bits-…`, `rim-of-refuses-extruded-multi-arc-rims` (P0), `rim-of-flattens-a-dangling-curve-key`, `tquery-refusal-prose-outgrows-the-viewer`. Single full review (mergeable, no MAJOR); fix pass took all eight items. Filed: `edge-side-surfaces-have-no-door` (here), CIW's demos-row gap, the f64 bit-compare issue in `work/issues/`.
