@@ -359,6 +359,13 @@ fn digest() -> String {
 /// (`props_rim_level`, `props_rim_level_group`, `props_du_consistent`,
 /// `props_rim_side`), so 18 verdicts fall to 13 and the hash with them.
 /// Its volume and area bits, and every other row, are unchanged.
+///
+/// **Re-cut at all three ε when that Green form checked its closure**
+/// (`props_loop_closed` at every loop junction,
+/// `props_chart_loops_closed` per face — the premise that makes the sum
+/// anchor-free). Only `bulged_extrusion`'s verdict row moves again,
+/// 13 → 18, and its hash; its volume and area bits, and every other
+/// row, are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
