@@ -176,8 +176,9 @@ pub(crate) fn sweep_pad(band: Band) -> f64 {
 /// The K funnel name of a cylinder face's axis-length decision, taken
 /// where [`face_box_rule`] reads the carrier: the slab reads the axis
 /// as a unit direction, and a carrier's axis is unit only by the
-/// surfaces' at-rest convention. Its comparand is the axis's norm
-/// through the plain [`Margin::norm3`](geom_core::Margin::norm3) door.
+/// surfaces' at-rest convention. Its comparand is the axis's norm, a
+/// pure number, levered by the cylinder's radius
+/// ([`UnitVec3::levered`]).
 pub(crate) const BOX_CYLINDER_AXIS: &str = "bool_box_cylinder_axis";
 
 fn corrupt(what: &'static str) -> BooleanError {
@@ -1280,7 +1281,8 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
 /// The cylinder's axis is decided here, under [`BOX_CYLINDER_AXIS`]:
 /// [`slab_extent`] reads it as a unit direction and a carrier's axis is
 /// unit only by the surfaces' at-rest convention, which no tier
-/// certifies.
+/// certifies. Its length is a pure number, levered by the radius, the
+/// arm the slab swings the axis by.
 ///
 /// # Errors
 ///
@@ -1300,7 +1302,7 @@ pub(crate) fn face_box_rule<T: Decide>(
             ..
         } => FaceBoxRule::CylinderSlab {
             origin: *origin,
-            axis: UnitVec3::new(*axis, BOX_CYLINDER_AXIS, band)?,
+            axis: UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius)?,
             radius: *radius,
         },
         Surface::Sphere { center, radius, .. } => FaceBoxRule::WholeBall {

@@ -1065,6 +1065,18 @@ under `bool_box_cylinder_axis` — the `bool_germ_plane_normal` case: a
 committed ε. It samples once per cylinder face per box built, in both
 box lanes.
 
+**Margin change (REACH, 2026-10-02): three names re-levered, no
+samples gained or lost.** `bool_germ_plane_normal`,
+`bool_box_cylinder_axis` and `props_torus_axis` decide the length of a
+carrier's unit-at-rest direction, a pure number, and read it against
+the length band through `Margin::norm3`, so their margins read 1 at
+every model scale and `rim_dim_boolean_twins` reds on the first. They
+now mint through `UnitVec3::levered`, the norm times the arm the
+direction is consumed over: the joined germ sites' reach from the
+plane's origin, the cylinder's radius, the anchor meridian's reach
+from the torus centre. Each margin is now a length of the model's
+scale; none lands near the band for a carrier the at-rest rule admits.
+
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare
 `decide`, which recorded a sample for every offset it was handed. It

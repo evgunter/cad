@@ -534,10 +534,13 @@ mod recorded {
             })
             .collect();
         let counts: Vec<usize> = readings.iter().map(Vec::len).collect();
-        assert_eq!(counts, [2, 3, 2], "decisions per carve: base, top outer, dome rim");
-        let near = |got: &[f64], want: &[f64]| {
-            got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-12)
-        };
+        assert_eq!(
+            counts,
+            [2, 3, 2],
+            "decisions per carve: base, top outer, dome rim"
+        );
+        let near =
+            |got: &[f64], want: &[f64]| got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-12);
         assert!(
             near(&readings[0], &[0.9, 0.9]),
             "base rim: each wall half's top arc, 0.9 above the trim: {:?}",

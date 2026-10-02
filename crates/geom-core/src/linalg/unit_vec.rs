@@ -24,6 +24,10 @@
 //! - [`UnitVec3::new`] — the normalizing constructor: decide the length
 //!   under the caller's band and funnel-site name, then divide. The one
 //!   place a USER's vector becomes a direction, with typed refusals.
+//! - [`UnitVec3::levered`] — the same mint for a vector whose length is
+//!   a pure number rather than metres (a carrier's unit-at-rest normal
+//!   or axis): its length is decided levered by the arm over which the
+//!   direction is consumed.
 //! - `-u` — negation is exact at every scalar.
 //! - The exact basis axes and the cross product of an orthonormal
 //!   pair, both private to [`linalg`](super) and both exact by
@@ -255,8 +259,19 @@ pub fn decide_unit_direction<T: Decide>(
     site: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, UnitVec3Error> {
-    // `norm3` below recomputes this same value (`Vec3::norm` is
-    // deterministic), so the gate and the margin are the one length;
+    decide_direction_by(v, site, band, Margin::norm3)
+}
+
+/// The three questions of [`decide_unit_direction`], the third asked of
+/// `margin(v)`.
+fn decide_direction_by<T: Decide>(
+    v: Vec3<T>,
+    site: &'static str,
+    band: Band,
+    margin: impl FnOnce(Vec3<T>) -> Margin<T>,
+) -> Result<Vec3<T>, UnitVec3Error> {
+    // `margin` recomputes this same norm (`Vec3::norm` is
+    // deterministic), so the gates and the margin read the one length;
     // it is spelled twice rather than reached into.
     let len = v.norm();
     if !is_finite_length(len) {
@@ -268,7 +283,7 @@ pub fn decide_unit_direction<T: Decide>(
     if is_underflowed_length(len, v.norm_witness()) {
         return Err(UnitVec3Error::UnderflowedLength);
     }
-    match decide(site, Margin::norm3(v), band) {
+    match decide(site, margin(v), band) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(UnitVec3Error::Degenerate),
         Err(source) => Err(UnitVec3Error::Escalated(source)),
@@ -353,6 +368,31 @@ impl<T: Decide> UnitVec3<T> {
     pub fn new(v: Vec3<T>, site: &'static str, band: Band) -> Result<Self, UnitVec3Error> {
         decide_unit_direction(v, site, band).map(Self)
     }
+
+    /// **The normalizing constructor for a dimensionless vector**: a
+    /// carrier's unit-at-rest normal or axis, read as direction
+    /// cosines. [`UnitVec3::new`]'s norm is a length; this one's is a
+    /// pure number, so the length question is asked of it levered by
+    /// `arm` ([`Margin::levered`]): the reach over which the direction
+    /// is consumed, measured from the pivot its carrier's position is
+    /// read at (D4's θ·r form). The finiteness and underflow gates,
+    /// their order and the refusals are [`decide_unit_direction`]'s.
+    ///
+    /// A shorter arm only shrinks a positive margin, so an arm that
+    /// under-states the consumed reach escalates more and never decides
+    /// a length the full reach would not.
+    ///
+    /// # Errors
+    ///
+    /// As [`UnitVec3::new`].
+    pub fn levered(
+        v: Vec3<T>,
+        site: &'static str,
+        band: Band,
+        arm: T,
+    ) -> Result<Self, UnitVec3Error> {
+        decide_direction_by(v, site, band, |v| Margin::levered(v.norm(), arm)).map(Self)
+    }
 }
 
 /// Negation is exact at every scalar, so the negated direction is unit
@@ -372,6 +412,31 @@ mod tests {
 
     fn bits3(v: Vec3<f64>) -> [u64; 3] {
         [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
+    }
+
+    /// **The levered door decides a pure number at the model's scale.**
+    /// A unit-at-rest normal has norm 1 whatever the model's size, so
+    /// the same vector must decide by its arm: positive at a reach
+    /// clear of the band, `Degenerate` at one below it, and escalated
+    /// in between. [`UnitVec3::new`] answers positive at all three, so
+    /// a door that dropped the arm reds the last two rows.
+    #[test]
+    fn the_levered_door_decides_a_unit_normal_by_its_arm() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let ask = |arm: f64| UnitVec3::levered(Vec3::unit_z(), "test_direction", band, arm);
+        let up = ask(1e-3).expect("a 1 mm reach").get();
+        assert_eq!(bits3(up), bits3(Vec3::unit_z()), "a 1 mm reach");
+        assert_eq!(
+            ask(1e-10).err(),
+            Some(UnitVec3Error::Degenerate),
+            "below the band"
+        );
+        assert!(
+            matches!(ask(5e-9), Err(UnitVec3Error::Escalated(_))),
+            "in the band: {:?}",
+            ask(5e-9)
+        );
+        assert!(UnitVec3::new(Vec3::<f64>::unit_z(), "test_direction", band).is_ok());
     }
 
     /// **The four answers the direction door gives, and the two that

@@ -261,6 +261,10 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
     // decides a DIFFERENCE of two such lengths and on these fixtures
     // every incumbent comparison ties at exactly 0. Swap the two names
     // and the nonzero-margin assertion below goes red.
+    //
+    // `bool_germ_plane_normal` decides a plane carrier normal's length,
+    // a pure number, levered by the joined germ sites' reach: the
+    // corner subtract's germs are plane pairs, so it fires here.
     for fixed in [
         "bool_join_chord",
         "bool_join_facing",
@@ -269,6 +273,7 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         "volume_backstop",
         "volume_backstop_operand",
         "bool_point_in_solid_denom",
+        "bool_germ_plane_normal",
     ] {
         assert!(
             mm.contains_key(fixed),
