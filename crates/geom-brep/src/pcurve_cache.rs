@@ -43,25 +43,36 @@
 //! measurement rather than asserting it. See the report/PR description
 //! for the deviation this justifies.
 //!
-//! # The certified statement (spec §3, C4 verbatim)
+//! # The certified statement (C4)
 //!
 //! `|S(P(t)) − C(t)| ≤ ε` — a **3-D displacement in metres** between
-//! the surface-composed pcurve and the carrier cache, on the shared
-//! [`crate::CERT_SAMPLES`] schedule, plus a **between-samples envelope**
-//! whose own statement the certificate NAMES
-//! ([`PcurveCertificate::statement`]), because the lanes do not
-//! bound the same thing. For the closed-form lane, and for a fitted
-//! image on a NURBS chart, the envelope bounds *that same displacement*
-//! over the whole span. For a fitted image on a periodic ANALYTIC chart
-//! it cannot: `S ∘ P` is transcendental in the pcurve's azimuth channel
-//! and certification arithmetic takes no transcendental — C9's rule
-//! about what certification does, not a lack in `Interval`, the type it
-//! runs on — so the
-//! between-samples statement there is the carrier's incidence with the
-//! chart's own surface (`sup |f_S(C(t))|`) together with limb 3's
-//! uniqueness tube — [`EnvelopeStatement::OnLocusHull`] carries the
-//! argument, and the displacement itself stays certified at the
-//! schedule.
+//! the surface-composed pcurve and the carrier cache over the whole
+//! edge, bounded by an envelope whose own statement the certificate
+//! NAMES ([`PcurveCertificate::statement`]), because the lanes do not
+//! bound the same thing.
+//!
+//! - **Where `S ∘ P` has a closed form, the envelope alone is the
+//!   certified statement.** For a [`Pcurve::Harmonic`] image it is the
+//!   carrier's incidence with the chart plus the stored image's
+//!   fidelity to the image re-derived from the carrier
+//!   ([`EnvelopeStatement::MapResidualClosedForm`]), so a minted row's
+//!   identity is a theorem rather than a trig round trip. The shared
+//!   [`crate::CERT_SAMPLES`] schedule is the closed-form tables'
+//!   cross-check: it runs where the scalar is a point, and as the
+//!   property test `envelope_lemma_fuzz`, and not over a parameter box.
+//! - **Where no closed form exists**, the certificate falls back to the
+//!   displacement at the shared schedule plus a between-samples
+//!   envelope. For a fitted image on a NURBS chart that envelope bounds
+//!   the same displacement over the whole span. For a fitted image on a
+//!   periodic ANALYTIC chart it cannot: `S ∘ P` is transcendental in
+//!   the pcurve's azimuth channel and certification arithmetic takes no
+//!   transcendental — C9's rule about what certification does, not a
+//!   lack in `Interval`, the type it runs on — so the between-samples
+//!   statement there is the carrier's incidence with the chart's own
+//!   surface (`sup |f_S(C(t))|`) together with limb 3's uniqueness tube
+//!   ([`EnvelopeStatement::OnLocusHull`]), and the displacement itself
+//!   stays certified at the schedule.
+//!
 //! **No UV-space tolerance appears in any certified statement or in any
 //! message this module emits**: chart steps are implementation dials,
 //! the map's local stretch is the lever arm, and a certification
@@ -1834,6 +1845,13 @@ pub enum EnvelopeStatement {
     /// sum dominates the sampled residual of carriers and images moved
     /// off in one respect at a time, and on an exact carrier the
     /// closed-form tables compose back to the carrier.
+    ///
+    /// **On a harmonic row this envelope is the whole certified
+    /// statement** (C4): the lemma above is proven once and pinned by
+    /// that sweep, and the schedule that used to re-check it on every
+    /// body runs only where the scalar is a point, as a cross-check
+    /// whose verdicts are not part of the certificate
+    /// ([`PcurveCache::certify`] step 3).
     MapResidualClosedForm,
     /// `sup |S(P(t)) − C(t)|`, by the **tensor Bernstein composite**
     /// (`geom_core::spline::compose::tensor`) — the [`Pcurve::Fitted`]
@@ -1948,10 +1966,12 @@ pub enum EnvelopeStatement {
 /// construction (D9).
 #[derive(Clone, Copy, Debug)]
 pub struct PcurveCertificate<T: Real> {
-    /// The sample count of the schedule that ran ([`CERT_SAMPLES`]).
+    /// The sample count of the schedule that ran ([`CERT_SAMPLES`]), or
+    /// `0` where none ran: a [`Pcurve::Harmonic`] row over a parameter
+    /// box, whose envelope is its whole certified statement.
     pub samples: u32,
-    /// The maximum `|S(P(tᵢ)) − C(tᵢ)|` over the schedule (metres) —
-    /// **the sampled max only**. The between-samples statement is
+    /// The maximum `|S(P(tᵢ)) − C(tᵢ)|` over the schedule (metres), `0`
+    /// where none ran — **the sampled max only**. The between-samples statement is
     /// [`Self::envelope`], deliberately a separate field: folding them
     /// into one number would let a reader mistake a sup bound for a
     /// measurement or the reverse.
@@ -2447,7 +2467,10 @@ impl<T: Decide> PcurveCache<T> {
     ///    [`CERT_SAMPLES`] schedule — evaluated through
     ///    `Surface::eval` and `Curve3::eval` directly, so the closed
     ///    form step 4 states is *verified* at the samples, never
-    ///    trusted.
+    ///    trusted. On a [`Pcurve::Harmonic`] image step 4 is the whole
+    ///    certified statement and this step is its cross-check: it runs
+    ///    where the scalar is a point ([`geom_core::Witness::Inexact`]),
+    ///    records no verdict, and is not run over a parameter box.
     /// 4. **Envelope**: the between-samples sup bound over the whole
     ///    span ≤ ε, by the lane the variant selects.
     ///    - [`Pcurve::Harmonic`]: the closed-form bound
@@ -3339,8 +3362,17 @@ fn run_harmonic_checks<T: Decide>(
         }
     }
 
-    // ---- Check 3: the schedule, in metres through the map. ----
-    schedule_residuals(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    // ---- Check 3: the schedule, the closed form's cross-check. ----
+    // Check 4's envelope is the whole certified statement of a harmonic
+    // row (C4); the schedule cross-checks its tables where the scalar is
+    // a point, and is not run over a parameter box.
+    let samples = match T::WITNESS {
+        geom_core::Witness::Inexact => {
+            schedule_cross_check(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+            CERT_SAMPLES
+        }
+        geom_core::Witness::Exact => 0,
+    };
 
     // ---- Check 4: the closed-form between-samples envelope. ----
     // A plane chart is affine, so the image's coefficients map through
@@ -3396,7 +3428,7 @@ fn run_harmonic_checks<T: Decide>(
     trim_containment(pcurve, t0, t1, surface, window, band)?;
 
     Ok(PcurveCertificate {
-        samples: CERT_SAMPLES,
+        samples,
         max_residual,
         envelope,
         statement: EnvelopeStatement::MapResidualClosedForm,
@@ -4748,6 +4780,50 @@ fn schedule_residuals<T: Decide>(
             band,
             max_residual,
         )?;
+    }
+    Ok(())
+}
+
+/// Check 3 on a harmonic row: [`schedule_residuals`]'s samples, decided
+/// as a cross-check of check 4's closed form rather than as part of the
+/// certified statement ([`geom_core::k_stats::decide_cross_check`]), so
+/// they refuse as before and record no verdict.
+fn schedule_cross_check<T: Decide>(
+    pcurve: &Pcurve<T>,
+    t0: T,
+    t1: T,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+    max_residual: &mut T,
+) -> Result<(), PcurveCertifyError> {
+    for i in 0..CERT_SAMPLES {
+        let t = sample_param(t0, t1, i);
+        let chart_point = pcurve.eval(t);
+        let residual = surface
+            .eval(chart_point.x, chart_point.y)
+            .distance(carrier.eval(t));
+        *max_residual = max_residual.max(residual.abs());
+        match geom_core::k_stats::decide_cross_check(
+            "pcurve_map_residual",
+            Margin::of(residual),
+            band,
+        ) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => {
+                return Err(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::MapResidual,
+                    sample: i,
+                });
+            }
+            Err(cause) => {
+                return Err(PcurveCertifyError::Escalated {
+                    check: PcurveCheck::MapResidual,
+                    sample: i,
+                    cause,
+                });
+            }
+        }
     }
     Ok(())
 }

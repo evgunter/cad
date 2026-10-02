@@ -471,6 +471,28 @@ pub fn check_unlogged<T: Decide>(
     classify_in(name, margin, band, false).map(|d| d.sign)
 }
 
+/// **A CROSS-CHECK at a point scalar, named for the recorder and NOT
+/// logged as a verdict** — [`decide`] for a decision that verifies a
+/// closed form the certificate states elsewhere rather than being part
+/// of what it certifies: `geom_brep`'s pcurve schedule on a `Harmonic`
+/// row, which checks the closed-form tables where the scalar is a point
+/// and is not run over a parameter box (C4). A refusal still refuses;
+/// what it leaves out is the verdict log, because the certified
+/// statement is decided at every scalar and this one is not, so a point
+/// build's verdict vector would otherwise carry rows a box build's
+/// cannot, and the driver compares the two row for row.
+///
+/// # Errors
+///
+/// As [`decide`].
+pub fn decide_cross_check<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    classify_in(name, margin.value(), band, false).map(|d| d.sign)
+}
+
 /// The one classification funnel of the kernel: notes `name` for the
 /// recorder, classifies `margin` against `band`, and names any
 /// indeterminate outcome. Every deciding crate routes its predicates

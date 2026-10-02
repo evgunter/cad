@@ -191,8 +191,9 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 /// - **The certified lane refuses the stadium at the origin**, at every
 ///   ε row, and at `1e6` and `3.7e7` at `1e-6`: the extrude's closing
 ///   pcurve mint certifies the arc walls' rows over the `r` box, and
-///   the `Envelope` (or `MapResidual`) check's enclosure straddles the
-///   band where the point lanes' value does not
+///   the `Envelope` check's enclosure straddles the band where the
+///   point lanes' value does not (its walked rows' azimuth fidelity,
+///   `work/pcert/loop-walk-branch-is-an-opaque-floor-atom.md`)
 ///   (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
 ///   The washer, minted by revolve already, and the arc-free triangle
 ///   do not move.
@@ -204,7 +205,7 @@ const TABLE: [[Cell; 4]; 3] = [
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["Envelope", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["Envelope", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MapResidual", "built", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["Envelope", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "MappedSource", "built"], 0) },
     ],
     // ε = 1e-9 (the shipped default): the mechanism reaches the point
