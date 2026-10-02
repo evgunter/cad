@@ -52,3 +52,27 @@ Signed (JOIN orchestrator).
   `analysis/design-fork/join-in-face-edge-flank-2026-10-02`.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-02 — PR 3770 lands: the star fixture
+
+`join-desync-on-the-star-fixture` closed. The defect was in `vtxfac`, not
+the join: a whole-orbit pierce run was recorded as a fan split where
+`mev` builds a strut. Review tier: single FULL. The review was mergeable
+with no MAJOR. It measured the fix generalising: 40 of 40 cap probes,
+cylinders, and the 315° reflex corner, which refused `SeamOrientation`
+on main and now builds. It also showed that the splitter's twin of the
+same arm was reachable. The fix pass fixed the twin in this PR, which
+closes CLEAVE's `split-whole-orbit-run-mints-an-unlabelled-strut`.
+One sweep row flipped from a refusal to a verified exact split:
+`split_section_rings::a_plane_through_a_notch_tip_splits_exactly`.
+
+Filed from the fix pass:
+- `whole-orbit-fan-end-has-three-spellings` (P1/M).
+- `reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`, priced
+  P0/H here: ordinary corner poses refuse in kernel-bug words in 326 of
+  720 probes, cause unmeasured.
+
+Style notes recorded and not acted on: `bool_strut_order`'s geometric
+facing against `vtxfac`'s hard-coded one is in the P1 row.
+
+Signed (JOIN orchestrator).

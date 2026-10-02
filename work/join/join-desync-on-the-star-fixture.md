@@ -2,12 +2,14 @@
 id: join-desync-on-the-star-fixture
 kind: issue
 title: JoinDesync (every chord arc separates a loose scaffolding pair) on the star fixture in six member orders
-status: dispatched
+status: closed
 opened: 2026-09-07
 refs: [2073, 2073]
 priority: P0
 cost: H
 branch: join/star-desync
+closed: 2026-10-02
+pr: 3770
 ---
 
 ## What
@@ -80,3 +82,13 @@ Recording the strut as dangling (side Below, `he_minus` facing the
 start germ, as the pierce path's own dangling strut does) folds all
 24 orders to the 10-face prism. Each certifies at tiers 2, 3 and 3′,
 with volume 2.7.
+
+## Closed 2026-10-02 — PR 3770
+
+The refusal started one step before the join: `vtxfac`'s pierce
+insertion recorded a whole-orbit run, which `mev` builds as a strut,
+as a fan split. It now records the strut, and the splitter's twin of
+the same arm does too. The star fixture folds in all 24 orders
+(`crates/topo/tests/join_star_fixture.rs`). Residue is filed:
+`whole-orbit-fan-end-has-three-spellings` (P1) and
+`reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap` (P0).

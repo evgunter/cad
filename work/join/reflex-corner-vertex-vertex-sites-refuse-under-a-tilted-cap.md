@@ -4,6 +4,8 @@ kind: issue
 title: A vertex of the other operand on a 315-degree reflex corner under a tilted cap refuses in 326 of 720 probe cases (SeamOrientation, JoinDesync, UnpairedLooseEnds)
 status: open
 opened: 2026-10-02
+priority: P0
+cost: H
 ---
 
 ## What
