@@ -1054,18 +1054,19 @@ where
 /// [`SHORT_BRANCH_STEPS`]. The rule is fixed and taken at most once
 /// (D9).
 ///
-/// The re-march cannot come back short. Its steps are at most `L/5` of
-/// the first trace's polyline length `L`, and the branch it retraces
-/// from the same seed is at least `L` long, so the two halves hold at
-/// least `L/h − 2 ≥ 3` states strictly inside it besides the seed,
-/// even if both boundary ends are dropped: `SSI_FIT_DEGREE + 1`.
+/// The re-march does not always come back long enough. The march ends
+/// at the first state not decided inside the domain, and that margin is
+/// a distance to the domain's box, not along the branch, so a branch
+/// running within the band of a face of the box has no inside state at
+/// any step; and the boundary search drops an end it cannot settle.
 ///
 /// # Errors
 ///
 /// As [`march`]; a refusal in either direction, on either march, is the
 /// operation's. [`SsiError::TraceUnresolved`] when the first trace has
-/// no length: there is no length to cut, and the march cannot tell a
-/// point contact from a branch below its resolution.
+/// no length to cut, or the re-march is still too short to fit: a limit
+/// of the march, not a branch. A trace with a non-finite sample (a
+/// `NaN` length) goes to the fit, which refuses the sample by name.
 pub(crate) fn march_both<const M: usize, const N: usize, S>(
     sys: &S,
     seed: [f64; N],
@@ -1082,15 +1083,27 @@ where
         return Ok(first);
     }
     let length = arc_length(sys, &first.states);
-    if !length.is_finite() {
-        // Poisoned samples: the fit refuses them by name.
+    if length.is_nan() {
+        // A non-finite sample: the fit refuses it by name. Finite
+        // samples whose chords overflow read `+∞`, which re-marches at
+        // the extent's cap and refuses below if still short.
         return Ok(first);
     }
     if length <= 0.0 {
-        return Err(SsiError::TraceUnresolved { step: cap });
+        return Err(SsiError::TraceUnresolved {
+            samples: first.states.len(),
+            step: cap,
+        });
     }
-    let short = length / SHORT_BRANCH_STEPS as f64;
-    march_both_at::<M, N, S>(sys, seed, ctx, mode, band, Real::min(cap, short))
+    let step = Real::min(cap, length / SHORT_BRANCH_STEPS as f64);
+    let again = march_both_at::<M, N, S>(sys, seed, ctx, mode, band, step)?;
+    if again.states.len() > SSI_FIT_DEGREE {
+        return Ok(again);
+    }
+    Err(SsiError::TraceUnresolved {
+        samples: again.states.len(),
+        step,
+    })
 }
 
 /// How many steps a short branch's re-march cuts its length into: the

@@ -130,17 +130,21 @@ finite, a step that is not finite or does not move the state
 one place a whole branch is known, marches once more any trace that
 has length but too few samples for the cubic fit: its steps are then
 capped at the trace's own polyline length over the fewest odd count
-that gives the fit its samples (five). The re-march cannot come back
-short, so a trace that does is a kernel defect (`Fit(TooFewPoints)`).
-The count is odd so that a seed near the branch's middle does not walk
-a state onto each end; that lowers the odds of a state landing in band
-of the boundary and guarantees nothing
+that gives the fit its samples (five). The count is odd so that a seed
+near the branch's middle does not walk a state onto each end; that
+lowers the odds of a state landing in band of the boundary and
+guarantees nothing
 (`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
-A trace with no length — the seed alone, when the surfaces touch at a
-point or the branch is shorter than the boundary search resolves at
-the first step — has nothing to cut, and refuses as the march's limit
-(`SsiError::TraceUnresolved`). The extent keeps its other roles: the
-lever arm's clamp, the seeding floor and the tube ladder.
+A trace with no length to cut, or one the re-march leaves still too
+short, refuses as the march's limit (`SsiError::TraceUnresolved`): the
+surfaces touch at a point, the branch is shorter than the boundary
+search resolves at the step, it runs within the band of the domain's
+boundary (a plane flush with a face's edge, whose states are never
+decided inside), or no crossing settles at either end
+(`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
+The fit therefore only sees a trace with the samples it needs or a
+non-finite sample, which it refuses by name. The extent keeps its other
+roles: the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure), *accounted* (contained in a found branch's tube), or

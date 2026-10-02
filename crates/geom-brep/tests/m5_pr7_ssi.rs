@@ -3463,7 +3463,9 @@ fn flat_wall(width: f64, height: f64) -> NurbsSurface<f64> {
 /// count odd at every ε: there the first trace ends a few ε short of the
 /// edge, so an even count (`length/32` or `/4`) walks a state from the
 /// mid-branch seed into the band of each end, and the open end
-/// escalates at the default ε.
+/// escalates at the default ε. That guard is thin: the escalating
+/// margin is 1.025e-9 m against ε = 1e-9, about 2.5% inside the band,
+/// so the ε 1e-12 rows of the 1 m wall are the second guard.
 #[test]
 fn a_plane_clipping_a_walls_corner_traces_the_clip_however_short() {
     let s2 = std::f64::consts::FRAC_1_SQRT_2;
@@ -3502,6 +3504,25 @@ fn a_plane_clipping_a_walls_corner_traces_the_clip_however_short() {
     }
 }
 
+/// The march's limit refusal on `r`, with its rendered text checked.
+fn trace_unresolved(what: &str, r: Result<geom_brep::SsiOutcome, SsiError>) -> (usize, f64) {
+    use geom_brep::recourse::Reading;
+
+    let Err(ref err @ SsiError::TraceUnresolved { samples, step }) = r else {
+        panic!("{what}: expected the march's limit, got {r:?}");
+    };
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("the surfaces touch at a point")
+            && shown.contains("runs within the tolerance of the domain's boundary")
+            && shown
+                .contains("Recourse: if the surfaces meet along a curve longer than the tolerance")
+            && !shown.contains("kernel defect"),
+        "{what}: {shown}"
+    );
+    (samples, step)
+}
+
 /// **A plane through a wall's corner vertex refuses as the march's
 /// limit.** The flat 1 m wall cut by `x + z = 0` meets the plane at the
 /// corner `(0, 0, 0)` alone. The seed settles there and every step
@@ -3510,8 +3531,6 @@ fn a_plane_clipping_a_walls_corner_traces_the_clip_however_short() {
 /// says so rather than handing the fit one sample.
 #[test]
 fn a_plane_through_a_walls_corner_vertex_refuses_as_the_marchs_limit() {
-    use geom_brep::recourse::Reading;
-
     let s2 = std::f64::consts::FRAC_1_SQRT_2;
     let touch = Surface::Plane {
         origin: Point3::new(0.0, 0.0, 0.0),
@@ -3525,20 +3544,54 @@ fn a_plane_through_a_walls_corner_vertex_refuses_as_the_marchs_limit() {
         floor_scale: 1.0,
     };
     let r = ssi::plane_nurbs_ssi(&touch, &flat_wall(1.0, 1.0), dom, band());
-    let Err(ref err @ SsiError::TraceUnresolved { step }) = r else {
-        panic!("the corner touch: expected the march's limit, got {r:?}");
-    };
+    let (samples, step) = trace_unresolved("the corner touch", r);
+    assert_eq!(samples, 1, "the seed alone");
     assert_eq!(
         step,
         ssi::SSI_STEP_MAX,
         "the first march's step at the 1 m extent"
     );
-    let shown = err.render(Reading::Build);
-    assert!(
-        shown.contains("they touch at a point")
-            && shown.contains("Recourse: if the surfaces meet along a curve here"),
-        "{shown}"
-    );
+}
+
+/// **A plane flush with a wall's edge refuses as the march's limit.**
+/// The flat 1 m wall meets the plane `z = 0` along its bottom edge, and
+/// the plane `x = off` along its `u = 0` edge for `off` up to just under
+/// ε. Every state of such a branch lies within the band of a face of the
+/// march's domain box, so no state is decided inside: the march and the
+/// short-branch re-march both stop a step from the seed, too short to
+/// fit. That is the march's limit, not a kernel defect; the branch is
+/// the face's own edge, which the march does not yet report
+/// (`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
+#[test]
+fn a_plane_flush_with_a_walls_edge_refuses_as_the_marchs_limit() {
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let eps = band().zero();
+    let bottom = Surface::Plane {
+        origin: Point3::new(0.7, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let mut rows = vec![("the bottom edge".to_owned(), bottom)];
+    for off in [0.0, 0.3 * eps, 0.9 * eps] {
+        rows.push((
+            format!("the u = 0 edge, offset {off:e} m"),
+            Surface::Plane {
+                origin: Point3::new(off, 0.0, 0.0),
+                normal: Vec3::new(1.0, 0.0, 0.0),
+                u_ref: Vec3::new(0.0, 0.0, 1.0),
+            },
+        ));
+    }
+    for (what, plane) in rows {
+        let r = ssi::plane_nurbs_ssi(&plane, &flat_wall(1.0, 1.0), dom, band());
+        let (samples, _) = trace_unresolved(&what, r);
+        assert!(samples <= ssi::SSI_FIT_DEGREE, "{what}: {samples} samples");
+    }
 }
 
 /// **A marched state within the band of the domain's boundary
@@ -3577,6 +3630,10 @@ fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
     };
     if let Err(e) = trace(0.0) {
         panic!("a state on the edge is not traced: {e}");
+    }
+    match ssi::plane_nurbs_ssi(&across, &flat_wall(1.0, 15.0 / 16.0), dom, band()) {
+        Ok(out) => assert_eq!(out.branches.len(), 1, "the edge-landing wall"),
+        Err(e) => panic!("the edge-landing wall does not certify: {e}"),
     }
     for delta in [5.0 * eps, -3.0 * eps] {
         let r = trace(delta);
