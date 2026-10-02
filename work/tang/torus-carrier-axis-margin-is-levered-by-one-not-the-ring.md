@@ -63,3 +63,23 @@ the fix must move together: `rest::flush_pair_relation` and
 the `tangent_locus_axis_parallel` row), which meters the DEV-1 witness
 lane's axis parallelism at the same arm. Their docs say the three must
 agree.
+
+## Outcome (2026-10-02)
+
+The three `T::one()` arms are gone. `geom_brep::ExtentBall` is the one
+lever: a ball enclosing the faces a verdict is consumed on, and
+`lever_from(pivot)` its farthest reach from where the ladder reads the
+position datum. `rest::pair_reach` builds it for a declared pair (the
+torus's and the sphere's own ball; otherwise the ball around
+`census::face_reach`'s box), `carrier_eq::at_consumed_extent`
+re-anchors each kind's datum nearest the ball's centre and returns the
+arm (plane: the radius; cylinder: from the foot on the second axis;
+torus: `R + r` from its centre), and `tangent_locus` takes the same
+ball. Red-then-green rows: `rest::lever_rows` (torus, cylinder),
+`contact9_side_codes::a_declared_plane_tilt_is_read_across_the_faces`
+(10 m plane) and `locus::tests::the_axis_row_reads_the_tilt_across_the_extent`
+(the DEV-1 row). Moved: the coplanar-sector declaration row in
+`reduce.rs` now contradicts (filed as
+`work/hone/a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces.md`),
+and `offer_rows`' `tangent_screen_of_a_tilted_block` quotes its tilt at
+the pair's `1.5·√2` m lever.
