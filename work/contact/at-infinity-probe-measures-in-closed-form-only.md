@@ -40,3 +40,19 @@ or as a parameter from the boolean's own call sites. The probe only
 needs a SIGN, so the sign walk (`props::sign_walk`) and its bracket
 ends (`ShellRole::decided_at`) are the reading to take, not the
 reporting midpoint.
+
+## Also met: blind pockets in a tilted-cut cylinder (SHOW, 2026-10-02)
+
+The `tiltedcut` scene (`demos/tour/src/curvedcut.rs`, walls 2 and 3
+of `walls`) cuts a cylinder (r 1, height 2.5) by the plane through
+`(0, 0, 1.25)` with normal `(sin 0.3, 0, cos 0.3)` and engraves its
+lower half, a 0.05-deep blind pocket per glyph, each tool straddling
+the face it cuts:
+
+- a T, lines only, into the elliptical section face;
+- a C (two concentric arcs, two lines) into the round bottom cap.
+
+Both refuse `Containment(VolumeUncertified)`; on the unsplit cylinder's
+cap the same glyphs cut at their closed-form volumes. The scene engraves
+the cap before cutting, and each wall panics when its subtraction
+builds or refuses otherwise.

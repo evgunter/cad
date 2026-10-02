@@ -49,3 +49,18 @@ the sphere, so a clearance verdict alone would let it through.
 
 Spiric (`spiric_rim`) and NURBS edges take the same line of code; they
 are not measured here against a real shape.
+
+## Also met: an engraved section face (SHOW, 2026-10-02)
+
+The `tiltedcut` scene (`demos/tour/src/curvedcut.rs`, wall 1 of
+`walls`) engraves a C, an annular sector of radii 0.25 and 0.15, into
+the elliptical section face of a cylinder (r 1, height 2.5) cut by the
+plane through `(0, 0, 1.25)` with normal `(sin 0.3, 0, cos 0.3)`: a
+blind pocket 0.05 deep whose outline lies strictly inside the ellipse
+(its leftmost point 0.30 short of the rim along the major axis). `subtract(lower half, tool)` refuses
+`CurvedPierceUnsupported { operand: A, .. }` with the edge the half's
+`Ellipse` rim and the face one of the tool's cylinder walls, an
+ellipse × cylinder pair whose carriers never meet. The probe asserts
+the rim is an `Ellipse` and panics when the subtraction builds or
+refuses otherwise. A lines-only glyph on the same face gets past this
+door and stops at `work/contact/at-infinity-probe-measures-in-closed-form-only.md`.
