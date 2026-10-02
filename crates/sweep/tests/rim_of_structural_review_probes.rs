@@ -21,6 +21,7 @@ use sweep::test_support::{
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::rim_of;
+use topo::readback::edge_sides;
 use topo::{
     Body, BooleanDeclarations, EdgeKey, HalfEdgeKey, RimError, SurfaceKey, validate_geometric,
 };
@@ -45,26 +46,18 @@ fn boolean(name: &str, op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64>
         .clone()
 }
 
-fn surface(body: &Body<f64>, he: HalfEdgeKey) -> SurfaceKey {
-    let l = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_face(body.get_loop(l).unwrap().face)
-        .unwrap()
-        .surface
-}
-
 fn pair(body: &Body<f64>, k: EdgeKey) -> (SurfaceKey, SurfaceKey) {
-    let e = body.get_edge(k).unwrap();
-    let (a, b) = (surface(body, e.he_plus), surface(body, e.he_minus));
+    let (a, b) = edge_sides(body, k).unwrap().surfaces();
     (a.min(b), a.max(b))
 }
 
 /// The half-edge of `k` on its pair's lower surface key.
 fn lower_he(body: &Body<f64>, k: EdgeKey) -> HalfEdgeKey {
-    let e = body.get_edge(k).unwrap();
-    if surface(body, e.he_plus) == pair(body, k).0 {
-        e.he_plus
+    let sides = edge_sides(body, k).unwrap();
+    if sides.plus.surface == pair(body, k).0 {
+        sides.plus.half_edge
     } else {
-        e.he_minus
+        sides.minus.half_edge
     }
 }
 
