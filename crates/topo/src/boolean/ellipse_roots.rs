@@ -455,6 +455,119 @@ mod tests {
         }
     }
 
+    /// **The subdivision reads its pieces at the carrier's top speed.** A
+    /// millimetre ellipse (semi-axes 1.16 mm and 0.18 mm) against a
+    /// sphere of radius 0.21 mm, at ε = 1e-6: two crossings, certified,
+    /// each on the sphere. Read at the semi-minor axis, the subdivision
+    /// takes its pieces' arc lengths for six times shorter than they are,
+    /// calls a piece down to the band before it has isolated the roots,
+    /// and declines — the pose the counterexample search found to tell the
+    /// two apart.
+    #[test]
+    fn the_subdivision_reads_its_pieces_at_the_top_speed() {
+        let band = Band::new(1e-6, 1e-5).expect("a band");
+        let e = geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(
+                -0.02690652087259189,
+                -0.6904757134714763,
+                0.7228549842399846,
+            ),
+            major: 0.0011565902894188694,
+            minor: 0.00017995811133866398,
+            u_ref: Vec3::new(-0.8791819779574158, 0.360475481131658, 0.3116030762649587),
+        };
+        let center = Point3::new(
+            -0.0007969769311573957,
+            9.88085673337834e-6,
+            0.00019172775206061993,
+        );
+        let radius = 0.00021405666180469222;
+        let s = geom::Surface::Sphere {
+            center,
+            radius,
+            axis: Vec3::new(
+                -0.018144408265784995,
+                0.9651190040905697,
+                -0.2611820981459323,
+            ),
+            u_ref: Vec3::new(
+                0.9998353766739225,
+                0.017514396513495407,
+                -0.004739774897982686,
+            ),
+        };
+        let got = ellipse_roots(&e, 3.511343352233997, 7.298353179068743, &s, band);
+        let Ok(CircleRoots::Certified { count, thetas }) = got else {
+            panic!("certified crossings, got {got:?}");
+        };
+        assert!(count > 0, "crossings");
+        for &t in &thetas[..count] {
+            let off = ((e.eval(t) - center).norm() - radius).abs();
+            assert!(off <= band.zero(), "root {t} lies {off} off the sphere");
+        }
+    }
+
+    /// **The first-harmonic arm places its roots within the band along
+    /// the arc.** The section of a unit wall by a plane tilted
+    /// `acos(1/20)` (semi-axes 20 and 1), its `y` semi-axis lengthened by
+    /// `8e-11` so the second harmonic against the test wall is about
+    /// 2e-11 m (in the zero band: this arm drops it and charges it to the
+    /// noise), crosses a wall of radius `2 − h` centred at `(0, −1)` by
+    /// `h`, its roots nearest `θ = π/2` where the carrier runs at
+    /// 20 m/rad. Over depths from grazing to deep, every certified root
+    /// lies within the escalation threshold, as arc length, of the TRUE
+    /// crossing. The dropped harmonic moves a root by `A₂/|R′|` radians,
+    /// so the arm's root slack must charge it and read it at the
+    /// carrier's top speed: uncharged, or read at the semi-minor axis
+    /// (`a/b` past the band's `escalate/zero`), it certifies shallow roots
+    /// up to twice the threshold off.
+    #[test]
+    fn the_first_harmonic_arm_places_its_roots_along_the_arc() {
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let phi = (1.0_f64 / 20.0).acos();
+        let section = ellipse(
+            [0.0; 3],
+            [phi.sin(), 0.0, phi.cos()],
+            [1.0, 0.0, 0.0],
+            1.0 / phi.cos(),
+            1.0 + 8e-11,
+        );
+        let mut certified = 0;
+        for k in 0..=80 {
+            let h = 10f64.powf(-6.0 + 5.7 * f64::from(k) / 80.0);
+            let w = wall([0.0, -1.0, 0.0], [0.0, 0.0, 1.0], 2.0 - h);
+            let (t0, t1) = (-0.2, PI + 0.2);
+            let Ok(CircleRoots::Certified { count, thetas }) =
+                ellipse_roots(&section, t0, t1, &w, band)
+            else {
+                continue;
+            };
+            certified += 1;
+            let truth = oracle(&section, &w, t0, t1);
+            for &t in &thetas[..count] {
+                let nearest = truth
+                    .iter()
+                    .copied()
+                    .min_by(|a, b| (a - t).abs().total_cmp(&(b - t).abs()))
+                    .expect("a true crossing on the arc");
+                let speed = {
+                    let (s, c) = nearest.sin_cos();
+                    ((s / phi.cos()).powi(2) + c.powi(2)).sqrt()
+                };
+                let off = (t - nearest).abs() * speed;
+                assert!(
+                    off <= band.escalate(),
+                    "depth {h}: root {t} is {off} m of arc from the crossing {nearest}"
+                );
+            }
+        }
+        assert!(
+            certified > 5,
+            "the sweep certifies its deep crossings: {certified}"
+        );
+    }
+
     /// A carrier that is not an ellipse, or a surface the door has no
     /// harmonics for, is a dispatch desync.
     #[test]
