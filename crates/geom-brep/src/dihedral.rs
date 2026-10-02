@@ -229,7 +229,14 @@ pub(crate) fn wedge_decided<T: Decide>(
 ) -> Result<(DihedralClass, geom_core::MarginDiag), LeverEscalation> {
     let n1 = implicit_gradient(s1, p);
     let n2 = implicit_gradient(s2, p);
-    let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
+    let sin_theta = if std::env::var_os("SYM15_COSFORM").is_some() {
+        // review probe: the same angle from its cosine, which does not
+        // carry the gradient magnitude in numerator and denominator
+        let cos = n1.dot(n2) / (n1.norm() * n2.norm());
+        (T::from_f64(1.0) - cos * cos).sqrt()
+    } else {
+        n1.cross(n2).norm() / (n1.norm() * n2.norm())
+    };
     let arm = folded_lever_arm(s1, s2, p, extent);
     if std::env::var_os("SYM15_PROBE").is_some() {
         let probe_surface = |s: &Surface<T>| match s {
