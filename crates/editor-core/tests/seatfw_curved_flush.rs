@@ -234,7 +234,7 @@ fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
     // that germ). The claim the row is about stands either way: no
     // declaration-door refusal.
     let Some(NodeResult::Failed(e)) = ev.nodes.get(&union) else {
-        assert!(ev.nodes.get(&union).is_some(), "the union node evaluated");
+        assert!(ev.nodes.contains_key(&union), "the union node evaluated");
         return;
     };
     let NodeErrorKind::Boolean(err) = &e.kind else {

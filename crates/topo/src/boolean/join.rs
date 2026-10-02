@@ -1838,8 +1838,15 @@ fn resolve_roles_geometric<T: Decide>(
 /// only where the other boundary crosses the face with opposed senses,
 /// and each reading comes from a point of an uncut region, so the two
 /// sides differ unless the join minted a seam that is not a crossing (a
-/// tangential contact) or left a crossing uncut. No row reaches it; the
-/// guard stands for those two defects.
+/// tangential contact) or left a crossing uncut. One row reached it:
+/// two lens prisms flush-declared (`join1_delta_probes`
+/// `overlapping_lens_prisms_declared_union_builds`), whose rim segments
+/// lie along edges of one operand at strut sites. The strut's two
+/// halves faced each other's germs, the join minted each segment's
+/// chord inside the cap beside the rim, and both loops' regions were
+/// cap pieces, both In. A strut's half now faces the germ along its own
+/// edge (`insert`, the spike order), the lens builds, and no row
+/// reaches the guard; it stands for those two defects.
 ///
 /// **Neither deciding** is refused as the join's own: every witness of
 /// both loops' regions read the other boundary or too near it, which a

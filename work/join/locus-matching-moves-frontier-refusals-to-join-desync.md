@@ -72,3 +72,16 @@ half beside the locus edge faces it), keeping the senses the sense
 theorem gives, or refuse that configuration typed. Then re-run the
 seam and reflex batteries; the bar is that no frontier refusal of main
 becomes a `JoinDesync` or a `SeamOrientation`.
+
+## Fix pass 2 (PR 3790): the strut binding fixed, re-measured
+
+The strut's half beside a germ's own locus edge now faces that germ, in
+both strut mints (`insert`'s spike order, `vtxfac`'s pierce struts).
+Against main da396111f, release, the seam battery moves no frontier
+refusal to `JoinDesync` any more (84 `SectionArcWindow` →
+`SectionNotPolar`, 42 `JoinDesync` → `SectionNotPolar`, 24
+`UnpairedLooseEnds` → sound); the tube and bored-capsule batteries move
+only from `JoinDesync`/`UnpairedLooseEnds` to typed frontiers or sound.
+The same fix restored `join1_delta_probes::overlapping_lens_prisms_declared_union_builds`.
+What remains is the reflex probe's 32 `SeamOrientation` moves (28 from
+`UnpairedLooseEnds`, 4 from `RestZipUnsupported`), still not traced.

@@ -61,10 +61,9 @@ and the typed-refusal half of `closed-in-face-section-loop-has-one-site`.
   (`chord_join::along_edge_spec`: lines straight, circles their own
   arc), its frame is the edge's curve, and no section of the germ's
   face pair (possibly one carrier) is read.
-- **A scaffold at rest is restated** by the boolean's description
-  pass (`describe_minted_edges`), as the split finish already did: the
-  minted chord ∪ keeps between two coplanar faces was left
-  `ScaffoldAtRest` — the review's MAJOR.
+- ~~A scaffold at rest is restated~~ — withdrawn in fix pass 2: it
+  hid an illegal output (two same-sense coplanar neighbours) behind a
+  passing tier 3.
 - `locus_at_site` reads the whole null-edge site; `find_match` and
   `loose_partners` share one criterion (`join::partners`); the boolean
   lanes' dead `between_edge_is_section` arms and `JoinLane::Planar`'s
@@ -80,3 +79,24 @@ diamond 3840; R2's random z-prism pairs (seeds 1–5, 1000 cases, 3 ops)
 The dumbbell builds (`dumbbell-joint-union-leaves-four-loose-ends`).
 Frontier refusals that became `JoinDesync`/`SeamOrientation` are filed
 (`locus-matching-moves-frontier-refusals-to-join-desync`).
+
+## Fix pass 2 (delta review, PR 3790)
+
+- **An undeclared continuation refuses at the op.** At an edge-edge
+  seam a union glues, two flanking faces abutting along the edge on one
+  plane with their senses aligned are a continuation (topo README C4):
+  undeclared, `UndeclaredCoincidence { relation: SameOriented }` names
+  the pair; declared, the output's merge stage glues it. Touching-only
+  edges (assemblies) are unaffected. The scaffold restatement is gone
+  except between the two faces of a recorded curved merge skip.
+- **A strut's half faces the germ along its own edge** (`insert` spike
+  order, `vtxfac` pierce struts): the lens regression and the ball's
+  pole desyncs both came from crossed bindings.
+- `place_germ` refuses to overwrite another event's germ;
+  `along_edge_spec` runs on the both-`OnEdge` lane only.
+
+Main da396111f → fix-pass-2 head, release, with a legal-operand column:
+hexagon ∪∖∩ box 2508 refusals → sound, 288 → `UndeclaredCoincidence`;
+R2 seeds 6–15 (30000 ops) 517 → sound, 17 → `UndeclaredCoincidence`;
+no sound body lost, no wrong body, every build a legal operand.
+
