@@ -74,7 +74,8 @@
 //! (REST rests are consumed into structure — the census's consumed
 //! class), tier gates, and the volume backstop.
 
-use geom_core::{Band, Bounds, Decide, Margin, Sign};
+use geom_brep::ExtentBall;
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
@@ -557,36 +558,28 @@ fn enumerate_segments<T: Decide>(
 type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>);
 
 /// **The one flush-pair door**: the C4 verify ladder for a single
-/// cross-body face pair — descriptions through [`face_plane`]
-/// (outward, sense-folded), identity through [`face_oriented_source`]
-/// (oriented sources, S10: the descriptions compared are the two
-/// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
-/// senses too — REST contact is precisely the `SameOpposite`
-/// verdict), and the verdict through [`super::oriented_plane_eq`] at
-/// the verification arm, **1 m** — a `T::one()` literal, spelled here,
-/// in [`carrier_pair_verdict`] and in [`geom_brep::tangent_locus`],
-/// which must agree. The declared rung contradicts only on DEFINITE
-/// margins, so the arm only meters the angular sliver band (exact
-/// fixtures decide definitely either way).
+/// cross-body PLANAR face pair — [`carrier_pair_relation`] restricted
+/// to two planes (descriptions through [`face_plane`], outward and
+/// sense-folded; S10's oriented sources, so rung 1's `orient` tags
+/// carry the face senses too — REST contact is precisely the
+/// `SameOpposite` verdict). It is that door, not a mirror of it: the
+/// verdict, the `decide` sites and the lever are the ones every carrier
+/// pair gets.
 ///
 /// **This door has NO in-tree consumer.** Verify-at-use stopped
 /// calling it at M9-1 and the flush detector followed when its scope
 /// became the `Rest` ladder's; what to do about a published door with
 /// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
-/// What it still IS is [`carrier_pair_relation`]'s planar projection,
-/// and the two cannot drift: that door's `(Plane, Plane)` case
-/// delegates to
-/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
-/// the very function [`super::oriented_plane_eq`] wraps here — one
-/// verdict function, one set of `decide` sites, one verification arm.
-/// (The #304 review's planted-drift probe showed a hand-mirrored arm
-/// passes every axis-aligned suite, which is why the arm is shared
-/// rather than mirrored.)
 ///
-/// `None`: not a planar pair — there is no plane description to
-/// compare (the REST lane treats it as an invariant violation at its
-/// own site; [`carrier_pair_relation`] is where a caller asks the
-/// same question of any carrier the ladder names).
+/// `Err`: a face that is not a plane, which this door has no
+/// description for ([`PairUnread::OutsideInventory`]; the REST lane
+/// treats it as an invariant violation at its own site, and
+/// [`carrier_pair_relation`] is where a caller asks the same question
+/// of any carrier the ladder names), or whose extent cannot be read.
+///
+/// # Errors
+///
+/// [`PairUnread`], as above.
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -594,15 +587,135 @@ pub fn flush_pair_relation<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<PlaneRelation, PlaneEqError>> {
-    let (pa, pb) = (face_plane(a, fa)?, face_plane(b, fb)?);
-    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
-    let id = PlaneIdentity {
-        s1: ga.as_ref(),
-        s2: gb.as_ref(),
-        declared,
+) -> Result<Result<PlaneRelation, PlaneEqError>, PairUnread> {
+    face_plane(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    face_plane(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    carrier_pair_relation(a, fa, b, fb, declared, band)
+}
+
+/// Which face of a pair, in the order a door took them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairFace {
+    /// The first face.
+    First,
+    /// The second face.
+    Second,
+}
+
+/// Why a face pair has no carrier reading: the door's input, not a
+/// verdict.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairUnread {
+    /// A face's surface kind is outside the ladder's inventory (cone,
+    /// NURBS, `Approx`), or its key does not resolve: there is no
+    /// description to compare.
+    OutsideInventory,
+    /// The face's consumed extent cannot be read ([`pair_extent`]): its
+    /// box has no claim to make (a NURBS placeholder, a boundary it
+    /// cannot read), or its boundary cannot be walked for the points
+    /// on it.
+    Extent(PairFace),
+}
+
+/// **A face's consumed extent**: a ball enclosing every point of it,
+/// the region over which a verdict about its carrier is consumed
+/// ([`pair_extent`]). A sphere's or a torus's own ball
+/// ([`ExtentBall::of_carrier`]: the torus's `R + r`, whatever the
+/// trim); otherwise the ball around the face's certified box, from the
+/// kernel's one kind→box rule (`census::face_reach`). `None` where that
+/// box has no claim to make, or the ball does not read.
+fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
+    let f = body.get_face(face)?;
+    let ball = match ExtentBall::of_carrier(body.get_surface(f.surface)?) {
+        Some(ball) => ball,
+        None => {
+            let (lo, hi) = crate::census::face_reach(body, face, band)?;
+            ExtentBall::of_box(lo, hi)
+        }
     };
-    Some(super::oriented_plane_eq(&pa, &pb, id, T::one(), band))
+    ball.readable()
+}
+
+/// The face's boundary vertex positions (outer loop then rings; an
+/// empty loop contributes its lone vertex): points known to lie on the
+/// face. `None` where the boundary cannot be walked.
+pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
+    let f = body.get_face(face)?;
+    let vertex_point = |vk| {
+        body.get_vertex(vk)
+            .and_then(|v| body.get_point(v.point))
+            .copied()
+    };
+    let mut out = Vec::new();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        match body.get_loop(lk)?.boundary {
+            crate::entity::LoopBoundary::Empty { vertex } => out.push(vertex_point(vertex)?),
+            crate::entity::LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first)? {
+                    out.push(vertex_point(body.get_half_edge(he)?.start)?);
+                }
+            }
+        }
+    }
+    Some(out)
+}
+
+/// **A face pair's consumed extent**, as the carrier doors read it:
+/// one ball enclosing both faces ([`face_ball`]), since the verdict is
+/// consumed on each, and each face's boundary vertices, the points
+/// known to be consumed ([`super::carrier_eq::ConsumedExtent`]).
+#[derive(Clone, Debug)]
+pub(crate) struct PairExtent<T: geom_core::Real> {
+    /// The ball enclosing both faces.
+    pub(crate) reach: ExtentBall<T>,
+    /// The first face's boundary vertices, then the second's.
+    pub(crate) on: [Vec<Point3<T>>; 2],
+}
+
+impl<T: geom_core::Real> PairExtent<T> {
+    /// The extent as the ladder reads it, its faces in the order
+    /// measured, or the other way round when `swapped`.
+    pub(crate) fn consumed(&self, swapped: bool) -> super::carrier_eq::ConsumedExtent<'_, T> {
+        let [first, second] = &self.on;
+        super::carrier_eq::ConsumedExtent {
+            reach: self.reach,
+            on: if swapped {
+                [second, first]
+            } else {
+                [first, second]
+            },
+        }
+    }
+}
+
+/// [`PairExtent`] of `fa` on `a` and `fb` on `b`. Read on the operands
+/// at rest: mid-operation, a face whose boundary carries null
+/// scaffolding has no box to read, and the sites there take a declared
+/// pair's extent from [`super::DeclaredPairs::consumed`].
+///
+/// # Errors
+///
+/// The face whose extent cannot be read ([`PairUnread::Extent`]).
+pub(crate) fn pair_extent<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<PairExtent<T>, PairFace> {
+    let read = |body, face| face_ball(body, face, band).zip(face_witnesses(body, face));
+    let (ball_a, on_a) = read(a, fa).ok_or(PairFace::First)?;
+    let (ball_b, on_b) = read(b, fb).ok_or(PairFace::Second)?;
+    // Two readable balls enclose readably short of overflow, which the
+    // larger reach is what tips; the second face takes the blame
+    // rather than neither.
+    let reach = ExtentBall::enclosing(&[ball_a, ball_b])
+        .and_then(ExtentBall::readable)
+        .ok_or(PairFace::Second)?;
+    Ok(PairExtent {
+        reach,
+        on: [on_a, on_b],
+    })
 }
 
 /// The face's **oriented carrier description** — the curved
@@ -663,17 +776,18 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// **The one carrier-pair door**: [`flush_pair_relation`] for every
 /// carrier kind the `Rest` table names.
 ///
-/// Same descriptions-plus-identity construction, same verification
-/// arm (**1 m**, the literal [`flush_pair_relation`] spells), same shared-by-
-/// construction contract between the verify-at-use site and the
-/// detector's candidate-generation mode — only the carrier kind
-/// widens. The planar case reaches exactly the same numbers it
-/// reached before ([`mod@super::carrier_eq`]'s plane arm delegates), so
-/// this door is a superset of the old one rather than a replacement
-/// for it.
+/// Descriptions through [`face_carrier`], identity through
+/// [`face_oriented_source`], and the pair's consumed extent through
+/// [`pair_extent`]: a declared verdict that bridges is one whose
+/// displacement stays in band at every point of both faces
+/// ([`super::carrier_eq::pair_door_verdict`]). One door for the
+/// verify-at-use site and the detector's candidate-generation mode.
 ///
-/// `None`: a face whose surface kind is outside the ladder's
-/// inventory — there is no description to compare.
+/// # Errors
+///
+/// [`PairUnread`]: a face whose surface kind is outside the ladder's
+/// inventory — there is no description to compare — or whose extent
+/// cannot be read. The ladder's own refusals ride inside the `Ok`.
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -681,14 +795,18 @@ pub fn carrier_pair_relation<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<CarrierRelation, CarrierEqError>> {
-    Some(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
+) -> Result<Result<CarrierRelation, CarrierEqError>, PairUnread> {
+    Ok(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
 }
 
 /// [`carrier_pair_relation`] plus the AQ6 trilean — the door the
 /// CONTACT verification uses, since only a caller that can see the
 /// bridged residue can enforce C4's "trusted exactly there" invariant.
 /// One traversal, two projections.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`].
 pub fn carrier_pair_verdict<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -696,19 +814,21 @@ pub fn carrier_pair_verdict<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
-    let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
+) -> Result<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>, PairUnread> {
+    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
     let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
         s2: gb.as_ref(),
         declared,
     };
-    Some(super::carrier_eq::carrier_eq_verdict(
+    Ok(super::carrier_eq::pair_door_verdict(
         &ca,
         &cb,
         id,
-        T::one(),
+        &extent.consumed(false),
         band,
     ))
 }
@@ -740,19 +860,21 @@ fn verify_declared_pairs<T: Decide>(
             continue;
         }
         // The one carrier-pair door: oriented sources, sense-folded
-        // descriptions, and the verification arm all live inside it —
+        // descriptions and the consumed extent all live inside it —
         // shared with the flush detector by construction, since that
         // detector asks THIS function in its `declared: false`
         // posture.
-        // The generalized door: planar pairs reach exactly the numbers
-        // the plane ladder always reached (its plane arm delegates),
-        // and a curved declared pair is verified rather than being
-        // silently outside the lane.
-        let relation = carrier_pair_relation(a, fa, b, fb, true, band).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "REST lane: a declared face lost its carrier",
-            },
-        )?;
+        let relation = match carrier_pair_relation(a, fa, b, fb, true, band) {
+            Ok(relation) => relation,
+            Err(PairUnread::Extent(face)) => return Err(super::unreadable_extent(face)),
+            // `validate_declarations` refused every kind outside the
+            // inventory before this lane ran.
+            Err(PairUnread::OutsideInventory) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "REST lane: a declared face lost its carrier",
+                });
+            }
+        };
         match relation {
             Ok(PlaneRelation::SameOpposite) => {
                 let sa = a
@@ -803,6 +925,9 @@ fn verify_declared_pairs<T: Decide>(
                     )),
                     diag,
                 ));
+            }
+            Err(PlaneEqError::Unsettled { diag }) => {
+                return Err(super::unsettled_rest(BooleanCoincidence::REST, diag));
             }
             Err(PlaneEqError::Undeclared { diag, relation }) => {
                 // Unreachable with declared=true; refuse loudly anyway.
@@ -1881,6 +2006,121 @@ mod tests {
             what(settle_glue(&body, &mut seam, &[killed, other])),
             "REST lane: an edge the glue reported interior survived it",
             "an interior report on a live edge is a desync"
+        );
+    }
+}
+
+/// **A declared `Rest` bridges only a displacement that stays in band
+/// at every point of the faces it is consumed on.** Each row poses a
+/// pair a datum-by-datum reading bridged — each datum in band at its
+/// own lever — while some consumed point stands at or past the band;
+/// the door reads the pair as one displacement and refuses it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod lever_rows {
+    use super::*;
+    use crate::boolean::boxes::tests::torus_wall;
+    use crate::contact::ContactRefusal;
+    use crate::test_support::{CylFrame, cyl_wall_sheet};
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn door(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> Result<(), ContactRefusal> {
+        crate::boolean::contact_pair_verdict(a, fa, b, fb, ContactClass::Rest, None, band())
+            .map(|_| ())
+    }
+
+    /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about
+    /// `y` through the shared centre. At `θ = 0.6·Kε`, in band at one
+    /// metre, the tilt moves the tube's core circle by `θ·R = 1.2·Kε`
+    /// while no corner of the patch stands past the band: the door
+    /// refuses unsettled rather than bridging. At `2·Kε` a corner stands
+    /// past it, and the door contradicts.
+    #[test]
+    fn a_torus_tilt_is_read_at_the_ring() {
+        for (k, unsettled) in [(0.6, true), (2.0, false)] {
+            let theta = k * band().escalate();
+            let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+            let (a, fa) = torus_wall(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                0.5,
+                u,
+                v,
+            );
+            let (mut b, fb) = torus_wall(
+                Point3::origin(),
+                Vec3::new(theta.sin(), 0.0, theta.cos()),
+                Vec3::new(theta.cos(), 0.0, -theta.sin()),
+                2.0,
+                0.5,
+                u,
+                v,
+            );
+            b.set_face_sense(fb, false).unwrap();
+            let read = door(&a, fa, &b, fb);
+            if unsettled {
+                assert!(
+                    matches!(read, Err(ContactRefusal::Escalated { .. })),
+                    "{k}·Kε: the swing at the ring is unsettled: {read:?}"
+                );
+            } else {
+                assert!(
+                    matches!(read, Err(ContactRefusal::Contradicted { .. })),
+                    "{k}·Kε: a corner past the band contradicts: {read:?}"
+                );
+            }
+        }
+    }
+
+    /// A 10 m cylinder wall against its twin tilted by `0.5·K·ε` about
+    /// `y` through the shared axis point at its foot: `0.5·Kε` at one
+    /// metre, while the far rim stands `5·Kε` off.
+    #[test]
+    fn a_cylinder_tilt_is_read_at_the_far_rim() {
+        let tol = Tol::witness();
+        let theta = 0.5 * band().escalate();
+        let (u, v) = ((0.2, 1.6), (0.0, 10.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        let read = door(&a, fa, &b, fb);
+        assert!(
+            matches!(read, Err(ContactRefusal::Contradicted { .. })),
+            "the tilt at the far rim contradicts the declaration: {read:?}"
+        );
+    }
+
+    /// **The offset and the tilt add.** A 1 m band of cylinder wall at
+    /// `9 ≤ v ≤ 10` against its twin tilted by `0.105·K·ε` about `y`
+    /// through the axis' foot at the origin: the axis offset at the
+    /// patch's middle reads `≈ 1.0·Kε` (just in band), the tilt over the
+    /// patch's extent another fraction of it, each in band on its own,
+    /// while the rim stands `1.05·Kε` off. Read datum by datum it
+    /// bridged; read as one displacement it does not.
+    #[test]
+    fn an_offset_and_a_tilt_in_band_each_do_not_bridge_their_sum() {
+        let tol = Tol::witness();
+        let theta = 0.105 * band().escalate();
+        let (u, v) = ((-0.3, 0.3), (9.0, 10.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        let read = door(&a, fa, &b, fb);
+        assert!(
+            matches!(read, Err(ContactRefusal::Contradicted { .. })),
+            "the rim stands past the band, so the declaration does not bridge: {read:?}"
         );
     }
 }

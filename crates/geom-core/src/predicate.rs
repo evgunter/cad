@@ -1591,6 +1591,12 @@ impl fmt::Display for IndeterminatePayload<'_> {
                     "enclosure {margin:e} lies within the zero band (±{zero:e})"
                 )
             }
+            // A bound reported where it stands past the band (a
+            // declared pair's reach, read above as no sign passes).
+            Reading::Value(m) if m.abs() >= escalate => write!(
+                f,
+                "margin {margin:e} lies past the ambiguity band ({zero:e}, {escalate:e})"
+            ),
             Reading::Value(_) => write!(
                 f,
                 "margin {margin:e} lies inside the ambiguity band ({zero:e}, {escalate:e})"
