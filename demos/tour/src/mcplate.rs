@@ -100,8 +100,7 @@ use pncad::geom_core::Tol;
 use pncad::topo::Body;
 
 use crate::plate::{
-    CERTIFIABLE_FRACTION, Plate, RADIUS, RADIUS_SIGMA, SPACING, SPACING_HALF_WIDTH, WEB, WEB_BOUND,
-    plate,
+    CERTIFIABLE_FRACTION, Plate, RADIUS, RADIUS_SIGMA, SPACING, SPACING_HALF_WIDTH, WEB, real_study,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -226,7 +225,7 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
 ///
 /// Returns the SVG so the caller owns where it lands.
 pub fn narration(tol: Tol) -> String {
-    let base = plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
+    let base = real_study(tol);
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
     let config = McConfig {
         samples: DEFAULT_SAMPLES,

@@ -97,11 +97,12 @@ four-link chain) as single documents, plus the assembly scene's workspace under
 `assembly/`. It authors them through the same functions the tour renders — the
 gallery is the scenes, saved, not a second spelling of them.
 
-Every one of them saves and opens; two do not draw what their scene means.
+Every one of them saves and opens, but two do not denote what their scene means.
 `plate.pncad` draws a blank slab, because the document never subtracts its
-holes (`work/show/the-plate-document-never-cuts-its-holes.md`), and
-`chain.pncad` draws nothing, because one link placed four times by transforms
-is refused by the product gather
+holes (`work/show/the-plate-document-never-cuts-its-holes.md`). `chain.pncad`
+draws its nine placed links under a product-fault badge but has no product:
+the gather refuses one link placed four times by transforms, so checks, mass
+properties and export have nothing to read
 (`work/wire/one-shape-placed-n-times-has-no-product.md`).
 The rest of the tour drives the kernel API directly and has no document
 to save; those scenes join the gallery as they are re-authored as

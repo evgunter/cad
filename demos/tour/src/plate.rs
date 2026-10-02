@@ -111,10 +111,16 @@ pub struct Plate {
     pub holes: [RecipeNodeId; 2],
 }
 
-/// The real study's document, as the GUI opens it: the one
-/// [`crate::tolerance`]'s stop 1 analyzes and [`crate::mcplate`] draws.
+/// **The real study**: the plate the machinist's numbers describe —
+/// the one [`crate::tolerance`]'s stop 1 analyzes, [`crate::mcplate`]
+/// draws, and the gallery writes.
+pub fn real_study(tol: Tol) -> Plate {
+    plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol)
+}
+
+/// The real study's document, as the GUI opens it.
 pub fn gallery_document(tol: Tol) -> ProfileDoc {
-    plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol).doc
+    real_study(tol).doc
 }
 
 pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -> Plate {
