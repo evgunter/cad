@@ -107,19 +107,15 @@ the rim's semicircles as arcs (`rest::arcs_along`).
 - A rim in band of the partner's wall escalates.
 - The hemisphere still refuses at an edge leaving the rim (the graze,
   `pi-seam-between-two-operands-has-no-declaration`).
-- The stacked cylinder still refuses, on its own rim, whose parent shares
-  the partner's carrier. `BooleanCoincidence::Continuation` is not in the
-  code, so it could not be measured declared so. Its walls declared
-  `Rest` are contradicted at the declaration door, which now enforces
-  C4's sense bit for curved carriers (evidence on REACH's
-  `cosurface-disjoint-curved-walls-refuse`).
+- The stacked cylinder, undeclared or with only its discs declared,
+  refuses at the reduction as the undeclared continuation its walls are
+  (PR 3657). With the walls declared continuations it builds, 3π, both
+  orders: the zip matches its rim's semicircles as arcs (evidence on
+  REACH's `stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends`).
 - The cone stops at the operand gate.
-- Side effects: the torus peg-in-socket builds, its end faces unmerged
-  (evidence on FUSE's
-  `a-union-glues-same-sense-cosurface-walls-without-merging-them`). The
-  dumbbell, torus and cylinder handles, built while the door accepted
-  `Rest` on its aligned walls; it is contradicted now, and returns with
-  `Continuation`.
+- Side effects: the torus dumbbell and its cylinder control, declared
+  continuations at the waist, and the torus peg-in-socket build, and
+  their rows are re-pinned to the bodies with their census.
 - A dome rim offset half the zero band off the tube builds in one member
   order only (`a-rim-offset-half-the-zero-band-builds-in-one-member-order-only`).
 - A tube ending on a ball, or on a torus latitude, now passes the

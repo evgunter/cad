@@ -2,12 +2,15 @@
 id: cosurface-disjoint-curved-walls-refuse
 kind: issue
 title: Two stacked parts cannot both have a rounded outline - cosurface-and-disjoint walls glue as planes and refuse as cylinders
-status: open
+status: closed
 opened: 2026-08-31
 github: 1352
 refs: [1351]
 priority: P0
 cost: H
+closed: 2026-10-01
+pr: 3657
+branch: reach/cosurface-continuation
 ---
 
 ## From GitHub issue 1352
@@ -163,28 +166,30 @@ code, and Ev ruled for it on 2026-10-01 ("sounds good!"): a continuation
 is an aligned one-carrier pair whether its faces abut or overlap, and an
 undeclared one refuses in every op.
 
-## Aligned curved walls declared `Rest` are contradicted (TANG, 2026-10-02)
+## Closed (2026-10-01, PR 3657)
 
-Branch `tang/abutting-rim` (PR 3823) makes the declaration door enforce
-C4's sense bit for curved carriers: a `Rest` claim on a one-carrier pair
-with ALIGNED senses refuses `ContactContradicted`
-(`contact_rest_senses_opposed`). Before that the door accepted it, and
-the PR's arc matching in the declared-REST zip built such pairs: a tube
-of radius 1 over `z ∈ [0, 2]` unioned with one over `z ∈ [2, 3]`, discs
-and walls declared `Rest`, built at tier 3 and `3π`. Main refused it
-`Join(UnpairedLooseEnds)`. The rows that now pin the refusal, and that
-come back here as builds once `BooleanCoincidence::Continuation` is in
-the code:
+Two stacked parts can both have a rounded outline. A same-sense pair on
+one carrier is a *continuation* (C4 as ruled on PR 3613 and widened on
+PR 3662), and `BooleanCoincidence = Contact(ContactClass) | Continuation`.
+The census mints it, the author declares it, and the union merges it.
+Undeclared, it refuses `UndeclaredCoincidence` in every op, abutting or
+overlapping. The rounded two-peg plates build, and the tour's two-peg
+cell now fillets both outlines.
 
-- `sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`
-  `a_cap_abutting_on_the_rim_refuses_at_a_graze_or_on_its_own_carrier`
-  (the stacked tube);
-- `sweep/tests/curved_mergedoor.rs` `stacked_equal_pegs_same_sense_walls`
-  (scene F, which built on main through the merge door's skip record);
-- `sweep/tests/germ_torus_doors.rs`
-  `the_waists_declared_rest_are_contradicted_by_their_aligned_senses` and
-  `subtract_and_intersect_refuse_where_union_does` (the dumbbell, torus
-  and cylinder handles);
-- `sweep/tests/mate7a_torus_rest.rs`
-  `two_coincident_tori_declared_rest_are_contradicted` and
-  `subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does`.
+The dual review found two things. The lint gate's bounds allowlist was
+red. Overlapping aligned pairs were minted as continuations although C4
+then said "interiors disjoint"; Ev ruled on PR 3662 that a continuation
+covers both. The main merge's delta review found the plane door offering
+`Rest` for an aligned pair. The offer now speaks `BooleanCoincidence` and
+reads the pair's senses.
+
+Residue, each in its own file:
+- `rounded-stack-subtract-and-intersect-refuse-fallback-extent` (the
+  union, and the stacked pose's subtract and intersect);
+- `volume-backstop-refuses-a-closed-form-rounding-tie`;
+- `stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends`;
+- `stacked-plates-with-mismatched-fillet-radii-refuse-in-both-orders`;
+- `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`;
+- `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip`;
+- ZIP's `a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`;
+- WIRE's `a-merged-face-with-several-same-side-constituents-has-no-chord-rule`.

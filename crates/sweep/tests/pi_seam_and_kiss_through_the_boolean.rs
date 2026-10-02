@@ -469,7 +469,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 }
 
 #[test]
-fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_on_its_own_carrier() {
+fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation() {
     let tube = rod_z(R, 0.0, H);
     let cap_t = planes_at_z(&tube, H);
     let hemi = hemisphere_on_the_cap();
@@ -499,57 +499,65 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_on_its_own_carrier() {
     // The stacked cylinder continues the tube's carrier: its own rim
     // lies on the tube's wall, but its parent wall is that carrier, so
     // the ladder decides it no distinct parent and the door stands.
+    // The stacked cylinder continues the tube's carrier: undeclared, or
+    // with only its discs declared, its walls are an undeclared
+    // continuation, refused at the reduction before the crossing layer.
     let stacked = rod_z(R, H, 1.0);
     let cap_s = planes_at_z(&stacked, H);
-    for class in [None, Some(ContactClass::Rest)] {
-        let [ab, ba] = union_both_orders(&tube, &stacked, &cap_t, &cap_s, class);
-        assert!(
-            is_pierce(&ab),
-            "stacked, discs {class:?}, order 0: the crossing layer: {ab:?}"
-        );
-        let BooleanError::CurvedPierceUnsupported { edge, face, .. } = ba else {
-            panic!("stacked, discs {class:?}, order 1: the crossing layer: {ba:?}");
-        };
-        assert!(
-            matches!(
-                carrier_of(&stacked, edge),
-                geom::Curve3::Circle { center, .. } if (center.z - H).abs() < 1e-12
-            ),
-            "stacked, discs {class:?}, order 1: the cap's own rim keeps the door: {:?}",
-            carrier_of(&stacked, edge)
-        );
-        assert!(
-            faces_of(&tube, SurfaceKind::Cylinder).contains(&face),
-            "stacked, discs {class:?}, order 1: against the tube's wall"
-        );
-    }
-    // With its walls declared `Rest` too, the stacked pair is
-    // contradicted at the declaration door: one cylinder with aligned
-    // senses is a continuation, and aligned senses contradict `Rest` at
-    // every door. It builds once the `Continuation` seat does
-    // (`work/tang/pi-seam-between-two-operands-has-no-declaration.md`;
-    // `work/reach/cosurface-disjoint-curved-walls-refuse.md`).
     let (wt, ws) = (
         faces_of(&tube, SurfaceKind::Cylinder),
         faces_of(&stacked, SurfaceKind::Cylinder),
     );
+    for class in [None, Some(ContactClass::Rest)] {
+        for (order, e) in union_both_orders(&tube, &stacked, &cap_t, &cap_s, class)
+            .into_iter()
+            .enumerate()
+        {
+            let BooleanError::UndeclaredCoincidence {
+                pair: [(_, fa), (_, fb)],
+                relation: topo::PlaneRelation::SameOriented,
+                ..
+            } = e
+            else {
+                panic!("stacked, discs {class:?}, order {order}: the walls' continuation: {e:?}");
+            };
+            let walls = if order == 0 { (&wt, &ws) } else { (&ws, &wt) };
+            assert!(
+                walls.0.contains(&fa) && walls.1.contains(&fb),
+                "stacked, discs {class:?}, order {order}: a wall pair"
+            );
+        }
+    }
     for (order, x, y, dx, dy, fx, fy) in [
         (0, &tube, &stacked, &cap_t, &cap_s, &wt, &ws),
         (1, &stacked, &tube, &cap_s, &cap_t, &ws, &wt),
     ] {
         let mut d = declared(dx, dy, ContactClass::Rest);
-        d.coincident_faces
-            .extend(declared(fx, fy, ContactClass::Rest).coincident_faces);
-        let err = topo::union_with(x, y, &d, Tol::witness())
-            .expect_err("aligned walls declared Rest are a false claim");
-        let BooleanError::ContactContradicted { margin, .. } = &err else {
-            panic!("stacked, walls declared Rest, order {order}: contradicted: {err:?}");
+        for &fa in fx.iter() {
+            for &fb in fy.iter() {
+                d.coincident_faces
+                    .push(FacePairDeclaration::continuation(fa, fb));
+            }
+        }
+        // Declared, the union builds: the zip matches the rim's two
+        // semicircles as arcs, and the four wall faces stay unmerged
+        // (a curved continuation's merge is skipped).
+        let bb = match topo::union_with(x, y, &d, Tol::witness()) {
+            Ok(BooleanResult::Body(b)) => b,
+            other => panic!("stacked, walls continued, order {order}: builds: {other:?}"),
         };
-        assert_eq!(
-            margin.predicate,
-            Some("contact_rest_senses_opposed"),
-            "stacked, order {order}: on the sense bit"
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness())
+            .unwrap_or_else(|e| panic!("stacked, order {order}: tier 3′: {e:?}"));
+        let (v, c) = built(
+            &format!("stacked, order {order}"),
+            Ok(BooleanResult::Body(bb)),
         );
+        let want = PI * R * R * (H + 1.0);
+        assert!(
+            (v - want).abs() <= 1e-12 * want,
+            "stacked, order {order}: the two tubes: {v} vs {want}"
+        );
+        assert_eq!(c, (6, 10, 6, 1), "stacked, order {order}: F, E, V, shells");
     }
     let cone = frustum_on_the_cap();
     let cap_c = planes_at_z(&cone, H);

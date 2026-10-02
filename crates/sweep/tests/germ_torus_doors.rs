@@ -7,15 +7,9 @@
 //! quarter of a tube of `R = 0.8`, `r = 0.5` that runs from the bell's
 //! underside at `ρ = 0.8` down to the joint plane `y = 0` at `ρ = 0.3`,
 //! where the two halves meet on a `0.3`-radius joint disc. The two
-//! waists are one torus carrier with their senses ALIGNED, abutting
-//! along the joint circle: a continuation (C4), which no declaration in
-//! the code can state yet. Declared `Rest`, every torus×torus pair is
-//! contradicted at the declaration door, as aligned senses contradict
-//! `Rest` at every door; so is the same dumbbell with a cylinder handle.
-//! The build returns with the `Continuation` seat
-//! (`work/tang/pi-seam-between-two-operands-has-no-declaration.md`) and
-//! the curved cosurface walls
-//! (`work/reach/cosurface-disjoint-curved-walls-refuse.md`).
+//! waists are one torus carrier and meet tangentially along the joint
+//! circle. The union declares the joint discs and every torus×torus
+//! pair `Rest`.
 //!
 //! **The halves are used as built.** A full revolve builds each planar
 //! wall as one face (`crates/sweep/README.md`, "Walls: one per run"), so
@@ -43,8 +37,10 @@
 //! torus × plane arm; the sweep traces, which stop before that, are
 //! what those rows read.
 //!
-//! Undeclared, the waists refuse at the circle rung; the doors past it
-//! are held on the donut and the bar.
+//! Past every torus door the chord join refuses, as it does for the
+//! same dumbbell with a CYLINDER handle, and the declared-REST zip that
+//! takes over builds both: its seam runs along the joint circle's two
+//! semicircles, which it matches as arcs. The control row says so.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -57,8 +53,8 @@ use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::{Revolution, revolve};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, ContactClass, FaceContainment, FaceKey,
-    FacePairDeclaration,
+    Body, BooleanCoincidence, BooleanDeclarations, BooleanError, ContactClass, FaceContainment,
+    FaceKey, FacePairDeclaration,
 };
 
 /// The waist's tube.
@@ -168,7 +164,7 @@ fn is_torus(s: &geom::Surface<f64>) -> bool {
 fn declarations(
     a: &Body<f64>,
     b: &Body<f64>,
-    handle_class: Option<ContactClass>,
+    handle_class: Option<BooleanCoincidence>,
 ) -> BooleanDeclarations {
     let mut decls = BooleanDeclarations::none();
     for fa in faces_where(a, is_joint_disc) {
@@ -190,35 +186,13 @@ fn declarations(
     decls
 }
 
-/// The T2 union: both halves, the joint discs and the handle pairs
-/// declared `Rest`.
+/// The T2 union: both halves, the joint discs declared `Rest` and the
+/// handle pairs — one handle carried on across the joint — declared
+/// continuations.
 fn t2(handle: Handle) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let (a, b) = (half(1.0, handle), half(-1.0, handle));
-    let decls = declarations(&a, &b, Some(ContactClass::Rest));
+    let decls = declarations(&a, &b, Some(BooleanCoincidence::Continuation));
     topo::union_with(&a, &b, &decls, Tol::witness())
-}
-
-/// `err` is the declaration door contradicting a `Rest` claim on two
-/// handle faces of `a` and `b` by their aligned senses.
-fn assert_aligned_rest_contradicted(label: &str, err: &BooleanError, a: &Body<f64>, b: &Body<f64>) {
-    let BooleanError::ContactContradicted {
-        declaration,
-        margin,
-        ..
-    } = err
-    else {
-        panic!("{label}: the declaration door contradicts the aligned pair: {err:?}");
-    };
-    assert_eq!(declaration.class, ContactClass::Rest, "{label}: the class");
-    assert_eq!(
-        margin.predicate,
-        Some("contact_rest_senses_opposed"),
-        "{label}: on the sense bit"
-    );
-    assert!(
-        is_handle(surface(a, declaration.a)) && is_handle(surface(b, declaration.b)),
-        "{label}: the pair is two handle faces"
-    );
 }
 
 // -------------------------------------------------------------------
@@ -279,37 +253,37 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
 /// not declared — was `CurvedPairUnsupported { kind: Torus, other_kind:
 /// Plane }` at the gate, declared handle or not.
 ///
-/// The operand gate admits the torus, and what admission must NOT do
-/// is turn a torus pair nobody vouched for into a body: undeclared, the
-/// coincident waists still refuse typed — at the circle rung, where the
-/// sampled clearance is what it is and no declared cover exists to take
-/// the endpoint posture.
+/// What admission must NOT do is turn a torus pair nobody vouched for
+/// into a body: undeclared, the coincident waists still refuse typed —
+/// as the undeclared continuation they are, at the reduction, naming
+/// the waist pair and its aligned relation. Declared, the union builds
+/// (the control row below).
 #[test]
 fn the_operand_gate_admits_the_torus_and_the_undeclared_pair_still_refuses() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
     let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
         .expect_err("an undeclared coincident torus pair must refuse");
-    let BooleanError::CurvedPierceUnsupported { operand, face, .. } = err else {
-        panic!("undeclared, the waists refuse at the circle rung: {err:?}");
+    let BooleanError::UndeclaredCoincidence {
+        pair: [(topo::Operand::A, fa), (topo::Operand::B, fb)],
+        relation: topo::PlaneRelation::SameOriented,
+        ..
+    } = err
+    else {
+        panic!("undeclared, the waists refuse as a continuation: {err:?}");
     };
-    assert_eq!(operand, topo::Operand::A);
-    assert!(is_torus(surface(&b, face)), "the refusal names B's waist");
+    assert!(
+        is_handle(surface(&a, fa)) && is_handle(surface(&b, fb)),
+        "the refusal names a handle pair: {err:?}"
+    );
 }
 
-/// **The ordering fact the gate's class-blind cover predicate rests on,
-/// held on a torus.** The gate's covered-pair rung reads ANY declared
-/// class as cover, which is safe only while the `Tangent` door refuses
-/// every curved pair it cannot verify BEFORE the gate runs. On the
-/// waists it does: the conformal screen finds one carrier and a
-/// `Tangent` claim on a conformal pair is contradicted at the
-/// declaration door. Admitting the torus to the roster means no torus
-/// pair ever needs the cover again — and this row is what goes red if
-/// the `Tangent` door learns to admit one without the gate's predicate
-/// being revisited.
+/// **A `Tangent` claim on a conformal torus pair is refused at the
+/// declaration door**: the conformal screen finds one carrier, so the
+/// claim is contradicted before the gate runs.
 #[test]
 fn a_tangent_declared_torus_pair_is_refused_before_the_gate() {
     let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    let decls = declarations(&a, &b, Some(ContactClass::Tangent));
+    let decls = declarations(&a, &b, Some(BooleanCoincidence::TANGENT));
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("a Tangent claim on one carrier is false");
     let BooleanError::ContactContradicted { declaration, .. } = err else {
@@ -371,6 +345,21 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
         }
     }
     assert_eq!(meridians, 2, "the waist carries its seam meridian twice");
+}
+
+/// **The declared waists pass the crossing layer.** With both waist
+/// pairs declared continuations, the seam meridian reaches the
+/// declared-cover rung through the carrier identity, and neither the
+/// circle rung's frontier nor its escalation is what the union answers:
+/// it builds.
+#[test]
+fn the_declared_waists_pass_the_circle_rung() {
+    let r = t2(Handle::Torus);
+    assert!(
+        matches!(r, Ok(topo::BooleanResult::Body(_))),
+        "the carrier-identity rung must carry the declared waists past the circle rung: {:?}",
+        r.err()
+    );
 }
 
 // -------------------------------------------------------------------
@@ -745,26 +734,54 @@ fn three_face_cylinder() -> Body<f64> {
 // Door 4, the sector walk, and where the union stops.
 // -------------------------------------------------------------------
 
-/// **The waists declared `Rest` are contradicted, as the cylinder
-/// handles are.** Each pair is one carrier with aligned senses: a
-/// continuation, not a contact. It refuses at the declaration door,
-/// before any classification, under both handles and both orders. The
-/// build returns with the `Continuation` seat
-/// (`work/tang/pi-seam-between-two-operands-has-no-declaration.md`;
-/// `work/reach/cosurface-disjoint-curved-walls-refuse.md`).
+/// **Past every torus door, the union builds as the cylinder-handled
+/// dumbbell does.** The torus-waisted union used to refuse
+/// `CurvedBooleanUnsupported { kind: Torus }` at the sector walk; with
+/// the torus arm it reaches the chord join, which refuses as it does
+/// for the SAME dumbbell with a straight cylinder handle, and the
+/// declared-REST zip that takes over a refused declared union builds
+/// both: the joint circle is two semicircles between one vertex pair,
+/// which the zip matches as arcs. The halves share no interior, so the
+/// body holds exactly their two volumes. That volume is the REST lane's
+/// by construction, so the census pins the pairing: each half's end
+/// disc, two bell faces, shoulder annulus and two waist faces, the
+/// joint discs consumed and the curved continuations left unmerged.
 #[test]
-fn the_waists_declared_rest_are_contradicted_by_their_aligned_senses() {
+fn the_torus_waisted_union_builds_like_the_cylinder_control() {
+    let tol = Tol::witness();
+    let volume = |b: &Body<f64>| topo::mass_properties(b, tol).unwrap().volume;
     for handle in [Handle::Torus, Handle::Cylinder] {
-        let (a, b) = (half(1.0, handle), half(-1.0, handle));
-        let ab = declarations(&a, &b, Some(ContactClass::Rest));
-        let ba = declarations(&b, &a, Some(ContactClass::Rest));
-        for (order, x, y, d) in [(0, &a, &b, &ab), (1, &b, &a, &ba)] {
-            let err = topo::union_with(x, y, d, Tol::witness())
-                .expect_err("an aligned pair declared Rest is a false claim");
-            assert_aligned_rest_contradicted(&format!("{handle:?}, order {order}"), &err, x, y);
-        }
-        let err = t2(handle).expect_err("the T2 union refuses");
-        assert_aligned_rest_contradicted(&format!("{handle:?}, T2"), &err, &a, &b);
+        let bb = match t2(handle) {
+            Ok(topo::BooleanResult::Body(b)) => b,
+            other => panic!("{handle:?}: the dumbbell's joint zips: {other:?}"),
+        };
+        let body = &bb.body;
+        assert_eq!(
+            topo::validate_geometric(body, tol),
+            Ok(()),
+            "{handle:?}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(body, &bb.contacts, tol),
+            Ok(()),
+            "{handle:?}: tier 3′"
+        );
+        let want = volume(&half(1.0, handle)) + volume(&half(-1.0, handle));
+        assert!(
+            (volume(body) - want).abs() <= 1e-12 * want,
+            "{handle:?}: the two halves: {} vs {want}",
+            volume(body)
+        );
+        assert_eq!(
+            (
+                body.faces().count(),
+                body.edges().count(),
+                body.vertices().count(),
+                body.shells().count()
+            ),
+            (12, 22, 14, 1),
+            "{handle:?}: F, E, V, shells"
+        );
     }
 }
 
@@ -1172,9 +1189,9 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and two tori meeting in an oval, or a cylinder grazing
 ///   the outer equator, have no section classification (R-reach);
-/// - the dumbbell's waists declared `Rest` are contradicted at the
-///   declaration door (aligned senses), and undeclared stop at the
-///   crossing layer.
+/// - the dumbbell's declared waists stop at the section pass on their
+///   tangency (R-tan), and undeclared at the reduction, as the
+///   undeclared continuation they are.
 ///
 /// None of them is a body.
 #[test]
@@ -1240,7 +1257,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             .body
     };
     let halves = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
-    let waists = declarations(&halves.0, &halves.1, Some(ContactClass::Rest));
+    let waists = declarations(&halves.0, &halves.1, Some(BooleanCoincidence::Continuation));
     for (name, a, b, decls, says) in [
         (
             "slab",
@@ -1257,6 +1274,13 @@ fn subtract_and_intersect_refuse_where_union_does() {
             &none,
             "has no section classification",
         ),
+        (
+            "declared dumbbell",
+            &halves.0,
+            &halves.1,
+            &waists,
+            "tangent or near-tangent carriers",
+        ),
     ] {
         for (op, r) in subtract_both_orders_and_intersect(a, b, decls) {
             let err = r.expect_err(op);
@@ -1266,19 +1290,18 @@ fn subtract_and_intersect_refuse_where_union_does() {
             assert!(what.contains(says), "{name}, {op}: {what}");
         }
     }
-    for (op, r) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &waists) {
-        let err = r.expect_err(op);
-        let (x, y) = if op.starts_with("B") {
-            (&halves.1, &halves.0)
-        } else {
-            (&halves.0, &halves.1)
-        };
-        assert_aligned_rest_contradicted(&format!("declared dumbbell, {op}"), &err, x, y);
-    }
+    // Undeclared, the dumbbell's handle halves are an undeclared
+    // continuation, refused at the reduction.
     for (op, r) in subtract_both_orders_and_intersect(&halves.0, &halves.1, &none) {
         let err = r.expect_err(op);
         assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::UndeclaredCoincidence {
+                    relation: topo::PlaneRelation::SameOriented,
+                    ..
+                }
+            ),
             "undeclared dumbbell, {op}: {err:?}"
         );
     }

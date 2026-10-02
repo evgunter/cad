@@ -318,3 +318,17 @@ PR 3733 and is filed on PCERT's slate.
   change.
 - **Held:** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
   follows it, because both edit `reduce.rs`'s cover rungs.
+
+## 2026-10-02 — a pinch union builds one body in every member order (PR 3796) (TANG orchestrator)
+
+Review tier: a single full review, then two delta reviews; each round was
+APPROVE-WITH-FIXES. The first found M1: the weld fired on a section
+face. Its fix reads the weld site from lineage. The second asked that
+the weld's fusions be recorded on both sides and that merge chains be
+followed in one place (`zip::survivor`). The third left one gap that
+cannot be reached: no record a boolean produces cites a weld's keys,
+which the unit row now says. Closes the unit row and TESS's census
+sibling. Filed out of it: WIRE's dropped operand records, and TESS's
+non-manifold doubled edge. The m1 strut row stays open with a second
+witness. Merging main moved one fixture: REACH's continuation rule now
+refuses `(slab − p1) − p2`, so X is cut once as `slab − (p1 ∪ p2)`.

@@ -2,11 +2,12 @@
 id: a-union-glues-same-sense-cosurface-walls-without-merging-them
 kind: issue
 title: A union glues same-sense cosurface walls into one body without merging them, so its output fails the maximal-faces precondition as an operand
-status: open
+status: closed
 opened: 2026-10-01
 priority: P0
 cost: M
 refs: [cosurface-disjoint-curved-walls-refuse]
+closed: 2026-10-01
 ---
 
 
@@ -43,22 +44,23 @@ the kernel derives) is the open question on
 this output should merge or refuse. Either way, the op should not hand
 back a body that its own next op rejects.
 
-## The declared-REST zip leaves flush end faces unmerged (TANG, 2026-10-02)
+## Closed (REACH, branch `reach/cosurface-continuation`)
 
-Measured on branch `tang/abutting-rim` (PR 3823), whose diff does not
-touch the REST lane's merge. A 4×4×1 block with a 1×1 square bore,
-unioned with the 1×1×1 peg that fills it, the four wall pairs declared
-`Rest`: the body is `(8, 20, 16)` faces, edges, vertices, one shell,
-where the box it is has `(6, 12, 8)`. At each end the peg's square stays
-apart from the block's annulus: one plane, same sense, one face per
-operand, undeclared. The REST lane merges through
-`merge_coplanar_faces_declared` with the declared surface pairs only
-(`rest.rs`, `try_rest_union`), so an undeclared same-sense coplanar pair
-across the operands is never offered.
+Closed by the continuation ruling's implementation (PR 3613's design,
+built on `reach/cosurface-continuation`). Measured on the row's own
+sharp stack (`crates/sweep/tests/reach_continuation.rs`):
 
-The torus peg seated in its socket (`crates/sweep/tests/mate7a_torus_rest.rs`,
-`a_declared_torus_rest_pair_passes_the_declaration_door`) builds the
-same way on that branch: `(6, 10, 8)`, V − E + F = 4, its end discs
-inside the socket's end annuli. Main refuses that union
-`Join(UnpairedLooseEnds)`, so there it is not reached. The row pins the
-census and cites this file.
+- Mating plane only: the union now refuses at the reduction,
+  `UndeclaredCoincidence { relation: SameOriented }` naming a wall pair
+  (an undeclared continuation), instead of shipping 10 faces.
+- Mating plane plus the four wall continuations (what the flush
+  detector now reports for aligned pairs): 6 faces, and the result
+  unions again, with a clear plate and with a third stacked plate.
+
+The twin the row suspected in `demos/tour/src/twopeg.rs` was real at
+the peg ends as well as the walls: each peg's top, flush with Q's top,
+shipped as a disc beside an annulus. Declared as continuations, the
+discs now merge into the top face (`m9_3_zip`'s ring count went from 2
+to 0). The curved half of the row's last paragraph (a gate arm for
+curved cosurface adjacency) is filed as
+`work/reach/maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip.md`.
