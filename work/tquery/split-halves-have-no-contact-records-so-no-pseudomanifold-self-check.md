@@ -2,11 +2,13 @@
 id: split-halves-have-no-contact-records-so-no-pseudomanifold-self-check
 kind: issue
 title: split returns pinch halves with no ContactRecords for their touching vertex copies, so no pseudomanifold self-check of its outputs can pass a designed pinch half
-status: spec
+status: review
 opened: 2026-10-02
 priority: P3
 cost: M
 refs: [validate-passes-a-body-with-a-zero-width-slit-face, 3797]
+branch: tquery/split-pinch-shared-point
+pr: 3856
 ---
 
 
