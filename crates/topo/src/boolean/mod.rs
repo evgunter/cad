@@ -19,7 +19,9 @@
 //! 1. **Gates**: per-arm since M5 PR 9 (C12.1 —
 //!    [`BooleanError::CurvedBooleanUnsupported`] retires per C5 table
 //!    arm; Plane/Cylinder/Sphere/Nurbs faces pass, Cone/Torus refuse);
-//!    no scaffolding operands; **maximal faces (F7)** via the
+//!    each operand a closed solid by tier 2's own verdict
+//!    ([`crate::validate_closed`]; no scaffolding operands); **maximal
+//!    faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
 //!    bit-equal oriented planes ([`plane_eq`]) refuse as
 //!    [`BooleanError::NonMaximalFaces`]; *numeric* coplanarity never
@@ -1154,6 +1156,21 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
+/// Where a [`BooleanError::CorruptOperand`] found its operand broken.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Corruption {
+    /// Tier 1 ([`crate::validate()`]) refused the operand at the gate.
+    Structure {
+        /// The validator's tier-1 findings, each naming its entity.
+        errors: Vec<ValidationError>,
+    },
+    /// The neighbourhood of this vertex could not be walked.
+    Vertex {
+        /// The vertex.
+        vertex: VertexKey,
+    },
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -1299,15 +1316,15 @@ pub enum BooleanError {
         /// The loop no walk expresses at the point.
         r#loop: crate::entity::LoopKey,
     },
-    /// An operand is not a closed solid at rest: tier 2
-    /// ([`crate::validate_closed`]) refuses it, typically for
-    /// construction scaffolding an edit left behind — a strut's
-    /// valence-1 vertex, an empty loop, a null edge, a shell in pieces.
-    /// The Boolean serves finished solids only.
+    /// An operand is well-formed but not a closed solid at rest: tier 2
+    /// ([`crate::validate_closed`]) refuses it for construction
+    /// scaffolding an edit left behind — a strut's valence-1 vertex, an
+    /// empty loop, a null edge, a shell in pieces. The Boolean serves
+    /// finished solids only.
     ScaffoldingOperand {
         /// The offending operand.
         operand: Operand,
-        /// The validator's findings, each naming its entity.
+        /// The validator's tier-2 findings, each naming its entity.
         errors: Vec<ValidationError>,
     },
     /// F7: two adjacent faces of one operand are structurally or
@@ -1514,13 +1531,14 @@ pub enum BooleanError {
         /// Human-oriented description of the violated invariant.
         what: &'static str,
     },
-    /// A traversal failed: an operand is not a well-formed closed
-    /// solid at this site.
+    /// An operand is not a well-formed closed solid: tier 1 refuses it
+    /// at the operand gate, or a traversal failed at one of its
+    /// vertices.
     CorruptOperand {
         /// The operand.
         operand: Operand,
-        /// The vertex whose neighborhood could not be walked.
-        vertex: VertexKey,
+        /// Where the breakage was found.
+        corruption: Corruption,
     },
     /// `split_edge` refused while inserting a crossing (site attached,
     /// inner error whole).
@@ -2073,6 +2091,14 @@ fn backstop_subject(operand: Option<Operand>) -> &'static str {
 }
 
 impl BooleanError {
+    /// A traversal of `operand` failed at `vertex`.
+    pub(crate) const fn corrupt_at(operand: Operand, vertex: VertexKey) -> Self {
+        Self::CorruptOperand {
+            operand,
+            corruption: Corruption::Vertex { vertex },
+        }
+    }
+
     /// An escalation of the coincidence `which` between parts of the two
     /// solids, at a site whose door read the pair's declaration as
     /// `read` ahead of it ([`BooleanDecision::Coincidence`]): the refusal
@@ -2358,7 +2384,7 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the {} operand is not a finished solid: it still carries what an edit \
                  left behind, such as a strut or an empty loop, so the Boolean refuses \
-                 it. Recourse: finish that edit first (validate_closed names what remains)",
+                 it. Recourse: finish that edit first",
                 operand_word(*operand),
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
@@ -2592,11 +2618,25 @@ impl core::fmt::Display for BooleanError {
             Self::ClassificationInvariant { what } => {
                 write!(f, "classification invariant violated: {what}")
             }
-            Self::CorruptOperand { operand, vertex } => write!(
+            Self::CorruptOperand {
+                operand,
+                corruption: Corruption::Vertex { vertex },
+            } => write!(
                 f,
                 "the neighbourhood of vertex {vertex:?} in the {} operand could not be \
                  walked (a broken body)",
                 operand_word(*operand)
+            ),
+            Self::CorruptOperand {
+                operand,
+                corruption: Corruption::Structure { errors },
+            } => write!(
+                f,
+                "the {} operand is a broken body ({} structural finding(s), first: {:?}), \
+                 so the Boolean refuses it",
+                operand_word(*operand),
+                errors.len(),
+                errors.first()
             ),
             Self::CrossingInsertion {
                 operand, source, ..
@@ -4202,9 +4242,14 @@ mod tests {
             BooleanError::ClassificationInvariant {
                 what: "an invariant",
             },
+            BooleanError::corrupt_at(Operand::A, VertexKey::default()),
             BooleanError::CorruptOperand {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
+                operand: Operand::B,
+                corruption: Corruption::Structure {
+                    errors: vec![ValidationError::MissingProvenance {
+                        entity: crate::entity::EntityId::Vertex(VertexKey::default()),
+                    }],
+                },
             },
             BooleanError::CurvedPairUnsupported {
                 op: None,
