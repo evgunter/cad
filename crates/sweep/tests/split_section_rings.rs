@@ -651,7 +651,7 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
 
 /// Twice the signed area of a polygon's corners in `(u, v)`.
 fn twice_area(polygon: &topo::SectionPolygon<f64>) -> f64 {
-    let uv = &polygon.uv;
+    let uv = polygon.uv();
     (0..uv.len())
         .map(|i| {
             let (a, b) = (uv[i], uv[(i + 1) % uv.len()]);
@@ -676,11 +676,11 @@ fn plane_section_of_the_u_cutter_is_one_region_with_two_holes() {
         assert_eq!(holes, [-2.0, -2.0], "x = {x}: the prongs");
         for hole in &region.holes {
             assert!(
-                hole.points
+                hole.points()
                     .iter()
                     .all(|p| (p.y - 1.0).abs() <= 2.0 && (1.0..=3.0).contains(&p.z)),
                 "x = {x}: a hole's corners are a prong's: {:?}",
-                hole.points
+                hole.points()
             );
         }
     }
@@ -726,14 +726,14 @@ fn plane_section_of_a_bored_body_is_one_region_with_the_bore_its_hole() {
         assert_eq!(region.holes.len(), 1, "{what}: the bore is the one hole");
         let on_bore = |p: &Point3<f64>| ((p.x - cx).hypot(p.y - cy) - r).abs() < 1e-9;
         assert!(
-            region.holes[0].points.iter().all(on_bore),
+            region.holes[0].points().iter().all(on_bore),
             "{what}: the hole's corners lie on the bore: {:?}",
-            region.holes[0].points
+            region.holes[0].points()
         );
         assert!(
-            !region.outline.points.iter().any(on_bore),
+            !region.outline.points().iter().any(on_bore),
             "{what}: the outline's corners lie off the bore: {:?}",
-            region.outline.points
+            region.outline.points()
         );
     }
 }
@@ -763,8 +763,8 @@ fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
         .regions
         .iter()
         .map(|r| {
-            let holes = r.holes.iter().flat_map(|h| h.points.iter().map(radius));
-            (r.outline.points.len(), holes.collect())
+            let holes = r.holes.iter().flat_map(|h| h.points().iter().map(radius));
+            (r.outline.points().len(), holes.collect())
         })
         .collect();
     regions.sort_by_key(|r| r.0);
@@ -797,7 +797,7 @@ fn plane_section_of_the_steep_cut_through_both_seams_is_one_region() {
         let shape: Vec<_> = s
             .regions
             .iter()
-            .map(|r| (r.outline.points.len(), r.holes.len()))
+            .map(|r| (r.outline.points().len(), r.holes.len()))
             .collect();
         assert_eq!(shape, vec![(6, 0)], "flipped {flip}");
     }
@@ -854,11 +854,11 @@ fn plane_section_areas_read_the_arcs() {
         );
         for polygon in std::iter::once(&region.outline).chain(&region.holes) {
             assert_eq!(
-                polygon.edges.len(),
-                polygon.uv.len(),
+                polygon.edges().len(),
+                polygon.uv().len(),
                 "{what}: an edge per corner"
             );
-            for (i, edge) in polygon.edges.iter().enumerate() {
+            for (i, edge) in polygon.edges().iter().enumerate() {
                 let topo::SectionEdge::Arc {
                     center,
                     a,
@@ -870,7 +870,7 @@ fn plane_section_areas_read_the_arcs() {
                     continue;
                 };
                 let at = |th: f64| center + a * th.cos() + b * th.sin();
-                let (p, q) = (polygon.uv[i], polygon.uv[(i + 1) % polygon.uv.len()]);
+                let (p, q) = (polygon.uv()[i], polygon.uv()[(i + 1) % polygon.uv().len()]);
                 assert!(
                     (at(start) - p).norm() < 1e-12 && (at(end) - q).norm() < 1e-12,
                     "{what}: arc {i} runs from its corner to the next: {:?} → {:?}, \
@@ -902,7 +902,7 @@ fn plane_section_area_of_the_steep_cut_reads_segments_and_arcs() {
         };
         let kinds: Vec<bool> = region
             .outline
-            .edges
+            .edges()
             .iter()
             .map(|e| matches!(e, topo::SectionEdge::Arc { .. }))
             .collect();
@@ -967,10 +967,87 @@ fn plane_section_areas_enclose_the_closed_form_at_interval() {
             got.hi()
         );
         assert!(
-            got.hi() - got.lo() < 1e-9,
+            got.hi() - got.lo() < 1e-12,
             "{what}: [{}, {}] is too wide to be useful",
             got.lo(),
             got.hi()
         );
     }
+}
+
+/// A D-shaped prism — the arc of bulge `0.5` from `(−1, 0)` to
+/// `(1, 0)` closed by its chord, extruded to height `1` — cut through
+/// `(0, 0, 0.5)` at tilt `t = 0.3`, at scalar `T`: its one region's
+/// area, its outline's arc count, and the closed form. The section is
+/// one ellipse arc whose span is not `π` and one segment, so the arc's
+/// `sin Δ` is the whole of its bulge's correction: nothing cancels it.
+/// The arc spans `θ = 4 atan 0.5` of a circle of radius `1 / sin(θ/2)`,
+/// cutting off `R² (θ − sin θ) / 2`, and the plane meets the prism's
+/// cross-section at `1 / cos t`.
+fn tilted_cut_of_a_d_prism<T: geom_core::Decide + topo::AtRestPolicy>() -> (T, usize, f64) {
+    let (bulge, t) = (0.5_f64, 0.3_f64);
+    let p2 = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
+    let d = profile::test_support::bulge_loop(vec![
+        (p2(-1.0, 0.0), T::from_f64(bulge)),
+        (p2(1.0, 0.0), T::from_f64(0.0)),
+    ]);
+    let prism = sweep::test_support::extruded(
+        profile::SketchPlane::<T>::xy(),
+        vec![d],
+        T::from_f64(1.0),
+        tol(),
+    );
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.5).map(T::from_f64),
+        Vec3::new(t.sin(), 0.0, t.cos()).map(T::from_f64),
+        Tol::witness(),
+    );
+    let s = topo::plane_section(&prism, &plane, tol())
+        .unwrap_or_else(|e| panic!("{}: {e:?}", core::any::type_name::<T>()));
+    let [region] = &s.regions[..] else {
+        panic!("one region, got {}", s.regions.len());
+    };
+    assert!(region.holes.is_empty(), "no holes");
+    let arcs = region
+        .outline
+        .edges()
+        .iter()
+        .filter(|e| matches!(e, topo::SectionEdge::Arc { .. }))
+        .count();
+    let theta = 4.0 * bulge.atan();
+    let radius = 1.0 / (theta / 2.0).sin();
+    let want = radius * radius * (theta - theta.sin()) / 2.0 / t.cos();
+    (region.area(), arcs, want)
+}
+
+/// **An arc whose bulge nothing cancels reads its area, at `f64` and
+/// at `Interval`** ([`tilted_cut_of_a_d_prism`]): the bored rows' rings
+/// are whole conics, whose arcs' `sin Δ` terms cancel, so this row is
+/// what holds the bulge's `sin Δ` — and at `Interval` its enclosure —
+/// end to end. The `Interval` fixture's data are the `f64` roundings of
+/// its closed form, so the enclosure is asked to a few ulps.
+#[test]
+fn plane_section_area_of_an_uncancelled_arc_at_f64_and_interval() {
+    use geom_core::{Bounds, Interval};
+    let (got, arcs, want) = tilted_cut_of_a_d_prism::<f64>();
+    assert_eq!(arcs, 1, "f64: one wall arc");
+    assert!(
+        (got - want).abs() < 1e-12,
+        "f64: the region encloses {got}, want {want}"
+    );
+    let (got, arcs, want) = tilted_cut_of_a_d_prism::<Interval>();
+    assert_eq!(arcs, 1, "Interval: one wall arc");
+    let slack = 1e-14;
+    assert!(
+        got.lo() - slack <= want && want <= got.hi() + slack,
+        "Interval: [{}, {}] encloses {want}",
+        got.lo(),
+        got.hi()
+    );
+    assert!(
+        got.hi() - got.lo() < 1e-12,
+        "Interval: [{}, {}] is too wide to be useful",
+        got.lo(),
+        got.hi()
+    );
 }

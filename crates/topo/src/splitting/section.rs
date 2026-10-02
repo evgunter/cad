@@ -20,31 +20,26 @@
 
 use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Vec2, Vec3};
 
-use super::join::loop_points_of;
 use super::section_loops::{self, NestFault, SenseFault};
 use super::{PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{LoopBoundary, LoopKey};
+use crate::loop_winding::{ConicFrame, chord_bulge};
 use geom_core::Tol;
 
 /// One section polygon: the closed boundary the plane cuts, by its
 /// corners — as 3-D points and as in-plane `(u, v)` coordinates in the
-/// section's frame — and by the edge between each corner and the next,
-/// on its own carrier. An edge may be an arc (the bore through a brick
+/// section's frame — and by the edge from each corner to the next, on
+/// its own carrier. An edge may be an arc (the bore through a brick
 /// cuts a circle with two corners), so the corners alone need not
 /// enclose the polygon's area; [`SectionPolygon::area`] reads it on the
-/// edges.
+/// edges. Only [`plane_section`] builds one, from one walk of the
+/// section loop, so there is exactly one edge per corner.
 #[derive(Clone, Debug)]
 pub struct SectionPolygon<T: Real> {
-    /// The corner points, in chain order (closed: last connects to
-    /// first).
-    pub points: Vec<Point3<T>>,
-    /// The same corners in split-plane coordinates:
-    /// `u = (p − origin)·u_ref`, `v = (p − origin)·v_ref`.
-    pub uv: Vec<Point2<T>>,
-    /// The edges, one per corner: `edges[i]` runs from corner `i` to
-    /// corner `i + 1` (the last back to the first).
-    pub edges: Vec<SectionEdge<T>>,
+    points: Vec<Point3<T>>,
+    uv: Vec<Point2<T>>,
+    edges: Vec<SectionEdge<T>>,
 }
 
 /// One edge of a [`SectionPolygon`], in the section's `(u, v)` frame.
@@ -56,7 +51,9 @@ pub enum SectionEdge<T: Real> {
     /// An arc of the conic `c(θ) = center + a·cos θ + b·sin θ`, run from
     /// `θ = start` to `θ = end` — `end < start` when it runs against its
     /// carrier's parameter. A circle's `a` and `b` are perpendicular,
-    /// each of the radius's length; an ellipse's are its semi-axes.
+    /// each of the radius's length; an ellipse's are its semi-axes. The
+    /// conic is the section plane's own cut through a face, so it lies
+    /// in the plane and its semi-axes chart without distortion.
     Arc {
         /// The conic's centre.
         center: Point2<T>,
@@ -72,11 +69,29 @@ pub enum SectionEdge<T: Real> {
 }
 
 impl<T: Real> SectionPolygon<T> {
+    /// The corner points, in chain order (closed: the last connects to
+    /// the first).
+    pub fn points(&self) -> &[Point3<T>] {
+        &self.points
+    }
+
+    /// The same corners in split-plane coordinates:
+    /// `u = (p − origin)·u_ref`, `v = (p − origin)·v_ref`.
+    pub fn uv(&self) -> &[Point2<T>] {
+        &self.uv
+    }
+
+    /// The edges, one per corner: `edges()[i]` runs from corner `i` to
+    /// corner `i + 1` (the last back to the first).
+    pub fn edges(&self) -> &[SectionEdge<T>] {
+        &self.edges
+    }
+
     /// The signed area the polygon encloses in `(u, v)`: positive for
-    /// an outline (counter-clockwise), negative for a hole. Exact on the
-    /// carriers: the corners' shoelace, plus for each arc the segment
-    /// between it and its chord, `(a × b)·(Δ − sin Δ)/2` for the signed
-    /// span `Δ = end − start`.
+    /// an outline (counter-clockwise), negative for a hole. Exact on
+    /// the carriers: the corners' shoelace, plus for each arc the
+    /// segment between it and its chord, `(a × b)·(Δ − sin Δ)/2` for
+    /// the signed span `Δ = end − start`.
     pub fn area(&self) -> T {
         let n = self.uv.len();
         let mut twice = T::zero();
@@ -87,8 +102,7 @@ impl<T: Real> SectionPolygon<T> {
                 a, b, start, end, ..
             } = *edge
             {
-                let span = end - start;
-                twice = twice + a.perp_dot(b) * (span - span.sin());
+                twice = twice + a.perp_dot(b) * chord_bulge(end - start);
             }
         }
         twice / (T::one() + T::one())
@@ -261,7 +275,8 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut outlines = Vec::new();
     let mut holes = Vec::new();
     for section in &completed {
-        let points = loop_points_of(&red.body, section.below_loop).map_err(SplitError::Join)?;
+        let halves = section_walk(&red.body, section.below_loop)?;
+        let points: Vec<_> = halves.iter().map(|h| h.corner).collect();
         if u_ref.is_none() {
             u_ref = section_loops::chord_u_ref(&points);
             v_ref = u_ref.map(|u| normal.cross(u));
@@ -276,13 +291,6 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 .into(),
             );
         };
-        let uv = points
-            .iter()
-            .map(|p| {
-                let w = *p - plane.origin;
-                Point2::new(w.dot(u), w.dot(v))
-            })
-            .collect();
         let corner = points[0];
         let outline = match section_loops::loop_sense(&red.body, section.below_loop, normal, band) {
             Ok(outline) => outline,
@@ -291,7 +299,31 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 return Err(SectionError::WindingUndecided { corner, diag });
             }
         };
-        let edges = section_edges(&red.body, section.below_loop, plane.origin, (u, v))?;
+        let chart = |w: Vec3<T>| Vec2::new(w.dot(u), w.dot(v));
+        let mut uv = Vec::with_capacity(halves.len());
+        let mut edges = Vec::with_capacity(halves.len());
+        for half in &halves {
+            let c = chart(half.corner - plane.origin);
+            uv.push(Point2::new(c.x, c.y));
+            edges.push(match half.carrier {
+                HalfCarrier::Chord => SectionEdge::Line,
+                HalfCarrier::Conic { conic, start, end } => {
+                    let c = chart(conic.center - plane.origin);
+                    SectionEdge::Arc {
+                        center: Point2::new(c.x, c.y),
+                        a: chart(conic.a()),
+                        b: chart(conic.b()),
+                        start,
+                        end,
+                    }
+                }
+                // `loop_sense` has refused such a loop already: it does not
+                // wind a spiric or NURBS edge.
+                HalfCarrier::Unread => {
+                    return Err(SectionError::WindingUndecided { corner, diag: None });
+                }
+            });
+        }
         let polygon = SectionPolygon { points, uv, edges };
         if outline {
             outlines.push((polygon, section.below_loop));
@@ -303,13 +335,13 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
         |fault| match fault {
             NestFault::Torn => SectionError::Corrupt,
             NestFault::Contradiction(hole) => SectionError::NestingContradiction {
-                corner: hole.points[0],
+                corner: hole.points()[0],
             },
         },
     )?;
     if let Some(hole) = nesting.unplaced.first() {
         return Err(SectionError::UnplacedHole {
-            corner: hole.points[0],
+            corner: hole.points()[0],
         });
     }
     Ok(Section {
@@ -324,77 +356,77 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     })
 }
 
-/// The edges of cycle loop `l`, in the order [`loop_points_of`] reads
-/// its corners, charted in the frame `(u, v)` about `origin`. A conic
-/// lies in the section plane, so its semi-axes chart without distortion.
+/// One traversed half of a section loop: the corner it starts at, and
+/// what it runs along to the next.
+struct Half<T: Real> {
+    corner: Point3<T>,
+    carrier: HalfCarrier<T>,
+}
+
+/// What a half runs along.
+enum HalfCarrier<T: Real> {
+    /// Its chord: a line, or a null-edge scaffold, which states no
+    /// carrier (the winding reads it the same way).
+    Chord,
+    /// An arc of `conic` from parameter `start` to `end`, in traversal
+    /// order.
+    Conic {
+        conic: ConicFrame<T>,
+        start: T,
+        end: T,
+    },
+    /// A spiric or NURBS carrier, which nothing here reads.
+    Unread,
+}
+
+/// The halves of cycle loop `l` in `loop_cycle` order — the corners and
+/// the edges between them from one walk, so each edge runs from its
+/// own corner to the next.
 ///
 /// # Errors
 ///
-/// [`SectionError::Corrupt`] on a dangling key; a spiric or NURBS edge,
-/// which [`section_loops::loop_sense`] has already refused the loop
-/// for, refuses as it does ([`SectionError::WindingUndecided`]).
-fn section_edges<T: Decide>(
-    body: &Body<T>,
-    l: LoopKey,
-    origin: Point3<T>,
-    (u, v): (Vec3<T>, Vec3<T>),
-) -> Result<Vec<SectionEdge<T>>, SectionError<T>> {
-    let chart = |w: Vec3<T>| Vec2::new(w.dot(u), w.dot(v));
-    let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or(SectionError::Corrupt)?.boundary
-    else {
-        return Err(SectionError::Corrupt);
+/// [`SectionError::Corrupt`] on a dangling key or an unclaimed half;
+/// a lone-vertex loop is a broken section invariant
+/// ([`crate::chord_join::SplitJoinError::SectionInvariant`]).
+fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, SectionError<T>> {
+    let loop_data = body.get_loop(l).ok_or(SectionError::Corrupt)?;
+    let LoopBoundary::Cycle { first } = loop_data.boundary else {
+        return Err(
+            SplitError::Join(crate::chord_join::SplitJoinError::SectionInvariant {
+                face: loop_data.face,
+                what: "a completed section polygon's below loop holds a lone vertex instead of a \
+                   cycle",
+            })
+            .into(),
+        );
     };
-    let mut edges = Vec::new();
+    let mut halves = Vec::new();
     for he in body.loop_cycle(first).ok_or(SectionError::Corrupt)? {
         let h = body.get_half_edge(he).ok_or(SectionError::Corrupt)?;
+        let corner = body
+            .get_vertex(h.start)
+            .and_then(|vx| body.get_point(vx.point))
+            .copied()
+            .ok_or(SectionError::Corrupt)?;
         let edge = body.get_edge(h.edge).ok_or(SectionError::Corrupt)?;
         let forward = edge.claim(he).ok_or(SectionError::Corrupt)?.plus;
-        // A null-edge scaffold states no carrier: it is its chord.
-        let Some(curve) = body
+        let curve = body
             .get_curve_geom(edge.curve)
             .ok_or(SectionError::Corrupt)?
-            .certified()
-        else {
-            edges.push(SectionEdge::Line);
-            continue;
+            .certified();
+        let carrier = match curve {
+            None => HalfCarrier::Chord,
+            Some(curve) => match ConicFrame::of(curve.carrier()) {
+                Some(conic) => {
+                    let (t0, t1) = curve.params();
+                    let (start, end) = if forward { (t0, t1) } else { (t1, t0) };
+                    HalfCarrier::Conic { conic, start, end }
+                }
+                None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => HalfCarrier::Chord,
+                None => HalfCarrier::Unread,
+            },
         };
-        let (center, axis, sa, sb, u_c) = match *curve.carrier() {
-            geom::Curve3::Line { .. } => {
-                edges.push(SectionEdge::Line);
-                continue;
-            }
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => (center, axis, radius, radius, u_ref),
-            geom::Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } => (center, axis, major, minor, u_ref),
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                let corner = body
-                    .get_vertex(h.start)
-                    .and_then(|vx| body.get_point(vx.point))
-                    .copied()
-                    .ok_or(SectionError::Corrupt)?;
-                return Err(SectionError::WindingUndecided { corner, diag: None });
-            }
-        };
-        let (t0, t1) = curve.params();
-        let (start, end) = if forward { (t0, t1) } else { (t1, t0) };
-        let c = chart(center - origin);
-        edges.push(SectionEdge::Arc {
-            center: Point2::new(c.x, c.y),
-            a: chart(u_c * sa),
-            b: chart(axis.cross(u_c) * sb),
-            start,
-            end,
-        });
+        halves.push(Half { corner, carrier });
     }
-    Ok(edges)
+    Ok(halves)
 }

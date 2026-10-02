@@ -237,7 +237,7 @@ fn read_section(
     let mut area = 0.0;
     let mut holes = 0;
     for region in &section.regions {
-        let corners = &region.outline.points;
+        let corners = &region.outline.points();
         let enclosed = region.area();
         if region.holes.is_empty() {
             assert!(enclosed > 0.0, "a wall region winds counter-clockwise");
@@ -247,7 +247,7 @@ fn read_section(
             );
         } else {
             assert_eq!(region.holes.len(), 1, "a boss's region holds its one bore");
-            let hole = &region.holes[0].points;
+            let hole = &region.holes[0].points();
             assert!(
                 corners.iter().all(on_circle(BOSS_R)) && hole.iter().all(on_circle(BORE_R)),
                 "a bored boss's region is its boss around its bore: {corners:?}, {hole:?}"
