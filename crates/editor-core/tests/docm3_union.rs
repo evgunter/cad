@@ -984,7 +984,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     let class = |id| ev.node_error(id).map(|e| e.kind.class());
     assert_eq!(
         class(pair),
-        Some(editor_core::NodeErrorClass::UndeclaredContact),
+        Some(editor_core::NodeErrorClass::UndeclaredCoincidence),
         "{pf}"
     );
     let uf = failure(&ev, u).expect("the fold refuses the undeclared contact at step 2");
@@ -1003,7 +1003,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     let Some(editor_core::NodeResult::Failed(e)) = ev.nodes.get(&u) else {
         panic!("the fold refuses")
     };
-    let editor_core::NodeErrorKind::UndeclaredContact { finding, .. } = &e.kind else {
+    let editor_core::NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
         panic!("the fold's refusal is the undeclared contact: {uf}")
     };
     let sites = [finding.pair.0.at, finding.pair.1.at];

@@ -8,7 +8,7 @@
 
 use crate::common;
 
-use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{BooleanOp, Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, ProfilePlane, SessionOp};
@@ -326,7 +326,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddBoolean {
-            op: pncad::document::BooleanOp::Intersect,
+            op: BooleanOp::Intersect,
             a: block,
             b: moved,
             declare: Vec::new(),
@@ -576,6 +576,76 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
     );
 }
 
+/// **An edit the kernel door refuses speaks its node on the line as the
+/// document the batch leaves holds it** (`EditError::respoken`): the
+/// door spoke the node at the refusal, and a rename later in the same
+/// batch is the label the line says. Red if the line says the label
+/// from before the rename.
+#[test]
+fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("viewer-node-labels-edit-refusal", tol);
+    let doc = relabelled(&doc, extrude, "plate", tol);
+    let mut session = DocSession::inline(doc, tol);
+    let line = batch_line(
+        &mut session,
+        &[
+            SessionOp::AddBoolean {
+                op: BooleanOp::Union,
+                a: extrude,
+                b: extrude,
+                declare: Vec::new(),
+            },
+            SessionOp::SetLabel {
+                node: extrude,
+                label: Some(label("slab")),
+            },
+        ],
+    );
+    let said = line.map(|m| m.text().to_owned()).unwrap_or_default();
+    assert!(
+        said.contains(&format!(
+            "Extrude \"slab\" ({}) is taken as an input twice",
+            tag(extrude.0)
+        )),
+        "{said}"
+    );
+}
+
+/// **A node deleted later in the refusal's batch keeps the label the
+/// refusal said** (`SpokenNode::respoken`): the batch's document does
+/// not hold it, and within one document's history its id still names
+/// that node. Red if the line drops it to `node <tag>`.
+#[test]
+fn a_node_deleted_later_in_the_batch_keeps_its_label_on_the_line() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("viewer-node-labels-deleted", tol);
+    let doc = relabelled(&doc, extrude, "plate", tol);
+    let mut session = DocSession::inline(doc, tol);
+    let line = batch_line(
+        &mut session,
+        &[
+            SessionOp::AddExtrude {
+                profile: extrude,
+                distance: common::len(0.01),
+            },
+            SessionOp::DeleteNode { node: extrude },
+        ],
+    );
+    assert!(
+        session.committed_doc().node(extrude).is_none(),
+        "the batch deletes the node"
+    );
+    let said = line.map(|m| m.text().to_owned()).unwrap_or_default();
+    assert!(
+        said.starts_with(&format!(
+            "Extrude \"plate\" ({}) is not a profile",
+            tag(extrude.0)
+        )),
+        "{said}"
+    );
+}
+
 /// **A batch that replaces the document leaves its refusal as raised**:
 /// the new document's ids say nothing about the refusal's, so it is not
 /// spoken from them. Red if the refusal is re-spoken from the new
@@ -609,7 +679,7 @@ fn a_refusal_before_a_new_document_in_its_batch_keeps_the_label_it_was_raised_wi
 }
 
 /// **Within one document's history an id names one node**, the claim
-/// `Refusal::respoken` rests on: two versions that part from one value
+/// `SpokenNode::respoken` rests on: two versions that part from one value
 /// mint different ids from there on, so a later version holds an id as
 /// the node an earlier one did, or not at all. Here: an insert, then
 /// from the same value a different insert (an undo, then another edit).
@@ -689,5 +759,58 @@ fn the_gathers_refusal_speaks_its_nodes() {
             .to_string()
             .contains(&format!("Extrude \"pocket\" ({})", tag(failed.0))),
         "{refused}"
+    );
+}
+
+/// **The Checks window speaks its roots from the landed document.** The
+/// report is the landed run's, so while a rename has not landed the
+/// window's root button and the finding's sentence both say the label
+/// the run was over, never the committed one's.
+#[test]
+fn the_checks_window_speaks_its_roots_from_the_landed_document() {
+    let tol = Tol::witness();
+    let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
+    let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
+    let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
+    let named = session.perform(SessionOp::SetLabel {
+        node: big,
+        label: Some(label("big block")),
+    });
+    assert!(named.refusal.is_none(), "{:?}", named.refusal);
+    session.pump();
+    let renamed = session.perform(SessionOp::SetLabel {
+        node: big,
+        label: Some(label("renamed")),
+    });
+    assert!(renamed.refusal.is_none(), "{:?}", renamed.refusal);
+
+    let report = session.checks().expect("the registry ran");
+    let (landed, _) = session.landed_pair().expect("a run landed");
+    assert_eq!(
+        (
+            landed.label(big).map(Label::as_str),
+            session.doc().label(big).map(Label::as_str)
+        ),
+        (Some("big block"), Some("renamed")),
+        "the rename has not landed: the two documents say two labels"
+    );
+    let rows = viewer::frame::check_rows(report, landed);
+    let row = rows
+        .iter()
+        .find(|row| row.root == big)
+        .expect("the two overlapping boxes are a separation finding about the big one");
+    let (b, s) = (tag(big.0), tag(small.0));
+    assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
+    assert!(
+        row.sentence.contains(&format!(
+            "Extrude \"big block\" ({b}) output 0: not certifiably disjoint from Extrude {s} \
+             output 0"
+        )),
+        "the finding speaks both roots from the landed document: {}",
+        row.sentence
+    );
+    assert!(
+        !row.sentence.contains("renamed") && !row.button.contains("renamed"),
+        "and never the committed label: {row:?}"
     );
 }
