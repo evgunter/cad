@@ -267,3 +267,18 @@ function level. Briefs now ask for the mutant run, not the claim.
   (`a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`)
   and `pi-seam-between-two-operands-has-no-declaration`. Both edit
   `reduce.rs`'s cover rungs, which 3752's fix pass is changing.
+
+## 2026-10-02 — lanes move to cloud sessions (TANG orchestrator)
+
+The container restarted twice. Each time, a full-parallelism nextest
+run overlapped other lanes' builds on one 15 GB, 4-core box, which
+points to memory pressure. On Ev's suggestion, new lanes run as child
+cloud sessions, each with its own container. A child cannot message
+back: its report is its final message and its PR body, read through
+the session transcript and the PR subscription. Every brief says the
+lane is not an orchestrator. In-process lanes still run with
+`--test-threads 4` under the build slot.
+
+- **`a-pinch-union-refuses-ring-homing-in-one-member-order`** — cloud
+  lane `tang/pinch-union-order`. Review: single, FULL (an
+  order-dependence defect in ring homing).
