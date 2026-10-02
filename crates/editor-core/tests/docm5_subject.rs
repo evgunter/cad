@@ -133,6 +133,17 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
         other => panic!("expected the subject refusal, got {other}"),
     };
 
+    // The assembly gate forwards the same refusal, said by the same
+    // frame.
+    match assemble(&doc, &ev, tol).expect_err("the gate inherits the gather's refusal") {
+        err @ AssemblyError::Product(_) => assert_eq!(
+            err.spoken(&doc),
+            refusal.spoken(&doc),
+            "the gate's arm is the gather's refusal, said from the document"
+        ),
+        other => panic!("expected the gather's arm, got {other}"),
+    }
+
     // Through the wrapper, which gathers.
     carries_the_gathers_refusal(
         run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
