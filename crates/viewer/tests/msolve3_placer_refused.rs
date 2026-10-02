@@ -95,10 +95,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
     let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
-    let row = rows
-        .iter()
-        .find(|r| r.id == mate)
-        .expect("the mate has a row");
+    let row = common::row_of(&rows, mate);
     let message = row
         .status
         .message()
@@ -116,10 +113,9 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "Mate {} failed: the mate solve refused: mate {}'s a reference has no \
-             derived pose: node {p}, on its derivation, refuses. Recourse: repair node \
-             {p}",
-            test_utils::refusal::tag(mate.0),
+            "Mate {} failed: the mate solve refused: this mate's a reference has no \
+             derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
+             Pattern {p}",
             test_utils::refusal::tag(mate.0),
             p = test_utils::refusal::tag(pattern.0),
         ),
@@ -145,10 +141,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     // The compensation the old design rested on, measured: the
     // pattern's own row cannot state the cause, because the mate
     // fault poisoned it.
-    let placer = rows
-        .iter()
-        .find(|r| r.id == pattern)
-        .expect("the pattern has a row");
+    let placer = common::row_of(&rows, pattern);
     assert!(
         matches!(placer.status, RowStatus::Poisoned { through, .. } if through == mate),
         "the pattern is poisoned through the mate: {:?}",

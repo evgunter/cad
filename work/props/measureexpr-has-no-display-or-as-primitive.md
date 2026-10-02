@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: M
-refs: [the-gui-shows-no-measure-value-and-no-clearance]
 ---
 
 
