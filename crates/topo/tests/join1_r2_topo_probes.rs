@@ -17,7 +17,13 @@ fn r2_multi_spike_corner_meet_is_tier_three() {
         BooleanResult::Body(bb) => bb.body,
         BooleanResult::Empty => panic!(),
     };
-    let c = prism_z::<f64>(&[(1.0, 1.0), (2.0, 0.0), (3.0, 1.0), (2.0, 2.0)], 0.0, 1.0, t).body;
+    let c = prism_z::<f64>(
+        &[(1.0, 1.0), (2.0, 0.0), (3.0, 1.0), (2.0, 2.0)],
+        0.0,
+        1.0,
+        t,
+    )
+    .body;
     let (vab, vc, ov) = (1.0, 2.0, 0.5);
     let mut wrong = Vec::new();
     for (ord, x, y, vx, vy) in [("AB·C", &ab, &c, vab, vc), ("C·AB", &c, &ab, vc, vab)] {
