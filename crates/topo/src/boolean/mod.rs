@@ -1299,12 +1299,16 @@ pub enum BooleanError {
         /// The loop no walk expresses at the point.
         r#loop: crate::entity::LoopKey,
     },
-    /// An operand already carries null scaffolding (mid-surgery body).
+    /// An operand is not a closed solid at rest: tier 2
+    /// ([`crate::validate_closed`]) refuses it, typically for
+    /// construction scaffolding an edit left behind — a strut's
+    /// valence-1 vertex, an empty loop, a null edge, a shell in pieces.
+    /// The Boolean serves finished solids only.
     ScaffoldingOperand {
-        /// The offending operand and edge.
+        /// The offending operand.
         operand: Operand,
-        /// The edge.
-        edge: EdgeKey,
+        /// The validator's findings, each naming its entity.
+        errors: Vec<ValidationError>,
     },
     /// F7: two adjacent faces of one operand are structurally or
     /// declaredly coplanar — the operand is not maximal-faced; run
@@ -2352,9 +2356,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
-                "the {} operand is a body left in the middle of an edit (it still \
-                 carries unfinished edges), so the Boolean refuses it. This is a bug in \
-                 whatever produced that body; please report it",
+                "the {} operand is not a finished solid: it still carries what an edit \
+                 left behind, such as a strut or an empty loop, so the Boolean refuses \
+                 it. Recourse: finish that edit first (validate_closed names what remains)",
                 operand_word(*operand),
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
@@ -4138,7 +4142,9 @@ mod tests {
             },
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
-                edge,
+                errors: vec![ValidationError::ScaffoldingStrutVertex {
+                    vertex: VertexKey::default(),
+                }],
             },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,

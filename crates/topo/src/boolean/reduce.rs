@@ -349,7 +349,11 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// **The operand gate, pair-scoped** (M5 PR 9, C12.1 — the F5
 /// planar-only gate retires PER C5 TABLE ARM, never wholesale).
 ///
-/// Two rules, and they have different scopes on purpose:
+/// First, each operand is a body at rest: the Boolean serves closed
+/// solids, and the verdict is tier 2's own ([`crate::validate_closed`]),
+/// so a strut, an empty loop, a null edge or a split shell refuses here
+/// by the validator's name for it. Then two rules, with different
+/// scopes on purpose:
 ///
 /// - **Faces**: a kind with no wired arm ([`boolean_arm_exists`])
 ///   disqualifies the operation only through a PAIR it could enter
@@ -367,9 +371,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::CurvedPairUnsupported`] for a germ pair with no
-/// arm; [`BooleanError::CurvedEdgeUnsupported`] /
-/// [`BooleanError::ScaffoldingOperand`] per operand;
+/// [`BooleanError::ScaffoldingOperand`] for an operand tier 2
+/// refuses; [`BooleanError::CurvedPairUnsupported`] for a germ pair
+/// with no arm; [`BooleanError::CurvedEdgeUnsupported`] per operand;
 /// [`BooleanError::CurvedBooleanUnsupported`] for a face whose
 /// surface key does not resolve.
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
@@ -379,6 +383,8 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
+        crate::validate::validate_closed(body)
+            .map_err(|errors| BooleanError::ScaffoldingOperand { operand, errors })?;
         gate_operand_edges(body, operand)?;
     }
     // A pair is covered by the certificate its consumer reads: the
@@ -435,9 +441,8 @@ fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(),
                 }
             },
             _ => {
-                return Err(BooleanError::ScaffoldingOperand {
-                    operand,
-                    edge: edge_key,
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "operand gate: an edge of a tier-2 operand has no certified carrier",
                 });
             }
         }
@@ -1119,9 +1124,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                 let curve = match x.get_curve_geom(edge.curve) {
                     Some(CurveGeom::Certified(c)) => c.clone(),
                     _ => {
-                        return Err(BooleanError::ScaffoldingOperand {
-                            operand: x_is,
-                            edge: edge_key,
+                        return Err(BooleanError::ClassificationInvariant {
+                            what: "sweep: an edge past the tier-2 operand gate has no certified carrier",
                         });
                     }
                 };
@@ -1309,9 +1313,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     let curve = match x.get_curve_geom(edge.curve) {
                         Some(CurveGeom::Certified(c)) => c.clone(),
                         _ => {
-                            return Err(BooleanError::ScaffoldingOperand {
-                                operand: x_is,
-                                edge: edge_key,
+                            return Err(BooleanError::ClassificationInvariant {
+                                what: "sweep: an edge past the tier-2 operand gate has no certified carrier",
                             });
                         }
                     };
@@ -1602,9 +1605,8 @@ pub(super) fn curved_face_arm<T: Decide>(
     let curve = match x.get_curve_geom(edge.curve) {
         Some(CurveGeom::Certified(c)) => c.clone(),
         _ => {
-            return Err(BooleanError::ScaffoldingOperand {
-                operand: x_is,
-                edge: edge_key,
+            return Err(BooleanError::ClassificationInvariant {
+                what: "sweep: an edge past the tier-2 operand gate has no certified carrier",
             });
         }
     };
@@ -3289,9 +3291,8 @@ fn split_other_at_point<T: Decide>(
     let curve = match y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)) {
         Some(CurveGeom::Certified(c)) => c.clone(),
         _ => {
-            return Err(BooleanError::ScaffoldingOperand {
-                operand: y_is,
-                edge,
+            return Err(BooleanError::ClassificationInvariant {
+                what: "sweep: an edge past the tier-2 operand gate has no certified carrier",
             });
         }
     };

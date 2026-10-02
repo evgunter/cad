@@ -259,8 +259,12 @@ fn curved_operand_refuses() {
     .unwrap();
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     assert!(
-        matches!(err, BooleanError::ScaffoldingOperand { .. }),
-        "{err:?}"
+        matches!(
+            &err,
+            BooleanError::ScaffoldingOperand { operand: topo::Operand::B, errors }
+                if errors.iter().any(|e| matches!(e, topo::ValidationError::NullEdgeAtRest { .. }))
+        ),
+        "the null edge refuses on B, by tier 2's finding: {err:?}"
     );
 }
 
