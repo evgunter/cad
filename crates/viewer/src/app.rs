@@ -1214,6 +1214,7 @@ impl ViewerApp {
                 }
             }
         }
+        let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
@@ -1726,7 +1727,9 @@ impl ViewerApp {
             // gather" is true until another pair lands.
             //
             // Which faults reach it is `frame::badge_site`'s.
-            if let Some(badge) = frame::product_badge(self.session.product_fault()) {
+            if let Some((landed, _)) = self.session.landed_pair()
+                && let Some(badge) = frame::product_badge(self.session.product_fault(), landed)
+            {
                 draw_badge(ui, &self.theme, &badge);
             }
             // The display budget's: shown while the δ on screen is
@@ -3938,7 +3941,7 @@ mod properties_pane_tests {
         assert_eq!(
             said,
             format!(
-                "the distance slot on node {} is computed, so it has no written unit to change \
+                "the distance slot on Extrude {} is computed, so it has no written unit to change \
                  — set an expression to change what it says",
                 extrude()
             )
@@ -4125,8 +4128,8 @@ mod properties_pane_tests {
         assert_eq!(
             said,
             format!(
-                "the origin z slot on node {} is computed, so it has no written unit to change \
-                 — set an expression to change what it says",
+                "the origin z slot on Datum frame {} is computed, so it has no written unit to \
+                 change — set an expression to change what it says",
                 frame_datum()
             )
         );
@@ -4275,9 +4278,13 @@ mod properties_pane_tests {
         let node = frame_datum();
         assert!(
             gained[0].starts_with(&format!(
-                "the origin x slot on node {node} is computed, so it has no written unit to change"
-            )) && gained[0].contains(&format!("\nthe origin y slot on node {node} is computed"))
-                && gained[0].contains(&format!("\nthe origin z slot on node {node} is computed")),
+                "the origin x slot on Datum frame {node} is computed, so it has no written unit \
+                 to change"
+            )) && gained[0].contains(&format!(
+                "\nthe origin y slot on Datum frame {node} is computed"
+            )) && gained[0].contains(&format!(
+                "\nthe origin z slot on Datum frame {node} is computed"
+            )),
             "{gained:?}"
         );
         pane.click("computed");

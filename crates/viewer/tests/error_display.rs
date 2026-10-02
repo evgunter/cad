@@ -231,6 +231,7 @@ fn mate_tool_error_forwards_its_frame_arm() {
     let outer = MateToolError::Frame {
         side: MateSide::A,
         error: inner,
+        held: pncad::document::HeldNodes::default(),
     }
     .to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");

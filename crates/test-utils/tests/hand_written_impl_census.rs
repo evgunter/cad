@@ -314,7 +314,6 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// honest.
 const IMPL_FILES_TODAY: [&str; 27] = [
     "crates/editor-core/src/clearance.rs",
-    "crates/editor-core/src/eval/mod.rs",
     "crates/editor-core/src/expr.rs",
     "crates/editor-core/src/mate/coset.rs",
     "crates/editor-core/src/meta/mod.rs",
@@ -324,6 +323,7 @@ const IMPL_FILES_TODAY: [&str; 27] = [
     "crates/editor-core/src/names/select.rs",
     "crates/editor-core/src/names/table.rs",
     "crates/editor-core/src/program.rs",
+    "crates/editor-core/src/refusal.rs",
     "crates/editor-core/src/resolve/pick.rs",
     "crates/geom-core/src/spline/hull.rs",
     "crates/geom-core/src/spline/knots.rs",

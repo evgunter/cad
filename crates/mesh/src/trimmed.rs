@@ -1013,6 +1013,10 @@ fn trim_polygon(
             // or plane arm, so a spiric-bounded face refuses before
             // this walk (`work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
             Pcurve::Spiric { .. } => {}
+            // The cone section's image is likewise a closed form of the
+            // carrier's own parameter, read exactly at the chord pass's
+            // parameters.
+            Pcurve::ConeSection { .. } => {}
             Pcurve::IsoLine { .. } if nurbs_chart => {}
             // The arc rim is the NURBS chart's other minted closed
             // form (M8-3) — same boundary line, rational-quadratic
