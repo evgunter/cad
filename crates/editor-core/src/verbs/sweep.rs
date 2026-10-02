@@ -173,19 +173,12 @@ fn read_extrude<T: Decide>(
 ) -> Result<SweptOut<T>, NodeErrorKind> {
     let built = super::read_record(record, extrude_record, foreign_record)?;
     let table = names::name_extrude(id, &built, pieces).map_err(NodeErrorKind::Naming)?;
-    let Extruded {
-        body, side_faces, ..
-    } = built;
-    Ok(SweptOut {
-        body,
-        table,
-        // One wall per canonical segment, every one of them minted:
-        // an extruded segment always sweeps a face.
-        walls: side_faces
-            .into_iter()
-            .map(|loop_| loop_.into_iter().map(Some).collect())
-            .collect(),
-    })
+    // One wall per canonical segment, every one of them minted: an
+    // extruded segment always sweeps a face (a run's segments share
+    // its one wall).
+    let walls = canonical_side_faces(&built);
+    let Extruded { body, .. } = built;
+    Ok(SweptOut { body, table, walls })
 }
 
 /// The revolve's reader. Its walls are per canonical segment and
@@ -202,8 +195,19 @@ fn read_revolve<T: Decide>(
 ) -> Result<SweptOut<T>, NodeErrorKind> {
     let built = super::read_record(record, revolve_record, foreign_record)?;
     let table = names::name_revolve(id, &built, pieces).map_err(NodeErrorKind::Naming)?;
-    let Revolved { body, walls, .. } = built;
+    let walls = built.walls();
+    let Revolved { body, .. } = built;
     Ok(SweptOut { body, table, walls })
+}
+
+/// An extrusion's wall per CANONICAL segment
+/// (`Extruded::canonical_side_faces`), in the revolve's `Option` shape.
+fn canonical_side_faces<T: Decide>(built: &Extruded<T>) -> Vec<Vec<Option<topo::FaceKey>>> {
+    built
+        .canonical_side_faces()
+        .into_iter()
+        .map(|faces| faces.into_iter().map(Some).collect())
+        .collect()
 }
 
 /// The extrude's correspondence.

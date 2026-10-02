@@ -202,7 +202,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         // Since R3 (LIB-PYG5) the undeclared-coincidence refusal
         // surfaces as the typed refusal-menu variant, finding attached.
         Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::UndeclaredContact { .. }),
+            matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. }),
             "expected the UndeclaredContact menu, got {:?}",
             e.kind
         ),
@@ -463,7 +463,7 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![
+        Node::declare_continuation(vec![
             (
                 SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
                 SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
@@ -911,7 +911,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let (doc, ghost) = block(doc, (0.0, 1.0), (0.0, 1.0), 20.0, 1.0);
     // A face name at a LIVE node that names no row there: rung 3.
-    let absent = fname(us, RoleSeg::Lateral(fixture::no_piece_of(&doc)));
+    let absent = fname(us, RoleSeg::Lateral(fixture::no_piece_of(&doc).into()));
     assert!(
         table.lookup(&absent).is_none(),
         "the vanished probe must name no row, or it pins nothing"

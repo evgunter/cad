@@ -33,7 +33,7 @@
 //! The count EDIT is what the flush document cannot take in one step.
 //! The `Declare` names the five instances it was detected against, the
 //! edit to 7 makes `Instance(5)` and `Instance(6)` flush with nothing
-//! declaring them, and the union refuses `UndeclaredContact` on
+//! declaring them, and the union refuses `UndeclaredCoincidence` on
 //! `Instance(5)` — correctly. No edit extends the declaration on the
 //! live union (DM6: none rewires its `declare` input; the ruled
 //! recourse is `work/recipe/declared-pairs-are-a-booleans-own-payload.md`).
@@ -75,8 +75,8 @@ use pncad::document::{
 use pncad::geom_core::Probe;
 use pncad::prelude::PlaneRelation;
 use pncad::select::{
-    ContactClass, EntityKind, NamePat, RoleSeg, SegPat, SegTag, Selector, all_edges, declare_node,
-    find_flush_candidates, select,
+    BooleanCoincidence, ContactClass, EntityKind, NamePat, RoleSeg, SegPat, SegTag, Selector,
+    all_edges, declare_node, find_flush_candidates, select,
 };
 use pncad::sweep::blend::BlendError;
 
@@ -280,8 +280,10 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
             // against that fin's foot.
             assert_eq!(found.len(), 5, "one contact per fin: {found:#?}");
             assert!(
-                found.iter().all(|f| f.class == ContactClass::Rest
-                    && f.evidence.relation == PlaneRelation::SameOpposite),
+                found.iter().all(
+                    |f| f.class == BooleanCoincidence::Contact(ContactClass::Rest)
+                        && f.evidence.relation == PlaneRelation::SameOpposite
+                ),
                 "every foot rests on the top: {found:#?}"
             );
             Some(insert(
@@ -417,12 +419,12 @@ fn flush_fins(tol: Tol) {
     let ev7 = eval(&doc7, Some(&ev5), tol);
     let refusal = ev7.node_error(flush.solid).map(|e| &e.kind);
     assert!(
-        matches!(refusal, Some(NodeErrorKind::UndeclaredContact { finding, .. })
+        matches!(refusal, Some(NodeErrorKind::UndeclaredCoincidence { finding, .. })
             if matches!(finding.pair.1.name.path.first(), Some(RoleSeg::Instance { i: 5, .. }))),
         "the count edit leaves Instance(5) flush and undeclared: {refusal:?}"
     );
     println!(
-        "   flush fins, count edited 5 -> 7: the union refuses UndeclaredContact on Instance(5)"
+        "   flush fins, count edited 5 -> 7: the union refuses UndeclaredCoincidence on Instance(5)"
     );
 
     // The recourse that exists: delete the union and its Declare,

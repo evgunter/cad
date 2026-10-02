@@ -17,11 +17,13 @@ cost: M
   - It matches exhaustively over `RoleSeg`, so a new segment gets words or fails to compile.
   - It looks through the carry-over wrappers (`FromA`, `FromB`, `FromMember`, `FromTarget`) to the leaf.
   - Where one more level is what tells two faces apart, it adds that level: a piece of a cut face "bordering" its neighbour (`Qualifier::Borders`) or "piece k of n" (`OrderAlong`); a fillet face "over" its rim.
-- **`Display for StableName` carries the role:** kind, minting node and leaf role, the shape `Cutter` already prints. Every refusal that forwards a name then tells faces apart. `idpass::name_and_path` keeps its `Debug` path, as the one operator diagnostic, and says so.
+- **`Display for StableName` carries the role:** kind, minting node and leaf role, the shape `Cutter` already prints. Every refusal that forwards a name then tells faces apart. `idpass::NameAndPath` keeps its `Debug` path, as the one operator diagnostic, and says so.
 - **The comment** on `Display for StableName` (`names/role.rs`), written by an agent in #1454, becomes: "the path as a structure is the machine channel; a person reads its leaf in words". `display_contract.rs`'s ban test flips to assert the leaf, and still asserts that the path's structure is absent.
 - **Second spellings to retire:**
   - `SelectRefusal`'s hand-written `named` helper (`names/geompred.rs`) forwards to the name's `Display`. Its `PairInBand` then stops printing a flush pair as two identical phrases.
   - `descent_leaf` derives from `names::attribute`'s `SegOrigin` classifier rather than re-listing the carry-through wrappers.
+
+**Note (emit, #3821): `StableName`'s `Display` is no longer the one spelling.** `spoken::Speaker::name` and its `SaidName` (`editor-core/src/spoken.rs`) spell `<kind> name minted by <node>` a second time, and every sentence spoken from a document goes through them: `SpokenName`, the kernel refusals that forward a name, and the viewer's pick path (`idpass::NameAndPath`, so the disagreement notice and `frame::pick_refusal`'s tie). Changing `StableName`'s `Display` alone leaves all of those saying the old shape, so the ruled change reaches `SaidName` too. `StableName`'s `Display` is that same sentence by tag, so the two can be one spelling.
 
 ## Open within the unit
 

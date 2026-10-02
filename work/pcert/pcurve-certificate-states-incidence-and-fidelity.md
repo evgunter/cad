@@ -2,12 +2,13 @@
 id: pcurve-certificate-states-incidence-and-fidelity
 kind: unit
 title: the Harmonic pcurve certificate states the carrier's incidence and the image's fidelity, so a minted row's identity is a theorem over a parameter box
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P0
 cost: H
 design: true
 refs: [3759]
+branch: pcert/certificate-incidence-fidelity
 ---
 
 **Why.** Once `sweep::extrude` mints its rows (PR 3759), the

@@ -2550,6 +2550,10 @@ fn certify_undecided(check: CertCheck) -> &'static str {
             "it is too short, for how its faces curve, to measure the angle between them at this \
              tolerance"
         }
+        CertCheck::TangentPlanes => {
+            "a face's tangent plane is undefined at a point of it, so there is no angle between \
+             its faces to measure there"
+        }
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
         }
@@ -2796,6 +2800,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     crate::pcurves::PLACEHOLDER_RECOURSE,
+                ),
+                C::ArcNearPole => (
+                    "a boundary circle runs over a pole of its sphere's chart",
+                    "Recourse: re-aim the sphere's chart away from the arc, or split the edge",
                 ),
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
@@ -5536,10 +5544,10 @@ pub(crate) fn tier3_local_checks_marked<
                 error,
             }),
         }
-        let Some((fs_plus, fs_minus)) = edge_face_surfaces(body, edge.he_plus, edge.he_minus)
-        else {
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
+        let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
         // scaffolding door is for edges whose surfaces do not exist
         // yet. This edge has two faces — the lookup above answered —
@@ -5551,7 +5559,7 @@ pub(crate) fn tier3_local_checks_marked<
         let adjacent = match curve.description() {
             geom_brep::EdgeDescription::Intersection { s1, s2, .. }
             | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                (*s1 == fs_plus && *s2 == fs_minus) || (*s1 == fs_minus && *s2 == fs_plus)
+                Body::<T>::cites_pair((*s1, *s2), fs_plus, fs_minus)
             }
             // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
             // described chart is ONE of the edge's two adjacent faces'
@@ -5682,11 +5690,11 @@ pub(crate) fn tier3_local_checks_marked<
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        let Some(((f_plus, fs_plus), (f_minus, fs_minus))) =
-            edge_adjacent_faces(body, edge.he_plus, edge.he_minus)
-        else {
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
+        let (f_plus, fs_plus) = (sides.plus.face, sides.plus.surface);
+        let (f_minus, fs_minus) = (sides.minus.face, sides.minus.surface);
         let (Some(s_plus), Some(s_minus)) =
             (body.surfaces.get(fs_plus), body.surfaces.get(fs_minus))
         else {
@@ -7913,34 +7921,6 @@ fn edge_endpoints<T: Real>(
     let p_start = *body.points.get(body.vertices.get(plus.start)?.point)?;
     let p_end = *body.points.get(body.vertices.get(end_vertex)?.point)?;
     Some((p_start, p_end))
-}
-
-/// The surface keys of an edge's two adjacent faces (`he_plus`'s side,
-/// `he_minus`'s side), or `None` on unresolvable links.
-fn edge_face_surfaces<T: Real>(
-    body: &Body<T>,
-    he_plus: HalfEdgeKey,
-    he_minus: HalfEdgeKey,
-) -> Option<(crate::geometry::SurfaceKey, crate::geometry::SurfaceKey)> {
-    let ((_, s_plus), (_, s_minus)) = edge_adjacent_faces(body, he_plus, he_minus)?;
-    Some((s_plus, s_minus))
-}
-
-/// An edge's two adjacent faces with their surface keys (`he_plus`'s
-/// side, `he_minus`'s side), or `None` on unresolvable links.
-fn edge_adjacent_faces<T: Real>(
-    body: &Body<T>,
-    he_plus: HalfEdgeKey,
-    he_minus: HalfEdgeKey,
-) -> Option<(
-    (FaceKey, crate::geometry::SurfaceKey),
-    (FaceKey, crate::geometry::SurfaceKey),
-)> {
-    let face_of = |he: HalfEdgeKey| {
-        let face = body.face_of_half_edge(he)?;
-        Some((face, body.get_face(face)?.surface))
-    };
-    Some((face_of(he_plus)?, face_of(he_minus)?))
 }
 
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).

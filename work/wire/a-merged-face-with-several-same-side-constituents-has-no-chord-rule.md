@@ -111,3 +111,19 @@ refuses `Naming(MergedChordConstituents { several: 5 })`. Each merged
 side face holds the five fins' end faces from the one group operand.
 This is the shape a real extruded heat sink has; the tour's scene
 stops its fins 1/8 short of the long sides.
+
+## Now on the document crosslap's path (REACH, 2026-10-01)
+
+Since the continuation ruling (PR 3613, built on
+`reach/cosurface-continuation`) an undeclared continuation refuses at
+the reduction. The north-star crosslap's beams have four: their tops
+and bottoms carry on into each other across the notch edges. Declaring
+only the mate (the five `Rest` findings) now refuses
+`undeclared_contact` on one of them, and following the menu to its end
+(all nine findings declared) reaches this row's
+`merged_chord_constituents`. So the document-layer crosslap, which used
+to glue on the mate alone (to a body whose coplanar tops and bottoms
+were left unmerged), waits on this rule. The kernel tour's crosslap
+declares the whole inventory and glues; only the naming layer stops.
+Pinned in `crates/pncad-py/tests/test_north_star.py`
+(`TestCrosslapAtTheNamingWall`).

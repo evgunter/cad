@@ -79,7 +79,7 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
 
     let operand = MateToolError::NotAnInstancePick {
         side: MateSide::A,
-        node: pncad::document::RecipeNodeId(0),
+        node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId(0)),
     }
     .to_string();
     assert!(

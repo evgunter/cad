@@ -519,7 +519,7 @@ fn extrude_oracles(
         ));
     }
     let all_segs: Vec<Seg> = loops.iter().flat_map(|l| segs_of(l)).collect();
-    for faces in &t.side_faces {
+    for faces in &t.side_faces() {
         for &face in faces {
             let mids = edge_mids(body, face);
             let seg = all_segs
@@ -580,7 +580,7 @@ fn revolve_oracles(
     let all_segs: Vec<Seg> = loops.iter().flat_map(|l| segs_of(l)).collect();
     let mut out: Vec<(FaceKey, Oracle, &'static str)> = Vec::new();
     let mut walls = std::collections::HashSet::new();
-    let _ = &t.walls;
+    let _ = &t.walls();
     for (face, _) in body.faces() {
         let mids = edge_mids(body, face);
         let seg = all_segs.iter().copied().find(|s| {
