@@ -299,15 +299,15 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
             .and_then(|h| body.get_loop(h.parent_loop))
             .and_then(|l| body.get_face(l.face))
             .and_then(|f| body.get_surface(f.surface))
-            .map(geom_brep::SurfaceKind::of)
+            .map(geom::Surface::kind)
     };
     let mut rim_edges = Vec::new();
     for (k, e) in body.edges() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if face_kind(e.he_plus) == Some(geom_brep::SurfaceKind::Cylinder)
-            && face_kind(e.he_minus) == Some(geom_brep::SurfaceKind::Cylinder)
+        if face_kind(e.he_plus) == Some(geom::SurfaceKind::Cylinder)
+            && face_kind(e.he_minus) == Some(geom::SurfaceKind::Cylinder)
         {
             rim_edges.push(k);
             assert!(
@@ -363,8 +363,8 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
         let e = body.get_edge(k).expect("marked edge exists");
         let kinds = [face_kind(e.he_plus), face_kind(e.he_minus)];
         assert!(
-            kinds.contains(&Some(geom_brep::SurfaceKind::Plane))
-                && kinds.contains(&Some(geom_brep::SurfaceKind::Cylinder)),
+            kinds.contains(&Some(geom::SurfaceKind::Plane))
+                && kinds.contains(&Some(geom::SurfaceKind::Cylinder)),
             "the surviving authored joint is the plane-wall/round-wall seam: {kinds:?}"
         );
     }

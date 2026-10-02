@@ -22,8 +22,8 @@ use crate::common;
 use common::witness_bodies::one_circle_cut;
 use common::*;
 use core::f64::consts::{FRAC_PI_4, PI};
+use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::SurfaceKind;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use mesh::TessellateError;
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
@@ -75,7 +75,7 @@ fn unit_rim(z: f64) -> Curve3<f64> {
 /// `tessellate`'s fold answers for when several refuse.
 fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> FaceKey {
     body.faces()
-        .find(|(_, f)| SurfaceKind::of(body.get_surface(f.surface).unwrap()) == kind)
+        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
         .map(|(fk, _)| fk)
         .expect("the body carries a face of that kind")
 }

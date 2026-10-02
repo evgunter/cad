@@ -1849,7 +1849,7 @@ pub enum NodeErrorKind {
     /// not a predicate — the carrier's own kind, copied out.
     FaceFrameNotPlanar {
         /// The carrier kind the face actually has.
-        carrier: geom_brep::SurfaceKind,
+        carrier: geom::SurfaceKind,
     },
     /// A derived frame's face resolved to a key its own body could not
     /// read back — an evaluation-internal inconsistency between the

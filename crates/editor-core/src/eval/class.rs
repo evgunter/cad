@@ -911,7 +911,7 @@ mod tests {
                 found,
             }),
             C::FaceFrameNotPlanar => K::FaceFrameNotPlanar {
-                carrier: geom_brep::SurfaceKind::Cylinder,
+                carrier: geom::SurfaceKind::Cylinder,
             },
             C::FaceFrameReadback => K::FaceFrameReadback {
                 error: topo::readback::ReadbackError::NoCarrier,

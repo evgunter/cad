@@ -67,8 +67,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, v3, validated};
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Tol, Vec3};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{ConstructedLoop, Open, SketchPlane, Start, ValidatedProfile, circle_split};
 use pncad::sweep::{Extrusion, extrude};

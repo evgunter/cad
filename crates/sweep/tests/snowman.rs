@@ -246,7 +246,7 @@ fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
             );
             assert_eq!(
                 topo::query::face_surface_kind(face_body, face),
-                Some(geom_brep::SurfaceKind::Sphere),
+                Some(geom::SurfaceKind::Sphere),
                 "{label} under {op:?}: the face is the other ball's sphere"
             );
         }

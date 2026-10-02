@@ -226,8 +226,8 @@ fn r1_the_cone_fixture_names_its_own_door() {
         matches!(
             err,
             BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Cone,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                kind: geom::SurfaceKind::Cone,
+                other_kind: geom::SurfaceKind::Plane,
                 ..
             }
         ),

@@ -32,7 +32,7 @@ use editor_core::{
     Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal,
     ValuePayload, declare_all, evaluate, find_flush_candidates,
 };
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use topo::{Body, PlaneRelation, query};
 

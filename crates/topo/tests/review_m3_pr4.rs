@@ -591,8 +591,8 @@ fn curved_face_gate_witness() {
         op: None,
         operand: topo::Operand::B,
         face: f,
-        kind: geom_brep::SurfaceKind::Cone,
-        other_kind: geom_brep::SurfaceKind::Plane,
+        kind: geom::SurfaceKind::Cone,
+        other_kind: geom::SurfaceKind::Plane,
         ..
     } = err
     else {
@@ -662,7 +662,7 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
         Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
     };
     let BooleanError::CurvedBooleanUnsupported {
-        kind: geom_brep::SurfaceKind::Nurbs,
+        kind: geom::SurfaceKind::Nurbs,
         ..
     } = err
     else {

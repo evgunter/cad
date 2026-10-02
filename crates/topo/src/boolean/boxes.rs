@@ -885,14 +885,17 @@ impl<T: Real> TorusChartWindow<T> {
         self.net = Some((T::zero(), T::zero()));
     }
 
-    /// One half-edge of the open loop.
+    /// One half-edge of the open loop. A torus chart's closed-form
+    /// images are harmonic (a cone-section image certifies on a cone
+    /// only), so any other image abandons the window — which widens the
+    /// box to the whole tube, never narrows it.
     pub(crate) fn step(&mut self, step: WindowStep<'_, T>) {
         let Some((cache, forward)) = step else {
             self.ok = false;
             return;
         };
         let (t0, t1) = cache.params();
-        let Some(b) = cache.pcurve().harmonic_span_box(t0, t1) else {
+        let Some(b) = cache.pcurve().closed_form_span_box(t0, t1) else {
             self.ok = false;
             return;
         };
@@ -3025,7 +3028,7 @@ pub(crate) mod tests {
             },
         ];
         for s in kinds {
-            let kind = geom_brep::SurfaceKind::of(&s);
+            let kind = s.kind();
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
             body.set_face_surfaces_describing(
                 vec![crate::Rechart::new(s, face, true)],
