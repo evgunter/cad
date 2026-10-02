@@ -51,9 +51,10 @@
 //!   ray — Zero would mean a crossing at `q` itself (contradicting the
 //!   boundary pre-pass) ⇒ next ray, escalating if persistent.
 //!
-//! The arc-aware walk ([`point_in_carrier_loop`]) and the one boundary
-//! reading of an edge on its carrier ([`LoopEdge::contact`]) carry their
-//! own rows, each caller naming them through a [`BoundaryRows`] value
+//! [`point_in_loop`] reads those rows only for a loop of lines; on a
+//! loop bearing any other edge, its walk and the one boundary reading
+//! of an edge on its carrier ([`LoopEdge::contact`]) carry their own
+//! rows, each caller naming them through a [`BoundaryRows`] value
 //! (the walk's are `WALK_ROWS`; `boolean::contain`'s pre-pass passes
 //! `bool_contact_*` names):
 //!
@@ -139,16 +140,14 @@ pub enum PointInLoopError {
         /// The loop being tested.
         r#loop: LoopKey,
     },
-    /// The loop is not a walkable cycle of resolvable geometry — for
-    /// the arc-aware walk, that includes a whole-turn scaffold circle
-    /// ([`carrier_loop`]).
+    /// The loop is not a walkable cycle of resolvable geometry — a
+    /// whole-turn scaffold circle included ([`carrier_loop`]).
     CorruptLoop {
         /// The loop.
         r#loop: LoopKey,
     },
-    /// The arc-aware walk ([`point_in_carrier_loop`]) could not decide:
-    /// an edge it has no crossing row for stood in the way of every
-    /// ray. [`point_in_loop`] never returns it.
+    /// The walk could not decide: an edge it has no crossing row for
+    /// stood in the way of every ray.
     Uncrossable(Uncrossable),
 }
 
@@ -291,10 +290,11 @@ fn loop_points<T: Decide>(
     Ok(points)
 }
 
-/// Trilean containment of `q` in the region bounded by `r#loop`, which
-/// must be a planar polygon (line carriers — the F5 regime) with unit
-/// plane normal `normal`; `q` is assumed to lie in the loop's plane
-/// (the ring re-homing contract: ring and outer share one face plane).
+/// Trilean containment of `q` in the POLYGON through `r#loop`'s
+/// vertices, with unit plane normal `normal`; `q` is assumed to lie in
+/// the loop's plane. That polygon is the loop's region only when every
+/// edge is a line, so [`point_in_loop`] is the only caller: it comes
+/// here once it has read every edge's carrier as a line.
 ///
 /// # The sign of `normal`
 ///
@@ -332,7 +332,7 @@ fn loop_points<T: Decide>(
 ///
 /// [`PointInLoopError`] — escalation, ray exhaustion, or an
 /// unwalkable loop.
-pub fn point_in_loop<T: Decide>(
+pub(crate) fn point_in_vertex_polygon<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     normal: Vec3<T>,
@@ -348,8 +348,8 @@ pub fn point_in_loop<T: Decide>(
     polygon_walk(r#loop, &points, normal, q, band)
 }
 
-/// [`point_in_loop`]'s ray walk alone, for a point its pre-pass (or a
-/// caller's) has placed off the boundary: `In` or `Out`.
+/// [`point_in_vertex_polygon`]'s ray walk alone, for a point its
+/// pre-pass (or a caller's) has placed off the boundary: `In` or `Out`.
 fn polygon_walk<T: Decide>(
     r#loop: LoopKey,
     points: &[Point3<T>],
@@ -430,7 +430,7 @@ fn walk_schedule<T: Decide>(
 /// which is about one schedule MEMBER and not about the point.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ArmBand {
-    /// Escalate — [`point_in_loop`]'s posture, which its consumers read.
+    /// Escalate — [`point_in_vertex_polygon`]'s posture.
     Escalate,
     /// Skip that member, as a near-parallel one is skipped.
     Retry,
@@ -438,8 +438,8 @@ enum ArmBand {
 
 /// The arc-bearing walk's K rows over a loop's STRAIGHT edges — the
 /// boundary pre-pass and the straddle count, [`ParityRows`]' four —
-/// kept apart from [`point_in_loop`]'s so the two walks' populations
-/// stay separable. Its own rows, written at their `decide` calls:
+/// kept apart from [`point_in_vertex_polygon`]'s so the two walks'
+/// populations stay separable. Its own rows, written at their `decide` calls:
 /// `point_in_arc_loop_arm` (the schedule gate), `point_in_arc_loop_reach`
 /// (the loop's bounding ball, for an edge with no crossing row), and the
 /// conic arm's `point_in_arc_loop_conic_{span,on,window,disc,advance}`
@@ -480,7 +480,7 @@ pub(crate) struct BoundaryRows {
     pub(crate) conic: ConicRows,
 }
 
-/// [`point_in_carrier_loop`]'s rows for a loop's boundary.
+/// [`point_in_loop`]'s rows for a loop's boundary.
 const WALK_ROWS: BoundaryRows = BoundaryRows {
     line: &ARC_LOOP_ROWS,
     conic: ConicRows {
@@ -1327,25 +1327,25 @@ enum Boundary {
     Decided,
 }
 
-/// **A planar loop's region, read on its edges' own carriers** — the
-/// arc-aware sibling of [`point_in_loop`], whose polygon through the
-/// vertices is the region only when every edge is a line. An arc moves
-/// region across its chord: a revolved cap is a half-disc whose three
-/// vertices are COLLINEAR, an extruded disc's cap has two, and in both
-/// the polygon has no area; an arc bowing into a polygon puts region
-/// the loop does not bound inside it, and one bowing out leaves region
-/// outside it.
+/// **Trilean containment of `q` in a planar loop's region, read on its
+/// edges' own carriers.** The polygon through the vertices is the
+/// region only when every edge is a line. An arc moves region across
+/// its chord: a revolved cap is a half-disc whose three vertices are
+/// COLLINEAR, an extruded disc's cap has two, and in both the polygon
+/// has no area; an arc bowing into a polygon puts region the loop does
+/// not bound inside it, and one bowing out leaves region outside it.
 ///
-/// - **Every edge a line**: [`point_in_loop`], unchanged.
+/// - **Every edge a line**: ray parity over the polygon through the
+///   vertices (`point_in_vertex_polygon`).
 /// - **Circle and ellipse arcs** (with lines): ray parity over the same
-///   schedule ([`walk_schedule`]), the straight edges counted by
-///   [`ray_parity::ray_crossings`] and each arc crossed on its conic —
+///   schedule (`walk_schedule`), the straight edges counted by
+///   `ray_parity::ray_crossings` and each arc crossed on its conic —
 ///   in the arc's unit coordinates the conic is the unit circle, the
 ///   ray a line, and a crossing a root of `|P + D·s|² = 1` inside the
 ///   arc's window. The discriminant is taken in its perpendicular-offset
 ///   form `1 − h²` (`h` the unit-coordinate line's distance from the
 ///   centre), which does not cancel far from a small conic. The
-///   boundary pre-pass is [`LoopEdge::contact`] — never an arc's chord,
+///   boundary pre-pass is `LoopEdge::contact` — never an arc's chord,
 ///   which is not boundary. A point on an arc's conic but off the arc
 ///   skips its own `s = 0` root. Every graze — a vertex on the ray line,
 ///   a ray tangent to a conic, a root at an arc's endpoint, a zero
@@ -1366,7 +1366,7 @@ enum Boundary {
 ///
 /// [`PointInLoopError`] — an escalation, exhaustion, an unwalkable
 /// loop, or an edge no ray got past.
-pub(crate) fn point_in_carrier_loop<T: Decide>(
+pub fn point_in_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     normal: Vec3<T>,
@@ -1375,7 +1375,7 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
 ) -> Result<LoopContainment, PointInLoopError> {
     let lp = carrier_loop(body, r#loop, WALK_ROWS, band)?;
     if lp.edges.iter().all(|e| matches!(e, LoopEdge::Chord)) {
-        return point_in_loop(body, r#loop, normal, q, band);
+        return point_in_vertex_polygon(body, r#loop, normal, q, band);
     }
     Ok(
         match carrier_walk(r#loop, &lp, normal, q, band, Boundary::Verdict)? {
@@ -1386,7 +1386,7 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
     )
 }
 
-/// [`point_in_carrier_loop`] for a caller whose own boundary pass —
+/// [`point_in_loop`] for a caller whose own boundary pass —
 /// [`LoopEdge::contact`] over every edge of `lp` — has already decided
 /// `q` is definitely off every edge: `true` inside, `false` outside.
 /// The walk's boundary pass is not run, and a crossing at `q` itself,
@@ -1394,7 +1394,7 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`point_in_carrier_loop`].
+/// As [`point_in_loop`].
 pub(crate) fn carrier_loop_side<T: Decide>(
     r#loop: LoopKey,
     lp: &CarrierLoop<T>,
@@ -1555,7 +1555,7 @@ fn carrier_walk<T: Decide>(
 }
 
 /// **A ball holding the whole loop**, `(center, radius)`: the loop's
-/// first vertex and the reach [`point_in_carrier_loop`] confines its
+/// first vertex and the reach [`point_in_loop`] confines its
 /// refusal with ([`loop_extent_from`]). Nothing here needs the loop to
 /// be planar — each edge is bounded on its own carrier — so a curved
 /// face's outer loop is served the same way.
@@ -2004,7 +2004,7 @@ mod tests {
         let centre = Point3::new(1.0, 0.0, 0.0);
         let up = Vec3::new(0.0, 0.0, 1.0);
         for lp in [seed.r#loop, circ.r#loop] {
-            let got = point_in_carrier_loop(&body, lp, up, centre, band);
+            let got = point_in_loop(&body, lp, up, centre, band);
             assert!(
                 matches!(got, Err(PointInLoopError::CorruptLoop { r#loop }) if r#loop == lp),
                 "the placeholder's centre is refused on {lp:?}, got {got:?}"
@@ -2032,7 +2032,7 @@ mod tests {
         body.set_edge_curve(circ.edge, spec, tol)
             .expect("an overlap inside the build's band certifies");
         let fine = Band::new(0.1 * eps, eps).expect("a finer band");
-        let got = point_in_carrier_loop(&body, circ.r#loop, up, centre, fine);
+        let got = point_in_loop(&body, circ.r#loop, up, centre, fine);
         assert!(
             matches!(
                 &got,

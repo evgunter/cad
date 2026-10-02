@@ -93,7 +93,7 @@ use crate::euler_ring::MekrSite;
 use crate::face_normal;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
-use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_carrier_loop};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -3242,7 +3242,7 @@ impl ChordJoiner {
 
     /// `laringmv(oldf, newf)`: move every bystander ring of `oldf`
     /// enclosed by the mef run (`newf`'s outer) into `newf` — decided
-    /// on the run's own edge carriers ([`point_in_carrier_loop`]),
+    /// on the run's own edge carriers ([`point_in_loop`]),
     /// since a run bearing an arc does not bound the polygon through
     /// its vertices.
     ///
@@ -3348,12 +3348,12 @@ impl ChordJoiner {
 /// The face's **chart** plane normal (F5-gated: always a `Plane`),
 /// deliberately without the face's sense folded in.
 ///
-/// Its one consumer is [`point_in_carrier_loop`], which reads the
+/// Its one consumer is [`point_in_loop`], which reads the
 /// normal only to recover the loop's PLANE and the in-plane side axis
 /// `n̂ × d` of each ray; only the straight edges' crossing rows read
 /// that axis, and their verdict is exactly invariant under `n̂ ↦ −n̂`.
 /// **That derivation lives at
-/// [`point_in_loop`](crate::splitting::containment::point_in_loop)**,
+/// [`point_in_vertex_polygon`](crate::splitting::containment::point_in_vertex_polygon)**,
 /// under the function whose property it is rather than under the
 /// five-line producer that relies on it; the consequence here is that
 /// ring re-homing cannot move a ring on the sense bit, and
@@ -3410,7 +3410,7 @@ fn ring_side<T: Decide>(
     };
     for v in vertices {
         let p = vertex_point(body, v)?;
-        match point_in_carrier_loop(body, run, normal, p, band)? {
+        match point_in_loop(body, run, normal, p, band)? {
             LoopContainment::OnBoundary => {}
             side => return Ok(side),
         }

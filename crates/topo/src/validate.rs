@@ -3939,7 +3939,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   A planar face's NESTING half — a ring lying inside the outer
 ///   loop of its own face — is check 9's nesting arm, on every planar
 ///   face, through the parity walk that reads each outer edge on its
-///   own carrier ([`crate::splitting::containment::point_in_carrier_loop`]).
+///   own carrier ([`crate::splitting::containment::point_in_loop`]).
 ///   The **curved analytic** kinds' orientation half is covered by
 ///   check 6's curved arm (M6-6: boundary material side vs the sense
 ///   bit).
@@ -6406,16 +6406,15 @@ pub(crate) fn tier3_local_checks_marked<
     // that point inside the region the outer loop bounds? A
     // definitely-outside vertex is the witness the report names. One
     // instrument answers it, and it is not minted here:
-    // [`crate::splitting::containment::point_in_carrier_loop`], the
+    // [`crate::splitting::containment::point_in_loop`], the
     // crate's in-plane parity walk that reads each edge on its own
     // carrier — a line as its segment, a circle or ellipse arc on its
     // conic inside its window — so its region IS the loop's region on
     // every outer loop of lines, arcs, or both, at any vertex count:
     // the polygon, the one circle's disc, the slot, the D-shaped cap
     // whose arc bows past the chord its vertices span, the half-disc
-    // whose vertices are two. On a loop of lines it is
-    // [`crate::splitting::point_in_loop`], whose K rows are
-    // `point_in_loop_*` and which this arm pools as a fourth consumer
+    // whose vertices are two. On a loop of lines it walks the vertex
+    // polygon, whose K rows are `point_in_loop_*` and which this arm pools as a fourth consumer
     // the way `boolean::contfp` and the solid-containment sweep
     // already pool; an arc-bearing loop's rows are
     // `point_in_arc_loop_*`, pooled with `boolean::contfp` and
@@ -7317,7 +7316,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
 ///
 /// One condition: the surface is a `Plane`, because there is
 /// otherwise no plane for the arms to run in. The outer loop's CLASS
-/// is not gated on: [`crate::splitting::containment::point_in_carrier_loop`] reads
+/// is not gated on: [`crate::splitting::containment::point_in_loop`] reads
 /// every edge on its own carrier and answers every class it has a
 /// crossing row for, and refuses itself where it has none
 /// ([`crate::splitting::PointInLoopError::Uncrossable`]), so the gate
@@ -7377,12 +7376,12 @@ enum RingNestingVerdict {
 /// nothing here and the walk moves to the next vertex.
 ///
 /// **One instrument, every class**:
-/// [`crate::splitting::containment::point_in_carrier_loop`], which reads each outer
+/// [`crate::splitting::containment::point_in_loop`], which reads each outer
 /// edge on its own carrier — a line as its segment, a circle or
 /// ellipse arc on its conic inside its window — so the region it
 /// decides IS the loop's region, whatever mix of lines and arcs the
 /// loop carries and however many vertices it has. On a loop of lines
-/// it is [`crate::splitting::point_in_loop`] unchanged.
+/// it walks the vertex polygon.
 ///
 /// It is the walk `boolean::contfp` places a point on a face with, so
 /// check 9 and the census read one loop through one instrument. The
@@ -7475,7 +7474,7 @@ fn ring_nesting<T: Decide>(
         // A ring vertex lies in the face's plane (check 5), the walk's
         // in-plane precondition; the off-boundary one is the contact
         // arms' where they can see the edge (the doc above).
-        match crate::splitting::containment::point_in_carrier_loop(body, outer, normal, rp, band) {
+        match crate::splitting::containment::point_in_loop(body, outer, normal, rp, band) {
             Ok(crate::splitting::LoopContainment::In) => return RingNestingVerdict::Inside,
             Ok(crate::splitting::LoopContainment::Out) => {
                 return RingNestingVerdict::Outside { ring_vertex: rv };
@@ -11073,7 +11072,7 @@ mod tests {
         ] {
             let q = Point3::new(q.0, q.1, 0.0);
             let read = |n| {
-                crate::splitting::containment::point_in_carrier_loop(&body, outer, n, q, band)
+                crate::splitting::containment::point_in_loop(&body, outer, n, q, band)
                     .unwrap_or_else(|e| panic!("{name}: the walk refused: {e:?}"))
             };
             assert_eq!(read(up), want, "{name}: under +z");
@@ -11105,7 +11104,10 @@ mod tests {
             let first = loop_cycle_of(&body, ring_loop).unwrap()[0];
             let rp = vertex_point(&body, body.get_half_edge(first).unwrap().start).unwrap();
             assert_eq!(
-                crate::splitting::point_in_loop(&body, outer_loop, normal, rp, band).unwrap(),
+                crate::splitting::containment::point_in_vertex_polygon(
+                    &body, outer_loop, normal, rp, band
+                )
+                .unwrap(),
                 crate::splitting::LoopContainment::Out,
                 "{name}: the polygon through the vertices places the ring outside"
             );
@@ -11355,9 +11357,8 @@ mod tests {
         let (body, outer_loop, normal, r) = split_circle(band);
         for delta in [2e-9, 5e-9, 9e-9] {
             let q = Point3::new(0.0, r * 0.01_f64.sin() - delta, 0.0);
-            let got = crate::splitting::containment::point_in_carrier_loop(
-                &body, outer_loop, normal, q, band,
-            );
+            let got =
+                crate::splitting::containment::point_in_loop(&body, outer_loop, normal, q, band);
             assert!(
                 matches!(got, Ok(crate::splitting::LoopContainment::In)),
                 "δ = {delta:e}: a point ten metres inside the circle is In; got {got:?}"
@@ -11380,9 +11381,8 @@ mod tests {
         let (body, outer_loop, normal, r) = split_circle(band);
         for delta in [2e-7, 5e-7, 8e-7] {
             let q = Point3::new(0.0, r * 0.01_f64.sin() - delta, 0.0);
-            let got = crate::splitting::containment::point_in_carrier_loop(
-                &body, outer_loop, normal, q, band,
-            );
+            let got =
+                crate::splitting::containment::point_in_loop(&body, outer_loop, normal, q, band);
             assert!(
                 matches!(got, Ok(crate::splitting::LoopContainment::In)),
                 "δ = {delta:e}: a point ten metres inside the circle is In; got {got:?}"
