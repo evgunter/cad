@@ -14,7 +14,8 @@
 //!   equal-radius cylinders staggered in height: each rim circle pierces
 //!   the other wall, the lane certifies where, the pierce's sector side
 //!   certifies, and the pierced wall face carries the pierce ring, which
-//!   has no join arm (`work/tang/pierce-ring-has-no-join-arm.md`).
+//!   joins; the walls' own pair, which meets along rulings, has no join
+//!   arm.
 //!
 //! #347's own poses — one height, coaxial, Steinmetz — are pinned with
 //! their doors in `verbs_cylcyl_probe.rs` and `verbs_germarms2.rs`.
@@ -172,15 +173,17 @@ fn a_d_prism_beside_a_cylinder_builds_under_every_boolean() {
     }
 }
 
-/// **Two parallel equal-radius cylinders that pierce stop at the pierce
-/// ring.** Staggered in height, each rim circle crosses the other wall
-/// inside its trim: a pierce, certified by the root lane, whose sector
-/// side certifies. The pierced wall face then carries the pierce ring,
-/// which has no join arm, at every offset from deep overlap to a thin
-/// lens. The refusal names no edge, so the sweep's trace is asked which
-/// events it took: each operand's rim circles on the other's wall.
+/// **Two parallel equal-radius cylinders that pierce stop at their
+/// walls' pair.** Staggered in height, each rim circle crosses the other
+/// wall inside its trim: a pierce, certified by the root lane, whose
+/// sector side certifies. The pierced wall face then carries the pierce
+/// ring, which joins, at every offset from deep overlap to a thin lens;
+/// the two walls meet along rulings, a cylinder × cylinder germ pair the
+/// join has no arm for, refused naming A's wall. The sweep's trace is
+/// asked which events it took: each operand's rim circles on the
+/// other's wall.
 #[test]
-fn parallel_cylinders_that_pierce_stop_at_the_pierce_ring() {
+fn parallel_cylinders_that_pierce_stop_at_the_wall_pair() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     for d in [0.3, 0.8, 1.2, 1.6, 1.9] {
         let b = cyl(d, 0.0, 1.0, 0.5, 2.5);
@@ -190,16 +193,17 @@ fn parallel_cylinders_that_pierce_stop_at_the_pierce_ring() {
             "d {d}: each rim circle meets the other wall: {ab} + {ba}"
         );
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-            let err = run(op, &a, &b).expect_err("no join arm for a pierce ring");
+            let err = run(op, &a, &b).expect_err("no join arm for the wall pair");
             assert!(
                 matches!(
                     err,
-                    BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                        case: topo::ArcWindowCase::NoChartedRun,
+                    BooleanError::CurvedBooleanUnsupported {
+                        operand: topo::Operand::A,
+                        kind: geom::SurfaceKind::Cylinder,
                         ..
-                    })
+                    }
                 ),
-                "d {d}, {op:?}: expected the pierce ring's door, got {err:?}"
+                "d {d}, {op:?}: expected the wall pair's door, got {err:?}"
             );
         }
     }

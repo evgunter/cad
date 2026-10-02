@@ -33,15 +33,13 @@ use crate::common::germ_pair::cyl;
 use crate::common::operands::{framed_bar, three_arc_cylinder};
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::brick;
-use topo::{ArcWindowCase, Body, BooleanError, BooleanResult, SplitJoinError};
+use topo::{Body, BooleanError, BooleanResult};
 
 /// What one op must answer.
 #[derive(Clone, Copy, Debug)]
 enum Want {
     /// A body of this volume (0 for an empty result).
     Volume(f64),
-    /// The pierce ring's join door (`work/tang/pierce-ring-has-no-join-arm`).
-    RingDoor,
     /// The backstop cannot measure a cap wall the cut notched
     /// (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
     RimUnmeasured,
@@ -64,13 +62,6 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
                 "{what}: volume {got}, closed form {v}"
             );
         }
-        (
-            Err(BooleanError::Join(SplitJoinError::SectionArcWindow {
-                case: ArcWindowCase::NoChartedRun,
-                ..
-            })),
-            Want::RingDoor,
-        ) => {}
         (
             Err(BooleanError::VolumeUnmeasured {
                 source:
@@ -114,7 +105,8 @@ fn band_area(y0: f64, y1: f64) -> f64 {
 /// sunk `depth` into the top cap. Its near floor edge, at lateral
 /// `c − w/2`, is a chord of the wall, clipped by the bar's own ends.
 /// ∩ and B∖A build; ∪ and A∖B stop where the backstop cannot measure
-/// the notched wall; the deeper poses at `c = 0.9` reach the ring door.
+/// the notched wall — the deeper poses at `c = 0.9`, whose floor edges
+/// pierce the wall, included.
 #[test]
 fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
     let (w, t0, t1) = (
@@ -135,16 +127,12 @@ fn a_diagonal_bar_sunk_into_a_cylinder_cap_answers_its_closed_form() {
             let b = framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w);
             let i = area * depth;
             let what = format!("c {c}, depth {depth}:");
-            let want = if c == 0.9 && depth >= 0.03 {
-                [Want::RingDoor; 4]
-            } else {
-                [
-                    Want::RimUnmeasured,
-                    Want::RimUnmeasured,
-                    Want::Volume(vbar - i),
-                    Want::Volume(i),
-                ]
-            };
+            let want = [
+                Want::RimUnmeasured,
+                Want::RimUnmeasured,
+                Want::Volume(vbar - i),
+                Want::Volume(i),
+            ];
             four(&what, &a, &b, want);
         }
     }

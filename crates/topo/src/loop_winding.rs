@@ -5,7 +5,8 @@
 //! stored loop; tier 3's check 6 planar arm (`validate`), which
 //! FALSIFIES a stored role and sense by it; and the boolean join's ring
 //! lane (`boolean::join::ring_run_ccw`), which asks it of an OPEN run
-//! closed by its chord to pick an island's new outer boundary. One home
+//! closed by the chord the join will mint, to pick an island's new
+//! outer boundary. One home
 //! is what keeps them from answering about different carrier sets, by
 //! different claims, or by different arithmetic.
 //!
@@ -24,9 +25,8 @@
 //! `split_section_area` (2|A|/P, the same mean width).
 //!
 //! `P` is the closed region's own boundary: each half-edge contributes
-//! its arc length (below), and an open run's closing chord — one more
-//! straight edge of the region — contributes its Newell term and its
-//! length.
+//! its arc length (below), and an open run's closing curve is one more
+//! edge of the region, read by the same per-edge terms.
 //!
 //! # The carriers this answers about
 //!
@@ -82,7 +82,7 @@
 //! make "counterclockwise about the outward normal" mean "about the
 //! chart normal", the opposite statement on a reversed face.
 
-use geom_brep::EdgeCurve;
+use geom::Curve3;
 use geom_core::{Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -150,17 +150,17 @@ pub(crate) enum LoopWinding<W> {
 /// negative lever here — check 1 refuses it at rest
 /// (`UnrepresentableCurveDatum`). `forward` is whether the
 /// traversal runs with increasing carrier parameter — the edge's plus
-/// half. `None` for every carrier that is not a conic: its term is its
-/// chord's, which the caller owns.
+/// half; `(t0, t1)` the carrier interval the edge spans. `None` for
+/// every carrier that is not a conic: its term is its chord's, which
+/// the caller owns.
 pub(crate) fn conic_segment_term<T: Real>(
-    curve: &EdgeCurve<T>,
+    (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
     forward: bool,
 ) -> Option<(Vec3<T>, T)> {
-    let (t0, t1) = curve.params();
     // `(axis, sa, sb, the larger semi-axis magnitude)`. The circle's lever is its
     // radius itself, not `radius.max(radius)`: the same value, but at a
     // symbolic scalar a `max` node is opaque where the radius is not.
-    let (axis, sa, sb, reach) = match *curve.carrier() {
+    let (axis, sa, sb, reach) = match *carrier {
         geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius, radius),
         geom::Curve3::Ellipse {
             axis, major, minor, ..
@@ -173,21 +173,38 @@ pub(crate) fn conic_segment_term<T: Real>(
     Some((axis * (sa * sb * (span - span.sin())), span.abs() * reach))
 }
 
+/// A curve as one traversal reads it: its carrier and the interval it
+/// spans, and whether the traversal runs with the carrier's parameter.
+pub(crate) type Traversed<'a, T> = ((&'a Curve3<T>, (T, T)), bool);
+
+/// The curve that closes an open run from the run's end back to its
+/// start: the straight chord, or a curve the caller has (the boolean
+/// join's ring lane hands over the chord it will mint). A closing conic
+/// is one more edge of the region: its bulge joins the area and its arc
+/// length the lever, by [`conic_segment_term`] as every run edge's do.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum RunClosing<'a, T: Real> {
+    /// The straight chord.
+    Straight,
+    /// The curve, traversed from the run's end to its start.
+    Curve(Traversed<'a, T>),
+}
+
 /// How a winding's traversed halves close into the region it is read
 /// of.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Closing {
+#[derive(Debug, Clone, Copy)]
+enum Closing<'a, T: Real> {
     /// A stored cycle: the last half ends where the first starts.
     Cycle,
-    /// An open run: the chord from the last half's end back to the
-    /// first half's start closes it, and its length joins the lever.
-    Chord,
+    /// An open run, closed from the last half's end back to the first
+    /// half's start.
+    Run(RunClosing<'a, T>),
 }
 
 /// What the sum reads of one traversed half: its start point, and its
-/// certified curve with whether it runs with the carrier's parameter
-/// (`None` for a null-edge scaffold, which is its chord).
-type Step<'a, T> = (Point3<T>, Option<(&'a EdgeCurve<T>, bool)>);
+/// certified curve as traversed (`None` for a null-edge scaffold, which
+/// is its chord).
+type Step<'a, T> = (Point3<T>, Option<Traversed<'a, T>>);
 
 impl<T: Decide> Body<T> {
     /// The signed winding of cycle loop `l` around `normal` (module
@@ -240,23 +257,24 @@ impl<T: Decide> Body<T> {
     }
 
     /// The signed winding around `normal` of the open run `h1 → h2` —
-    /// the `next`-order arc from `h1` through `h2` — closed by the chord
+    /// the `next`-order arc from `h1` through `h2` — closed by `closing`
     /// from `h2`'s end back to `h1`'s start: the region the boolean
     /// join's ring lane walls off as an island's new face
     /// (`boolean::join::ring_run_ccw`). The sum, the carrier set and the
     /// claim are [`Body::planar_loop_winding_decided`]'s; the closing
-    /// chord is the one thing a run adds. `Ok(None)` for a run carrying
-    /// a NURBS or spiric edge; [`TornLoop::Unclosed`] when `next` does
-    /// not reach `h2` within the arena's length.
+    /// curve is the one thing a run adds. `Ok(None)` for a run or a
+    /// closing curve carrying a NURBS or spiric carrier;
+    /// [`TornLoop::Unclosed`] when `next` does not reach `h2` within the
+    /// arena's length.
     pub(crate) fn planar_run_winding_decided(
         &self,
-        h1: HalfEdgeKey,
-        h2: HalfEdgeKey,
+        (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+        closing: RunClosing<'_, T>,
         normal: Vec3<T>,
         band: geom_core::Band,
     ) -> Result<Option<Result<Decided, Indeterminate>>, TornLoop> {
         let run = self.winding_walk(h1, |he, _| he == h2)?;
-        self.winding_of_halves(&run, Closing::Chord, normal, band)
+        self.winding_of_halves(&run, Closing::Run(closing), normal, band)
     }
 
     /// The halves from `first` in `next` order through the first `he`
@@ -314,7 +332,7 @@ impl<T: Decide> Body<T> {
     fn winding_of_halves(
         &self,
         halves: &[HalfEdgeKey],
-        closing: Closing,
+        closing: Closing<'_, T>,
         normal: Vec3<T>,
         band: geom_core::Band,
     ) -> Result<Option<Result<Decided, Indeterminate>>, TornLoop> {
@@ -323,6 +341,21 @@ impl<T: Decide> Body<T> {
         // Whether some carrier is a conic: the one fact about the
         // carrier set the sum reads (the correction block below).
         let mut any_conic = false;
+        let conic_kind = |carrier: &Curve3<T>| match carrier {
+            geom::Curve3::Line { .. } => Some(false),
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => Some(true),
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
+        };
+        let closing_curve = match closing {
+            Closing::Run(RunClosing::Curve(c)) => Some(c),
+            Closing::Cycle | Closing::Run(RunClosing::Straight) => None,
+        };
+        if let Some(((carrier, _), _)) = closing_curve {
+            let Some(conic) = conic_kind(carrier) else {
+                return Ok(None);
+            };
+            any_conic |= conic;
+        }
         for &he in halves {
             let hd = self
                 .get_half_edge(he)
@@ -338,15 +371,14 @@ impl<T: Decide> Body<T> {
                 .ok_or(dangling(DanglingRef::Geometry(GeomRef::Curve(edge.curve))))?
                 .certified();
             if let Some(curve) = curve {
-                any_conic |= match curve.carrier() {
-                    geom::Curve3::Line { .. } => false,
-                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => true,
-                    geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => return Ok(None),
+                let Some(conic) = conic_kind(curve.carrier()) else {
+                    return Ok(None);
                 };
+                any_conic |= conic;
             }
             walked.push((
                 self.winding_point(hd.start)?,
-                curve.map(|c| (c, claim.plus)),
+                curve.map(|c| ((c.carrier(), c.params()), claim.plus)),
             ));
         }
         let (Some(&(p0, _)), Some(&last)) = (walked.first(), halves.last()) else {
@@ -356,7 +388,7 @@ impl<T: Decide> Body<T> {
         // the run's own end on an open run.
         let end = match closing {
             Closing::Cycle => p0,
-            Closing::Chord => {
+            Closing::Run(_) => {
                 let v = self
                     .half_edge_end(last)
                     .ok_or(dangling(DanglingRef::Entity(EntityId::HalfEdge(last))))?;
@@ -364,15 +396,16 @@ impl<T: Decide> Body<T> {
             }
         };
         let conic = |step: &Step<'_, T>| step.1.and_then(|(c, fwd)| conic_segment_term(c, fwd));
+        let open = matches!(closing, Closing::Run(_));
         let mut newell = Vec3::new(T::zero(), T::zero(), T::zero());
         // The F4 metering lever: the boundary's own length, accumulated
         // with the area — a chord per straight edge, an arc length per
-        // conic, and an open run's closing chord.
+        // conic, the closing curve included.
         let mut perimeter = T::zero();
         for (i, step) in walked.iter().enumerate() {
             let p = step.0;
             let next = walked.get(i + 1).map_or(end, |w| w.0);
-            if i + 1 < walked.len() || closing == Closing::Chord {
+            if i + 1 < walked.len() || open {
                 newell = newell + (p - p0).cross(next - p0);
             }
             perimeter = perimeter
@@ -381,8 +414,13 @@ impl<T: Decide> Body<T> {
                     None => (next - p).norm(),
                 };
         }
-        if closing == Closing::Chord {
-            perimeter = perimeter + (end - p0).norm();
+        let closing_term = closing_curve.and_then(|(c, fwd)| conic_segment_term(c, fwd));
+        if open {
+            perimeter = perimeter
+                + match closing_term {
+                    Some((_, len)) => len,
+                    None => (end - p0).norm(),
+                };
         }
         // The conic correction (module docs), added only when some
         // carrier is a conic: a line-only cycle keeps the chord sum.
@@ -390,7 +428,7 @@ impl<T: Decide> Body<T> {
         // re-associated.
         if any_conic {
             let mut bulge = Vec3::new(T::zero(), T::zero(), T::zero());
-            for (b, _) in walked.iter().filter_map(conic) {
+            for (b, _) in walked.iter().filter_map(conic).chain(closing_term) {
                 bulge = bulge + b;
             }
             newell = newell + bulge;

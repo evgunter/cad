@@ -9,12 +9,11 @@
 //! tiers and to its volume against the two spherical caps the radical
 //! plane cuts, computed here from the radii alone.
 //!
-//! **What builds is the COPLANAR-seam pose.** Both balls are revolved
-//! from the same seam, so each seam meridian pierces the other sphere
-//! on the other's seam meridian and every chord runs seam to seam. Spin
-//! one ball about the shared axis and the pierce lands inside a
-//! half-band instead, which is the pierce-ring door — pinned below as
-//! the frontier, not as a body.
+//! **The seams need not be coplanar.** Both balls are revolved from the
+//! same seam, so each seam meridian pierces the other sphere on the
+//! other's seam meridian and every chord runs seam to seam. Spin one
+//! ball about the shared axis and the pierce lands inside a half-band
+//! instead, a pierce ring, which joins: that pose builds too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -478,15 +477,16 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
     }
 }
 
-/// **The snowman builds only with its seams coplanar.** Spin B about the
-/// shared axis by any angle off `0` and `π` and A's seam meridian pierces
-/// B's sphere at a point INSIDE B's half-band rather than on B's seam:
-/// that pierced face then carries a ring of null scaffolding with no
-/// charted run, which is the pierce-ring door
-/// (`work/tang/pierce-ring-has-no-join-arm.md`), typed, for every op.
+/// **The snowman builds with its seams spun apart.** Spin B about the
+/// shared axis by any angle off `0` and `π` and A's seam meridian
+/// pierces B's sphere at a point INSIDE B's half-band rather than on B's
+/// seam: that pierced face carries a ring of null scaffolding, which
+/// joins, and every op builds at its closed form.
 #[test]
-fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
+fn a_spun_snowman_builds_under_every_boolean() {
     let a = ball(R1, 0.0);
+    let lens = lens_volume(R1, R2, D);
+    let (va, vb) = (ball_volume(R1), ball_volume(R2));
     for angle in [1e-3, 0.9, core::f64::consts::FRAC_PI_2] {
         let spin = geom_core::Affine3::rotation_about_axis(
             geom_core::Point3::origin(),
@@ -494,18 +494,12 @@ fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
             angle,
         );
         let b = topo::transform_rigid(&ball(R2, D), &spin, Tol::witness()).unwrap();
-        for op in OPS {
-            let e = refusal(op, &a, &b);
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                        case: topo::ArcWindowCase::NoChartedRun,
-                        ..
-                    })
-                ),
-                "spun by {angle} under {op:?}: expected the pierce-ring door, got {e:?}"
-            );
+        for (op, want) in [
+            (BooleanOp::Union, va + vb - lens),
+            (BooleanOp::Intersect, lens),
+            (BooleanOp::Subtract, va - lens),
+        ] {
+            assert_body(&format!("spun by {angle}, {op:?}"), &run(op, &a, &b), want);
         }
     }
 }
@@ -513,10 +507,11 @@ fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
 /// **A straight edge through a ball** reaches the line × sphere roots
 /// through a public op: a square bar poking out of a ball, its long
 /// edges straddling the sphere. They pierce, the pierce points' sector
-/// sides certify, and the op goes on to the join, where the pierced
-/// sphere face carries a ring with no charted run: the pierce-ring door
-/// (`work/tang/pierce-ring-has-no-join-arm.md`). A refusal at the
-/// pierce door would mean the root lane went dark.
+/// sides certify, and the op goes on to the join. The pierced sphere
+/// face's rings join, and the bar's faces `z = ±0.3`, tilted against
+/// the ball's `y` pole, stop at the planar side's polar gate
+/// (`work/reach/planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue`).
+/// A refusal at the pierce door would mean the root lane went dark.
 #[test]
 fn a_bar_through_a_ball_crosses_the_sphere() {
     let a = ball(R1, 0.0);
@@ -527,13 +522,10 @@ fn a_bar_through_a_ball_crosses_the_sphere() {
         assert!(
             matches!(
                 e,
-                topo::BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                    case: topo::ArcWindowCase::NoChartedRun,
-                    ..
-                })
+                topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
             ),
             "bar through a ball under {op:?}: expected to cross the sphere and stop at the \
-             pierce-ring door, got {e:?}"
+             polar gate, got {e:?}"
         );
     }
 }

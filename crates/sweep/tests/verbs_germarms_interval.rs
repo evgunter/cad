@@ -43,10 +43,11 @@ fn pipe() -> Body<Interval> {
 }
 
 /// **The build arm.** The bar's crossings are found at the certified
-/// scalar too, so the union walks past the crossing layer and refuses
-/// at the ring's absent JOIN arm (#1291) — the same door the `f64` lane
-/// reaches. An escalation here would mean the enclosures, not the
-/// geometry, decided the lane.
+/// scalar too, so the union walks past the crossing layer and the join
+/// and refuses at the volume backstop, which cannot measure the notched
+/// wall (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`)
+/// — the same door the `f64` lane reaches. An escalation here would
+/// mean the enclosures, not the geometry, decided the lane.
 ///
 /// Every coordinate here is dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
 /// points and this row measures the LANE rather than the fixture.
@@ -62,14 +63,17 @@ fn the_ring_lane_builds_at_the_certified_scalar() {
         ),
         Tol::witness(),
     )
-    .expect_err("no join arm for a pierce ring");
+    .expect_err("the notched wall has no measurement");
     assert!(
         matches!(
             err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                case: topo::ArcWindowCase::NoChartedRun,
-                ..
-            })
+            BooleanError::VolumeUnmeasured {
+                operand: None,
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::NotIsoRectangle { .. },
+                    ..
+                },
+            }
         ),
         "{err:?}"
     );

@@ -4313,6 +4313,7 @@ mod tests {
 mod winding_arm_tests {
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
+    use crate::loop_winding::RunClosing::{self, Straight};
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::{Point3, Sign, Vec3};
 
@@ -5266,10 +5267,11 @@ mod winding_arm_tests {
             Ok(LoopWinding::Wound(Ok(d))) => d,
             other => panic!("the triangle winds: {other:?}"),
         };
-        let run_margin = |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided(h1, h2, n, b) {
-            Ok(Some(Ok(d))) => d,
-            other => panic!("the run winds: {other:?}"),
-        };
+        let run_margin =
+            |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
+                Ok(Some(Ok(d))) => d,
+                other => panic!("the run winds: {other:?}"),
+            };
 
         let t = fresh();
         let whole = loop_margin(&t);
@@ -5301,7 +5303,7 @@ mod winding_arm_tests {
         let run = run_of(&t);
         fit_a_nurbs_quarter(&mut t, tol);
         assert_eq!(
-            t.body.planar_run_winding_decided(run.0, run.1, n, b),
+            t.body.planar_run_winding_decided(run, Straight, n, b),
             Ok(None),
             "a NURBS edge on the run is not wound by its chord"
         );
@@ -5312,7 +5314,7 @@ mod winding_arm_tests {
         let other = t.body.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
         t.body.half_edges.get_mut(h2).unwrap().edge = other;
         assert_eq!(
-            t.body.planar_run_winding_decided(h1, h2, n, b),
+            t.body.planar_run_winding_decided((h1, h2), Straight, n, b),
             Err(TornLoop::Unclaimed {
                 he: h2,
                 edge: other
@@ -5321,12 +5323,16 @@ mod winding_arm_tests {
         );
     }
 
-    /// **A run's conic bulge is read, closing chord and all**: one
+    /// **A run's conic bulge is read, closing curve and all**: one
     /// semicircle of [`two_semicircle_disc`] closed by its diameter is
     /// a half-disc whose chord Newell sum is exactly zero, so only the
     /// run's bulge can decide it, and it winds counterclockwise like the
     /// disc; the run over both semicircles closes on a zero-length chord
-    /// and is the disc's own loop, margin for margin.
+    /// and is the disc's own loop, margin for margin. A closing CURVE is
+    /// one more edge: a semicircle closed by the other semicircle is the
+    /// disc, margin for margin, and closed by itself run back it encloses
+    /// nothing — which a closing read as its straight chord would call
+    /// the half-disc.
     #[test]
     fn a_run_on_arcs_is_decided_by_its_bulge() {
         let tol = Tol::witness();
@@ -5338,7 +5344,7 @@ mod winding_arm_tests {
             panic!("the disc's loop is a cycle");
         };
         let second = body.get_half_edge(first).unwrap().next;
-        let run = |h1, h2| match body.planar_run_winding_decided(h1, h2, n, b) {
+        let run = |h1, h2| match body.planar_run_winding_decided((h1, h2), Straight, n, b) {
             Ok(Some(Ok(d))) => d,
             other => panic!("the run winds: {other:?}"),
         };
@@ -5354,6 +5360,34 @@ mod winding_arm_tests {
             other => panic!("the disc winds: {other:?}"),
         };
         assert_eq!(run(first, second), whole, "the whole run is the disc");
+        let traversed = |he: crate::HalfEdgeKey| {
+            let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+            let curve = body
+                .get_curve_geom(edge.curve)
+                .unwrap()
+                .certified()
+                .unwrap();
+            (
+                (curve.carrier(), curve.params()),
+                edge.claim(he).unwrap().plus,
+            )
+        };
+        let closed = |closing| match body.planar_run_winding_decided((first, first), closing, n, b)
+        {
+            Ok(Some(Ok(d))) => d,
+            other => panic!("the closed run winds: {other:?}"),
+        };
+        assert_eq!(
+            closed(RunClosing::Curve(traversed(second))),
+            whole,
+            "a semicircle closed by the other one is the disc"
+        );
+        let (own, forward) = traversed(first);
+        assert_eq!(
+            closed(RunClosing::Curve((own, !forward))).sign,
+            Sign::Zero,
+            "a semicircle closed by itself run back encloses nothing"
+        );
     }
 
     /// **The ring lane's own shape**: a run that opens AND closes on a
@@ -5405,7 +5439,7 @@ mod winding_arm_tests {
             Some(t.body.get_half_edge(h2).unwrap().start),
             "the run ends at the null half's far vertex, not at `d` itself"
         );
-        match t.body.planar_run_winding_decided(h1, h2, n, b) {
+        match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
             Ok(Some(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
             other => panic!("the run winds: {other:?}"),
         }

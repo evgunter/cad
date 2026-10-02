@@ -15,10 +15,10 @@
 //!   and has the analytic volume, at every depth — through the axis,
 //!   off it, and from either side;
 //! - a LAP (the cutter from `z = 3` past the far cap, so one end wall
-//!   sits inside the rod) off the axis, or through the axis across the
-//!   rulings (`x = 0`), refuses at the join where the cutter's edges
-//!   pierce the wall: a pierce ring has no join arm yet
-//!   (`work/tang/pierce-ring-has-no-join-arm`);
+//!   sits inside the rod) off the axis refuses at the join where the
+//!   cutter's edges pierce the wall (`work/tang/pierce-ring-has-no-join-arm`);
+//!   through the axis across the rulings (`x = 0`) the pierce rings
+//!   join, and the notched wall has no volume measurement;
 //! - a lap in the plane `y = 0`, which holds both ruling edges, builds
 //!   under every op at the analytic volume — and so does the all-planar
 //!   diamond prism whose side edges sit in that same plane: each section
@@ -31,10 +31,11 @@
 //!   resolution only the rim's CHORD midpoint to probe, which is on
 //!   neither flanking region, and the join refuses `SectionLoopMixed`
 //!   (`work/join/role-resolution-interior-tiers-certify-only-planar-region-faces`);
-//! - a blind D pocket in a block builds from the bottom face (its floor's
-//!   chord has the D's arc between its ends) and refuses `JoinDesync`
-//!   from the top
-//!   (`work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`).
+//! - a blind D pocket in a block builds from either face: from the
+//!   bottom its floor's chord has the D's arc between its ends; from the
+//!   top the D's arc side closes the ring-lane run the flat side's
+//!   copies open, so role resolution winds that run by the arc the join
+//!   mints, not by a straight chord.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -153,17 +154,15 @@ fn an_axis_lap_builds_every_op_as_its_planar_twin_does() {
 /// Laps off the rulings: the cutter's end-wall edges pierce the rod's
 /// wall inside a face, the plane through the axis at `x = 0` included,
 /// so the axis alone is not what the lap above refuses on. Each pierce
-/// mints a ring in the wall, and a ring has no join arm yet
-/// (`work/tang/pierce-ring-has-no-join-arm`): the run that divides the
-/// wall carries only null scaffolding, so it has no azimuth window.
+/// mints a ring in the wall. Off the axis (`y` from `0.2` or `0.35`)
+/// the run that divides the wall carries only null scaffolding, so it
+/// has no azimuth window (`work/tang/pierce-ring-has-no-join-arm`).
+/// Across the rulings (`x` from `0` or to `0`) the rings join, and the
+/// result's wall, notched by the cutter's ruling and arc, has no volume
+/// measurement (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
 #[test]
 fn laps_off_the_rulings_stop_at_the_wall_pierce_ring() {
-    for (x, y) in [
-        (ACROSS, (0.2, 1.0)),
-        (ACROSS, (0.35, 1.0)),
-        ((0.0, 1.0), ACROSS),
-        ((-1.0, 0.0), ACROSS),
-    ] {
+    for (x, y) in [(ACROSS, (0.2, 1.0)), (ACROSS, (0.35, 1.0))] {
         let err = cut(&rod(), x, y, LAP).expect_err("the lap refuses");
         assert!(
             matches!(
@@ -172,6 +171,22 @@ fn laps_off_the_rulings_stop_at_the_wall_pierce_ring() {
                     case: topo::ArcWindowCase::NoChartedRun,
                     ..
                 })
+            ),
+            "lap at x ∈ {x:?}, y ∈ {y:?}: {err:?}"
+        );
+    }
+    for (x, y) in [((0.0, 1.0), ACROSS), ((-1.0, 0.0), ACROSS)] {
+        let err = cut(&rod(), x, y, LAP).expect_err("the lap refuses");
+        assert!(
+            matches!(
+                err,
+                BooleanError::VolumeUnmeasured {
+                    operand: None,
+                    source: topo::MassPropsError::Face {
+                        source: geom_brep::props::PropsError::NotIsoRectangle { .. },
+                        ..
+                    },
+                }
             ),
             "lap at x ∈ {x:?}, y ∈ {y:?}: {err:?}"
         );
@@ -281,7 +296,7 @@ fn a_rim_semicircle_decides_role_resolution_at_its_own_midpoint() {
 
 /// The block `[−1, 1]² × [0, 1]` minus a D-profile rod (chord `x = 0.3`,
 /// major arc `r = 0.5` about the origin) extruded `1.0` from `z = z0`.
-fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
+fn d_pocket(z0: f64) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let block = extruded(
         SketchPlane::xy(),
         polygon(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
@@ -296,37 +311,32 @@ fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
         ]),
         1.0,
     );
-    topo::subtract(&block, &d, tol()).map(|r| r.body().expect("a body remains").body.clone())
+    topo::subtract(&block, &d, tol())
 }
 
 /// **A blind D pocket, from either face.** Entering through the BOTTOM
 /// face, the block's floor meets the D's flat wall along a chord whose
 /// ends are adjacent on the floor's new ring with the major arc between
-/// them — the plane×plane arm's conic question — and the pocket builds:
-/// it certifies at rest and its volume is the block less the D's area
-/// over the pocket's depth `0.5`. Entering through the TOP face it
-/// refuses `JoinDesync` in the join's internal words (the ring-run
-/// winding decides `Zero`), which
-/// `work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`
-/// carries.
+/// them — the plane×plane arm's conic question. Entering through the
+/// TOP face, the flat side joins first and the arc side's match is
+/// handed a ring run of the flat side's two copies: closed by the
+/// straight chord it encloses nothing in either role order, and closed
+/// by the arc the join mints it is the D, counterclockwise in exactly
+/// one. Both build at the block less the D's area over the pocket's
+/// depth `0.5`, hold tiers 2 and 3′ and the at-rest certificate, and
+/// are legal operands.
 #[test]
-fn a_blind_d_pocket_builds_from_below_and_refuses_from_above() {
-    let bottom = d_pocket(-0.5).expect("the bottom-entry pocket builds");
-    assert_sound(
-        &bottom,
-        4.0 - (PI * R * R - segment(0.3)) * 0.5,
-        "the bottom-entry D pocket",
-    );
-    let err = d_pocket(0.5).expect_err("the top-entry pocket refuses");
-    assert!(
-        matches!(
-            err,
-            BooleanError::JoinDesync {
-                what: "ring-run winding is degenerate (zero enclosed area)"
-            }
-        ),
-        "{err:?}"
-    );
+fn a_blind_d_pocket_builds_from_either_face() {
+    for (face, z0) in [("bottom", -0.5), ("top", 0.5)] {
+        let what = format!("the {face}-entry D pocket");
+        let r = d_pocket(z0).unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
+        let bb = r.body().expect("a body remains");
+        topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
+        assert_sound(&bb.body, 4.0 - (PI * R * R - segment(0.3)) * 0.5, &what);
+        sweep::test_support::assert_legal_operand(&what, &bb.body, tol());
+    }
 }
 
 /// **A split whose section is too nearly a circle to name reads as the

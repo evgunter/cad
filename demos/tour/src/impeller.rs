@@ -34,11 +34,11 @@
 //! refuses to union, so a round hub cannot have a blade unioned into
 //! it at all. The kernel's own row for that pose
 //! (`sweep/tests/verbs_germarms.rs`,
-//! `a_bar_leaving_through_one_side_of_a_wall_reaches_the_join`) gets
-//! past the pierce door now and refuses at the join,
-//! `SectionArcWindow { NoChartedRun }`: the frontier is
-//! `work/tang/pierce-ring-has-no-join-arm`, beside
-//! `work/tang/boolean-refuses-on-arc-carrier-not-arc`. The faceted hub
+//! `a_bar_leaving_through_one_side_of_a_wall_reaches_the_volume_backstop`)
+//! gets past the pierce door and the join now, and refuses at the
+//! volume backstop, which cannot measure the wall the box notches: the
+//! frontier is `work/props/a-notched-cylinder-wall-has-no-volume-measurement`,
+//! beside `work/tang/boolean-refuses-on-arc-carrier-not-arc`. The faceted hub
 //! is the modelling the kernel currently permits, said out loud rather
 //! than passed off as the part.
 //!

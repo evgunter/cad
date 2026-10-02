@@ -137,11 +137,9 @@ fn r1_a_first_order_exits_verdict_on_a_hole_wall_is_contradicted_at_its_own_arm(
 /// side by side: they are NOT the same sub-case. The planar cap pierce
 /// JOINS — its `SectionLoopMixed` was the role probe misreading the
 /// arc-bounded cap through `point_in_solid`'s planar arm, not a missing
-/// join arm, and it answers the truth now; the curved one is
-/// `SectionArcWindow{NoChartedRun}`, whose doc reads "A cylinder face's
-/// run ALWAYS carries one on the shipped lane; this is the typed door
-/// for a corrupt or frontier-carrier run" — a sentence this PR
-/// falsifies and leaves standing.
+/// join arm, and it answers the truth now; the curved one joins too, and
+/// refuses at the volume backstop, which cannot measure the wall the
+/// bar notches (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
 #[test]
 fn r1_the_planar_cap_pierce_joins_and_the_curved_wall_pierce_refuses() {
     let tol = Tol::witness();
@@ -153,15 +151,14 @@ fn r1_the_planar_cap_pierce_joins_and_the_curved_wall_pierce_refuses() {
         Ok(topo::BooleanResult::Body(out)) => out.body,
         other => panic!("the planar cap pierce joins, got {other:?}"),
     };
-    // The probe's claim (the two ring joins refuse at DIFFERENT gates)
-    // is measured on the short bar; the long one reaches the same join
-    // door (`verbs_germarms::a_long_armed_bar_reaches_the_same_join_door`).
+    // Measured on the short bar; the long one reaches the same door
+    // (`verbs_germarms::a_long_armed_bar_reaches_the_same_door`).
     let wall = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
         &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
         tol,
     )
-    .expect_err("the curved wall pierce has no join arm");
+    .expect_err("the curved wall's notch has no measurement");
     let v = topo::mass_properties(&cap, tol).unwrap().volume;
     assert!(
         (v - 6.643185307179586).abs() < 1e-12,
@@ -170,10 +167,13 @@ fn r1_the_planar_cap_pierce_joins_and_the_curved_wall_pierce_refuses() {
     assert!(
         matches!(
             wall,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                case: topo::ArcWindowCase::NoChartedRun,
-                ..
-            })
+            BooleanError::VolumeUnmeasured {
+                operand: None,
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::NotIsoRectangle { .. },
+                    ..
+                },
+            }
         ),
         "curved lane: {wall:?}"
     );

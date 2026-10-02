@@ -8,20 +8,19 @@
 //! actually buys, measured rather than asserted:
 //!
 //! - a box driven through a wall now has its crossings FOUND: both
-//!   operands split, the pierce ring inserts, and the union refuses one
-//!   layer down, at the JOIN, naming the arm that is missing there;
+//!   operands split, the pierce ring inserts and joins, and the union
+//!   refuses at the volume backstop, which cannot measure the wall the
+//!   bar notches (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`);
 //! - a box definitely clear of the wall still answers, bit for bit;
 //! - a box that GRAZES the wall keeps the pierce door, because a
 //!   tangency is not a crossing at any order this lane sees;
 //! - a cone wall keeps its own door, which is a different one.
 //!
-//! **The join refusal is the honest destination, not a shortfall.** A
-//! pierce ring is an EMPTY loop carrying only null scaffolding, so the
-//! run co-bounding a chord across it has no edge with a chart image and
-//! the divided face has no azimuth window to select an arc against. The
-//! planar sibling joins (`verbs_pierce`): a planar face's chord is
-//! straight and asks no window, so the missing arm is the ring's join on
-//! a CURVED face, not anything this lane left undone.
+//! A pierce ring is an EMPTY loop carrying only null scaffolding. Its
+//! first chord is the `mekr` that merges it into the face's outer loop,
+//! whose cycle gives the azimuth window the section arc is selected in;
+//! the second chord is that segment's curve run back, so no chord asks
+//! a window of the ring's scaffolding alone.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -46,7 +45,23 @@ fn pipe() -> Body<f64> {
 }
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("this pair has no join arm yet")
+    topo::union(a, b, Tol::witness()).expect_err("this pair refuses")
+}
+
+/// Whether `err` is the volume backstop's refusal of a result whose
+/// notched cylinder wall the property layer cannot measure
+/// (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
+fn notched_wall_unmeasured(err: &BooleanError) -> bool {
+    matches!(
+        err,
+        BooleanError::VolumeUnmeasured {
+            operand: None,
+            source: topo::MassPropsError::Face {
+                source: geom_brep::props::PropsError::NotIsoRectangle { .. },
+                ..
+            },
+        }
+    )
 }
 
 /// **The row the ring lane exists for.** A bar driven straight through
@@ -55,29 +70,21 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
 /// boundary of either operand.
 ///
 /// Before the ring lane, the first of them refused at the crossing
-/// layer with `CurvedPierceUnsupported`; the door it refuses at now is
-/// the JOIN's, which is the measurement that says the crossings were
-/// found, the edges split and the rings inserted.
-///
-/// The site is asserted, not just the variant: `NoChartedRun` is the
-/// pierce ring's own signature — the run carries only null scaffolding,
-/// so there is no chart image to build an azimuth window from. A
-/// different sub-case would mean a different story.
+/// layer with `CurvedPierceUnsupported`. The crossings are found, the
+/// edges split, the rings inserted and joined, and the door it refuses
+/// at now is the volume backstop's: the result's wall is notched by
+/// the bar's rulings and arcs, which the property layer has no
+/// measurement for. The source is asserted, not just the variant.
 #[test]
-fn a_bar_driven_through_a_wall_reaches_the_join() {
+fn a_bar_driven_through_a_wall_reaches_the_volume_backstop() {
     let err = union_err(
         &pipe(),
         &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
     );
     assert!(
-        matches!(
-            err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                case: topo::ArcWindowCase::NoChartedRun,
-                ..
-            })
-        ),
-        "the crossing layer passes it; the ring's join arm is what is left: {err:?}"
+        notched_wall_unmeasured(&err),
+        "the crossing layer and the join pass it; the notched wall's measurement is what is \
+         left: {err:?}"
     );
 }
 
@@ -88,21 +95,12 @@ fn a_bar_driven_through_a_wall_reaches_the_join() {
 /// same roots, and worth its own row because the two arms are argued
 /// differently.
 #[test]
-fn a_bar_leaving_through_one_side_of_a_wall_reaches_the_join() {
+fn a_bar_leaving_through_one_side_of_a_wall_reaches_the_volume_backstop() {
     let err = union_err(
         &pipe(),
         &brick((0.5, 1.1), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
     );
-    assert!(
-        matches!(
-            err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                case: topo::ArcWindowCase::NoChartedRun,
-                ..
-            })
-        ),
-        "{err:?}"
-    );
+    assert!(notched_wall_unmeasured(&err), "{err:?}");
 }
 
 /// **The asymmetric pose that reaches the join.** The pipe's wall is two
@@ -200,21 +198,15 @@ fn a_bar_grazing_the_wall_keeps_the_pierce_door() {
 /// outgrows its first-order departure. The sector side is a statement
 /// about the bound near the vertex, and the curvature charge certifies
 /// it at the distance where it is largest (`slope·r/2`), so the long
-/// bar reaches the same join door as the short one.
+/// bar reaches the same door as the short one.
 #[test]
-fn a_long_armed_bar_reaches_the_same_join_door() {
+fn a_long_armed_bar_reaches_the_same_door() {
     let err = union_err(
         &pipe(),
         &brick((-3.0, 3.0), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
     );
     assert!(
-        matches!(
-            err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                case: topo::ArcWindowCase::NoChartedRun,
-                ..
-            })
-        ),
+        notched_wall_unmeasured(&err),
         "an edge fragment longer than the wall's radius still certifies its side: {err:?}"
     );
 }

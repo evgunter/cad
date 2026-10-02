@@ -104,3 +104,18 @@ the blind one.
 
 `band/ruled-d-hole-ring-crease`'s class sweep (a mixed crease, one end
 in a ring and one in an outer cycle), probing for a fixture.
+
+## Built (JOIN-3)
+
+Defect 1 was gone on JOIN-1's head: the top pose still refused the
+same `JoinDesync`, and the arc side's skip reads its locus (`InFace` on
+the block), so its chord is minted. Defect 2 is fixed by the segment's
+curve: a match computes its chord curve once (`chord_join::SegmentCurve`,
+`ChordJoiner::segment_curve`), the joiner mints both chords on it, and
+the ring lane closes its run with it (`boolean::join::ring_run_ccw`,
+`loop_winding::RunClosing`). Both poses build at `3.6632128205514776`,
+exactly `4 − 0.5·A_D`, through tiers 2 and 3′ and the at-rest
+certificate, and are legal operands
+(`sweep/tests/axis_lap.rs`, `a_blind_d_pocket_builds_from_either_face`).
+Closing the run with the straight chord again turns that row red with
+this item's original payload.
