@@ -68,8 +68,8 @@
 //!    is FORCED by nesting for sector widths W ≤ π — the whole
 //!    crossing-minted class (edge-interior sites are exact
 //!    half-planes); reflex corners W > 3π/2 with germ angle
-//!    θ ∈ (π/2, W−π) sit in an unforced window and can refuse
-//!    `SeamOrientation` (ops module "Known limitations").
+//!    θ ∈ (π/2, W−π) sit in an unforced window (ops module "Known
+//!    limitations").
 //! 3. **What the join controls.** Surgery never reverses existing
 //!    halves, and chords close cycles forced by arc endpoints, so the
 //!    directed cycles after every join are fixed by the senses alone:
@@ -1449,9 +1449,7 @@ fn choose_roles<T: Decide>(
         .ok_or(desync("role face no longer resolves"))?
         .outer;
     if l == outer {
-        // Both arcs dirty is refused loudly, never resolved: the star
-        // fixture reaches it in six member orders
-        // (`work/join/join-desync-on-the-star-fixture`).
+        // Both arcs dirty is refused loudly, never resolved.
         return clean_dir(body, ea, ra, loose)?
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
