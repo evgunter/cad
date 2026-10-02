@@ -124,3 +124,54 @@ First wave, and why in this order:
 Held: the torus lever (its fix is written in the row, but it edits
 `rest::carrier_pair_verdict` while the m9-3 lane moves code in that
 file), so it follows the m9-3 lane.
+
+## 2026-10-01 — DEV-1 circle arm: the pair's first reports, and a measurement before reconciling (TANG orchestrator)
+
+Both designers rejected the brief's framing. The orchestrator's
+statement was stale: the residual-sign obstacle it named is already
+measured and satisfied (`verbs_cylsph_tangent_residuals.rs`). Both
+also found the motivating fixture in the wrong class. A sphere-capped
+tube's rim is a wedge-π seam with aligned normals, not a `Tangent`
+contact. Their recommended final states agree on the core: no
+cylinder×sphere arm now; the circle locus is built as a curve carrier
+read through `tangent_at(p)`; and it is sequenced with the kiss and cusp
+consumers.
+
+They disagree on one checkable fact: whether an abutting π seam between
+distinct carriers already builds through the join, or dies at the
+reduce frontier with no licence. One design adds a second fork on that
+point, how a π seam is licensed. A measurement lane
+(`tang/pi-seam-measure`) settles the fact before the reconciliation
+round, so neither designer argues a premise the tree can answer.
+
+Filed from the reports' off-question findings:
+`tangent-locus-re-meters-the-section-classifiers-tangency` (P1),
+`covered-circle-rung-reads-a-negative-endpoint-as-a-crossing` (P3), and
+`declared-tangency-docs-name-the-wrong-blockers` (P4, E).
+
+Lesson for the orchestrator's own briefs: re-read a row's precondition
+against the tree before handing it to designers as the problem.
+## 2026-10-01 — re-measure lands (PR 3748); arc-aware-point-in-loop closes (TANG orchestrator)
+
+Review tier: orchestrator's read. It is a measurement lane, and its
+code is pinned tests only. Findings:
+
+- **Ev's engraving pose builds**, to the closed-form volume, with tier 3
+  `Ok`. The old `SectionLoopMixed` was ATREST-9's `point_in_solid`
+  misread. The variant that crosses the rim now stops at
+  `CurvedPierceUnsupported`, the circle × cylinder cell the
+  `tang/circle-cylinder-crossing` lane is building.
+- **The pierce ring is still live** on the cylinder wall
+  (`NoChartedRun` seam-to-seam, `NeitherContained` inside one wall face,
+  now pinned on an asymmetric pose) and on the spun snowman's sphere.
+  The planar arm needs nothing. The row stays open with that narrowed
+  scope.
+- **`arc-aware-point-in-loop` closes.** Its residues are filed
+  (CLEAVE's spiric/spline row, and `loop-shape-keeps-three-classes-nothing-reads`).
+
+The PR's `test` job is red only on
+`mass_props_are_thread_count_invariant`'s serial golden. That red is
+inherited from main (`work/props/thread-count-digest-moved-on-main-loft-area-pads`):
+PRs 3746, 3747 and 3748 all fail it identically, and none of them
+changes kernel code. Merged over it, annotated on the PR, per the
+inherited-red rule.

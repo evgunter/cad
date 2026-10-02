@@ -134,7 +134,13 @@ pub fn try_inserted(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), EditError> {
-    let (doc, minted) = try_edited(doc, DocEdit::InsertNode { node }, tol)?;
+    let (doc, minted) = try_edited(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+    )?;
     Ok((doc, minted.expect("an insert mints an id")))
 }
 

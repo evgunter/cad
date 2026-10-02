@@ -72,3 +72,15 @@ row settles on has to carry that, not just the attribute count.
 
 Appended from outside LIB's fence, by announcement, to keep the row
 true of the surface it describes.
+
+## Narrowed (2026-10-01, PR #3676)
+
+EDIT P2-core deleted the cluster acts with the placement registry, and
+their seven getters (`survived`, `absorbed`, `absorbed_frame`, `source`,
+`target`, `frame`, `gauge`) with them. The class now carries four
+variants — `offset_cleared`, `strand`, `stranded_appearance`,
+`orphaned_declare` — over three payload attributes: `node`, `name` and
+`offset`. The question stands at its new size: `node` answers three
+questions by `variant` (the instance whose offset the mate door cleared,
+a stranded name's carrier, the orphaned declaration itself), and
+`offset` is `None` on every arm but one.

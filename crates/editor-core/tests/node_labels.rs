@@ -11,9 +11,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, LoggedEdit,
-    Maintenance, Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SitedRef, SnapshotError,
-    SplitError, content_pin, evaluate, inline, load, save, split,
+    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
+    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SitedRef, SnapshotError, SplitError,
+    content_pin, evaluate, inline, load, save, split,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
@@ -182,12 +182,9 @@ fn a_label_survives_save_and_load_and_replays_from_the_log() {
     assert_eq!(loaded.doc.label(extrude), Some(&label("base plate")));
     assert!(loaded.doc.bit_eq(&labelled), "the snapshot round-trips");
 
-    let edits = [LoggedEdit {
-        edit: DocEdit::SetLabel {
-            node: extrude,
-            label: Some(label("base plate")),
-        },
-        maintenance: Vec::new(),
+    let edits = [DocEdit::SetLabel {
+        node: extrude,
+        label: Some(label("base plate")),
     }];
     let logged = load(&save(&doc, &edits, tol).expect("saves"), tol).expect("loads");
     assert_eq!(
@@ -369,10 +366,10 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
     let twice = refusal(
         &doc,
         DocEdit::InsertNode {
-            node: Node::Union {
+            node: Box::new(Node::Union {
                 members: vec![extrude, extrude],
                 declare: None,
-            },
+            }),
         },
     );
     let EditError::DuplicateInput { node, input } = &twice else {
@@ -760,9 +757,11 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
 
     let (placed, _) = step(
         host.clone(),
-        DocEdit::SetPlacement {
-            node: inst,
-            frame: editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: inst,
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::translation([3.0, 0.0, 0.0]),
+            )),
         },
     );
     let refused = inline(&placed, inst, &resolver, tol).expect_err("a placed plain part");
@@ -775,10 +774,9 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
         "the root is the part's, spoken from the part"
     );
     assert!(
-        refused.to_string().contains(&format!(
-            "the part's root Extrude \"bracket\" ({})",
-            tag(body.0)
-        )),
+        refused
+            .to_string()
+            .contains(&format!("part root Extrude \"bracket\" ({})", tag(body.0))),
         "{refused}"
     );
 

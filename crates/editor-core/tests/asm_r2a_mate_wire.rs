@@ -29,7 +29,7 @@ fn a_mate_bearing_document_round_trips() {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::instantiate_part(doc_ref),
+                node: Box::new(Node::instantiate_part(doc_ref)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -54,7 +54,7 @@ fn a_mate_bearing_document_round_trips() {
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: crate::fixture::head(name(ids[0])),
                 b: crate::fixture::head(name(ids[1])),
                 class: ContactClass::Rest,
@@ -65,7 +65,7 @@ fn a_mate_bearing_document_round_trips() {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

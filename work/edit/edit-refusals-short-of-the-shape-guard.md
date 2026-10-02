@@ -170,3 +170,15 @@ this row, so it stays open, and the unit sets the `## Built` section.
 - Their `FILED_NO_RECOURSE` entries in `crates/viewer/tests/refusal_concision_edits.rs` are gone.
 
 **What remains on this row:** five placement arms held for `placement-is-spelled-three-ways-node-registry-and-rule`'s P2: `MaintenanceUnrecorded`, `PlacementOnNonInstance`, `PlacementAxis`, `PlacementRuleMismatch`, `EmptyPlacementList`.
+
+## Built (2026-10-01, the placement unit's P2) — the placement arms
+
+Ruling 10 of `docs/EDIT-PLACEMENT-SPEC.md`'s P2, against the five arms still on the list:
+- **Deleted with what they refused:** `MaintenanceUnrecorded` (and, under MSOLVE's comment, `MaintenanceRefused` with its eleven forwarded rows). No edit records a frame, so nothing is maintained and nothing is unrecorded.
+- **Re-shaped, and stating a recourse:** `PlacementOnNonInstance` is `OffsetOnNonInstance` (`DocEdit::SetOffset` on a node that instantiates no part), ending "aim the offset at a node that instantiates a part". `PlacementAxis` — now raised by an instance's offset and a gauge's placement as well as a transform's — ends "give the rotation axis a direction of nonzero length".
+- **New, stating a recourse from birth:** `GaugeOnNonPlaced`, `GaugeNotLive`, `NotAGauge`, `GaugeCycle` (the `SetGauge` door), and `MateFault::OffsetDisagrees` / `OffsetUnchecked` under `MateRefused` (`OFFSET_RECOURSE`; repair the node whose placement did not evaluate, or clear the offset).
+- **Left, untouched by P2:** `EmptyPlacementList` and `PlacementRuleMismatch`, the explicit placement rule's.
+
+`crates/viewer/tests/refusal_concision_edits.rs` renders every new arm, its `FILED_NO_RECOURSE` holds the two rule arms under this row's comment, and its `MaintenanceRefused` admissions are gone. `FrameSite::Registry` went with the registry; a literal step of an offset or a gauge is `FrameSite::Step`.
+
+**What remains on this row:** the two placement-rule arms, `EmptyPlacementList` and `PlacementRuleMismatch`.
