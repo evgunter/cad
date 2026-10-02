@@ -4,7 +4,7 @@ kind: issue
 title: blend: a solid of several outer shells refuses UnsupportedBody before any chain is read, so a split half that came out in two pieces cannot be blended
 status: open
 opened: 2026-10-02
-priority: P4
+priority: P2
 cost: M
 ---
 
@@ -27,3 +27,13 @@ whose requested chains stay inside one shell, would serve it. Behind
 this refusal the same selection still meets
 `a-plane-plane-blend-cannot-end-at-an-unrequested-corner`, so this row
 alone does not unblock that scene.
+
+## Priority
+
+P2. A solid of several outer shells is what a split leaves wherever its
+plane cuts a part into separate pieces on one side, and what a disjoint
+union is, so ordinary ops on ordinary parts hand the blend this body.
+The special case is the door's: a request whose chains each stay in one
+shell should be handled uniformly, shell by shell, rather than the body
+refused. Below the run-out row because that one blocks the same scene
+first and blocks a single solid of one shell too.

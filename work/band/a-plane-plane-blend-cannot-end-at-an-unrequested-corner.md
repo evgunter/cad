@@ -1,63 +1,86 @@
 ---
 id: a-plane-plane-blend-cannot-end-at-an-unrequested-corner
 kind: issue
-title: blend: a plane–plane chain cannot end at a corner whose other edges are unrequested, so no edge of one face can be broken alone — one cube edge, or a split half's section chords
+title: blend: a plane–plane chain cannot end at a corner whose other edges are unrequested, nor turn a sharp corner, so no proper subset of a box's edges can be chamfered or filleted
 status: open
 opened: 2026-10-02
-priority: P3
-cost: M
+priority: P0
+cost: H
+design: true
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo`, whose scene
-(`demos/tour/src/bracket.rs`, `split_and_break`, wall 1) pins it live.
+(`demos/tour/src/bracket.rs`, `split_and_break`, walls 1–3) pins it live.
 
-## What
+## Why P0
 
-The planar open band (`crates/sweep/src/blend/open/planar.rs`) carves
-a plane–plane link only between trivalent corners "whose three edges
-are all requested". A chain that ends anywhere else refuses
-`BlendError::UnsupportedRunOut` "a chain ends at a trivalent corner
-whose three edges are not all requested", and the recourse
-(`FILLET3_CORNER_RECOURSE`) is to request every edge of every corner
-the chain ends at — which on a polyhedron closes over the whole body.
-The ruled band has the planar case's sibling built
-(`RunOutPolicy::CutOffAtTransverseCap`, `blend/open/ruled.rs`); the
-planar band has none.
-
-So no subset of a box's edges short of all twelve can be chamfered or
-filleted. The kernel's own rows pin the one-edge case as the expected
-refusal (`crates/sweep/tests/blend6_verb_vocab.rs`,
+Chamfering or filleting ONE edge of a box refuses, and so does every
+proper subset of its twelve edges; only all twelve build. That is
+`work/README.md`'s P0: a normal verb broken on normal geometry.
+Measured through the document (the PR 3842 review's probe, `Node::Chamfer`
+on an extruded box): one edge refuses `UnsupportedRunOut`, the first four
+edges refuse `ChainNotG1`, all twelve build. The kernel's own rows pin the
+one-edge case as the expected refusal
+(`crates/sweep/tests/blend6_verb_vocab.rs`,
 `a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out`;
-`blend_recourse_followability.rs`); this item is the consumer that
-needs it built.
+`blend_recourse_followability.rs`).
 
-## The consumer
+## The two doors, both in scope
 
-The bracket split at `x + y = 2.75` (`Node::Split`, then `Node::Part`
-keeping the corner piece) and its four section chords on the caps
-chamfered by name (`Node::Chamfer`, setback 0.1). Every corner of a
-section face carries a body edge the selection does not name, so every
-subset of a split half's section edges ends at an unrequested corner.
-Measured, at the default ε:
+1. **The run-out.** The planar open band
+   (`crates/sweep/src/blend/open/planar.rs`) carves a plane–plane link
+   only between trivalent corners "whose three edges are all requested".
+   A chain that ends anywhere else refuses `BlendError::UnsupportedRunOut`,
+   and the recourse (`FILLET3_CORNER_RECOURSE`) — request every edge of
+   every terminating corner — closes over the whole polyhedron. The
+   ruled band has a sibling built (`RunOutPolicy::CutOffAtTransverseCap`,
+   `blend/open/ruled.rs`); the planar band has none, and its end faces
+   are in general OBLIQUE to the edge.
+2. **The sharp turn.** A chain of plane–plane links meeting at a
+   non-tangent corner (a face's whole rim) refuses `ChainNotG1` at
+   `fillet3_chain_g1`, before any run-out is read. Breaking every edge
+   of one face — the commonest request after a single edge — needs a
+   corner patch where two requested edges and one unrequested meet.
+
+## Why it is a design fork
+
+`crates/sweep/README.md` A3-3 (ratified #992) names the run-out as
+named-and-not-implemented, and the ruled sibling's end geometry (FILLET-H7,
+the transverse cut-off) took Ev's ruling on PR 1736. What a planar band's
+end IS at an oblique end face, and what the patch at a sharp chain turn
+is, are the same kind of decision: weigh them first with one Opus and
+one Fable designer (`docs/prompts/designer.md`), then Ev if it is his
+call.
+
+A chamfer's end at a planar end face is one candidate that needs no new
+surface: the strip runs on and stops in the end face's plane, a straight
+chord at any angle.
+
+## The scene's measurements
+
+The bracket split at `x + y = 2.75`, setback 0.1 (`Node::Part` keeping
+the corner piece):
 
 | selection on the corner piece | chamfer | fillet |
 |---|---|---|
 | the four cap chords (`[SectionEdge, Fragment(Ends)]`) | `UnsupportedRunOut` | `UnsupportedRunOut` |
 | the four section edges on the side walls (`[SectionEdge]`) | `UnsupportedRunOut` | `UnsupportedRunOut` |
-| all eight (both section faces' whole boundary) | `ChainNotG1` (margin 0.75) | `ChainNotG1` |
+| all eight (both section faces' whole rims) | `ChainNotG1` (margin 0.75) | `ChainNotG1` |
 
-The geometry a chamfer wants at such an end is a cut, not a patch:
-the strip runs on to the end face and stops in that face's plane, a
-straight chord, for any end-face angle. For the bracket's chords the
-end faces are the leg's two parallel side walls a unit apart, so each
-chord's prism is exact and the oracle is closed-form:
-`ΔV = 4 · (d²/2) · √2` over the four chords (right-angle dihedral
-between cap and section; a 45° chord crosses a unit-wide leg in √2).
-A fillet's end there is a cylinder band cut by an end face at 45° to
-its spine — the oblique end the ruled band refuses today — so the
-chamfer's straight cut is the smaller first step.
+Which refusal fires first depends on the setback and the plane (the
+review's probe): at `c = 2.75` the chords' chamfer meets
+`FaceClearanceUncertified` from `d = 0.3`, at `c = 2.6` from `d = 0.1`,
+and at `c = 2.9` it is `UnsupportedRunOut` through `d = 0.3`.
+
+Oracle for the four-chord chamfer once it builds: each chord sits on a
+right-angle dihedral and ends on the leg's two parallel side walls a unit
+apart, so `ΔV = 4 · (d²/2) · √2`, exact while `d·√2 < c − 2.5` (the strip
+short of the fillet's tangent points).
 
 ## Done when
 
-The bracket's wall 1 panics as retired, and the scene's document ends
-in the chamfer at the oracle above.
+- One edge, and any proper subset ending at unrequested corners, of a box
+  chamfers (and, if the fork rules it in, fillets): the bracket's walls 1
+  and 2 panic as retired and the scene's document ends in the chamfer at
+  the oracle above.
+- A face's whole rim chamfers: wall 3 panics as retired.

@@ -27,21 +27,21 @@
 //! cap chords is named by its ends — `[SectionEdge, Fragment(Ends)]` —
 //! and a selector reaches them by role path alone.
 //!
-//! The chamfer does not build. It refuses `UnsupportedRunOut`: a
-//! plane–plane band ends only at a trivalent corner whose three edges
-//! are all requested, and every corner of a section face carries a
-//! body edge the selection does not name. That holds for any subset of
-//! a split half's section edges, so no plane offset, setback or tilt
-//! moves it; measured over the half (corner piece, offcuts), the
-//! selection (the four cap chords, the four section edges across the
-//! legs' side walls, all eight) and the verb (chamfer, fillet), the
-//! corner piece refuses `UnsupportedRunOut` or, for all eight,
-//! `ChainNotG1`, and the offcuts — one solid of two shells — refuse
-//! `UnsupportedBody` before any chain is read
+//! The chamfer does not build. A plane–plane band ends only at a
+//! trivalent corner whose three edges are all requested, and every
+//! corner of a section face carries a body edge no subset of the
+//! section edges names, so that run-out stands for every such
+//! selection; which refusal fires FIRST depends on the setback, a
+//! larger one meeting `FaceClearanceUncertified` before it. Four walls
+//! pin the cells at this plane and setback: the chords chamfered
+//! (`UnsupportedRunOut`) and filleted (the same), both section faces'
+//! whole rims (`ChainNotG1`), and the offcuts, one solid of two
+//! shells (`UnsupportedBody`)
 //! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`,
-//! `work/band/a-blend-refuses-a-solid-of-several-shells.md`). The
-//! probe is live: when it builds, the document ends in the chamfer and
-//! its oracle is the one written in [`split_and_break`].
+//! `work/band/a-blend-refuses-a-solid-of-several-shells.md`).
+//!
+//! The outline's decimal-via ancestor lives on as the large-K lint's
+//! litmus fixture (`tools/k-lint/tests/litmus.rs`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -68,7 +68,7 @@ const DEPTH: f64 = 0.75;
 /// (`x + y = 2.5`) and short of both leg ends (`x + y = 3`), so it
 /// crosses each leg once and the fillet not at all.
 const CUT: f64 = 2.75;
-/// The setback the wall's chamfer asks for.
+/// The setback the walls' blends ask for.
 const SETBACK: f64 = 0.1;
 
 fn len(v: f64) -> Expr {
@@ -198,6 +198,15 @@ pub(crate) fn probe_body(tol: Tol) -> Body<pncad::geom_core::k_stats::Probe> {
     body_at(&ev, body)
 }
 
+/// One wall cell: the blend a split half is asked for, and the
+/// refusal it pins.
+struct WallProbe {
+    n: u32,
+    what: &'static str,
+    node: Node<ProfileProgram>,
+    pinned: fn(&BlendError) -> bool,
+}
+
 /// The wall's document: the bracket, split at `x + y = CUT`, the
 /// corner piece's section chords chamfered by name. Asserts what the
 /// split builds and pins what the chamfer refuses; answers the
@@ -241,54 +250,89 @@ fn split_and_break(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> S
 
     // A cap crossed twice: each chord is named by its two end
     // vertices, under the cap face it lies in.
-    let chords = select(
-        &ev,
-        corner,
-        &Selector::of(NamePat::of_kind(EntityKind::Edge).path([
-            SegPat::tag(SegTag::SectionEdge),
-            SegPat::tag(SegTag::Fragment),
-        ])),
-    );
+    let edges = |path: Vec<SegPat>| Selector::of(NamePat::of_kind(EntityKind::Edge).path(path));
+    let chord_sel = edges(vec![
+        SegPat::tag(SegTag::SectionEdge),
+        SegPat::tag(SegTag::Fragment),
+    ]);
+    let chords = select(&ev, corner, &chord_sel);
     assert_eq!(
         chords.len(),
         4,
         "two legs x two caps, each chord named by its ends: {chords:?}"
     );
+    let mut rim = [
+        chords.clone(),
+        select(&ev, corner, &edges(vec![SegPat::tag(SegTag::SectionEdge)])),
+    ]
+    .concat();
+    rim.sort();
+    assert_eq!(rim.len(), 8, "two section faces, four edges each: {rim:?}");
+    let off_chords = select(&ev, offcuts, &chord_sel);
 
-    let broken = insert(&mut doc, Node::chamfer(corner, len(SETBACK), chords), tol);
-    let ev = eval(&doc, tol);
-    let outcome = ev.value(broken).ok_or_else(|| {
-        &ev.node_error(broken)
-            .expect("a node with no value carries its refusal")
-            .kind
-    });
-    // Each chord's chamfer, once it ends at the leg's side walls, is a
-    // right-angle prism of section SETBACK²/2 between two parallel
-    // walls a unit apart, which a 45° chord crosses in √2.
+    // Each chord's chamfer, ending on the leg's two parallel side walls
+    // a unit apart, is a right-angle prism of section d²/2 that a 45°
+    // chord crosses in √2 — exact while the strip stays short of the
+    // fillet's tangent points, d·√2 < CUT − 2.5.
     let delta_v = 4.0 * SETBACK * SETBACK / 2.0 * SQRT_2;
-    crate::walls::wall(
-        "bracket",
-        1,
-        "the corner piece's four section chords, chamfered by name",
-        outcome,
-        |e| {
-            matches!(
-                e,
-                NodeErrorKind::Blend {
-                    error: BlendError::UnsupportedRunOut { .. },
-                    ..
-                }
-            )
-        },
-        &format!(
-            "end the gallery document in the chamfer: its body is the corner piece less \
-             4·(d²/2)·√2 = {delta_v:.6} (d = {SETBACK})"
-        ),
+    let retire = format!(
+        "end the gallery document in the chamfer: its body is the corner piece less \
+         4·(d²/2)·√2 = {delta_v:.6} (d = {SETBACK}; exact while d·√2 < CUT − 2.5)"
     );
+    let probes: [WallProbe; 4] = [
+        WallProbe {
+            n: 1,
+            what: "the corner piece's four cap chords, chamfered by name",
+            node: Node::chamfer(corner, len(SETBACK), chords.clone()),
+            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
+        },
+        WallProbe {
+            n: 2,
+            what: "the same four chords, filleted by name",
+            node: Node::fillet(corner, len(SETBACK), chords),
+            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
+        },
+        WallProbe {
+            n: 3,
+            what: "both section faces' whole rims, chamfered by name",
+            node: Node::chamfer(corner, len(SETBACK), rim),
+            pinned: |e| matches!(e, BlendError::ChainNotG1 { .. }),
+        },
+        WallProbe {
+            n: 4,
+            what: "the offcuts' cap chords, chamfered by name",
+            node: Node::chamfer(offcuts, len(SETBACK), off_chords),
+            pinned: |e| matches!(e, BlendError::UnsupportedBody { .. }),
+        },
+    ];
+    for WallProbe {
+        n,
+        what,
+        node,
+        pinned,
+    } in probes
+    {
+        let mut probe = doc.clone();
+        let broken = insert(&mut probe, node, tol);
+        let ev = eval(&probe, tol);
+        let outcome = ev.value(broken).ok_or_else(|| {
+            &ev.node_error(broken)
+                .expect("a node with no value carries its refusal")
+                .kind
+        });
+        crate::walls::wall(
+            "bracket",
+            n,
+            what,
+            outcome,
+            |e| matches!(e, NodeErrorKind::Blend { error, .. } if pinned(error)),
+            &retire,
+        );
+    }
     format!(
         "split at x + y = {CUT}: offcuts V = {off:.6}, corner piece V = {kept:.6}, sum = whole; \
-         its four cap chords are named by their ends, and chamfering them by name refuses \
-         UnsupportedRunOut (wall 1)"
+         its four cap chords are named by their ends, and breaking them by name refuses \
+         (walls 1-4)"
     )
 }
 
