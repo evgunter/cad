@@ -671,39 +671,3 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
     sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
 }
-
-/// `decls` with every flush pair of two PLANAR faces the kernel finds
-/// between `a` and `b` declared too (`topo::flush`), unless already
-/// declared. A mate's planar caps flush across the seam (a peg's cap in
-/// its plate's cap plane) are a same-sense coplanar adjacency the union
-/// would keep, which only a declaration licenses: undeclared, the op
-/// refuses `UndeclaredCoincidence` naming the pair (DESIGN, "Maximal
-/// faces"); declared, the output's merge stage glues it.
-pub fn with_flush_planes(
-    a: &topo::Body<f64>,
-    b: &topo::Body<f64>,
-    mut decls: topo::BooleanDeclarations,
-) -> topo::BooleanDeclarations {
-    let planar = |body: &topo::Body<f64>, f: topo::FaceKey| {
-        body.get_face(f)
-            .and_then(|fd| body.get_surface(fd.surface))
-            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
-    };
-    let found = topo::flush::find_flush_candidates(a, b, geom_core::Tol::witness())
-        .expect("the flush detector decides");
-    for f in found {
-        let (fa, fb) = f.pair;
-        if planar(a, fa)
-            && planar(b, fb)
-            && !decls
-                .coincident_faces
-                .iter()
-                .any(|d| d.a == fa && d.b == fb)
-        {
-            decls
-                .coincident_faces
-                .push(topo::FacePairDeclaration::new(fa, fb, f.class));
-        }
-    }
-    decls
-}

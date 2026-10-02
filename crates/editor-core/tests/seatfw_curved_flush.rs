@@ -234,7 +234,19 @@ fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
     // that germ). The claim the row is about stands either way: no
     // declaration-door refusal.
     let Some(NodeResult::Failed(e)) = ev.nodes.get(&union) else {
-        assert!(ev.nodes.contains_key(&union), "the union node evaluated");
+        let Some(NodeResult::Ok(value)) = ev.nodes.get(&union) else {
+            panic!("the union node evaluated");
+        };
+        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { body: b, .. }) =
+            &value.payload
+        else {
+            panic!("a union's value is a body");
+        };
+        // Every boolean output is a legal boolean operand (DESIGN).
+        let far =
+            sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
+        topo::union(b, &far, Tol::witness())
+            .unwrap_or_else(|e| panic!("the newly built mate is a legal operand: {e:?}"));
         return;
     };
     let NodeErrorKind::Boolean(err) = &e.kind else {

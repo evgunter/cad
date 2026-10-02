@@ -98,9 +98,7 @@ fn declarations(
             }
         }
     }
-    // The flush planar caps beside the walls are a continuation the
-    // union would keep: declared too (`common::with_flush_planes`).
-    crate::common::with_flush_planes(p, q, decls)
+    decls
 }
 
 /// Oracle re-derivation: the plate pair is 6·4·1 each = 24+24 = 48 and
@@ -282,12 +280,7 @@ fn probe_partial_engagement_never_silent() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
-    match topo::union_with(
-        &p,
-        &q,
-        &crate::common::with_flush_planes(&p, &q, decls.clone()),
-        Tol::witness(),
-    ) {
+    match topo::union_with(&p, &q, &decls, Tol::witness()) {
         Ok(out) => {
             let body = body_of(out);
             let v = mass_properties(&body, Tol::witness()).unwrap().volume;
@@ -363,7 +356,7 @@ fn flush_rest_decls(bot: &Body<f64>, top: &Body<f64>, z: f64) -> BooleanDeclarat
         plane_face(top, z, false),
         ContactClass::Rest,
     ));
-    crate::common::with_flush_planes(bot, top, decls)
+    decls
 }
 
 /// Two stacked plates each with TWO square through-holes: the contact
@@ -526,15 +519,7 @@ fn probe_tube_chain_additivity_error_measured() {
         plane_face(&b, 1.0, false),
         ContactClass::Tangent,
     ));
-    let body = body_of(
-        topo::union_with(
-            &a,
-            &b,
-            &crate::common::with_flush_planes(&a, &b, decls.clone()),
-            Tol::witness(),
-        )
-        .unwrap(),
-    );
+    let body = body_of(topo::union_with(&a, &b, &decls, Tol::witness()).unwrap());
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
     eprintln!(
         "tube-chain: va = {va:.17e}, vb = {vb:.17e}, v = {v:.17e}, err = {:.3e}",
@@ -566,12 +551,7 @@ fn probe_rim_wall_pair_undeclared_refuses_typed() {
         plane_face(&b, 1.0, false),
         ContactClass::Tangent,
     ));
-    match topo::union_with(
-        &a,
-        &b,
-        &crate::common::with_flush_planes(&a, &b, decls.clone()),
-        Tol::witness(),
-    ) {
+    match topo::union_with(&a, &b, &decls, Tol::witness()) {
         Ok(out) => {
             // If it unions anyway the result must still be exact and
             // valid — but record it: the wall-pair incidence rode

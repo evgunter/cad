@@ -6,11 +6,8 @@
 //! declaration it has no rung for, and the door RECORDS it as a
 //! `SkippedMerge` carrying `DeclaredCarrierUnsupported` — visible in
 //! `BooleanNaming::merge_skipped`, never an `InvalidDeclaration` refusal
-//! blaming the caller. Scenes A, B and F reach that record and ship an
-//! honest body; scenes C and D ship an honest body through the chord
-//! join, which consumes the bore side of the pair before the door, so
-//! the door is handed nothing to record; scene E stops at the
-//! reduction.
+//! blaming the caller. Scenes A, B, C, D and F reach that record and
+//! ship an honest body; scene E stops at the reduction.
 //!
 //! Scenes A–D are `mate2_common`'s; scene D's plate/peg builders are
 //! copied from `r1_probes_m9_3` (private there).
@@ -92,7 +89,6 @@ fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
-    let d = crate::common::with_flush_planes(&p, &q, d);
     (p, q, d)
 }
 
@@ -225,34 +221,13 @@ fn sorted(mut faces: Vec<topo::FaceKey>) -> Vec<topo::FaceKey> {
     faces
 }
 
-/// The declared-carrier records of a boolean result (every other record
-/// is a curved run's `PeriodClosure`).
-fn declared_records(bb: &BooleanBody<f64>) -> usize {
-    bb.naming
-        .merge_skipped
-        .iter()
-        .filter(|s| {
-            matches!(
-                s.reason,
-                MergeCoplanarError::DeclaredCarrierUnsupported { .. }
-            )
-        })
-        .count()
-}
-
-/// Row 1 (C): the proud peg flush at the bottom ships an honest body,
-/// and the door is handed no cylinder pair. The peg's bottom rim lies
-/// on the bore's bottom rim, so the section segments there are edges of
-/// both solids; the chord join builds the union itself (JOIN-1), and
-/// the bore wall it discards takes its surface with it, so no declared
-/// pair has both keys live when the door runs. Scenes A and B, whose
-/// rims cut the wall mid-height, still go through the declared-REST
-/// zip and carry the record (row 2).
+/// Row 1 (C): the door runs, the body is honest, and the cylindrical
+/// declared pair is recorded — not refused, not dropped, once.
 #[test]
-fn proud_peg_declared_walls_union_builds_through_the_join() {
+fn proud_peg_declared_walls_union_records_the_cylinder_skip() {
     let (c, p, d) = scene_c();
     let bb = union_honest("C", &c, &p, &d);
-    assert_eq!(declared_records(&bb), 0, "C: {:?}", bb.naming.merge_skipped);
+    assert_cylinder_records("C", &bb);
 }
 
 /// `face` alone onto a fresh key holding `surface`, outward-facing,
@@ -743,42 +718,60 @@ fn floating_and_mid_bore_pegs_ship_honest_with_one_record() {
     }
 }
 
-/// Row 3 (C, D): one side of the declared pair is CONSUMED by the
-/// union before the door runs — scene C's bore wall, scene D's peg wall
-/// — and its surface goes with it, so the door is handed no cylinder
-/// pair and records none, in whichever order the caller lists the
-/// declarations. Both build through the chord join (row 1).
+/// Row 3 (C, D): one side of the declared pair is CONSUMED by the zip
+/// — its surface is gone from the shipped body (held at the door only
+/// by an edge curve's reference) — and the door still records the pair
+/// once, its `faces` the other side's live remainder. D's planar pair
+/// never reaches the door (the zip consumes its faces), so the nine
+/// wall pairs are all it is handed, in whichever order the caller
+/// lists them.
 #[test]
-fn consumed_side_of_the_pair_leaves_the_door_nothing_to_record() {
+fn consumed_side_of_the_pair_is_gone_and_one_record_ships() {
     let (c, p, d) = scene_c();
     let bb = union_honest("C", &c, &p, &d);
-    assert_eq!(declared_records(&bb), 0, "C: {:?}", bb.naming.merge_skipped);
+    let records = assert_cylinder_records("C", &bb);
+    let MergeCoplanarError::DeclaredCarrierUnsupported { pair, .. } = &records[0].reason else {
+        unreachable!()
+    };
+    let pair = *pair;
+    assert!(
+        bb.body.get_surface(pair.0).is_none() && bb.body.get_surface(pair.1).is_some(),
+        "C: the bore side of the pair is consumed, the peg side lives: {pair:?}"
+    );
 
     let (p, q, d) = scene_d();
     let bb = union_honest("D", &p, &q, &d);
-    assert_eq!(declared_records(&bb), 0, "D: {:?}", bb.naming.merge_skipped);
+    let records = assert_cylinder_records("D", &bb);
+    let MergeCoplanarError::DeclaredCarrierUnsupported { pair, .. } = &records[0].reason else {
+        unreachable!()
+    };
+    let pair = *pair;
+    assert!(
+        bb.body.get_surface(pair.0).is_none() && bb.body.get_surface(pair.1).is_some(),
+        "D: the peg side of the pair is consumed, the bore side lives: {pair:?}"
+    );
     let mut reversed = BooleanDeclarations::none();
     reversed.coincident_faces = d.coincident_faces.iter().rev().cloned().collect();
     let rb = union_honest("D (planar pair last)", &p, &q, &reversed);
+    let reversed_records = assert_cylinder_records("D (planar pair last)", &rb);
     assert_eq!(
-        declared_records(&rb),
-        0,
-        "D (planar pair last): {:?}",
-        rb.naming.merge_skipped
+        reversed_records[0].reason, records[0].reason,
+        "D: the record is order-independent"
     );
+    assert_eq!(reversed_records[0].faces, records[0].faces);
 }
 
-/// Row 3′ (A): the declined pairs' records LEAD the group records —
+/// Row 3′ (C): the declined pairs' records LEAD the group records —
 /// the declaration's answer before the surgery's.
 #[test]
 fn declined_records_lead_the_group_records() {
-    let (c, p, d) = scene_a();
-    let bb = union_honest("A", &c, &p, &d);
+    let (c, p, d) = scene_c();
+    let bb = union_honest("C", &c, &p, &d);
     let skipped = &bb.naming.merge_skipped;
     let first_group = skipped
         .iter()
         .position(|s| matches!(s.reason, MergeCoplanarError::PeriodClosure { .. }))
-        .expect("A: the three-arc sectors' full-period runs are recorded");
+        .expect("C: the three-arc sectors' full-period runs are recorded");
     let last_declined = skipped
         .iter()
         .rposition(|s| {
@@ -787,7 +780,7 @@ fn declined_records_lead_the_group_records() {
                 MergeCoplanarError::DeclaredCarrierUnsupported { .. }
             )
         })
-        .expect("A: the declared pair is recorded");
+        .expect("C: the declared pair is recorded");
     assert!(last_declined < first_group, "{skipped:?}");
 }
 
@@ -887,13 +880,13 @@ fn unresolved_declared_key_still_refuses() {
     }
 }
 
-/// Row 6 (A): the record's text names the DOOR's missing arm, not the
+/// Row 6 (C): the record's text names the DOOR's missing arm, not the
 /// declaration — the declaration was legal and served the op.
 #[test]
 fn rendered_skip_names_the_door_not_the_declaration() {
-    let (c, p, d) = scene_a();
-    let bb = union_honest("A", &c, &p, &d);
-    let skip = assert_cylinder_records("A", &bb)[0];
+    let (c, p, d) = scene_c();
+    let bb = union_honest("C", &c, &p, &d);
+    let skip = assert_cylinder_records("C", &bb)[0];
     let MergeCoplanarError::DeclaredCarrierUnsupported { pair: (k1, k2), .. } = &skip.reason else {
         panic!("{:?}", skip.reason)
     };

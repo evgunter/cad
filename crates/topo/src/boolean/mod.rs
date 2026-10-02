@@ -589,6 +589,11 @@ impl DeclaredPairs {
         }
     }
 
+    /// Whether the op carries no cross-operand face declaration at all.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
     /// Whether the (operand-tagged) pair is a `Rest` declaration the
     /// door VERIFIED as one carrier — the certificate, not the claim.
     pub(crate) fn verified_one_carrier(
@@ -758,6 +763,13 @@ pub struct BooleanReduction<T: Real> {
     /// deduplicated. A vertex-on-face contact records none: the face
     /// holds no vertex there for a fragment to be told by.
     pub held: Vec<HeldEdge>,
+    /// A same-sense continuation a DECLARED union would keep at an
+    /// edge-edge seam it glues, with the pair undeclared
+    /// (`recl::resolve_edge_edge`): the pipeline does not chord-join
+    /// such a reduction but hands it to the declared-REST door, and the
+    /// public reduction doors refuse it. An undeclared union refuses
+    /// the finding during classification and never carries one.
+    pub(crate) continuation: Option<BooleanError>,
 }
 
 impl<T: Real> BooleanReduction<T> {
@@ -2399,14 +2411,20 @@ pub fn boolean_reduce_declared<T: Decide + Bounds>(
     decls: &BooleanDeclarations,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_declared_strategy(
+    let red = boolean_reduce_declared_strategy(
         op,
         a_operand,
         b_operand,
         decls,
         SweepStrategy::Realized,
         tol,
-    )
+    )?;
+    // The op pipeline routes a pending continuation to the REST door;
+    // a caller of the bare reduction has no such door, so it refuses.
+    match red.continuation {
+        Some(e) => Err(e),
+        None => Ok(red),
+    }
 }
 
 /// The differential suite's sweep-level door (PERF-PLAN §4.4 / C10,
@@ -2701,6 +2719,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     }
 
     // Vertex-vertex classification.
+    let mut continuation = None;
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
@@ -2730,6 +2749,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             op,
             &declared,
             band,
+            &mut continuation,
         )?;
         let out = insert::insert_null_pairs(
             &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &raw, &declared, band,
@@ -2755,6 +2775,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             .into_iter()
             .collect(),
         held,
+        continuation,
     })
 }
 

@@ -82,13 +82,19 @@ Frontier refusals that became `JoinDesync`/`SeamOrientation` are filed
 
 ## Fix pass 2 (delta review, PR 3790)
 
-- **An undeclared continuation refuses at the op.** At an edge-edge
-  seam a union glues, two flanking faces abutting along the edge on one
-  plane with their senses aligned are a continuation (topo README C4):
-  undeclared, `UndeclaredCoincidence { relation: SameOriented }` names
-  the pair; declared, the output's merge stage glues it. Touching-only
-  edges (assemblies) are unaffected. The scaffold restatement is gone
-  except between the two faces of a recorded curved merge skip.
+- **The chord join never builds a continuation.** At an edge-edge seam
+  a union glues, two flanking faces can abut along the edge on one plane
+  with their senses aligned. That is a continuation (topo README C4).
+  - Undeclared union: refuses `UndeclaredCoincidence { relation:
+    SameOriented }`, naming the pair.
+  - Declared union with that pair undeclared: handed to the declared-REST
+    door, as on main when the join refused. It builds what main built,
+    or the refusal stands. Refusing those main-building bodies is REACH's
+    PR 3657.
+  - Pair declared: the output's merge stage glues it.
+  - Touching-only edges (assemblies) are unaffected.
+- **The scaffold restatement is gone**, except between the two faces of
+  a recorded curved merge skip.
 - **A strut's half faces the germ along its own edge** (`insert` spike
   order, `vtxfac` pierce struts): the lens regression and the ball's
   pole desyncs both came from crossed bindings.

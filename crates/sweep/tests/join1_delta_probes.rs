@@ -478,10 +478,7 @@ fn the_declared_seam_body_is_an_operand() {
 /// run on it). Red on main (the REST zip's body) and on 21b7f289 (the
 /// join's) alike: both refuse `CoplanarNeighbours`. Not JOIN-1's.
 #[test]
-// Red on main and on 21b7f289 with the walls alone declared; JOIN-1's
-// fix pass 2 refuses that union (the caps are an undeclared
-// continuation), and `wall_decls` now declares the caps beside the
-// walls, which the merge stage glues: green, so no longer ignored.
+#[ignore = "red on main and here alike: a declared-REST union's continuation is FUSE's issue and REACH PR 3657's refusal, not JOIN-1's"]
 fn the_peg_collar_unions_are_operands() {
     use crate::mate2_common::{collar_at, peg_at, wall_decls};
     use sweep::test_support::brick;

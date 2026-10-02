@@ -825,6 +825,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         band(),
         0,
         0,
+        &mut None,
     )
     .map(|_| ())
 }
@@ -1219,6 +1220,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         band(),
         0,
         0,
+        &mut None,
     )
     .map(|_| ())
 }

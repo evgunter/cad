@@ -43,19 +43,26 @@ the kernel derives) is the open question on
 this output should merge or refuse. Either way, the op should not hand
 back a body that its own next op rejects.
 
-## The planar half at the chord join (JOIN-1 fix pass 2, PR 3790)
+## What JOIN-1 (PR 3790) does and does not change here
 
-Where the same-sense pair meets along an edge both operands hold (an
-edge-edge site of the vertex-vertex classification), a union now
-refuses an undeclared pair at the op: `UndeclaredCoincidence {
-relation: SameOriented }` naming the two faces (`recl.rs`
-`resolve_edge_edge`, the touching arm). Declared, the output's merge
-stage glues it. Pinned on the flush peg in the collar
-(`crates/sweep/tests/join1_mechanisms.rs`
-`an_undeclared_continuation_refuses_at_the_op`; the delta review's
-`join1_delta_probes::the_peg_collar_unions_are_operands`, now not
-ignored, builds legal operands with the caps declared) and on the
-stacked plates of this row (`a_stacked_plates_union_declares_its_walls`).
-The curved half — an undeclared CURVED cosurface adjacency — is not
-covered: the check reads the planar carrier ladder only.
+JOIN-1 detects the planar case where the same-sense pair meets along
+an edge both operands hold (`recl.rs` `resolve_edge_edge`, the
+touching arm, at a seam the union glues). It acts on that finding only
+where the chord join would otherwise newly build such a body:
+
+- **Undeclared union** (nothing declared at all): refuses
+  `UndeclaredCoincidence { relation: SameOriented }` naming the pair.
+  This is R1's hexagon ∪ box poses and R2's case390, which refused on
+  main.
+- **Declared union** with the pair undeclared: the chord join is not
+  run. The REST door gets the reduction, as on main when the join
+  refused. It builds the body main built, or the finding's refusal
+  stands.
+
+So this issue's rows behave as on main: the stacked plates
+(`join1_mechanisms::a_stacked_plates_union_builds_as_on_main`, ten
+faces), the crosslap, the two-peg mate and the peg ∪ collar
+(`join1_delta_probes::the_peg_collar_unions_are_operands`, still
+ignored). Refusing them is REACH's PR 3657 (`reach/cosurface-continuation`,
+Ev's ruling on PR 3613).
 

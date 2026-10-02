@@ -497,6 +497,7 @@ pub(super) fn recl_edges<T: Decide>(
     op: BooleanOp,
     declared: &super::DeclaredPairs,
     band: Band,
+    continuation: &mut Option<BooleanError>,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
 
@@ -588,6 +589,7 @@ pub(super) fn recl_edges<T: Decide>(
                 band,
                 am.start_holder,
                 bm.start_holder,
+                continuation,
             )?
             .map(|germ| match germ {
                 EdgeGerm::Held(g) => Ok(g),
@@ -753,6 +755,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     band: Band,
     fa_s: usize,
     fb_s: usize,
+    pending: &mut Option<BooleanError>,
 ) -> Result<Option<EdgeGerm>, BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     let fa_e = (fa_s + 1) % n_a;
@@ -1003,7 +1006,19 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             return Ok(None);
         }
         if let Some(e) = continuation.borrow_mut().take() {
-            return Err(e);
+            // Undeclared, the union refuses here. A declared union
+            // carries the finding out on the reduction instead: the
+            // pipeline declines the chord join for it and hands the op
+            // to the declared-REST door, which builds what it built
+            // before this check existed or lets this refusal stand
+            // (`ops::through_the_join`). A declared union's
+            // continuation that the REST zip builds is
+            // `work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them`'s,
+            // refused by REACH's `reach/cosurface-continuation`.
+            if declared.is_empty() {
+                return Err(e);
+            }
+            pending.get_or_insert(e);
         }
         Some((a_in, b_in))
     };
@@ -1425,6 +1440,7 @@ mod tests {
                 band,
                 0,
                 0,
+                &mut None,
             )
         };
         let mid = (band.zero() + band.escalate()) / 2.0;
@@ -1600,6 +1616,7 @@ mod tests {
             BooleanOp::Union,
             &declared,
             band,
+            &mut None,
         )
         .expect_err("the sense at an in-band arm refuses");
         let BooleanError::Escalated { decision, diag } = &err else {

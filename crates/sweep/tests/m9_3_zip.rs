@@ -96,9 +96,7 @@ fn declarations(p: &Body<f64>, q: &Body<f64>) -> BooleanDeclarations {
             }
         }
     }
-    // The flush planar caps beside the walls are a continuation the
-    // union would keep: declared too (`common::with_flush_planes`).
-    crate::common::with_flush_planes(p, q, decls)
+    decls
 }
 
 /// Acceptance (i): the two-peg kernel path — three declared contacts,
@@ -137,13 +135,11 @@ fn two_peg_plate_union_is_exactly_additive() {
     }
     // Topology pinned: ONE shell, genus 0 (every handle the bores
     // opened is closed by its peg). Euler–Poincaré with rings:
-    // V − E + F − R = 2(S − H). The pegs' flush caps are declared
-    // beside the walls (`declarations`, JOIN-1 fix pass 2), so the merge
-    // stage glues each into its surrounding planar face: no circular
-    // seam survives, R = 0, and the result is a legal operand.
+    // V − E + F − R = 2(S − H); each peg's circular seam survives as
+    // an inner ring on the surrounding planar face, so R = 2.
     let counts = euler_counts(&body);
     assert_eq!(counts.s, 1, "one shell");
-    assert_eq!(counts.r, 0, "the flush caps merged: no ring survives");
+    assert_eq!(counts.r, 2, "one surviving circular ring per peg seam");
     assert_eq!(
         counts.genus(),
         Ok(0),
@@ -268,13 +264,8 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
         plane_face(&b, 1.0, false),
         ContactClass::Tangent,
     ));
-    let out = topo::union_with(
-        &a,
-        &b,
-        &crate::common::with_flush_planes(&a, &b, decls.clone()),
-        Tol::witness(),
-    )
-    .expect("the kissing-rounds union runs");
+    let out =
+        topo::union_with(&a, &b, &decls, Tol::witness()).expect("the kissing-rounds union runs");
     let BooleanResult::Body(bb) = out else {
         panic!("a kissing-rounds union cannot be empty");
     };

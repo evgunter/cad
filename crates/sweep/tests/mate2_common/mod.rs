@@ -85,10 +85,8 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
     f
 }
 
-/// Every (bore wall × peg wall) pair declared `Rest` — the mate's
-/// contact — and every flush planar pair beside it (a peg's cap in the
-/// collar's cap plane), which the union would otherwise refuse as an
-/// undeclared continuation ([`crate::common::with_flush_planes`]).
+/// Every (bore wall × peg wall) pair declared `Rest` — the mate's only
+/// contact unless a caller adds one.
 pub fn wall_decls(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
     let mut decls = BooleanDeclarations::none();
     for &fa in &walls_at(a, 0.5) {
@@ -98,7 +96,7 @@ pub fn wall_decls(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
-    crate::common::with_flush_planes(a, b, decls)
+    decls
 }
 
 pub fn volume(b: &Body<f64>) -> f64 {

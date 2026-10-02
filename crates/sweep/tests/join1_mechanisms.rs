@@ -50,11 +50,36 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
         .unwrap_or_else(|e| panic!("{what}: the result is no legal operand: {e:?}"));
 }
 
+/// The walls declared `Rest` AND every flush pair of two planar faces
+/// (the peg's caps in the collar's cap planes, abutting across the rim,
+/// same sense). Left undeclared, that continuation would hand a declared
+/// union to the REST zip instead of the chord join these rows are about
+/// (`BooleanReduction::continuation`); declared, the merge stage glues
+/// it and the result is a legal operand.
+fn walls_and_caps(c: &topo::Body<f64>, p: &topo::Body<f64>) -> topo::BooleanDeclarations {
+    let mut decls = wall_decls(c, p);
+    let planar = |body: &topo::Body<f64>, f: topo::FaceKey| {
+        body.get_face(f)
+            .and_then(|fd| body.get_surface(fd.surface))
+            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
+    };
+    for f in topo::flush::find_flush_candidates(c, p, tol()).expect("the detector decides") {
+        let (fa, fb) = f.pair;
+        if planar(c, fa) && planar(p, fb) {
+            decls
+                .coincident_faces
+                .push(topo::FacePairDeclaration::new(fa, fb, f.class));
+        }
+    }
+    decls
+}
+
 /// **Locus matching.** A peg in a collar's bore, flush with the
-/// collar's bottom and proud above its top, every wall pair declared
-/// `Rest`. The peg's bottom rim arcs lie on the bore's: each section
-/// segment there is an edge of both solids, and the loci name the same
-/// two edges at both of its ends. The union is the collar with the
+/// collar's bottom and proud above its top, every wall pair and the
+/// flush bottom caps declared (`walls_and_caps`). The peg's bottom rim
+/// arcs lie on the bore's: each section segment there is an edge of
+/// both solids, and the loci name the same two edges at both of its
+/// ends. The union is the collar with the
 /// peg's proud part: additive.
 ///
 /// The declared-REST zip takes over a declared union the join refuses,
@@ -67,7 +92,7 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
 fn matching_reads_the_germs_loci() {
     let (c, p) = (collar_at(0.0), peg_at(0.0, 1.0, 1.5));
     let want = volume(&c) + volume(&p);
-    let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
+    let r = topo::union_with(&c, &p, &walls_and_caps(&c, &p), tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
         let declared = bb
             .naming
@@ -89,7 +114,7 @@ fn matching_reads_the_germs_loci() {
 }
 
 /// **The structural skip.** A peg exactly the collar's height, flush
-/// at both ends, every wall pair declared `Rest`: the union is the
+/// at both ends, every wall pair and both cap pairs declared: the union is the
 /// unbored collar. Both rims are edges of both solids. Each solid
 /// mints ONE copy of a rim arc, in the face its fold leaves Out, and
 /// keeps the rim itself as the other copy: the chord on the far side
@@ -101,7 +126,7 @@ fn the_skip_takes_the_locus_edge_for_the_segment() {
     let want = volume(&c) + volume(&p);
     assert_sound(
         "flush peg ∪ collar",
-        topo::union_with(&c, &p, &wall_decls(&c, &p), tol()),
+        topo::union_with(&c, &p, &walls_and_caps(&c, &p), tol()),
         want,
     );
 }
@@ -168,60 +193,15 @@ fn the_incidence_check_reads_the_whole_site() {
     }
 }
 
-/// **An undeclared continuation refuses at the op** (JOIN-1 fix pass 2;
-/// DESIGN "Maximal faces", topo README C4 "Continuation"). The flush
-/// peg in the collar with ONLY the wall pairs declared: the peg's caps
-/// lie in the collar's cap planes and abut its caps along the rims,
-/// same sense. The union would keep each pair as two coplanar
-/// neighbours, a body no op accepts as an operand; it refuses
-/// `UndeclaredCoincidence` naming the pair instead, so the author can
-/// declare it (`mate2_common::wall_decls` does: the rows above build).
-/// This closes the planar half of
-/// `work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them`
-/// for the seams the chord join sees.
-#[test]
-fn an_undeclared_continuation_refuses_at_the_op() {
-    use crate::mate2_common::walls_at;
-    let (c, p) = (collar_at(0.0), peg_at(0.0, 1.0, 1.0));
-    let mut walls = topo::BooleanDeclarations::none();
-    for &fa in &walls_at(&c, 0.5) {
-        for &fb in &walls_at(&p, 0.5) {
-            walls.coincident_faces.push(topo::FacePairDeclaration::new(
-                fa,
-                fb,
-                topo::ContactClass::Rest,
-            ));
-        }
-    }
-    let r = topo::union_with(&c, &p, &walls, tol());
-    let Err(BooleanError::UndeclaredCoincidence {
-        pair: [(_, fa), (_, fb)],
-        relation: topo::PlaneRelation::SameOriented,
-        ..
-    }) = r
-    else {
-        panic!("the undeclared caps refuse at the op: {r:?}");
-    };
-    let plane = |b: &topo::Body<f64>, f| {
-        matches!(
-            b.get_surface(b.get_face(f).unwrap().surface),
-            Some(geom::Surface::Plane { .. })
-        )
-    };
-    assert!(
-        plane(&c, fa) && plane(&p, fb),
-        "the refusal names the two caps"
-    );
-}
-
 /// **FUSE's stacked plates** (`work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them`):
 /// two 6 × 4 × 1 plates stacked at `z ∈ [0, 1]` and `[1, 2]`. With only
-/// the mating plane declared the union used to ship ten faces, each wall
-/// pair two coplanar neighbours, refused as an operand by the next op.
-/// It refuses at the op now, naming a wall pair; with every flush pair
-/// declared it builds the 6-face box, a legal operand.
+/// the mating plane declared the union ships ten faces, each wall pair
+/// two coplanar neighbours, exactly as on main: a declared union's
+/// continuation is FUSE's issue, and its refusal lands with REACH's PR
+/// 3657 (`reach/cosurface-continuation`), not here. With every flush
+/// pair declared it builds the 6-face box, a legal operand.
 #[test]
-fn a_stacked_plates_union_declares_its_walls() {
+fn a_stacked_plates_union_builds_as_on_main() {
     use topo::flush::{declare_all, find_flush_candidates};
     let a = sweep::test_support::brick((0.0, 6.0), (0.0, 4.0), (0.0, 1.0), tol());
     let b = sweep::test_support::brick((0.0, 6.0), (0.0, 4.0), (1.0, 2.0), tol());
@@ -232,16 +212,12 @@ fn a_stacked_plates_union_declares_its_walls() {
         .cloned()
         .collect();
     let r = topo::union_with(&a, &b, &declare_all(&mating), tol());
-    assert!(
-        matches!(
-            r,
-            Err(BooleanError::UndeclaredCoincidence {
-                relation: topo::PlaneRelation::SameOriented,
-                ..
-            })
-        ),
-        "the undeclared walls refuse at the op: {r:?}"
-    );
+    let faces = r
+        .as_ref()
+        .ok()
+        .and_then(|r| r.body())
+        .map(|bb| bb.body.faces().count());
+    assert_eq!(faces, Some(10), "as on main: the walls unmerged: {r:?}");
     let r = topo::union_with(&a, &b, &declare_all(&found), tol());
     let faces = r
         .as_ref()
@@ -250,4 +226,50 @@ fn a_stacked_plates_union_declares_its_walls() {
         .map(|bb| bb.body.faces().count());
     assert_eq!(faces, Some(6), "the declared stack is the box: {r:?}");
     assert_sound("plates ∪", r, 48.0);
+}
+
+/// **The north-star crosslap** (`demos/tour/src/crosslap.rs`;
+/// `test_north_star.py`'s `TestCrosslapGlued`): two notched beams mated.
+/// With the mate's `SameOpposite` pairs alone declared, the beams' tops
+/// and bottoms flush across the notches are a continuation, routed to the
+/// declared-REST door, which glues it at the scene's oracle exactly as on
+/// main (its unmerged pairs are FUSE's issue, refused by REACH's PR 3657).
+/// With every flush pair declared it builds 14 faces, a legal operand.
+#[test]
+fn the_declared_crosslap_glues_as_on_main() {
+    use sweep::test_support::brick;
+    use topo::flush::{declare_all, find_flush_candidates};
+    let sub = |a: &topo::Body<f64>, b: &topo::Body<f64>| match topo::subtract(a, b, tol()).unwrap()
+    {
+        BooleanResult::Body(bb) => bb.body,
+        BooleanResult::Empty => panic!("a notched beam"),
+    };
+    let a = sub(
+        &brick((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol()),
+        &brick((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), tol()),
+    );
+    let b = sub(
+        &brick((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol()),
+        &brick((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol()),
+    );
+    let found = find_flush_candidates(&a, &b, tol()).unwrap();
+    let mate: Vec<_> = found
+        .iter()
+        .filter(|f| f.evidence.relation == topo::PlaneRelation::SameOpposite)
+        .cloned()
+        .collect();
+    let r = topo::union_with(&a, &b, &declare_all(&mate), tol())
+        .unwrap_or_else(|e| panic!("the declared mate glues: {e:?}"));
+    let bb = r.body().expect("a body");
+    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).expect("tier 3′");
+    let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
+    assert!((v - 1.875).abs() < 1e-9, "the scene's oracle: {v}");
+    let r = topo::union_with(&a, &b, &declare_all(&found), tol());
+    let faces = r
+        .as_ref()
+        .ok()
+        .and_then(|r| r.body())
+        .map(|bb| bb.body.faces().count());
+    assert_eq!(faces, Some(14), "every flush pair declared: {r:?}");
+    assert_sound("crosslap ∪", r, 1.875);
 }

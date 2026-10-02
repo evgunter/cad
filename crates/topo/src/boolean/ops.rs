@@ -713,6 +713,25 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // returned, so every refusal the pipeline meets first stands
     // verbatim ([`interior_loop_verdict`]).
     let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
+    // A declared union whose classification found a same-sense
+    // continuation at a seam it glues, the pair undeclared
+    // (`BooleanReduction::continuation`): the chord join would keep the
+    // pair as two coplanar neighbours, so it is not run. The REST door
+    // gets the unmutated reduction, as it does when the join refuses:
+    // it builds what it built before the finding existed, or the
+    // finding's `UndeclaredCoincidence` stands. Which of the REST zip's
+    // bodies keep such a pair is
+    // `work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them`,
+    // and its refusal REACH's `reach/cosurface-continuation`.
+    if let Some(err) = red.continuation.take() {
+        return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
+            Some(result) => {
+                interior_loops?;
+                Ok(Joined::Answered(Box::new(result)))
+            }
+            None => Err(err),
+        };
+    }
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
     // The join carves both reduction operands through the Euler
