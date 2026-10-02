@@ -19,7 +19,7 @@ Ringed cylinder walls are now ordinary boolean output: a pierce ring
 whose section closes inside one wall face leaves the wall with a hole
 (`work/tang/pierce-ring-has-no-join-arm.md`, closed by
 `tang/pierce-ring`). Measured on that branch: editor-core's
-`reach_slab_cut_sector_side`, `a_slab_across_a_round_boss_answers_its_volume_in_every_order`
+`reach_slab_cut_sector_side`, `a_slab_across_a_round_boss_builds_in_four_orders_and_stops_typed_in_two`
 — the plate `[0,3]×[0,2]×[0,1]`, a three-face boss `r = 0.6` about
 `(1.5, 1)`, `z ∈ [0.44, 2.24]`, and a slab `x ∈ [1.4, 1.6]`,
 `y ∈ [−1, 3]`, `z ∈ [0.5, 2]` unioned in every member order. The

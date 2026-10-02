@@ -417,8 +417,10 @@ an existing planar door:
   `work/props/a-notched-cylinder-wall-has-no-volume-measurement.md`.
 
 **Rows moved.** The bars through the wall (symmetric, one-sided, long,
-and the in-face pose) build under ∪, ∩ and both ∖ at tier 3 and to the
-closed form; so do the laps, the grooves, the three-face rod, the
+and the in-face pose `y ∈ [0.15, 0.7]`) build under ∪, ∩ and both ∖ at
+tier 3 and to the closed form — an in-face pose whose ring arcs are
+wider than the gap between them refuses `RingHomingAmbiguous`
+(`work/tang/in-face-pierce-rings-pair-across-the-gap.md`); so do the laps, the grooves, the three-face rod, the
 off-centre bars, the crenellation, the boss in four member orders, and
 the spun snowman. The parallel cylinders now reach the cylinder pair's
 join (`work/tang/cylinder-pair-germ-has-no-join-arm.md`); the bar
