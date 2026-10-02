@@ -83,9 +83,11 @@ pub(super) fn boundary_crossing<T: Decide>(
         geom::Curve3::Circle { radius, .. } => radius,
         _ => return Ok(BoundaryCrossing::Unread),
     };
-    let face_data = y.get_face(face).ok_or(BooleanError::ClassificationInvariant {
-        what: "on-carrier crossing: face lost",
-    })?;
+    let face_data = y
+        .get_face(face)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "on-carrier crossing: face lost",
+        })?;
     let mut candidates: Vec<Point3<T>> = Vec::new();
     for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
         let Some(LoopBoundary::Cycle { first }) = y.get_loop(lk).map(|l| l.boundary) else {
@@ -105,8 +107,9 @@ pub(super) fn boundary_crossing<T: Decide>(
             if let Some(p) = y.get_vertex(half.start).and_then(|v| y.get_point(v.point)) {
                 candidates.push(*p);
             }
-            let Some(CurveGeom::Certified(other)) =
-                y.get_edge(half.edge).and_then(|e| y.get_curve_geom(e.curve))
+            let Some(CurveGeom::Certified(other)) = y
+                .get_edge(half.edge)
+                .and_then(|e| y.get_curve_geom(e.curve))
             else {
                 return Ok(BoundaryCrossing::Unread);
             };
@@ -169,7 +172,11 @@ fn strictly_inside<T: Decide>(
 /// Whether a dimensionless `x` (a sine), levered at `arm`, is
 /// definitely nonzero.
 fn transverse<T: Decide>(x: T, arm: T, band: Band) -> Result<bool, BooleanError> {
-    match decide("bool_carrier_cross_transverse", Margin::levered(x, arm), band) {
+    match decide(
+        "bool_carrier_cross_transverse",
+        Margin::levered(x, arm),
+        band,
+    ) {
         Ok(Sign::Zero) => Ok(false),
         Ok(Sign::Positive | Sign::Negative) => Ok(true),
         Err(diag) => Err(BooleanError::Escalated {
@@ -190,8 +197,24 @@ fn meetings<T: Decide>(
 ) -> Result<Option<Vec<Point3<T>>>, BooleanError> {
     use geom::Curve3::{Circle, Line};
     Ok(Some(match (a, b) {
-        (&Line { origin, dir }, &Circle { center, axis, radius, .. })
-        | (&Circle { center, axis, radius, .. }, &Line { origin, dir }) => {
+        (
+            &Line { origin, dir },
+            &Circle {
+                center,
+                axis,
+                radius,
+                ..
+            },
+        )
+        | (
+            &Circle {
+                center,
+                axis,
+                radius,
+                ..
+            },
+            &Line { origin, dir },
+        ) => {
             let den = dir.dot(axis);
             if !transverse(den, radius, band)? {
                 // The line runs parallel to the circle's plane. On a
@@ -203,7 +226,16 @@ fn meetings<T: Decide>(
             let t = (center - origin).dot(axis) / den;
             vec![origin + dir * t]
         }
-        (&Line { origin: o1, dir: d1 }, &Line { origin: o2, dir: d2 }) => {
+        (
+            &Line {
+                origin: o1,
+                dir: d1,
+            },
+            &Line {
+                origin: o2,
+                dir: d2,
+            },
+        ) => {
             let n = d1.cross(d2);
             let s = n.norm();
             // Parallel lines meet along a stretch whose ends are

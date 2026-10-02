@@ -67,8 +67,8 @@
 //! tests pin both directions on brick fixtures.
 
 pub(crate) mod boxes;
-pub mod carrier_eq;
 mod carrier_cross;
+pub mod carrier_eq;
 mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;

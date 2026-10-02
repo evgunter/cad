@@ -248,10 +248,26 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let a_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (b, a)).collect();
     let a_interior = interior_edges(&red.a, &a_patch, &a_seam)?;
     let b_interior = interior_edges(&red.b, &b_patch, &b_seam)?;
-    if mirror_edges(&mut red.a, &b_interior, &a_of, &a_patch, &a_rings, &mut a_fragments, tol)?
+    if mirror_edges(
+        &mut red.a,
+        &b_interior,
+        &a_of,
+        &a_patch,
+        &a_rings,
+        &mut a_fragments,
+        tol,
+    )?
+    .is_none()
+        || mirror_edges(
+            &mut red.b,
+            &a_interior,
+            &b_of,
+            &b_patch,
+            &b_rings,
+            &mut b_fragments,
+            tol,
+        )?
         .is_none()
-        || mirror_edges(&mut red.b, &a_interior, &b_of, &b_patch, &b_rings, &mut b_fragments, tol)?
-            .is_none()
     {
         return Ok(None);
     }

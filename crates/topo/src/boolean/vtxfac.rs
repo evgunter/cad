@@ -175,12 +175,26 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // `face_outward_normal`) — In/Out here is a material verdict and
     // would read backwards off a chart normal on a reversed face,
     // which is why the primitive takes the typed one.
+    //
+    // A real edge bounding a face the door VERIFIED as one carrier with
+    // the pierced face lies on that carrier, so it reads `On` exactly: a
+    // rim arc of a declared `Rest` wall leaves the pierced wall's
+    // tangent plane at second order, along the wall, and the first-order
+    // reading below would charge that bend as a departure.
     let mut entries = Vec::with_capacity(n);
-    for s in &sectors {
+    for (k, s) in sectors.iter().enumerate() {
+        let on_pierced_carrier = s.end_edge()
+            && [s.face, sectors[(k + n - 1) % n].face]
+                .into_iter()
+                .any(|f| declared.verified_one_carrier(piercing, f, pierced_op, contact.face));
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?,
+            class: if on_pierced_carrier {
+                SideCode::On
+            } else {
+                side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?
+            },
             lumped: false,
         });
     }
@@ -370,35 +384,30 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 kind,
             });
         }
-        // **UNTESTED, and that is a statement rather than an
-        // omission.** No authorable body reaches this arm today: it
-        // needs a sector face geometrically TANGENT to a CURVED pierced
-        // face at the pierce point, and every curved pierce still dies
-        // at the join before a second operand pose can be built around
-        // one. The arm is written because the alternative is a plane
-        // built from a face that has none — see the argument below —
-        // and it is named here so a later unit that opens the ring's
-        // join knows this is the first row it owes a fixture.
-        //
-        // **Delta 2 stays SHUT on a curved pierced face.** The rung
-        // below descends to `carrier_eq` against a plane built from the
-        // pierced face, and there is no plane to build: a sector face
-        // TANGENT to a curved pierced face at `p` is a
-        // cosurface/tangency question, and CONTACT-DESIGN C2/C4 forbid
-        // inferring either gluing at any ε. The recourse is the same
-        // one the undeclared crossing-layer rung names — a verified
-        // declaration, under which the `Tangent` branch above already
-        // owns the case.
-        let Some(plane) = plane else {
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand: pierced_op,
-                face: contact.face,
-                kind: pierced_kind(pierced_body, contact.face),
-            });
-        };
-        let pierced_carrier = super::carrier_eq::CarrierDesc::Plane {
-            origin: plane.origin,
-            normal: plane.normal,
+        // The pierced face's carrier: its plane, or — on a curved
+        // pierced face — its curved carrier, which only a verified
+        // `Rest` may compare against the sector's. A sector face on a
+        // curved pierced face at `p` is a cosurface question, and
+        // CONTACT-DESIGN C2/C4 forbid inferring that gluing at any ε:
+        // the declaration is the recourse, and with it the carrier
+        // ladder's declared rung decides the relation exactly as on a
+        // plane. (An undeclared curved sector refused just above; an
+        // undeclared planar one reaches here and keeps this door.)
+        let pierced_carrier = match plane {
+            Some(plane) => super::carrier_eq::CarrierDesc::Plane {
+                origin: plane.origin,
+                normal: plane.normal,
+            },
+            None => match super::rest::face_carrier(pierced_body, contact.face) {
+                Some(carrier) if declared_rest => carrier,
+                _ => {
+                    return Err(BooleanError::CurvedBooleanUnsupported {
+                        operand: pierced_op,
+                        face: contact.face,
+                        kind: pierced_kind(pierced_body, contact.face),
+                    });
+                }
+            },
         };
         // Oriented sources (S10): both descriptions carry OUTWARD
         // material sides, so rung 1's syntactic Same± verdict has to

@@ -202,16 +202,16 @@ fn peg_along_y(y0: f64, h: f64) -> Body<f64> {
     )
 }
 
-/// Full-period BORE against a 3-arc peg: the PR's narrower-class claim
-/// says this must still refuse (the containment door's full-period
-/// remainder ⇒ `Undecided` ⇒ the frontier), even though the same mate
-/// with an arc-split bore now unions.
+/// Full-period BORE against a 3-arc peg: the bore is one face, the peg
+/// three, and two of the peg's seam rulings cross the bore's rims away
+/// from any vertex. `never_silent` holds the union to additivity, tier 3
+/// and the pseudomanifold census.
 #[test]
-fn r2_full_period_bore_still_refuses_typed() {
+fn r2_full_period_bore_unions() {
     let c = revolved_collar();
     let p = peg_along_y(0.5, 2.0);
     let bore = walls_at(&c, 0.5);
-    eprintln!("revolved collar: {} bore face(s) at r = 0.5", bore.len());
+    assert_eq!(bore.len(), 1, "the revolved collar's bore is one face");
     let mut decls = BooleanDeclarations::none();
     for &fa in &bore {
         for &fb in &walls_at(&p, 0.5) {
@@ -221,20 +221,7 @@ fn r2_full_period_bore_still_refuses_typed() {
         }
     }
     let e = never_silent("full-period bore x 3-arc peg", &c, &p, &decls);
-    // HARDENED on adoption (MATE-2 fix pass): this row is now the
-    // unit's only `cargo test` guard that `Undecided` keeps the typed
-    // frontier — the behaviour's other live pin is the lily's tour
-    // probe, which does not run when the render lane is skipped, and a
-    // `reduce.rs`-only change skips it. So the KIND is asserted rather
-    // than noted: the no-verdict endpoint must keep the REDUCTION's
-    // door, not some door further downstream, because a refusal that
-    // moved downstream would mean the widening had swallowed the
-    // no-verdict case after all.
-    match e {
-        Some(topo::BooleanError::CurvedPierceUnsupported { .. }) => {}
-        Some(other) => panic!("refused, but not at the reduction's door: {other:?}"),
-        None => panic!("the narrower-class claim is FALSE: a full-period bore unioned"),
-    }
+    assert!(e.is_none(), "the full-period bore mate refused: {e:?}");
 }
 
 /// The mirror: arc-split collar against a FULL-REVOLVE peg (one

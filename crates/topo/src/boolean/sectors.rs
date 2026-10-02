@@ -446,12 +446,22 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 /// order says out, the body says in, and nothing in the first-order
 /// chain can see it.
 ///
+/// **The sagitta is charged on the bound's LATERAL offset.** Within a
+/// lever of the base point the face is a graph over its tangent plane
+/// departing it by at most `|x|²/lever` at tangent-plane offset `x`,
+/// and the point at distance `l` along the bound sits at `|x| =
+/// l·|d̂×n̂|` — so a bound leaving along the normal is charged nothing,
+/// where charging `l²/lever` would refuse a radial line leaving a
+/// cylinder wall perpendicularly. The arm the charge is taken at is the
+/// sector's, capped at half the lever: inside that disc the graph holds
+/// and a concave bend cannot fold the surface back over the point.
+///
 /// **The charge is direction-agnostic on purpose**: requiring the
 /// first-order displacement to definitely EXCEED the sagitta in
-/// magnitude is sound for either bend. It is taken at the sector's
-/// `arm` and at the reach's own length; either passing certifies a
-/// point of the bound definitely on the verdict's side near the
-/// vertex. **`lever` is [`geom_brep::curvature_lever_arm`] at the
+/// magnitude is sound for either bend. It is taken at that arm and at
+/// the reach's own length (charged in full there); either passing
+/// certifies a point of the bound definitely on the verdict's side near
+/// the vertex. **`lever` is [`geom_brep::curvature_lever_arm`] at the
 /// pierce point**, so a PLANE passes `f64::MAX`, the sagitta
 /// underflows to zero, and the charge reduces to the reading just
 /// decided definite.
@@ -521,9 +531,12 @@ pub(super) fn side_code<T: Decide>(
     // spec writes `arm²/(2·lever)`; this is that term with the constant
     // corrected in the REFUSING direction, the only direction a
     // soundness charge may be wrong in.
+    let unit = dir.normalize();
+    let near = arm.min(lever * T::from_f64(0.5));
+    let lateral = unit.cross(n).norm() * near;
     let at_arm = crate::validate::decide_reported(
         "bool_pierce_sector_side_curved",
-        Margin::of((dir.normalize().dot(n) * arm).abs() - arm.powi(2) / lever),
+        Margin::of((unit.dot(n) * near).abs() - lateral.powi(2) / lever),
         band,
     );
     let at_arm = match at_arm {
