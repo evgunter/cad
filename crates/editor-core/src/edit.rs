@@ -19,7 +19,7 @@ use crate::doc::{
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
-use crate::names::EntityKind;
+use crate::names::{EntityKind, ProfileEdgeRef};
 use crate::node::{
     AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
     StableName, StepId,
@@ -2936,27 +2936,86 @@ fn settle_step_ids(
     Ok((minted, dropped))
 }
 
+/// **The pieces of kept steps a `SetProgram` stops drawing**, among
+/// those a name in `doc` spells ([`StableName::step_pieces`]): drawn by
+/// `old` and not by `new`, both under `doc`'s current parameters, as
+/// [`crate::ProfilePayload::drawn_pieces`] answers — the one authority
+/// on which pieces a program draws. A kept step's piece goes undrawn
+/// when another piece takes its segment (N1, "Undrawn pieces vanish
+/// rather than alias"): a fillet inserted or moved before its leg.
+///
+/// Only a piece `old` draws is the edit's to report: one `old` already
+/// left undrawn, or a program that does not replay under the current
+/// parameters, has no referent for the edit to remove. Neither program
+/// is replayed when no name spells a kept step's piece.
+fn undrawn_kept_pieces<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    old: &P,
+    new: &P,
+    dropped: &std::collections::BTreeSet<StepId>,
+    tol: Tol,
+) -> Result<std::collections::BTreeSet<ProfileEdgeRef>, EditError> {
+    let Some(ids) = old.step_ids() else {
+        return Ok(std::collections::BTreeSet::new());
+    };
+    let kept: std::collections::BTreeSet<StepId> = ids
+        .iter()
+        .flatten()
+        .filter(|s| !dropped.contains(s))
+        .copied()
+        .collect();
+    let named: std::collections::BTreeSet<ProfileEdgeRef> = doc
+        .name_carriers()
+        .flat_map(|c| c.name().step_pieces())
+        .filter(|p| p.step().is_some_and(|s| kept.contains(&s)))
+        .collect();
+    if named.is_empty() {
+        return Ok(named);
+    }
+    let env = doc.param_env::<f64>();
+    let refused = |refusal| EditError::ProfileProgramRefused {
+        node: doc.spoken(node),
+        refusal: Box::new(refusal),
+    };
+    let before = match old.drawn_pieces(&env, tol) {
+        Ok(drawn) => drawn,
+        Err(refusal @ crate::ProgramRefusal::Pieces(_)) => return Err(refused(refusal)),
+        Err(_) => return Ok(std::collections::BTreeSet::new()),
+    };
+    let after = new.drawn_pieces(&env, tol).map_err(refused)?;
+    Ok(named
+        .into_iter()
+        .filter(|p| before.contains(p) && !after.contains(p))
+        .collect())
+}
+
 /// **The names a `SetProgram` stranded**: every carried name that
 /// spells a piece of a step the reshaping dropped
-/// ([`StableName::piece_steps`]) — [`Maintenance::Strand`] on its
-/// carrying node, [`Maintenance::StrandedAppearance`] on a store key,
-/// in that order. Nothing is rewritten: the name keeps its spelling
-/// and resolves `Vanished`, since the dropped id is never minted
-/// again. A step id is unique across the document, so which node
+/// ([`StableName::piece_steps`]), or a kept step's piece it stopped
+/// drawing (`undrawn`, [`undrawn_kept_pieces`]) —
+/// [`Maintenance::Strand`] on its carrying node,
+/// [`Maintenance::StrandedAppearance`] on a store key, in that order.
+/// Nothing is rewritten: the name keeps its spelling and resolves
+/// `Vanished`. A step id is unique across the document, so which node
 /// minted the name does not enter. The rows speak their nodes from
 /// `before`.
 fn stranded_steps<P>(
     before: &Doc<P>,
     doc: &Doc<P>,
     dropped: &std::collections::BTreeSet<StepId>,
+    undrawn: &std::collections::BTreeSet<ProfileEdgeRef>,
 ) -> Vec<Maintenance> {
-    if dropped.is_empty() {
+    if dropped.is_empty() && undrawn.is_empty() {
         return Vec::new();
     }
     let mut strands = Vec::new();
     let mut keys = Vec::new();
     for carrier in doc.name_carriers() {
-        if carrier.name().piece_steps().is_disjoint(dropped) {
+        let gone = carrier.name().step_pieces().iter().any(|p| {
+            undrawn.contains(p) || p.step().is_some_and(|s| dropped.contains(&s))
+        });
+        if !gone {
             continue;
         }
         match carrier {
@@ -4016,12 +4075,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
+            let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped, tol)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
-            // DM7: a name on a kept step keeps denoting its pieces and
-            // is not touched; a name on a dropped step denotes nothing
-            // from here on, and the door says so.
-            reported = stranded_steps(doc, &new, &dropped);
+            reported = stranded_steps(doc, &new, &dropped, &undrawn);
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as

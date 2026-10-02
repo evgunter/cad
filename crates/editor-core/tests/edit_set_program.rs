@@ -1596,6 +1596,101 @@ fn two_pieces_drawn_as_one_segment_answer_to_the_earlier() {
     );
 }
 
+/// A square `(0, 0) → (2, 2)` whose corner at `(2, 0)` is sharp, or
+/// filleted at radius `0.5` when `filleted`: the bottom leg is a
+/// `line(1)` then, which the fillet's run in extends, and the arrival
+/// `at` stands at the fillet's tangent point `(2, 0.5)`. Every step the
+/// sharp square authors has a step of the same verb in the filleted
+/// one, so a reshaping between them keeps all of them.
+fn corner(filleted: bool) -> LoopProgram {
+    let toward = |dx: f64, dy: f64| ProgramStep::Toward {
+        dx: scl(dx),
+        dy: scl(dy),
+    };
+    let mut steps = vec![ProgramStep::At(len2([0.0, 0.0])), toward(1.0, 0.0)];
+    if filleted {
+        steps.extend([
+            ProgramStep::Line(len(1.0)),
+            ProgramStep::Fillet(len(0.5)),
+            toward(0.0, 1.0),
+            ProgramStep::At(len2([2.0, 0.5])),
+            ProgramStep::Line(len(1.5)),
+        ]);
+    } else {
+        steps.extend([
+            ProgramStep::Line(len(2.0)),
+            toward(0.0, 1.0),
+            ProgramStep::Line(len(2.0)),
+        ]);
+    }
+    steps.extend([
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 2.0]))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    LoopProgram::Chain(steps)
+}
+
+/// **A fillet inserted before a kept leg strands the names on that
+/// leg.** The sharp square's right wall is its second `line`'s leg,
+/// and a frame and a paint name it. The reshaping inserts a fillet at
+/// the corner and keeps every step: the fillet's run out now holds the
+/// right wall, so the kept leg is not drawn (N1, "Undrawn pieces
+/// vanish rather than alias"), and no value edit brings it back. The
+/// edit removed the name's referent, so it reports both carriers
+/// (DM7); dropping the fillet draws the leg again and reports nothing.
+#[test]
+fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
+    let (doc, profile, ext) = extruded("shadow-by-insert", vec![corner(false)]);
+    let old = ids_of(&doc, profile)[0].clone();
+    let up = wall_by(ext, old[4], PieceRole::Leg);
+    let right = corners_of(&doc, ext, &up);
+    assert!(
+        has_corner3(&right, (2.0, 0.0, 0.0)) && has_corner3(&right, (2.0, 2.0, 0.0)),
+        "the second line's leg is the right wall before the fillet: {right:?}"
+    );
+    let (doc, frame) = frame_on(doc, ext, up.clone());
+    let doc = paint(&doc, &up);
+
+    let o = |k: usize| Some(old[k]);
+    let keep = vec![vec![o(0), o(1), o(2), None, o(3), None, o(4), o(5), o(6)]];
+    let applied = accepted(&doc, profile, vec![corner(true)], keep);
+    assert_eq!(
+        applied.maintenance,
+        vec![
+            Maintenance::Strand {
+                node: doc.spoken(frame),
+                name: doc.spoken_name(&up),
+            },
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(&up),
+            },
+        ],
+        "the kept leg's names strand: the frame's, then the paint's"
+    );
+    assert_eq!(frame_face(&applied.doc, frame), up, "nothing is rewritten");
+    frame_refuses_vanished(&applied.doc, frame, &up);
+    let fillet = ids_of(&applied.doc, profile)[0][3];
+    let wall = corners_of(&applied.doc, ext, &wall_by(ext, fillet, PieceRole::RunOut));
+    assert!(
+        has_corner3(&wall, (2.0, 0.5, 0.0)) && has_corner3(&wall, (2.0, 2.0, 0.0)),
+        "the fillet's run out holds the right wall: {wall:?}"
+    );
+
+    let back = accepted(
+        &applied.doc,
+        profile,
+        vec![corner(false)],
+        vec![old.iter().copied().map(Some).collect()],
+    );
+    assert_eq!(
+        back.maintenance,
+        Vec::new(),
+        "a piece the edit draws again is not reported, and the fillet carried no name"
+    );
+    let ev = fixture::run(&back.doc, &EvalOptions::default());
+    assert!(ev.value(frame).is_some(), "{:?}", corpus::failures(&ev));
+}
+
 // ---------------------------------------------------------------- //
 // Every sweep of a profile names by its pieces
 // ---------------------------------------------------------------- //

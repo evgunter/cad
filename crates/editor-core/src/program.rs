@@ -582,6 +582,21 @@ pub trait ProfilePayload: serde::Serialize {
     fn plane_input(&self) -> Option<crate::RecipeNodeId> {
         None
     }
+    /// **Every authored step's piece this program draws** under `env`
+    /// — [`ProfileProgram::pieces`], the one answer to which pieces a
+    /// program draws, flattened over its loops. Empty for a payload
+    /// with no program.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileProgram::pieces`]'.
+    fn drawn_pieces(
+        &self,
+        _env: &ParamEnv<f64>,
+        _tol: Tol,
+    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
+        Ok(std::collections::BTreeSet::new())
+    }
 }
 
 /// A typed authoring-time program refusal (VQ9; `EditError`'s payload).
@@ -2353,6 +2368,13 @@ impl ProfilePayload for ProfileProgram {
 
     fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
+    }
+    fn drawn_pieces(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
+        Ok(self.pieces(env, tol)?.edges.into_iter().flatten().collect())
     }
     fn plane_input(&self) -> Option<crate::RecipeNodeId> {
         Some(self.plane)
