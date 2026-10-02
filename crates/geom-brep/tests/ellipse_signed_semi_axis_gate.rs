@@ -2,6 +2,8 @@
 //! ORDER (the smaller one is the speed floor) and refuses a non-positive
 //! one, so it admits no frame tier 3 would refuse on its value.
 
+#![allow(clippy::unwrap_used)]
+
 use geom::{Curve3, Surface};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
 use geom_core::{Band, Point3, Tol, Vec3};
