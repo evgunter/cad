@@ -69,13 +69,12 @@ pub enum RootFault {
 impl RootFault {
     /// This fault with its roots spoken again from `doc`, a later
     /// version of the document it was raised in
-    /// ([`SpokenNode::respoken`]).
+    /// ([`SpokenNode::respoken`]). [`Self::NotLive`] stays as raised:
+    /// its sentence is that the root is not there.
     #[must_use]
     pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
         match self {
-            Self::NotLive { root } => Self::NotLive {
-                root: root.respoken(doc),
-            },
+            Self::NotLive { .. } => self.clone(),
             Self::Duplicate { root } => Self::Duplicate {
                 root: root.respoken(doc),
             },

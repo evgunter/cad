@@ -853,9 +853,9 @@ impl DuplicateFault {
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         let again = |node: SpokenNode| node.respoken(doc);
         match self {
-            Self::NoValue { standing, .. } => Self::NoValue {
-                held: held_by(&standing, doc),
+            Self::NoValue { standing, held } => Self::NoValue {
                 standing,
+                held: held.respoken(doc),
             },
             Self::NotOneBody { input } => Self::NotOneBody {
                 input: again(input),

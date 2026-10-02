@@ -1312,12 +1312,29 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
         "LabelUnchanged says the label the node held when the door refused"
     );
 
-    let (deleted, _) = step(later, DocEdit::DeleteNode { id: extrude });
+    let (deleted, _) = step(later.clone(), DocEdit::DeleteNode { id: extrude });
     let said = dangle.respoken(&deleted).to_string();
     assert!(
         said.starts_with(&format!(
             "Profile \"pad\" ({p}) is still an input to Extrude \"base plate\" ({e})"
         )),
         "a node deleted since is said as the door said it: {said}"
+    );
+
+    // Absent at the refusal, held again by the version it is spoken
+    // from (an undo of the delete): the sentence is that the node is not
+    // there, so it keeps its tag.
+    let unknown = refusal(
+        &deleted,
+        DocEdit::SetLabel {
+            node: extrude,
+            label: Some(label("back")),
+        },
+    );
+    let said = unknown.respoken(&later).to_string();
+    assert!(
+        matches!(unknown, EditError::UnknownNode { .. })
+            && said.starts_with(&format!("node {e} is not live")),
+        "an absent node stays absent though the later version holds it: {said}"
     );
 }

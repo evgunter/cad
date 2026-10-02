@@ -171,7 +171,8 @@ pub enum AdmissionFault {
     /// clause; a sentence at the affordance would be one fact spelled
     /// twice in one pane.
     NoSuchNode {
-        /// The id named, said by its tag (`node <tag>`).
+        /// The id named, said by its tag (`node <tag>`) and kept so
+        /// when spoken again ([`AdmissionFault::respoken`]).
         node: SpokenNode,
     },
     /// The node is not an `InstantiatePart`, so it has no per-instance
@@ -255,7 +256,9 @@ impl AdmissionFault {
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         let again = |node: SpokenNode| node.respoken(doc);
         match self {
-            Self::NoSuchNode { node } => Self::NoSuchNode { node: again(node) },
+            // Its sentence is that the node is not there: said from a
+            // version that holds it again, it would contradict itself.
+            unspoken @ Self::NoSuchNode { .. } => unspoken,
             Self::NotAnInstance { node } => Self::NotAnInstance { node: again(node) },
             Self::MateConstrained { instance, mates } => Self::MateConstrained {
                 instance: again(instance),

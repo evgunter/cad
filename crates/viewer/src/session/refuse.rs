@@ -440,19 +440,10 @@ pub enum Refusal {
 impl Refusal {
     /// **This refusal with every node it names spoken again from
     /// `doc`** — a later version of the document it was raised in, so
-    /// a label changed since the raise is the one it says.
-    ///
-    /// **Within one document's history an id names one node.** An id
-    /// is the head of the document's mint chain at the insert that
-    /// minted it (`editor_core::mint`), and the chain is a digest of
-    /// every minting edit before it: two versions that part from one
-    /// value — an undo, then a different insert — mint different ids
-    /// from there on, so an id one version holds is either the same
-    /// node in a later version or absent from it, and an absent one is
-    /// said as the refusal said it ([`SpokenNode::respoken`]). That is
-    /// what makes re-speaking from a later version sound, and it is why
-    /// a document an `Open` or a `New` replaced is never `doc` here:
-    /// another document's chain says nothing about these ids.
+    /// a label changed since the raise is the one it says. The rule
+    /// and why it is sound are [`SpokenNode::respoken`]'s; it is why a
+    /// document an `Open` or a `New` replaced is never `doc` here
+    /// (`frame::batch_refusal`).
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         let again = |node: SpokenNode| node.respoken(doc);
@@ -947,7 +938,7 @@ impl RefusedBoolean {
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         Self {
-            held: held_by(&self.refused, doc),
+            held: self.held.respoken(doc),
             ..self
         }
     }
@@ -1197,10 +1188,10 @@ impl FaceFrameFault {
             Self::NotOneBody { at } => Self::NotOneBody {
                 at: at.respoken(doc),
             },
-            Self::Unresolved { error, .. } => {
-                let held = held_by(&error, doc);
-                Self::Unresolved { error, held }
-            }
+            Self::Unresolved { error, held } => Self::Unresolved {
+                error,
+                held: held.respoken(doc),
+            },
             unspoken @ (Self::NoFace
             | Self::NotLanded
             | Self::NotPlanar { .. }

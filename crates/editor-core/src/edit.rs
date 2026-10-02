@@ -1615,27 +1615,30 @@ impl EditError {
 
     /// **This refusal with every node it names spoken again from
     /// `doc`, a later version of the document it was raised in**
-    /// ([`SpokenNode::respoken`]), so a label changed since the door
-    /// refused is the one it says. A node `doc` does not hold — one a
-    /// refused insert was minting, or one a later edit deleted — is
-    /// said as the door said it.
+    /// ([`SpokenNode::respoken`], whose rule and soundness argument
+    /// this follows), so a label changed since the door refused is the
+    /// one it says.
     ///
-    /// `doc` is a version of the document the refusal was raised in,
-    /// never another document's: ids are not document-scoped, and the
-    /// refusal carries no [`crate::DocumentId`] to check it by, so the
-    /// caller answers for it.
+    /// **`doc` must be a version of the document whose door raised
+    /// this refusal.** The refusal carries no [`crate::DocumentId`] to
+    /// check that by, so the caller answers for it — and a refusal a
+    /// split or an inline forwards (`SplitError::PartEdit`,
+    /// `InlineError::Edit`) was spelled in another document than the
+    /// one the caller holds.
     ///
-    /// [`EditError::LabelUnchanged`] stays as raised: its sentence is
-    /// about the label the node held when the door refused, and said
-    /// with a later one it would claim the node already holds a label
-    /// the refused edit never offered.
+    /// **An arm whose sentence is about the state the door saw stays
+    /// as raised**: [`EditError::LabelUnchanged`] (about the label the
+    /// node held, which said with a later one would claim a label the
+    /// refused edit never offered), [`EditError::NodeIdCollides`]
+    /// (about an id the log already held, which spoken from a version
+    /// holding it would name that node as the insert's), and the arms
+    /// that say a node is not live — said from a version that holds it
+    /// again, `X "plate" is not live` would contradict itself.
     #[must_use]
     pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
         let mut again = self.clone();
         match &mut again {
-            Self::UnknownNode { id }
-            | Self::NodeIdCollides { id }
-            | Self::UnknownSlot { id, slot: _ } => {
+            Self::UnknownSlot { id, slot: _ } => {
                 *id = id.respoken(doc);
             }
             Self::ProfileProgramRefused { node, refusal: _ }
@@ -1696,10 +1699,7 @@ impl EditError {
             | Self::PinUnchanged { node, pin: _ } => {
                 *node = node.respoken(doc);
             }
-            Self::UnresolvedInput { input } => {
-                *input = input.respoken(doc);
-            }
-            Self::WouldCycle { at } | Self::ReadSiteMissingNode { at } => {
+            Self::WouldCycle { at } => {
                 *at = at.respoken(doc);
             }
             Self::DuplicateInput { node, input } | Self::DeclareInputNotDeclare { node, input } => {
@@ -1720,16 +1720,13 @@ impl EditError {
                 *node = node.respoken(doc);
                 *measure = measure.respoken(doc);
             }
-            Self::DeclareNamesMissingNode { name }
-            | Self::NameStepNeverMinted { name, step: _ }
-            | Self::RebindTargetMissingNode { name }
+            Self::NameStepNeverMinted { name, step: _ }
             | Self::RebindUnknownName { name }
             | Self::RebindIdentity { name }
             | Self::RebindNoReferences { name }
             | Self::NameUnresolvedInEvaluation { name }
             | Self::RebindAppearanceCollision { name, kind: _ }
             | Self::AppearanceWrongKind { name }
-            | Self::AppearanceNamesMissingNode { name }
             | Self::AppearanceNotSet { name, kind: _ }
             | Self::MetaUnversioned {
                 name,
@@ -1745,9 +1742,10 @@ impl EditError {
             | Self::RebindMetadataCollision { name, key: _ } => {
                 *name = name.respoken(doc);
             }
-            Self::GaugeNotLive { node, gauge }
-            | Self::NotAGauge { node, gauge }
-            | Self::GaugeCycle { node, gauge } => {
+            Self::GaugeNotLive { node, gauge: _ } => {
+                *node = node.respoken(doc);
+            }
+            Self::NotAGauge { node, gauge } | Self::GaugeCycle { node, gauge } => {
                 *node = node.respoken(doc);
                 *gauge = gauge.respoken(doc);
             }
@@ -1764,6 +1762,13 @@ impl EditError {
             }
             Self::Roots(fault) => *fault = fault.respoken(doc),
             Self::LabelUnchanged { node: _ }
+            | Self::NodeIdCollides { id: _ }
+            | Self::UnknownNode { id: _ }
+            | Self::UnresolvedInput { input: _ }
+            | Self::ReadSiteMissingNode { at: _ }
+            | Self::DeclareNamesMissingNode { name: _ }
+            | Self::RebindTargetMissingNode { name: _ }
+            | Self::AppearanceNamesMissingNode { name: _ }
             | Self::SlotDimensionMismatch {
                 slot: _,
                 expected: _,

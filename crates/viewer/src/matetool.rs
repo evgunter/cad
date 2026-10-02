@@ -369,10 +369,11 @@ impl MateToolError {
             Self::SamePick { head } => Self::SamePick {
                 head: head.respoken(doc),
             },
-            Self::Frame { side, error, .. } => {
-                let held = held_by(&error, doc);
-                Self::Frame { side, error, held }
-            }
+            Self::Frame { side, error, held } => Self::Frame {
+                side,
+                error,
+                held: held.respoken(doc),
+            },
             unspoken @ (Self::NotTwoPicks
             | Self::PickIsNotAFace { .. }
             | Self::ClassRefused { .. }

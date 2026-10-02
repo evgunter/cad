@@ -874,12 +874,14 @@ every op that changes a label answers `frame::acts` true: the frame
 that renames a node is an acting batch, and its `RankedVerdict::Clear`
 retires the sentence that said the old label. An op that changed a
 label without acting would leave a stale label on the line.
-`Refusal::Edit` is spoken again the same way (`EditError::respoken`),
-though the kernel door spoke its nodes at the refusal; its
-`LabelUnchanged` stays as raised, since that sentence is about the
-label at the refusal. A node the batch's document does not hold — the
-one a refused insert was minting, or one deleted since — is said as the
-refusal said it (`SpokenNode::respoken`).
+Every re-spoken refusal, `Refusal::Edit` (`EditError::respoken`)
+among them, follows one rule (`SpokenNode::respoken`): a node the
+batch's document holds is said as it holds it now; a node it does not
+hold (the one a refused insert was minting, one deleted since), or one
+the refusal said by its tag because it was not there then, is said as
+the refusal said it. A sentence about the state the refusal saw stays as
+raised: `EditError::LabelUnchanged` (the label the node had), the arms
+that say a node is not live, and `AdmissionFault::NoSuchNode`.
 
 **The pick path's refusals hold bare ids and are spoken where they are
 drawn.** The pick index, its edge names, the id pass and the blend
