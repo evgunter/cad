@@ -58,6 +58,7 @@ pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
 pub mod enters;
+pub mod extent;
 pub mod fitted_lane;
 pub mod implicit;
 pub mod intersect;
@@ -100,6 +101,7 @@ pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, enters_material,
     enters_material_order2,
 };
+pub use extent::ExtentBall;
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the

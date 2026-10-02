@@ -305,7 +305,12 @@ fn record_germ_dir<T: Decide>(
     };
     let s_a = surface_of(a_body, sa.face)?;
     let s_b = surface_of(b_body, sb.face)?;
-    let d = match geom_brep::tangent_locus(&s_a, &s_b, band) {
+    let reach = super::rest::pair_reach(a_body, sa.face, b_body, sb.face).ok_or(
+        BooleanError::ClassificationInvariant {
+            what: "declared-Tangent face pair has no readable extent",
+        },
+    )?;
+    let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(

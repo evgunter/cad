@@ -7,6 +7,7 @@ use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
+use crate::extent::ExtentBall;
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
 /// ruling): the closed-form contact line of a tangent carrier pair,
@@ -57,12 +58,12 @@ pub enum TangentLocusError {
 ///
 /// - `tangent_locus_axis_parallel` — the axis/plane (or axis/axis)
 ///   angular deviation `|d × n̂|` (a sine of unit vectors) levered by
-///   the **1 m verification arm**, a `T::one()` literal that `topo`'s
-///   carrier-pair doors (`rest::flush_pair_relation`,
-///   `rest::carrier_pair_verdict`) spell too and must agree with:
-///   tangency along an unbounded ruling is a carrier-level claim,
-///   metered at the same arm the carrier ladder meters its
-///   parallelism rungs.
+///   `reach`'s extent from the point the gap row is read at (the
+///   cylinder's axis point; the second cylinder's, for a pair): a tilt
+///   moves the ruling by that angle times the distance from there, so
+///   the row reads the displacement the tilt induces across the faces
+///   the locus is consumed on. `reach` is the declared pair's consumed
+///   extent, the one `topo`'s carrier-pair doors lever their ladder at.
 /// - `tangent_locus_gap` — the metre gap at the tangency: for
 ///   plane×cylinder the axis-to-plane distance minus the radius; for
 ///   parallel cylinders the axis-to-axis distance minus `r1 + r2`
@@ -103,9 +104,9 @@ pub enum TangentLocusError {
 pub fn tangent_locus<T: Decide>(
     a: &geom::Surface<T>,
     b: &geom::Surface<T>,
+    reach: ExtentBall<T>,
     band: Band,
 ) -> Result<TangentLocus<T>, TangentLocusError> {
-    let arm = T::one();
     let escalate = TangentLocusError::Escalated;
     match (a, b) {
         (
@@ -130,7 +131,7 @@ pub fn tangent_locus<T: Decide>(
             // space: |axis · n̂| is the sine of the axis' elevation.
             match decide(
                 "tangent_locus_axis_parallel",
-                Margin::levered(axis.dot(*normal).abs(), arm),
+                Margin::levered(axis.dot(*normal).abs(), reach.lever_from(*co)),
                 band,
             )
             .map_err(escalate)?
@@ -182,7 +183,7 @@ pub fn tangent_locus<T: Decide>(
         ) => {
             match decide(
                 "tangent_locus_axis_parallel",
-                Margin::levered(a1.cross(*a2).norm(), arm),
+                Margin::levered(a1.cross(*a2).norm(), reach.lever_from(*o2)),
                 band,
             )
             .map_err(escalate)?

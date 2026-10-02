@@ -74,6 +74,7 @@
 //! (REST rests are consumed into structure — the census's consumed
 //! class), tier gates, and the volume backstop.
 
+use geom_brep::ExtentBall;
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
@@ -556,36 +557,24 @@ fn enumerate_segments<T: Decide>(
 type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>);
 
 /// **The one flush-pair door**: the C4 verify ladder for a single
-/// cross-body face pair — descriptions through [`face_plane`]
-/// (outward, sense-folded), identity through [`face_oriented_source`]
-/// (oriented sources, S10: the descriptions compared are the two
-/// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
-/// senses too — REST contact is precisely the `SameOpposite`
-/// verdict), and the verdict through [`super::oriented_plane_eq`] at
-/// the verification arm, **1 m** — a `T::one()` literal, spelled here,
-/// in [`carrier_pair_verdict`] and in [`geom_brep::tangent_locus`],
-/// which must agree. The declared rung contradicts only on DEFINITE
-/// margins, so the arm only meters the angular sliver band (exact
-/// fixtures decide definitely either way).
+/// cross-body PLANAR face pair — [`carrier_pair_relation`] restricted
+/// to two planes (descriptions through [`face_plane`], outward and
+/// sense-folded; S10's oriented sources, so rung 1's `orient` tags
+/// carry the face senses too — REST contact is precisely the
+/// `SameOpposite` verdict). It is that door, not a mirror of it: the
+/// verdict, the `decide` sites and the lever are the ones every carrier
+/// pair gets.
 ///
 /// **This door has NO in-tree consumer.** Verify-at-use stopped
 /// calling it at M9-1 and the flush detector followed when its scope
 /// became the `Rest` ladder's; what to do about a published door with
 /// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
-/// What it still IS is [`carrier_pair_relation`]'s planar projection,
-/// and the two cannot drift: that door's `(Plane, Plane)` case
-/// delegates to
-/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
-/// the very function [`super::oriented_plane_eq`] wraps here — one
-/// verdict function, one set of `decide` sites, one verification arm.
-/// (The #304 review's planted-drift probe showed a hand-mirrored arm
-/// passes every axis-aligned suite, which is why the arm is shared
-/// rather than mirrored.)
 ///
 /// `None`: not a planar pair — there is no plane description to
 /// compare (the REST lane treats it as an invariant violation at its
 /// own site; [`carrier_pair_relation`] is where a caller asks the
-/// same question of any carrier the ladder names).
+/// same question of any carrier the ladder names) — or a face whose
+/// extent cannot be read ([`face_reach`]).
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -594,14 +583,69 @@ pub fn flush_pair_relation<T: Decide>(
     declared: bool,
     band: Band,
 ) -> Option<Result<PlaneRelation, PlaneEqError>> {
-    let (pa, pb) = (face_plane(a, fa)?, face_plane(b, fb)?);
-    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
-    let id = PlaneIdentity {
-        s1: ga.as_ref(),
-        s2: gb.as_ref(),
-        declared,
+    face_plane(a, fa)?;
+    face_plane(b, fb)?;
+    carrier_pair_relation(a, fa, b, fb, declared, band)
+}
+
+/// **A face's consumed extent**: a ball enclosing every point of the
+/// face, the region over which a verdict about its carrier is consumed
+/// (the lever arm of [`super::carrier_eq::consumed_arm`] and of
+/// [`geom_brep::tangent_locus`]).
+///
+/// A bounded carrier's own ball where it has one
+/// ([`ExtentBall::of_carrier`]: sphere, torus, NURBS); otherwise the
+/// face is on a ruled carrier and its boundary bounds it, so the ball
+/// hulls every boundary edge's ([`ExtentBall::of_curve`]) and every
+/// isolated ring vertex.
+///
+/// `None` where no enclosing ball can be read: a lookup that does not
+/// resolve, a boundary edge with no certified carrier (scaffolding,
+/// which tier 2 bans at rest), or a ruled face with no outer boundary
+/// (its locus is unbounded).
+pub(crate) fn face_reach<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<ExtentBall<T>> {
+    let f = body.get_face(face)?;
+    if let Some(ball) = ExtentBall::of_carrier(body.get_surface(f.surface)?) {
+        return Some(ball);
+    }
+    let point = |v: VertexKey| {
+        body.get_vertex(v)
+            .and_then(|v| body.get_point(v.point))
+            .copied()
     };
-    Some(super::oriented_plane_eq(&pa, &pb, id, T::one(), band))
+    let mut reach: Option<ExtentBall<T>> = None;
+    let mut grow = |ball: ExtentBall<T>| {
+        reach = Some(reach.map_or(ball, |r| r.hull(ball)));
+    };
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        match body.get_loop(lk)?.boundary {
+            LoopBoundary::Empty { .. } if lk == f.outer => return None,
+            LoopBoundary::Empty { vertex } => grow(ExtentBall::point(point(vertex)?)),
+            LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first)? {
+                    let h = body.get_half_edge(he)?;
+                    let end = point(body.get_half_edge(h.next)?.start)?;
+                    let carrier = body
+                        .get_curve_geom(body.get_edge(h.edge)?.curve)?
+                        .certified()?
+                        .carrier();
+                    grow(ExtentBall::of_curve(carrier, point(h.start)?, end));
+                }
+            }
+        }
+    }
+    reach
+}
+
+/// A declared face pair's consumed extent: the hull of both faces'
+/// [`face_reach`], since the verdict is consumed on each.
+pub(crate) fn pair_reach<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+) -> Option<ExtentBall<T>> {
+    Some(face_reach(a, fa)?.hull(face_reach(b, fb)?))
 }
 
 /// The face's **oriented carrier description** — the curved
@@ -662,17 +706,17 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// **The one carrier-pair door**: [`flush_pair_relation`] for every
 /// carrier kind the `Rest` table names.
 ///
-/// Same descriptions-plus-identity construction, same verification
-/// arm (**1 m**, the literal [`flush_pair_relation`] spells), same shared-by-
-/// construction contract between the verify-at-use site and the
-/// detector's candidate-generation mode — only the carrier kind
-/// widens. The planar case reaches exactly the same numbers it
-/// reached before ([`mod@super::carrier_eq`]'s plane arm delegates), so
-/// this door is a superset of the old one rather than a replacement
-/// for it.
+/// Descriptions through [`face_carrier`], identity through
+/// [`face_oriented_source`], and the angular data levered at the pair's
+/// consumed extent ([`pair_reach`], through
+/// [`super::carrier_eq::consumed_arm`]): a declared verdict that
+/// bridges a tilt is one whose displacement stays in band across both
+/// faces. One door for the verify-at-use site and the detector's
+/// candidate-generation mode.
 ///
 /// `None`: a face whose surface kind is outside the ladder's
-/// inventory — there is no description to compare.
+/// inventory — there is no description to compare — or whose extent
+/// cannot be read ([`face_reach`]).
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -697,6 +741,7 @@ pub fn carrier_pair_verdict<T: Decide>(
     band: Band,
 ) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
     let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
+    let arm = super::carrier_eq::consumed_arm(&ca, &cb, pair_reach(a, fa, b, fb)?);
     let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
@@ -704,11 +749,7 @@ pub fn carrier_pair_verdict<T: Decide>(
         declared,
     };
     Some(super::carrier_eq::carrier_eq_verdict(
-        &ca,
-        &cb,
-        id,
-        T::one(),
-        band,
+        &ca, &cb, id, arm, band,
     ))
 }
 

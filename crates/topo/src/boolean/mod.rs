@@ -2930,7 +2930,10 @@ fn verify_tangent_declaration<T: Decide>(
         };
     let (sa, sense_a) = face_of(a, fa, Operand::A)?;
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
-    let (origin, dir) = match geom_brep::tangent_locus(&sa, &sb, band) {
+    let reach = rest::pair_reach(a, fa, b, fb).ok_or(BooleanError::ClassificationInvariant {
+        what: "declared-Tangent face pair has no readable extent",
+    })?;
+    let (origin, dir) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
         Ok(geom_brep::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(

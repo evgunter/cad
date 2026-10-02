@@ -262,8 +262,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             let tangent = match (
                 surface(piercing_body, s.face),
                 surface(pierced_body, contact.face),
+                super::rest::pair_reach(piercing_body, s.face, pierced_body, contact.face),
             ) {
-                (Some(a), Some(b)) => geom_brep::tangent_locus(a, b, band).is_ok(),
+                (Some(a), Some(b), Some(reach)) => {
+                    geom_brep::tangent_locus(a, b, reach, band).is_ok()
+                }
                 _ => false,
             };
             let admitted: &[crate::contact::ContactClass] = match (plane.is_some(), tangent) {
@@ -326,8 +329,13 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 Coincide::TangentSide,
                 &[],
             );
+            let reach = super::rest::pair_reach(piercing_body, s.face, pierced_body, contact.face)
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "declared-Tangent face pair has no readable extent",
+                })?;
             let lump = super::sectors::tangent_lump(
-                &s_sector, &s_pierced, n_pierced, p, op, piercing, s.face, s.arm, read, band,
+                &s_sector, &s_pierced, reach, n_pierced, p, op, piercing, s.face, s.arm, read,
+                band,
             )?;
             entries[k].class = lump;
             entries[(k + 1) % n].class = lump;

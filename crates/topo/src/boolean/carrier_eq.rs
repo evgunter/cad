@@ -395,6 +395,33 @@ pub fn carrier_eq_verdict<T: Decide>(
     }
 }
 
+/// **The lever arm for a verdict consumed over `reach`**: the extent's
+/// farthest reach from the PIVOT at which the kind's position datum is
+/// read, so a relative tilt levered here reads the largest displacement
+/// it induces anywhere on the consumed faces
+/// ([`geom_brep::ExtentBall`]'s module docs):
+///
+/// - plane — the world origin, where `d = n̂·origin` reads the offset;
+/// - cylinder — the second carrier's axis point, where the axis offset
+///   is read;
+/// - torus — the second carrier's centre, about which its tube turns;
+///   a torus face's extent is its carrier's ball, so the arm is `R + r`.
+///
+/// Sphere pairs and mixed kinds carry no angular datum, and the arm is
+/// read from the world origin only so that the function is total.
+pub fn consumed_arm<T: geom_core::Real>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    reach: geom_brep::ExtentBall<T>,
+) -> T {
+    let pivot = match (c1, c2) {
+        (CarrierDesc::Cylinder { .. }, CarrierDesc::Cylinder { origin, .. }) => *origin,
+        (CarrierDesc::Torus { .. }, CarrierDesc::Torus { center, .. }) => *center,
+        _ => Point3::origin(),
+    };
+    reach.lever_from(pivot)
+}
+
 /// Rung 1 for the curved arms: both descriptions carry the same
 /// recipe source ⇒ same carrier by the N6 theorem, with the material
 /// side read off the descriptions' own `outward` bits.
