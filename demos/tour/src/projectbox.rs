@@ -1,9 +1,12 @@
 //! The project-box enclosure (#91 C3): one part carrying the tour's
 //! longest boolean-of-boolean chain — cavity subtract, then 6 vent
 //! through-slots (each a two-ring tunnel seam through a wall), then 4
-//! round screw bosses standing ON the floor, each union declaring its
-//! cap-on-floor contact ([`crate::booleans::try_union_declared`]), then
-//! a through-bore down each boss and out through the floor: 15
+//! round screw bosses standing ON the floor, each union declaring what
+//! the flush detector finds ([`crate::booleans::try_union_declared`]):
+//! the cap-on-floor contact, plus continuations against the disjoint
+//! tops of the bosses already standing, which the union does not need
+//! (work/tang/flush-detector-offers-disjoint-coplanar-pairs-as-continuations.md),
+//! then a through-bore down each boss and out through the floor: 15
 //! sequential ops, every one against the closed-form volume oracle (a
 //! volume + Seamed-kind gate per op; tier 3′ with declared contacts
 //! runs once, on the FINAL body, in `crate::run_body`).
@@ -94,8 +97,8 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
         }
     }
 
-    // Interior screw bosses: 4 cylinders standing on the floor, the
-    // cap-on-floor contact declared.
+    // Interior screw bosses: 4 cylinders standing on the floor, their
+    // flush findings declared.
     for (cx, cy) in BOSS_AXES {
         vol += PI * BOSS_R * BOSS_R * (BOSS_Z.1 - BOSS_Z.0);
         acc = expect_seamed(
@@ -139,7 +142,9 @@ pub fn stop(tol: Tol) -> Stop {
          4 declared boss unions -> 4 bore subtracts), volume within 1e-9 of the closed-form \
          oracle after every op, final V = {vol} (each boss adds pi R^2 x {boss_h}, \
          R = {BOSS_R}; each bore removes pi r^2 x {BORED_HEIGHT}, r = {BORE_R}); \
-         each boss stands on the floor, its cap-on-floor contact declared. \
+         each boss stands on the floor; each union declares the detector's findings, \
+         its cap-on-floor contact plus continuations against the other bosses' disjoint \
+         tops. \
          SECTIONED: {section_note}",
         boss_h = BOSS_Z.1 - BOSS_Z.0,
     );

@@ -113,7 +113,7 @@ def rod(doc, cx, cy, r, z):
 def projectbox(doc):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
     — cavity, six vent slots, four round bosses standing on the floor
-    (each union declaring its cap-on-floor contact), and a through-bore
+    (each union declaring the flush detector's findings), and a through-bore
     down each boss and out through the floor. Shared by the
     volume-oracle row and the `cutaway` row, which splits exactly
     this body."""

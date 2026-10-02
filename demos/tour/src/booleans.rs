@@ -197,9 +197,10 @@ pub fn expect_seamed<S: Scalar>(what: &str, v: Verdict<S>, expected: f64) -> Boo
     }
 }
 
-/// **What this helper has declared, by CARRIER KIND** — a test-only
-/// census, so the claim "every scene that declares through this helper
-/// declares planar contacts, except the plant's socket" is MEASURED
+/// **What this helper has declared, by CARRIER KIND and CLASS** — a
+/// test-only census, so the claim "every scene that declares through
+/// this helper declares planar pairs, except the plant's socket" is
+/// MEASURED
 /// rather than read off the renders, which can only say that nothing
 /// moved and never what was declared.
 ///
@@ -213,14 +214,19 @@ pub(crate) mod census {
     use pncad::prelude::SurfaceKind;
     use pncad::prelude::query;
 
-    type KindPair = (Option<SurfaceKind>, Option<SurfaceKind>);
+    /// A declared finding: the two faces' carrier kinds, and its class.
+    pub(crate) type Declared = (
+        Option<SurfaceKind>,
+        Option<SurfaceKind>,
+        pncad::topo::BooleanCoincidence,
+    );
 
     thread_local! {
-        static DECLARED: RefCell<Vec<KindPair>> = const { RefCell::new(Vec::new()) };
+        static DECLARED: RefCell<Vec<Declared>> = const { RefCell::new(Vec::new()) };
     }
 
-    /// Records the carrier-kind pair of every finding the helper is
-    /// about to declare.
+    /// Records the carrier-kind pair and class of every finding the
+    /// helper is about to declare.
     pub(crate) fn record<S: Scalar>(
         a: &Body<S>,
         b: &Body<S>,
@@ -231,13 +237,14 @@ pub(crate) mod census {
                 (
                     query::face_surface_kind(a, f.pair.0),
                     query::face_surface_kind(b, f.pair.1),
+                    f.class,
                 )
             }));
         });
     }
 
     /// Takes and clears what this thread has recorded.
-    pub(crate) fn drain() -> Vec<KindPair> {
+    pub(crate) fn drain() -> Vec<Declared> {
         DECLARED.with(|d| core::mem::take(&mut *d.borrow_mut()))
     }
 }
@@ -246,11 +253,13 @@ pub(crate) mod census {
 mod consumer_census {
     use super::*;
     use pncad::prelude::SurfaceKind;
+    use pncad::topo::{BooleanCoincidence, ContactClass};
 
     /// **Every consumer of [`flush_declarations`] declares PLANAR
-    /// contacts, except the plant's socket** — the claim the flush
-    /// detector's widening rests on, measured at the helper rather
-    /// than inferred from renders being byte-identical.
+    /// pairs — contacts and continuations — except the plant's
+    /// socket**: the claim the flush detector's widening rests on,
+    /// measured at the helper rather than inferred from renders being
+    /// byte-identical.
     ///
     /// The scenes run for their effect on the census: the cross-lap's
     /// declared mate, the table's four corner-aligned legs, the
@@ -274,23 +283,38 @@ mod consumer_census {
             declared.len() >= 3,
             "three scenes declare through this helper; census {declared:?}"
         );
-        for pair in &declared {
+        for &(ka, kb, _) in &declared {
             assert_eq!(
-                *pair,
+                (ka, kb),
                 (Some(SurfaceKind::Plane), Some(SurfaceKind::Plane)),
-                "these scenes' contacts are planar; a curved one here would be a scene \
+                "these scenes' pairs are planar; a curved one here would be a scene \
                  change, not a detector change: {declared:?}"
             );
         }
-        // The k-th boss (from 0) brings its cap-on-floor contact and
-        // its top's coplanarity with the k bosses already standing:
-        // 4 + (0 + 1 + 2 + 3) planar pairs.
+        // The project box's boss unions: one cap-on-floor `Rest` per
+        // boss is the contact the scene builds. The 0 + 1 + 2 + 3
+        // continuations are the detector over-reporting each new boss
+        // top against the DISJOINT tops already standing, which neither
+        // abut nor overlap
+        // (work/tang/flush-detector-offers-disjoint-coplanar-pairs-as-continuations.md);
+        // the unions do not need them, and fixing the detector drops
+        // this census to the 4 `Rest` alone.
         let _ = crate::projectbox::build::<f64>(tol);
+        let boxed = census::drain();
+        let plane = Some(SurfaceKind::Plane);
+        let count = |class| {
+            boxed
+                .iter()
+                .filter(|&&d| d == (plane, plane, class))
+                .count()
+        };
+        let rest = count(BooleanCoincidence::Contact(ContactClass::Rest));
+        let continuations = count(BooleanCoincidence::Continuation);
         assert_eq!(
-            census::drain(),
-            [(Some(SurfaceKind::Plane), Some(SurfaceKind::Plane)); 10],
-            "the project box's boss unions: a cap-on-floor pair per boss, plus each top \
-             against the tops before it"
+            (boxed.len(), rest, continuations),
+            (10, 4, 6),
+            "the project box declares 4 planar Rest contacts and 6 planar continuations: \
+             {boxed:?}"
         );
     }
 }
