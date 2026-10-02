@@ -182,7 +182,7 @@ fn stretches(
     out: &topo::BooleanBody<f64>,
     rows: &[(topo::VertexKey, topo::VertexKey)],
 ) -> Vec<Ends> {
-    let fused = out.naming.fused_into().expect("the fusions do not cycle");
+    let fused = out.naming.fused_into();
     let at = |v| {
         let v = fused.get(&v).copied().unwrap_or(v);
         let p = topo::readback::vertex_point(&out.body, v).expect("a held end is live");
