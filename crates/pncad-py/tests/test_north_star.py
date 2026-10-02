@@ -2323,28 +2323,29 @@ class TestHollowring(unittest.TestCase):
 
 
 class TestKlein(unittest.TestCase):
-    """Tour scene `klein` (demos/tour/src/klein.rs, row 15): the
-    non-orientable stop, as the honest 3-D stand-in — a thin
+    """Tour scene `klein` (demos/tour/src/klein.rs, row 15 — NO, G2):
+    the non-orientable stop, as the honest 3-D stand-in — a thin
     3-manifold whose midsurface is the classic immersed Klein bottle.
-    Three bodies, three revolves, NO boolean and NO fillet_edges.
+
+    This row executes the half of the scene a document can say. The
+    scene's top loop is ONE `sweep_body` of an annulus along an
+    interpolated spine, and neither the sweep (`SWEEP_FRONTIER`) nor a
+    curve interpolated through sampled points has a node, so the loop
+    is not here; the audit row says so and the gap is filed.
 
     The bulb is one FULL revolve of one meridian band, and that band
     is the reason this row is interesting: it walks the neck down,
     blends, flares, turns through the wide rim, comes back up the
     inner tube and closes — `.toward`/`.fillet`/`.to`/`.tangent`/
     `.tangent_arc_to`/`.line` — and every one of those verbs is on the
-    bound lattice, in an order the lattice admits. The two elbows are
-    a two-loop (annular) profile revolved PARTIALLY about a datum axis
-    at a NEGATIVE angle.
+    bound lattice, in an order the lattice admits.
 
-    Oracles: the elbows carry a Pappus closed form the scene asserts
-    (the annulus area times the spine length, exactly, because the
-    centroid is ON the spine). The bulb carries none, so this row
-    asserts the scene's own discriminating pin instead — twelve faces,
-    of which exactly four are cylinders: the neck wall and the inner
-    tube wall are the SAME cylinder about the SAME axis, and the
-    revolve's cosurface merge is a run-ADJACENCY decision, so each of
-    the four runs keeps its own face."""
+    Oracle: the bulb carries no closed form, so this row asserts the
+    scene's own discriminating pin — twelve faces, of which exactly
+    four are cylinders: the neck wall and the inner tube wall are the
+    SAME cylinder about the SAME axis, and the revolve's cosurface
+    merge is a run-ADJACENCY decision, so each of the four runs keeps
+    its own face."""
 
     R: ClassVar[float] = 0.25
     WALL: ClassVar[float] = 0.05
@@ -2354,8 +2355,6 @@ class TestKlein(unittest.TestCase):
     RF: ClassVar[float] = 0.30
     RRIM: ClassVar[float] = 0.80
     RLOOP: ClassVar[float] = 1.20
-    SWEEP_OVER: ClassVar[float] = 1.5 * math.pi
-    SWEEP_IN: ClassVar[float] = 0.5 * math.pi
 
     def meridian(self):
         """The band's derived geometry, in sketch coordinates
@@ -2405,9 +2404,8 @@ class TestKlein(unittest.TestCase):
             .line_to(Start)
         )
 
-    def bottle(self, doc):
-        """The three bodies, in surface order: bulb, then the loop's
-        two arcs."""
+    def bulb(self, doc):
+        """The bulb: one full revolve of the meridian band."""
         md = self.meridian()
         # The bulb's sketch is the xz half-plane and its axis is the
         # plane's own +v, which is world +z.
@@ -2424,67 +2422,11 @@ class TestKlein(unittest.TestCase):
             Expr.literal(0.0),
             Expr.literal(1.0),
         )))
-        bulb = doc.insert(Node.revolve(band, axis, Expr.angle_in(2 * math.pi, rad)))
-
-        half = self.WALL / 2.0
-
-        def elbow(z0, sweep):
-            # HORIZONTAL sketch at the elbow's own end: the only frame
-            # in which the annular section and the elbow axis are in
-            # one plane, which is what a revolve needs. The angle is
-            # negative because the axis is -y (the scene's own note).
-            plane = SketchPlane.from_frame(
-                (0 * m, 0 * m, z0 * m), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)
-            )
-            frame = doc.sketch_frame(plane=plane)
-            annulus = doc.insert(
-                Node.profile(
-                    [
-                        circle((0 * m, 0 * m), (self.R + half) * m),
-                        circle((0 * m, 0 * m), (self.R - half) * m),
-                    ],
-                    plane=frame,
-                )
-            )
-            # In the frame's own coordinates the elbow axis is the point
-            # (RLOOP, 0) along -y — the same line the world triple named,
-            # and the "in one plane, which is what a revolve needs" note
-            # above is now a property of how it is written, not a check.
-            ax = doc.insert(
-                Node.datum_axis_in_plane(
-                    frame, (
-                        Expr.length_in(self.RLOOP, m),
-                        Expr.length_in(0, m),
-                    ), (
-                        Expr.literal(0.0),
-                        Expr.literal(-1.0),
-                    )
-                )
-            )
-            return doc.insert(Node.revolve(annulus, ax, Expr.angle_in(-sweep, rad)))
-
-        return bulb, elbow(self.ZTOP, self.SWEEP_OVER), elbow(
-            md["z_tube"], self.SWEEP_IN
-        )
-
-    def test_the_two_elbows_match_the_scenes_pappus_oracle(self):
-        doc = Doc()
-        _, over, into = self.bottle(doc)
-        ev = evaluate(doc)
-        ring = math.pi * (
-            (self.R + self.WALL / 2.0) ** 2 - (self.R - self.WALL / 2.0) ** 2
-        )
-        for node, sweep in ((over, self.SWEEP_OVER), (into, self.SWEEP_IN)):
-            body = ev.value(node).body()
-            body.validate()
-            want = ring * sweep * self.RLOOP
-            self.assertAlmostEqual(
-                body.mass_properties().volume, want, delta=1e-12
-            )
+        return doc.insert(Node.revolve(band, axis, Expr.angle_in(2 * math.pi, rad)))
 
     def test_the_bulb_is_the_scenes_twelve_faces_four_of_them_cylinders(self):
         doc = Doc()
-        bulb, _, _ = self.bottle(doc)
+        bulb = self.bulb(doc)
         ev = evaluate(doc)
         ev.value(bulb).body().validate()
         self.assertEqual(len(ev.all_faces(bulb)), 12)
