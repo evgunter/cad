@@ -156,12 +156,21 @@ fn container_kind_title(kind: ContainerKind) -> &'static str {
 /// The status line for a referent the resolution machinery cannot
 /// place right now.
 ///
-/// The cause is rendered through its OWN `Display`: the layer that
-/// raised the indeterminacy names it, and this one contributes only
-/// the noun it is talking about. Named rather than composed inside the
-/// render pass so the wording has one home and can be asserted on.
-pub fn indeterminate_wording(noun: &str, cause: &editor_core::ResolveIndeterminate) -> String {
-    format!("this {noun} cannot be resolved right now: {cause}")
+/// The cause is said in its OWN words: the layer that raised the
+/// indeterminacy names it, and this one contributes only the noun it
+/// is talking about. Its node is said by `by`, which speaks for the
+/// document the cause's ids are spelled in. Named rather than composed
+/// inside the render pass so the wording has one home and can be
+/// asserted on.
+pub fn indeterminate_wording(
+    noun: &str,
+    cause: &editor_core::ResolveIndeterminate,
+    by: pncad::document::Speaker<'_>,
+) -> String {
+    format!(
+        "this {noun} cannot be resolved right now: {}",
+        pncad::document::Said(cause, by)
+    )
 }
 
 /// The most of the Features/Properties stack the feature tree is
@@ -4917,11 +4926,11 @@ mod properties_pane_tests {
     /// and the held mark's badge say the label the landed run's ids
     /// were read in, which is the label the picture they describe was
     /// drawn under.
-    #[test]
-    fn the_pick_path_says_the_landed_label_while_a_rename_has_not_landed() {
+    /// The startup app over a [`Gated`] seam, open, and the gate.
+    fn gated() -> (Driven, std::sync::Arc<std::sync::atomic::AtomicBool>) {
         let open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let gate = std::sync::Arc::clone(&open);
-        let mut driven = Driven::with_seams(Vec::new(), |app| {
+        let driven = Driven::with_seams(Vec::new(), |app| {
             app.session = crate::session::DocSession::new(
                 app.session.doc().clone(),
                 pncad::tolerance::witness(),
@@ -4931,7 +4940,53 @@ mod properties_pane_tests {
                 }),
             );
         });
-        let label = |text: &str| Some(pncad::document::Label::new(text).expect("a label"));
+        (driven, open)
+    }
+
+    /// `text` as a node's label.
+    fn label(text: &str) -> Option<pncad::document::Label> {
+        Some(pncad::document::Label::new(text).expect("a label"))
+    }
+
+    /// **The rename `shown plate` committed and held behind `gate`**,
+    /// two frames drawn after it: what they painted, and the extrude
+    /// as the landed document still says it.
+    fn renamed_behind(
+        driven: &mut Driven,
+        gate: &std::sync::atomic::AtomicBool,
+    ) -> (Vec<(String, egui::Rect)>, String) {
+        gate.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("shown plate"),
+        }]);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let drawn = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven
+                .app
+                .session
+                .doc()
+                .spoken(extrude())
+                .to_string()
+                .contains("shown plate"),
+            "the shown document is ahead of the landed one"
+        );
+        let landed = driven
+            .app
+            .session
+            .landed_pair()
+            .expect("the earlier run stays landed")
+            .0
+            .spoken(extrude())
+            .to_string();
+        assert!(landed.contains("landed plate"), "{landed}");
+        (drawn, landed)
+    }
+
+    #[test]
+    fn the_pick_path_says_the_landed_label_while_a_rename_has_not_landed() {
+        let (mut driven, open) = gated();
         driven.app.perform_batch(vec![SessionOp::SetLabel {
             node: extrude(),
             label: label("landed plate"),
@@ -4962,32 +5017,7 @@ mod properties_pane_tests {
         driven.click(crate::pane::create::BLEND_EDGES);
         driven.quiet();
 
-        open.store(false, std::sync::atomic::Ordering::SeqCst);
-        driven.app.perform_batch(vec![SessionOp::SetLabel {
-            node: extrude(),
-            label: label("shown plate"),
-        }]);
-        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
-        let drawn = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
-        assert!(
-            driven
-                .app
-                .session
-                .doc()
-                .spoken(extrude())
-                .to_string()
-                .contains("shown plate"),
-            "the shown document is ahead of the landed one"
-        );
-        let landed = driven
-            .app
-            .session
-            .landed_pair()
-            .expect("the earlier run stays landed")
-            .0
-            .spoken(extrude())
-            .to_string();
-        assert!(landed.contains("landed plate"), "{landed}");
+        let (drawn, landed) = renamed_behind(&mut driven, &open);
         for prefix in ["1 edges picked on ", "held edges:"] {
             let line = drawn
                 .iter()
@@ -4999,5 +5029,37 @@ mod properties_pane_tests {
                 "{prefix:?} says the landed label: {line}"
             );
         }
+    }
+    /// **The selection's verdict speaks from the landed document, not
+    /// the shown one**: the standing is asked of the landed run, so a
+    /// picked face that no longer resolves names its minting node by
+    /// the label that run's ids were read in while a rename is held.
+    #[test]
+    fn the_selections_verdict_says_the_landed_label_while_a_rename_has_not_landed() {
+        let (mut driven, open) = gated();
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: extrude(),
+            label: label("landed plate"),
+        }]);
+        driven.settle();
+        let mut gone = cap_of(extrude(), pncad::prelude::CapEnd::End);
+        gone.name
+            .path
+            .push(pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Select(Selection::Face(gone))]);
+        driven.quiet();
+
+        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        let line = drawn
+            .iter()
+            .map(|(run, _)| run)
+            .find(|run| run.starts_with("this face is gone: "))
+            .unwrap_or_else(|| panic!("the verdict is drawn: {drawn:?}"));
+        assert!(
+            line.contains(&landed) && !line.contains("shown plate"),
+            "the verdict says the landed label: {line}"
+        );
     }
 }
