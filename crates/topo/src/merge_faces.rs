@@ -4400,6 +4400,24 @@ mod winding_arm_tests {
     #[test]
     fn a_two_arc_cycle_winds_positively_and_its_counterpart_negatively() {
         let tol = Tol::witness();
+        let (body, disc, anti) = two_semicircle_disc(tol);
+        let outward = Vec3::unit_z();
+        assert_eq!(
+            signed(body.loop_winding(disc, outward, band(tol))),
+            Ok(LoopWinding::Wound(Sign::Positive)),
+            "the disc's own boundary encloses material about the outward normal"
+        );
+        assert_eq!(
+            signed(body.loop_winding(anti, outward, band(tol))),
+            Ok(LoopWinding::Wound(Sign::Negative)),
+            "the same boundary reversed anti-encloses — a ring's signature"
+        );
+    }
+
+    /// The unit disc on the z = 0 plane bounded by two semicircles
+    /// meeting at `(±1, 0, 0)`: the disc face's own loop, which winds
+    /// counterclockwise about `+z`, and the seed face's counterpart.
+    fn two_semicircle_disc(tol: Tol) -> (Body<f64>, LoopKey, LoopKey) {
         let (a, b) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(a, true).unwrap();
@@ -4451,19 +4469,9 @@ mod winding_arm_tests {
                 tol,
             )
             .unwrap();
-        let outward = Vec3::unit_z();
         let disc = body.get_face(e2.face).unwrap().outer;
         let anti = body.get_face(seed.face).unwrap().outer;
-        assert_eq!(
-            signed(body.loop_winding(disc, outward, band(tol))),
-            Ok(LoopWinding::Wound(Sign::Positive)),
-            "the disc's own boundary encloses material about the outward normal"
-        );
-        assert_eq!(
-            signed(body.loop_winding(anti, outward, band(tol))),
-            Ok(LoopWinding::Wound(Sign::Negative)),
-            "the same boundary reversed anti-encloses — a ring's signature"
-        );
+        (body, disc, anti)
     }
 
     /// **The mixed Line + Circle cycle**, and the reason the bulge is a
@@ -5248,5 +5256,40 @@ mod winding_arm_tests {
             }),
             "a half its edge does not claim is not read as a minus half"
         );
+    }
+
+    /// **A run's conic bulge is read, closing chord and all**: one
+    /// semicircle of [`two_semicircle_disc`] closed by its diameter is
+    /// a half-disc whose chord Newell sum is exactly zero, so only the
+    /// run's bulge can decide it, and it winds counterclockwise like the
+    /// disc; the run over both semicircles closes on a zero-length chord
+    /// and is the disc's own loop, margin for margin.
+    #[test]
+    fn a_run_on_arcs_is_decided_by_its_bulge() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let (body, disc, _) = two_semicircle_disc(tol);
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(disc).unwrap().boundary
+        else {
+            panic!("the disc's loop is a cycle");
+        };
+        let second = body.get_half_edge(first).unwrap().next;
+        let run = |h1, h2| match body.planar_run_winding_decided(h1, h2, n, b) {
+            Ok(Some(Ok(d))) => d,
+            other => panic!("the run winds: {other:?}"),
+        };
+        for half in [first, second] {
+            assert_eq!(
+                run(half, half).sign,
+                Sign::Positive,
+                "a semicircle closed by its diameter is a counterclockwise half-disc"
+            );
+        }
+        let whole = match body.planar_loop_winding_decided(disc, n, b) {
+            Ok(LoopWinding::Wound(Ok(d))) => d,
+            other => panic!("the disc winds: {other:?}"),
+        };
+        assert_eq!(run(first, second), whole, "the whole run is the disc");
     }
 }
