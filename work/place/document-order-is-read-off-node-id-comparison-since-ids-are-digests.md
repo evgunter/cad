@@ -2,10 +2,13 @@
 id: document-order-is-read-off-node-id-comparison-since-ids-are-digests
 kind: issue
 title: document order is read off a RecipeNodeId comparison in places, and since #3594 an id is a digest, so that order is arbitrary
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+closed: 2026-10-02
+branch: place/document-order-sweep
+pr: 3882
 ---
 
 ## What
@@ -42,3 +45,27 @@ Pin each site that needed fixing with a row that is red under
 reversed ids.
 
 Filed by the EDIT orchestrator from PR 3676's fix lane.
+
+## Closed
+
+PR 3882 swept the workspace and its excluded roots. Pass 1 was syntax:
+id-keyed `BTree*` iteration, sorts and min/max, comparisons, and the
+`Ord`-deriving wrapper types. Pass 2 went from the claims and the
+consumers: doc comments that promise an order, and id-keyed maps that
+cross a crate seam. The full hit list is in the PR body.
+
+Read off the document now, each pinned by a row that fails when ids
+run out of document order:
+- `split`'s `UnplacedAlone` group and `PartNameReachesRemainder.missing`;
+- the STEP export's `Unplaced` parts;
+- a part's `PartValue.unplaced`;
+- `Evaluation::all_unplaced_below`;
+- the viewer's `FusedGeometry.others`;
+- the Python `node_map` lists.
+
+Most other sites already read `Doc::order`/`Doc::positions` (the mate
+solve, schedule, resolve lanes, roots), or are membership,
+canonical-identity or contract-stated tie-breaks. The union pairwise
+judgement's "lesser id as operand A" is one of the stated tie-breaks.
+
+Filed: `work/chrome/display-prune-withdrawals-list-instances-in-id-order.md`.
