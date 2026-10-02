@@ -7,12 +7,10 @@
 use crate::common;
 
 use geom::Surface;
+use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{
-    Body, ContactRecords, PatchContact, TangentLocus, TangentLocusError, ValidationError,
-    tangent_locus, validate_pseudomanifold,
-};
+use topo::{Body, ContactRecords, PatchContact, ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
