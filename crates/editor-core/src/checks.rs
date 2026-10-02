@@ -523,8 +523,9 @@ pub struct CheckFinding {
 }
 
 // One story, one recourse, in one place, through the document layer's
-// one sink ([`crate::finding`]). The subject is the finding's (root,
-// output) attribution. Three arms end in a recourse the story already
+// one sink ([`crate::finding`]), each root said by the speaker the
+// finding is said by. The subject is the finding's (root, output)
+// attribution. Three arms end in a recourse the story already
 // carries, so `recourse` answers "" ("already told") there:
 // - Unsupported forwards its payload's `Display`, recourse included.
 // - Escalated renders the refusal's data view,
@@ -532,17 +533,21 @@ pub struct CheckFinding {
 //   neither of which a document user can act on), then the same ending
 //   the refusal's own `Display` ends in, [`ShellClassifyError::ending`].
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
-impl crate::finding::Finding for CheckFinding {
+impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self(finding, by) = *self;
         write!(
             f,
-            "check {}: root {} output {}",
-            self.check, self.root, self.output_ix
+            "check {}: {} output {}",
+            finding.check,
+            by.node_as(finding.root, "root"),
+            finding.output_ix
         )
     }
 
     fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.evidence {
+        let Self(finding, by) = *self;
+        match &finding.evidence {
             CheckEvidence::Connectedness { actual, expected } => write!(
                 f,
                 "{actual} disconnected component(s) where {expected} was expected"
@@ -570,9 +575,9 @@ impl crate::finding::Finding for CheckFinding {
                 other_output,
             } => write!(
                 f,
-                "not certifiably disjoint from root {} output {other_output}, so any space \
-                 they share is gathered twice",
-                other_root
+                "not certifiably disjoint from {} output {other_output}, so any space they \
+                 share is gathered twice",
+                by.node_as(*other_root, "root")
             ),
             CheckEvidence::SeparationUnavailable { reason, .. } => {
                 write!(f, "separation could not be checked: {reason}")
@@ -625,7 +630,7 @@ impl crate::finding::Finding for CheckFinding {
     }
 
     fn recourse(&self) -> &str {
-        match &self.evidence {
+        match &self.0.evidence {
             CheckEvidence::Connectedness { .. } => {
                 "Recourse: a stray component usually means a boolean that missed its operand \
                  or an instance placed nowhere; if it is deliberate, state the expected count \
@@ -665,17 +670,43 @@ impl crate::finding::Finding for CheckFinding {
     }
 }
 
+/// A finding and the speaker its roots are said by: the one shape the
+/// sink composes.
+#[derive(Clone, Copy)]
+struct SaidFinding<'a>(&'a CheckFinding, crate::spoken::Speaker<'a>);
+
+impl crate::spoken::Say for CheckFinding {
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+        crate::finding::compose(f, &SaidFinding(self, by))
+    }
+}
+
+/// The sentence where no document is at hand: each root by its tag.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::finding::compose(f, self)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
+}
+
+/// The findings, each said by `by`, one per line ([`crate::finding::render_list`]).
+fn say_findings(
+    f: &mut fmt::Formatter<'_>,
+    findings: &[CheckFinding],
+    by: crate::spoken::Speaker<'_>,
+) -> fmt::Result {
+    let said: Vec<SaidFinding<'_>> = findings.iter().map(|x| SaidFinding(x, by)).collect();
+    crate::finding::render_list(f, &said)
 }
 
 /// The result of one [`run_checks`] run: findings in deterministic
 /// order, and the checks that were configured `Off` — visibly skipped,
 /// because "checked and fine" and "not checked" are different answers.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ChecksReport {
+    /// The document the checks were run over: its roots' ids are
+    /// spelled in it, so it is the one document the report's human
+    /// form speaks from ([`ChecksReport::spoken`]).
+    pub document: crate::DocumentId,
     /// Findings in deterministic order (D9): each resident's own
     /// findings by root-list position then output index, residents in
     /// registry order. NOT one global sort — root 5's connectedness
@@ -686,13 +717,13 @@ pub struct ChecksReport {
     pub skipped: Vec<CheckId>,
 }
 
-impl fmt::Display for ChecksReport {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl crate::spoken::Say for ChecksReport {
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         if self.findings.is_empty() {
             write!(f, "checks: no findings")?;
         } else {
             write!(f, "checks: {} finding(s)", self.findings.len())?;
-            crate::finding::render_list(f, &self.findings)?;
+            say_findings(f, &self.findings, by)?;
         }
         if !self.skipped.is_empty() {
             write!(f, "\nchecks skipped (severity Off):")?;
@@ -701,6 +732,44 @@ impl fmt::Display for ChecksReport {
             }
         }
         Ok(())
+    }
+}
+
+/// The sentence where no document is at hand: each root by its tag.
+impl fmt::Display for ChecksReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl ChecksReport {
+    /// **The speaker for this report's roots**: each as `doc` holds it
+    /// now. A frame that draws the findings one at a time says each
+    /// through it ([`crate::spoken::Said`]).
+    ///
+    /// The guard is the [`crate::DocumentId`], which survives every
+    /// edit: it refuses another document, and cannot tell one version
+    /// of the checked document from another. Which version — the one
+    /// the checks ran over — is the caller's to hand in.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the checks were run over.
+    #[must_use]
+    pub fn speaker<'a, P>(&self, doc: &'a Doc<P>) -> crate::spoken::Speaker<'a> {
+        crate::spoken::assert_taken_of("this checks report", self.document, doc);
+        crate::spoken::Speaker::of(doc)
+    }
+
+    /// **The report as the frame holding the checked document says
+    /// it**: each root as `doc` holds it now.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the checks were run over.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::Said(self, self.speaker(doc)).to_string()
     }
 }
 
@@ -817,19 +886,54 @@ impl core::error::Error for ChecksError {}
 /// check is configured at `Error`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CheckRefusal {
+    /// The document of the report refused ([`ChecksReport::document`]),
+    /// the one its human form speaks from ([`CheckRefusal::spoken`]).
+    pub document: crate::DocumentId,
     /// The refusing findings (every `Error`-severity finding of the
     /// report, in report order).
     pub findings: Vec<CheckFinding>,
 }
 
-impl fmt::Display for CheckRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl crate::spoken::Say for CheckRefusal {
+    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         write!(
             f,
             "{} check finding(s) at Error severity:",
             self.findings.len()
         )?;
-        crate::finding::render_list(f, &self.findings)
+        say_findings(f, &self.findings, by)
+    }
+}
+
+/// The sentence where no document is at hand: each root by its tag.
+impl fmt::Display for CheckRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl CheckRefusal {
+    /// **The refusal as the frame holding the checked document says
+    /// it**: each root as `doc` holds it now.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the refused report was run over.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::Said(self, self.speaker(doc)).to_string()
+    }
+
+    /// **The speaker for this refusal's roots**: each as `doc` holds it
+    /// now, under the guard [`ChecksReport::speaker`] states.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the refused report was run over.
+    #[must_use]
+    pub fn speaker<'a, P>(&self, doc: &'a Doc<P>) -> crate::spoken::Speaker<'a> {
+        crate::spoken::assert_taken_of("this check refusal", self.document, doc);
+        crate::spoken::Speaker::of(doc)
     }
 }
 
@@ -1010,7 +1114,11 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     {
         return Err(refusal);
     }
-    let mut report = ChecksReport::default();
+    let mut report = ChecksReport {
+        document: doc.id(),
+        findings: Vec::new(),
+        skipped: Vec::new(),
+    };
     if cfg.severity(CheckId::Connectedness) == Severity::Off {
         report.skipped.push(CheckId::Connectedness);
     } else {
@@ -1408,7 +1516,10 @@ pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), C
     if findings.is_empty() {
         Ok(())
     } else {
-        Err(CheckRefusal { findings })
+        Err(CheckRefusal {
+            document: report.document,
+            findings,
+        })
     }
 }
 

@@ -174,29 +174,42 @@ reproduce on any box. A locally-drawn frame carries this box's GL
 stack, **will** differ byte-wise, and must never be committed; the guard below and `check_render_provenance.py`
 enforce the commit side.
 
-**You do not need to render at all — CI does it and commits the result.**
-Every CI run on a pushed branch renders every lane (ci.yml's
-`renders` job calls `render.yml`), and a lane that no longer matches what
-the code renders is **re-baselined for you**:
+**You do not render locally — CI does it and commits the result.** A
+PR's CI run renders nothing (`ci.yml` calls no render lane; `nightly.yml`
+renders every lane over `main` and commits what drifted). A ready PR
+that moves frames asks for them with **`[render]` as a word of its head
+commit's subject line**:
 
 ```sh
-git push        # CI renders; a lane that differs posts a neutral ("!")
-                #   drift check naming the cells
-# merge the PR  # main's own run commits the new cells
-git pull        # on main, the frames are there
+git commit -m "scene: widen the bracket [render]"
+git push        # ci.yml's `render tag` step dispatches render.yml on the
+                #   branch; a lane that differs is committed back to it
+                #   with a neutral ("!") check naming the cells, and CI is
+                #   dispatched again on that new head, gating the PR's
+                #   merge with its base
+git pull        # the frames are on your branch: look at them
 ```
 
-**If the render is what you intended, the drift check is a pass.** It
-needs no re-run and no second commit. Re-run only if something *else* in
-the run failed. To see the cells before merging, take the run's artifact
-with `local-scripts/render-hosted.sh`.
+The tag counts only in the subject, delimited by whitespace, of the PR's
+head commit, read on a `pull_request` run: `[render]` in a commit body,
+or glued to other text, does not fire, and a later push without it
+renders nothing. A draft renders nothing; marking it ready re-reads the
+tag. Neither the bot's re-baseline commit nor the CI run dispatched on it
+can ask again. A PR from a fork cannot be rendered this way (its run's
+token can neither dispatch nor push to the fork); the step says so in a
+warning.
 
-**PRs report; `main` commits.** A bot commit onto a PR branch becomes the
-PR's head, and a `GITHUB_TOKEN` push triggers no run of its own — so the
-PR would show that one check and nothing else, with every green check
-stranded on the parent commit. The recursion guard and that blank slate
-are the same fact, so the commit happens on `main` instead. Same rule the
-rebuild-latency history follows.
+The head goes **red** rather than carrying only neutral checks when the
+render cannot vouch for it: a push to the branch while the render runs
+makes the lanes commit nothing and post a failing `render refused` check
+(push again with the tag), and lanes that did not all succeed after one
+committed, or a re-gate that could not be dispatched, post a failing
+`render re-gate` check.
+
+**If the render is what you intended, the neutral check is a pass.** It
+needs no re-run and no second commit. A drifting lane commits only when
+the run has a branch to write; a dispatch aimed at a bare SHA reports the
+drift instead.
 
 A re-baseline has two causes and they want different reactions — the
 geometry changed (these cells are the new truth; check they look like
@@ -211,24 +224,24 @@ succeeded, so a wedge is reported as a wedge and never as drift.
 
 `.github/workflows/render.yml` runs the render lanes on GitHub runners
 and hands each one back as a run artifact. It has **two entry points over
-one pipeline**: `workflow_call`, which is where your frames come from,
-and `workflow_dispatch`, for a tree CI has not seen or a re-render at a
-different scene budget.
+one pipeline**: `workflow_call`, the nightly's render of `main`, and
+`workflow_dispatch`, which the `[render]` tag fires and which
+`render-hosted.sh` fires where `gh` can dispatch.
 
 ```sh
-local-scripts/render-hosted.sh --on-demand            # a tree CI has not rendered
+local-scripts/render-hosted.sh                        # dispatch, wait, install
 local-scripts/render-hosted.sh --lane wild --verify   # prove the artifact path is byte-exact
 local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
 local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
-**Render on demand only when CI has not covered it** — an unpushed
-branch, no CI run yet, or a deliberate re-render at a different scene
-budget. Dispatching when CI has already rendered the same tree renders it
-twice, which is why it is a flag rather than the default. Those runs
-re-baseline too, so they also end in a `git pull`; the exception is a
-dispatch aimed at a bare SHA, which has no branch to commit to and
-reports the drift with the install command instead.
+The script dispatches on every call except `--run`, and needs a `gh`
+allowed to dispatch workflows; a token that cannot (an agent's
+integration token answers 403) uses the `[render]` tag instead. A branch
+the tag already rendered needs no second dispatch: `git pull` has the
+cells. Dispatched runs re-baseline, so they also end in a `git pull`;
+the exception is a dispatch aimed at a bare SHA, which has no branch to
+commit to and reports the drift with the install command instead.
 
 `render-hosted.sh` **refuses** if your local HEAD is not what
 `origin/<branch>` points at — the runner checks out the pushed tree and
@@ -857,9 +870,8 @@ the draws moved.
   legend.
 * **The teal is drawn only at the ε it was measured at.** `0.111` is a
   default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
-  measured); why it moves is not established — the wall's refusal is
-  a poisoned margin, not a quantity a band classifies — so at another
-  ε it is a different box, and `chaintol` (`demo-tour certified`)
+  measured; why is `chaintol`'s header, "What sets the wall"), so at
+  another ε it is a different box, and `chaintol` (`demo-tour certified`)
   declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
   the frontier where the legend would have gone and draws no band. A
   run at another ε where the box happens to certify anyway is

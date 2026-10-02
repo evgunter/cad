@@ -66,6 +66,7 @@
 //! `dot(dir, n_outward) < 0 ⇒ Enters ⇒ IN`; positive ⇒ OUT. Mirror
 //! tests pin both directions on brick fixtures.
 
+mod arcs;
 pub(crate) mod boxes;
 pub mod carrier_eq;
 mod circle_cylinder;
@@ -101,7 +102,7 @@ pub use refusal_routes::{
     NeighbourOffset, PlaneRung, RestZipFrontier, SectionRadius, SectorRung, SelfCheck, Settling,
     SphereQuestion, TorusConvention, WallRung,
 };
-mod rest;
+pub(crate) mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
 mod shell_witness;
@@ -126,7 +127,7 @@ use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
 use crate::validate::ValidationError;
 
-pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
+pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, ConsumedExtent, carrier_eq};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
@@ -147,7 +148,10 @@ pub use reduce::{SweepStrategy, SweepTrace};
 // arm in one function, shared by the REST lane's verify-at-use and
 // the detector's candidate-generation mode BY CONSTRUCTION.
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
-pub use rest::{carrier_pair_relation, carrier_pair_verdict, face_carrier, flush_pair_relation};
+pub use rest::{
+    PairFace, PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+    flush_pair_relation,
+};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,
@@ -576,8 +580,8 @@ impl FacePairDeclaration {
 /// only while every non-`Rest` class refused wholesale, and would have
 /// become silent last-write-wins the day the op grew a second class
 /// arm.)
-#[derive(Debug, Default)]
-pub(crate) struct DeclaredPairs {
+#[derive(Debug)]
+pub(crate) struct DeclaredPairs<T: Real> {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), BooleanCoincidence>,
     /// What the declaration door VERIFIED, `(A face, B face)`.
     verified: VerifiedDeclarations,
@@ -586,6 +590,43 @@ pub(crate) struct DeclaredPairs {
     /// one closed side of the target's. C4 states the certificate one
     /// way, so the key is directed.
     one_sided: std::collections::BTreeSet<(OperandFace, OperandFace)>,
+    /// Each declared pair's consumed extent, measured on the operands
+    /// at rest ([`rest::pair_extent`]), `(A face, B face)`. Every
+    /// declared pair has one: the production constructor
+    /// ([`Self::build`]) refuses a pair whose extent does not read.
+    extent: std::collections::BTreeMap<(FaceKey, FaceKey), rest::PairExtent<T>>,
+}
+
+impl<T: Real> Default for DeclaredPairs<T> {
+    fn default() -> Self {
+        Self {
+            map: std::collections::BTreeMap::new(),
+            verified: VerifiedDeclarations::default(),
+            one_sided: std::collections::BTreeSet::new(),
+            extent: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+/// The refusal of a declared face whose consumed extent cannot be read
+/// ([`rest::PairUnread::Extent`]), at rest: an input condition, named
+/// by the operand whose face it is.
+pub(crate) fn unreadable_extent(face: rest::PairFace) -> BooleanError {
+    BooleanError::InvalidDeclaration {
+        operand: match face {
+            rest::PairFace::First => Operand::A,
+            rest::PairFace::Second => Operand::B,
+        },
+        what: "declared face's consumed extent cannot be read (its box has no claim to make, \
+               or its boundary cannot be walked)",
+    }
+}
+
+/// A declared one-carrier pair whose displacement over its consumed
+/// extent is neither bridged nor contradicted
+/// ([`carrier_eq::CarrierEqError::Unsettled`]), read under `class`.
+pub(crate) fn unsettled_rest(class: BooleanCoincidence, diag: Indeterminate) -> BooleanError {
+    BooleanError::coincidence(Coincide::DeclaredReach, DeclarationRead::Spent(class), diag)
 }
 
 /// A face tagged with the operand it belongs to, ordered A before B;
@@ -640,17 +681,36 @@ pub(crate) struct VerifiedDeclarations {
     pub(crate) tangent: std::collections::BTreeSet<(FaceKey, FaceKey)>,
 }
 
-impl DeclaredPairs {
-    /// The index over `decls`, with the door's certificates and the
+impl<T: Decide> DeclaredPairs<T> {
+    /// The index over `decls`, with the door's certificates, the
     /// one-sided cover they and the operands' structural tangencies
-    /// derive ([`Self::one_sided`]).
-    pub(crate) fn build<T: Real>(
+    /// derive ([`Self::one_sided`]), and each declared pair's consumed
+    /// extent measured on the operands `a` and `b` at rest. Mid-operation
+    /// a face is a piece of its rest self, so that extent still encloses
+    /// it, while its own box may no longer read (null scaffolding on its
+    /// boundary).
+    ///
+    /// # Errors
+    ///
+    /// [`unreadable_extent`] for a declared face whose extent does not
+    /// read.
+    pub(crate) fn build(
         decls: &BooleanDeclarations,
         verified: VerifiedDeclarations,
         a: &Body<T>,
         b: &Body<T>,
-    ) -> Self {
-        let mut pairs = Self::from_verified(decls, verified);
+        band: Band,
+    ) -> Result<Self, BooleanError> {
+        let mut pairs = Self::index(decls, verified);
+        pairs.extent = decls
+            .coincident_faces
+            .iter()
+            .map(|d| {
+                rest::pair_extent(a, d.a, b, d.b, band)
+                    .map(|extent| ((d.a, d.b), extent))
+                    .map_err(unreadable_extent)
+            })
+            .collect::<Result<_, _>>()?;
         // A structural tangency on either operand, between a strut face
         // and a partner the door verified one carrier with a face of
         // the other operand. Each direction is its own certificate,
@@ -683,9 +743,11 @@ impl DeclaredPairs {
                 }
             }
         }
-        pairs
+        Ok(pairs)
     }
+}
 
+impl<T: Real> DeclaredPairs<T> {
     /// [`Self::build`] over a one-carrier certificate set alone: no
     /// verified `Tangent` and no operand struts.
     #[cfg(test)]
@@ -693,7 +755,7 @@ impl DeclaredPairs {
         decls: &BooleanDeclarations,
         one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
     ) -> Self {
-        Self::from_verified(
+        Self::index(
             decls,
             VerifiedDeclarations {
                 one_carrier,
@@ -704,11 +766,8 @@ impl DeclaredPairs {
 
     /// The index over `decls` with the door's certificates and the
     /// cover they alone derive: [`Self::build`] without the operands'
-    /// structural tangencies.
-    pub(crate) fn from_verified(
-        decls: &BooleanDeclarations,
-        verified: VerifiedDeclarations,
-    ) -> Self {
+    /// structural tangencies and without the extents.
+    fn index(decls: &BooleanDeclarations, verified: VerifiedDeclarations) -> Self {
         // Both directions for a verified one-carrier pair (one carrier:
         // each lies in, so on one closed side of, the other) and for a
         // verified `Tangent` pair (the witness lane's kinds, plane ×
@@ -731,6 +790,7 @@ impl DeclaredPairs {
                 .collect(),
             verified,
             one_sided,
+            extent: std::collections::BTreeMap::new(),
         }
     }
 
@@ -744,6 +804,43 @@ impl DeclaredPairs {
             (Operand::B, Operand::A) => Some((f2, f1)),
             _ => None,
         }
+    }
+
+    /// The (operand-tagged) declared pair's consumed extent, its faces
+    /// in the order asked, as [`Self::build`] measured it.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::ClassificationInvariant`] for a pair with no
+    /// measured extent: every declared pair has one, so a miss is a
+    /// pair the caller took for declared that is not.
+    pub(crate) fn consumed(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Result<carrier_eq::ConsumedExtent<'_, T>, BooleanError> {
+        Self::key(o1, f1, o2, f2)
+            .and_then(|key| Some(self.extent.get(&key)?.consumed(o1 == Operand::B)))
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a declared face pair's consumed extent was not measured at rest",
+            })
+    }
+
+    /// The ball of [`Self::consumed`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consumed`].
+    pub(crate) fn reach_of(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Result<geom_brep::ExtentBall<T>, BooleanError> {
+        Ok(self.consumed(o1, f1, o2, f2)?.reach)
     }
 
     /// Whether the (operand-tagged) pair is a `Rest` or continuation
@@ -933,6 +1030,25 @@ pub struct PierceRingRecord {
     pub ring_vertex: VertexKey,
 }
 
+/// **Whether two points are one vertex** (`bool_contact_vertex`, the
+/// distance between them): `true` decided zero, `false` decided apart,
+/// the escalation when the band cannot say. A distance has no negative
+/// side, so a negative verdict is the codomain's contradiction and
+/// escalates as an invalid margin.
+pub(crate) fn one_vertex<T: Decide>(
+    p: Point3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    match crate::validate::decide("bool_contact_vertex", geom_core::Margin::norm3(p - q), band)? {
+        geom_core::Sign::Zero => Ok(true),
+        geom_core::Sign::Positive => Ok(false),
+        geom_core::Sign::Negative => {
+            Err(crate::invalid_margin::invalid(band, "bool_contact_vertex"))
+        }
+    }
+}
+
 /// The result of [`boolean_reduce`]: both operands' annotated clones
 /// plus every record the PR 5 joining step consumes.
 #[derive(Debug)]
@@ -962,6 +1078,10 @@ pub struct BooleanReduction<T: Real> {
     /// deduplicated. A vertex-on-face contact records none: the face
     /// holds no vertex there for a fragment to be told by.
     pub held: Vec<HeldEdge>,
+    /// The `Rest` declarations `(A face, B face)` the declaration door
+    /// verified one carrier with opposed senses: the REST-contact pairs
+    /// the declared-REST lane patches, read rather than re-verified.
+    pub(crate) rest_contacts: Vec<(FaceKey, FaceKey)>,
 }
 
 impl<T: Real> BooleanReduction<T> {
@@ -1555,13 +1675,16 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
-    /// **Two spheres of the two solids meet** — neither clearly apart
-    /// nor one strictly inside the other — at the curved-extent scan,
-    /// which runs only where the crossing layer found no edge crossing a
-    /// face. Whatever the two spheres share lies off every edge, so the
-    /// join's sphere-pair arm (the radical plane, `join::bool_connect`)
-    /// had no chord to run, and the scan, which reads the surfaces,
-    /// cannot certify either shell's side of the other's boundary. It is
+    /// **Two sphere faces of the two solids meet** at the curved-extent
+    /// scan, which runs only where the crossing layer found no edge
+    /// crossing a face: either their spheres touch within the tolerance,
+    /// the smaller inside the larger (a decided zero), or their spheres
+    /// cross and the section certificate certifies the circle they cross
+    /// in inside both faces (its R-loop). Whatever the faces share lies
+    /// off every edge, so the join's sphere-pair arm (the radical plane,
+    /// `join::bool_connect`) had no chord to run. A crossing whose circle
+    /// the certificate cannot place refuses with the certificate's own
+    /// reason instead ([`BooleanError::FallbackExtentUnsupported`]). It is
     /// the decided refusal of [`SphereQuestion::Nested`], and ends as
     /// that question's escalation does ([`refusal_routes::SPHERES`]).
     SpheresMeet {
@@ -2853,7 +2976,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
-    let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand);
+    let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
@@ -2983,6 +3106,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
     }
     let held = border_held(held, &covered, &null_edges, &a, &b)?;
+    let rest_contacts = decls
+        .coincident_faces
+        .iter()
+        .filter(|d| d.class == BooleanCoincidence::REST)
+        .map(|d| (d.a, d.b))
+        .filter(|pair| declared.verified.one_carrier.contains(pair))
+        .collect();
 
     a.sweep_and_close();
     b.sweep_and_close();
@@ -3000,6 +3130,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             .into_iter()
             .collect(),
         held,
+        rest_contacts,
     })
 }
 
@@ -3054,7 +3185,7 @@ fn border_held<T: Real>(
 /// Fail-loud validation of a [`BooleanDeclarations`] payload against
 /// the operands (M4 PR 5): every referenced key must resolve in its
 /// operand, and declared faces must sit on carriers in the certified
-/// inventory (plane, sphere, cylinder). A dangling declaration is a
+/// inventory (plane, sphere, cylinder, torus). A dangling declaration is a
 /// caller bug refused before any classification runs — never a
 /// silent drop (F5's no-silent-drop contract).
 /// **C4's verify-at-use, at the door**: EVERY declared pair is checked
@@ -3157,12 +3288,14 @@ fn verify_one_carrier_declaration<T: Decide>(
     class: BooleanCoincidence,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    // A carrier kind the ladder cannot describe: `validate_
-    // declarations` has already had its say about which kinds this
-    // op accepts, so there is nothing left to add here — and nothing
-    // for the identity rung to read.
-    let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
-        return Ok(false);
+    let outcome = match rest::carrier_pair_relation(a, fa, b, fb, true, band) {
+        Ok(outcome) => outcome,
+        Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
+        // A carrier kind the ladder cannot describe: `validate_
+        // declarations` has already had its say about which kinds this
+        // op accepts, so there is nothing left to add here — and
+        // nothing for the identity rung to read.
+        Err(rest::PairUnread::OutsideInventory) => return Ok(false),
     };
     let aligned = class == BooleanCoincidence::Continuation;
     match outcome {
@@ -3202,6 +3335,7 @@ fn verify_one_carrier_declaration<T: Decide>(
                 diag,
             ))
         }
+        Err(carrier_eq::CarrierEqError::Unsettled { diag }) => Err(unsettled_rest(class, diag)),
         // Unreachable with `declared: true`; refuse loudly anyway.
         Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
@@ -3214,7 +3348,8 @@ fn verify_one_carrier_declaration<T: Decide>(
 }
 
 /// The conformal screen's carrier ladder contradicting a pair it ran
-/// undeclared, which no verdict on an undeclared pair is: the kernel's
+/// undeclared, or leaving it unsettled — verdicts only a declared
+/// reading gives, which no verdict on an undeclared pair is: the kernel's
 /// own check ([`SelfCheck::CarrierLadder`]).
 fn screen_contradiction(diag: Indeterminate) -> BooleanError {
     BooleanError::Escalated {
@@ -3257,7 +3392,14 @@ fn verify_tangent_declaration<T: Decide>(
         class: ContactClass::Tangent,
     };
     // 1. The conformal screen (detector posture).
-    if let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, false, band) {
+    let screen = match rest::carrier_pair_relation(a, fa, b, fb, false, band) {
+        Ok(outcome) => Some(outcome),
+        Err(rest::PairUnread::Extent(face)) => return Err(unreadable_extent(face)),
+        // No description to compare: the witness lane below answers
+        // for the kinds it holds.
+        Err(rest::PairUnread::OutsideInventory) => None,
+    };
+    if let Some(outcome) = screen {
         match outcome {
             Ok(CarrierRelation::Distinct) => {}
             // One carrier, structurally: conformal contact is Rest.
@@ -3299,7 +3441,10 @@ fn verify_tangent_declaration<T: Decide>(
                 ));
             }
             // Unreachable with `declared: false`; refuse loudly anyway.
-            Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
+            Err(
+                carrier_eq::CarrierEqError::Contradicted { diag, .. }
+                | carrier_eq::CarrierEqError::Unsettled { diag },
+            ) => {
                 return Err(screen_contradiction(diag));
             }
         }
@@ -3328,7 +3473,10 @@ fn verify_tangent_declaration<T: Decide>(
         };
     let (sa, sense_a) = face_of(a, fa, Operand::A)?;
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
-    let (origin, dir) = match geom_brep::tangent_locus(&sa, &sb, band) {
+    let reach = rest::pair_extent(a, fa, b, fb, band)
+        .map_err(unreadable_extent)?
+        .reach;
+    let (origin, dir) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
         Ok(geom_brep::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
@@ -3657,7 +3805,7 @@ mod tests {
     fn the_one_sided_cover_is_keyed_parent_to_target() {
         let mut faces: slotmap::SlotMap<FaceKey, ()> = slotmap::SlotMap::with_key();
         let (f, g) = (faces.insert(()), faces.insert(()));
-        let mut pairs = DeclaredPairs::default();
+        let mut pairs = DeclaredPairs::<f64>::default();
         pairs
             .one_sided
             .insert((tagged(Operand::A, f), tagged(Operand::B, g)));
@@ -3752,16 +3900,17 @@ mod tests {
         };
         // The escalated arm, as the lookup mints it for an undeclared
         // pair of planar corners.
-        let door = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default())
-            .on_pair_door(
-                (
-                    Operand::A,
-                    FaceKey::default(),
-                    Operand::B,
-                    FaceKey::default(),
-                ),
-                Some(PlaneRelation::SameOpposite),
-            );
+        let door =
+            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default())
+                .on_pair_door(
+                    (
+                        Operand::A,
+                        FaceKey::default(),
+                        Operand::B,
+                        FaceKey::default(),
+                    ),
+                    Some(PlaneRelation::SameOpposite),
+                );
         for (margin, offers) in [(MarginDiag::value(5e-9), 1), (MarginDiag::INVALID, 0)] {
             let msg =
                 BooleanError::plane_identity(PlaneRung::Parallel, door, diag(margin)).to_string();
@@ -3994,11 +4143,14 @@ mod tests {
             },
             BooleanError::plane_identity(
                 PlaneRung::Parallel,
-                DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default())
-                    .on_pair_door(
-                        (Operand::A, face, Operand::B, face),
-                        Some(PlaneRelation::SameOpposite),
-                    ),
+                DeclaredPairs::<f64>::without_struts(
+                    &BooleanDeclarations::none(),
+                    Default::default(),
+                )
+                .on_pair_door(
+                    (Operand::A, face, Operand::B, face),
+                    Some(PlaneRelation::SameOpposite),
+                ),
                 diag,
             ),
             BooleanError::UndeclaredCoincidence {

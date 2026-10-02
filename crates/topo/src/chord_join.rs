@@ -294,16 +294,18 @@ pub enum SplitJoinError {
     },
     /// Ring re-homing could not decide (escalation or exhaustion).
     RingHoming(PointInLoopError),
-    /// A ring's representative landed ON the divided face's outer
-    /// loop — containment is ambiguous (ill-conditioned operand).
+    /// Every vertex of a ring landed ON the run dividing its face off,
+    /// so no vertex says which side the ring is on: a ring an
+    /// ill-conditioned operand put on the run, or a pierce's strut at a
+    /// pinch, every vertex of which is the pinch point.
     RingHomingAmbiguous {
         /// The undecidable ring.
         ring: LoopKey,
     },
     /// The divided face's outer loop carries an edge the containment
     /// walk has no crossing row for (a spiric, a spline), and the ray
-    /// schedule from the ring's representative ran out with at least
-    /// one ray abandoned because it could meet that edge.
+    /// schedule from the first ring vertex off the run ran out with at
+    /// least one ray abandoned because it could meet that edge.
     RingHomingUncrossable {
         /// The unplaced ring.
         ring: LoopKey,
@@ -524,8 +526,8 @@ impl SplitJoinError {
             },
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
-                "a hole loop sits on the divided face's outer boundary, so which piece \
-                 holds it cannot be decided. Recourse: {recourse}"
+                "every vertex of a hole loop lies on the boundary of the piece being \
+                 divided off, so which piece holds it cannot be decided. Recourse: {recourse}"
             ),
             Self::RingHomingUncrossable { .. } => write!(
                 f,
@@ -3082,14 +3084,12 @@ impl ChordJoiner {
             if ring == remainder {
                 continue;
             }
-            let rep = ring_representative(body, ring)?;
-            match point_in_carrier_loop(body, run, normal, rep, self.band)? {
-                Some(LoopContainment::In) => body.ring_move(ring, newf)?,
-                Some(LoopContainment::Out) => {}
-                Some(LoopContainment::OnBoundary) => {
+            match ring_side(body, ring, run, normal, self.band)? {
+                LoopContainment::In => body.ring_move(ring, newf)?,
+                LoopContainment::Out => {}
+                LoopContainment::OnBoundary => {
                     return Err(SplitJoinError::RingHomingAmbiguous { ring });
                 }
-                None => return Err(SplitJoinError::RingHomingUncrossable { ring }),
             }
         }
         Ok(())
@@ -3188,6 +3188,43 @@ fn face_plane_normal<T: Decide>(
                    a plane (arm not wired)",
         }),
     }
+}
+
+/// Which side of `run` a bystander ring lies on, read at its first
+/// vertex off `run`'s boundary: a ring disjoint from the run cannot
+/// cross it, but it may touch it at a vertex — a pinch, where two
+/// sections meet at one point — so its anchor alone can land `OnBoundary`
+/// on a ring that is plainly on one side. `OnBoundary` only when every
+/// vertex does.
+fn ring_side<T: Decide>(
+    body: &Body<T>,
+    ring: LoopKey,
+    run: LoopKey,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<LoopContainment, SplitJoinError> {
+    let vertices = match body
+        .get_loop(ring)
+        .ok_or_else(|| corrupt_loop(ring))?
+        .boundary
+    {
+        LoopBoundary::Cycle { first } => body
+            .loop_cycle(first)
+            .ok_or_else(|| corrupt_he(first))?
+            .into_iter()
+            .map(|he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start))
+            .collect::<Result<Vec<_>, SplitJoinError>>()?,
+        LoopBoundary::Empty { vertex } => vec![vertex],
+    };
+    for v in vertices {
+        let p = vertex_point(body, v)?;
+        match point_in_carrier_loop(body, run, normal, p, band)? {
+            Some(LoopContainment::OnBoundary) => {}
+            Some(side) => return Ok(side),
+            None => return Err(SplitJoinError::RingHomingUncrossable { ring }),
+        }
+    }
+    Ok(LoopContainment::OnBoundary)
 }
 
 /// A representative point of a loop (its anchor vertex).
