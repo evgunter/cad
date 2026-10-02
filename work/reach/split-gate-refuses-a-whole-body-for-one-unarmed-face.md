@@ -2,8 +2,10 @@
 id: split-gate-refuses-a-whole-body-for-one-unarmed-face
 kind: issue
 title: topo::split refuses a whole body for one sphere, torus or spline face the plane cannot meet; the gate should be box-scoped as the boolean's is
-status: open
+status: review
 opened: 2026-10-01
+pr: 3843
+branch: reach/split-gate-per-face
 ---
 
 Found by the plane × cone split lane (`plane-cone-elliptic-section-split-refusal`),
