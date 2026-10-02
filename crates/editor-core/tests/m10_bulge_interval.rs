@@ -79,6 +79,18 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// the build, whose three `pcurve_*` rows below are its wall rows'
 /// certificate; the re-measure is
 /// `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`'s.
+///
+/// **The loop walk's literal branch** (`geom_brep::whole_periods`)
+/// moves three of those rows on both spellings. `pcurve_envelope` goes
+/// 2/0/0/10 -> 8/0/0/4: the stored azimuth is `α + k·τ` with `k` a
+/// constant, so the fidelity term is the zero polynomial on six more
+/// rows. `pcurve_fidelity_branch` goes 3/0/0/9 -> 0/0/0/24. Its
+/// branch is now two sign decisions per row at the half-period marks
+/// in place of one `floor`, and each is definite, read off the value.
+/// `pcurve_loop_continuity` goes 9/0/0/9 -> 9/0/4/5: with no `floor`
+/// node between them, four joints' two ends go through the door.
+/// The walk's own branch decisions are a new row,
+/// `pcurve_loop_branch` 0/0/0/18: definite, read off the value.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
@@ -110,12 +122,13 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("pcurve_chart_orientation", [0, 0, 0, 12]),
     ("pcurve_chart_radial_moving", [14, 0, 0, 12]),
     ("pcurve_chart_winding", [12, 0, 0, 18]),
-    ("pcurve_envelope", [2, 0, 0, 10]),
-    ("pcurve_fidelity_branch", [3, 0, 0, 9]),
+    ("pcurve_envelope", [8, 0, 0, 4]),
+    ("pcurve_fidelity_branch", [0, 0, 0, 24]),
     ("pcurve_interval_forward", [0, 0, 0, 12]),
+    ("pcurve_loop_branch", [0, 0, 0, 18]),
     ("pcurve_loop_closure", [0, 0, 0, 3]),
     ("pcurve_loop_closure_height", [3, 0, 0, 0]),
-    ("pcurve_loop_continuity", [9, 0, 0, 9]),
+    ("pcurve_loop_continuity", [9, 0, 4, 5]),
     ("pcurve_loop_pole_joint", [0, 0, 0, 9]),
     ("pcurve_map_residual", [0, 0, 18, 0]),
     ("pcurve_trim_containment", [18, 0, 0, 30]),
@@ -174,6 +187,13 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// quotient `5(a + h)²`, the root is the first term's atom
 /// (`m10_bulge_renders.txt` carries the form uncut). Nothing else on
 /// the boss, either D-tab or either control moves.
+///
+/// **The loop walk's literal branch** moves three rows, as on the
+/// D-tab: `pcurve_envelope` 3/0/0/9 -> 6/6/0/0, every one decided by
+/// the form (six theorems, six gated on a sign);
+/// `pcurve_fidelity_branch` 3/0/0/9 -> 0/0/0/24, two definite sign
+/// decisions per row; `pcurve_loop_continuity` 9/0/0/9 -> 9/0/6/3;
+/// and the walk's own `pcurve_loop_branch` is new, 0/0/0/18.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -212,12 +232,13 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_orientation", [0, 0, 0, 12]),
             ("pcurve_chart_radial_moving", [14, 0, 0, 12]),
             ("pcurve_chart_winding", [12, 0, 0, 18]),
-            ("pcurve_envelope", [3, 0, 0, 9]),
-            ("pcurve_fidelity_branch", [3, 0, 0, 9]),
+            ("pcurve_envelope", [6, 6, 0, 0]),
+            ("pcurve_fidelity_branch", [0, 0, 0, 24]),
             ("pcurve_interval_forward", [0, 0, 0, 12]),
+            ("pcurve_loop_branch", [0, 0, 0, 18]),
             ("pcurve_loop_closure", [0, 0, 0, 3]),
             ("pcurve_loop_closure_height", [3, 0, 0, 0]),
-            ("pcurve_loop_continuity", [9, 0, 0, 9]),
+            ("pcurve_loop_continuity", [9, 0, 6, 3]),
             ("pcurve_loop_pole_joint", [0, 0, 0, 9]),
             ("pcurve_map_residual", [0, 0, 18, 0]),
             ("pcurve_trim_containment", [0, 18, 0, 30]),

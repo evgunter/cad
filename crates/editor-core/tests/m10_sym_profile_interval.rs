@@ -404,15 +404,27 @@ const PLATE_MAX_TERMS: usize = 252;
 /// the certificate's decisions are walked too, and the residuals it
 /// leaves blocked are rendered by the shape report (the `Report`
 /// lines, which build no form).
+///
+/// **When the loop walk's branch became a literal `k`**
+/// (`geom_brep::whole_periods`, in place of a `floor` atom), every line
+/// moved. The stored azimuths carry no `floor` node, so the forms the
+/// certificate and the loop checks build shrink (`Plain/Decision`
+/// forms 16247 → 16018, `Early/Decision` 9125 → 8899, `Door/Decision`
+/// 13722 → 13212). The walk now asks the branch as sign decisions at
+/// the half-period marks, which moves the calls (`Plain/Decision`
+/// 1141 → 1127, both `Assertion` lines 612 → 666, `Door/Decision`
+/// 558 → 590, `Door/Assertion` 356 → 410). The residuals left blocked
+/// fall 62 → 32 on both `Report` lines: check 4's fidelity is a theorem
+/// on every walked row. Freezes are unchanged.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1141 forms 16247 frozen 696 digest 573b8e0fa96077718008a2a354e43a83\n\
-     Plain/Assertion calls 612 forms 3237 frozen 372 digest 49f508b5049fd030a6e26e85287db3c5\n\
-     Plain/Report calls 62 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 426 forms 9125 frozen 8 digest 19086dd924ceff962890e6006fa1b3a2\n\
-     Early/Assertion calls 612 forms 4166 frozen 0 digest 5ee10d3572655392d9dabfaba4c6db6f\n\
-     Early/Report calls 62 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 558 forms 13722 frozen 0 digest dd070de1f4361f75c912822b1cabb245\n\
-     Door/Assertion calls 356 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1127 forms 16018 frozen 696 digest 4d5fb20c72472bf4f7aa81de3c22aadf\n\
+     Plain/Assertion calls 666 forms 3474 frozen 372 digest 26639ace5f0295249c738a76c40cca9f\n\
+     Plain/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 416 forms 8899 frozen 8 digest df7ac2fb3b22d79f84cecb6555dbacee\n\
+     Early/Assertion calls 666 forms 4404 frozen 0 digest c0e0484d40c4e226cff5edc2d9ff3766\n\
+     Early/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Door/Decision calls 590 forms 13212 frozen 0 digest dcd824deb2ec178d213f7c0c2d84ffbd\n\
+     Door/Assertion calls 410 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -557,7 +569,15 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     let plain_lines = |ledger: &str| {
         ledger
             .lines()
-            .filter(|l| l.trim_start().starts_with("Plain/"))
+            // `Plain/Report` is not a form the plain walk builds: it
+            // counts the residuals rendered because they BLOCKED, and
+            // which ones block is the early walk's rules' to decide
+            // (the plate's literal walk branch leaves 32 blocked
+            // shipped, 40 without the canonical root).
+            .filter(|l| {
+                let l = l.trim_start();
+                l.starts_with("Plain/") && !l.starts_with("Plain/Report")
+            })
             .map(|l| l.trim().to_owned())
             .collect::<Vec<_>>()
     };

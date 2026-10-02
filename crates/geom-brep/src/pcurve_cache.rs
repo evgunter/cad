@@ -3755,6 +3755,78 @@ fn incidence<T: Decide>(
     }
 }
 
+/// The furthest a branch may sit from the one it is read against, in
+/// whole periods, before [`whole_periods`] calls it no branch at all.
+const MAX_BRANCH_PERIODS: i32 = 4;
+
+/// **A branch, decided as structure**: the whole number of periods `k`
+/// with `|gap − k·period| < period/2`, returned as the LITERAL `k`. It
+/// is read off the half period of room a branch has, by sign decisions
+/// against the half-period marks (`name`, metered through `meter`),
+/// never by rounding the gap — so a chart image shifted by it carries
+/// `α + k·τ` with `k` a constant rather than an opaque function of the
+/// parameters (C4: "the branch per face is chosen once by the loop
+/// walk"). The loop walk pins each row's branch with it
+/// (`topo::pcurves`), and check 4's fidelity reads a stored image's
+/// branch against its re-derivation with it.
+///
+/// # Errors
+///
+/// `Err(Some(cause))` where a half-period mark is undecided (the gap is
+/// not resolved to one branch); `Err(None)` where it sits on one, or
+/// further than [`MAX_BRANCH_PERIODS`] out: no branch is the gap's.
+pub fn whole_periods<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<T, Option<Indeterminate>> {
+    let half = T::from_f64(0.5);
+    let mark = |k: i32, side: T| {
+        decide(
+            name,
+            meter(gap - (T::from_f64(f64::from(k)) + side) * period),
+            band,
+        )
+    };
+    let mut k = 0;
+    // What is already known about the marks either side of `k`: moving
+    // up one period learns the lower mark, moving down the upper.
+    let (mut below, mut above) = (false, false);
+    loop {
+        if !above {
+            match mark(k, half).map_err(Some)? {
+                Sign::Negative => {}
+                Sign::Zero => return Err(None),
+                Sign::Positive => {
+                    k += 1;
+                    (below, above) = (true, false);
+                    if k > MAX_BRANCH_PERIODS {
+                        return Err(None);
+                    }
+                    continue;
+                }
+            }
+        }
+        if !below {
+            match mark(k, T::zero() - half).map_err(Some)? {
+                Sign::Positive => {}
+                Sign::Zero => return Err(None),
+                Sign::Negative => {
+                    k -= 1;
+                    (below, above) = (false, true);
+                    if k < -MAX_BRANCH_PERIODS {
+                        return Err(None);
+                    }
+                    continue;
+                }
+            }
+        }
+        return Ok(T::from_f64(f64::from(k)));
+    }
+}
+
 /// Check 4's **fidelity** terms: the stored image `P` against the
 /// re-derived `P_d`, channel by channel, metered at the chart's sup
 /// stretch — `|S(P(t)) − S(P_d(t))| ≤ arm_u·sup|Δu| + arm_v·sup|Δv|`
@@ -3825,21 +3897,23 @@ fn fidelity<T: Decide>(
         _ => (q0, qa, qb, ql),
     };
     // The constant's offset, read up to a whole period on an angular
-    // channel: kept raw where it decides Zero or is undecided, folded
-    // onto the nearest branch where it is definitely off — either
-    // reading bounds the same distance, so the choice moves only how
-    // tight.
+    // channel: less the stored image's branch, decided as the literal
+    // it is ([`whole_periods`]), or raw where no branch decides — any
+    // whole period bounds the same distance, so the choice moves only
+    // how tight.
     let constant = |offset: T, arm: SupSpeed<T>, angular: bool| -> T {
         if !angular {
             return offset.abs();
         }
-        match decide(
+        match whole_periods(
             "pcurve_fidelity_branch",
-            Margin::levered(offset, arm.get()),
+            offset,
+            tau,
+            |gap| Margin::levered(gap, arm.get()),
             band,
         ) {
-            Ok(Sign::Zero) | Err(_) => offset.abs(),
-            Ok(Sign::Positive | Sign::Negative) => offset.reduce_periodic_centred(tau).abs(),
+            Ok(k) => (offset - k * tau).abs(),
+            Err(_) => offset.abs(),
         }
     };
     let du = constant(p0.x - q0.x, arm_u, true)

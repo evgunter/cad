@@ -2,8 +2,9 @@
 id: loop-walk-branch-is-an-opaque-floor-atom
 kind: issue
 title: the loop walk stores each row's whole-period branch as an opaque floor atom, so check 4's azimuth fidelity is numeric on every walked row over a parameter box
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-02
 priority: P0
 cost: M
 design: true
@@ -46,3 +47,29 @@ Two homes, and it is a design question which:
   enclosure lies inside `[k, k + 1)`. That is a value-reading fold of
   rule C's class, SYM's ground (`crates/geom-core/src/sym.rs`). It
   would also reach the `pcurve_loop_continuity` rows.
+
+## Closed
+
+Closed by `pcert/certificate-incidence-fidelity`, by the first home (Ev's
+ruling on 3781): the walk pins a literal branch, and the tier gets no
+`floor` fold. `geom_brep::whole_periods` makes the branch `k` from sign
+decisions on `gap − (k ± ½)·τ`, metered by the joint's own margin. At
+each half-period mark the gap is either definitely below or definitely
+above, and the walk stores `T::from_f64(k)`, a literal. Where those
+decisions cannot be made (a mark inside the band, or more than four
+periods away), the candidate is refused with its cause typed, not
+guessed. `topo::pcurves::pin_branch` decides once per walked row as
+`pcurve_loop_branch`, and check 4's fidelity reads its own branch the
+same way, as `pcurve_fidelity_branch`.
+
+The stored azimuth is now `α + k·τ` with `k` a constant, so the
+fidelity term is the zero polynomial on every walked row. The row that
+shows it is
+`m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box`
+(`crates/editor-core/tests/m10_10_pins_interval.rs`). Over the plate's
+box at `s = 0.2` of the real study, `pcurve_envelope` is 16/0/0/0. The
+plate's whole-certifying ceiling is back to main's 0.2631 of its real
+study, bounded by `assert_bound`. The branch decisions themselves are
+numeric and definite (24 on the plate). The fold of their 3-D identity
+belongs to
+`pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`.

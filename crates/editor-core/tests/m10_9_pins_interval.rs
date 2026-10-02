@@ -68,25 +68,41 @@ pub(crate) struct Study {
 }
 
 /// The five, in the order every row here reports them.
+///
+/// **Every count rose when the loop walk's branch became a literal
+/// `k`** (`geom_brep::whole_periods`), and none fell. `registered`:
+/// plate 140 → 148, annulus 140 → 148, link 110 → 118, bracket
+/// 146 → 156, pad 148 → 152. `symbolic_zero`: plate 811 → 947,
+/// annulus 328 → 432, link 545 → 681, bracket 1105 → 1249, pad
+/// 893 → 998. The registrants state nothing new. Each replay asks more
+/// decisions: the extrude's closing pcurve mint certifies the wall
+/// rows, and with a literal branch on every walked row check 4's
+/// fidelity, its sum and some loop joints are the form's to decide, so
+/// the certificate runs on past where a `floor` atom used to stop it.
+/// The scales are M10-9's brackets. The plate, the annulus and the link
+/// certify whole at them. The bracket and the pad refuse at the
+/// extrude's `pcurve_envelope`
+/// (`work/pcert/fillet-meridian-radius-term-is-registered-only`), so
+/// their counts are over the decisions taken before that refusal.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
             name: "two_hole_plate",
             certifies_at: 7.811e2,
             refuses_at: 7.814e2,
-            registered: 140,
+            registered: 148,
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
             // constants A0 now decides exactly. `registered` unmoved.
-            symbolic_zero: 811,
+            symbolic_zero: 947,
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
             name: "r1_annulus",
             certifies_at: 7.805e2,
             refuses_at: 7.810e2,
-            registered: 140,
-            symbolic_zero: 328,
+            registered: 148,
+            symbolic_zero: 432,
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -109,8 +125,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exactly (`geom_brep::schedule_param`): two end residuals
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
-            registered: 110,
-            symbolic_zero: 545,
+            registered: 118,
+            symbolic_zero: 681,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -121,7 +137,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
             // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
             // numeric decisions reach the door, verdicts unchanged.
-            registered: 146,
+            registered: 156,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
@@ -132,7 +148,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the bracket's fillet run out read against its arrival
             // carrier (`path_run_out_carrier`), a margin the tier proves
             // zero rather than measuring it.
-            symbolic_zero: 1105,
+            symbolic_zero: 1249,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -212,11 +228,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
-            registered: 148,
+            registered: 152,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
-            symbolic_zero: 893,
+            symbolic_zero: 998,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]

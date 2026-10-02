@@ -320,7 +320,9 @@
 //!   survey, checked by nothing.
 
 use geom::Surface;
-use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
+use geom_brep::{
+    ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve, whole_periods,
+};
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
@@ -1482,7 +1484,7 @@ fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>, v: T) -> ChartArm<T> {
 /// `u` stretch sits under the band reads `Zero` and takes no shift at
 /// all (which is honest — no `u` displacement on it moves a point
 /// past ε), one whose stretch lands inside the band escalates, and
-/// only a definitely-metric chart reaches the periodic rounding. The
+/// only a definitely-metric chart reaches the branch decision. The
 /// paragraph above describes the last of the three.
 ///
 /// **Why a NURBS chart needs this (#327).** A full-period cylinder
@@ -3243,11 +3245,10 @@ fn pin_branch<T: Decide>(
     let twin = sphere_twin(chart.surface(), &base);
     // A WRONG candidate's escalation is not the loop's
     // verdict: the base representation of a pole-crossing
-    // sphere pcurve sits π off, which lands its
-    // whole-period rounding EXACTLY on an integer
-    // boundary — at the interval scalar that floor spans
-    // two integers and the continuity margin becomes a
-    // full-period enclosure. The twin still fits exactly.
+    // sphere pcurve sits π off, which puts its gap EXACTLY
+    // on a half-period mark of the branch decision
+    // (`whole_periods`), so no branch is decided for it.
+    // The twin still fits exactly.
     // So escalations are DEFERRED per candidate and
     // surfaced (first one, deterministically) only when
     // no candidate fits — single-candidate charts keep
@@ -3261,20 +3262,19 @@ fn pin_branch<T: Decide>(
         // spline chart whose whole u stretch sits under
         // the band: the lever is zero in metres) has no
         // branch to pick — every azimuth agrees there, and
-        // the whole-period rounding below would land on an
-        // integer boundary (the gap need not be a period at
-        // all), which the interval scalar honestly reports
-        // as a two-integer floor. Skip the shift; downstream
-        // joints anchor their own branches.
+        // the gap need not be near a whole period at all, so
+        // the branch decision below could sit on a
+        // half-period mark. Skip the shift; downstream joints
+        // anchor their own branches.
         //
         // **The in-band arm takes the same skip, and this
         // is the argument for it — which is NOT that a
         // sub-tolerance lever is harmless.** An escalated
         // arm means the lever's own size is undecided, so
         // whether a period shift is even meaningful is
-        // undecided with it, and rounding on an undecided
-        // lever would MANUFACTURE a branch choice from a
-        // measurement that refused. Skipping keeps the
+        // undecided with it, and deciding a branch through an
+        // undecided lever would MANUFACTURE a branch choice
+        // from a measurement that refused. Skipping keeps the
         // decision unmade. What makes that safe is not the
         // skip: it is that the continuity margins below run
         // unconditionally on the unshifted candidate and are
@@ -3288,17 +3288,45 @@ fn pin_branch<T: Decide>(
             Margin::of(joint_arm.magnitude()),
             band,
         ) {
-            Ok(Sign::Zero) | Err(_) => T::zero(),
+            Ok(Sign::Zero) | Err(_) => Ok(T::zero()),
             Ok(Sign::Positive | Sign::Negative) => match u_period {
-                Some(p) => (prev.x - raw.x).periodic_branch(p),
-                None => T::zero(),
+                Some(p) => whole_periods(
+                    "pcurve_loop_branch",
+                    prev.x - raw.x,
+                    p,
+                    |gap| joint_arm.meter(gap),
+                    band,
+                ),
+                None => Ok(T::zero()),
             },
         };
+        let ku = match ku {
+            Ok(k) => k,
+            Err(cause) => {
+                if deferred.is_none() {
+                    deferred = cause;
+                }
+                continue;
+            }
+        };
         let mut shifted = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero));
-        if v_arm.is_some() {
+        if let Some(polar) = v_arm {
             let ry = shifted.eval(entry_t).y;
-            let kv = (prev.y - ry).periodic_branch(tau);
-            shifted = shift_polar_branch(&shifted, kv, tau);
+            match whole_periods(
+                "pcurve_loop_branch",
+                prev.y - ry,
+                tau,
+                |gap| Margin::levered(gap, polar),
+                band,
+            ) {
+                Ok(kv) => shifted = shift_polar_branch(&shifted, kv, tau),
+                Err(cause) => {
+                    if deferred.is_none() {
+                        deferred = cause;
+                    }
+                    continue;
+                }
+            }
         }
         let entry = shifted.eval(entry_t);
         let arm = chart_u_arm(chart, prev.y);
@@ -4621,7 +4649,7 @@ mod stretch_meter {
                 "an in-band lever ({span:e}) escalates rather than deciding"
             );
         }
-        // And a real chart reaches the periodic rounding.
+        // And a real chart reaches the branch decision.
         assert_eq!(
             decide(
                 "pcurve_loop_pole_joint",
