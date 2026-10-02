@@ -1639,10 +1639,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                 | geom::Surface::Cylinder { .. }
         ))
     .then(|| (side(pu), side(pv)));
-    let end_on_carrier = matches!(
-        early_ends,
-        Some((Ok(Sign::Zero), _) | (_, Ok(Sign::Zero)))
-    );
+    let end_on_carrier = matches!(early_ends, Some((Ok(Sign::Zero), _) | (_, Ok(Sign::Zero))));
     match *curve.carrier() {
         geom::Curve3::Line { .. } => {}
         geom::Curve3::Circle {

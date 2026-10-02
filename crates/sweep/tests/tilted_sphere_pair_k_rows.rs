@@ -88,5 +88,8 @@ fn a_carved_balls_meridian_fragments_record_no_clearance_charge() {
             }
         }
     }
-    assert!(asked > 0, "no clearance was asked: the row would be vacuous");
+    assert!(
+        asked > 0,
+        "no clearance was asked: the row would be vacuous"
+    );
 }

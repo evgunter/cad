@@ -1373,6 +1373,10 @@ fn oriented_arc<T: Real>(
     }
 }
 
+/// A point on a half-edge and its unit tangent there, in the half-edge's
+/// own direction of travel.
+type PointTangent<T> = (Point3<T>, Vec3<T>);
+
 /// A half-edge's point and unit tangent, in its own direction of
 /// travel, at its start (`at_start`) or its end; `None` for null
 /// scaffolding, which is zero-length and has no tangent.
@@ -1380,7 +1384,7 @@ fn half_end<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
     at_start: bool,
-) -> Result<Option<(Point3<T>, Vec3<T>)>, SplitJoinError> {
+) -> Result<Option<PointTangent<T>>, SplitJoinError> {
     let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
     let edge = body
         .get_edge(he_data.edge)
