@@ -131,12 +131,12 @@ fn a_three_arc_rim_is_ordered_along_the_lower_surfaces_half_edges_from_every_see
 
     let lower_runs = |k: EdgeKey| {
         let e = body.get_edge(k).unwrap();
-        let plus = body.get_face(query_face(&body, e.he_plus)).unwrap().surface;
-        let minus = body
-            .get_face(query_face(&body, e.he_minus))
-            .unwrap()
-            .surface;
-        let he = if plus < minus { e.he_plus } else { e.he_minus };
+        let sides = topo::readback::edge_sides(&body, k).unwrap();
+        let he = if sides.plus.surface < sides.minus.surface {
+            e.he_plus
+        } else {
+            e.he_minus
+        };
         (
             body.get_half_edge(he).unwrap().start,
             body.half_edge_end(he).unwrap(),
@@ -153,11 +153,6 @@ fn a_three_arc_rim_is_ordered_along_the_lower_surfaces_half_edges_from_every_see
     assert_eq!(rim_of(&body, a).unwrap(), vec![a, c, b], "seeded at arc 0");
     assert_eq!(rim_of(&body, b).unwrap(), vec![b, a, c], "seeded at arc 1");
     assert_eq!(rim_of(&body, c).unwrap(), vec![c, b, a], "seeded at arc 2");
-}
-
-fn query_face(body: &Body<f64>, he: topo::HalfEdgeKey) -> topo::FaceKey {
-    let l = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(l).unwrap().face
 }
 
 /// **Determinism (D9): the same body and seed answer identically on

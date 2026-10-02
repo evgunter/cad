@@ -57,7 +57,8 @@ use geom::SurfaceKind;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, VertexKey};
+use crate::geometry::SurfaceKey;
 use geom::CurveKind;
 
 /// **A frame read off stored geometry**: an origin plus the carrier's
@@ -143,6 +144,12 @@ pub enum DanglingRef {
     /// A geometry key, reached from a live entity, that does not
     /// resolve.
     Geometry(GeomRef),
+}
+
+impl From<DanglingRef> for ReadbackError {
+    fn from(what: DanglingRef) -> Self {
+        Self::Dangling { what }
+    }
 }
 
 impl From<DanglingRef> for crate::euler::EulerOpError {
@@ -452,7 +459,7 @@ pub fn vertex_point<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
 ) -> Result<Point3<T>, ReadbackError> {
-    vertex_point_ref(body, vertex).map_err(|what| ReadbackError::Dangling { what })
+    Ok(vertex_point_ref(body, vertex)?)
 }
 
 /// [`vertex_point`] with the refusal left as the unresolved reference
@@ -622,6 +629,100 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
     }
 }
 
+/// One side of an edge: the face a half-edge's loop bounds, and the
+/// surface key that face's record names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EdgeSide {
+    /// The face on this side.
+    pub face: FaceKey,
+    /// The surface key `face` names, as stored.
+    pub surface: SurfaceKey,
+}
+
+/// An edge's two sides, in half-edge order: `plus` is the side
+/// `he_plus` bounds, `minus` the side `he_minus` bounds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EdgeSides {
+    /// The side of the edge's `he_plus`.
+    pub plus: EdgeSide,
+    /// The side of the edge's `he_minus`.
+    pub minus: EdgeSide,
+}
+
+/// **An edge's two sides** — for each half-edge, the face its loop
+/// bounds and that face's surface key, copied out in half-edge order
+/// ([`EdgeSides`]).
+///
+/// Every answer is a key the body stores (rule 1): the two sides are
+/// reported as they are, never compared. A seam edge (a chart-seam
+/// meridian, a wire strut) has one face on both sides and answers it
+/// twice; a co-surface edge between two faces of one surface answers
+/// two faces and one surface key twice. Which of those an edge is
+/// stays the caller's comparison.
+///
+/// The surface key is the face record's, not a resolved surface: the
+/// door reads topology and no carrier, so it answers for null-edge
+/// scaffolding too. A reader that resolves the key meets a dangling
+/// one there, as [`face_carrier_kind`] reports it.
+///
+/// The refusal is the unresolved reference itself, as
+/// [`vertex_point_ref`]'s is; it converts to
+/// [`ReadbackError::Dangling`] through `From`.
+///
+/// # Errors
+///
+/// The [`DanglingRef::Entity`] naming whichever lookup — the edge,
+/// then on each side its half-edge, loop and face, `he_plus`'s first —
+/// came back empty.
+///
+/// ```
+/// use geom_core::{Point3, Tol};
+/// use topo::readback::edge_sides;
+/// use topo::{Body, MevSite};
+///
+/// let mut body = Body::<f64>::new();
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
+/// let strut = body
+///     .mev_line(
+///         MevSite::Lone { r#loop: seed.r#loop },
+///         Point3::new(1.0, 0.0, 0.0),
+///         Tol::witness(),
+///     )
+///     .expect("a straight strut off the seed vertex");
+///
+/// // A strut's two half-edges run round one loop, so both sides are
+/// // the seed face — reported twice, not refused.
+/// let sides = edge_sides(&body, strut.edge).expect("a live edge");
+/// assert_eq!(sides.plus.face, seed.face);
+/// assert_eq!(sides.plus, sides.minus);
+/// ```
+pub fn edge_sides<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeSides, DanglingRef> {
+    let e = body
+        .get_edge(edge)
+        .ok_or(DanglingRef::Entity(EntityId::Edge(edge)))?;
+    Ok(EdgeSides {
+        plus: side_of(body, e.he_plus)?,
+        minus: side_of(body, e.he_minus)?,
+    })
+}
+
+/// The side `he` bounds: half-edge, loop, face, each refused by key.
+fn side_of<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeSide, DanglingRef> {
+    let h = body
+        .get_half_edge(he)
+        .ok_or(DanglingRef::Entity(EntityId::HalfEdge(he)))?;
+    let l = body
+        .get_loop(h.parent_loop)
+        .ok_or(DanglingRef::Entity(EntityId::Loop(h.parent_loop)))?;
+    let f = body
+        .get_face(l.face)
+        .ok_or(DanglingRef::Entity(EntityId::Face(l.face)))?;
+    Ok(EdgeSide {
+        face: l.face,
+        surface: f.surface,
+    })
+}
+
 /// **The Euler–Poincaré census** — the five arena counts the identity
 /// `v − e + f − r = 2(s − h)` relates, read off a whole body.
 ///
@@ -786,7 +887,7 @@ mod tests {
 
     use super::{
         CarrierAbsence, DanglingRef, EulerCounts, EulerParityError, ReadbackError,
-        edge_carrier_kind, edge_carrier_ref, edge_pose, euler_counts,
+        edge_carrier_kind, edge_carrier_ref, edge_pose, edge_sides, euler_counts,
     };
     use crate::body::Body;
     use crate::entity::{GeomRef, Vertex};
@@ -1033,6 +1134,61 @@ mod tests {
             Err(crate::query::RimError::NotIntact(DanglingRef::Geometry(
                 GeomRef::Curve(torn)
             )))
+        );
+    }
+
+    /// The two sides come back in half-edge order, each the face its
+    /// loop bounds with that face's own surface key; and each lookup on
+    /// the walk refuses by its own key, `he_plus`'s side first.
+    #[test]
+    fn edge_sides_reads_both_sides_in_half_edge_order_and_names_the_miss() {
+        use crate::entity::{EntityId, LoopKey};
+        use crate::fixtures::pillow;
+        let mut t = pillow(Tol::witness());
+        let e = t.edges[0];
+        let sides = edge_sides(&t.body, e).expect("a live edge");
+        assert_eq!(
+            (sides.plus.face, sides.minus.face),
+            (t.face_a, t.face_b),
+            "he_plus's side first"
+        );
+        assert_eq!(
+            (sides.plus.surface, sides.minus.surface),
+            (t.surface_a, t.surface_b),
+            "each side carries its own face's surface key"
+        );
+        assert_ne!(
+            t.surface_a, t.surface_b,
+            "the fixture tells the sides apart"
+        );
+
+        let stale = crate::entity::EdgeKey::default();
+        assert_eq!(
+            edge_sides(&t.body, stale),
+            Err(DanglingRef::Entity(EntityId::Edge(stale)))
+        );
+
+        // Break the minus side's loop back-pointer: the plus side still
+        // reads, and the refusal names the minus side's loop.
+        t.body.get_half_edge_mut(t.hes_b[0]).unwrap().parent_loop = LoopKey::default();
+        assert_eq!(
+            edge_sides(&t.body, e),
+            Err(DanglingRef::Entity(EntityId::Loop(LoopKey::default())))
+        );
+        // Break the plus side's loop's face key too: the plus side is
+        // read first, so its miss is the one named.
+        t.body.get_loop_mut(t.loop_a).unwrap().face = crate::entity::FaceKey::default();
+        assert_eq!(
+            edge_sides(&t.body, e),
+            Err(DanglingRef::Entity(EntityId::Face(
+                crate::entity::FaceKey::default()
+            )))
+        );
+        assert_eq!(
+            ReadbackError::from(DanglingRef::Entity(EntityId::Edge(stale))),
+            ReadbackError::Dangling {
+                what: DanglingRef::Entity(EntityId::Edge(stale))
+            }
         );
     }
 }

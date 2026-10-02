@@ -2437,21 +2437,12 @@ fn move_mapped_endpoint<T: Real>(
     })
 }
 
-/// The two faces an edge separates (they coincide on a seam).
-///
-/// **One of two spellings, and the twin is in another crate**:
-/// `sweep::blend::surgery::edge_faces` takes the same edge key and
-/// composes the same two half-edge walks, over `surgery`'s own
-/// `face_of_half` rather than [`Body::face_of_half_edge`]. Both hops
-/// now read through the door on this side; folding the two functions
-/// together is a crate-boundary question and is filed on `carve`'s
-/// slate.
+/// The two faces an edge separates, `he_plus`'s first (they coincide
+/// on a seam): [`crate::readback::edge_sides`]'s faces, its refusal
+/// dropped for callers that answer a missing face as corruption.
 pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(FaceKey, FaceKey)> {
-    let e = body.get_edge(edge)?;
-    Some((
-        body.face_of_half_edge(e.he_plus)?,
-        body.face_of_half_edge(e.he_minus)?,
-    ))
+    let sides = crate::readback::edge_sides(body, edge).ok()?;
+    Some((sides.plus.face, sides.minus.face))
 }
 
 /// **The offset mint's fit door, as the pass takes it** — the rows that

@@ -568,13 +568,11 @@ pub(super) fn gate_maximal_faces<T: Decide>(
     operand: Operand,
     band: Band,
 ) -> Result<(), BooleanError> {
-    for (edge_key, edge) in body.edges() {
-        let (Some(f1), Some(f2)) = (
-            body.face_of_half_edge(edge.he_plus),
-            body.face_of_half_edge(edge.he_minus),
-        ) else {
+    for (edge_key, _) in body.edges() {
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
+        let (f1, f2) = (sides.plus.face, sides.minus.face);
         if f1 == f2 {
             continue; // seam/strut inside one face: not a coplanar PAIR
         }

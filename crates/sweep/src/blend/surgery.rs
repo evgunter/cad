@@ -4532,11 +4532,8 @@ pub(super) fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option
 /// The two faces an edge separates — `he_plus`'s, then `he_minus`'s.
 /// Equal on a co-surface seam of a wall the charts did not split.
 fn edge_faces<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(FaceKey, FaceKey)> {
-    let ed = body.get_edge(e)?;
-    Some((
-        face_of_half(body, ed.he_plus)?,
-        face_of_half(body, ed.he_minus)?,
-    ))
+    let sides = topo::readback::edge_sides(body, e).ok()?;
+    Some((sides.plus.face, sides.minus.face))
 }
 
 // ------------------------------------------------------------------
@@ -4635,19 +4632,17 @@ fn attach_contact<T: Decide + Bounds>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
-    let ed = body
+    let he_plus = body
         .get_edge(edge)
-        .ok_or_else(|| not_intact(EntityId::Edge(edge), "an edge awaiting its description"))?;
-    let (he_plus, he_minus) = (ed.he_plus, ed.he_minus);
-    let (Some(s1), Some(s2)) = (
-        face_of_half(body, he_plus).and_then(|f| body.get_face(f).map(|fd| fd.surface)),
-        face_of_half(body, he_minus).and_then(|f| body.get_face(f).map(|fd| fd.surface)),
-    ) else {
-        return Err(not_intact(
+        .ok_or_else(|| not_intact(EntityId::Edge(edge), "an edge awaiting its description"))?
+        .he_plus;
+    let sides = topo::readback::edge_sides(body, edge).map_err(|_| {
+        not_intact(
             EntityId::Edge(edge),
             "the two faces a described edge separates, or their surfaces",
-        ));
-    };
+        )
+    })?;
+    let (s1, s2) = (sides.plus.surface, sides.minus.surface);
     let (p0, p1) = {
         let start = body
             .get_half_edge(he_plus)

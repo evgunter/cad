@@ -672,7 +672,9 @@ pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
     SurfaceKind, SurfaceKindSet,
 };
-pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
+pub use readback::{
+    DanglingRef, EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError,
+};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};

@@ -680,17 +680,10 @@ fn edge_faces<T: geom_core::Decide>(
     body: &topo::Body<T>,
     e: topo::EdgeKey,
 ) -> Result<[topo::FaceKey; 2], NamingError> {
-    let bug = || NamingError::Emission {
+    let sides = topo::readback::edge_sides(body, e).map_err(|_| NamingError::Emission {
         what: "a member edge without two faces",
-    };
-    let edge = body.get_edge(e).ok_or_else(bug)?;
-    let face = |he| {
-        body.get_half_edge(he)
-            .and_then(|h| body.get_loop(h.parent_loop))
-            .map(|l| l.face)
-            .ok_or_else(bug)
-    };
-    Ok([face(edge.he_plus)?, face(edge.he_minus)?])
+    })?;
+    Ok([sides.plus.face, sides.minus.face])
 }
 
 /// The face a member's table names `name`, when it names one face.

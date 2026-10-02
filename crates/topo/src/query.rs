@@ -252,12 +252,6 @@ pub fn face_surface_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<SurfaceK
     crate::readback::face_carrier_kind(body, f).ok()
 }
 
-/// The surface kind on one side of an edge, or `None` where the
-/// adjacency or its geometry is not there to read.
-fn face_kind_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<SurfaceKind> {
-    face_surface_kind(body, body.face_of_half_edge(he)?)
-}
-
 /// EXACT: whether the edge's certified carrier kind is a member of
 /// `kinds`. Total — a missing edge or carrier is an honest NO.
 #[must_use]
@@ -285,17 +279,16 @@ pub fn edge_adjacent_matches<T: Real>(
     a: SurfaceKindSet,
     b: SurfaceKindSet,
 ) -> bool {
-    body.get_edge(e).is_some_and(|edge| {
-        match (
-            face_kind_across(body, edge.he_plus),
-            face_kind_across(body, edge.he_minus),
-        ) {
-            (Some(p), Some(m)) => {
-                (a.contains(p) && b.contains(m)) || (a.contains(m) && b.contains(p))
-            }
-            (None, _) | (_, None) => false,
-        }
-    })
+    let Ok(sides) = crate::readback::edge_sides(body, e) else {
+        return false;
+    };
+    match (
+        face_surface_kind(body, sides.plus.face),
+        face_surface_kind(body, sides.minus.face),
+    ) {
+        (Some(p), Some(m)) => (a.contains(p) && b.contains(m)) || (a.contains(m) && b.contains(p)),
+        (None, _) | (_, None) => false,
+    }
 }
 
 // ---------------------------------------------------------------
@@ -588,24 +581,13 @@ fn torn(id: EntityId) -> RimError {
     RimError::NotIntact(DanglingRef::Entity(id))
 }
 
-/// The surface the face across `he` rests on, or the reference that
-/// could not be read.
-fn surface_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<SurfaceKey, EntityId> {
-    let h = body.get_half_edge(he).ok_or(EntityId::HalfEdge(he))?;
-    let l = body
-        .get_loop(h.parent_loop)
-        .ok_or(EntityId::Loop(h.parent_loop))?;
-    let face = body.get_face(l.face).ok_or(EntityId::Face(l.face))?;
-    Ok(face.surface)
-}
-
 /// An edge's two side surfaces, `he_plus` first.
-fn edge_sides<T: Real>(body: &Body<T>, e: EdgeKey) -> Result<(SurfaceKey, SurfaceKey), EntityId> {
-    let edge = body.get_edge(e).ok_or(EntityId::Edge(e))?;
-    Ok((
-        surface_across(body, edge.he_plus)?,
-        surface_across(body, edge.he_minus)?,
-    ))
+fn side_surfaces<T: Real>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<(SurfaceKey, SurfaceKey), RimError> {
+    let sides = crate::readback::edge_sides(body, e).map_err(RimError::NotIntact)?;
+    Ok((sides.plus.surface, sides.minus.surface))
 }
 
 /// A half-edge's start and end vertices.
@@ -706,7 +688,7 @@ fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError
 /// branches, [`RimError::NotIntact`] on a dangling reference.
 pub fn rim_of<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
     seed_is_an_arc(body, edge)?;
-    let sides = edge_sides(body, edge).map_err(torn)?;
+    let sides = side_surfaces(body, edge)?;
     if sides.0 == sides.1 {
         return Err(RimError::CoSurface {
             edge,
@@ -759,7 +741,7 @@ fn continuation<T: Real>(
         .edges_of_vertex(at)
         .ok_or_else(|| torn(EntityId::Vertex(at)))?
     {
-        if !on_pair(edge_sides(body, k).map_err(torn)?, pair) {
+        if !on_pair(side_surfaces(body, k)?, pair) {
             continue;
         }
         let (a, b) = edge_ends(body, k).map_err(torn)?;

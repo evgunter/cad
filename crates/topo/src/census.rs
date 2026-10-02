@@ -1101,8 +1101,8 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             let v1 = body.half_edge_end(edge.he_plus)?;
             let p0 = *body.points.get(body.vertices.get(v0)?.point)?;
             let p1 = *body.points.get(body.vertices.get(v1)?.point)?;
-            let f_plus = body.face_of_half_edge(edge.he_plus)?;
-            let f_minus = body.face_of_half_edge(edge.he_minus)?;
+            let sides = crate::readback::edge_sides(body, key).ok()?;
+            let (f_plus, f_minus) = (sides.plus.face, sides.minus.face);
             let chord = p1 - p0;
             Some(EdgeGeo {
                 key,

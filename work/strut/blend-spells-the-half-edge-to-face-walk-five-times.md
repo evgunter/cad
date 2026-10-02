@@ -53,3 +53,27 @@ The count comes from `git grep parent_loop` over `crates/sweep/`, read
 site by site. It cannot see a walk split across a helper boundary wider
 than one function, and it says nothing about `sweep/tests` — those 72
 sites are `work/tint/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
+
+## The edge-level door, and what it took (TQUERY, 2026-10-02)
+
+`topo::readback::edge_sides(body, edge)` now answers an edge's two
+sides (face and surface key each, `he_plus`'s first, a `DanglingRef`
+refusal). The tquery branch routed through it: `battery.rs`
+`edge_surfaces`, `resolve_link`'s face pair and `cap_incidence`'s
+`faces_of` (so `battery.rs` `face_of` is gone), `surgery.rs`
+`edge_faces` and the surface pair in the rim-contact check, and
+`test_support.rs` `arcs_at`. So this row's `edge_faces` crate-boundary
+question is answered: both `edge_faces` are projections of the one door.
+
+Still spelled per side, and left here because each keeps a refusal or a
+partial answer the all-or-nothing door does not give:
+
+- `blend/open/planar.rs` corner fusion and `surgery.rs` rim fusion
+  (`face_of_half(hp)`/`(hm)` compared as two `Option`s: one side may
+  be absent);
+- `blend/open/ruled.rs` `band_face` and `surgery.rs`'s sphere-trim
+  `band_face`: both sides required, but over `halves_of`, whose own
+  refusal (`not_intact` on the trimline; an `unreachable!` invariant)
+  would merge with the face refusal — the blend program's call;
+- `face_of_half` / `loop_of_half` themselves, and `build.rs`
+  `vertex_faces` (one side, not an edge's two).
