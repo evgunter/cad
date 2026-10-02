@@ -129,9 +129,9 @@ const V_2WAY: f64 = 4.25;
 const V_3WAY: f64 = 2.75;
 
 /// Builds the 2-way and 3-way results, narrating the undeclared
-/// refusal first.
-pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>) {
-    let (h, t) = (h_prism::<S>(tol), t_prism::<S>(tol));
+/// refusal first; also hands back the C prism the 3-way consumed.
+pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>, Body<S>) {
+    let (h, t, c) = (h_prism::<S>(tol), t_prism::<S>(tol), c_prism::<S>(tol));
     match try_intersect(&h, &t, tol) {
         Err(e @ BooleanError::UndeclaredCoincidence { .. }) => println!(
             "   H x T UNDECLARED refuses typed at the coincidence door ({:?}): \
@@ -150,23 +150,63 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>) {
     );
     let three = expect_seamed(
         "declared C x (H x T) intersect",
-        check(
-            try_intersect_declared(&c_prism(tol), &two.body, tol),
-            V_3WAY,
-            tol,
-        ),
+        check(try_intersect_declared(&c, &two.body, tol), V_3WAY, tol),
         V_3WAY,
     );
-    (two, three)
+    (two, three, c)
+}
+
+/// Area of `body`'s orthographic shadow down world axis `w` (0 = x,
+/// 1 = y, 2 = z), exact for these letters: every face lies on a plane
+/// of the block grid below, so each grid cell is wholly in or out of
+/// the shadow, and a cell is in iff some cell centre along the ray is
+/// strictly inside the body.
+fn shadow_area(body: &Body<f64>, w: usize, tol: Tol) -> f64 {
+    const GRID: [f64; 8] = [0.0, 0.5, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+    const EXTENT: [f64; 3] = [2.0, 3.0, 3.0];
+    let cells = |axis: usize| -> Vec<(f64, f64)> {
+        GRID.windows(2)
+            .filter(|g| g[1] <= EXTENT[axis])
+            .map(|g| ((g[0] + g[1]) / 2.0, g[1] - g[0]))
+            .collect()
+    };
+    let band = pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band");
+    let (u, v) = ((w + 1) % 3, (w + 2) % 3);
+    let mut area = 0.0;
+    for &(cu, du) in &cells(u) {
+        for &(cv, dv) in &cells(v) {
+            let lit = cells(w).iter().any(|&(cw, _)| {
+                let mut q = [0.0; 3];
+                q[u] = cu;
+                q[v] = cv;
+                q[w] = cw;
+                pncad::topo::point_in_solid(body, p3(q[0], q[1], q[2]), band, tol)
+                    .expect("a cell centre lies off every face")
+                    == pncad::topo::SolidContainment::In
+            });
+            if lit {
+                area += du * dv;
+            }
+        }
+    }
+    area
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let (two, three) = build::<f64>(tol);
+    let (two, three, c) = build::<f64>(tol);
+    // The 3-way lies inside each letter's prism, so its shadow down that
+    // prism's axis lies inside the letter; equal area makes it the WHOLE
+    // letter. Letter areas: H 2·(1/2·3) + 1·1/2, T 1/2·5/2 + 3·1/2,
+    // C 1/2·3 + 2·(3/2·1/2).
+    for (axis, letter, area) in [(2, "H", 3.5), (0, "T", 2.75), (1, "C", 3.0)] {
+        let shadow = shadow_area(&three.body, axis, tol);
+        assert_eq!(shadow, area, "the 3-way's shadow is the whole {letter}");
+    }
     crate::walls::wall(
         "silhouette3",
         1,
         "intersect the declared H x T with the C in that order, (H x T) x C",
-        try_intersect_declared(&two.body, &c_prism(tol), tol),
+        try_intersect_declared(&two.body, &c, tol),
         |e| {
             matches!(
                 e,

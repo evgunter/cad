@@ -256,9 +256,10 @@ mod consumer_census {
     /// declared mate, the table's four corner-aligned legs, the
     /// letterforms' two declared intersects and the A x Z. The plant's
     /// own four pairs — the stem glue, the leaf sheath, the socket and
-    /// the flower weld — are measured in `lily`'s probe module instead, beside the
-    /// walls they belong to, because running the whole plant here
-    /// would rebuild it a second time in one suite for nothing.
+    /// the flower weld — are measured in `lily`'s probe module instead,
+    /// beside the walls they belong to, because running the whole
+    /// plant here would rebuild it a second time in one suite for
+    /// nothing.
     #[test]
     fn every_planar_consumer_of_the_helper_declares_planes_only() {
         let tol = Tol::witness();

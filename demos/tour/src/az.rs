@@ -13,13 +13,14 @@
 //! non-dyadic.
 //!
 //! Built `A ∩ Z`: `Z ∩ A` refuses `JoinDesync` on the same
-//! declarations (`work/join/declared-flush-intersect-refuses-in-one-operand-order.md`).
+//! declarations — a live wall probe in [`stops`], filed as
+//! `work/join/declared-flush-intersect-refuses-in-one-operand-order.md`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::Body;
+use pncad::topo::{Body, BooleanBody, BooleanError};
 
 use crate::booleans::{check, expect_seamed, try_intersect_declared};
 use crate::scalar::Scalar;
@@ -97,7 +98,7 @@ fn z_prism<S: Scalar>(tol: Tol) -> Body<S> {
 
 /// Builds the A × Z intersect result (generic — the Probe sweep runs
 /// the same construction).
-pub(crate) fn build<S: Scalar>(tol: Tol) -> pncad::topo::BooleanBody<S> {
+pub(crate) fn build<S: Scalar>(tol: Tol) -> BooleanBody<S> {
     expect_seamed(
         "declared A x Z intersect (counter-hole A)",
         check(
@@ -111,9 +112,24 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> pncad::topo::BooleanBody<S> {
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let az = build::<f64>(tol);
+    crate::walls::wall(
+        "az",
+        1,
+        "intersect the same declared letters in the other order, Z x A",
+        try_intersect_declared(&z_prism::<f64>(tol), &a_prism(tol), tol),
+        |e| {
+            matches!(
+                e,
+                BooleanError::JoinDesync {
+                    what: "every chord arc separates a loose scaffolding pair"
+                }
+            )
+        },
+        "drop this probe; the scene keeps A x Z, which reads the same either way",
+    );
     vec![Stop {
         name: "az",
-        caption: "A x Z (the #93 acceptance case)".to_string(),
+        caption: "A x Z (#93's letter pair)".to_string(),
         // Standalone render only: the montage carries the letterforms
         // through silhouette3.
         montage: false,

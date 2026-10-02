@@ -3694,31 +3694,20 @@ class TestMeshCrossCheck(unittest.TestCase):
         self.assertLess(abs(measured - exact) / exact, 1e-4)
 
     def test_the_letterform_prism_meshes_exactly(self):
-        """Row 32's `T`: every face is planar, so the triangulation is
-        EXACT and the two measures agree at rounding level. The scene's
-        dyadic oracle is asserted of both."""
-        t_plane = SketchPlane.from_frame(
-            (-0.25 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)
-        )
-        letter = [
-            (1.1875, 0.125), (1.8125, 0.125), (1.8125, 2.625), (3.25, 2.625),
-            (3.25, 3.125), (-0.25, 3.125), (-0.25, 2.5625), (1.1875, 2.5625),
-        ]
+        """Row 32's `T` (`T_LETTER`): every face is planar, so the
+        triangulation is EXACT and the two measures agree at rounding
+        level. The prism's exact volume, (stem 0.5*2.5 + bar 3*0.5)
+        times the 2 extrusion = 5.5, is asserted of both."""
         doc = Doc()
-        sketch = doc.insert(
-            Node.polygon([(Expr.length_in(a, m), Expr.length_in(b, m)) for a, b in letter], plane=doc.sketch_frame(plane=t_plane))
-        )
-        prism = doc.insert(Node.extrude(sketch, Expr.length_in(2.5, m)))
+        prism = letter(doc, T_LETTER, SketchPlane.yz(), 2.0)
 
         body = evaluate(doc).value(prism).body()
         body.validate()
-        self.assertAlmostEqual(
-            body.mass_properties().volume, 8.505859375, delta=1e-12
-        )
+        self.assertAlmostEqual(body.mass_properties().volume, 5.5, delta=1e-12)
 
         mesh = body.tessellate(1 * mm)
         self.assertEqual(unmatched_half_edges(mesh), [])
-        self.assertLess(abs(mesh_signed_volume(mesh) - 8.505859375), 1e-12)
+        self.assertLess(abs(mesh_signed_volume(mesh) - 5.5), 1e-12)
 
     def test_the_mesh_and_the_stl_agree_facet_for_facet(self):
         """Step 6 for the mesh half: the binary file's declared facet

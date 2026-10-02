@@ -65,9 +65,24 @@ z∈[0,2]; `Z` is the yz outline `(0,0) (2.5,0) (2.5,0.4375)
 `JoinDesync` with the same words. Overshooting Z's extrude in x
 (x∈[-1/16, 33/16] or [-1/4, 9/4]) makes both orders build.
 
+## Before PR 3770 (reviewer's measurement)
+
+On main just before #3770 (`a454967521^1`), the same operands refused
+in more orders: `C∩(H∩T)`, `T∩(H∩C)` and `H∩(T∩C)` also refused, and
+only `(T∩C)∩H` built; `Z∩A` refused too. So #3770's strut fix (the
+vertex-on-face pierce run recorded as the strut `mev_null` builds)
+narrowed this class from 5 of the 6 nestings to 2 — the remaining two
+are very likely the same mechanism, one shape further on. A possible
+relative: `whole-orbit-fan-end-has-three-spellings` (the fan end
+`next(mate(last))` in three near-copies with three whole-orbit
+behaviours, and strut facing with two spellings), found in the same
+PR's review.
+
 ## Where it shows
 
-`demos/tour/src/letterforms.rs` builds `silhouette3` as `C ∩ (H∩T)`
-and pins `(H∩T) ∩ C` as a live `walls::wall` probe, which panics when
-this closes; the scene then takes whichever order reads naturally.
-`az` is authored `A ∩ Z`, the order that builds; it has no probe.
+Two live `walls::wall` probes panic when this closes:
+
+- `demos/tour/src/letterforms.rs` builds `silhouette3` as `C ∩ (H∩T)`
+  and pins `(H∩T) ∩ C` (silhouette3 wall 1); the scene then takes
+  whichever order reads naturally.
+- `demos/tour/src/az.rs` builds `A ∩ Z` and pins `Z ∩ A` (az wall 1).
