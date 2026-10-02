@@ -54,7 +54,7 @@ use geom_core::{Band, Decide, Margin, Sign};
 use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
-use super::tables::eq15_3_lump;
+use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
     PierceRingRecord, SideCode, VfContact,
@@ -76,6 +76,9 @@ pub(super) struct VtxFacOut<T: geom_core::Real> {
     pub pairs: Vec<NullEdgePairRecord>,
     /// The ring insertion, if surgery happened.
     pub ring: Option<PierceRingRecord>,
+    /// `(A face, B face)` for each coincident sector whose lump keeps
+    /// one copy of the region (`BooleanReduction::covered`).
+    pub covered: Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -198,6 +201,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // bounds' own: a smaller tolerance reads the steeper bound off the
     // plane and the sector with it.
     let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
+    let mut covered = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
         if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
             continue;
@@ -440,6 +444,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                     return Err(BooleanError::DeclarationContradicted { fact });
                 }
             };
+        if lump_keeps_one(op, rel) {
+            covered.push(match piercing {
+                Operand::A => (s.face, contact.face),
+                Operand::B => (contact.face, s.face),
+            });
+        }
         let lump = eq15_3_lump(op, piercing, rel);
         entries[k].class = lump;
         entries[(k + 1) % n].class = lump;
@@ -463,6 +473,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         edges: Vec::new(),
         pairs: Vec::new(),
         ring: None,
+        covered,
     };
     if runs.is_empty() {
         return Ok(out); // tangential touch: 3′ contact only, no surgery

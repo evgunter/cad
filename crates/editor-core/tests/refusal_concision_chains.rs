@@ -206,7 +206,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Part/ReferenceCycle",
         span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+        filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
     },
 ];
 

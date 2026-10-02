@@ -1062,6 +1062,21 @@ class TestAssemblyRefusals(BenchWorkspace):
             pncad.NO_AT_REST_RECORD_RECOURSE, str(caught.exception)
         )
 
+    def test_the_gate_speaks_each_unminted_mate_from_the_document(self):
+        # The gate holds the document, so the message and each row's
+        # `str` say a mate by its kind, label and tag; `mate` keeps the
+        # id.
+        doc, _, (mate_1, mate_2) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
+        doc.apply(DocEdit.set_label(mate_1, "left seat"))
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(doc, evaluate(doc, resolver=self.ws))
+        rows = caught.exception.refusals
+        self.assertEqual([r.mate for r in rows], [mate_1, mate_2])
+        labelled = f'Mate "left seat" ({tag(mate_1)})\'s class'
+        self.assertTrue(str(rows[0]).startswith(labelled), str(rows[0]))
+        self.assertTrue(str(rows[1]).startswith(f"Mate {tag(mate_2)}'s class"), str(rows[1]))
+        self.assertIn(labelled, str(caught.exception))
+
     def test_the_admission_table_says_so_before_the_edit_lands(self):
         rest = pncad.class_admission(ContactClass.Rest)
         tangent = pncad.class_admission(ContactClass.Tangent)

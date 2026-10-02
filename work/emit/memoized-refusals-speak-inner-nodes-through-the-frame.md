@@ -25,3 +25,12 @@ Split from `refusal-values-speak-the-node-with-its-label`. That PR speaks a memo
 ## The shape of the fix
 
 These values need a rendering that takes the speaker, the document of the frame handing the value out, rather than a `Display` that cannot see one. For example, a `Display` adapter over (value, `&Doc`) that each inner id is spoken through. It is design work, because `NodeErrorKind`'s `Display` is the D2 "kernel refusals unaltered" surface.
+
+## Ruled here by `selection-door-refusals-speak-the-node`
+
+- `NamingError` (`names/emit.rs`): raised only inside evaluation (the verbs, `names/defer.rs`, `names/discriminate.rs`, `eval/anchor.rs`) and carried whole by `NodeErrorKind::Naming`, so it is memoized and keeps the tag. Its three node sentences (the `EMISSION_FRAMING` "upstream node", the `UNRULED_FRAMING` "operand node" and "member node") and its names are this row's.
+- `ResolveError` is carried by five `NodeErrorKind` arms (`eval/mod.rs`). It now writes its sentence once over `spoken::Speaker` and has `spoken(doc)`. A `NodeErrorKind` rendering that takes a speaker can forward `Said(error, by)` rather than its tag `Display`.
+- `NodeStanding` rides inside `ProductError::Root` (so `PartFault`) and `ClearanceRefusal`. It has `spoken(doc)` too.
+- `MintRefusal` is memoized with a part's evaluation (`eval/parts.rs`, `PartValue::unminted`). It has `spoken(doc)`, which `AssemblyError::spoken` uses for this document's own rows. Carried rows keep their tags.
+
+`spoken::Speaker`, `Say` and `Said` (`spoken.rs`) are the shape this row's "Display adapter over (value, `&Doc`)" names. They are public (pncad's `ExportError` is said by them too), and nothing in `NodeErrorKind` uses them yet.

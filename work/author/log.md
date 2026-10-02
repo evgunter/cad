@@ -1063,7 +1063,7 @@ premise turned a design question into a ruling in one exchange.**
 
 Ev's larger idea — one edited `placement` arg unifying normal
 placement, transform and pattern — is filed at his direction as
-`work/edit/placement-is-spelled-three-ways-node-registry-and-rule`
+`work/place/placement-is-spelled-three-ways-node-registry-and-rule`
 (P0, H, `needs_ev`). I told him plainly I do not think it is easier
 than he fears: `Node::Transform` holds `Expr` components while the
 A11 registry holds a concrete `Frame`, so the three spellings disagree

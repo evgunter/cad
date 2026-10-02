@@ -685,7 +685,7 @@ fn an_authored_instance_whose_part_records_another_epsilon_badges_the_seam() {
 #[test]
 fn every_unresolved_part_badge_meets_the_refusal_standard() {
     use test_utils::refusal::{Admission, problems_admitting};
-    const HEX: &str = "work/edit/part-refusals-name-documents-by-hex-id.md";
+    const HEX: &str = "work/doctail/part-refusals-name-documents-by-hex-id.md";
     let tol = Tol::witness();
     let mut rows: Vec<(&str, String, Vec<String>)> = Vec::new();
 

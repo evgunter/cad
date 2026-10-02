@@ -447,33 +447,40 @@ impl Attribution {
 // relation the kernel's arm decided — never the enum's guts. The
 // kernel's own finding is the STORY and rides separately
 // ([`AtRestFinding`]'s `Display`).
-impl core::fmt::Display for Attribution {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for Attribution {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         // One sentence shape, and ONE word per relation
         // ([`Relation::name`]), whichever document authored the
         // declaration.
-        let subject =
-            |f: &mut core::fmt::Formatter<'_>, m: &MintedDeclaration, relation: Relation| {
-                write!(
-                    f,
-                    "mate {}'s declared {} contact, {}",
-                    m.mate,
-                    m.class.name(),
-                    relation.name()
-                )
-            };
+        let subject = |f: &mut core::fmt::Formatter<'_>,
+                       m: &MintedDeclaration,
+                       relation: Relation,
+                       by: crate::spoken::Speaker<'_>| {
+            write!(
+                f,
+                "{}'s declared {} contact, {}",
+                by.node_as(m.mate, "mate"),
+                m.class.name(),
+                relation.name()
+            )
+        };
         match self {
-            Self::Refuted(m) => subject(f, m, Relation::Refuted),
-            Self::Declined(m) => subject(f, m, Relation::Declined),
+            Self::Refuted(m) => subject(f, m, Relation::Refuted, by),
+            Self::Declined(m) => subject(f, m, Relation::Declined, by),
             // The mate an author can act on is a mate of ANOTHER file
             // here, so the route rides with it: which file, and how
-            // this document reached it.
+            // this document reached it. Its id is that file's, so it
+            // is said by its tag.
             Self::Carried {
                 route,
                 declaration,
                 relation,
             } => {
-                subject(f, declaration, *relation)?;
+                subject(f, declaration, *relation, crate::spoken::Speaker::TAG)?;
                 write!(f, " (carried from {route})")
             }
             Self::Unattributed => f.write_str("no mate declared this"),
@@ -481,21 +488,30 @@ impl core::fmt::Display for Attribution {
     }
 }
 
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for Attribution {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
 // One at-rest finding through the document layer's one sink
-// ([`crate::finding`]): the attribution is the subject, the kernel's
-// finding — FORWARDED verbatim through its own `Display`, never
-// restated — is the story, and the recourse is `""` because the
-// kernel's tier-3′ messages already end in their own (the contact
-// arms carry `topo`'s two-armed menu; the structural arms carry their
-// own levers). Appending a document-layer sentence on top would
-// render two recourses, or a generic one — both forbidden.
-impl crate::finding::Finding for AtRestFinding {
+// ([`crate::finding`]): the attribution, said by the speaker, is the
+// subject, the kernel's finding — FORWARDED verbatim through its own
+// `Display`, never restated — is the story, and the recourse is `""`
+// because the kernel's tier-3′ messages already end in their own (the
+// contact arms carry `topo`'s two-armed menu; the structural arms
+// carry their own levers). Appending a document-layer sentence on top
+// would render two recourses, or a generic one — both forbidden.
+struct SaidFinding<'a>(&'a AtRestFinding, crate::spoken::Speaker<'a>);
+
+impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.attribution)
+        write!(f, "{}", crate::spoken::Said(&self.0.attribution, self.1))
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.error)
+        write!(f, "{}", self.0.error)
     }
 
     fn recourse(&self) -> &str {
@@ -503,9 +519,30 @@ impl crate::finding::Finding for AtRestFinding {
     }
 }
 
+impl crate::spoken::Say for AtRestFinding {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        crate::finding::compose(f, &SaidFinding(self, by))
+    }
+}
+
+/// The finding where no document is at hand: its mate by tag.
 impl core::fmt::Display for AtRestFinding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::finding::compose(f, self)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl AtRestFinding {
+    /// **The finding as the frame holding the assembled document says
+    /// it**: this document's mate as `doc` holds it now; a carried
+    /// declaration's mate is a part's id, so it keeps its tag.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -579,13 +616,16 @@ impl MintRefusal {
 // [`AssemblyError`]'s two mint arms carry [`MintRefusal`] rows
 // verbatim, so a refusal raised at this document's gate and one
 // carried up from a part read alike.
-impl core::fmt::Display for MintRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for MintRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            // The name forwards `StableName`'s `Display` rather than
-            // re-spelling the kind-plus-minting-node phrase, and the
-            // article comes from the kind because the value decides
-            // it.
+            // The name is said through the speaker's one spelling of
+            // the kind-plus-minting-node phrase, and the article comes
+            // from the kind because the value decides it.
             Self::Reference {
                 mate,
                 side,
@@ -593,19 +633,38 @@ impl core::fmt::Display for MintRefusal {
                 why,
             } => write!(
                 f,
-                "mate {}'s {} reference ({} {name}) does not name a face of the product: {why}",
-                mate,
+                "{}'s {} reference ({} {}) does not name a face of the product: {}",
+                by.node_as(*mate, "mate"),
                 side.name(),
                 name.kind.article(),
+                by.name(name),
+                crate::spoken::Said(why, by)
             ),
             Self::NoAtRestRecord { mate, class, why } => write!(
                 f,
-                "mate {}'s class {} has no at-rest kernel record — {why}; the record is \
+                "{}'s class {} has no at-rest kernel record — {why}; the record is \
                  not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
-                mate,
+                by.node_as(*mate, "mate"),
                 class.name()
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for MintRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl MintRefusal {
+    /// **The row as the frame holding its document says it**: each node as
+    /// `doc` holds it now ([`crate::Doc::spoken`]). A row is memoized with
+    /// the part that minted it, so it holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -726,17 +785,21 @@ pub enum AssemblyError {
 // Why a mate reference did not resolve, in prose — the WHY clause of
 // a [`MintRefusal::Reference`] row's message; the typed variant stays
 // the machine contract.
-impl core::fmt::Display for RefusedRef {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for RefusedRef {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Vanished => f.write_str(
                 "no entity answers to it, in the product or at the node the mate reads it at",
             ),
             Self::ReadBelowARoot { at } => write!(
                 f,
-                "it is read at node {}, which is not a root of the product, and a reference \
+                "it is read at {}, which is not a root of the product, and a reference \
                  resolves against a root's own rows",
-                at
+                by.node(*at)
             ),
             Self::Ambiguous { width } => write!(
                 f,
@@ -747,8 +810,19 @@ impl core::fmt::Display for RefusedRef {
     }
 }
 
-impl core::fmt::Display for AssemblyError {
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for RefusedRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl crate::spoken::Say for AssemblyError {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Product(e) => write!(f, "{e}"),
             Self::Space {
@@ -757,9 +831,9 @@ impl core::fmt::Display for AssemblyError {
                 refusal,
             } => write!(
                 f,
-                "the own space of the group rooted at node {}, unplaced because {cause}, does not \
+                "the own space of the group rooted at {}, unplaced because {cause}, does not \
                  gather: {refusal}",
-                group
+                by.node(*group)
             ),
             Self::Mint { refusals } => {
                 write!(
@@ -767,8 +841,10 @@ impl core::fmt::Display for AssemblyError {
                     "assembly: this document did not mint {} of its own mate(s)",
                     refusals.len()
                 )?;
-                crate::finding::render_lines(f, refusals)
+                crate::finding::render_lines(f, refusals.iter().map(|r| crate::spoken::Said(r, by)))
             }
+            // Each row is spelled in the ids of the document below
+            // that refused it, so it is said by its tags.
             Self::CarriedMintRefusal { refusals } => {
                 write!(
                     f,
@@ -781,7 +857,9 @@ impl core::fmt::Display for AssemblyError {
             }
             Self::AtRest { findings } => {
                 write!(f, "{} finding(s) against this assembly:", findings.len())?;
-                crate::finding::render_list(f, findings)
+                let said: Vec<SaidFinding<'_>> =
+                    findings.iter().map(|x| SaidFinding(x, by)).collect();
+                crate::finding::render_list(f, &said)
             }
             Self::Uncertified { findings, .. } => {
                 // Nothing was decided either way: the declared
@@ -792,9 +870,29 @@ impl core::fmt::Display for AssemblyError {
                     "nothing was refuted, but {} declared face pair(s) could not be certified:",
                     findings.len()
                 )?;
-                crate::finding::render_list(f, findings)
+                let said: Vec<SaidFinding<'_>> =
+                    findings.iter().map(|x| SaidFinding(x, by)).collect();
+                crate::finding::render_list(f, &said)
             }
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for AssemblyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl AssemblyError {
+    /// **The refusal as the frame holding the assembled document says it**:
+    /// this document's nodes as `doc` holds them now
+    /// ([`crate::Doc::spoken`]). A row carried up from a document below is
+    /// spelled in that document's ids, so it keeps its tags.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 

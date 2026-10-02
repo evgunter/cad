@@ -66,7 +66,7 @@ it by running.
 Ev also raised unifying placement across normal placement, transform
 and pattern behind one edited `placement` arg, and then ruled it a
 bigger change for another program: filed as
-`work/edit/placement-is-spelled-three-ways-node-registry-and-rule`
+`work/place/placement-is-spelled-three-ways-node-registry-and-rule`
 (P0, H, `needs_ev`), which this row does NOT wait on.
 
 Dispatched with its sibling as **AUTH-4**
