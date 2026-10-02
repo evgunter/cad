@@ -778,9 +778,11 @@ pub enum SphereQuestion {
     /// refuses there.
     Apart,
     /// Whether the smaller of two overlapping spheres lies strictly
-    /// inside the larger (`bool_sphere_sphere_nested`): only a positive
-    /// clearance passes (`BooleanError::SpheresMeet` is its decided
-    /// refusal).
+    /// inside the larger (`bool_sphere_sphere_nested`): a positive
+    /// clearance passes, and so does a negative one whose two spheres'
+    /// faces the section certificate certifies apart. A decided zero, and
+    /// a crossing whose circle lies inside both faces, refuse
+    /// (`BooleanError::SpheresMeet` is its decided refusal).
     Nested,
     /// Whether the plane faces one sphere pokes through are parallel
     /// (`bool_sphere_escape_parallel`): only a zero passes (a single
@@ -839,11 +841,12 @@ const SPHERE_AGAINST_PLANE: SizedDecision = SizedDecision {
 };
 
 /// Two spheres of the two solids ([`SphereQuestion::Apart`],
-/// [`SphereQuestion::Nested`]): only a pair clearly apart or clearly
-/// nested passes. The scan runs only where no edge crosses a face, so
-/// two spheres that meet there share nothing the join's sphere-pair arm
-/// can run a chord along, and the scan cannot certify the shells'
-/// relation.
+/// [`SphereQuestion::Nested`]): a pair clearly apart or clearly nested
+/// passes on the carriers, and a crossing pair passes when its faces
+/// are certified apart. The scan runs only where no edge crosses a
+/// face, so two sphere faces that meet there share nothing the join's
+/// sphere-pair arm can run a chord along; the lever names the moves
+/// that settle the carriers.
 pub(crate) const SPHERES: SizedDecision = SizedDecision {
     lever: "move the spheres so they clearly stand apart, or so one lies clearly inside the other",
     size: "clearance",
