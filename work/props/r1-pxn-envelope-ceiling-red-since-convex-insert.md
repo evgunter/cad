@@ -2,8 +2,10 @@
 id: r1-pxn-envelope-ceiling-red-since-convex-insert
 kind: issue
 title: r1_pxn_probes' envelope ceiling is red on main since PR 3524's convex insert_once_ring (1.0068x against 1.005x)
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-02
+pr: 3733
 ---
 
 
@@ -34,3 +36,10 @@ re-baseline the ceiling, saying what moved) or a regression in the
 insertion's tightness (then fix the insert). PR 3524's gate did not run
 this row, presumably because it is in the slow set of a crate that PR did
 not touch.
+
+## Closed
+
+Green on `main` since PR 3737's fix pass (`c97bac01e`, "r1 ceiling
+spelling", after `84557c784` met the Boehm convex step with its sources'
+hull): the row passes on `origin/main` `c8e6aec14` and on PR 3733's
+merged head. Closed by PR 3733, which filed it.
