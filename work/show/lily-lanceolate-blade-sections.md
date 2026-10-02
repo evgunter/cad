@@ -2,7 +2,7 @@
 id: lily-lanceolate-blade-sections
 kind: unit
 title: the lily's blades get arc-margined lanceolate sections, and its lantern caps merge
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P3
 cost: M

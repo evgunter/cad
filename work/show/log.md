@@ -275,3 +275,19 @@ Declined a follow-up: a lines-only oval nameplate on the section face. It builds
   - Main briefly carried a `prose_census` red, which a base merge cured.
 - **Rocker dispatched.** `rocker-keyhole-crease-fillets` is out.
 - **Lily held.** `lily-lanceolate-blade-sections` waits until klein's fix pass lands, because that pass deletes lily's duplicate in-bin wall test. Two lanes on `lily.rs` at once would collide.
+
+## 2026-10-02 — klein fixed; lily dispatched
+
+PR 3792's fix pass is in, at head `a93a0db7a`, green. It does six things:
+- **Knife edge:** new wall 9 pins the exact spine's refusal. Its sensitivity is measured: trig-computed quarter points, about 2e-16 off, build.
+- **Filed:** `carve/a-half-turn-spine-sweeps-only-off-its-exact-tangents` and `lib/the-klein-loop-sweep-has-no-document-spelling`.
+- **Audit:** north-star row 15 is now NO, and the tallies are re-derived.
+- **Oracle:** a chordal-deficit band of ±1.14%. Planted bodies go red.
+- **Live walls:** `circle` stays live as walls 5 (per-ε posture) and 8.
+- **Lily cleanup:** lily's duplicate in-bin test is deleted.
+
+`tools/tess-lint/tests/baseline_census.rs` is now re-pinned by THREE open PRs: 3792, 3816 and 3824. Whichever merges second or third re-derives the pins from the merged CSV.
+
+Teapot's and torusvessel's in-bin wall tests share the stale "the walk never runs under cargo test" premise. They go in the next SHOW unit that touches those files.
+
+`lily-lanceolate-blade-sections` is dispatched.
