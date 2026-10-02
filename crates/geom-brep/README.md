@@ -355,7 +355,10 @@ are not implemented (`UnsupportedCurvedShape`). (7) Mass properties on
 curved-cut faces are certified quadrature (C9, `props/quad.rs`):
 harmonic pcurve boundaries, polynomial and rational patch flux; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. (8) In-house SVD and
+`QuadratureBudget`, never a silent Gaussian; a sphere face cut by a
+circle tilted against its chart takes the closed-form lane instead,
+its area by Gauss–Bonnet over its circle arcs (`props/curved.rs`,
+`sphere_circle_loop`). (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
