@@ -395,3 +395,18 @@ Composed census pins once all five overlapping PRs merge: rows 1551, pairs 28,26
   Free space is back to 16 GB.
 - **Lesson:** lane targets run 0.6–7 GB each. Reclaim when each review returns, not when the disk fills (agent-lane-operations already says so; I lagged).
 - **From now on:** a lane's target goes when its PR merges, or when its lane is done and no fix pass is pending.
+
+## 2026-10-02 — bench full review (MERGE WITH FIXES)
+
+**Probes on PR 3840.** The reviewer probed it four ways:
+- evaluating from the memo and evaluating fresh give bit-identical results, so the mates' reuse is sound;
+- a planted wrong swing, and a stale pose, both go red;
+- the A5 gate certifies the cross-gauge rest: it refuses a 1e-7 m float;
+- split works off the turntable, and `CutHoldsGauge` fires with it.
+
+**Fix pass.**
+- File the two unfiled library findings:
+  - no placement turns about a point or axis;
+  - the regauge-then-mate order hazard is silent at the edit door.
+- Stop narrowing the update walk around the crate. A resting crate on a hand-restated shelf-top gauge cannot follow a part edit; pin that as a wall and file it.
+- Fix the stale narration and the audit text.
