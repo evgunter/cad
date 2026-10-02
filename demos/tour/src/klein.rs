@@ -43,9 +43,9 @@
 //! points and is TANGENT to it at only one, so one circular arc
 //! cannot be tangent to the axis at two different heights: no single
 //! torus has both of the loop's ends. Two tangent arcs can, and that
-//! is what the loop is. (This is geometry, not a kernel limit — but
-//! it is what makes the loop two BODIES, which is a kernel limit:
-//! wall 6.)
+//! is what the loop is. (This is geometry, not a kernel limit. It
+//! does not make the loop two BODIES: one sweep carries the annulus
+//! along both arcs. What keeps the scene on two elbows is wall 5.)
 //!
 //! **(b) "fillet that torus–cone junction".** Taken literally — blend
 //! the loop's torus against the bulb's cone — the two supports share
@@ -120,14 +120,23 @@
 //!    place a Klein bottle MUST cross itself in 3-space — still
 //!    cannot be trimmed; what changed is that the reason is a pair
 //!    the reader can look at.
-//! 5. **`sweep_body` CAN carry a section around a U-turn — RETIRED
-//!    by the per-slab stacking fold** (wall 5, issue 368). The loft's
-//!    stacking statement is a fold over adjacent section pairs, each
-//!    decided against its own base section's normal, and the loop's
-//!    whole spine sweeps as ONE body; wall 5 asserts that build. The
-//!    SCENE still draws the loop as two elbows — adopting the one-body
-//!    sweep is a scene change, and the shape of the follow-up this
-//!    retirement leaves.
+//! 5. **The loop sweeps as ONE body, and neither spelling of its
+//!    section reaches the screen** (walls 5 and 8). `sweep_body`
+//!    carries the annulus around the U-turn — the loft's stacking
+//!    statement is a fold over adjacent section pairs, each decided
+//!    against its own base section's normal (issue 368) — from the
+//!    plane `path_start_frame` hands out (the interpolated spine's
+//!    start tangent is 3.99e-4 rad off +z). The body is tier-1 valid
+//!    and closed either way. With the walls as `circle`s, tier 3 —
+//!    which every scene body passes — refuses `VolumeUncomputable`
+//!    with a `QuadratureBudget`: the props quadrature cannot decide the
+//!    sign of the volume on a rational swept wall (wall 5). The same
+//!    body authored with its spine centred on the origin decides it,
+//!    so the refusal depends on WHERE the body sits. With the walls as
+//!    four quarter arcs each (`circle_split`, the door the C0-crease
+//!    refusal of a lofted `circle` points at), tier 3 passes and the
+//!    mesher refuses `CertificateExceeded` at the scene's δ (wall 8).
+//!    So the scene still draws the loop as two elbows.
 //! 6. **`tube_along_arc` WAS solid-only — RETIRED by VERBS-TUBEWALL.**
 //!    The torus door took a `minor_radius` and no wall, so a hollow
 //!    tube had to be re-said as a revolve of an annulus and gave up
@@ -225,13 +234,17 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
-use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point3, Tol};
-use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, query};
+use pncad::geom::NurbsCurve3;
+use pncad::geom_brep::{PropsError, SurfaceKind};
+use pncad::geom_core::linalg::frame::path_start_frame;
+use pncad::geom_core::{OrthoFrame, Point3, Tol};
+use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, circle_split, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
-use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
+use pncad::sweep::{Revolution, RevolveAxis, revolve, sweep_body};
+use pncad::topo::{
+    Body, BooleanError, BooleanOp, EdgeKey, MassPropsError, Operand, ValidationError,
+};
 
 use crate::scalar::{Scalar, sketch_frame};
 use crate::{SceneBody, Stop, View};
@@ -270,6 +283,11 @@ const RLOOP: f64 = 1.20;
 const SWEEP_OVER: f64 = 1.5 * PI;
 /// The 90° arc, turning back onto the bottle's axis.
 const SWEEP_IN: f64 = 0.5 * PI;
+/// The one-body loop's spine samples: one interval per 7.5° on each arc.
+const SPINE_OVER: u32 = 36;
+const SPINE_IN: u32 = 12;
+/// Sections the one-body loop's sweep places along its spine.
+const STATIONS: usize = 33;
 
 /// The meridian's derived geometry, in sketch coordinates
 /// `(radius, height)`. Structure selection is f64 (C6): these are the
@@ -495,6 +513,61 @@ fn elbow<S: Scalar>(z0: f64, sweep: f64, tol: Tol) -> Body<S> {
     )
     .expect("the elbow revolves")
     .body
+}
+
+/// The top loop's spine, in the world xz-plane: the 270° arc over the
+/// top, then the 90° arc that turns back onto the bottle's axis — the
+/// two elbows' own spines, joined. Sampled at exact points
+/// ([`SPINE_OVER`] + [`SPINE_IN`] intervals) and interpolated at
+/// degree 3: `sweep_body` takes any `NurbsCurve3`, so the joined spine
+/// is ONE path.
+fn loop_spine(m: &Meridian) -> NurbsCurve3<f64> {
+    let over = (0..=SPINE_OVER).map(|k| {
+        let th = SWEEP_OVER * f64::from(k) / f64::from(SPINE_OVER);
+        Point3::new(RLOOP * (1.0 - th.cos()), 0.0, ZTOP + RLOOP * th.sin())
+    });
+    let into = (1..=SPINE_IN).map(|k| {
+        let psi = 0.5 * PI + SWEEP_IN * f64::from(k) / f64::from(SPINE_IN);
+        Point3::new(RLOOP * (1.0 + psi.cos()), 0.0, m.z_tube + RLOOP * psi.sin())
+    });
+    let points: Vec<Point3<f64>> = over.chain(into).collect();
+    NurbsCurve3::interpolate(&points, 3).expect("the loop's spine interpolates")
+}
+
+/// The loop's annular cross-section, centred on the sketch origin.
+/// `quarters` authors each wall as four quarter arcs (`circle_split`)
+/// rather than as `circle`'s two semicircles — the seam structure a
+/// lofted wall needs to be C¹ across its u direction (wall 8).
+fn annulus(quarters: bool, tol: Tol) -> Vec<ConstructedLoop<f64>> {
+    [R + WALL / 2.0, R - WALL / 2.0]
+        .into_iter()
+        .map(|r| {
+            if quarters {
+                circle_split(p2(0.0, 0.0), r, 4, 0.0, tol)
+                    .expect("a wall of four quarter arcs")
+                    .into()
+            } else {
+                circle(p2(0.0, 0.0), r, tol).expect("a wall").into()
+            }
+        })
+        .collect()
+}
+
+/// The top loop as ONE body (walls 5 and 8): `section` swept along the
+/// whole spine. The section is drawn in the plane normal to the path's
+/// start tangent, which the kernel hands out (`path_start_frame`); the
+/// interpolant's start tangent is near +z but not on it, so a
+/// world-axis placement would tilt the section off the plane the sweep
+/// carries, at every station.
+fn one_body_loop<S: Scalar>(m: &Meridian, section: &[ConstructedLoop<f64>], tol: Tol) -> Body<S> {
+    let path = loop_spine(m);
+    let (t0, _) = path.domain();
+    let (start, tangent) = path.ders1(t0);
+    let place =
+        path_start_frame(start, tangent, tol).expect("the spine's start tangent fixes a frame");
+    sweep_body::<S>(section, place, &path, STATIONS, 3, tol)
+        .expect("the annulus sweeps along the loop's whole spine")
+        .body
 }
 
 /// The three bodies of the bottle, in surface order: bulb, then the
@@ -867,59 +940,44 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
 
-    // Wall 5: the loop is one path. One sweep would be one body.
-    let spine: Vec<Point3<f64>> = (0..=48)
-        .map(|k| {
-            let s = f64::from(k) / 48.0 * (SWEEP_OVER + SWEEP_IN);
-            if s <= SWEEP_OVER {
-                Point3::new(RLOOP * (1.0 - s.cos()), 0.0, ZTOP + RLOOP * s.sin())
-            } else {
-                let psi = 0.5 * PI + (SWEEP_OVER + SWEEP_IN - s);
-                Point3::new(RLOOP + RLOOP * psi.cos(), 0.0, m.z_tube + RLOOP * psi.sin())
-            }
-        })
-        .collect();
-    let path =
-        pncad::geom::NurbsCurve3::interpolate(&spine, 3).expect("the loop's spine interpolates");
-    let annulus: Vec<ConstructedLoop<f64>> = vec![
-        circle(p2(0.0, 0.0), R + WALL / 2.0, tol)
-            .expect("outer")
-            .into(),
-        circle(p2(0.0, 0.0), R - WALL / 2.0, tol)
-            .expect("inner")
-            .into(),
-    ];
-    // RETIRED as a refusal by the per-slab stacking fold (issue 368),
-    // so the probe asserts the build. The loft's stacking statement is
-    // per-slab, and every consecutive pair of stations on this spine
-    // advances along the earlier one's own plane normal.
-    let one_body = pncad::sweep::sweep_body::<f64>(
-        &annulus,
-        Affine3::from_parts(
-            Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0)),
-            v3(0.0, 0.0, ZTOP),
-        ),
-        &path,
-        33,
-        3,
-        tol,
-    )
-    .expect("the loop's whole spine sweeps as ONE body (issue 368)");
+    // Wall 5: the loop is one path, so one sweep is one body — and it
+    // BUILDS, tier-1 valid and closed (the loft's stacking statement is
+    // per-slab, issue 368). Swept with the annulus as `circle`s, the
+    // natural spelling, it fails tier 3, which every scene body passes:
+    // the props quadrature cannot decide the sign of its volume on a
+    // rational swept wall at the loop's own position.
+    let one_body = one_body_loop::<S>(&m, &annulus(false, tol), tol);
     assert_eq!(
-        pncad::topo::validate(&one_body.body),
+        pncad::topo::validate(&one_body),
         Ok(()),
         "the one-body loop is tier-1 valid"
     );
     assert_eq!(
-        pncad::topo::validate_closed(&one_body.body),
+        pncad::topo::validate_closed(&one_body),
         Ok(()),
         "and closed"
     );
-    println!(
-        "   wall 5 — RETIRED as a refusal: the annulus sweeps along the loop's \
-         WHOLE spine as ONE body (issue 368, the per-slab stacking fold). The \
-         SCENE still draws the loop as two elbows; adopting the one-body sweep \
-         is a scene change this unit does not make."
+    crate::walls::wall(
+        "bottle",
+        5,
+        "validate the loop swept as ONE body, `circle` sections, at tier 3",
+        pncad::topo::validate_geometric(&one_body, tol),
+        |e| {
+            matches!(
+                e[..],
+                [ValidationError::VolumeUncomputable {
+                    source: MassPropsError::Face {
+                        source: PropsError::QuadratureBudget { .. },
+                        ..
+                    },
+                    ..
+                }]
+            )
+        },
+        "tessellate the same body: a `circle` section's semicircle walls carry a C0 \
+         crease the mesher refuses (work/tess/lofted-circle-sections-are-unmeshable-\
+         and-say-so-three-steps-late). If that passes too, the scene adopts this loop; \
+         rewrite findings entry 5",
     );
 
     // Wall 6 (RE-BASELINED by VERBS-RING): the one-call hollow ring —
@@ -1083,6 +1141,30 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         );
     }
 
+    // Wall 8: the same one-body loop with each wall authored as four
+    // quarter arcs (`circle_split`), so no lateral wall spans a
+    // semicircle's C0 knot. That spelling passes tier 3 — its volume's
+    // sign is decided, the number is a bracket — and the mesher then
+    // refuses a face whose triangle certificate exceeds the δ the
+    // scene renders at.
+    let quartered = one_body_loop::<f64>(&m, &annulus(true, tol), tol);
+    assert_eq!(
+        pncad::topo::validate_geometric(&quartered, tol),
+        Ok(()),
+        "the quartered one-body loop is tier-3 valid"
+    );
+    crate::walls::wall(
+        "bottle",
+        8,
+        "tessellate the loop swept as ONE body, quarter-arc sections, at the scene's δ",
+        pncad::mesh::tessellate(&quartered, 1e-2, tol),
+        |e| matches!(e, pncad::mesh::TessellateError::CertificateExceeded { .. }),
+        "replace the scene's two elbows with this loop (two scene bodies, one colour \
+         for the loop), re-derive its volume oracle (Pappus: annulus area times \
+         RLOOP·2π, approached through the interpolant and the skin) and findings \
+         entry 11's seam measures, and rewrite findings entry 5",
+    );
+
     let _ = into;
 }
 
@@ -1228,8 +1310,9 @@ mod wall_probes_run_here {
     //! why the missing caller was the whole defect.
     //!
     //! Not free: the probe rebuilds `bottle::<f64>`, four more
-    //! revolves for the sharp-band pair and the hollow ring, a sweep,
-    //! a STEP export and four wall-7 tessellations. It overlaps
+    //! revolves for the sharp-band pair and the hollow ring, a sweep
+    //! and its tier-3 check, a STEP export and four wall-7
+    //! tessellations. It overlaps
     //! `verbs_gate_r1_probes` above by two walls (3 and 4) and that
     //! module stays as it is — it pins the boolean pair's SHAPE against
     //! the operand gate for a one-second answer, and this test is the

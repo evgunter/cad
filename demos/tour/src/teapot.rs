@@ -193,7 +193,8 @@
 //!    approximation of that rather than the thing. The U-turn itself
 //!    is no longer the obstacle — the library's `sweep_body` rounds
 //!    one (the loft's stacking statement is per-slab; klein wall 5
-//!    carries the retired row) — so what a recipe door would buy here
+//!    builds one, and pins the tier-3 refusal its rational walls meet)
+//!    — so what a recipe door would buy here
 //!    is the spine in the document, not a shape the kernel cannot
 //!    build.
 //!
