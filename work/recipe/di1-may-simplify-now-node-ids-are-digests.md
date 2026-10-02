@@ -2,13 +2,12 @@
 id: di1-may-simplify-now-node-ids-are-digests
 kind: issue
 title: DI1's minting-entry walk may be more than digest node ids need
-status: open
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: M
-design: true
 refs: [layer3-recipenodeid-aliases-across-rewinds, sibling-branches-mint-one-node-id-for-different-nodes]
-needs_ev: true
+closed: 2026-10-02
 ---
 
 
@@ -49,3 +48,7 @@ one id, and `Doc::id` (DI3) is what tells those apart.
 DI1 is ratified text, so a simpler rule is a revision for Ev, weighed
 by the designers first. It should be decided before the P0 build
 lands, since the build is what a simpler rule would save.
+
+## Ruled (Ev, PR 3871, 2026-10-02)
+
+Both decisions as recommended: DI1 retires the minting-entry walk (a holder keeps the bare id and asks the document in hand), and a history replacement clears every holder, tools included. DI1 in `crates/editor-core/IDENTITY.md` states it. The build is VSEAM's `layer3-recipenodeid-aliases-across-rewinds`, re-scoped by the ruling: close tools on replacement, rows pinning the rule, and the counter-era prose (`seats.rs`, `Doc::has_minted`, the tools).
