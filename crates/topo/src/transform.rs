@@ -17,7 +17,7 @@
 //! downstream; the explicit check makes that a typed
 //! [`TransformError::NotRigid`] refusal. On top of that, every edge
 //! carrier is **re-certified** against the mapped geometry through
-//! [`EdgeCurve::certify_via`] — with the plane × NURBS lane the
+//! [`geom_brep::EdgeCurve::certify_via`] — with the plane × NURBS lane the
 //! scalar's policy holds ([`crate::AtRestPolicy::nurbs_lane`]) — so a
 //! map that breaks carrier consistency
 //! surfaces as a typed [`TransformError::Certify`] refusal, never as
@@ -96,9 +96,7 @@ use std::sync::Arc;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
-};
+use geom_brep::{CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
@@ -726,17 +724,15 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             param_end,
         };
         let surfaces = |k| out.surfaces.get(k).cloned();
-        let mapped = EdgeCurve::certify_via(spec, start, end, surfaces, band, T::nurbs_lane())
-            .map_err(|source| {
-                // The lane handed in is the policy's answer, so a lane not
-                // supplied here is the scalar's absence.
-                if source == CertifyError::NurbsLaneNotSupplied {
-                    TransformError::NurbsLaneUnsupported {
-                        edge: ek,
-                        scalar: T::NAME,
+        let mapped =
+            crate::policy_lane::certify(spec, start, end, surfaces, band).map_err(|refusal| {
+                match refusal {
+                    crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                        TransformError::NurbsLaneUnsupported { edge: ek, scalar }
                     }
-                } else {
-                    TransformError::Certify { edge: ek, source }
+                    crate::policy_lane::ByPolicy::Refused(source) => {
+                        TransformError::Certify { edge: ek, source }
+                    }
                 }
             })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
