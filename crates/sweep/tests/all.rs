@@ -569,6 +569,8 @@ mod mate7a_r1_probes;
 mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "pi_seam_and_kiss_through_the_boolean.rs"]
+mod pi_seam_and_kiss_through_the_boolean;
 #[path = "snowman.rs"]
 mod snowman;
 

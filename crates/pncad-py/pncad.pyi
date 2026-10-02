@@ -1144,7 +1144,9 @@ class McRefusal(PncadError):
     asked for zero samples, and an estimator over no draws has no
     estimate (`no_samples`). Or the document does not build at its
     nominal, so there is nothing to replay
-    (`nominal_does_not_build`, with `node` and `cause`).
+    (`nominal_does_not_build`, with `node` and `cause`). Its message
+    speaks that node as the document holds it, kind, label and tag;
+    `node` keeps the full id.
 
     The band arm's `variant` is MeasureUnavailable's own word, because
     it carries that refusal: one fault, one word, whichever door
@@ -3095,7 +3097,9 @@ class McReport:
         here a reader can check against the certified side."""
     def render(self) -> str:
         """The human form, with the advisory label and the dials on
-        every line that carries an estimate."""
+        every line that carries an estimate. Each node is spoken from
+        the document the run was drawn from, with its label as that
+        document held it."""
 
 def monte_carlo(
     doc: Doc, analyzed: AnalyzedBox, config: Optional[McConfig] = None

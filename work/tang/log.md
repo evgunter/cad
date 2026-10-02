@@ -198,3 +198,26 @@ The designer pair reconciled over four rounds and two measurements
 While Ev decides, the transverse rim's implementation pieces are not
 blocked on the ruling's text and can be prepared: the circle × cylinder
 cell (in flight), and a curved edge-edge event at the rim.
+## 2026-10-01 — the π-seam and kiss measurement lands (PR 3746) (TANG orchestrator)
+
+Review tier: orchestrator's read. It is a measurement lane, and its
+code is pinned tests only. It settled the fact the DEV-1 pair disagreed
+on, then ran the decider one designer proposed:
+
+- No wedge-π seam between distinct carriers builds through the boolean,
+  declared or not: the capped tube, tube ∪ ball, the stadium and the
+  torus chain. Every declaration is refused, each under a different
+  name.
+- **The gap is not seam-specific.** A cap abutting a tube on an
+  equal-radius rim refuses `CurvedPierceUnsupported` whatever the corner
+  (π, a transverse dome, or the same carrier continuing), even with its
+  end discs declared `Rest`. `curved_face_arm` covers an edge only when
+  the edge's own face is declared against the face it touches. Filed P0:
+  `a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`.
+  The licence question goes back to the designer pair for round 2 with
+  this framing.
+- `m9_3_zip.rs`'s "tube chain" is a wedge-2π kiss, not the π seam its
+  header says. The fix rides PR 3747's fix pass.
+
+`test` is red only on main's inherited thread-count golden (PROPS's
+row). Merged over it, annotated on the PR.
