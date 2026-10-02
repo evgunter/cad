@@ -59,10 +59,7 @@ const NOTCHED: &[(f64, f64)] = &[
 ];
 
 fn plane(c: f64, ny: f64) -> SplitPlane<f64> {
-    SplitPlane {
-        origin: Point3::new(0.0, c, 0.0),
-        normal: Vec3::new(0.0, ny, 0.0),
-    }
+    topo::test_support::split_plane(Point3::new(0.0, c, 0.0), Vec3::new(0.0, ny, 0.0))
 }
 
 fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {

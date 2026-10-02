@@ -19,10 +19,10 @@ fn body_of<T: Real>(part: &SplitPart<T>) -> &Body<T> {
 }
 
 fn plane_x<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
-    SplitPlane {
-        origin: Point3::new(T::from_f64(c), T::from_f64(0.0), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(1.0), T::from_f64(0.0), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(c), T::from_f64(0.0), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(1.0), T::from_f64(0.0), T::from_f64(0.0)),
+    )
 }
 
 /// The multi-ring `laringmv` sweep: two holes, split between them —

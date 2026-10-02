@@ -59,3 +59,17 @@ fixture already implies. `slab_extent` waits on the carrier rule.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to TOPO (crates/topo/src/split.rs, euler.rs and the provenance graft are TOPO's paths) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## SplitPlane taken (2026-10-02)
+
+The `SplitPlane` half is taken on `tquery/split-cyl-feature`
+(`split-refuses-cylindrical-feature-box`), where the prose precondition
+turned out to be P0's cause: the tour's cutaway authored a non-unit
+normal and the plane×cylinder section read it as direction cosines.
+`SplitPlane.normal` is a `UnitVec3`; the editor's plane datum hands its
+witness straight through; fixtures mint through
+`topo::test_support::split_plane`. The boolean's germ planes are plane
+CARRIERS, so they do not build a `SplitPlane` at all: the join lanes
+carry a crate-internal `chord_join::SectionPlane` with a bare normal,
+which is the carrier case this row already says waits. What remains
+here is `slab_extent`.

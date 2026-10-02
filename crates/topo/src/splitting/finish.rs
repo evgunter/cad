@@ -364,7 +364,8 @@ pub(super) fn split_finish<T: Decide>(
             return Err(SplitFinishError::Corrupt);
         };
         let u_ref = below_chord_u_ref(&body, section)?;
-        let normal_of = |side: PlaneSide| section_loops::section_normal(red.plane.normal, side);
+        let normal_of =
+            |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
         let plane_for = |side: PlaneSide| Surface::Plane {
             origin: red.plane.origin,
             normal: normal_of(side),
@@ -421,7 +422,7 @@ pub(super) fn split_finish<T: Decide>(
         &mut body,
         &mut section_side,
         &mut naming,
-        red.plane.normal,
+        red.plane.normal.get(),
         band,
         tol,
     )?;

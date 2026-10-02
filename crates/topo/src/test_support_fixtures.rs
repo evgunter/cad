@@ -171,6 +171,29 @@ pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>], tol: Tol) -> Surface<T
     newell_plane(corners, Band::linear(tol).unwrap()).unwrap()
 }
 
+/// The K funnel name a fixture's split-plane normal is decided under.
+const FIXTURE_SPLIT_NORMAL: &str = "fixture_split_normal";
+
+/// **A split plane through `origin` with normal direction `normal`**,
+/// the length decided and divided out by [`geom_core::UnitVec3::new`]
+/// at the witness band.
+///
+/// # Panics
+///
+/// If `normal` has no decided length — a fixture with a degenerate
+/// plane is a broken fixture, not a case under test.
+pub fn split_plane<T: geom_core::Decide>(
+    origin: Point3<T>,
+    normal: Vec3<T>,
+) -> crate::SplitPlane<T> {
+    let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
+    crate::SplitPlane {
+        origin,
+        normal: geom_core::UnitVec3::new(normal, FIXTURE_SPLIT_NORMAL, band)
+            .expect("the fixture's split normal has a length"),
+    }
+}
+
 /// Whether [`prism_ops`] certifies its faces or declines face geometry.
 ///
 /// **The declined arm is a subject, not a shortcut.** A prism grown

@@ -226,10 +226,8 @@ fn the_split_orphan_sweep_drops_every_side_table() {
         .expect("a live wall key");
     body.set_surface_axis_source(far_wall, topo::AxisSource::from_lowered(b"the-arc's-axis"))
         .expect("a cylinder stores an axis");
-    let plane = topo::SplitPlane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let plane =
+        topo::test_support::split_plane(Point3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let halves = topo::split(&body, &plane, tol).expect("the square splits");
     let near = halves.below.body().expect("the flat side is below");
     assert!(

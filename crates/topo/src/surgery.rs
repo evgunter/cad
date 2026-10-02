@@ -649,10 +649,10 @@ pub(crate) mod tests {
         // A `topo` pipeline whose reduced body crosses the ONE
         // guardless site in `splitting`, and whose two result bodies
         // are what a caller gets back.
-        let plane = crate::splitting::SplitPlane {
-            origin: Point3::new(0.5, 0.5, 0.5),
-            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-        };
+        let plane = crate::test_support::split_plane(
+            Point3::new(0.5, 0.5, 0.5),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+        );
         let cut = crate::splitting::split(&body, &plane, tol).expect("a cube splits");
         for (side, part) in [("above", &cut.above), ("below", &cut.below)] {
             let Some(part) = part.body() else {

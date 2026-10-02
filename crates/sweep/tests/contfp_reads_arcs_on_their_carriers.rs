@@ -406,14 +406,14 @@ fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
 /// tilt` (14.1 at 1.5 rad, 19.7 at 1.52) and their ends at the MINOR
 /// vertices, where the edge's speed is `a`.
 fn steep_cut(tilt: f64) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     let h = 2.0 * tilt.tan() + 20.0;
     let tall =
         sweep::test_support::prism(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 1.0)], h, tol());
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, h / 2.0),
-        normal: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, h / 2.0),
+        Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+    );
     let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
     let SplitPart::Body(above) = result.above else {
         panic!("the part above the cut is a body");

@@ -243,7 +243,7 @@ pub fn classify_neighborhood<T: Decide>(
         //   contact) classifies On for rule (b)'s adjudication;
         //   in-band escalates typed.
         let class = if let Some((deriv2, speed_sq)) = conic_jet {
-            let margin = Margin::of(dir_a.dot(plane.normal));
+            let margin = Margin::of(dir_a.dot(plane.normal.get()));
             match decide("split_conic_departure", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
@@ -264,7 +264,7 @@ pub fn classify_neighborhood<T: Decide>(
                     match geom_brep::enters_material_order2(
                         deriv2,
                         speed_sq,
-                        geom_brep::ReferenceNormal::of_split_plane(plane.normal),
+                        geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
                         dir_a.norm(),
                         band,
                     ) {
@@ -320,7 +320,7 @@ pub fn classify_neighborhood<T: Decide>(
             },
         )?;
         if let Some(bisector) = wide {
-            let margin = Margin::levered(bisector.dot(plane.normal), arm);
+            let margin = Margin::levered(bisector.dot(plane.normal.get()), arm);
             let class = match decide("split_bisector_side", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,

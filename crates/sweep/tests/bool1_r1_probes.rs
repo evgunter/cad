@@ -65,10 +65,7 @@ fn notched(dy: f64) -> ProfileLoop<f64> {
 }
 
 fn plane_y1() -> topo::SplitPlane<f64> {
-    topo::SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    }
+    topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
 }
 
 /// The two face surfaces an edge actually lies between, in this body.

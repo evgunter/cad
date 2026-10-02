@@ -22,7 +22,7 @@ use core::f64::consts::FRAC_PI_2;
 use geom_core::{Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, SplitPart, SplitPlane, split};
+use topo::{Body, SplitPart, split};
 
 use super::shell_operands::{tube, vessel};
 
@@ -63,14 +63,14 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     // Cylinder cut by an oblique plane: the ellipse-trimmed face needs the
     // quadrature lane (DL3's `cut_cylinder` class).
     let phi = 0.4;
-    let plane = SplitPlane {
-        origin: Point3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0)),
-        normal: Vec3::new(
+    let plane = topo::test_support::split_plane(
+        Point3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0)),
+        Vec3::new(
             T::from_f64(phi.sin()),
             T::from_f64(0.0),
             T::from_f64(phi.cos()),
         ),
-    };
+    );
     let res = split(&cyl, &plane, tol).unwrap();
     if let SplitPart::Body(above) = &res.above {
         out.push(("cut_cylinder_above".into(), above.clone()));

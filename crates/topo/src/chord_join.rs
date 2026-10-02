@@ -87,7 +87,6 @@ use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
-use crate::splitting::SplitPlane;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_carrier_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
@@ -632,6 +631,20 @@ impl ChordJoiner {
     }
 }
 
+/// A section plane as the join lanes carry it: a point and a unit
+/// normal. Its two sources hold the unit length differently — the
+/// split door's [`SplitPlane`](crate::splitting::SplitPlane) decided
+/// it at the caller's mint, and the boolean's germ planes are plane
+/// carriers, unit under the surfaces' at-rest rule — so the lanes take
+/// the bare vector both share.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SectionPlane<T: Real> {
+    /// A point on the plane.
+    pub(crate) origin: Point3<T>,
+    /// The unit normal; Above is the side it points to.
+    pub(crate) normal: Vec3<T>,
+}
+
 /// The split lane's section-geometry context (M5 PR 5): the split
 /// plane plus the lazily-minted auxiliary plane SURFACE the conic
 /// section chords' `Intersection` descriptions resolve against (minted
@@ -642,7 +655,7 @@ impl ChordJoiner {
 /// plane×curved germ pair, from the germ plane.
 pub(crate) struct SectionCtx<T: Real> {
     /// The split plane.
-    pub(crate) plane: SplitPlane<T>,
+    pub(crate) plane: SectionPlane<T>,
     /// The minted auxiliary plane surface, once needed.
     pub(crate) plane_key: Option<SurfaceKey>,
 }
@@ -672,7 +685,7 @@ pub(crate) enum JoinLane<'a, T: Real> {
     /// the section the chords lie in.
     Planar {
         /// The section plane (the partner germ face's plane).
-        plane: SplitPlane<T>,
+        plane: SectionPlane<T>,
     },
     /// The split lane / boolean wall-side conic lane.
     Split(&'a mut SectionCtx<T>),
@@ -2608,7 +2621,7 @@ mod tests {
     ) {
         let phi = 0.5f64;
         let normal = Vec3::new(phi.sin(), 0.0, phi.cos());
-        let plane = super::SplitPlane {
+        let plane = SectionPlane {
             origin: Point3::new(0.0, 0.0, 0.0),
             normal,
         };
@@ -2717,7 +2730,7 @@ mod tests {
         let mut body = crate::Body::<f64>::new();
         let rim = rim_run(&mut body, 0.0, core::f64::consts::PI);
         let verdict = |normal: Vec3<f64>| {
-            let plane = SplitPlane {
+            let plane = SectionPlane {
                 origin: Point3::origin(),
                 normal,
             };
@@ -2862,7 +2875,7 @@ mod tests {
         let (mut body, face, u1, u2, _) = cyl_fixture();
         let run = vec![rim_run(&mut body, -0.2, core::f64::consts::FRAC_PI_2 + 0.2)];
         let lane = JoinLane::Planar {
-            plane: SplitPlane {
+            plane: SectionPlane {
                 origin: Point3::new(0.0, 0.0, 0.0),
                 normal: Vec3::new(0.0, 0.0, 1.0),
             },

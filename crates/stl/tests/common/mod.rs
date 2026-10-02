@@ -79,7 +79,7 @@ pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
 /// mid-height axis point (exact `Ellipse` section carriers; the walls
 /// tessellate through the PR 11 trimmed lane).
 pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     let lp = bulge_loop(vec![
         (Point2::new(-1.0, 0.0), 1.0),
         (Point2::new(1.0, 0.0), 1.0),
@@ -92,10 +92,10 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
     .unwrap()
     .body;
     let phi: f64 = 0.3;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        Vec3::new(phi.sin(), 0.0, phi.cos()),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");

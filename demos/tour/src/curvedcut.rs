@@ -32,11 +32,11 @@ use pncad::authoring::{p2, p3, v3};
 use pncad::profile::{Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, SplitPlane, split};
-use pncad::topo::{Body, Curve3, EdgeDescription};
+use pncad::topo::{Body, Curve3, DATUM_UNIT_NORM, EdgeDescription};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Band, Tol, UnitVec3};
 
 /// The cylinder's radius (m).
 const R: f64 = 1.0;
@@ -64,9 +64,11 @@ pub fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>) {
     let cylinder = extrude(&disc::<S>(tol), Extrusion::Distance(S::from_f64(H)), tol)
         .expect("extrude cylinder")
         .body;
+    let band = Band::linear(tol).expect("the run's tolerance forms a band");
     let plane = SplitPlane {
         origin: p3(0.0, 0.0, H / 2.0),
-        normal: v3(PHI.sin(), 0.0, PHI.cos()),
+        normal: UnitVec3::new(v3(PHI.sin(), 0.0, PHI.cos()), DATUM_UNIT_NORM, band)
+            .expect("the section normal has a length"),
     };
     let result = split(&cylinder, &plane, tol).expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {

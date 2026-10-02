@@ -90,10 +90,11 @@ pub(super) fn in_plane_frame<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<(Vec3<T>, Vec3<T>), Indeterminate> {
+    let n = plane.normal.get();
     let mut last = None;
     for r in &super::containment::SCHEDULE {
         let r = r.map(T::from_f64);
-        let d = r - plane.normal * plane.normal.dot(r);
+        let d = r - n * n.dot(r);
         match decide(
             "split_join_frame_arm",
             Margin::levered(d.norm() / r.norm(), arm),
@@ -101,7 +102,7 @@ pub(super) fn in_plane_frame<T: Decide>(
         ) {
             Ok(Sign::Positive) => {
                 let u = d.normalize();
-                return Ok((u, plane.normal.cross(u)));
+                return Ok((u, n.cross(u)));
             }
             Ok(_) => {}
             Err(diag) => last = Some(diag),
@@ -258,10 +259,7 @@ mod tests {
     use geom_core::Tol;
 
     fn plane_y1() -> SplitPlane<f64> {
-        SplitPlane {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-        }
+        crate::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
     }
 
     /// Totality and stability on the y = 1 plane: keys are (x, z)

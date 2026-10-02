@@ -139,7 +139,7 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
 use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::SampleOutcome;
-use topo::{SplitPlane, split};
+use topo::split;
 
 /// Linearity probe for the fixed sites the twin pin leaves SILENT:
 /// a flush-face subtract (coplanar lane -> bool_plane_orient) and an
@@ -170,10 +170,10 @@ fn silent_fixed_predicates_scale_linearly() {
         // Oblique split of a cube.
         let body = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)).clone();
         let n = geom_core::Vec3::new(Probe(1.0 / 3.0), Probe(2.0 / 3.0), Probe(2.0 / 3.0));
-        let plane = SplitPlane {
-            origin: geom_core::Point3::new(Probe(s(1.0)), Probe(s(1.0)), Probe(s(1.0))),
-            normal: n,
-        };
+        let plane = topo::test_support::split_plane(
+            geom_core::Point3::new(Probe(s(1.0)), Probe(s(1.0)), Probe(s(1.0))),
+            n,
+        );
         split(&body, &plane, Tol::witness()).expect("oblique split");
         let mut out: BTreeMap<&'static str, Vec<f64>> = BTreeMap::new();
         for sample in k_stats::take_samples() {

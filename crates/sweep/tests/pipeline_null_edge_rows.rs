@@ -130,10 +130,10 @@ fn an_oblique_split_leaves_the_cut_wall_minted_whole_at_the_join() {
     let theta = 20f64.to_radians();
     let body = split_through_the_join(
         &rod(),
-        &topo::SplitPlane {
-            origin: Point3::new(0.0, 2.0, 0.0),
-            normal: Vec3::new(0.0, theta.cos(), theta.sin()),
-        },
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 2.0, 0.0),
+            Vec3::new(0.0, theta.cos(), theta.sin()),
+        ),
         tol(),
     )
     .expect("the oblique split joins");

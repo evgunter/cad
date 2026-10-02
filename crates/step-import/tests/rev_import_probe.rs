@@ -132,7 +132,7 @@ fn conic_trimmed_flip_slips_both_gates() {
     use geom_core::{Point2, Point3, Vec3};
     use profile::{Profile, SketchPlane, test_support::bulge_loop};
     use sweep::{Extrusion, extrude};
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     let lp = bulge_loop(vec![
         (Point2::new(-1.0, 0.0), 1.0),
         (Point2::new(1.0, 0.0), 1.0),
@@ -144,10 +144,10 @@ fn conic_trimmed_flip_slips_both_gates() {
         .unwrap()
         .body;
     let phi: f64 = 0.3;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        Vec3::new(phi.sin(), 0.0, phi.cos()),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(cut) = &result.above else {
         panic!("above half carries material");

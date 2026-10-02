@@ -184,7 +184,7 @@ impl SolidJoin {
         &mut self,
         body: &mut Body<T>,
         (h1, h2): (HalfEdgeKey, HalfEdgeKey),
-        plane: crate::splitting::SplitPlane<T>,
+        plane: crate::chord_join::SectionPlane<T>,
         datum: AuxDatum,
         tol: Tol,
     ) -> Result<(), BooleanError> {
@@ -417,7 +417,7 @@ pub(super) fn bool_connect<T: Decide>(
             };
         // The germ faces' SURFACES, deliberately unoriented (S10): what
         // the curved lanes below take from a plane germ is a
-        // [`SplitPlane`] — a section datum, an operation input whose
+        // [`SectionPlane`] — a section datum, an operation input whose
         // normal names a chart, not a material side. The plane as a
         // point set (and hence the section conic, its azimuth window,
         // and the auxiliary surface minted for it) is identical under
@@ -426,8 +426,7 @@ pub(super) fn bool_connect<T: Decide>(
         // orientation comes from the joiner's stored winding.
         let (ka, ga) = surf_of(&red.a, germ.a_face)?;
         let (kb, gb) = surf_of(&red.b, germ.b_face)?;
-        use crate::chord_join::{JoinLane, face_azimuth_window};
-        use crate::splitting::SplitPlane;
+        use crate::chord_join::{JoinLane, SectionPlane, face_azimuth_window};
         use geom::Surface as Sf;
         match (&ga, &gb) {
             (
@@ -452,7 +451,7 @@ pub(super) fn bool_connect<T: Decide>(
                         a1,
                         a2,
                         JoinLane::Planar {
-                            plane: SplitPlane {
+                            plane: SectionPlane {
                                 origin: *ob,
                                 normal: *nb,
                             },
@@ -466,7 +465,7 @@ pub(super) fn bool_connect<T: Decide>(
                         b1,
                         b2,
                         JoinLane::Planar {
-                            plane: SplitPlane {
+                            plane: SectionPlane {
                                 origin: *oa,
                                 normal: *na,
                             },
@@ -481,7 +480,7 @@ pub(super) fn bool_connect<T: Decide>(
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
                 sa.join_bool_planar(&mut red.a, (a1, a2), gb.clone(), window, germ.b_face, tol)?;
-                let plane = SplitPlane {
+                let plane = SectionPlane {
                     origin: *origin,
                     normal: *normal,
                 };
@@ -495,7 +494,7 @@ pub(super) fn bool_connect<T: Decide>(
             }
             (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
             | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
-                let plane = SplitPlane {
+                let plane = SectionPlane {
                     origin: *origin,
                     normal: *normal,
                 };
@@ -529,7 +528,7 @@ pub(super) fn bool_connect<T: Decide>(
                         center,
                         axis,
                         ..
-                    })) => SplitPlane {
+                    })) => SectionPlane {
                         origin: center,
                         normal: axis,
                     },

@@ -121,10 +121,10 @@ fn tilted_halves() -> (Body<f64>, Body<f64>) {
     let cylinder = extrude(&disc, Extrusion::Distance(2.5), Tol::witness())
         .unwrap()
         .body;
-    let plane = topo::splitting::SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+    );
     let r = topo::splitting::split(&cylinder, &plane, Tol::witness()).unwrap();
     let (topo::splitting::SplitPart::Body(a), topo::splitting::SplitPart::Body(b)) =
         (&r.above, &r.below)

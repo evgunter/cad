@@ -73,7 +73,7 @@ pub mod rules;
 mod section;
 mod section_loops;
 
-use geom_core::{BandError, Indeterminate, Point3, Real, Vec3};
+use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -88,15 +88,29 @@ pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
 pub use section::{Section, SectionError, SectionPolygon, SectionRegion, plane_section};
 
-/// The splitting plane: a point on the plane and its **unit** normal
-/// (conventional, unchecked — same posture as `Surface::Plane`). The
+/// The splitting plane: a point on the plane and its unit normal. The
 /// positive side (`(p − origin)·normal > 0`) is **Above**.
+///
+/// The normal is a [`UnitVec3`], so its length is decided where the
+/// caller mints it (`UnitVec3::new`) rather than assumed here: every
+/// conic section of a curved face reads the normal's components as
+/// direction cosines, and a longer vector reads as a shallower tilt.
 #[derive(Clone, Copy, Debug)]
 pub struct SplitPlane<T: Real> {
     /// A point on the plane.
     pub origin: Point3<T>,
     /// The unit normal; Above is the side it points to.
-    pub normal: Vec3<T>,
+    pub normal: UnitVec3<T>,
+}
+
+impl<T: Real> SplitPlane<T> {
+    /// The plane as the section lanes carry it.
+    pub(crate) fn section(&self) -> crate::chord_join::SectionPlane<T> {
+        crate::chord_join::SectionPlane {
+            origin: self.origin,
+            normal: self.normal.get(),
+        }
+    }
 }
 
 /// A trilean side verdict against the split plane (the classification

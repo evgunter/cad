@@ -14,7 +14,7 @@ use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::{Profile, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use topo::splitting::{SplitPart, SplitPlane, split};
+use topo::splitting::{SplitPart, split};
 
 const R: f64 = 1.0;
 const H: f64 = 2.5;
@@ -35,10 +35,10 @@ fn halves() -> (Body<f64>, Body<f64>) {
     let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness())
         .unwrap()
         .body;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, H / 2.0),
-        normal: Vec3::new(PHI.sin(), 0.0, PHI.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, H / 2.0),
+        Vec3::new(PHI.sin(), 0.0, PHI.cos()),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");

@@ -23,7 +23,7 @@ use profile::RawLoop;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use topo::splitting::{SplitPlane, SplitReduceError, split};
+use topo::splitting::{SplitReduceError, split};
 
 /// The PR 5 disc: two half-circle arcs (bulge 1), radius 0.5 —
 /// extrudes to a cylinder whose two wall faces share ONE cylinder
@@ -52,10 +52,8 @@ fn the_tangent_graze_resolves_past_first_order() {
     // finish net) — a tangent plane cannot two-side a convex body.
     use geom_core::k_stats::Bracket;
     let body = cylinder_body();
-    let plane = SplitPlane {
-        origin: Point3::new(0.5, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let plane =
+        topo::test_support::split_plane(Point3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let bracket = Bracket::open();
     let out = split(&body, &plane, Tol::witness());
     let v = bracket.finish().verdicts;
@@ -103,10 +101,8 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
     // neighborhood at THAT vertex ties at first order the same way.
     // Pin: never the first-order refusals.
     let body = cylinder_body();
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.5, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let plane =
+        topo::test_support::split_plane(Point3::new(0.0, 0.5, 0.0), Vec3::new(0.0, 1.0, 0.0));
     if let Err(topo::splitting::SplitError::Reduce(
         e @ (SplitReduceError::TangencyUnsupported { .. }
         | SplitReduceError::ConsecutiveOnSectors { .. }),
