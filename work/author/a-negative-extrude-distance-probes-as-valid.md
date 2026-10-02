@@ -127,10 +127,10 @@ Two designers weighed this fork independently and then read each other's reports
 **Ev's follow-up, a requirement on the refusal.** A negative depth must refuse with a recourse that shows how to write the extrude the other way, i.e. set `side`, not merely that it refused. ("presumably one of the followups will be an error message that shows how to easily write the extrude going the other direction without using a negative distance").
 
 **Where the work went.** The design is decided, so this row closes. The work is on its owners' slates:
-- **`work/edit/extrude-distance-is-a-depth-and-a-side`** (EDIT; P0). This is the node shape, the edit vocabulary, persistence and the schema bump. Its kernel half is in `sweep::Extrusion`/`ExtrudeError` on CARVE/STRUT ground, and its eval wiring on WIRE's. It carries the refusal requirement above. Its knock-ons:
+- **`work/recipe/extrude-distance-is-a-depth-and-a-side`** (EDIT; P0). This is the node shape, the edit vocabulary, persistence and the schema bump. Its kernel half is in `sweep::Extrusion`/`ExtrudeError` on CARVE/STRUT ground, and its eval wiring on WIRE's. It carries the refusal requirement above. Its knock-ons:
   - `docm9_range` A2's only `DecisionFlip` fixture needs a replacement;
   - the tests that author negative distances on purpose need re-spelling with `side`;
   - `pncad-py`'s `Node.extrude` changes.
 - **`work/author/the-create-pane-has-no-extrude-side`** (AUTHOR; blocked on the EDIT row). The viewer half: a `side` control in the extrude form, and `SessionOp::AddExtrude` carrying it.
-- **`work/carve/revolve-angle-is-a-signed-size-beside-a-directed-axis`** and **`work/edit/pattern-spacing-is-a-signed-size-beside-a-direction`**: the rule's named follow-ons, as design rows.
+- **`work/carve/revolve-angle-is-a-signed-size-beside-a-directed-axis`** and **`work/recipe/pattern-spacing-is-a-signed-size-beside-a-direction`**: the rule's named follow-ons, as design rows.
 - CHROME's `the-range-panels-open-sentence-claims-values-it-never-sampled` (already filed) is independent of the ruling.
