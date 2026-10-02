@@ -1801,7 +1801,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 param: SlotId::Count,
             },
             format!(
-                "a structural parameter changed on the derivation path (node 000000000009, slot {count})"
+                "a structural parameter changed on the derivation path: slot {count} of node 000000000009"
             ),
         ),
         (
@@ -1839,7 +1839,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 node: RecipeNodeId(tagged(10)),
                 param: SlotId::Count,
             }),
-            format!("a structural parameter changed at node 00000000000a (slot {count}){tail}"),
+            format!("a structural parameter changed: slot {count} of node 00000000000a{tail}"),
         ),
         (
             upstream(UpstreamCause::RecipeEdit {

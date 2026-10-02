@@ -551,8 +551,8 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             }
             .to_string(),
             &[
-                "vertex name",
-                "node 000000000005 was deleted",
+                "vertex name minted by node 000000000005",
+                "its minting node was deleted",
                 "explicit rebind",
             ],
         ),
