@@ -1400,10 +1400,30 @@ pub(super) fn sweep_both<T: Decide + Bounds>(
     let [ab_trace, ba_trace] = traces;
     let mut held = Vec::new();
     sweep_direction(
-        a, b, Operand::A, declared, contacts, band, strategy, ab_knobs, ab_trace, &mut held, tol,
+        a,
+        b,
+        Operand::A,
+        declared,
+        contacts,
+        band,
+        strategy,
+        ab_knobs,
+        ab_trace,
+        &mut held,
+        tol,
     )?;
     sweep_direction(
-        b, a, Operand::B, declared, contacts, band, strategy, ba_knobs, ba_trace, &mut held, tol,
+        b,
+        a,
+        Operand::B,
+        declared,
+        contacts,
+        band,
+        strategy,
+        ba_knobs,
+        ba_trace,
+        &mut held,
+        tol,
     )?;
     settle_held(a, b, held, declared, contacts, band, tol)
 }
@@ -1454,12 +1474,12 @@ pub(super) fn settle_held<T: Decide>(
         // within one pass per edge of `x`.
         let mut reached = false;
         for _ in 0..x.edges().count() {
-            let edge = x
-                .get_edge(fragment)
-                .cloned()
-                .ok_or(BooleanError::ClassificationInvariant {
-                    what: "a held edge's fragment vanished",
-                })?;
+            let edge =
+                x.get_edge(fragment)
+                    .cloned()
+                    .ok_or(BooleanError::ClassificationInvariant {
+                        what: "a held edge's fragment vanished",
+                    })?;
             let ((u, pu), (v, pv)) = edge_ends(x, &edge)?;
             match curved_face_arm(
                 x, y, h.x_is, fragment, &edge, u, v, h.face, pu, pv, declared, contacts, band, tol,

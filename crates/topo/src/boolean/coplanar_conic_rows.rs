@@ -114,7 +114,15 @@ pub(in crate::boolean) fn sweep(
         &mut held,
         Tol::witness(),
     )?;
-    settle_held(&mut x, &mut y, held, &declared, &mut acc, band(), Tol::witness())?;
+    settle_held(
+        &mut x,
+        &mut y,
+        held,
+        &declared,
+        &mut acc,
+        band(),
+        Tol::witness(),
+    )?;
     Ok(acc.finish())
 }
 
