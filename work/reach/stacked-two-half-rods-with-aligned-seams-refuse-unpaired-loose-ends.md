@@ -4,6 +4,7 @@ kind: issue
 title: Two stacked two-half rods with their seams aligned refuse Join(UnpairedLooseEnds) with every finding declared; rotated seams build
 status: review
 branch: reach/aligned-half-rods
+pr: 3845
 opened: 2026-10-01
 priority: P2
 cost: M
