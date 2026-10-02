@@ -19,6 +19,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use std::collections::BTreeMap;
 
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
@@ -861,5 +862,89 @@ fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
                 );
             }
         }
+    }
+}
+
+/// Each certified edge's certificate (`Debug`, its D9 identity), keyed
+/// by its carrier and parameter interval, which a graft copies bit for
+/// bit while it rewrites the surface handles.
+fn certificates(body: &Body<f64>) -> BTreeMap<String, String> {
+    body.edges()
+        .filter_map(|(_, e)| match body.get_curve_geom(e.curve) {
+            Some(topo::CurveGeom::Certified(c)) => Some((
+                format!("{:?} {:?}", c.carrier(), c.params()),
+                format!("{:?}", c.certificate()),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// **The disjoint union's assembly carries its kept operand's
+/// certificates**, as the void door carries a cavity's: the slab is A
+/// and the ball or lens beside it is B, the B shell the containment
+/// fallback grafts whole. On the ball every carried certificate is the
+/// one a fresh re-certification mints. The lens is a boolean's own
+/// result, and the seam meridian it took from its B ball carries a
+/// certificate a fresh run does not reproduce
+/// (`work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`):
+/// the assembly carries that one too rather than minting a new one.
+#[test]
+fn a_disjoint_union_carries_the_kept_operands_certificates() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let slab: Body<f64> =
+        sweep::test_support::brick((-2.0, 2.0), (-3.0, -2.0), (-2.0, 2.0), Tol::witness());
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    for (label, operand) in [("ball", ball(R1, 0.0)), ("lens", lens)] {
+        let out = topo::boolean::union(&slab, &operand, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: union refused: {e:?}"));
+        let out = out.body().unwrap_or_else(|| panic!("{label}: empty"));
+        assert!(
+            matches!(out.kind, topo::BooleanResultKind::Assembly),
+            "{label}: the containment fallback's assembly, got {:?}",
+            out.kind
+        );
+        let carried = certificates(&out.body);
+        let mine = certificates(&operand);
+        assert!(!mine.is_empty(), "{label}: the operand has certified edges");
+        for (key, cert) in &mine {
+            assert_eq!(
+                carried.get(key),
+                Some(cert),
+                "{label}: the edge on {key} carries the operand's certificate"
+            );
+        }
+        if label != "ball" {
+            continue;
+        }
+        let mut compared = 0;
+        for (dk, e) in out.body.edges() {
+            let Some(topo::CurveGeom::Certified(c)) = out.body.get_curve_geom(e.curve) else {
+                continue;
+            };
+            let p = |v| {
+                *out.body
+                    .get_point(out.body.get_vertex(v).unwrap().point)
+                    .unwrap()
+            };
+            let start = p(out.body.get_half_edge(e.he_plus).unwrap().start);
+            let end = p(out.body.half_edge_end(e.he_plus).unwrap());
+            let fresh = c
+                .recertify_via(
+                    start,
+                    end,
+                    |k| out.body.get_surface(k).cloned(),
+                    band,
+                    Some(geom_brep::NurbsLane::certified()),
+                )
+                .unwrap();
+            assert_eq!(
+                format!("{:?}", c.certificate()),
+                format!("{fresh:?}"),
+                "{label}: edge {dk:?} carries the fresh run's certificate"
+            );
+            compared += 1;
+        }
+        assert!(compared >= mine.len(), "{label}: {compared} edges compared");
     }
 }

@@ -32,8 +32,12 @@
 //! A process has one tolerance, so the cavity's certificates were
 //! minted at the band a re-certification here would use, over the same
 //! bits: a carried certificate is the one a fresh re-certification
-//! mints, bit for bit (`sweep`'s `revert_plane_charts` pins that on a
-//! reverted cavity). The at-rest gate's check 2 re-derives every
+//! mints, bit for bit, wherever the cavity's own certificates are the
+//! ones its geometry mints (`sweep`'s `revert_plane_charts` pins that on
+//! a reverted cavity; a boolean result's seam meridian can carry one an
+//! ulp off,
+//! `work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`).
+//! The at-rest gate's check 2 re-derives every
 //! carrier at `Band::linear(tol)` and never reads a stored certificate.
 //!
 //! **The door never derives containment itself.** Callers supply the

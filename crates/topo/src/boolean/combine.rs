@@ -167,15 +167,16 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
 /// the difference is which claim the graft makes about the result:
 ///
 /// - [`Bridge::Recertify`] re-runs the certification schedule against
-///   the destination's surfaces — what the boolean pipeline wants,
-///   whose operands have been through surgery.
+///   the destination's surfaces — what the seam-zip lanes want, whose
+///   operands have been through surgery.
 /// - [`Bridge::RemapKeys`] carries the source's certificate verbatim
 ///   with only the handles rewritten
 ///   ([`geom_brep::EdgeCurve::with_remapped_surfaces`]) — what a
 ///   DISJOINT graft wants, where the transplanted geometry is bitwise
 ///   the source's and no surgery happened: an import's placed
-///   instances and the void door's reversed cavity
-///   ([`super::voids::insert_voids`]). It is also the only form that
+///   instances, the void door's reversed cavity
+///   ([`super::voids::insert_voids`]), the containment fallback's
+///   assembly and a sphere re-cut's rotated shells. It is also the only form that
 ///   can carry a description the certification lanes cannot express at
 ///   all (a rational NURBS wall certifies nowhere), or one only a
 ///   lane certifies (a plane × NURBS `Intersection`), at a scalar that
