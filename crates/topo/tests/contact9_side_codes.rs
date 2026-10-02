@@ -481,8 +481,11 @@ fn a_dip_inside_the_band_still_reads_on() {
 fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
     let tol = Tol::witness();
     let e = needle(10.0, 0.0, 1e-3, [[0.0, 1.0, 1.0], [0.0, 0.0, 1.0]]);
-    let plane =
-        topo::test_support::split_plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::Tol::witness(),
+    );
     let r = split(&parallelepiped(e), &plane, tol).unwrap();
     let below = r.below.body().expect("a below part");
     has_corners(below, &needle_corners(e), "the below part");

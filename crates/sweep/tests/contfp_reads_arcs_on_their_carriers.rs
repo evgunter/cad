@@ -413,6 +413,7 @@ fn steep_cut(tilt: f64) -> Body<f64> {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, h / 2.0),
         Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+        geom_core::Tol::witness(),
     );
     let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
     let SplitPart::Body(above) = result.above else {

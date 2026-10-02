@@ -70,6 +70,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
             T::from_f64(0.0),
             T::from_f64(phi.cos()),
         ),
+        geom_core::Tol::witness(),
     );
     let res = split(&cyl, &plane, tol).unwrap();
     if let SplitPart::Body(above) = &res.above {

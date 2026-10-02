@@ -612,7 +612,11 @@ mod tests {
     }
 
     fn plane_y(c: f64) -> SplitPlane<f64> {
-        crate::test_support::split_plane(Point3::new(0.0, c, 0.0), Vec3::unit_y())
+        crate::test_support::split_plane(
+            Point3::new(0.0, c, 0.0),
+            Vec3::unit_y(),
+            geom_core::Tol::witness(),
+        )
     }
 
     /// `split_conic_belly_graze`, all three arms: definitely-secant
@@ -685,8 +689,13 @@ mod tests {
     #[test]
     fn a_parallel_frame_reports_its_offset() {
         let c = circle();
-        let plane_z =
-            |z: f64| crate::test_support::split_plane(Point3::new(0.3, -0.2, z), Vec3::unit_z());
+        let plane_z = |z: f64| {
+            crate::test_support::split_plane(
+                Point3::new(0.3, -0.2, z),
+                Vec3::unit_z(),
+                geom_core::Tol::witness(),
+            )
+        };
         for (z, want) in [(0.0, 0.0), (2.0, -2.0)] {
             match conic_crossing_roots(&c, 0.1, 6.0, &plane_z(z), band()) {
                 Ok(ConicPlaneMeet::Parallel { offset }) => {
@@ -739,6 +748,7 @@ mod tests {
         let plane = crate::test_support::split_plane(
             Point3::new(ex(0.0), ex(0.0), ex(0.0)),
             Vec3::new(ex(0.0), ex(1.0), ex(0.0)),
+            geom_core::Tol::witness(),
         );
         // The span is the upper semicircle; the plane's two crossings
         // are its own endpoints.

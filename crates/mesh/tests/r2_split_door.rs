@@ -27,6 +27,7 @@ fn r2_split_door_near_pole() {
         let plane = topo::test_support::split_plane(
             geom_core::Point3::new(0.0, y0, 0.0),
             geom_core::Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Tol::witness(),
         );
         let r = split(&ball(), &plane, Tol::witness());
         match r {

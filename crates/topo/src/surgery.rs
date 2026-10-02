@@ -652,6 +652,7 @@ pub(crate) mod tests {
         let plane = crate::test_support::split_plane(
             Point3::new(0.5, 0.5, 0.5),
             geom_core::Vec3::new(0.0, 0.0, 1.0),
+            geom_core::Tol::witness(),
         );
         let cut = crate::splitting::split(&body, &plane, tol).expect("a cube splits");
         for (side, part) in [("above", &cut.above), ("below", &cut.below)] {

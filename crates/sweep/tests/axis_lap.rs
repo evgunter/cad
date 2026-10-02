@@ -200,7 +200,11 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
     let part = |body: &Body<f64>, z0: f64, above: bool| -> Body<f64> {
         let split = topo::split(
             body,
-            &topo::test_support::split_plane(Point3::new(0.0, 0.0, z0), normal),
+            &topo::test_support::split_plane(
+                Point3::new(0.0, 0.0, z0),
+                normal,
+                geom_core::Tol::witness(),
+            ),
             tol(),
         )
         .expect("the oblique split runs");
@@ -322,6 +326,7 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
         &topo::test_support::split_plane(
             Point3::new(0.0, 0.0, LEN / 2.0),
             Vec3::new(0.0, -theta.sin(), theta.cos()),
+            geom_core::Tol::witness(),
         ),
         tol(),
     )

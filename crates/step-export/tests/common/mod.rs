@@ -248,6 +248,7 @@ pub fn cut_cylinder() -> Body<f64> {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),
         Vec3::new(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
     );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(above) = &result.above else {

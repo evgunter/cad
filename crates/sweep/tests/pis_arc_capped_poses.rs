@@ -925,7 +925,7 @@ fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
     for cut in cuts {
         let result = split(
             &body,
-            &topo::test_support::split_plane(cut.point, cut.normal),
+            &topo::test_support::split_plane(cut.point, cut.normal, geom_core::Tol::witness()),
             tol(),
         )
         .expect("the cut splits");

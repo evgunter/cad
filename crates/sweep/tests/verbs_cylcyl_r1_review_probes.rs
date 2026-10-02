@@ -232,6 +232,7 @@ fn a_steeply_tilted_cut_wall_still_answers_none() {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 3.0),
         Vec3::new(-phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
     );
     let result = topo::splitting::split(&post, &plane, tol).unwrap();
     let topo::splitting::SplitPart::Body(below) = &result.below else {

@@ -27,6 +27,7 @@ fn plane_y<T: geom_core::Decide>(y: f64, ny: f64) -> SplitPlane<T> {
     topo::test_support::split_plane(
         Point3::new(T::from_f64(0.0), T::from_f64(y), T::from_f64(0.0)),
         Vec3::new(T::from_f64(0.0), T::from_f64(ny), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
     )
 }
 
@@ -312,6 +313,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
     let plane = topo::test_support::split_plane(
         Point3::new(100000.0, 100000.0, 0.0),
         Vec3::new(1.0 / l, 3.0 / l, 0.0),
+        geom_core::Tol::witness(),
     );
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -357,6 +359,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         let plane_p = topo::test_support::split_plane(
             Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),
             Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
+            geom_core::Tol::witness(),
         );
         start_recording();
         let red_p = split_reduce(&fx_p.body, &plane_p, Tol::witness()).unwrap();

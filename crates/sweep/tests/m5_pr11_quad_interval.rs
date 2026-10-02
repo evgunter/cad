@@ -26,8 +26,11 @@ fn halves() -> (Body<Interval>, Body<Interval>) {
     let cylinder = extrude(&profile, Extrusion::Distance(iv(H)), Tol::witness())
         .unwrap()
         .body;
-    let plane =
-        topo::test_support::split_plane(p3(0.0, 0.0, H / 2.0), v3(PHI.sin(), 0.0, PHI.cos()));
+    let plane = topo::test_support::split_plane(
+        p3(0.0, 0.0, H / 2.0),
+        v3(PHI.sin(), 0.0, PHI.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");

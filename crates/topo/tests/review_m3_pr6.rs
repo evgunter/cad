@@ -20,6 +20,7 @@ fn plane_y<T: Decide>(c: f64, ny: f64) -> SplitPlane<T> {
     topo::test_support::split_plane(
         Point3::new(T::from_f64(0.0), T::from_f64(c), T::from_f64(0.0)),
         Vec3::new(T::from_f64(0.0), T::from_f64(ny), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
     )
 }
 

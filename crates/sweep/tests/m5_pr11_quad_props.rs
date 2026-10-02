@@ -41,6 +41,7 @@ fn halves() -> (Body<f64>, Body<f64>) {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, H / 2.0),
         Vec3::new(PHI.sin(), 0.0, PHI.cos()),
+        geom_core::Tol::witness(),
     );
     let result =
         split(&cylinder, &plane, Tol::witness()).expect("the tilted cut splits the cylinder");
@@ -235,6 +236,7 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     let plane = topo::test_support::split_plane(
         Point3::new(d(0.0), d(0.0), d(H / 2.0)),
         Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),
+        geom_core::Tol::witness(),
     );
     let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(above) = &result.above else {

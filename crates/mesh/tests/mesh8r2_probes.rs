@@ -124,6 +124,7 @@ fn tilted_halves() -> (Body<f64>, Body<f64>) {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),
         Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+        geom_core::Tol::witness(),
     );
     let r = topo::splitting::split(&cylinder, &plane, Tol::witness()).unwrap();
     let (topo::splitting::SplitPart::Body(a), topo::splitting::SplitPart::Body(b)) =

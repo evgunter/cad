@@ -369,6 +369,7 @@ fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.7),
         Vec3::new(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
     );
     let result = split(&rod, &plane, tol()).expect("the tilted cut splits");
     let SplitPart::Body(below) = &result.below else {
@@ -593,6 +594,7 @@ fn the_cap_lever_is_the_links_extent() {
         let plane = topo::test_support::split_plane(
             Point3::new(0.0, 0.0, 0.6 * len),
             Vec3::new(phi.sin(), 0.0, phi.cos()),
+            geom_core::Tol::witness(),
         );
         let result = split(&rod, &plane, tol()).expect("a 1e-2 tilt splits");
         let SplitPart::Body(below) = &result.below else {

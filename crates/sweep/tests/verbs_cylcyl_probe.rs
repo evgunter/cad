@@ -520,6 +520,7 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.0),
         Vec3::new(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
     );
     let result = topo::splitting::split(&post, &plane, tol).unwrap();
     let topo::splitting::SplitPart::Body(below) = &result.below else {

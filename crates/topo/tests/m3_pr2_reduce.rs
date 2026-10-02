@@ -22,6 +22,7 @@ fn plane_y1<T: geom_core::Decide>() -> SplitPlane<T> {
     topo::test_support::split_plane(
         Point3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
         Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
     )
 }
 
@@ -368,8 +369,11 @@ fn orbit_sector_adjacency_mirror() {
 fn cube_coplanar_top_both_senses() {
     let cube = common::geometric_cube::<f64>(Tol::witness());
     for (nz, expect) in [(1.0, PlaneSide::Below), (-1.0, PlaneSide::Above)] {
-        let plane =
-            topo::test_support::split_plane(Point3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, nz));
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, nz),
+            geom_core::Tol::witness(),
+        );
         let red = split_reduce(&cube.body, &plane, Tol::witness()).unwrap();
         assert_eq!(red.on_vertices.len(), 4);
         assert!(red.null_edges.is_empty(), "one-sided: no separation");

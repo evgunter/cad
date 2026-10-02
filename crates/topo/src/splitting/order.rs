@@ -259,7 +259,11 @@ mod tests {
     use geom_core::Tol;
 
     fn plane_y1() -> SplitPlane<f64> {
-        crate::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
+        crate::test_support::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Tol::witness(),
+        )
     }
 
     /// Totality and stability on the y = 1 plane: keys are (x, z)

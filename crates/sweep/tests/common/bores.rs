@@ -55,6 +55,7 @@ pub fn tilted(z: f64, t: f64, flip: bool) -> SplitPlane<f64> {
     topo::test_support::split_plane(
         Point3::new(0.0, 0.0, z),
         Vec3::new(s * t.sin(), 0.0, s * t.cos()),
+        geom_core::Tol::witness(),
     )
 }
 

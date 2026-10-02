@@ -65,6 +65,7 @@ fn tilted_cut() -> (Body<f64>, Body<f64>) {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
         Vec3::new(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
     );
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(a), SplitPart::Body(b)) = (result.above, result.below) else {
@@ -235,7 +236,11 @@ fn planar_bodies_carry_zero_stored_pcurves() {
     topo::mint_pcurves(&mut prism, Tol::witness()).unwrap();
     assert_eq!(prism.pcurves().count(), 0, "no speculative planar caches");
 
-    let plane = topo::test_support::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z());
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::unit_z(),
+        geom_core::Tol::witness(),
+    );
     let result = split(&prism, &plane, Tol::witness()).unwrap();
     for part in [result.above.body(), result.below.body()]
         .into_iter()
@@ -439,6 +444,7 @@ fn caches_certify_on_the_interval_lane() {
     let plane = topo::test_support::split_plane(
         interval::p3(0.0, 0.0, 0.5),
         interval::v3(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
     );
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let mut seen = 0usize;
@@ -480,6 +486,7 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.3, 0.0),
         Vec3::new(phi.sin(), phi.cos(), 0.0),
+        geom_core::Tol::witness(),
     );
     match split(&tube, &plane, Tol::witness()) {
         Ok(result) => {
@@ -522,6 +529,7 @@ fn a_rotated_tilted_cut_mints_branch_consistent_caches() {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
         Vec3::new(phi.sin() * rot.cos(), phi.sin() * rot.sin(), phi.cos()),
+        geom_core::Tol::witness(),
     );
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let band = Band::linear(Tol::witness()).unwrap();

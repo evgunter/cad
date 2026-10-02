@@ -749,7 +749,11 @@ fn coplanar_split_products_carry_no_scaffold_at_rest() {
     fence_crosscheck(&body, "notched block (extruded)");
     let result = topo::split(
         &body,
-        &topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the face-coplanar split runs");

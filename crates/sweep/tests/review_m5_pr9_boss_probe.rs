@@ -213,8 +213,11 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
     let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
-    let plane =
-        topo::test_support::split_plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let parts = split(&body, &plane, Tol::witness()).expect("split at x=0");
     let mut below = parts.below.body().expect("below").clone();
     let out = below
@@ -252,8 +255,11 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
-    let plane =
-        topo::test_support::split_plane(Point3::new(0.2, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.2, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let parts = split(&body, &plane, Tol::witness()).expect("split");
     let below = parts.below.body().expect("below").clone(); // NOT merged
     let vol_below = topo::mass_properties(&below, Tol::witness())

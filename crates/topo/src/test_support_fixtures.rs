@@ -176,7 +176,7 @@ const FIXTURE_SPLIT_NORMAL: &str = "fixture_split_normal";
 
 /// **A split plane through `origin` with normal direction `normal`**,
 /// the length decided and divided out by [`geom_core::UnitVec3::new`]
-/// at the witness band.
+/// at `tol`'s band.
 ///
 /// # Panics
 ///
@@ -185,8 +185,9 @@ const FIXTURE_SPLIT_NORMAL: &str = "fixture_split_normal";
 pub fn split_plane<T: geom_core::Decide>(
     origin: Point3<T>,
     normal: Vec3<T>,
+    tol: Tol,
 ) -> crate::SplitPlane<T> {
-    let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
+    let band = Band::linear(tol).expect("the fixture's tolerance forms a band");
     crate::SplitPlane {
         origin,
         normal: geom_core::UnitVec3::new(normal, FIXTURE_SPLIT_NORMAL, band)

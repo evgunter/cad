@@ -173,6 +173,7 @@ fn silent_fixed_predicates_scale_linearly() {
         let plane = topo::test_support::split_plane(
             geom_core::Point3::new(Probe(s(1.0)), Probe(s(1.0)), Probe(s(1.0))),
             n,
+            geom_core::Tol::witness(),
         );
         split(&body, &plane, Tol::witness()).expect("oblique split");
         let mut out: BTreeMap<&'static str, Vec<f64>> = BTreeMap::new();

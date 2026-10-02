@@ -28,6 +28,7 @@ fn tilted<T: geom_core::Decide>() -> SplitPlane<T> {
     topo::test_support::split_plane(
         Point3::new(T::from_f64(2.0), T::from_f64(0.0), T::from_f64(0.0)),
         Vec3::new(T::from_f64(s), T::from_f64(s), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
     )
 }
 
@@ -102,7 +103,11 @@ fn orientation_flip_swaps_sides_only() {
         Tol::witness(),
     );
     let plane = |sy: f64| {
-        topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, sy, 0.0))
+        topo::test_support::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, sy, 0.0),
+            geom_core::Tol::witness(),
+        )
     };
     let r1 = split(&fx.body, &plane(1.0), Tol::witness()).unwrap();
     let r2 = split(&fx.body, &plane(-1.0), Tol::witness()).unwrap();

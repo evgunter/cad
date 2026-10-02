@@ -149,8 +149,11 @@ fn reglue_pair<T: geom_core::Decide>(
 fn reassembly_oracle_generic_cube() {
     let tol = Tol::witness();
     let operand = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
-    let plane =
-        crate::test_support::split_plane(Point3::new(0.0, 0.5, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let plane = crate::test_support::split_plane(
+        Point3::new(0.0, 0.5, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let (red, completed, _fragments) = split_scratch(&operand, &plane, tol).unwrap();
     assert_eq!(completed.len(), 1);
     let mut body = red.body;

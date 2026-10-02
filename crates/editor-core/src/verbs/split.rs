@@ -193,8 +193,11 @@ mod tests {
     /// structural check every sibling module makes.
     #[test]
     fn the_correspondence_builds_the_split() {
-        let plane =
-            topo::test_support::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::new(0.0, 0.0, 1.0));
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            geom_core::Tol::witness(),
+        );
         let v: Verb<f64> = (split::<f64>().build)(plane);
         assert_eq!(
             v.kind(),

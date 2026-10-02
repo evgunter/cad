@@ -101,6 +101,7 @@ fn plane_y(c: f64) -> SplitPlane<Probe> {
             Probe::from_f64(1.0),
             Probe::from_f64(0.0),
         ),
+        geom_core::Tol::witness(),
     )
 }
 

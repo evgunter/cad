@@ -25,6 +25,7 @@ fn plane_y<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
     topo::test_support::split_plane(
         Point3::new(T::from_f64(0.0), T::from_f64(c), T::from_f64(0.0)),
         Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
     )
 }
 
@@ -408,8 +409,11 @@ fn bob_mirror_pinch_refuses_typed() {
 
     // NOTCHED under −n: pinched prisms are BELOW the flipped normal.
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let flipped =
-        topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
+    let flipped = topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let r = split(&fx.body, &flipped, Tol::witness()).unwrap();
     // Below the flipped normal = the y > 1 pinched prisms.
     let (pieces, slab) = (body_of(&r.below), body_of(&r.above));
@@ -482,8 +486,11 @@ fn ring_rehoming_genus_one() {
     let body = holed_box_geometric();
     assert_eq!(validate_closed(&body), Ok(()));
     // Split at x = 3: the hole (x ∈ [0.5, 1.5]) is entirely below.
-    let plane =
-        topo::test_support::split_plane(Point3::new(3.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let plane = topo::test_support::split_plane(
+        Point3::new(3.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(above), Ok(()));

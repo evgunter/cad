@@ -16,7 +16,11 @@ use topo::{
 };
 
 fn plane_y(c: f64) -> SplitPlane<f64> {
-    topo::test_support::split_plane(Point3::new(0.0, c, 0.0), Vec3::new(0.0, 1.0, 0.0))
+    topo::test_support::split_plane(
+        Point3::new(0.0, c, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
@@ -182,6 +186,7 @@ fn vertex_only_contact_is_typed_empty() {
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
+        geom_core::Tol::witness(),
     );
     let r = split(&fx, &plane, Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));

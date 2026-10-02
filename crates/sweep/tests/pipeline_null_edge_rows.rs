@@ -133,6 +133,7 @@ fn an_oblique_split_leaves_the_cut_wall_minted_whole_at_the_join() {
         &topo::test_support::split_plane(
             Point3::new(0.0, 2.0, 0.0),
             Vec3::new(0.0, theta.cos(), theta.sin()),
+            geom_core::Tol::witness(),
         ),
         tol(),
     )

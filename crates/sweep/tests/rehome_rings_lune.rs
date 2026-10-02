@@ -117,6 +117,7 @@ fn a_split_carries_a_lune_bore_with_its_half() {
                 let plane = topo::test_support::split_plane(
                     Point3::new(0.0, 0.0, 0.5),
                     Vec3::new(nx, 0.0, 0.0),
+                    geom_core::Tol::witness(),
                 );
                 let result = split(&bored_disc(outer, hole), &plane, tol())
                     .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
@@ -179,8 +180,11 @@ fn a_boolean_carries_a_lune_bore_with_its_half() {
 #[test]
 fn a_split_carries_two_lune_bores_each_with_its_half() {
     let (_, outer) = DISCS[0];
-    let plane =
-        topo::test_support::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 0.0, 0.0));
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let bore = PI * BORE * BORE;
     for (pose, centres, above_bores) in [
         ("opposite halves", [(1.6, 0.8), (-1.6, -0.8)], 1.0),
@@ -223,6 +227,7 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
     let oblique = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
         Vec3::new(0.0, 0.2, 1.0).normalize(),
+        geom_core::Tol::witness(),
     );
     for (cx, cy) in [(1.6, 0.8), (-1.6, 0.8), (0.8, 0.4)] {
         let SplitPart::Body(lower) = split(&bored_disc(outer, (cx, cy)), &oblique, tol())
@@ -240,6 +245,7 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
             let plane = topo::test_support::split_plane(
                 Point3::new(0.0, 0.0, 0.25),
                 Vec3::new(nx, 0.0, 0.0),
+                geom_core::Tol::witness(),
             );
             let result = split(&lower, &plane, tol())
                 .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
