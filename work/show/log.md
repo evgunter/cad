@@ -424,3 +424,20 @@ PR 3834 fix pass is in, head `72c166913`, green. What changed:
 - gallery → gallery.rs (3793)
 - per-body delta → main.rs, which every scene PR touches
 - projectbox sixteenths → 3811
+
+## 2026-10-02 — letterforms fixed; lily (PR 3838) in review
+
+### Letterforms (PR 3836)
+- The fix pass is in: head `8f8e4e798a`, green.
+- az's Z∩A is now a live wall.
+- The shadow claim is asserted exactly, by cell-centre `point_in_solid` on the block grid.
+- Do the walls run in CI? Settled, with evidence: yes. `eps_regression` spawns the tour binary at three ε, and `walk_tour` runs every scene's stops and walls; the CI log lines are cited on the PR. The reviewer who said otherwise was wrong.
+
+### Lily (PR 3838)
+- The swept leaves are lanceolate, skinned at degree 2. Degree 3 refuses tier 3, pinned as wall 14.
+- The lofted blades keep straight sections. Lens sections refuse tier 3 at every knob tried, pinned as wall 15.
+- QUAD finding filed: check 7 refuses on budget with the sign definite. That contradicts `topo::validate`'s module doc, and it may be a tier-3 correctness bug. The review weighs its priority.
+- The lantern caps already arrive whole on main, so probe 13's block is dropped.
+
+### Merge checklist
+Three lanes each saw `projectbox/cutaway_above` faces 20–23 permuted against the committed tess cut: main's drift. Re-cut the projectbox rows when 3811 merges, or the nightly tess-lint may red.
