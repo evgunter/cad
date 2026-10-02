@@ -494,3 +494,20 @@ Not yet dispatched, each held on a file an open PR holds:
 - `long-turn-helix-has-no-demo`
 - `projectbox-offsets-by-sixteenths-to-dodge-coincidence`
 - `a-tour-scene-meshes-every-body-at-one-delta`
+
+## 2026-10-02 — split-by-name reviewed (MERGE WITH FIXES): a third P0
+
+PR 3842. The bracket is now a document with a closed form. `Node::Split`/`Part` have their first tour use. The chamfer-by-name is pinned as a wall.
+
+The wall's cause is the biggest blend usability hole SHOW has met:
+- You cannot chamfer or fillet one edge of a box, or any proper subset of its edges. Only all 12 build.
+- `crates/sweep/README.md` A3-3 names the run-out as not implemented.
+
+The BAND row goes to P0/H with design, since the end geometry is a fork as H7's was.
+
+Also recorded: the Rust document-authoring friction. Rust has no `Doc::insert`, no `Node::profile(&loop)` and no `sketch_frame`, and the tour carries about 7 copies of the same helpers. That gets a row on editor-core's owner.
+
+The day's P0s, all filed by SHOW lanes on their owners' slates:
+- QUAD: check 7 freezes at round 0 against the reporting budget.
+- ZIP: a one-arc sector refuses `SeamOrientation`.
+- BAND: no partial edge-set blend on a box.
