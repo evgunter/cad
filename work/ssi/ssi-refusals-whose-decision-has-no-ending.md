@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: thirteen SsiError arms still end in no recourse (SsiError::ending gives None), each needing its decision named
 status: open
 opened: 2026-10-01
+priority: P2
+cost: M
 ---
 
 (SSI implementer `ssi-mend`, from the §5 sweep of PR "SSI: every march

@@ -74,7 +74,7 @@ pub struct Section<T: Real> {
 #[derive(Debug)]
 pub enum SectionError<T: Real> {
     /// The reduce or join stage refused, exactly as it does for
-    /// [`super::split`] (a pure-tangency section included).
+    /// [`super::split`] (a curved face's zero-area graze included).
     Split(SplitError),
     /// Whether a section polygon is an outline or a hole cannot be
     /// read: its winding is in the band (`diag`), or (`None`) zero, or
@@ -177,10 +177,11 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// # Errors
 ///
 /// [`SectionError`]: [`SectionError::Split`] passes the reduce and join
-/// stages' refusals through unchanged — in particular a pure-tangency
-/// section REFUSES (`DegenerateSection`, exactly as [`super::split`]
-/// does) rather than reporting a degenerate zero-area trace.
-pub fn plane_section<T: geom_core::Decide>(
+/// stages' refusals through unchanged — in particular a zero-area
+/// section (a curved face's graze) REFUSES (`DegenerateSection`,
+/// exactly as [`super::split`] does) rather than reporting a
+/// degenerate trace.
+pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

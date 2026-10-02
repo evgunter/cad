@@ -50,10 +50,10 @@
 //! resolves them by membership of the minted above-copy vertex set,
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
-//! polygon is the one-sided tangency residue PR 2's adjudication
-//! record promised to refuse here, typed
-//! [`SplitJoinError::DegenerateSection`] — refuses a positive-area
-//! polygon carrying a tangent contact as a zero-width spur
+//! polygon (a below-side pinch, or a curved face's one-sided graze)
+//! is refused typed, [`SplitJoinError::DegenerateSection`] — refuses
+//! a positive-area polygon carrying a grazing contact as a zero-width
+//! spur
 //! ([`SplitJoinError::SectionSpur`], `split_section_spur`;
 //! `Sweep::refuse_section_spur`), and writes the F9 record.
 
@@ -95,7 +95,7 @@ pub(crate) struct CompletedSection {
 ///
 /// [`SplitJoinError`] — the body may be left mid-surgery on `Err`
 /// (callers operate on a scratch clone; the public ops discard it).
-pub(super) fn split_connect<T: Decide>(
+pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
     red: &mut SplitReduction<T>,
     band: Band,
     tol: Tol,
@@ -647,7 +647,7 @@ impl<T: Decide> Sweep<T> {
     /// Certify the completed polygon's area definitely positive
     /// (margin 2·|A|/P — mean width in meters, profile's
     /// `loop_orientation` lever-arm story); Zero ⇒ the degenerate
-    /// one-sided-tangency section, refused typed.
+    /// section of a pinch or a curved face's graze, refused typed.
     ///
     /// **Conic boundary edges (M5 PR 5)**: the vertex shoelace below is
     /// exact for straight chords and stays BIT-IDENTICAL for all-planar
@@ -760,21 +760,20 @@ impl<T: Decide> Sweep<T> {
     /// so the vertex before it and the vertex after it coincide
     /// ([`SplitJoinError::SectionSpur`]).
     ///
-    /// Where it comes from: a plane tangent to the solid along an edge
-    /// mints null edges along that edge. When the tangent side is the
-    /// run's above side the contact's null edges close a polygon of
-    /// their own, zero-area, and [`Self::certify_section_area`] refuses
-    /// it ([`SplitJoinError::DegenerateSection`]). [`super::split`]
-    /// reads that refusal as a below-side pinch and reruns under the
-    /// mirrored plane; if the plane also cuts the solid somewhere the
-    /// contact reaches, the mirrored run joins the contact's null edges
+    /// Where it comes from: a one-sided graze of a curved face (a plane
+    /// tangent to a cylinder's wall along a ruling) mints a contact.
+    /// When the graze is on the run's above side, the contact closes a
+    /// polygon of its own, zero-area, and [`Self::certify_section_area`]
+    /// refuses it ([`SplitJoinError::DegenerateSection`]).
+    /// [`super::split`] reads that refusal as a below-side pinch and
+    /// reruns under the mirrored plane. If the plane also cuts the solid
+    /// somewhere the contact reaches, the mirrored run joins the contact
     /// into that real section's loop as an out-and-back excursion. Its
     /// net area is the real section's, positive, and the area test
-    /// passes it — the pinch lane would turn the one-sided-tangency
-    /// refusal into a success whose halves carry a zero-width slit.
-    /// This refuses that excursion, so the tangency stays refused (the
-    /// public `split` then surfaces the direct run's
-    /// `DegenerateSection`).
+    /// passes it. This refuses that excursion, so the graze stays
+    /// refused (the public `split` then surfaces the direct run's
+    /// `DegenerateSection`). A plane tangent along a convex edge never
+    /// gets here: rule (b) classifies the edge with its material.
     ///
     /// The margin is the distance between the tip's two neighbours
     /// (`split_section_spur`, a length through [`Margin::norm3`]).
