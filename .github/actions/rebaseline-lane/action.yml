@@ -190,7 +190,13 @@ runs:
             echo "$DIR already current on $PUSH_TO (another run landed it)."
             exit 0
           fi
-          git commit -m "render($LANE): re-baseline committed cells"
+          # [skip ci]: the tree this commit changes from was gated by the
+          # CI run of the commit that asked for the render, which ran
+          # alongside it; only rendered cells differ, so the head merges
+          # on that gate (memories/orchestration-model.md). Without the
+          # tag the push starts a pull_request run of its own, which GitHub
+          # holds as `action_required` for a bot actor.
+          git commit -m "render($LANE): re-baseline committed cells [skip ci]"
           if git push origin "HEAD:$PUSH_TO"; then
             pushed="$(git rev-parse HEAD)"
             break

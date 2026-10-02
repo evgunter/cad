@@ -185,9 +185,9 @@ commit's subject line**:
 git commit -m "scene: widen the bracket [render]"
 git push        # ci.yml's `render tag` step dispatches render.yml on the
                 #   branch; a lane that differs is committed back to it
-                #   with a neutral ("!") check naming the cells, and CI is
-                #   dispatched again on that new head, gating the PR's
-                #   merge with its base
+                #   with a neutral ("!") check naming the cells and
+                #   [skip ci]: the PR's CI ran on the tagged commit,
+                #   alongside the render, and gates the merge
 git pull        # the frames are on your branch: look at them
 ```
 
@@ -195,8 +195,7 @@ The tag counts only in the subject, delimited by whitespace, of the PR's
 head commit, read on a `pull_request` run: `[render]` in a commit body,
 or glued to other text, does not fire, and a later push without it
 renders nothing. A draft renders nothing; marking it ready re-reads the
-tag. Neither the bot's re-baseline commit nor the CI run dispatched on it
-can ask again. A PR from a fork cannot be rendered this way (its run's
+tag. The bot's re-baseline commit cannot ask again. A PR from a fork cannot be rendered this way (its run's
 token can neither dispatch nor push to the fork); the step says so in a
 warning.
 
@@ -204,8 +203,8 @@ The head goes **red** rather than carrying only neutral checks when the
 render cannot vouch for it: a push to the branch while the render runs
 makes the lanes commit nothing and post a failing `render refused` check
 (push again with the tag), and lanes that did not all succeed after one
-committed, or a re-gate that could not be dispatched, post a failing
-`render re-gate` check.
+committed, or a check on that which could not finish, post a failing
+`render incomplete` check.
 
 **If the render is what you intended, the neutral check is a pass.** It
 needs no re-run and no second commit. A drifting lane commits only when
