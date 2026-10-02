@@ -9,8 +9,9 @@
 //! minted with and the role the piece plays in that step. A reshaping
 //! states which old step each new step keeps, by id; a kept step's
 //! names keep denoting its pieces wherever the new program draws them,
-//! and nothing is rewritten or reported, while a dropped step's names
-//! keep their spelling, resolve `Vanished`, and are reported stranded.
+//! and nothing is rewritten, while a dropped step's names — and a kept
+//! step's whose piece the new program no longer draws — keep their
+//! spelling, resolve `Vanished`, and are reported stranded.
 //! A value edit moves no piece's locator: which loop is outer, which
 //! way a loop runs and how many segments a step draws are decisions
 //! about geometry, not about what the author made. (It can change which
@@ -137,10 +138,10 @@ fn ids_of(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<StepI
 
 /// Every id of `doc`'s profile kept, as `SetProgram` spells it.
 fn keep_all(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<Option<StepId>>> {
-    ids_of(doc, profile)
-        .into_iter()
-        .map(|l| l.into_iter().map(Some).collect())
-        .collect()
+    match doc.node(profile) {
+        Some(Node::Profile(p)) => p.kept_in_place(),
+        other => panic!("node {} is a profile: {other:?}", profile.0),
+    }
 }
 
 fn set_program(
@@ -313,7 +314,7 @@ fn a_fillet_on_a_crease_survives_a_leg_inserted_before_it() {
         "the fixture's crease is the arc's end"
     );
 
-    let ids = bump_ids(&rod_ids(&r.doc, r.profile));
+    let ids = bump_ids(&r.doc, r.profile);
     let applied = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids);
     assert_eq!(
         applied.maintenance,
@@ -380,7 +381,7 @@ fn a_vertex_is_named_by_the_piece_starting_at_it() {
     assert!(near(strut_at(&r.doc, r.rod, &one), (1.0, -1.0)));
     assert!(near(strut_at(&r.doc, r.rod, &two), (1.0, 0.0)));
 
-    let ids = bump_ids(&rod_ids(&r.doc, r.profile));
+    let ids = bump_ids(&r.doc, r.profile);
     let applied = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids);
     assert_eq!(applied.maintenance, Vec::new());
     assert!(near(strut_at(&applied.doc, r.rod, &one), BUMP));
@@ -465,7 +466,7 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
     let fillet = r.fillet.unwrap();
     let crease = lateral_edge(&r.doc, r.rod, CREASE);
     let old = rod_ids(&r.doc, r.profile);
-    let mut ids = bump_ids(&old);
+    let mut ids = bump_ids(&r.doc, r.profile);
     // The leg to (−1, 0) is step 5 of the plain program, 7 of the bumped.
     assert_eq!(ids[0][7], Some(old[5]));
     ids[0][7] = None;
@@ -603,7 +604,7 @@ fn never_minted(doc: &ProfileDoc) -> StepId {
 fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
     let r = rod("set-program-never-minted", &[]);
     let old = rod_ids(&r.doc, r.profile);
-    let mut ids = bump_ids(&old);
+    let mut ids = bump_ids(&r.doc, r.profile);
     ids[0][7] = None;
     let reshaped = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids).doc;
     let dropped = wall_by(r.rod, old[5], PieceRole::Leg);
@@ -930,7 +931,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
         DocEdit::SetProgram {
             node: profile_node,
             loops: vec![rod_loop(true)],
-            ids: bump_ids(&rod_ids(&r.doc, profile_node)),
+            ids: bump_ids(&r.doc, profile_node),
         },
     ];
     (empty, edits.to_vec())
@@ -1680,7 +1681,7 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
         &applied.doc,
         profile,
         vec![corner(false)],
-        vec![old.iter().copied().map(Some).collect()],
+        keep_all(&doc, profile),
     );
     assert_eq!(
         back.maintenance,

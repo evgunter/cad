@@ -436,9 +436,10 @@ pub enum SlotId {
     /// sharpening of the design's `(step, arg)` sketch — a profile is
     /// plane + several loops, so the address needs it. Step indices are
     /// stable under every slot edit because program STRUCTURE changes
-    /// only by [`crate::DocEdit::SetProgram`], which reports every name
-    /// its reshaping strands and rebinds every name it moves (V2,
-    /// `crates/profile/README.md`); for the carrier loop forms
+    /// only by [`crate::DocEdit::SetProgram`], which keeps every kept
+    /// step's names as they are spelled and reports every name whose
+    /// piece it stops drawing (V2, `crates/profile/README.md`); for the
+    /// carrier loop forms
     /// (`circle`/`circle_split`) `step` is 0.
     Profile {
         /// The loop's index in the program (description order).
@@ -610,7 +611,7 @@ impl SlotId {
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
             // addresses — it changes by `DocEdit::SetProgram`, which
-            // rebinds every kept name and retires the rest (DM7).
+            // rewrites no name and reports every one it strands (DM7).
             Self::Profile { arg, .. } => arg.dimension(),
         }
     }

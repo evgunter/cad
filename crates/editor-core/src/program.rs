@@ -2054,6 +2054,18 @@ impl ProfileProgram {
             .map_err(ProgramRefusal::Pieces)
     }
 
+    /// **Every step of this program kept where it is**: the `ids` of a
+    /// [`crate::DocEdit::SetProgram`] that keeps each step in its own
+    /// place — per loop, per step, `Some` of the step's id. A reshaping
+    /// that adds or drops steps starts from it and edits the lists.
+    #[must_use]
+    pub fn kept_in_place(&self) -> Vec<Vec<Option<StepId>>> {
+        self.ids
+            .iter()
+            .map(|ids| ids.iter().copied().map(Some).collect())
+            .collect()
+    }
+
     /// **Whether this program carries step ids at all.** A program no
     /// door has minted ids for carries NO lists: the one spelling of
     /// "unminted" is an empty [`ProfileProgram::ids`]. Any list at all

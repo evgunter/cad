@@ -148,6 +148,10 @@ pub enum DocEdit<P> {
     /// [`Maintenance::Strand`] / [`Maintenance::StrandedAppearance`]
     /// exactly as a delete reports it (DM7: the subject is the edit
     /// that removes a name's referent, of which the delete is one).
+    /// So is a name on a kept step's piece that the old program draws
+    /// and the new one does not under the current parameters — a
+    /// fillet inserted or moved before a leg takes the leg's segment
+    /// (`names/README.md`, "Undrawn pieces vanish rather than alias").
     ///
     /// A program byte-identical to the current one, keeping every
     /// step, is legal and reports nothing.
@@ -511,10 +515,9 @@ impl<P> DocEdit<P> {
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
             Self::InsertNode { node } => matches!(&**node, Node::Mate { .. }),
-            // A reshaping rebinds or retires the NAMES a mate's heads
-            // hold — `Rebind`'s motion over every name at once — and
-            // never touches a datum; a head it strands is N5's, the
-            // solve's at evaluation.
+            // A reshaping rewrites no name and never touches a datum;
+            // a head whose piece it stops drawing is N5's, the solve's
+            // at evaluation.
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
@@ -2603,7 +2606,8 @@ pub enum Maintenance {
     /// and carries `name`, whose referent the edit removed — the node
     /// that minted it ([`DocEdit::DeleteNode`]), or the profile step
     /// it named a piece of ([`DocEdit::SetProgram`], for a name on a
-    /// step the reshaping did not keep).
+    /// step the reshaping did not keep, or on a kept step's piece it
+    /// stopped drawing).
     ///
     /// Either way the name still says exactly what it always said.
     /// After a delete what is gone is the node that minted it, so
@@ -2611,7 +2615,8 @@ pub enum Maintenance {
     /// rung 1 of the N5 ladder. After a reshaping what is gone is the
     /// step: its id is never minted again, so no program draws the
     /// piece and evaluation answers
-    /// [`crate::resolve::ResolveError::Vanished`], rung 3. Either way
+    /// [`crate::resolve::ResolveError::Vanished`], rung 3; so does a
+    /// kept step's piece the new program does not draw. Either way
     /// the name resolves to nothing and [`DocEdit::Rebind`] is the
     /// repair, from the spelling this row carries. A name is not a
     /// DAG edge (the D3 carve-out), so both edits are legal: this row
@@ -2624,7 +2629,8 @@ pub enum Maintenance {
         /// The surviving node whose payload carries the name.
         node: SpokenNode,
         /// The name it carries: its minting node is the one a delete
-        /// removed, or its locator names a step a reshaping dropped.
+        /// removed, or its locator names a step a reshaping dropped or
+        /// a kept step's piece it stopped drawing.
         name: SpokenName,
     },
     /// **An appearance attachment this edit stranded** (DM7): the
@@ -3012,9 +3018,11 @@ fn stranded_steps<P>(
     let mut strands = Vec::new();
     let mut keys = Vec::new();
     for carrier in doc.name_carriers() {
-        let gone = carrier.name().step_pieces().iter().any(|p| {
-            undrawn.contains(p) || p.step().is_some_and(|s| dropped.contains(&s))
-        });
+        let gone = carrier
+            .name()
+            .step_pieces()
+            .iter()
+            .any(|p| undrawn.contains(p) || p.step().is_some_and(|s| dropped.contains(&s)));
         if !gone {
             continue;
         }
@@ -3106,8 +3114,8 @@ pub struct Applied<P> {
     /// `Carrier::ALL`, which is `pub(crate)`. In-crate the order has
     /// one home all the same: one roster, `Carrier::ALL`, drives the
     /// walk both doors read (`Doc::name_carriers`) — filtered on the
-    /// deleted node for a delete, on the dropped steps for a program
-    /// edit — so the strands' order is that roster's, and a reader who
+    /// deleted node for a delete, on the dropped steps and the
+    /// undrawn kept pieces for a program edit — so the strands' order is that roster's, and a reader who
     /// wants to see why reads it there.
     ///
     /// Each boundary is held by the row whose fixture actually
@@ -3134,8 +3142,8 @@ pub struct Applied<P> {
 ///
 /// [`Applied::maintenance`] is a function of one `(document, edit)`
 /// pair and answers what that edit did. An action — a cascade delete
-/// ([`cascade_delete_order`]'s sequence), a program written as several
-/// one-slot writes — is several edits, and a row one of them reported
+/// ([`cascade_delete_order`]'s sequence), a parameter's value and its
+/// notation written together — is several edits, and a row one of them reported
 /// can be about nothing the action leaves behind. This is the one
 /// spelling of which rows survive, so every caller that holds a
 /// sequence (the viewer's session, the pre-click count a chrome states
