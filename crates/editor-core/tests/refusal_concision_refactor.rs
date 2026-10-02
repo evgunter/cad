@@ -237,7 +237,7 @@ const LABELS: &[(&str, &str)] = &[
 /// The rows that state no recourse, by exact row id, filed with their
 /// owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/edit/split-and-inline-refusals-short-of-the-shape-guard.md
+    // work/place/split-and-inline-refusals-short-of-the-shape-guard.md
     "Split/EmptyCut",
     "Split/UnknownCutNode",
     "Split/PartIdCollides",
@@ -266,7 +266,7 @@ const FILED_NO_RECOURSE: &[&str] = &[
 const ADMISSIONS: &[Admission<'static>] = &[Admission {
     row: "Split/PartIdCollides",
     span: "b1f205f718a5f31e2d727b6a7572a3e7",
-    filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+    filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
 }];
 
 /// **Every split and inline refusal states exactly one recourse**, and

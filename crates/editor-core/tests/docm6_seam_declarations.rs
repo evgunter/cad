@@ -981,3 +981,149 @@ fn a_certified_assembly_names_the_carried_mates_it_certified_over() {
             .collect::<Vec<_>>(),
     );
 }
+
+// ---- A carried row speaks a part's ids by tag ----
+
+/// A stand over a shared cube part: two instances of it and one mate,
+/// labelled `label`, between their caps, in a document named `id`.
+fn stand_over(
+    cube: DocRef,
+    cube_body: RecipeNodeId,
+    id: &str,
+    class: ContactClass,
+    seat: [f64; 3],
+    label: &str,
+) -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty(DocumentId::derive(id), Tol::witness());
+    let (doc, c0) = insert(doc, Node::instantiate_part(cube));
+    let (doc, c1) = insert(doc, Node::instantiate_part(cube));
+    let (doc, mate) = insert(
+        doc,
+        mate_node(
+            in_part(c0, cube_body, CapEnd::End),
+            in_part(c1, cube_body, CapEnd::Start),
+            class,
+            frame(seat, [0.0, 0.0, 1.0]),
+        ),
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetLabel {
+            node: mate,
+            label: Some(editor_core::Label::new(label).expect("a valid label")),
+        },
+    );
+    (doc, mate)
+}
+
+/// **A part whose mate id the outer document also holds**: the outer
+/// document is the same stand (labelled "outer seat") plus an instance
+/// of the part (labelled "inner seat"), placed clear of it. Every
+/// document's mint starts at the zero chain, so the two stands mint
+/// the same ids. A carried row speaks the part's ids by tag; one spoken
+/// from the outer document would name the outer mate.
+///
+/// Returns the store, the part, the outer document and the shared id.
+fn outer_over_twin(
+    class: ContactClass,
+    seat: [f64; 3],
+) -> (PartStore, ProfileDoc, ProfileDoc, RecipeNodeId) {
+    let mut store = PartStore::default();
+    let (cube, cube_body) = store.insert_part(cube_part("speak-cube"), Tol::witness());
+    let (inner, mate) = stand_over(cube, cube_body, "speak-inner", class, seat, "inner seat");
+    let inner_ref = store.insert(inner.clone(), Tol::witness());
+    let (outer, outer_mate) = stand_over(cube, cube_body, "speak-outer", class, seat, "outer seat");
+    assert_eq!(outer_mate, mate, "both stands mint from the zero chain");
+    let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
+    let outer = place(outer, instance, [10.0, 0.0, 0.0]);
+    (store, inner, outer, mate)
+}
+
+/// The part's own mint refusal speaks its labelled mate from the part;
+/// the same row carried to the outer gate keeps the part's tag, though
+/// the outer document holds that id as its own labelled mate.
+#[test]
+fn a_carried_mint_refusal_keeps_the_parts_tag_where_the_outer_document_holds_the_id() {
+    let (store, inner, outer, mate) = outer_over_twin(ContactClass::Tangent, [0.0, 0.0, 5.0]);
+    let t = test_utils::refusal::tag(mate.0);
+
+    let inner_ev = run(&inner, &with_resolver(store.clone()));
+    let own = assemble(&inner, &inner_ev, Tol::witness()).expect_err("a tangent mints nothing");
+    let AssemblyError::Mint { refusals } = &own else {
+        panic!("the part refuses its own mate: {own:?}");
+    };
+    let spoken_row = refusals[0].spoken(&inner);
+    assert!(
+        spoken_row.starts_with(&format!("Mate \"inner seat\" ({t})'s class")),
+        "{spoken_row}"
+    );
+    assert!(
+        own.spoken(&inner).contains(&spoken_row),
+        "{}",
+        own.spoken(&inner)
+    );
+    assert!(
+        own.to_string().contains(&format!("mate {t}'s class")),
+        "the tag form keeps the mate's noun: {own}"
+    );
+    let empty = ProfileDoc::empty(DocumentId::derive("speak-empty"), Tol::witness());
+    assert!(
+        refusals[0]
+            .spoken(&empty)
+            .starts_with(&format!("mate {t}'s class")),
+        "a document that does not hold the mate keeps its noun: {}",
+        refusals[0].spoken(&empty)
+    );
+
+    let ev = run(&outer, &with_resolver(store));
+    let carried = assemble(&outer, &ev, Tol::witness()).expect_err("the part is not at rest");
+    assert!(
+        matches!(&carried, AssemblyError::CarriedMintRefusal { refusals }
+            if matches!(refusals.as_slice(), [r] if r.refusal.mate() == mate)),
+        "the carried row is raised first: {carried:?}"
+    );
+    let spoken = carried.spoken(&outer);
+    assert!(spoken.contains(&format!("mate {t}'s class")), "{spoken}");
+    assert!(
+        !spoken.contains("seat"),
+        "a carried row is never spoken from the outer document: {spoken}"
+    );
+}
+
+/// Both stands' declared rests are refuted (seat 0.5: the cubes
+/// interpenetrate). The outer document's own finding speaks its
+/// labelled mate; the part's carried finding keeps the part's tag,
+/// though the outer document holds that id.
+#[test]
+fn a_carried_attribution_keeps_the_parts_tag_and_this_documents_own_is_spoken() {
+    let (store, _, outer, mate) = outer_over_twin(ContactClass::Rest, [0.0, 0.0, 0.5]);
+    let t = test_utils::refusal::tag(mate.0);
+    let ev = run(&outer, &with_resolver(store));
+    let result = assemble(&outer, &ev, Tol::witness());
+    let findings = findings_of(&result);
+    let own = findings
+        .iter()
+        .find(|f| matches!(f.attribution, Attribution::Refuted(_)))
+        .expect("the outer document's own rest is refuted");
+    let carried = findings
+        .iter()
+        .find(|f| matches!(f.attribution, Attribution::Carried { .. }))
+        .expect("the part's rest is refuted, carried");
+    assert!(
+        own.spoken(&outer)
+            .starts_with(&format!("Mate \"outer seat\" ({t})'s declared")),
+        "{}",
+        own.spoken(&outer)
+    );
+    let carried_line = carried.spoken(&outer);
+    assert!(
+        carried_line.starts_with(&format!("mate {t}'s declared")) && !carried_line.contains("seat"),
+        "{carried_line}"
+    );
+    let whole = result.expect_err("refuted").spoken(&outer);
+    assert_eq!(
+        whole.matches("outer seat").count(),
+        1,
+        "only the outer document's own row speaks its label: {whole}"
+    );
+}

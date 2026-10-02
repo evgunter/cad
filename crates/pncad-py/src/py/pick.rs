@@ -155,15 +155,16 @@ fn tied(py: Python<'_>, hits: &[s::PickHit]) -> PyResult<Py<PyAny>> {
 
 /// Raise `HitTestError` carrying the refusal's stable tag and payload.
 ///
-/// The message is the kernel's own `Display`; the machine payload is
+/// The message is the kernel's own sentence, its nodes spoken from the
+/// evaluated document; the machine payload is
 /// `variant` plus the four fields, each present on every arm and
 /// `None` where that arm does not carry it.
-fn hit_test_err(py: Python<'_>, err: &s::HitTestError) -> PyErr {
+fn hit_test_err(py: Python<'_>, err: &s::HitTestError, doc: &pncad::document::ProfileDoc) -> PyErr {
     let [node, through, kind, body, hits] = hit_test_fields(py, err);
     typed_err(
         py,
         ErrorClass::HitTest,
-        err.to_string(),
+        err.spoken(doc),
         &[
             (
                 "variant",
@@ -187,7 +188,11 @@ fn hit_test_err(py: Python<'_>, err: &s::HitTestError) -> PyErr {
 /// and fields a hit test's pairing or standing refusal carries
 /// ([`name_lookup_error_tag`]); the message is the name lookup's own,
 /// which names no hit test because none ran.
-fn name_lookup_err(py: Python<'_>, err: &s::NameLookupError) -> PyErr {
+fn name_lookup_err(
+    py: Python<'_>,
+    err: &s::NameLookupError,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
     let none = || py.None();
     let (which, through) = match err {
         // The pairing names two DOCUMENTS; the message states both.
@@ -200,7 +205,7 @@ fn name_lookup_err(py: Python<'_>, err: &s::NameLookupError) -> PyErr {
     typed_err(
         py,
         ErrorClass::HitTest,
-        err.to_string(),
+        err.spoken(doc),
         &[
             (
                 "variant",
@@ -227,8 +232,12 @@ fn name_lookup_err(py: Python<'_>, err: &s::NameLookupError) -> PyErr {
 /// kernel's slot holds [`s::UnnamedEntity`], the lookup's own refusal;
 /// it crosses as the `unnamed` arm of this class, the one Python
 /// spelling the surface has for it.
-fn hit_test_value(py: Python<'_>, unnamed: s::UnnamedEntity) -> Py<PyAny> {
-    hit_test_err(py, &s::HitTestError::from(unnamed))
+fn hit_test_value(
+    py: Python<'_>,
+    unnamed: s::UnnamedEntity,
+    doc: &pncad::document::ProfileDoc,
+) -> Py<PyAny> {
+    hit_test_err(py, &s::HitTestError::from(unnamed), doc)
         .value(py)
         .clone()
         .into_any()
@@ -258,7 +267,11 @@ fn hit_test_value(py: Python<'_>, unnamed: s::UnnamedEntity) -> Py<PyAny> {
 /// `triangle` and `index` (`crate::pick_payload`) — the payload
 /// belongs to a type nothing raises, so it has no door of its own to
 /// carry them and this is the only crossing they get.
-fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
+fn node_pick_err(
+    py: Python<'_>,
+    err: &s::NodePickError,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
     let node = |n: pncad::document::RecipeNodeId| obj(Py::new(py, NodeId(n)).map(|v| v.into_any()));
@@ -306,7 +319,7 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
     typed_err(
         py,
         ErrorClass::NodePick,
-        err.to_string(),
+        err.spoken(doc),
         &[
             (
                 "variant",
@@ -525,7 +538,7 @@ impl NodePick {
         let tol = pncad::tolerance::Tol::witness();
         s::NodePick::build(&evaluation.inner, node.0, body, chordal.0.meters(), tol)
             .map(Self::wrap)
-            .map_err(|err| node_pick_err(py, &err))
+            .map_err(|err| node_pick_err(py, &err, evaluation.doc()))
     }
 
     /// **Every output body of `node`, each tessellated and indexed** —
@@ -560,7 +573,7 @@ impl NodePick {
         let tol = pncad::tolerance::Tol::witness();
         s::NodePick::build_all(&evaluation.inner, node.0, chordal.0.meters(), tol)
             .map(|built| built.into_iter().map(Self::wrap).collect())
-            .map_err(|err| node_pick_err(py, &err))
+            .map_err(|err| node_pick_err(py, &err, evaluation.doc()))
     }
 
     /// The node this index answers for.
@@ -618,9 +631,9 @@ impl NodePick {
     fn patch_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .patch_names(&evaluation.inner)
-            .map_err(|err| name_lookup_err(py, &err))?
+            .map_err(|err| name_lookup_err(py, &err, evaluation.doc()))?
             .iter()
-            .map(|slot| slot_name(py, slot))
+            .map(|slot| slot_name(py, slot, evaluation.doc()))
             .collect()
     }
 
@@ -638,9 +651,9 @@ impl NodePick {
     fn boundary_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .boundary_names(&evaluation.inner)
-            .map_err(|err| name_lookup_err(py, &err))?
+            .map_err(|err| name_lookup_err(py, &err, evaluation.doc()))?
             .iter()
-            .map(|slot| slot_name(py, slot))
+            .map(|slot| slot_name(py, slot, evaluation.doc()))
             .collect()
     }
 
@@ -669,10 +682,11 @@ impl NodePick {
 fn slot_name(
     py: Python<'_>,
     slot: &Result<pncad::prelude::StableName, s::UnnamedEntity>,
+    doc: &pncad::document::ProfileDoc,
 ) -> PyResult<Py<PyAny>> {
     match slot {
         Ok(name) => Ok(PyString::new(py, &name_text(py, name)?).unbind().into_any()),
-        Err(unnamed) => Ok(hit_test_value(py, *unnamed)),
+        Err(unnamed) => Ok(hit_test_value(py, *unnamed, doc)),
     }
 }
 
@@ -698,7 +712,7 @@ pub(crate) fn pick_face(
     match s::pick_face(&evaluation.inner, &borrowed, &ray.0) {
         Ok(None) => Ok(None),
         Ok(Some(hit)) => Ok(Some(projected(py, &hit)?)),
-        Err(err) => Err(hit_test_err(py, &err)),
+        Err(err) => Err(hit_test_err(py, &err, evaluation.doc())),
     }
 }
 
