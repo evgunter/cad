@@ -998,7 +998,10 @@ fn loop_steps<T: Decide>(
         steps.push(LoopStep {
             point: *body.get_point(point).ok_or_else(corrupt)?,
             edge: h.edge,
-            curve: body.get_curve_geom(edge.curve).ok_or_else(corrupt)?.certified(),
+            curve: body
+                .get_curve_geom(edge.curve)
+                .ok_or_else(corrupt)?
+                .certified(),
         });
     }
     Ok(Ok(steps))
@@ -1178,10 +1181,11 @@ fn extent_from<T: Decide>(
     verts: &[Point3<T>],
     balls: &[(Point3<T>, T)],
 ) -> Result<T, PointInLoopError> {
-    let terms = verts
-        .iter()
-        .map(|v| (*v - from).norm())
-        .chain(balls.iter().map(|&(center, radius)| (center - from).norm() + radius));
+    let terms = verts.iter().map(|v| (*v - from).norm()).chain(
+        balls
+            .iter()
+            .map(|&(center, radius)| (center - from).norm() + radius),
+    );
     let mut extent = T::zero();
     for term in terms {
         if term.is_poison() {

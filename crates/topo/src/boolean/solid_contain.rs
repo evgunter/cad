@@ -5173,6 +5173,58 @@ mod wall_root_rows {
         );
     }
 
+    /// **A near-axis ray's in-span exit root is right to its row's ε.**
+    /// Each line runs all but parallel to the axis, so the lead
+    /// `|d⊥|²` is tiny, and its exit root's numerator `−b + √disc`
+    /// cancels: spelled that way, the root is off by `1.1e-11` (against
+    /// ε = 1e-12) and `8.4e-8` (against ε = 1e-9), where
+    /// [`quadratic_roots`]' `c/(−b − √disc)` is off by `4.5e-14` and
+    /// `4.5e-11`. Each expected root is the exact root of the row's own
+    /// `f64` data, rounded once.
+    #[test]
+    fn a_near_axis_rays_exit_root_is_right_to_the_band() {
+        let tol = Tol::witness();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let rows = [
+            // ε, radius, q, d⊥, span, the exit root
+            (
+                1e-12,
+                0.5,
+                (0.484_375, 0.0625),
+                (2f64.powi(-18), 2f64.powi(-19)),
+                4096.0,
+                2_878.535_214_595_601,
+            ),
+            (1e-9, 1e3, (999.0, 0.0), (1e-6, 0.0), 2e6, 1e6),
+        ];
+        let mut off = Vec::new();
+        for (eps, r, (qx, qy), (dx, dy), span, exit) in rows {
+            let band =
+                Band::linear_at(tol, eps).unwrap_or_else(|e| panic!("the band at {eps}: {e:?}"));
+            let d = Vec3::new(dx, dy, (1.0 - dx * dx - dy * dy).sqrt());
+            let got = line_wall_roots(
+                Point3::new(qx, qy, 0.0),
+                d,
+                Point3::new(0.0, 0.0, 0.0),
+                z,
+                r,
+                span,
+                band,
+            )
+            .unwrap_or_else(|f| panic!("the rungs decide at {eps}: {f:?}"));
+            let WallRoots::Two([_, t1]) = got else {
+                panic!("both roots at {eps}: {got:?}");
+            };
+            if (t1 - exit).abs() > eps {
+                off.push(format!(
+                    "at ε = {eps}: {t1} against {exit}, off by {:e}",
+                    (t1 - exit).abs()
+                ));
+            }
+        }
+        assert!(off.is_empty(), "the exit roots: {off:?}");
+    }
+
     /// **The axis-parallel rung reads the drift over the run.** A ray
     /// from the axis of a unit wall, tilted off it so that over a unit
     /// run it drifts `ε/4` from the axis, stays inside the band there and
