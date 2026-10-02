@@ -41,6 +41,7 @@ use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
+use crate::euler_ring::MekrSite;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -470,13 +471,14 @@ impl Welds {
 ///
 /// Two edges of the piercing body that coincide (a contact the other
 /// operand recorded) pierce a face at one point, and each pierce mints
-/// its own ring vertex. Where both survive in one loop of a kept face,
-/// that face's material meets itself at the point — two regions that
-/// one face cannot hold — so the loop is divided between them with a
-/// zero-length edge and the edge is collapsed: two faces sharing one
-/// vertex, the body an order that met the point as an existing vertex
-/// builds. Pierces that survive in different faces stay apart, as the
-/// contact's own vertices do.
+/// its own ring vertex. Where both survive on one kept face, the face's
+/// boundary meets itself there, and the order that met the point as an
+/// existing vertex built that meeting as one vertex. So the two are
+/// joined by a zero-length edge and the edge collapsed: across one loop
+/// it divides the face, two regions meeting at the vertex; across two
+/// loops (holes touching at a corner) it joins them into one. Pierces
+/// that survive on different faces stay apart, as the contact's own
+/// vertices do.
 fn weld_pinches<T: Decide>(
     body: &mut Body<T>,
     operand: Operand,
@@ -544,21 +546,34 @@ fn weld_pinches<T: Decide>(
                         });
                     }
                 }
-                let Some((face, hu, hw)) = shared_loop(body, u, w)? else {
-                    continue;
+                let joint = EdgeCurveSpec::self_loop_circle_at(pu);
+                let he = match pinch_site(body, u, w)? {
+                    None => continue,
+                    Some(Site::OneLoop { face, hu, hw }) => {
+                        let made = body.mef(
+                            MefSite::Chords { he1: hu, he2: hw },
+                            joint,
+                            FaceSurface::Inherit,
+                            tol,
+                        )?;
+                        welds.fragments.push((made.face, face));
+                        made.he_plus
+                    }
+                    Some(Site::TwoLoops { target, ring }) => {
+                        body.mekr(MekrSite::Cycles { target, ring }, joint, tol)?
+                            .he_plus
+                    }
                 };
-                let made = body.mef(
-                    MefSite::Chords { he1: hu, he2: hw },
-                    EdgeCurveSpec::self_loop_circle_at(pu),
-                    FaceSurface::Inherit,
-                    tol,
-                )?;
-                body.kev_describing(made.he_plus, &[], tol)?;
-                if body.get_vertex(w).is_some() || body.get_vertex(u).is_none() {
+                let kept = body
+                    .get_half_edge(he)
+                    .ok_or_else(|| desync("a pinch joint no longer resolves"))?
+                    .start;
+                let dead = if kept == u { w } else { u };
+                body.kev_describing(he, &[], tol)?;
+                if body.get_vertex(dead).is_some() || body.get_vertex(kept).is_none() {
                     return Err(desync("a pinch weld did not fuse its pair"));
                 }
-                welds.merges.push((w, u));
-                welds.fragments.push((made.face, face));
+                welds.merges.push((dead, kept));
             }
         }
     }
@@ -571,13 +586,29 @@ fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Option<geom_core::Point3
         .copied()
 }
 
-/// The loop that runs through both `u` and `w`, once each, with its
-/// face and the half-edges leaving `u` and `w` there.
-fn shared_loop<T: Decide>(
+/// Where a pinch weld joins `u` to `w`: the half-edges leaving each on
+/// one face's boundary.
+enum Site {
+    /// Both in one loop of `face`.
+    OneLoop {
+        face: FaceKey,
+        hu: HalfEdgeKey,
+        hw: HalfEdgeKey,
+    },
+    /// In two loops of one face: `target`'s loop absorbs `ring`'s, the
+    /// face's outer loop when it is one of them.
+    TwoLoops {
+        target: HalfEdgeKey,
+        ring: HalfEdgeKey,
+    },
+}
+
+/// The face whose boundary runs through both `u` and `w`, each once.
+fn pinch_site<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
     w: VertexKey,
-) -> Result<Option<(FaceKey, HalfEdgeKey, HalfEdgeKey)>, BooleanError> {
+) -> Result<Option<Site>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let faces = body
         .faces_of_vertex(u)
@@ -586,6 +617,8 @@ fn shared_loop<T: Decide>(
         let f = body
             .get_face(face)
             .ok_or_else(|| desync("a pierce vertex's face no longer resolves"))?;
+        let mut hus = Vec::new();
+        let mut hws = Vec::new();
         for &l in core::iter::once(&f.outer).chain(&f.rings) {
             let LoopBoundary::Cycle { first } = body
                 .get_loop(l)
@@ -594,22 +627,30 @@ fn shared_loop<T: Decide>(
             else {
                 continue;
             };
-            let cycle = body
+            for he in body
                 .loop_cycle(first)
-                .ok_or_else(|| desync("a face's loop is not walkable"))?;
-            let leaving = |v| -> Vec<HalfEdgeKey> {
-                cycle
-                    .iter()
-                    .copied()
-                    .filter(|&he| body.get_half_edge(he).is_some_and(|h| h.start == v))
-                    .collect()
-            };
-            match (leaving(u).as_slice(), leaving(w).as_slice()) {
-                ([], _) | (_, []) => {}
-                ([hu], [hw]) => return Ok(Some((face, *hu, *hw))),
-                _ => return Err(desync("a pinch loop runs through a pierce vertex twice")),
+                .ok_or_else(|| desync("a face's loop is not walkable"))?
+            {
+                match body.get_half_edge(he).map(|h| h.start) {
+                    Some(v) if v == u => hus.push((l, he)),
+                    Some(v) if v == w => hws.push((l, he)),
+                    _ => {}
+                }
             }
         }
+        return Ok(match (hus.as_slice(), hws.as_slice()) {
+            (_, []) => continue,
+            (&[(lu, hu)], &[(lw, hw)]) if lu == lw => Some(Site::OneLoop { face, hu, hw }),
+            (&[(_, hu)], &[(lw, hw)]) if lw == f.outer => Some(Site::TwoLoops {
+                target: hw,
+                ring: hu,
+            }),
+            (&[(_, hu)], &[(_, hw)]) => Some(Site::TwoLoops {
+                target: hu,
+                ring: hw,
+            }),
+            _ => return Err(desync("a pinch face runs through a pierce vertex twice")),
+        });
     }
     Ok(None)
 }

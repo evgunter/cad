@@ -12,7 +12,9 @@
 //! The rows:
 //! - the union in all six member orders: one body, compared by geometry,
 //!   with its counts, tier-3 validity, closed-form volume and a
-//!   tessellation;
+//!   tessellation; and the same for two blocks whose footprints on the
+//!   plate's side face are holes touching at a corner, which join into
+//!   one hole through one vertex;
 //! - the plate against the joined blocks as a pair boolean, both ways
 //!   round, so the pierced face sits on each operand side in turn;
 //! - the plate minus the joined blocks, where the pierced face is the
@@ -34,6 +36,15 @@ fn pinch(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
     let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 3.0), 0.47, 1.23);
+    (doc, [plate, p1, p2])
+}
+
+/// The plate and two blocks through its x = 3 side whose footprints there
+/// are holes meeting at (3, 1, 0.5).
+fn side_pinch(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3]) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, p1) = block(doc, (2.5, 4.0), (0.5, 1.0), 0.2, 0.3);
+    let (doc, p2) = block(doc, (2.47, 3.9), (1.0, 1.5), 0.5, 0.3);
     (doc, [plate, p1, p2])
 }
 
@@ -113,18 +124,23 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> S
     shape(body)
 }
 
-/// The vertices standing at the pinch, (1.5, 1, 1).
-fn at_pinch(s: &Shape) -> usize {
-    s.vertices
-        .get(&(1_500_000, 1_000_000, 1_000_000))
-        .copied()
-        .unwrap_or(0)
+/// The vertices standing at `p`.
+fn at(s: &Shape, p: Point) -> usize {
+    s.vertices.get(&p).copied().unwrap_or(0)
 }
 
-/// **Every member order of the union builds one body: the top in two
-/// faces sharing one vertex at the pinch.**
-#[test]
-fn a_pinch_union_builds_one_body_in_every_member_order() {
+const TOP: Point = (1_500_000, 1_000_000, 1_000_000);
+
+/// Asserts every member order of `fixture`'s union builds one body,
+/// with `counts` (faces, edges, vertices), `volume` and one vertex at
+/// `pinch`.
+fn every_order(
+    label: &str,
+    fixture: fn(ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3]),
+    counts: [usize; 3],
+    volume: f64,
+    pinch: Point,
+) {
     let orders: [[usize; 3]; 6] = [
         [0, 1, 2],
         [0, 2, 1],
@@ -135,18 +151,33 @@ fn a_pinch_union_builds_one_body_in_every_member_order() {
     ];
     let mut first: Option<Shape> = None;
     for order in orders {
-        let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
+        let (doc, m) = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
         let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
         let (doc, u) = crate::fixture::union_over(doc, &members, None);
-        let what = format!("member order {order:?} (0 = plate)");
-        let s = checked(&run(&doc), u, &what, UNION_VOLUME);
-        assert_eq!(s.counts(), [19, 49, 32], "{what}: faces, edges, vertices");
-        assert_eq!(at_pinch(&s), 1, "{what}: vertices at the pinch");
+        let what = format!("{label}, member order {order:?} (0 = plate)");
+        let s = checked(&run(&doc), u, &what, volume);
+        assert_eq!(s.counts(), counts, "{what}: faces, edges, vertices");
+        assert_eq!(at(&s, pinch), 1, "{what}: vertices at the pinch");
         match &first {
             None => first = Some(s),
             Some(f) => assert_eq!(&s, f, "{what}: a different body from order [0, 1, 2]"),
         }
     }
+}
+
+/// **Every member order of the union builds one body: on the top, two
+/// faces sharing one vertex at the pinch; on the side, one hole through
+/// it.**
+#[test]
+fn a_pinch_union_builds_one_body_in_every_member_order() {
+    every_order("top", pinch, [19, 49, 32], UNION_VOLUME, TOP);
+    every_order(
+        "side",
+        side_pinch,
+        [16, 37, 24],
+        6.0 + (0.225 - 0.075) + (0.2145 - 0.0795),
+        (3_000_000, 1_000_000, 500_000),
+    );
 }
 
 /// **The plate against the joined blocks: a union both ways round
@@ -187,7 +218,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     }
 
     let s = checked(&ev, notched, "plate ∖ blocks", 6.0 - NOTCHES);
-    assert_eq!(at_pinch(&s), 1, "plate ∖ blocks: vertices at the pinch");
+    assert_eq!(at(&s, TOP), 1, "plate ∖ blocks: vertices at the pinch");
     let tops = s
         .faces
         .keys()
@@ -197,7 +228,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
 
     let s = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
     assert_eq!(
-        at_pinch(&s),
+        at(&s, TOP),
         2,
         "plate ∩ blocks: the footprints' corners stay one vertex each"
     );

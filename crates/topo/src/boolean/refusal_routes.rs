@@ -186,8 +186,9 @@ pub enum BooleanDecision {
     Containment,
     /// Where a crossing lands along its edge.
     Crossing(CrossingDecision),
-    /// Whether a vertex of one solid coincides with a vertex of the
-    /// other, asked of an edge end on a curved face: a coincidence both
+    /// Whether two vertices coincide: a vertex of one solid with one of
+    /// the other, asked of an edge end on a curved face, or two pierces
+    /// of one face, asked of a kept face's pinch. A coincidence both
     /// verdicts of which pass, and which no face-pair declaration names.
     VertexOnVertex,
     /// Whether a split point lies on the circle it was placed on: a
@@ -1361,7 +1362,7 @@ impl BooleanDecision {
                 "whether a point lies inside a face, on its boundary, or outside it"
             }
             Self::Crossing(decision) => decision.subject(),
-            Self::VertexOnVertex => "whether a vertex of one solid coincides with one of the other",
+            Self::VertexOnVertex => "whether two vertices coincide",
             Self::SplitPointOnCircle => "whether a split point lies on the circle it was placed on",
             Self::ArcSpan => "whether an arc stays short of a full turn",
             Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
@@ -2223,7 +2224,7 @@ mod tests {
                 ),
             ),
             BooleanDecision::VertexOnVertex => (
-                "whether a vertex of one solid coincides with one of the other",
+                "whether two vertices coincide",
                 Ending::Sized(
                     "Recourse: move the parts so their vertices clearly meet or lie clearly \
                      apart",
