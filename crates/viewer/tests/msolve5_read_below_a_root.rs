@@ -102,7 +102,7 @@ fn the_badge_names_the_operand_of_a_mate_read_below_a_root() {
     match session.at_rest() {
         Some(AtRestBadge::Refused { message }) => assert_eq!(
             *message,
-            expected.to_string(),
+            expected.spoken(session.committed_doc()),
             "the badge is the gate's own refusal, word for word"
         ),
         other => panic!("a mate read below a root turns the badge red, got {other:?}"),
