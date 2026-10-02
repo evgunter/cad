@@ -8,6 +8,7 @@ priority: P3
 cost: E
 closed: 2026-10-02
 branch: place/split-inline-recourse
+pr: 3872
 ---
 
 ## What
