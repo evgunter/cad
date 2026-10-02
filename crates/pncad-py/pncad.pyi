@@ -6300,7 +6300,7 @@ class SplitOutcome:
 
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
-        """Cut node -> its id in the part document."""
+        """Cut node -> its id in the part document, as pairs in the part's own order."""
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Cut profile step id -> the id the part minted for it."""
@@ -6356,7 +6356,7 @@ class InlineOutcome:
     def edits(self) -> list[DocEdit]: ...
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
-        """Part node -> its id in the spliced document."""
+        """Part node -> its id in the spliced document, in the spliced document's order."""
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Part profile step id -> the id the host minted for it."""
