@@ -1636,11 +1636,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             .into_iter()
             .map(|p| {
                 let sb = SceneBody::plain(p.name, p.color, p.body);
-                // The 0.44 m lantern is smooth at 2e-3.
-                if p.name == "lily_lantern" {
-                    sb.finer(2e-3)
-                } else {
+                // At 5e-3 the round bodies' meshes fall 1.2% (the
+                // lantern) to 4.5% (the foot) short of their exact
+                // volumes, and the near-flat blades' under 0.1%.
+                if p.name.starts_with("lily_leaf") || p.name.starts_with("lily_sepal") {
                     sb
+                } else {
+                    sb.finer(2e-3)
                 }
             })
             .collect(),
