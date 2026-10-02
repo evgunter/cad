@@ -79,7 +79,7 @@ builds, and so does the lily's wall 7 carve.
   Gauss–Bonnet over its circle arcs (`props::curved::sphere_circle_loop`).
   The side is read off the loop, and a contradicting sense bit refuses.
 
-The dual review (DR-44) found no wrong body in about 300 oracle bodies.
+The dual review (DR-45) found no wrong body in about 300 oracle bodies.
 The delta review checked 480 bodies and 3,600 hand-built loops and
 found 0 wrong.
 

@@ -190,7 +190,7 @@ impl SolidJoin {
     /// with chart normal `normal`: one chord through
     /// [`JoinLane::Split`], its aux plane read from and minted into
     /// [`Self::aux`] under `datum`.
-    fn join_split<T: Decide>(
+    fn join_split<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
         (h1, h2): (HalfEdgeKey, HalfEdgeKey),
@@ -221,7 +221,7 @@ impl SolidJoin {
     /// The planar-side chord lane against the partner `wall`, whose
     /// face's azimuth window is `window`: one chord through
     /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`.
-    fn join_bool_planar<T: Decide>(
+    fn join_bool_planar<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
         (h1, h2): (HalfEdgeKey, HalfEdgeKey),
@@ -340,7 +340,7 @@ pub(super) struct Connected {
 /// The lockstep joining sweep (module docs). Mutates both annotated
 /// clones in `red` in place; returns the completed polygon pairs in
 /// completion order, with [`NullFacePair::Boolean`] records set.
-pub(super) fn bool_connect<T: Decide>(
+pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,

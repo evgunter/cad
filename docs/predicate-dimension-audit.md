@@ -484,6 +484,8 @@ which is what actually moves the number.
 | validate.rs:2014 | positive_volume | volume/surface-area (the documented dimensional fix) | m | OK |
 | sector_shape.rs (the three rungs) | sector_arm / sector_reflex / sector_straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit, and since #652 ONE name set: the former `bool_sector_*` / `split_sector_*` pairs were the same computation on the same quantity, which is why this was already one row |
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
+| splitting/classify.rs `box_clears` | split_gate_box_side | a padded reach box's distance from the split plane: the centre's plane residual less the box's support `Σ|nᵢ|·hᵢ` (unit normal, half-extents in metres) | m | OK |
+| splitting/classify.rs `gate_face_reach` | split_gate_sphere_axis | a sphere's polar axis read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
 | ray_parity.rs (via `containment.rs`'s `ROWS`) | point_in_loop_segment | a loop segment's own length — the degeneracy gate, through the `Margin::norm3` door | m | OK (split off `point_in_loop_boundary` by #712, which was deciding two questions under one name) |
 | ray_parity.rs (via `containment.rs`'s `ROWS`) | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
 | splitting/containment.rs (the frame gate) | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |

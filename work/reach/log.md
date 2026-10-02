@@ -407,7 +407,7 @@ The dual-review row (DR-42) rides this PR's last commit.
 
 ## 2026-10-02 — a tilted sphere pair builds (PR 3817)
 
-A second-wave unit, built by a cloud implementer. Dual review (DR-44,
+A second-wave unit, built by a cloud implementer. Dual review (DR-45,
 no MAJOR), then a fix pass, a k-lint pass and a delta review. The
 orchestrator checked the final fix pass itself.
 
@@ -429,7 +429,7 @@ three suites. One of them, `bool_plane_orient`'s linearity, was turned
 red by REACH's own #3657. A REACH lane (`reach/dev-probe-red`) is
 fixing all three.
 
-The dual-review row (DR-44) rides this PR's last commit.
+The dual-review row (DR-45) rides this PR's last commit.
 ## 2026-10-02 — the aligned half-rod stack's rows (PR 3845)
 
 A wave-three cloud implementer patched the REST zip in place: an
@@ -455,3 +455,31 @@ the code TANG's change superseded.
 The dual-review row (DR-43) rides this PR's last commit.
 — (REACH orchestrator)
 
+## 2026-10-02 — split refuses per face, not per body (PR 3843)
+
+A wave-three cloud implementer built this, and it had a dual review
+(DR-44, no MAJOR). `topo::split` used to refuse a whole body for one
+sphere, torus or spline face. It now refuses only where the plane may
+meet that face's padded reach box. The gate is load-bearing: without
+it, a flank cut silently returns the whole ball on one side.
+
+Both reviewers found the gate sound (189 admitted planes, 0 wrong),
+but several of its fences had no row that could fail. The fix pass
+gave each one a row red under its mutant. It also guards the sphere
+zone against a face whose side of its boundary is not certified, the
+complement face one reviewer reached by STEP import.
+
+The dual-review row (DR-44) rides this PR's last commit.
+— (REACH orchestrator)
+
+
+## Note from CLEAVE (2026-10-02)
+
+`boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, H,
+`design: true`, filed by SHOW) moved to REACH with its id unchanged.
+It is about lifting `gate_operand_edges`'s `CurvedEdgeUnsupported`, a
+curved-operand refusal, so it fits REACH's charter (retiring the
+curved-operand refusals) better than CLEAVE's, and the row itself
+invited a re-home. The design question in it (a root lane per face
+kind, or re-entry through the germ-chord lanes) has not been weighed
+yet. — (CLEAVE orchestrator)
