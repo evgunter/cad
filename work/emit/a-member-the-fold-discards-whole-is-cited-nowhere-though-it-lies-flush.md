@@ -2,12 +2,12 @@
 id: a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush
 kind: issue
 title: A union member the fold discards whole, inside the accumulation and flush with it, is cited nowhere, while folded earlier it parents the merged faces it lies in
-status: open
+status: review
 opened: 2026-10-01
 priority: P1
 cost: M
-pr: 3734
-branch: emit/fold-discarded-member
+pr: 3753
+branch: emit/union-member-space-linking
 ---
 
 
@@ -130,3 +130,20 @@ Ev approved member-space linking of consumed pairs, as written into N2's union p
 **Corpus:**
 - Add the two-member covered and poke-out cases, and B's swallowed case `xmerge`, to the rim-piece corpus.
 - Expected movement: `KNOWN_ABSENT` for `r4tri`/`r4trig` goes to 0.
+
+## Built (emit lane, 2026-10-01, branch `emit/union-member-space-linking`)
+
+Built as ruled:
+- `BooleanNaming::covered` doesn't depend on which copy is kept. It is recorded on the section path, in the declared-REST union, and through `finish_fallback`.
+- `judge_pairwise_contact` keeps each pair's naming.
+- `emit_union::Links` links member faces before the fold.
+
+The corpus has `r5covered`, `r5coveredids`, `r5poke`, `r5pokehi` and `xmerge`. `KNOWN_ABSENT` for `r4tri` and `r4trig` is 0.
+
+Linking exposed a gap in `near` (`crates/editor-core/tests/emit_union_flush_names.rs`). In orders `[b, g, a]` and `[g, b, a]`, the slab cuts `b`'s top before `a` joins. `a`'s top is then discarded as one face from x 0.499 on, and from x 0.501 `b`'s top holds it. That one face carries both the region `a` lost and the region held through `b`, with no edge between them. The kept face's edge at x 0.501 runs through it. So the two discards (`b`'s top at step 1, `a`'s at step 2) joined no obstacle, and `Obstacles::split` refused.
+
+The orchestrator ruled this a mechanism, with the fact kept in the kernel.
+
+Where `recl` meets a covered pair at a vertex both operands hold, it records the kept copy's edges that run into the dropped face (`BooleanReduction::held`). An edge lying inside the held region is dropped: a null edge, or one whose two faces both cover. A discarded fragment holds such an edge only if it is a fragment of that face and holds the entry vertex, or a null-edge copy of it (`DiscardRow::held`, end stretches like `bordered`). `Obstacles::record` reads these stretches as seams. The fragment test is the review's repair: by lineage alone, a pillar's footprint hole in `a`'s top took the slab's edge, and the notch was cited in some orders only.
+
+A vertex-on-face contact records no held edge, because the dropped face holds no vertex there; `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere` has the residue. Whether the pair boolean should follow member-space consumption too is `a-pair-boolean-names-a-declared-covered-pair-by-operand-order` (design). `near` publishes in its four fused orders again, with one face table in every order (`a_cut_a_covered_face_meets_is_one_divider_in_every_order`). Its bodies still differ by the leftover vertex that the ZIP row owns.
