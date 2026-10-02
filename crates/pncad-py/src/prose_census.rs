@@ -1336,12 +1336,17 @@ fn census(sources: &[Source]) -> Vec<Site> {
     for source in sources {
         let (code, text) = (&source.code, &source.text);
         let module = module_path(&source.file);
-        for (found, _) in code.match_indices("Display for ") {
+        // A sentence written over a speaker (`spoken::Say`) is that
+        // type's `Display`, said by tag.
+        let impls = code
+            .match_indices("Display for ")
+            .chain(code.match_indices("Say for "));
+        for (found, head) in impls {
             let window = found.saturating_sub(200);
             if !code[window..found].contains("impl") {
                 continue;
             }
-            let Some((display_type, after)) = ident_at(code, found + "Display for ".len()) else {
+            let Some((display_type, after)) = ident_at(code, found + head.len()) else {
                 continue;
             };
             let Some(open) = code[after..].find('{').map(|o| after + o) else {

@@ -1127,3 +1127,245 @@ fn a_carried_attribution_keeps_the_parts_tag_and_this_documents_own_is_spoken() 
         "only the outer document's own row speaks its label: {whole}"
     );
 }
+
+// ---- A carried level is spoken from the part only where the part is held ----
+
+/// A stand whose second mate contradicts its first (its seat gaps the
+/// first's by half a unit), in a document named `id`, the two mates
+/// labelled `held` and `added`. Every document's mint starts at the zero
+/// chain, so two such stands mint the same ids.
+fn contradicted(
+    cube: DocRef,
+    cube_body: RecipeNodeId,
+    id: &str,
+    held: &str,
+    added: &str,
+) -> ProfileDoc {
+    let (doc, _) = stand_over(
+        cube,
+        cube_body,
+        id,
+        ContactClass::Rest,
+        [0.0, 0.0, 1.0],
+        held,
+    );
+    let (c0, c1) = (doc.order()[0], doc.order()[1]);
+    let (doc, second) = insert(
+        doc,
+        mate_node(
+            in_part(c0, cube_body, CapEnd::End),
+            in_part(c1, cube_body, CapEnd::Start),
+            ContactClass::Rest,
+            frame([0.0, 0.0, 1.5], [0.0, 0.0, 1.0]),
+        ),
+    );
+    step(
+        doc,
+        DocEdit::SetLabel {
+            node: second,
+            label: Some(editor_core::Label::new(added).expect("a valid label")),
+        },
+    )
+    .0
+}
+
+/// **The inner nodes of a memoized refusal are spoken from the document
+/// they are numbered in, and only by a frame that holds it.** The part
+/// and the outer document both hold a contradicted pair of mates under
+/// the same ids, labelled apart. The outer document's own failure
+/// speaks both of its mates and names its failing node once; the
+/// instance's carried level keeps the part's tags in a frame that holds
+/// only the outer document, and reads as the part's own tree draws it
+/// in a frame that holds the part.
+#[test]
+fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding_it() {
+    let mut store = PartStore::default();
+    let (cube, cube_body) = store.insert_part(cube_part("speak-c-cube"), Tol::witness());
+    let inner = contradicted(
+        cube,
+        cube_body,
+        "speak-c-inner",
+        "inner held",
+        "inner added",
+    );
+    let inner_ref = store.insert(inner.clone(), Tol::witness());
+    let outer = contradicted(
+        cube,
+        cube_body,
+        "speak-c-outer",
+        "outer held",
+        "outer added",
+    );
+    assert_eq!(
+        inner.order(),
+        outer.order(),
+        "both stands mint from the zero chain"
+    );
+    let (held, added) = (outer.order()[2], outer.order()[3]);
+    let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
+    let outer = place(outer, instance, [10.0, 0.0, 0.0]);
+    let (th, ta) = (
+        test_utils::refusal::tag(held.0),
+        test_utils::refusal::tag(added.0),
+    );
+
+    let ev = run(&outer, &with_resolver(store.clone()));
+    let own = ev.node_error(added).expect("the second mate is refused");
+    assert_eq!(
+        own.spoken(&outer),
+        format!(
+            "Mate \"outer added\" ({ta}) failed: the mate solve refused: Mate \"outer held\" \
+             ({th}) and this mate cannot both hold: {}",
+            own.to_string()
+                .split_once(" cannot both hold: ")
+                .expect("the pair's sentence")
+                .1
+        ),
+        "the outer mate's own failure speaks the mate it contradicts, and names itself once"
+    );
+    assert!(
+        own.to_string().starts_with(&format!(
+            "node {ta} failed: the mate solve refused: mate {th} and this mate cannot both hold"
+        )),
+        "the tag form: {own}"
+    );
+    let (renamed, _) = step(
+        outer.clone(),
+        DocEdit::SetLabel {
+            node: held,
+            label: Some(editor_core::Label::new("outer renamed").expect("a valid label")),
+        },
+    );
+    assert!(
+        own.spoken(&renamed)
+            .contains(&format!("Mate \"outer renamed\" ({th}) and this mate")),
+        "the memoized refusal holds the id, so a rename shows with nothing re-evaluated: {}",
+        own.spoken(&renamed)
+    );
+
+    let error = ev
+        .node_error(instance)
+        .expect("the instance's part has no body");
+    let levels: Vec<_> = error.kind.carried_chain().collect();
+    let [level] = levels.as_slice() else {
+        panic!("one carried level, in the part: {levels:?}");
+    };
+    assert!(
+        matches!(level.document, editor_core::CarriedIn::Part(r) if *r == inner_ref),
+        "{levels:?}"
+    );
+    let in_outer = level.line_in(&outer);
+    assert!(
+        in_outer.contains(&format!("mate {th}")) && !in_outer.contains("outer"),
+        "a level in the part is never spoken from the outer document, which holds its ids as \
+         other nodes: {in_outer}"
+    );
+    assert_eq!(in_outer, level.line(), "a frame without the part says tags");
+    let inner_ev = run(&inner, &with_resolver(store));
+    let inner_own = inner_ev
+        .node_error(level.node)
+        .expect("the part's own tree draws the level's node failed");
+    assert_eq!(
+        level.line_in_part(&inner),
+        inner_own.spoken(&inner),
+        "a frame holding the part draws the level as the part's own tree does"
+    );
+    assert!(
+        level.line_in_part(&inner).contains("\"inner held\""),
+        "{}",
+        level.line_in_part(&inner)
+    );
+    let editor_core::NodeErrorKind::Part { fault, doc_ref } = &error.kind else {
+        panic!("the instance refuses on its part: {error:?}");
+    };
+    let fault_spoken = fault.spoken(doc_ref, &inner);
+    assert!(
+        fault_spoken.starts_with(&format!("the part's {} failed", inner.spoken(level.node))),
+        "the part's fault speaks its node from the part: {fault_spoken}"
+    );
+    let t = test_utils::refusal::tag(level.node.0);
+    assert!(
+        error
+            .spoken(&outer)
+            .contains(&format!("the part's node {t} failed")),
+        "the outer frame says the part's node by tag, though it holds the id: {}",
+        error.spoken(&outer)
+    );
+}
+
+/// A part's fault and level are spoken only from the part their ids are
+/// numbered in.
+#[test]
+#[should_panic(expected = "its node ids would name another document's nodes")]
+fn a_part_fault_is_never_spoken_from_another_document() {
+    let mut store = PartStore::default();
+    let (cube, cube_body) = store.insert_part(cube_part("speak-d-cube"), Tol::witness());
+    let inner = contradicted(
+        cube,
+        cube_body,
+        "speak-d-inner",
+        "inner held",
+        "inner added",
+    );
+    let inner_ref = store.insert(inner, Tol::witness());
+    let outer = ProfileDoc::empty(DocumentId::derive("speak-d-outer"), Tol::witness());
+    let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
+    let ev = run(&outer, &with_resolver(store));
+    let error = ev.node_error(instance).expect("the part has no body");
+    let editor_core::NodeErrorKind::Part { fault, doc_ref } = &error.kind else {
+        panic!("{error:?}");
+    };
+    let _ = fault.spoken(doc_ref, &outer);
+}
+
+/// **A mate the edit door refuses speaks the nodes its fault names** as
+/// the document it would stand in holds them, and names itself once.
+#[test]
+fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
+    let mut store = PartStore::default();
+    let (cube, cube_body) = store.insert_part(cube_part("speak-e-cube"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("speak-e"), Tol::witness());
+    let (doc, leg) = insert(doc, Node::instantiate_part(cube));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetLabel {
+            node: leg,
+            label: Some(editor_core::Label::new("leg").expect("a valid label")),
+        },
+    );
+    let err = editor_core::apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(mate_node(
+                in_part(leg, cube_body, CapEnd::End),
+                in_part(leg, cube_body, CapEnd::Start),
+                ContactClass::Rest,
+                frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
+            )),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect_err("one member on both sides");
+    let editor_core::EditError::MateRefused { node, fault, .. } = &err else {
+        panic!("{err:?}");
+    };
+    assert!(
+        matches!(**fault, editor_core::MateFault::SelfMate { instance, .. } if instance == leg),
+        "{fault:?}"
+    );
+    let t = test_utils::refusal::tag(leg.0);
+    assert!(
+        err.to_string().starts_with(&format!(
+            "{node} is refused by the solve on its own datum: this mate names one member on \
+             both sides (it stands on InstantiatePart \"leg\" ({t}))"
+        )),
+        "{err}"
+    );
+    assert!(
+        fault
+            .to_string()
+            .contains(&format!("(it stands on instance {t})")),
+        "the fault's own words say the instance by tag: {fault}"
+    );
+}

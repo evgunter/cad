@@ -963,7 +963,6 @@ const LABELS: &[(&str, &str)] = &[
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",
         "at corner",
     ),
-    ("Edit/MateRefused(", "mate 000000000009"),
 ];
 
 /// The rows that state no recourse — no `Recourse:`, no "There is no way

@@ -36,6 +36,8 @@ use crate::tags::{
     class_admission_tag, maintenance_tag, mate_fault_tag, mate_primitive_tag, subgroup_tag,
     unplaced_tag,
 };
+use std::sync::Arc;
+
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -652,7 +654,38 @@ impl Subgroup {
 /// accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct MateFault(pub(crate) d::MateFault);
+pub(crate) struct MateFault(pub(crate) d::MateFault, pub(crate) Voice);
+
+/// **Who says the nodes a fault's words name**: the document the fault
+/// was raised over, as the solve that recorded it read it, or the nodes
+/// an edit door kept when it refused the mate. A fault is memoized with
+/// the solve, so it holds ids; its node getters cross them in full.
+#[derive(Clone)]
+pub(crate) enum Voice {
+    /// The document the solve read.
+    Doc(Arc<d::ProfileDoc>),
+    /// The nodes the edit door kept ([`d::HeldNodes`]).
+    Held(d::HeldNodes),
+}
+
+impl Voice {
+    /// The speaker this voice says nodes by.
+    fn speaker(&self) -> d::Speaker<'_> {
+        match self {
+            Self::Doc(doc) => d::Speaker::of(&**doc),
+            Self::Held(held) => d::Speaker::held(held),
+        }
+    }
+
+    /// The document a carried refusal's level in it is spoken from,
+    /// when this voice holds one.
+    fn doc(&self) -> Option<&d::ProfileDoc> {
+        match self {
+            Self::Doc(doc) => Some(doc),
+            Self::Held(_) => None,
+        }
+    }
+}
 
 #[pymethods]
 impl MateFault {
@@ -710,7 +743,7 @@ impl MateFault {
     /// its own failure states it.
     #[getter]
     fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
-        super::value::carried_cause(py, self.0.carried_chain(), None)
+        super::value::carried_cause(py, self.0.carried_chain(), self.1.doc())
             .map(|cause| cause.into_value(py).into_any())
     }
 
@@ -930,8 +963,10 @@ impl MateFault {
         self.payload().lever_arm.map(length)
     }
 
+    /// The fault's words, each node it names spoken from the document
+    /// it was raised over.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        d::Said(&self.0, self.1.speaker()).to_string()
     }
 
     fn __repr__(&self) -> String {
@@ -960,14 +995,14 @@ impl MateFault {
 /// exception, because [`SolvedPoses::fault`] hands the SAME value back
 /// without raising: two spellings of one payload is exactly the drift
 /// a single vocabulary avoids.
-pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
-    let value = Py::new(py, MateFault(fault.clone()))
+pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> PyErr {
+    let value = Py::new(py, MateFault(fault.clone(), voice.clone()))
         .map(|v| v.into_any())
         .unwrap_or_else(|_| py.None());
     let err = typed_err(
         py,
         ErrorClass::Mate,
-        fault.to_string(),
+        d::Said(fault, voice.speaker()).to_string(),
         &[
             (
                 "variant",
@@ -978,15 +1013,20 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
     );
     // The refusal the fault carries, typed, as the cause — the value's
     // own `cause`, and what a node failure does with one.
-    super::value::with_carried(py, err, fault.carried_chain(), None)
+    super::value::with_carried(py, err, fault.carried_chain(), voice.doc())
 }
 
 /// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
 /// fault as `MateError`, and the two placement refusals as the
 /// `EvaluationError` the instance's own row would carry.
-fn pose_err(py: Python<'_>, instance: NodeId, refusal: &d::PoseRefusal) -> PyErr {
+fn pose_err(
+    py: Python<'_>,
+    instance: NodeId,
+    refusal: &d::PoseRefusal,
+    doc: &Arc<d::ProfileDoc>,
+) -> PyErr {
     let kind = match refusal {
-        d::PoseRefusal::Mate(fault) => return mate_err(py, fault),
+        d::PoseRefusal::Mate(fault) => return mate_err(py, fault, &Voice::Doc(Arc::clone(doc))),
         d::PoseRefusal::Unplaced { group, cause, .. } => d::NodeErrorKind::Unplaced {
             group: *group,
             cause: *cause,
@@ -996,14 +1036,17 @@ fn pose_err(py: Python<'_>, instance: NodeId, refusal: &d::PoseRefusal) -> PyErr
             error: error.clone(),
         },
     };
-    let err = super::value::refused(py, instance, &kind, refusal.to_string(), None);
-    super::value::with_carried(py, err, kind.carried_chain(), None)
+    let err = super::value::refused(py, instance, &kind, refusal.spoken(&**doc), None);
+    super::value::with_carried(py, err, kind.carried_chain(), Some(&**doc))
 }
 
 /// The document's solved poses: each instance's pose relative to its
 /// group root, each mate's role, and the per-node refusals.
+///
+/// It keeps the document it solved, which its faults' words are spoken
+/// from.
 #[pyclass(frozen, module = "pncad")]
-pub(crate) struct SolvedPoses(d::SolvedPoses);
+pub(crate) struct SolvedPoses(d::SolvedPoses, Arc<d::ProfileDoc>);
 
 #[pymethods]
 impl SolvedPoses {
@@ -1014,7 +1057,10 @@ impl SolvedPoses {
     /// in its group that consequently has no pose — a refusal
     /// reaches the nodes it actually affects and no further.
     fn fault(&self, node: &NodeId) -> Option<MateFault> {
-        self.0.fault(node.0).cloned().map(MateFault)
+        self.0
+            .fault(node.0)
+            .cloned()
+            .map(|fault| MateFault(fault, Voice::Doc(Arc::clone(&self.1))))
     }
 
     /// A mate's role, `None` if the node is not a live mate.
@@ -1076,7 +1122,7 @@ impl SolvedPoses {
         self.0
             .placement(&doc.inner, instance.0)
             .map(Frame)
-            .map_err(|refusal| pose_err(py, *instance, &refusal))
+            .map_err(|refusal| pose_err(py, *instance, &refusal, &self.1))
     }
 
     fn __repr__(&self) -> String {
@@ -1115,7 +1161,10 @@ pub(crate) fn solve_document(
     let tol = Tol::witness();
     let seam = super::doc::seam(resolver);
     let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-    SolvedPoses(d::solve_document(&doc.inner, &reach, tol))
+    SolvedPoses(
+        d::solve_document(&doc.inner, &reach, tol),
+        Arc::new(doc.inner.clone()),
+    )
 }
 
 /// The **placement groups**: instances coupled by PLACING mates — both

@@ -116,10 +116,9 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "Mate {} failed: the mate solve refused: mate {}'s a reference has no \
-             derived pose: node {p}, on its derivation, refuses. Recourse: repair node \
-             {p}",
-            test_utils::refusal::tag(mate.0),
+            "Mate {} failed: the mate solve refused: this mate's a reference has no \
+             derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
+             Pattern {p}",
             test_utils::refusal::tag(mate.0),
             p = test_utils::refusal::tag(pattern.0),
         ),

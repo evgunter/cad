@@ -2623,7 +2623,7 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::MeasureClearanceRefused(refusal) => {
                 write!(f, "the clearance engine refused `{}`", refusal.name())?;
-                let payload = refusal.said_payload(by).to_string();
+                let payload = refusal.said_payload(by);
                 if !payload.is_empty() {
                     write!(f, " ({payload})")?;
                 }

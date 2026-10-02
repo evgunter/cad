@@ -38,7 +38,8 @@
 //! values, so they cross under the node roles every other arm uses.
 
 use pncad::document::{
-    ContentPin, DocParamValue, EditError, FrameSite, MateFault, ParamName, RecipeNodeId, RootFault,
+    ContentPin, DocParamValue, EditError, FrameSite, HeldNodes, MateFault, ParamName, RecipeNodeId,
+    RootFault,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
@@ -118,8 +119,9 @@ pub struct EditPayload<'a> {
     /// than as a word alone, because it is the same value
     /// `SolvedPoses.fault` answers for a mate the solve refused, and a
     /// caller reads its lever, its clash and its recourse off the
-    /// `MateFault` type it already knows.
-    pub fault: Option<&'a MateFault>,
+    /// `MateFault` type it already knows. Beside it, the nodes it
+    /// names as the door's document held them, which its words speak.
+    pub fault: Option<(&'a MateFault, &'a HeldNodes)>,
 }
 
 impl EditPayload<'_> {
@@ -256,9 +258,9 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The mate is the subject, and the solve's fault about it
         // crosses whole: `inner_variant` says which arm, `fault` is
         // the arm's own payload.
-        EditError::MateRefused { node, fault, .. } => EditPayload {
+        EditError::MateRefused { node, fault, held } => EditPayload {
             node: Some(node.id()),
-            fault: Some(fault),
+            fault: Some((fault, held)),
             ..none
         },
         EditError::WouldStartPlacing { mate } => EditPayload {

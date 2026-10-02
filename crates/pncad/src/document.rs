@@ -110,7 +110,8 @@ pub use editor_core::{
 // beside a refusal it carries whole, and the full-width id a machine
 // channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, node_kind_noun, spoken_by,
+    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, held_by, node_kind_noun,
+    spoken_by,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the

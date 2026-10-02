@@ -650,42 +650,27 @@ impl ClearanceRefusal {
     /// node id prints in full ([`SelectionRefusal::payload`]).
     pub fn payload(&self) -> String {
         match self {
+            Self::Sliver { predicate } => (*predicate).to_owned(),
+            Self::Budget(k) => format!("{k:?}"),
+            Self::Unsupported { carrier, face } => format!("{carrier} {face:?}"),
             Self::Selection(r) => r.payload(),
-            _ => self.said_payload(crate::spoken::Speaker::TAG).to_string(),
+            Self::WitnessUnverified { what } => what.clone(),
+            Self::PoisonEnclosure { a, b } => format!("{a:?}/{b:?}"),
+            Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
+            Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
+            Self::EmptyScope | Self::ToleranceHasNoBand | Self::NoAdmittedPair => String::new(),
         }
     }
 
-    /// The payload a sentence quotes: as [`Self::payload`], but a
+    /// The payload a sentence quotes: [`Self::payload`], but a
     /// selection's refusal in words, its nodes said by `by`.
-    pub(crate) fn said_payload<'a>(
-        &'a self,
-        by: crate::spoken::Speaker<'a>,
-    ) -> impl core::fmt::Display + 'a {
-        SaidPayload(self, by)
-    }
-}
-
-/// [`ClearanceRefusal::said_payload`]'s answer.
-struct SaidPayload<'a>(&'a ClearanceRefusal, crate::spoken::Speaker<'a>);
-
-impl core::fmt::Display for SaidPayload<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use ClearanceRefusal as R;
-        match self.0 {
-            R::Sliver { predicate } => f.write_str(predicate),
-            R::Budget(k) => write!(f, "{k:?}"),
-            R::Unsupported { carrier, face } => write!(f, "{carrier} {face:?}"),
-            R::Selection(r) => write!(f, "{}", crate::spoken::Said(r, self.1)),
-            R::WitnessUnverified { what } => f.write_str(what),
-            R::PoisonEnclosure { a, b } => write!(f, "{a:?}/{b:?}"),
-            R::NothingCertified { refused_leaves } => write!(f, "refused_leaves={refused_leaves}"),
-            R::NotADistance { c } => write!(f, "{:016x}", c.to_bits()),
-            R::EmptyScope | R::ToleranceHasNoBand | R::NoAdmittedPair => Ok(()),
+    pub(crate) fn said_payload(&self, by: crate::spoken::Speaker<'_>) -> String {
+        match self {
+            Self::Selection(r) => crate::spoken::Said(r, by).to_string(),
+            _ => self.payload(),
         }
     }
-}
 
-impl ClearanceRefusal {
     /// The refusal's stable class name, for reports and the goldening
     /// form.
     pub fn name(&self) -> &'static str {
