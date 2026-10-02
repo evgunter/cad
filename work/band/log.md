@@ -379,3 +379,14 @@ states, refused `BodyNotIntact`. `touches_any` refuses an unresolved edge
 rather than reading it as apart, and the surgery's three
 `filter_map(get_half_edge)` member reads became its typed no-cycle refusal.
 Reviewed by the orchestrator's read (cost E).
+
+## 2026-10-02 — a P0 landed from SHOW: `a-plane-plane-blend-cannot-end-at-an-unrequested-corner`
+
+Filed by SHOW's `split-node-chords-by-name-has-no-demo` (PR 3842) and
+raised to P0 / cost H / `design: true` at that PR's review: chamfering
+or filleting one edge of a box refuses `UnsupportedRunOut`, a face's
+whole rim `ChainNotG1`, and only all twelve edges build. Both doors are
+in the row's scope. The planar band's end geometry is a design fork in
+the shape of FILLET-H7's (Ev's ruling on PR 1736): two designers first.
+The bracket scene pins it live (walls 1–3). Its sibling
+`a-blend-refuses-a-solid-of-several-shells` landed at P2.
