@@ -1350,9 +1350,8 @@ pub fn waist_fill(x_v: f64, r: f64) -> f64 {
 /// then a lip rising to `(1.5, 1.5)` and back down the outside to the
 /// base — `(0,0) (1.5,0) (1.5,1.5) (1,1) (0,1)` revolved fully.
 ///
-/// Pole-touching, so both its discs are minted as half-discs and
-/// `merge_coplanar_faces` fuses each into one face. After that repair
-/// its FLOOR rim `(1, 1)` is the plane-hosted closed rim whose crossings
+/// Pole-touching; a full revolve builds each disc whole, so its FLOOR
+/// rim `(1, 1)` is the plane-hosted closed rim whose crossings
 /// are TRIVALENT — one plane face carrying both arcs in its own outer
 /// cycle — and it is CONCAVE, an inside corner whose band ADDS material.
 /// That is the pairing the closed-rim suites need: every other
@@ -1414,8 +1413,8 @@ pub fn wedge_fill(k: (f64, f64), da: (f64, f64), db: (f64, f64), r: f64) -> f64 
 /// **A pole-touching hemisphere of radius `r` on a flat base disc**: the
 /// base `(0,0)→(r,0)` and the sphere quarter `(r,0)→(0,r)`, revolved
 /// fully. The simplest plane-hosted closed rim there is — one profile
-/// segment per support — and after `merge_coplanar_faces` its equator is
-/// the hostless-crossing shape with a plane×sphere pair.
+/// segment per support — and its equator, the base disc being built
+/// whole, is the hostless-crossing shape with a plane×sphere pair.
 pub fn hemisphere_on_flat_base(r: f64, tol: Tol) -> Body<f64> {
     hemisphere_on_flat_base_at(r, tol)
 }
@@ -1507,14 +1506,13 @@ pub fn plane_sphere_external_cut(big_r: f64, r: f64) -> f64 {
 /// `up` false is its DIMPLE twin, the same hemisphere dug into the top
 /// instead (bulge `−tan(π/8)`, apex `(0, 0.5)`).
 ///
-/// Pole-touching, so every wall is minted as two half-bands; the caller
-/// decides whether to repair. After `merge_coplanar_faces` the flat top
-/// is ONE plane ANNULUS carrying THREE closed rims of three shapes at
+/// Pole-touching: each curved wall is minted as two half-bands, each
+/// plane wall whole, so the flat top is ONE plane ANNULUS carrying THREE
+/// closed rims of three shapes at
 /// once, which is why it is the fixture: its BASE rim `(1, 0)` is a
 /// hostless annulus on a ring-free host, its TOP OUTER rim `(1, 1)` is a
 /// hostless annulus on a host that also carries a RING, and its DOME rim
-/// `(0.5, 1)` is that ring and so a LADDER. Census after the repair:
-/// `V=7 E=10 F=6`.
+/// `(0.5, 1)` is that ring and so a LADDER. Census: `V=7 E=10 F=6`.
 pub fn boss(up: bool, tol: Tol) -> Body<f64> {
     // A quarter turn: `tan(theta/4)` at `theta = pi/2`.
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
@@ -1536,7 +1534,7 @@ pub fn boss(up: bool, tol: Tol) -> Body<f64> {
 /// circular outer boundary: `(0,0) (rr,0) (rr,1) (0.5,1)[dome] (0,1.5)`
 /// revolved fully. The dome stays at radius 0.5, so the ladder rim's
 /// containment margin against that boundary is `rr − √((0.5 + r)² − r²)`
-/// and `rr` is the dial. Pole-touching; the caller repairs.
+/// and `rr` is the dial.
 pub fn narrowed_boss(rr: f64, tol: Tol) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved_about_y(
@@ -1557,7 +1555,6 @@ pub fn narrowed_boss(rr: f64, tol: Tol) -> Body<f64> {
 /// excises: `(0,0) (1,0) (1,1) (a,1)[dome] (0,1+a)` revolved fully. The
 /// outer radius stays 1, so the hostless annulus rim's containment margin
 /// at fillet radius `r` is `(1 − r) − a` and `a` is the dial.
-/// Pole-touching; the caller repairs.
 pub fn domed_boss(a: f64, tol: Tol) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved_about_y(

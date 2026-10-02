@@ -1,8 +1,8 @@
 //! **The seam-split closed rim's band: ONE annulus over several arcs.**
 //!
-//! A full revolve of a POLE-TOUCHING profile splits every wall into two
-//! half-bands, so every latitude rim arrives as two arcs meeting at two
-//! chart-seam vertices. A chain that STOPS at such a vertex is refused
+//! A full revolve of a POLE-TOUCHING profile splits every curved wall
+//! into two half-bands, so every latitude rim beside one arrives as two
+//! arcs meeting at two chart-seam vertices. A chain that STOPS at such a vertex is refused
 //! `SeamVertex`, whose recourse names the request that describes what
 //! the caller wants: ask for the rim WHOLE. These rows are what makes
 //! that recourse true.
@@ -24,9 +24,9 @@
 //! - **The band is ONE annulus wall** over both arcs: one boundary
 //!   cycle, no ring, two trim arcs per side and one doubly-traversed
 //!   slit — red if the carve ever leaves a sector wall behind.
-//! - **The supports are several FACES of one SURFACE** per side, which
-//!   is the resolution this door rests on and the half-face shape #319
-//!   met.
+//! - **A curved support is several FACES of one SURFACE**, which is
+//!   the resolution this door rests on; a plane support is one face
+//!   carrying both arcs.
 //! - **The seam-split carve removes exactly what a ONE-EDGE carve of
 //!   the same rim removes**: the same profile bored on-axis has the
 //!   same three rims as single closed edges, and both doors take the
@@ -325,13 +325,14 @@ fn the_band_over_two_arcs_is_one_annulus_wall() {
     assert_eq!(slits.len(), 1, "exactly one slit");
 }
 
-/// **Both supports are several FACES of one SURFACE.** That is the
-/// resolution the door rests on, and #319's own finding: a pole-touching
-/// revolve splits the base DISK into two half-faces, so the planar
-/// support of the neck rim's two arcs is two different faces of one
-/// plane.
+/// **A curved support is several FACES of one SURFACE.** That is the
+/// resolution the door rests on: a pole-touching revolve splits every
+/// CURVED wall into two half-bands, so a curved support of a rim's two
+/// arcs is two different faces of one surface. A PLANE support is one
+/// face carrying both arcs: the revolve builds a plane wall whole
+/// (`crates/sweep/README.md`, "Walls: one per run").
 #[test]
-fn each_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
+fn each_curved_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
     let source = lantern();
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
@@ -343,10 +344,19 @@ fn each_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
             [surface_of(&source, a1), surface_of(&source, b1)],
             "{name}: the rim arrives and leaves on ONE support pair"
         );
-        assert!(
-            a0 != a1 && b0 != b1,
-            "{name}: each side of the rim is TWO faces"
-        );
+        let is_plane = |f| {
+            matches!(
+                source.get_surface(surface_of(&source, f)),
+                Some(geom::Surface::Plane { .. })
+            )
+        };
+        for (x, y) in [(a0, a1), (b0, b1)] {
+            assert_eq!(
+                x == y,
+                is_plane(x),
+                "{name}: a plane side is ONE face, a curved side TWO"
+            );
+        }
     }
 }
 

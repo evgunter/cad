@@ -11,9 +11,12 @@
 //! names keep denoting its pieces wherever the new program draws them,
 //! and nothing is rewritten or reported, while a dropped step's names
 //! keep their spelling, resolve `Vanished`, and are reported stranded.
-//! A value edit moves no name at all: which loop is outer, which way a
-//! loop runs and how many segments a step draws are decisions about
-//! geometry, not about what the author made.
+//! A value edit moves no piece's locator: which loop is outer, which
+//! way a loop runs and how many segments a step draws are decisions
+//! about geometry, not about what the author made. (It can change which
+//! pieces one swept wall holds — runs are decided on the values, N1
+//! "Swept walls over a run" — and then a run wall's name vanishes with
+//! an N3 offer; no row here edits pieces into or out of collinearity.)
 //!
 //! The fixture most rows share is `edit_ruled_carve`'s sunk rod: a
 //! block with a rod's section standing on its top edge, whose two
@@ -113,12 +116,15 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
 /// The wall at canonical segment `k` of loop `l` of the profile `ext`
 /// sweeps, spelled by the piece it is under `doc`'s current values.
 fn wall_of(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, l: usize, k: usize) -> StableName {
-    fname(ext, RoleSeg::Lateral(fixture::piece(doc, ext, l, k)))
+    fname(ext, RoleSeg::Lateral(fixture::piece(doc, ext, l, k).into()))
 }
 
 /// A wall spelled by a step id and a role directly.
 fn wall_by(ext: RecipeNodeId, step: StepId, role: PieceRole) -> StableName {
-    fname(ext, RoleSeg::Lateral(ProfileEdgeRef::Piece { step, role }))
+    fname(
+        ext,
+        RoleSeg::Lateral(ProfileEdgeRef::Piece { step, role }.into()),
+    )
 }
 
 /// The ids a profile node holds, per loop.
@@ -1225,7 +1231,7 @@ fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
 }
 
 // ---------------------------------------------------------------- //
-// What cannot move a name: value edits (N1)
+// What cannot move a piece's locator: value edits (N1)
 // ---------------------------------------------------------------- //
 
 /// `At, Toward(+x), Fillet(r), Toward(+y), FarEndTo(2,2), LineTo(0,2),
@@ -1631,12 +1637,22 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         },
     );
     let piece = fixture::piece(&doc, profile, 0, 2);
-    assert_eq!(wall_of(&doc, a, 0, 2), fname(a, RoleSeg::Lateral(piece)));
-    assert_eq!(wall_of(&doc, b, 0, 2), fname(b, RoleSeg::Lateral(piece)));
+    assert_eq!(
+        wall_of(&doc, a, 0, 2),
+        fname(a, RoleSeg::Lateral(piece.into()))
+    );
+    assert_eq!(
+        wall_of(&doc, b, 0, 2),
+        fname(b, RoleSeg::Lateral(piece.into()))
+    );
     let applied = set_value(&doc, "p", 0.75);
     assert_eq!(applied.maintenance, Vec::new());
     for ext in [a, b] {
-        let side = corners_of(&applied.doc, ext, &fname(ext, RoleSeg::Lateral(piece)));
+        let side = corners_of(
+            &applied.doc,
+            ext,
+            &fname(ext, RoleSeg::Lateral(piece.into())),
+        );
         assert!(
             has_corner3(&side, (2.0, 2.0, 0.0)) && has_corner3(&side, (0.0, 2.0, 0.0)),
             "{side:?}"
