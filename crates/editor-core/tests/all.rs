@@ -92,6 +92,8 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "blend_dual_sensitivity.rs"]
+mod blend_dual_sensitivity;
 #[path = "bool12r2_ec_probe.rs"]
 mod bool12r2_ec_probe;
 #[path = "bool13_r1_probes.rs"]
@@ -180,6 +182,8 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "reach_slab_cut_sector_side.rs"]
+mod reach_slab_cut_sector_side;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
 #[path = "refusal_concision_at_rest.rs"]

@@ -231,3 +231,24 @@ Lesson for future `[ev]` bodies: state the geometry (f∘γ ≡ 0 against
 a double root) before the clause names. The two rows are implementation
 now. The P0 transverse rim follows PR 3752's cell; `Seam` is its own
 unit.
+
+## 2026-10-02 — m9-3 residues land (PR 3747) (TANG orchestrator)
+
+Review tier: single, style (set at dispatch). The review found no MAJOR.
+Adjudicated and fixed in one pass:
+
+- item 3's coverage claim narrowed to function level, with the evidence
+  that no real glue reaches the arm;
+- item 1's comment now gives the true reason (the sliver arm's two
+  `On`s), and its question has a parked row;
+- item 2's argument narrowed to plane plus Jordan;
+- the 1 m arm's docs made true across two crates;
+- the topo re-exports of `tangent_locus` dropped.
+
+Recorded only: the `glue_pair`/`pair_patches` twin (now on ZIP's row).
+`tangent_locus` now lives in `crates/geom-brep/src/locus.rs`. CI's
+only red is the ε=1e-6 row, which is REACH's filed
+`an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed`. Merged
+over it, annotated on the PR. A class finding from this unit:
+reviewers twice found a claim of mutant coverage that held only at
+function level. Briefs now ask for the mutant run, not the claim.

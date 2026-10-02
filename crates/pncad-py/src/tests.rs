@@ -2752,6 +2752,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
                 mate: id(1),
                 what: "a clocking rider on a planar rest",
             }),
+            held: pncad::document::HeldNodes::default(),
         },
         &["node", "fault"],
     );
@@ -10181,5 +10182,21 @@ mod product_memo_rows {
         let mispaired = ProductMemo::paired(&ev, other.id()).expect_err("a foreign document");
         assert_eq!(mispaired.expected, other.id());
         assert_eq!(mispaired.found, doc.id());
+    }
+}
+
+/// **The unplaced words are the kernel's**: `unplaced_tag` spells them
+/// as literals for the tag inventory, and they are `Unplaced::word`,
+/// which the clearance goldening form prints.
+#[test]
+fn the_unplaced_tag_is_the_kernels_word() {
+    use pncad::document::{RecipeNodeId, Unplaced};
+    for cause in [
+        Unplaced::NoOffset,
+        Unplaced::DeadGauge {
+            gauge: RecipeNodeId(7),
+        },
+    ] {
+        assert_eq!(crate::tags::unplaced_tag(&cause), cause.word(), "{cause:?}");
     }
 }

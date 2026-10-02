@@ -9,7 +9,7 @@ cost: M
 ---
 
 
-**Ruled by Ev on #3571 (2026-10-01).** The decision record is `work/author/face-pick-cannot-name-which-face.md`, its "Which face, in words" and "Ruled" sections. The designers' reports are on #3571. Fork-log row 23.
+**Ruled by Ev on #3571 (2026-10-01).** The decision record is `work/doors/face-pick-cannot-name-which-face.md`, its "Which face, in words" and "Ruled" sections. The designers' reports are on #3571. Fork-log row 23.
 
 ## What to build
 

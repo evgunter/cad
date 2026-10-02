@@ -8,11 +8,12 @@
 //!    against the OUTWARD normal — `side_code`; 15.7's printed
 //!    `IN = +1` is never consulted).
 //!
-//!    The datum is a DIRECTION and a lever arm, never an origin:
-//!    `side_code` (`sectors.rs`) takes `(dir, OutwardNormal, arm,
-//!    band)` and the germ direction takes a cross product, so both are
-//!    purely first-order primitives and generalize to a curved pierced
-//!    face by substituting the per-point outward normal
+//!    The datum is a DIRECTION, never an origin: `side_code`
+//!    (`sectors.rs`) takes `(dir, reach, OutwardNormal, lever, band)`
+//!    and the germ direction takes a cross product, so both are
+//!    first-order primitives (charged for the face's curvature through
+//!    `lever`) and generalize to a curved pierced face by substituting
+//!    the per-point outward normal
 //!    ([`crate::face_normal::face_outward_normal_at`]). On a plane that
 //!    normal is the plane's own, so the planar lane's arithmetic is
 //!    bit-identical. What does NOT generalize is Delta 2's carrier
@@ -180,7 +181,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?,
+            class: side_code(s.end, s.end_reach, n_pierced, pierced_lever, band)?,
             lumped: false,
         });
     }
@@ -263,7 +264,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 surface(piercing_body, s.face),
                 surface(pierced_body, contact.face),
             ) {
-                (Some(a), Some(b)) => super::rest::tangent_locus(a, b, band).is_ok(),
+                (Some(a), Some(b)) => geom_brep::tangent_locus(a, b, band).is_ok(),
                 _ => false,
             };
             let admitted: &[crate::contact::ContactClass] = match (plane.is_some(), tangent) {
@@ -302,7 +303,14 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
         // sector's carrier CURVES to relative to the pierced face's
-        // material ([`super::sectors::tangent_lump`]).
+        // material ([`super::sectors::tangent_lump`]), read for the WHOLE
+        // sector. Per bound, the bound riding the locus reads `On`, which
+        // the on-entry resolution below settles from its neighbours; but
+        // an arc tangent at this vertex is split at the band's edge, and
+        // the sliver's arm puts the arc's second-order margin in the zero
+        // band too, so the two `On`s are the consecutive-`On` refusal
+        // (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
+        // pinned by `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`).
         if class == Some(crate::contact::ContactClass::Tangent) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)

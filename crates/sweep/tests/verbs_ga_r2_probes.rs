@@ -305,34 +305,33 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
 /// review report.
 #[test]
 fn r2_an_off_centre_bar_reaches_the_same_join_door() {
-    // RE-DERIVED after this probe was written (authorship otherwise
-    // untouched). The review's MAJ-1 landed the sector-side curvature
-    // charge, and this pose's long edge fragments (the bar spans
-    // `x = ±3` against `r = 1`) are exactly the ones no first-order
-    // verdict can certify — so the asymmetric pose now stops one layer
-    // EARLIER and never hands the join anything.
-    //
-    // **The probe's question survives its own fixture and is not lost**:
-    // whether the `NeitherContained` this pose used to reach was
-    // mis-bookkept run/chord pairing or an honest degenerate window is
-    // recorded, with the site's own answer (a run that does not end
-    // where its chord starts fails the x₁ rows — the PAIRING reading),
-    // on the ring-join unit #1291, together with the fixture debt this
-    // row can no longer pay.
+    // The long pose reaches the join again, at the door this probe
+    // first measured: its edge fragments outrun the wall's radius, and
+    // the sector-side curvature charge certifies them at the distance
+    // where the first-order departure is largest rather than at the
+    // fragment's far end. Whether `NeitherContained` here is mis-booked
+    // run/chord pairing or an honest degenerate window is the question
+    // the ring-join unit holds (`work/tang/pierce-ring-has-no-join-arm`,
+    // where the site's own answer is the PAIRING reading); this pose is
+    // the asymmetric fixture that unit asked for.
     let err = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
         &brick((-3.0, 3.0), (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
         Tol::witness(),
     )
     .expect_err("no join arm for a pierce ring");
-    eprintln!("off-centre bar refusal, measured: {err:?}");
     assert!(
-        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+        matches!(
+            err,
+            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                case: topo::ArcWindowCase::NeitherContained,
+                ..
+            })
+        ),
         "{err:?}"
     );
-    // The same pose SHORTENED so the arms are certifiable: the
-    // asymmetric crossings are still found and still route, which is
-    // what this probe set out to exercise.
+    // The same pose SHORTENED: the asymmetric crossings are still found
+    // and still route.
     let short = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
         &brick((-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1), Tol::witness()),

@@ -7,7 +7,7 @@ Opened 2026-10-02 at EDIT's exit, cut on EDIT's priority seam. History is recove
 1. **`extrude-distance-is-a-depth-and-a-side`** (P0 H, ruled on #3551).
    - It changes `Node::Extrude`'s shape, the sweep door and the persisted format. Ev requires the refusal to name its recourse.
    - **`pattern-spacing-is-a-signed-size-beside-a-direction`** (P2 M, design) is its named follow-on. Weigh it under the same rule once the extrude has landed.
-2. **`declared-pairs-are-a-booleans-own-payload`** (P1 H, ruled on #3587, A2). It changes DM4's ratified node shape as ruled, and `Node::Declare` goes. The decision record is in `work/author/`.
+2. **`declared-pairs-are-a-booleans-own-payload`** (P1 H, ruled on #3587, A2). It changes DM4's ratified node shape as ruled, and `Node::Declare` goes. The decision record is the "Ruled" section of DOORS's `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added`.
 3. **`names-render-a-faces-leaf-role-in-words`** (P1 M, ruled on #3571). One public renderer, promoted from `resolve::role_words`.
 4. **`di1-may-simplify-now-node-ids-are-digests`** (P1 M, design). Whether DI1's minting-entry walk is still needed. It is a question about a ratified clause, so it goes to designers first and then to an `[ev]` PR.
 5. **The SetProgram rows AUTH-6 surfaced:**

@@ -270,9 +270,18 @@ EDIT closed on 2026-10-02 (`docs/doc-ledger/edit-leaves-the-tracker.md`). Citati
 | `crates/editor-core/tests/load_door_payload_param_ref.rs` | `load-door-does-not-check-payload-expression-param-refs` |
 | `crates/viewer/src/session/refuse.rs` | `no-door-refuses-a-blank-parameter-name` |
 | `crates/viewer/tests/index_memo.rs` | `pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour` |
-| `docs/AUTH-9-SPEC.md` | `a-declared-union-has-no-one-pass-authoring-path` |
 | `docs/DESIGN-FORK-LOG.md` | `part-root-failure-nests-a-whole-refusal-past-the-budget` |
 | `docs/MODEL-AB-LOG.md` | `work/edit/plan.md`, `work/edit/program.md` |
 
 Other programs' rows and logs also cite closed EDIT rows. They are history, not shipped prose, and are not listed.
+
+`docs/AUTH-9-SPEC.md`'s row left this table on 2026-10-02: the spec was pruned at AUTHOR's close, so the citing file is gone.
+
+## AUTHOR's closed rows (added 2026-10-02, at AUTHOR's exit)
+
+AUTHOR closed on 2026-10-02 (`docs/doc-ledger/author-leaves-the-tracker.md`). Citations of its live rows were rewritten to their new homes in DOORS and AUTHTAIL. The two code comments that named a closed AUTHOR row as a residue's carrier now name AUTHTAIL's `drawing-on-a-picked-face-is-a-two-form-trip`. One shipped-doc citation of a closed row is left dangling. It is recoverable at `29b8874a1`:
+
+| citing file | cited row |
+| --- | --- |
+| `docs/DESIGN-FORK-LOG.md` (row 22) | `a-negative-extrude-distance-probes-as-valid` |
 
