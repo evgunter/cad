@@ -3468,6 +3468,51 @@ mod wall_root_tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod edge_span_tests {
+    use super::{SpanVerdict, wall_crossing};
+    use crate::{Body, entity::FaceKey};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **The axis-parallel rung is levered by the edge's own span.** A
+    /// line outside a unit wall, drifting off its distance from the axis
+    /// by `δ` per unit of its parameter, over two runs: `[−2, 2]`, where
+    /// `4δ` is past the band, so the roots are found and lie far outside
+    /// the run; and `[1000, 1001]`, where `δ` is inside the zero band, so
+    /// the residual is constant over the run. A lever of `1` reads the
+    /// first in band; a lever of the far end, or of the run's distance
+    /// from the line's origin, reads the second past it.
+    #[test]
+    fn the_axis_parallel_rung_reads_the_edges_own_span() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let y = Body::<f64>::new();
+        let crossing = |delta: f64, (t0, t1): (f64, f64)| {
+            let line = geom::Curve3::Line {
+                origin: Point3::new(2.0, 0.0, 0.0),
+                dir: Vec3::new(delta, 0.0, 1.0),
+            };
+            wall_crossing(&y, FaceKey::default(), &wall, &line, t0, t1, band)
+        };
+        let long = crossing(0.4 * band.escalate(), (-2.0, 2.0));
+        assert!(
+            matches!(long, Ok(SpanVerdict::NoInterior)),
+            "drifting past the band over [−2, 2], the roots are found outside it: {long:?}"
+        );
+        let far = crossing(0.5 * band.zero(), (1000.0, 1001.0));
+        assert!(
+            matches!(far, Ok(SpanVerdict::Constant)),
+            "drifting inside the band over [1000, 1001], the residual is constant: {far:?}"
+        );
+    }
+}
+
+#[cfg(test)]
 mod no_pierce_tests {
     use super::{SpanVerdict, no_pierce_verdict};
 
