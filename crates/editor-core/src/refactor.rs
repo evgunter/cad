@@ -122,7 +122,7 @@ use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
-use crate::sentence::Recourse;
+use crate::sentence::{Recourse, Staged};
 use crate::spoken::{SpokenName, SpokenNode};
 use geom_core::Tol;
 
@@ -449,7 +449,8 @@ pub enum SplitError {
     /// instance the split would leave behind has nothing to be placed
     /// as.
     UnplacedAlone {
-        /// The unplaced group the cut holds first, by its root.
+        /// The unplaced group of the cut's first node, in document
+        /// order, by its root.
         group: SpokenNode,
     },
     /// **A mate would start placing** (A4): it reads a kept instance on
@@ -517,11 +518,12 @@ pub enum SplitError {
         name: SpokenName,
         /// A node the name derives from that the part document has
         /// no copy of — the id the part-side rewrite could not map,
-        /// or, from the precondition below, the lowest-numbered
-        /// derivation node outside the cut. For a nested name it is a
-        /// node inside one of `name`'s path segments, not `name`'s
-        /// own minting node, so `name` alone does not say which node
-        /// reaches out.
+        /// or, from the precondition below, the earliest derivation
+        /// node outside the cut in document order (a deleted one, which
+        /// has no place in it, after every live one). For a nested name
+        /// it is a node inside one of `name`'s path segments, not
+        /// `name`'s own minting node, so `name` alone does not say
+        /// which node reaches out.
         missing: SpokenNode,
     },
     /// A remainder-side name derives from BOTH sides of the cut, so it
@@ -586,10 +588,16 @@ pub enum SplitError {
 impl core::fmt::Display for SplitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::EmptyCut => f.write_str("split: the cut set is empty"),
-            Self::UnknownCutNode { id } => {
-                write!(f, "split: the cut names {id}, which is not live")
-            }
+            Self::EmptyCut => write!(
+                f,
+                "split: the cut set is empty, so there is nothing to split out. {}",
+                Recourse("name at least one live node in the cut")
+            ),
+            Self::UnknownCutNode { id } => write!(
+                f,
+                "split: the cut names {id}, which is not live. {}",
+                Recourse(&format!("leave {id} out of the cut"))
+            ),
             Self::TornGroup {
                 root,
                 instance,
@@ -694,7 +702,8 @@ impl core::fmt::Display for SplitError {
             Self::PartIdCollides { id } => write!(
                 f,
                 "split: the new document id {id} collides with the split document or a \
-                 document the cut references — supply a fresh identity"
+                 document the cut references. {}",
+                Recourse("split under a fresh document id")
             ),
             Self::OperandSeveredFromMate {
                 mate,
@@ -703,13 +712,17 @@ impl core::fmt::Display for SplitError {
                 mate_is_cut,
             } => {
                 let (mate_side, operand_side) = cut_and_kept(*mate_is_cut);
+                let kept = if *mate_is_cut { operand } else { mate };
+                let s = side.name();
                 write!(
                     f,
-                    "split: the cut severs the {}-side reference of {mate} from {operand}, the \
+                    "split: the cut severs the {s}-side reference of {mate} from {operand}, the \
                      node it is read at. The mate is {mate_side} and that node is \
-                     {operand_side}; widen the cut, or re-author the mate at a node on its own \
-                     side",
-                    side.name(),
+                     {operand_side}. {}",
+                    Recourse(&format!(
+                        "add {kept} to the cut, or re-author {mate}'s {s} reference at a node \
+                         on its own side of the cut"
+                    )),
                 )
             }
             Self::SeveredEdge {
@@ -718,11 +731,17 @@ impl core::fmt::Display for SplitError {
                 consumer_is_cut,
             } => {
                 let (consumer_side, input_side) = cut_and_kept(*consumer_is_cut);
+                let (cut, kept) = if *consumer_is_cut {
+                    (consumer, input)
+                } else {
+                    (input, consumer)
+                };
                 write!(
                     f,
                     "split: the cut severs the edge from {consumer} to its input {input}. The \
                      consumer is {consumer_side} and the input is {input_side}, but a cut must be \
-                     closed under inputs and consumers"
+                     closed under inputs and consumers. {}",
+                    Recourse(&format!("add {kept} to the cut, or leave {cut} out of it"))
                 )
             }
             Self::UncutParamReference {
@@ -732,8 +751,11 @@ impl core::fmt::Display for SplitError {
             } => write!(
                 f,
                 "split: parameter {param} is referenced by {cut_node}, which is cut, and by \
-                 {kept_node}, which is kept — one parameter cannot silently become two \
-                 documents' parameters"
+                 {kept_node}, which is kept, and one parameter cannot become two documents'. {}",
+                Recourse(&format!(
+                    "put {cut_node} and {kept_node} on one side of the cut, or give one of them \
+                     a parameter of its own (SetDocParam, SetParam)"
+                ))
             ),
             Self::PartNameReachesRemainder {
                 node,
@@ -742,7 +764,11 @@ impl core::fmt::Display for SplitError {
             } => write!(
                 f,
                 "split: {node} is cut, but its reference (the {name}) derives from {missing}, \
-                 which is outside the cut — the new document could not express it"
+                 which is outside the cut, so the new document could not express it. {}",
+                Recourse(&format!(
+                    "add {missing} to the cut, or rebind that name to an entity inside the cut \
+                     (Rebind)"
+                ))
             ),
             Self::NameStraddlesCut { name, missing } => {
                 write!(
@@ -750,30 +776,45 @@ impl core::fmt::Display for SplitError {
                     "split: the {name} derives from both sides of the cut and can re-anchor to \
                      neither document"
                 )?;
-                match missing {
-                    // The rewrite stopped at ONE node, which for a
-                    // nested name is not the name's own mint.
-                    Some(id) => write!(f, " — the rewrite stopped at {id}"),
-                    None => Ok(()),
+                // The rewrite stopped at ONE node, which for a nested
+                // name is not the name's own mint.
+                if let Some(id) = missing {
+                    write!(f, ", and the rewrite stopped at {id}")?;
                 }
+                write!(
+                    f,
+                    ". {}",
+                    Recourse(
+                        "put every node it derives from on one side of the cut, or rebind it to \
+                         an entity of one side (Rebind)"
+                    )
+                )
             }
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "split: the {name} spells a piece of the profile step {}, which no profile of this \
-                 document draws any more — repair the stranded reference before splitting",
-                step
+                "split: the {name} spells a piece of the profile step {step}, which no profile \
+                 of this document draws any more. {}",
+                Recourse("rebind that name to a live entity (Rebind), then split")
             ),
             Self::BodyNameCrossesCut { name } => write!(
                 f,
-                "split: the {name} crosses the cut — a product's name table carries no \
-                 root body rows, so the instance-qualified rewrite could never resolve"
-            ),
-            Self::Pin { error } => {
-                write!(
-                    f,
-                    "split: the new document's pin would not compute: {error}"
+                "split: the {name} crosses the cut, and a product's name table carries no \
+                 root body rows, so the instance-qualified rewrite could never resolve. {}",
+                Recourse(
+                    "clear what this document sets on that name (ClearAppearance), or rebind it \
+                     to a kept node's body (Rebind), then split"
                 )
-            }
+            ),
+            // The part replayed clean through the edit doors, which
+            // the save validator agrees with, so its pin refusing is
+            // this module's defect: the forwarded sentence is evidence
+            // for the report, and the stage it names is this one's.
+            Self::Pin { error } => write!(
+                f,
+                "split: the new document's pin would not compute: {}. {}",
+                error.sentence(),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
             Self::PartEdit { error } => write!(
                 f,
                 "split: a part-side edit refused: {}{}",
@@ -1020,31 +1061,63 @@ pub enum InlineError {
 impl core::fmt::Display for InlineError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(f, "inline: {id} is not live"),
-            Self::NotAnInstance { node } => {
-                write!(f, "inline: {node} does not instantiate a part")
-            }
+            Self::UnknownNode { id } => write!(
+                f,
+                "inline: {id} is not live. {}",
+                Recourse("name a live instance of a part")
+            ),
+            Self::NotAnInstance { node } => write!(
+                f,
+                "inline: {node} does not instantiate a part. {}",
+                Recourse("name an instance of a part")
+            ),
             Self::InstanceConsumed { node, by } => write!(
                 f,
-                "inline: {node} is consumed by {by} — the recipe cannot rewire a consumer onto a \
-                 spliced product"
+                "inline: {node} is consumed by {by}, and the recipe cannot rewire a consumer onto \
+                 a spliced product. {}",
+                Recourse(&format!(
+                    "delete {by}, or re-author it without {node}, then inline"
+                ))
             ),
-            Self::Unresolved { failure } => {
-                write!(f, "inline: the reference did not resolve: {failure}")
-            }
+            // The store's sentence states the recourse of a pin or a
+            // lookup; the ε seam's is the same whatever the store.
+            Self::Unresolved { failure } => match failure.fault {
+                crate::ResolveFault::EpsilonSeam => write!(
+                    f,
+                    "inline: the referenced document's recorded tolerance disagrees with this \
+                     process's: {failure}. {}",
+                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
+                ),
+                crate::ResolveFault::PinMismatch | crate::ResolveFault::Unresolved => {
+                    write!(f, "inline: the reference did not resolve: {failure}")
+                }
+            },
             Self::EpsilonSeam { host_eps, part_eps } => write!(
                 f,
                 "inline: the referenced document records tolerance {part_eps:e} but the host \
-                 records {host_eps:e} — one document, one ε"
+                 records {host_eps:e}, and one document holds one ε. {}",
+                Recourse(
+                    "set this document's tolerance to the referenced document's (SetTolerance), \
+                     then inline"
+                )
             ),
             Self::PartCarriesMetadata { key } => write!(
                 f,
                 "inline: the referenced document carries metadata ({key:?}) the edit vocabulary \
-                 cannot splice — refused rather than dropped"
+                 cannot splice. {}",
+                Recourse(&format!(
+                    "delete {key:?} from the referenced document's file, point this instance at \
+                     that version (UpdateReference), then inline"
+                ))
             ),
             Self::ParamConflict { param } => write!(
                 f,
-                "inline: parameter {param} is declared by both documents with different values"
+                "inline: parameter {param} is declared by both documents with different \
+                 values. {}",
+                Recourse(&format!(
+                    "set this document's {param} to the referenced document's (SetDocParam), \
+                     then inline"
+                ))
             ),
             Self::UnplaceableFrame { root } => write!(
                 f,
@@ -1148,24 +1221,32 @@ impl core::fmt::Display for InlineError {
             Self::InstanceBodyNameReferenced { name } => write!(
                 f,
                 "inline: the {name} names the instance's own output body, which no single \
-                 spliced node corresponds to"
+                 spliced node corresponds to. {}",
+                Recourse(
+                    "clear what this document sets on that name (ClearAppearance), or rebind it \
+                     to another node's body (Rebind), then inline"
+                )
             ),
             Self::ForeignInstanceName { name } => write!(
                 f,
                 "inline: the {name} derives from the instance but is not an instance-qualified \
-                 (`InPart`) name — it cannot re-anchor"
+                 (`InPart`) name, so it cannot re-anchor. {}",
+                Recourse(
+                    "rebind that name to an `InPart` name of the instance, or to an entity that \
+                     does not derive from it (Rebind), then inline"
+                )
             ),
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "inline: the {name} spells a piece of the profile step {}, which no profile of the \
-                 referenced document draws any more — repair the stranded reference before \
-                 inlining",
-                step
+                "inline: the {name} spells a piece of the profile step {step}, which no profile \
+                 of the referenced document draws any more. {}",
+                Recourse(STRANDED_IN_THE_PART)
             ),
             Self::StrandedPartName { name, missing } => write!(
                 f,
                 "inline: the {name} derives from {missing}, which the referenced document no \
-                 longer has — repair the stranded reference before inlining"
+                 longer has. {}",
+                Recourse(STRANDED_IN_THE_PART)
             ),
             Self::Edit { error } => write!(
                 f,
@@ -1178,6 +1259,11 @@ impl core::fmt::Display for InlineError {
 }
 
 impl core::error::Error for InlineError {}
+
+/// What an inline does about a name the referenced document stranded:
+/// the name is that document's, so the repair is made there.
+const STRANDED_IN_THE_PART: &str = "in the referenced document, rebind that name to a live entity \
+     (Rebind), point this instance at that version (UpdateReference), then inline";
 
 /// Which of this module's edit replays refused. The user authored none
 /// of those edits, so the edit door's own recourse — written for the
@@ -2110,17 +2196,23 @@ pub fn split(
     // the severed-gauge rule's, neither built yet; every cut instance
     // then names a gauge outside the cut, and those references must
     // land on ONE anchor, which the instance left behind names.
-    let cut_instances: Vec<RecipeNodeId> = doc
+    //
+    // Every walk over the cut below reads it in document order, so the
+    // node a refusal names is the one the author placed first.
+    let in_order: Vec<RecipeNodeId> = doc
         .order()
         .iter()
         .copied()
         .filter(|id| cut.contains(id))
+        .collect();
+    let cut_instances: Vec<RecipeNodeId> = in_order
+        .iter()
+        .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
         .collect();
-    if let Some(&gauge) = doc
-        .order()
+    if let Some(&gauge) = in_order
         .iter()
-        .find(|id| cut.contains(id) && matches!(doc.node(**id), Some(Node::Gauge { .. })))
+        .find(|id| matches!(doc.node(**id), Some(Node::Gauge { .. })))
     {
         return Err(SplitError::CutHoldsGauge {
             gauge: doc.spoken(gauge),
@@ -2161,7 +2253,7 @@ pub fn split(
     // instance and lives in the world holds geometry in the world's
     // coordinates, and votes for the world. They must agree.
     let mut anchor: Option<Option<RecipeNodeId>> = None;
-    for &node in doc.order().iter().filter(|id| cut.contains(id)) {
+    for &node in &in_order {
         let vote = match doc.node(node) {
             Some(Node::InstantiatePart { gauge, .. }) => {
                 if matches!(
@@ -2197,7 +2289,7 @@ pub fn split(
     // space lives in an unplaced group's own.
     let mut in_world = false;
     let mut first_own = None;
-    for &id in cut {
+    for &id in &in_order {
         match spaces.space.get(&id) {
             Some(crate::mate::Space::World) => in_world = true,
             Some(crate::mate::Space::Own { group, .. }) => {
@@ -2337,6 +2429,7 @@ pub fn split(
     // `Carrier` is walked here without being remembered into this
     // site — only its SIDE has to be decided, which is what the two
     // arms below say.
+    let placed = doc.positions();
     for carrier in doc.name_carriers() {
         match carrier {
             NameCarrier::Payload { node, name } => {
@@ -2345,7 +2438,8 @@ pub fn split(
                 }
                 let outside = derivation_nodes(name)
                     .into_iter()
-                    .find(|id| !cut.contains(id));
+                    .filter(|id| !cut.contains(id))
+                    .min_by_key(|id| (placed.get(id).copied().unwrap_or(usize::MAX), *id));
                 if let Some(missing) = outside {
                     return Err(SplitError::PartNameReachesRemainder {
                         node: doc.spoken(node),
@@ -2437,15 +2531,9 @@ pub fn split(
     }
     // The cut nodes in document order, each under the id the part's
     // insert door mints for it (D9 — two runs agree byte for byte).
-    let olds: Vec<RecipeNodeId> = doc
-        .order()
-        .iter()
-        .filter(|id| cut.contains(id))
-        .copied()
-        .collect();
     let (node_map, step_map) = carry(
         doc,
-        &olds,
+        &in_order,
         &mut part,
         (tol, &part_reach),
         (
@@ -2479,7 +2567,7 @@ pub fn split(
     // node's identity, so there is no cross-id-space reference for the
     // remap to miss. A future witness vocabulary that embeds foreign
     // stable names must remap here or refuse.
-    for &old in &olds {
+    for &old in &in_order {
         if let (Some(&new), Some(witness)) = (node_map.get(&old), doc.witness(old)) {
             part_apply(
                 &mut part,

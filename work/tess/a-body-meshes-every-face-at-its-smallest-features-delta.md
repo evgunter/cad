@@ -20,9 +20,13 @@ which is the most a caller can do through this door.
 that is left: the engraved glyphs' inner arcs (radius 0.1 to 0.15) want
 2e-3, and they sit on the same body as the cylinder. In
 `docs/tess-budget-data/tess-budget-baseline.csv` the two cylinder walls,
-faces 1 and 25, carry 1044 triangles each, 2088 of the body's 2608. The
-lower half has the same walls and no glyphs; at 1e-2 the whole body is
-480 triangles.
+faces 1 and 25, carry 1044 triangles each, 2088 of the body's 2608.
+
+The lower half has the same walls and no glyphs. At 1e-2 the whole
+lower half is 480 triangles against 2232 at 2e-3. The scene still meshes
+both halves at 2e-3, because one half at 1e-2 beside the other at 2e-3
+renders visibly coarser on a cylinder the frame presents as one piece.
+The fix here would let both halves drop their walls to 1e-2 together.
 
 ## The shape of a fix
 

@@ -181,7 +181,7 @@ fn edit_of(session: &DocSession, node: RecipeNodeId, loops: Vec<LoopProgram>) ->
     let base = program(session, node).clone();
     SessionOp::EditProfile {
         node,
-        ids: sketch::kept_in_place(&base),
+        ids: base.kept_in_place(),
         base,
         loops,
     }
@@ -207,7 +207,7 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
                 let committed = program(&session, profile);
                 let lowered = lowered(&held, notation);
                 assert!(
-                    sketch::is_committed(committed, &lowered, &sketch::kept_in_place(committed)),
+                    sketch::is_committed(committed, &lowered, &committed.kept_in_place()),
                     "{name}: an untouched load lowers to another program: {lowered:?}"
                 );
             }
@@ -265,7 +265,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
         let back = lowered(&held, MM);
         assert!(
-            sketch::is_committed(&program, &back, &sketch::kept_in_place(&program)),
+            sketch::is_committed(&program, &back, &program.kept_in_place()),
             "{verb}: came back as {back:?}"
         );
     }
@@ -310,7 +310,7 @@ fn a_moved_number_is_one_edit_and_undoes() {
     held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
     let out = session.perform(edit_of(&session, profile, lowered(&held, MM)));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    let kept = sketch::kept_in_place(original_program(&original, profile));
+    let kept = original_program(&original, profile).kept_in_place();
     assert!(
         matches!(
             out.committed.as_slice(),
@@ -369,7 +369,7 @@ fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let before = session.committed_doc().clone();
     let base = program(&session, profile).clone();
-    let kept = sketch::kept_in_place(&base);
+    let kept = base.kept_in_place();
     let held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     let mut longer = (held.clone(), kept.clone());
     longer.0[0].insert(4, Step::LineTo(Target::Point(Point2::new(-0.005, 0.005))));
@@ -704,7 +704,7 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
     held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
-        ids: sketch::kept_in_place(&loaded),
+        ids: loaded.kept_in_place(),
         base: loaded,
         loops: lowered(&held, Notation::CANONICAL),
     });
