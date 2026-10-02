@@ -634,7 +634,8 @@ class TestBracket(unittest.TestCase):
         broken = doc.insert(Node.chamfer(corner, Expr.length_in(0.1, m), chords))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(broken)
-        self.assertEqual(caught.exception.kind, "unsupported_run_out")
+        self.assertEqual(caught.exception.kind, "chamfer")
+        self.assertEqual(caught.exception.inner_kind, "unsupported_run_out")
 
 
 class TestVase(unittest.TestCase):
