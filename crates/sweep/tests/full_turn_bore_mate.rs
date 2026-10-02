@@ -10,15 +10,22 @@
 //!
 //! What the mate makes the kernel do, by the shaft's azimuth and span:
 //!
-//! - a peg ruling passing a rim away from the rim's vertex crosses the
-//!   bore's boundary in its own interior (both its ends past the rims
-//!   when the shaft runs through);
+//! - a peg ruling passing a rim away from the rim's vertex has both its
+//!   ends past the bore while the rim crosses it — recorded where the
+//!   ruling crosses the collar's flat cap, and read as no event against
+//!   the bore once its interior is certified clear of the bore's
+//!   boundary;
 //! - the bore is one face where the peg is three, so the two solids
-//!   divide the contact band differently;
+//!   divide the contact band differently, and the zip's seam runs where
+//!   only one of them has an edge;
 //! - at an azimuth off the collar's seam, the collar's seam vertices sit
 //!   inside a peg wall third, with the collar's flat caps leaving them
-//!   radially.
+//!   radially;
+//! - with the bore split by a circle on its own carrier, the rulings
+//!   cross that circle where no other face meets it, and only the
+//!   crossing layer records them.
 //!
+//! Each union runs in both operand orders.
 //! Every pose of [`crate::common::poses::poses`] moves both operands.
 //! The oracle is closed form: the interiors are disjoint, so the union
 //! is the collar's annulus volume plus the shaft's disc volume, the

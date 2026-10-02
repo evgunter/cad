@@ -57,3 +57,23 @@ corm's bore wall (axis `-z`, radius 0.06); the pair is declared-covered,
 both residuals are zero, and both ends lie past the bore's height
 window, so the `(Zero, Zero) if covered` arm records nothing and keeps
 the door — the partial-engagement case above, on the plant.
+
+## The cause, as measured (PR 3814, after its dual review)
+
+The title's reading was not the binding one. A shaft ruling through the
+one-face bore does cross the bore's rims between its ends, but each rim
+also bounds the collar's flat cap, which the ruling crosses
+transversally — the planar sweep splits the ruling there and records the
+crossing (forcing the new crossing layer to answer "clear" leaves every
+one-face-bore row green). What refused the partial mate was the
+declared-cover rule's nothing-recorded guard: a ruling fragment with both
+ends past the face's window (`Elsewhere`) kept the frontier door, though
+nothing of it lies on the face. The fix reads that pair as no event, on
+the certificate that the fragment's interior meets the face's boundary
+nowhere — and that certificate is the crossing layer, whose only sighting
+is a boundary curve with the shared carrier on both sides (a bore split
+by a circle, `full_turn_bore_mate::a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth`,
+which refuses `UnpairedLooseEnds` without it). The flush mate's door was
+the REST zip's patch pairing (one bore face against three shaft walls),
+and an off-seam azimuth's was `vtxfac`'s coplanar lump on a curved
+pierced face.

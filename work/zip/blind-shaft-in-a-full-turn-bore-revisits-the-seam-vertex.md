@@ -1,7 +1,7 @@
 ---
 id: blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex
 kind: issue
-title: A shaft ending inside a full-turn bore refuses RestZipUnsupported(ChordEndpointRevisited): the seam chord's end sits on the bore's self-mated seam
+title: A shaft ending inside a full-turn bore refuses in the REST zip - ChordEndpointRevisited (a seam chord's end on the bore's self-mated seam) or ChordBetweenIsolatedPierces
 status: open
 opened: 2026-10-02
 priority: P0
@@ -45,3 +45,21 @@ compared). `sectors::build_sectors` already walks those wedges.
 Related: `rest-zip-seam-chord-on-cylinder-wall` (the arc-split
 collar's floating peg ships a straight chord where the seam is an
 arc) — the same span shape, one door further on.
+
+## Measured again, every blind span (2026-10-02, after the fix pass)
+
+`full_turn_bore_mate.rs`'s collar and `shaft(deg, y0, h)`, both
+operand orders (`collar ∪ shaft` and `shaft ∪ collar` refuse alike):
+
+| span | `y` | 0° (on the bore's seam) | 60°, 90° |
+|---|---|---|---|
+| blind from below | `[0.5, 1.5]` | `ChordEndpointRevisited` | `ChordEndpointRevisited` |
+| blind from above | `[1.5, 2.5]` | `ChordBetweenIsolatedPierces` | `ChordEndpointRevisited` |
+| wholly inside | `[1.2, 1.8]` | `ChordBetweenIsolatedPierces` | `ChordEndpointRevisited` |
+
+`ChordBetweenIsolatedPierces` is the seam chord between two pierce-ring
+vertices `mint_chord` has no site for: at 0° the shaft's floating cap
+rim meets the bore's seam ruling only at the shaft's own rim vertex, so
+both of the chord's ends are lone vertices of the bore face. Both
+sub-frontiers are the same shape — a cap rim floating inside a
+full-turn face — and close together.
