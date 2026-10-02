@@ -263,8 +263,15 @@ impl PartFault {
     }
 }
 
-impl core::fmt::Display for PartFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// Every node the fault names is numbered in the PART: a frame that does
+// not hold the part says them by tag (`Display`), and one that holds the
+// resolved part says them from it ([`PartFault::spoken`]).
+impl crate::spoken::Say for PartFault {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             // Raised only at an API door, each of which takes a
             // resolver; the viewer always carries one of its own.
@@ -295,30 +302,35 @@ impl core::fmt::Display for PartFault {
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
-            Self::PartRootFailed { node, .. } => write!(
-                f,
-                "the part's node {} failed, so the part has no body. {}",
-                node,
-                InThePart(format_args!("repair node {}", node)),
-            ),
-            Self::PartRootPoisoned { root, through, .. } => write!(
-                f,
-                "the part's node {} failed and poisoned its root, node {}, so the part has \
-                 no body. {}",
-                through,
-                root,
-                InThePart(format_args!("repair node {}", through)),
-            ),
-            Self::RootFailureUnrecorded { node } => write!(
-                f,
-                "the part's product names its node {} as failed and the part's evaluation holds \
-                 no failure there; the two disagree, so this is a kernel bug. {}",
-                node,
-                InThePart(format_args!(
-                    "see node {} as it evaluates, then report it with the part's file",
-                    node
-                )),
-            ),
+            Self::PartRootFailed { node, .. } => {
+                let node = by.node(*node);
+                write!(
+                    f,
+                    "the part's {node} failed, so the part has no body. {}",
+                    InThePart(format_args!("repair {node}")),
+                )
+            }
+            Self::PartRootPoisoned { root, through, .. } => {
+                let through = by.node(*through);
+                write!(
+                    f,
+                    "the part's {through} failed and poisoned its root, {}, so the part has \
+                     no body. {}",
+                    by.node(*root),
+                    InThePart(format_args!("repair {through}")),
+                )
+            }
+            Self::RootFailureUnrecorded { node } => {
+                let node = by.node(*node);
+                write!(
+                    f,
+                    "the part's product names its {node} as failed and the part's evaluation \
+                     holds no failure there; the two disagree, so this is a kernel bug. {}",
+                    InThePart(format_args!(
+                        "see {node} as it evaluates, then report it with the part's file"
+                    )),
+                )
+            }
             Self::PartProduct { kind, message } => {
                 write!(f, "the part has no product: {message}")?;
                 match product_recourse(*kind) {
@@ -358,6 +370,29 @@ impl core::fmt::Display for PartFault {
                 geom_core::KERNEL_DEFECT_ENDING
             ),
         }
+    }
+}
+
+/// The fault where the part is not in hand: each node by its tag.
+impl core::fmt::Display for PartFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl PartFault {
+    /// **The fault as a frame holding the resolved part says it**: each
+    /// node as `part` holds it now. Its node ids are the part's, so
+    /// `part` is the document the instance's reference names, at the
+    /// version it pins; no other document can say them.
+    ///
+    /// # Panics
+    ///
+    /// When `part` is not the document `doc_ref` names.
+    #[must_use]
+    pub fn spoken<P>(&self, doc_ref: &DocRef, part: &crate::doc::Doc<P>) -> String {
+        crate::spoken::assert_taken_of("the part fault", doc_ref.id, part);
+        crate::spoken::spoken_by(self, part)
     }
 }
 

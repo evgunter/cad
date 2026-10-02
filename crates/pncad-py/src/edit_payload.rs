@@ -256,7 +256,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The mate is the subject, and the solve's fault about it
         // crosses whole: `inner_variant` says which arm, `fault` is
         // the arm's own payload.
-        EditError::MateRefused { node, fault } => EditPayload {
+        EditError::MateRefused { node, fault, .. } => EditPayload {
             node: Some(node.id()),
             fault: Some(fault),
             ..none

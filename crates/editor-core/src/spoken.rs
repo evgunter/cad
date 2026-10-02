@@ -287,7 +287,12 @@ impl<P> Doc<P> {
 /// memo reuses, or one a door raised from an evaluation alone, keeps
 /// its bare ids and is said this way by the frame that hands it out.
 #[derive(Clone, Copy)]
-pub struct Speaker<'a>(Option<&'a dyn HoldsNodes>);
+pub struct Speaker<'a> {
+    /// The document each node is read off, `None` for the tag.
+    doc: Option<&'a dyn HoldsNodes>,
+    /// The node the enclosing sentence is about ([`Speaker::about`]).
+    subject: Option<RecipeNodeId>,
+}
 
 /// A document a [`Speaker`] reads nodes off, whatever its program.
 trait HoldsNodes {
@@ -300,20 +305,101 @@ impl<P> HoldsNodes for Doc<P> {
     }
 }
 
+/// **The nodes a refusal names, as a door's document held them when the
+/// door refused** ([`held_by`]): kept beside a refusal value the door
+/// carries whole, so the door's refusal speaks them ([`Speaker::held`])
+/// with no document at hand. Empty, every node is said by its tag.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HeldNodes(Box<[SpokenNode]>);
+
+impl HoldsNodes for HeldNodes {
+    fn speak(&self, id: RecipeNodeId) -> SpokenNode {
+        self.0
+            .iter()
+            .find(|node| node.id() == id)
+            .cloned()
+            .unwrap_or_else(|| SpokenNode::absent(id))
+    }
+}
+
+/// A document that keeps each node it is asked to speak ([`held_by`]).
+struct Recording<'d, P> {
+    doc: &'d Doc<P>,
+    said: core::cell::RefCell<Vec<SpokenNode>>,
+}
+
+impl<P> HoldsNodes for Recording<'_, P> {
+    fn speak(&self, id: RecipeNodeId) -> SpokenNode {
+        let node = self.doc.spoken(id);
+        let mut said = self.said.borrow_mut();
+        if said.iter().all(|held| held.id() != id) {
+            said.push(node.clone());
+        }
+        node
+    }
+}
+
+/// **Every node `value`'s sentence names, as `doc` holds it now**
+/// ([`HeldNodes`]). The door's refusal is never memoized, so what it
+/// keeps is as of the moment it refused.
+#[must_use]
+pub fn held_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> HeldNodes {
+    let recording = Recording {
+        doc,
+        said: core::cell::RefCell::new(Vec::new()),
+    };
+    let speaker = Speaker {
+        doc: Some(&recording),
+        subject: None,
+    };
+    // The sentence is written only to be heard: the nodes it names are
+    // what is kept.
+    let _ = Said(value, speaker).to_string();
+    HeldNodes(recording.said.into_inner().into_boxed_slice())
+}
+
 impl<'a> Speaker<'a> {
     /// Each node by its tag: `node <tag>`.
-    pub const TAG: Speaker<'static> = Speaker(None);
+    pub const TAG: Speaker<'static> = Speaker {
+        doc: None,
+        subject: None,
+    };
 
     /// Each node as `doc` holds it now ([`Doc::spoken`]).
     #[must_use]
     pub fn of<P>(doc: &'a Doc<P>) -> Self {
-        Self(Some(doc))
+        Self {
+            doc: Some(doc),
+            subject: None,
+        }
+    }
+
+    /// Each node as a door's document held it when the door refused
+    /// ([`held_by`]); a node it did not keep, by its tag.
+    #[must_use]
+    pub fn held(nodes: &'a HeldNodes) -> Self {
+        Self {
+            doc: Some(nodes),
+            subject: None,
+        }
+    }
+
+    /// **The speaker inside a sentence that has already named `id`**
+    /// (`Mate "seat" (3fa9c1d2a0b1) failed: …`): where the inner
+    /// sentence names that node by what it is ([`Speaker::node_as`]),
+    /// it says `this <noun>` rather than name it a second time.
+    #[must_use]
+    pub fn about(self, id: RecipeNodeId) -> Self {
+        Self {
+            subject: Some(id),
+            ..self
+        }
     }
 
     /// The node `id`, said.
     #[must_use]
     pub fn node(self, id: RecipeNodeId) -> SpokenNode {
-        match self.0 {
+        match self.doc {
             None => SpokenNode::absent(id),
             Some(doc) => doc.speak(id),
         }
@@ -328,10 +414,12 @@ impl<'a> Speaker<'a> {
 
     /// The node `id` where the sentence knows what it is: `<noun>
     /// <tag>` by its tag, or for a node the document does not hold;
-    /// as the document holds it otherwise.
+    /// as the document holds it otherwise; `this <noun>` when it is
+    /// the node the enclosing sentence is about ([`Speaker::about`]).
     #[must_use]
     pub fn node_as(self, id: RecipeNodeId, noun: &'static str) -> impl fmt::Display {
-        NodeAs(noun, self.node(id))
+        let said = (self.subject != Some(id)).then(|| self.node(id));
+        NodeAs(noun, said)
     }
 }
 
@@ -345,14 +433,15 @@ impl<N: fmt::Display> fmt::Display for SaidName<'_, N> {
     }
 }
 
-/// [`Speaker::node_as`]'s answer.
-struct NodeAs(&'static str, SpokenNode);
+/// [`Speaker::node_as`]'s answer: `None` for the sentence's subject.
+struct NodeAs(&'static str, Option<SpokenNode>);
 
 impl fmt::Display for NodeAs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.1.kind() {
-            Some(_) => write!(f, "{}", self.1),
-            None => write!(f, "{} {}", self.0, self.1.id()),
+        match &self.1 {
+            None => write!(f, "this {}", self.0),
+            Some(node) if node.kind().is_some() => write!(f, "{node}"),
+            Some(node) => write!(f, "{} {}", self.0, node.id()),
         }
     }
 }

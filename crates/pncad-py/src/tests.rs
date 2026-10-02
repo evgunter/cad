@@ -2752,6 +2752,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
                 mate: id(1),
                 what: "a clocking rider on a planar rest",
             }),
+            held: pncad::document::HeldNodes::default(),
         },
         &["node", "fault"],
     );

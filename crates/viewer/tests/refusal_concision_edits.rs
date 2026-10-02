@@ -585,6 +585,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                     mate: n(9),
                     instance: n(6),
                 }),
+                held: Default::default(),
             },
         ),
         (
@@ -940,6 +941,7 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
             EditError::MateRefused {
                 node: s(9, "Mate"),
                 fault: Box::new(fault),
+                held: Default::default(),
             },
         ));
     }
