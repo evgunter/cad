@@ -137,3 +137,17 @@ because its subject (adopt the sweep) is unchanged and simply waits.
 
 Watch item for the review: the klein wall suite grew from 4 s to 59 s
 on CI.
+
+## 2026-10-02 — render tag reviewed (MERGE WITH FIXES); main was red
+
+- **Main was briefly red.** Two merges collided in `geom-brep` (`crate::SurfaceKind::of`): #3733 merged after TQUERY moved the kind into geom. Every PR's gate went red. #3799 fixed it first; my duplicate hotfix branch (`show/main-red-surfacekind-of`) was never opened as a PR and is dead.
+- **The render tag review (PR 3791) is back.** The loop guard, the tag read and the permissions are confirmed from the run records. The fix pass is with the lane:
+  - the re-gate tests the branch tip, not the merge with main (M1);
+  - a failed re-gate is invisible (M2);
+  - a mention anywhere in the message fires the tag; narrowed to the subject line;
+  - cells rendered from an older tree land on a newer tip;
+  - `[skip ci]` on bot heads blocks reopen and undraft runs;
+  - dead gate-mode inputs;
+  - the tag read moves into the filter job.
+- **My own mistake:** the commit carrying Ev's approved §3 wording named "[render]" in its message, so it fired an unplanned render.
+- **Process point for this log:** never write the literal tag in a commit message that is not meant to render.
