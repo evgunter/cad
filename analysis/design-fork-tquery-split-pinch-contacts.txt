@@ -1,0 +1,4 @@
+fork: split-halves-have-no-contact-records-so-no-pseudomanifold-self-check (TQUERY)
+dispatched: 2026-10-02
+byte: 117
+mapping: A=fable B=opus
