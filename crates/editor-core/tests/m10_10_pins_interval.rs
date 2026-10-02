@@ -34,7 +34,7 @@
 //! outright. With the extrude closing on the pcurve mint, its wall rows'
 //! certificate (`pcurve_envelope`, and the `pcurve_map_residual`
 //! samples the door does not state) bounds the plate's whole-certifying
-//! ceiling at `3.9044e2·ε` under every rule set, below the assertion
+//! ceiling at `4.8077e2·ε` under every rule set, below the assertion
 //! the algebra used to reach — the dependency widening of the
 //! document's own web margin, affine and positive over the whole box
 //! (`m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first`;
@@ -252,10 +252,12 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
 
 /// **The certificate bounds the plate, under every rule set alike.**
 /// The extrude closes with the pcurve mint, and over the plate's box
-/// the certificate's `pcurve_envelope` — `‖image − carrier‖` over the
-/// `Harmonic` image's coefficients, zero by construction — widens past
-/// the band that neither the door nor the algebra discharges. So the
-/// plate certifies whole up to `3.9044e2·ε` and refuses past it under
+/// the certificate's `pcurve_envelope` widens past the band that
+/// neither the door nor the algebra discharges. Every incidence term
+/// is a theorem; the azimuth fidelity of the rows the loop walk
+/// shifted is not, because the walk's branch is an opaque `floor`
+/// (`work/pcert/loop-walk-branch-is-an-opaque-floor-atom.md`). So the
+/// plate certifies whole up to `4.8077e2·ε` and refuses past it under
 /// `shipped`, `shipped_without_the_door` and `without_the_algebra`
 /// alike, at every ε row: the mechanism this row used to show (the
 /// door and the algebra lifting the plate past M10-9's `7.81e2·ε`
@@ -267,7 +269,7 @@ fn m10_10_the_closing_mints_certificate_bounds_the_plate_under_every_set() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let at = |k: f64| crate::m10_7_plate::plate(5.0e-5 * k * eps, 1.0e-5 * k * eps, tol).0;
-    let (inside, outside) = (at(3.90e2), at(3.92e2));
+    let (inside, outside) = (at(4.80e2), at(4.82e2));
     for (name, rules) in [
         ("shipped", SymRules::shipped()),
         (
@@ -278,11 +280,11 @@ fn m10_10_the_closing_mints_certificate_bounds_the_plate_under_every_set() {
     ] {
         assert!(
             certifies_whole(&inside, rules, tol),
-            "{name}: the plate certifies whole at 3.90e2·ε"
+            "{name}: the plate certifies whole at 4.80e2·ε"
         );
         assert!(
             !certifies_whole(&outside, rules, tol),
-            "{name}: and refuses at 3.92e2·ε"
+            "{name}: and refuses at 4.82e2·ε"
         );
     }
     let analyzed = analyzed_box(&outside, &AnalysisPolicy::default());

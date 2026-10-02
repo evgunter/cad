@@ -63,3 +63,41 @@ wall carriers and chart share, as it does the rim — or the certificate
 states them in a form whose enclosure does not widen with the box. The
 rows above are re-baselined on that branch to the measured state, each
 naming this file, so a fix reds them loudly.
+
+**After check 4 was restated** (`pcert/certificate-incidence-fidelity`,
+on a periodic chart: the carrier's incidence plus the stored image's
+fidelity to the re-derived one), measured at `Sym<Interval>` under the
+shipped set at 1e-9 unless named:
+
+- **The plate**: whole to `4.8077e2·ε` (the same multiple at 1e-6 and
+  1e-12), still bounded by `pcurve_envelope`. On its 16 wall rows every
+  incidence term is a theorem. The azimuth fidelity is a theorem on the
+  4 rows each loop starts from and numeric on the 12 the loop walk
+  shifted, whose branch is an opaque `floor`
+  (`work/pcert/loop-walk-branch-is-an-opaque-floor-atom.md`).
+- **The `m10_3` four-widths drive**: `1ε` certifies 680/680 leaves,
+  mass 1.0 (it was 0/1024). `8ε` and `1024ε` stay 0/1024 on the budget.
+  565 s, down from 2833 s.
+- **The `m10_3` two-parameter plate**: whole only to `3.85e-2·ε`, bounded
+  by `pcurve_envelope` (the same fidelity row). Both `m10_3_driver` rows
+  still certify 0/256.
+- **The M10-4 stack-up**: the `ε/8` study certifies in 16 leaves, where
+  main certified it in one and this branch's head in none.
+- **The shallow-arc grid at bare `Interval`**: main's census again at
+  1e-9. At 1e-12, three cells at `off = 1000` refuse at check 3's
+  `MapResidual`; none refuses at the envelope.
+- **Unchanged**: `sym11` (the stadium refuses at `Envelope` at every ε
+  row, the same fidelity term), the tour's tolerance study (0% certified)
+  and `chaintol`. `chaintol`'s fractions stay `[6.5e-7, 2.2e-7, 1.1e-7,
+  6.8e-8]`, bounded by `pcurve_loop_continuity` when `transform_rigid`
+  re-certifies the rows.
+
+With check 3 skipped over the box (scratch, never committed) nothing
+moves, because the fidelity row refuses first. With check 3 skipped and
+that row's term also dropped (scratch, unsound, measurement only), the
+plate reaches 0.2631 of its real study, bounded by `assert_bound`. That
+is its ceiling before the closing mint. Under the same pair, the
+two-parameter plate reaches `3.57e-2` (bounded by `dihedral_wedge`), the
+four-widths drive and both `m10_3_driver` and M10-4 rows certify, and
+the tour's tolerance study passes. `sym11`'s stadium builds at every ε
+row. `chaintol` does not move.
