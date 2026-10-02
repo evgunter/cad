@@ -317,3 +317,15 @@ PR 3824's fix pass is in, at head `1913437ac`, green.
 - **CI coverage:** CI walks every scene's stops at three ε (`eps_regression` spawns the binary), so there is no class finding.
 
 `bench-on-a-gauge` is dispatched. Review tier: FULL (claims plus style), because it is new API surface on PLACE/MSOLVE ground.
+
+## 2026-10-02 — rocker (PR 3834) and letterforms (PR 3836) in review
+
+- **rocker:** a keyhole with two convex creases rounded on the solid, at the closed form. Two refusals were found and filed or evidenced on BAND:
+  - a false `RingClearance` at r ≥ 0.32;
+  - a side-blind `RadiusHeadroom` at r ≥ 0.5.
+
+  A possible duplicate pair of selector rows goes to review: the wire "sharp edge atom" row and the tquery co-surface row.
+- **letterforms:** natural proportions with declared contacts. The 3-way intersect is ORDER-dependent: (H∩T)∩C refuses `JoinDesync` and C∩(H∩T) builds. The same split shows on az.
+  - Ruling: the scene uses the order that builds and pins the other as a live wall, filed on JOIN. Intersection is commutative in meaning, and choosing the order is a user's free choice. It is honest because it is disclosed and pinned.
+  - New row: `show/projectbox-offsets-by-sixteenths-to-dodge-coincidence` (the projectbox still decouples by 1/16).
+- **Merge-order note:** `tools/tess-lint/tests/baseline_census.rs` is now re-pinned by five open PRs (3792, 3816, 3824, 3834, 3836). They merge in sequence, each re-deriving the pins on the merged tree.
