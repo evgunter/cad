@@ -345,8 +345,8 @@ fn an_undescribable_neighbor_pair_refuses_typed() {
         matches!(
             e,
             ReplaceFaceError::NeighborPairUnroutable {
-                kind: geom_brep::SurfaceKind::Cone,
-                other_kind: geom_brep::SurfaceKind::Cone,
+                kind: geom::SurfaceKind::Cone,
+                other_kind: geom::SurfaceKind::Cone,
                 ..
             }
         ),

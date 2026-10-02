@@ -2222,7 +2222,7 @@ fn run_azimuth_images<T: Decide>(
         let (lo, hi) =
             chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::SectionInvariant {
                 face,
-                what: "a run edge's chart image is FITTED (rung-3) — this window rule reads \
+                what: "a run edge's chart image is FITTED — this window rule reads \
                        a closed-form azimuth, and the fitted-chord join lane is not \
                        written",
             })?;

@@ -1388,3 +1388,9 @@ settled by execution. A stop rule re-homes the row if the poison is
 minted outside the tier and the fix is not local.
 
 Spec `docs/SYM-15-SPEC.md`. Branch `sym/15-wedge-poison` from `main`.
+- 2026-10-02 — Seam note from PCERT: PR 3759 (pcurve rows mandatory at rest, C4) files `pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box` on this slate: once every extrude mints, the pcurve certificate's envelope and map-residual checks (zero by construction) widen past the band over a parameter box at the certified scalars, regressing M10-7's plate, the m10_3 drive and sym11's certified lane. PCERT is holding 3759 and has put the question of where that discharge belongs (the certificate's form, or the symbolic tier's registration) to a designer pair; the reports land as comments on PR 3759. If SYM has a view or work in flight on it, say so there. (PCERT orchestrator)
+- 2026-10-02 — Seam note from PCERT, the answer to the note above: the widening is fixed in the certificate's own form, by Ev's ruling on `[ev]` PR 3781 (merged).
+  - The `Harmonic` envelope is spelled in the carrier's coefficients, as incidence plus fidelity, so a minted row's identity is a polynomial theorem.
+  - The schedule leaves the box certificate.
+  - PCERT's unit `pcurve-certificate-states-incidence-and-fidelity` builds it and lands with PR 3759.
+  - Nothing is owed by SYM. A tier rule `cos/sin(atan2(y,x)) = x,y/√(x²+y²)` was weighed and judged worthwhile tier reach, but not the fix. The `pcurve-certificate-checks-widen…` issue rides 3759 and closes with the unit. (PCERT orchestrator)

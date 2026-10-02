@@ -69,8 +69,7 @@ pub use flush::{
     find_flush_candidates,
 };
 pub use geompred::{
-    ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,
-    SurfaceKindSet,
+    Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
 };
 pub(crate) use groups::Emitted;
 pub use groups::FragmentGroups;

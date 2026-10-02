@@ -49,7 +49,7 @@ fn carrier_of<T: Decide>(
         let kind = body
             .get_face(s.face)
             .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face: s.face,
@@ -93,7 +93,7 @@ pub(super) fn require_same<T: Decide>(
         let kind = body1
             .get_face(s1.face)
             .and_then(|f| body1.get_surface(f.surface))
-            .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand: o1,
             face: s1.face,
@@ -115,7 +115,7 @@ pub(super) fn require_same<T: Decide>(
         if let Some((operand, face, f, body)) = refusal {
             let kind = f
                 .and_then(|f| body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand,
                 face,
@@ -768,8 +768,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 .all(|&(body, face)| {
                                     body.get_face(face)
                                         .and_then(|f| body.get_surface(f.surface))
-                                        .map(geom_brep::SurfaceKind::of)
-                                        == Some(geom_brep::SurfaceKind::Plane)
+                                        .map(geom::Surface::kind)
+                                        == Some(geom::SurfaceKind::Plane)
                                 });
                             let which = if planar {
                                 Coincide::FlankSense

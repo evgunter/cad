@@ -308,9 +308,9 @@ pub enum CertifyError {
     /// whose description is simply wrong.
     ChartImageUnavailable {
         /// The chart kind the description named.
-        chart: crate::SurfaceKind,
+        chart: geom::SurfaceKind,
         /// The carrier kind offered against it.
-        carrier: crate::CurveKind,
+        carrier: geom::CurveKind,
     },
     /// A surface key in the description did not resolve in the owning
     /// body (stale, or the surface does not exist yet — attach the
@@ -2303,8 +2303,8 @@ fn run_checks<T: Decide>(
                     // would send the caller looking for a missing
                     // feature instead of a wrong locus.
                     _ => CertifyError::ChartImageUnavailable {
-                        chart: crate::SurfaceKind::of(surface),
-                        carrier: crate::CurveKind::of(&spec.carrier),
+                        chart: surface.kind(),
+                        carrier: spec.carrier.kind(),
                     },
                 })?,
             };
@@ -4519,8 +4519,8 @@ mod tests {
             value: 2e-8,
         };
         let unavailable = CertifyError::ChartImageUnavailable {
-            chart: crate::SurfaceKind::Cone,
-            carrier: crate::CurveKind::Ellipse,
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Ellipse,
         };
         let chart = CertifyError::Escalated {
             check: CertCheck::ChartImage,
