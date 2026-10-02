@@ -162,7 +162,7 @@ pub use topo::flush::{FlushEvidence, FlushRung};
 /// declarable without re-deriving anything: a declared pair names
 /// sited entities (DM4), and a finding already knows where each of
 /// its names was read — the query's two nodes, or the refusing
-/// node's operands. [`declare_node`] therefore copies the pair
+/// node's operands. [`declared_pairs`] therefore copies the pair
 /// through, and a carried same-operand finding sites both sides at
 /// the one operand that holds them, which no caller downstream could
 /// have recovered from the names alone.

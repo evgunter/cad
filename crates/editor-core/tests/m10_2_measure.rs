@@ -984,7 +984,7 @@ fn a_measure_at_interval_contains_the_f64_value() {
 /// Note which dangling case this is. A measure's references ARE DAG
 /// edges, so deleting a referenced node is refused at the delete door
 /// like any other consumer's input (`DeleteWouldDangle`) — that
-/// departs from the `Declare`/`Mate` carve-out, deliberately, because
+/// departs from the declared-pair/`Mate` carve-out, deliberately, because
 /// a measure consumes the value it names. What remains reachable is
 /// the case the N5 ladder is really for: a well-formed name that the
 /// still-live minting node's table does not carry.
@@ -1025,7 +1025,7 @@ fn a_reference_that_stops_resolving_refuses_typed() {
 
 /// Deleting a node a measure references is refused at the DELETE door,
 /// because the reference is a consuming edge. Pinned because it is the
-/// one place this node kind departs from the `Declare`/`Mate`
+/// one place this node kind departs from the declared-pair/`Mate`
 /// name-reference carve-out, and a silent reversal would take the
 /// ordering guarantee with it.
 #[test]

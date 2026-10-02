@@ -905,7 +905,7 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
 }
 
 /// **What the channel does NOT reach, measured.** A boolean's value
-/// carries records (its own `Declare` pairs, remapped) and no
+/// carries records (its own declared pairs, remapped) and no
 /// declaration rows, so a finding against one of them is
 /// `Unattributed` — which is correct there, because no mate authored
 /// them. What could make it wrong is a declaration row reaching a

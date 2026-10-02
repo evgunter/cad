@@ -116,9 +116,8 @@ fn doc_param_edit_recomputes_the_param_cone() {
     let d = die();
     let full = run(&d.doc, None, false);
     // pip_depth 0.125 → 0.0625: every pip master extrude and all 42
-    // downstream pip nodes recompute; the 7 profiles, the cube
-    // extrude, and the 21 Declare nodes (pure recipe data) are
-    // reused.
+    // downstream pip nodes recompute; the 7 frames, the 7 profiles
+    // and the cube extrude are reused.
     let edited = d
         .doc
         .apply(

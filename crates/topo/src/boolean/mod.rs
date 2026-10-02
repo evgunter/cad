@@ -503,7 +503,7 @@ impl CarriedContacts {
 /// Declared coincidence intents threaded into ONE boolean call (F5 —
 /// declarations are recipe data on the consuming node; M4 PR 5). The
 /// kernel-level form is arena keys; the recipe layer resolves its
-/// `Declare` name pairs into these through the operands' name tables.
+/// declared name pairs into these through the operands' name tables.
 ///
 /// Every key is validated at the op door (live, and planar for
 /// faces) — a dangling declaration is a typed refusal
