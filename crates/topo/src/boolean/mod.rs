@@ -66,6 +66,7 @@
 //! `dot(dir, n_outward) < 0 ⇒ Enters ⇒ IN`; positive ⇒ OUT. Mirror
 //! tests pin both directions on brick fixtures.
 
+mod arcs;
 pub(crate) mod boxes;
 pub mod carrier_eq;
 mod circle_cylinder;
@@ -146,8 +147,9 @@ pub use reduce::{SweepStrategy, SweepTrace};
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and
 // the detector's candidate-generation mode BY CONSTRUCTION.
+pub use carrier_eq::{carrier_pair_relation, carrier_pair_verdict, face_carrier};
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
-pub use rest::{carrier_pair_relation, carrier_pair_verdict, face_carrier, flush_pair_relation};
+pub use rest::flush_pair_relation;
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,
@@ -2807,10 +2809,10 @@ fn border_held<T: Real>(
 /// pairs, so a Subtract with a false declaration was never verified at
 /// all.
 ///
-/// Both Same± verdicts pass: this door verifies the CARRIER claim (the
-/// classification's own question), and aligned coincidence is the
-/// merge stage's legitimate flush-wall answer. Refusing containment is
-/// the contact record's job, one level up.
+/// A `SameOriented` verdict on a curved carrier refuses: the pair is a
+/// continuation, and aligned senses contradict `Rest`. On a plane it
+/// passes, as the merge stage's flush-wall answer, and refusing
+/// containment there is the contact record's job, one level up.
 fn verify_declared_contacts<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
@@ -2855,7 +2857,7 @@ fn verify_rest_declaration<T: Decide>(
     // declarations` has already had its say about which kinds this
     // op accepts, so there is nothing left to add here — and nothing
     // for the identity rung to read.
-    let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
+    let Some(outcome) = carrier_eq::carrier_pair_relation(a, fa, b, fb, true, band) else {
         return Ok(false);
     };
     match outcome {
@@ -2964,7 +2966,7 @@ fn verify_tangent_declaration<T: Decide>(
         class: ContactClass::Tangent,
     };
     // 1. The conformal screen (detector posture).
-    if let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, false, band) {
+    if let Some(outcome) = carrier_eq::carrier_pair_relation(a, fa, b, fb, false, band) {
         match outcome {
             Ok(CarrierRelation::Distinct) => {}
             // One carrier, structurally: conformal contact is Rest.

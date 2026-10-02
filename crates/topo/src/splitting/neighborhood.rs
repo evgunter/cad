@@ -184,13 +184,11 @@ fn chord<T: Decide>(
             // reverses the FIRST derivative only — position along the
             // walk is c(t₁ − τ), so d²/dτ² = +c″(t₁): no sign flip on
             // the curvature datum.
-            let (tangent, deriv2, speed_sq) = if he == edge.he_plus {
-                let d = curve.carrier().deriv(t0);
-                (d, curve.carrier().deriv2(t0), d.norm_squared())
-            } else {
-                let d = curve.carrier().deriv(t1);
-                (-d, curve.carrier().deriv2(t1), d.norm_squared())
-            };
+            let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
+            let deriv2 = curve
+                .carrier()
+                .deriv2(if he == edge.he_plus { t0 } else { t1 });
+            let speed_sq = tangent.norm_squared();
             let chord_len = p_final.distance(p_base);
             let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
             Ok((

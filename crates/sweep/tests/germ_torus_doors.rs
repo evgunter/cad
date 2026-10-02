@@ -373,7 +373,6 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
     assert_eq!(meridians, 2, "the waist carries its seam meridian twice");
 }
 
-
 // -------------------------------------------------------------------
 // Door 3: face containment on a torus face.
 // -------------------------------------------------------------------

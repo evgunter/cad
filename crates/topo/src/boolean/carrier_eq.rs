@@ -54,6 +54,10 @@ use crate::contact::ContactVerdict;
 use crate::validate::decide;
 
 use super::plane_eq::{PlaneDesc, PlaneIdentity, PlaneRung, oriented_plane_eq_verdict};
+use super::reduce::face_oriented_source;
+use crate::body::Body;
+use crate::entity::FaceKey;
+use crate::face_normal::plane_outward_normal;
 
 /// The relation between two oriented carriers: the three outcomes
 /// every kind's ladder produces.
@@ -492,6 +496,108 @@ fn data_rungs<T: Decide>(
         // declaration of this pair would verify with (R3).
         relation: same,
     })
+}
+
+/// The face's **oriented carrier description** — the curved
+/// generalization of [`super::reduce::face_plane`], folding the face's sense into
+/// the material side exactly as that door does (S10).
+///
+/// `None` for a surface kind outside the `Rest` ladder's inventory
+/// (cone, NURBS, `Approx`): the C4 table names the kinds
+/// [this module](self) carries a rung for, and a kind it cannot
+/// compare refuses typed at the caller rather than being approximated
+/// by one it can.
+pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
+    let f = body.get_face(face)?;
+    // `sense` is the material-side bit: true means the face's outward
+    // normal IS the chart normal, which for a sphere/cylinder chart
+    // points away from the centre/axis. Read as a BIT, never as a
+    // comparison on `T` — the scalar backends order intervals, not
+    // signs (S10's exact-bit discipline).
+    let outward = f.sense;
+    match body.get_surface(f.surface) {
+        Some(geom::Surface::Plane { origin, normal, .. }) => Some(CarrierDesc::Plane {
+            origin: *origin,
+            normal: plane_outward_normal(f, *normal).vec(),
+        }),
+        Some(geom::Surface::Sphere { center, radius, .. }) => Some(CarrierDesc::Sphere {
+            center: *center,
+            radius: *radius,
+            outward,
+        }),
+        Some(geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        }) => Some(CarrierDesc::Cylinder {
+            origin: *origin,
+            axis: *axis,
+            radius: *radius,
+            outward,
+        }),
+        Some(geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }) => Some(CarrierDesc::Torus {
+            center: *center,
+            axis: *axis,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            outward,
+        }),
+        _ => None,
+    }
+}
+
+/// **The one carrier-pair door**: [`super::rest::flush_pair_relation`]
+/// for every carrier kind the `Rest` table names.
+///
+/// Same descriptions-plus-identity construction, same verification
+/// arm (**1 m**, the literal [`super::rest::flush_pair_relation`]
+/// spells), same shared-by-construction contract between the verify-at-use site and the
+/// detector's candidate-generation mode — only the carrier kind
+/// widens. The planar case reaches exactly the same numbers it
+/// reached before ([this module](self)'s plane arm delegates), so
+/// this door is a superset of the old one rather than a replacement
+/// for it.
+///
+/// `None`: a face whose surface kind is outside the ladder's
+/// inventory — there is no description to compare.
+pub fn carrier_pair_relation<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    declared: bool,
+    band: Band,
+) -> Option<Result<CarrierRelation, CarrierEqError>> {
+    Some(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
+}
+
+/// [`carrier_pair_relation`] plus the AQ6 trilean — the door the
+/// CONTACT verification uses, since only a caller that can see the
+/// bridged residue can enforce C4's "trusted exactly there" invariant.
+/// One traversal, two projections.
+pub fn carrier_pair_verdict<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    declared: bool,
+    band: Band,
+) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
+    let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
+    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
+    let id = PlaneIdentity {
+        s1: ga.as_ref(),
+        s2: gb.as_ref(),
+        declared,
+    };
+    Some(carrier_eq_verdict(&ca, &cb, id, T::one(), band))
 }
 
 #[cfg(test)]
@@ -988,7 +1094,7 @@ mod tests {
         ] {
             for (x, y) in [(&body, other), (other, &body)] {
                 assert_eq!(
-                    crate::boolean::rest::carrier_pair_relation(x, face, y, face, false, band())
+                    super::carrier_pair_relation(x, face, y, face, false, band())
                         .unwrap()
                         .unwrap(),
                     rung,

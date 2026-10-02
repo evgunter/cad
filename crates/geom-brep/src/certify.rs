@@ -1366,6 +1366,21 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     }
 }
 
+impl<T: Decide> EdgeCurve<T> {
+    /// The carrier's derivative where a walk along the edge leaves and
+    /// where it arrives, each in the direction of travel: `he_plus`
+    /// walks `t₀ → t₁`, the other half `t₁ → t₀` with both negated.
+    /// Neither is normalized.
+    pub fn walk_tangents(&self, he_plus: bool) -> (geom_core::Vec3<T>, geom_core::Vec3<T>) {
+        let (t0, t1) = self.params();
+        if he_plus {
+            (self.carrier.deriv(t0), self.carrier.deriv(t1))
+        } else {
+            (-self.carrier.deriv(t1), -self.carrier.deriv(t0))
+        }
+    }
+}
+
 impl<T: Real> EdgeCurve<T> {
     /// The intensional description (authoritative, D2/U2): D2's two
     /// intrinsic arms, ONE conventional form, and the fenced

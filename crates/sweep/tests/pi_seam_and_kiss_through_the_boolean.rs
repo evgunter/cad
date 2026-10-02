@@ -631,3 +631,141 @@ fn a_ball_seated_in_its_own_bore_refuses_declared_or_not() {
         );
     }
 }
+
+/// A spherical cap's volume: height `h` on a sphere of radius `rho`.
+fn cap_volume(rho: f64, h: f64) -> f64 {
+    PI * h * h * (3.0 * rho - h) / 3.0
+}
+
+/// `(faces, edges, vertices, shells)` of a body.
+fn census(b: &Body<f64>) -> (usize, usize, usize, usize) {
+    (
+        b.faces().count(),
+        b.edges().count(),
+        b.vertices().count(),
+        b.shells().count(),
+    )
+}
+
+/// The body of a boolean that builds, at tier 3, with its volume and
+/// its census.
+fn built(
+    label: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+) -> (f64, (usize, usize, usize, usize)) {
+    let tol = Tol::witness();
+    let b = match r {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("{label}: builds: {other:?}"),
+    };
+    topo::validate_geometric(&b, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+    (topo::mass_properties(&b, tol).unwrap().volume, census(&b))
+}
+
+/// **A dome sunk into the tube, undeclared**: the dome lowered by `dz`
+/// puts its base disc inside the tube and its rim circle on the tube's
+/// wall. The tube's two wall faces are bounded by seam rulings at
+/// `±x`, where the rim's own vertices are, so each rim semicircle lies
+/// wholly inside one face (certificate (a)) and its ends are recorded.
+/// The union is the tube plus the dome's cap above `z = H`.
+///
+/// Turned a twelfth of a turn, each semicircle crosses a seam ruling
+/// mid-arc: a crossing neither certificate places, so it keeps the door
+/// (`work/tang/a-rim-lying-on-a-wall-across-its-seam-ruling-keeps-the-door.md`).
+#[test]
+fn a_dome_sunk_into_the_tube_builds_undeclared() {
+    let tol = Tol::witness();
+    let none = BooleanDeclarations::none();
+    let tube = rod_z(R, 0.0, H);
+    let rho = 2.0_f64.sqrt() * R;
+    for dz in [-1e-3, -0.3] {
+        let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
+        let dome = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
+        let want = PI * R * R * H + cap_volume(rho, rho - R + dz);
+        for (order, r) in [
+            topo::union_with(&tube, &dome, &none, tol),
+            topo::union_with(&dome, &tube, &none, tol),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let label = format!("dz = {dz}, order {order}");
+            let (v, c) = built(&label, r);
+            assert!(
+                (v - want).abs() <= 1e-12 * want,
+                "{label}: the tube and the cap above it: {v} vs {want}"
+            );
+            assert_eq!(c, (6, 12, 9, 1), "{label}: F, E, V, shells");
+        }
+        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), PI / 6.0);
+        let turned = topo::transform_rigid(&dome, &turn, tol).unwrap();
+        for e in union_both_orders(&tube, &turned, &[], &[], None) {
+            assert!(
+                is_pierce(&e),
+                "dz = {dz}, turned: the crossing layer: {e:?}"
+            );
+        }
+    }
+}
+
+/// **A tube poking through the dome's base, undeclared**: the tube runs
+/// to `z = 2.2` and the dome stands on `z = H`, so the dome's rim lies on
+/// the tube's wall inside that face (certificate (a)) and the tube's top
+/// disc cuts the dome. Every op builds at its closed form: the dome
+/// above the disc is a spherical cap of height `1 + √2 − 2.2`.
+#[test]
+fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
+    let tol = Tol::witness();
+    let none = BooleanDeclarations::none();
+    let tall = rod_z(R, 0.0, 2.2);
+    let dome = dome_on_the_cap();
+    let rho = 2.0_f64.sqrt() * R;
+    let above = cap_volume(rho, R + rho - 2.2);
+    let inside = cap_volume(rho, rho - R) - above;
+    let tube = PI * R * R * 2.2;
+    for (label, r, want, census) in [
+        (
+            "t ∪ d",
+            topo::union_with(&tall, &dome, &none, tol),
+            tube + above,
+            (6, 12, 9, 1),
+        ),
+        (
+            "d ∪ t",
+            topo::union_with(&dome, &tall, &none, tol),
+            tube + above,
+            (6, 12, 9, 1),
+        ),
+        (
+            "t ∖ d",
+            topo::subtract_with(&tall, &dome, &none, tol),
+            tube - inside,
+            (7, 14, 10, 1),
+        ),
+        (
+            "d ∖ t",
+            topo::subtract_with(&dome, &tall, &none, tol),
+            above,
+            (3, 4, 3, 1),
+        ),
+        (
+            "t ∩ d",
+            topo::intersect_with(&tall, &dome, &none, tol),
+            inside,
+            (4, 6, 4, 1),
+        ),
+        (
+            "d ∩ t",
+            topo::intersect_with(&dome, &tall, &none, tol),
+            inside,
+            (4, 6, 4, 1),
+        ),
+    ] {
+        let (v, c) = built(label, r);
+        assert!(
+            (v - want).abs() <= 1e-12 * want,
+            "{label}: the closed form: {v} vs {want}"
+        );
+        assert_eq!(c, census, "{label}: F, E, V, shells");
+    }
+}

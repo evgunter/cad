@@ -145,7 +145,7 @@ fn rest_pair_verdict<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<ContactVerdict, ContactRefusal> {
-    let outcome = super::rest::carrier_pair_verdict(a, fa, b, fb, true, band).ok_or(
+    let outcome = super::carrier_eq::carrier_pair_verdict(a, fa, b, fb, true, band).ok_or(
         ContactRefusal::NotCertifiable {
             what: "a declared face's surface kind is outside the Rest ladder's inventory \
                    (plane, sphere, cylinder)",

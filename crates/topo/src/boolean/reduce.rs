@@ -538,7 +538,7 @@ pub(super) use crate::face_normal::face_outward_normal;
 /// face and its reverted twin compose to one tag although their
 /// material sides are opposite. The curved rung a curved pair reaches
 /// through [`mod@super::carrier_eq`] (`source_rung`, from
-/// [`super::rest::carrier_pair_verdict`] and `recl`'s declared-`Rest`
+/// [`super::carrier_eq::carrier_pair_verdict`] and `recl`'s declared-`Rest`
 /// sector pairs) therefore reads only the sources' base here and takes
 /// the material side from the descriptions' `outward` bits.
 ///
@@ -1191,16 +1191,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// `(Zero, Zero)` chord) call it on UNDECLARED pairs too. That is not
 /// the C8 gate reopening: C8 protects the claim that an on-carrier EDGE
 /// is cosurface, and the arms below reach the endpoint treatment only
-/// after the certified roots have proved there is no interior crossing
-/// — which, for the `(Zero, Zero)` arm, takes distinct certified roots
-/// and so structurally excludes an edge lying on the carrier (on a
-/// cylinder only rulings do, and a ruling answers `Constant`; no line
-/// lies on a torus). What the door then does is
-/// point-in-face containment on a chart, which is a trim question and
-/// not a gluing one. The one on-carrier edge the arm takes is an arc
-/// whose every parent is decided a DIFFERENT carrier (`LiesOn`, below):
-/// it is a curve where two carriers meet, so it asks no cosurface
-/// question either.
+/// after the certified roots have proved there is no interior crossing.
+/// The `(Zero, Zero)` arm takes an edge two ways. A chord it takes on
+/// distinct certified roots, which exclude an edge lying on the carrier
+/// (on a cylinder only rulings do, and a ruling answers `Constant`; no
+/// line lies on a torus); what the door then does is point-in-face
+/// containment on a chart, which is a trim question and not a gluing
+/// one. An arc lying on the carrier (`LiesOn`) it takes only when every
+/// parent is decided a DIFFERENT carrier: a curve where two carriers
+/// meet, so it asks no cosurface question either.
 ///
 /// Returns what the caller must do about the pair — see
 /// [`CurvedEvent`]. The split itself needs `&mut x` and the worklist,
@@ -1629,37 +1628,36 @@ pub(super) fn curved_face_arm<T: Decide>(
         }
         // **BOTH endpoints on the carrier, the pair UNDECLARED** — the
         // chord between two pierces, or any edge whose two ends sit on
-        // the carrier. Two invariants carry it:
+        // the carrier. The verdict decides which of two edges it is:
         //
-        // - **It is not an on-carrier edge.** `NoInterior` is reached only
-        //   through a certified root count with distinct roots. For a
-        //   LINE: the lines that lie on a wall are its rulings, which
-        //   answer `Constant`, and no line lies on a sphere or a torus.
-        //   For a CIRCLE against a sphere: a circle lying on it is
-        //   centred on its axis, answered `LiesOn`. For a CIRCLE
-        //   against a torus: a circle lying on it is either coaxial (a
-        //   rim or latitude circle, answered `LiesOn`) or has `F ≡ 0`,
-        //   whose pole no anchor can put definitely off the torus
-        //   (`Unsettled`). So the undeclared cosurface question
-        //   (CONTACT-DESIGN C2/C4) keeps its door, and so does a
-        //   tangency, a trim with no verdict, and every other answer.
-        // - **Its interior meets this face nowhere.** The face lies on its
-        //   carrier; the edge meets the carrier only at its certified
-        //   roots; each root strictly inside the span was placed outside
-        //   the trim, and each root at an end is that end's own incidence.
+        // - **`NoInterior` / `Elsewhere`: not an on-carrier edge.** Those
+        //   are reached only through a certified root count with
+        //   distinct roots. For a LINE: the lines that lie on a wall are
+        //   its rulings, which answer `Constant`, and no line lies on a
+        //   sphere or a torus. For a CIRCLE against a sphere: a circle
+        //   lying on it is centred on its axis, answered `LiesOn`. For a
+        //   CIRCLE against a torus: a circle lying on it is either
+        //   coaxial (a rim or latitude circle, answered `LiesOn`) or has
+        //   `F ≡ 0`, whose pole no anchor can put definitely off the
+        //   torus (`Unsettled`). And its interior meets this face
+        //   nowhere: the edge meets the carrier only at its certified
+        //   roots, each root strictly inside the span was placed outside
+        //   the trim, and each root at an end is that end's own
+        //   incidence. So the ends decide, under the same rule as the
+        //   mixed-sign arm ([`Placement::undeclared_no_interior`]).
+        // - **`LiesOn`: an arc lying on the carrier**, exactly on by the
+        //   circle root door. It is an ON event (C4's one-sided cover,
+        //   narrowed to touches) when every surface of a face it bounds is
+        //   decided distinct from `face`'s by the carrier ladder: the arc
+        //   is then a curve where two different carriers meet, not a
+        //   cosurface question. It takes the coplanar conic's posture,
+        //   endpoint processing only, once its interior is certified to
+        //   meet this face's boundary nowhere it does not run along
+        //   ([`lying_on`]).
         //
-        // So the ends decide, under the same rule as the mixed-sign arm
-        // ([`Placement::undeclared_no_interior`]).
-        //
-        // **An arc LYING on the carrier is an ON event** (C4's one-sided
-        // cover, narrowed to touches): exactly on by the circle root
-        // door, and every surface of a face it bounds decided distinct
-        // from `face`'s by the carrier ladder, so the arc is a curve
-        // where two different carriers meet, not a cosurface question.
-        // It takes the coplanar conic's posture, endpoint processing
-        // only, once its interior is certified to meet this face's
-        // boundary nowhere it does not run along ([`lying_on`]). A
-        // parent the ladder does not decide distinct keeps the door.
+        // Every other answer keeps the door: the undeclared cosurface
+        // question (CONTACT-DESIGN C2/C4), a parent the ladder does not
+        // decide distinct, a tangency, and a trim with no verdict.
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
@@ -1669,9 +1667,16 @@ pub(super) fn curved_face_arm<T: Decide>(
                     Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
                 }
                 SpanVerdict::LiesOn if parents_distinct_from(x, edge, y, face, band) => {
-                    let ends = [(u, pu), (v, pv)];
-                    lying_on(x, y, x_is, edge_key, ends, face, contacts, band, tol)?
-                        .ok_or_else(frontier)
+                    let arc = ArcOnCarrier {
+                        x,
+                        x_is,
+                        edge_key,
+                        ends: [(u, pu), (v, pv)],
+                        face,
+                        band,
+                        tol,
+                    };
+                    lying_on(&arc, y, contacts)?.ok_or_else(frontier)
                 }
                 _ => Err(frontier()),
             }
@@ -1910,6 +1915,18 @@ fn on_declared_rest_carrier<T: Decide>(
     .any(|pf| declared.verified_one_carrier(x_is, pf, x_is.other(), face))
 }
 
+/// An arc of `x` lying on `face`'s carrier, as [`lying_on`] reads it.
+struct ArcOnCarrier<'a, T: geom_core::Real> {
+    x: &'a Body<T>,
+    x_is: Operand,
+    edge_key: EdgeKey,
+    /// The arc's two ends, `he_plus`'s start first.
+    ends: [(VertexKey, Point3<T>); 2],
+    face: FaceKey,
+    band: Band,
+    tol: Tol,
+}
+
 /// **An arc lying on `face`'s carrier, its parents distinct from it:**
 /// the endpoint records, once the arc's interior is certified to cross
 /// `face`'s boundary nowhere. Two certificates do that, and anything
@@ -1925,32 +1942,43 @@ fn on_declared_rest_carrier<T: Decide>(
 /// - **along edges of the partner**: both ends were paired with
 ///   vertices of `y`, and `y` has a chain of circle arcs between them,
 ///   each leaving along this arc's tangent where it starts
-///   ([`super::rest::arcs_along`]) and arriving at a point decided on
+///   ([`super::arcs::arcs_along`]) and arriving at a point decided on
 ///   this arc's circle. A circle through two points with a given tangent
 ///   at one is unique (this arc is a circle, as only a circle answers
 ///   `LiesOn`), so the chain IS this arc, and edges of a valid body
 ///   cross no face's interior: the end records, with the chain's inner
 ///   vertices that the other direction's sweep records on this arc, are
 ///   every incidence it has.
-#[allow(clippy::too_many_arguments)]
+///
+/// The ends are placed, and recorded, before either certificate runs:
+/// certificate (a) reads the vertices of `y` the placements pair them
+/// with, minting one where an end lands on an edge. That is sound
+/// because every answer but `Recorded` either follows two `Elsewhere`
+/// placements, which record nothing, or is `None`, which the caller
+/// turns into the frontier that ends the op, so no record or split made
+/// here outlives a certificate that did not hold.
 fn lying_on<T: Decide>(
-    x: &Body<T>,
+    arc: &ArcOnCarrier<'_, T>,
     y: &mut Body<T>,
-    x_is: Operand,
-    edge_key: EdgeKey,
-    ends: [(VertexKey, Point3<T>); 2],
-    face: FaceKey,
     contacts: &mut ContactAcc,
-    band: Band,
-    tol: Tol,
 ) -> Result<Option<CurvedEvent<T>>, BooleanError> {
-    let curve = x
+    let ArcOnCarrier {
+        x,
+        x_is,
+        edge_key,
+        ends,
+        face,
+        band,
+        tol,
+    } = *arc;
+    let lost = |what| BooleanError::ClassificationInvariant { what };
+    let e = x
         .get_edge(edge_key)
-        .and_then(|e| x.get_curve_geom(e.curve))
+        .ok_or_else(|| lost("an arc on a carrier: the edge is lost"))?;
+    let curve = x
+        .get_curve_geom(e.curve)
         .and_then(CurveGeom::certified)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "an arc on a carrier: the edge's curve is lost",
-        })?;
+        .ok_or_else(|| lost("an arc on a carrier: the edge's curve is lost"))?;
     let geom::Curve3::Circle {
         center,
         axis,
@@ -1970,29 +1998,35 @@ fn lying_on<T: Decide>(
     let at_ends: Vec<VertexKey> = placed.iter().filter_map(|(_, w)| *w).collect();
     if boundary_meets_circle_only_at(y, face, (center, axis, radius), &at_ends, band)? {
         let all = |p: Placement| placed.iter().all(|(q, _)| *q == p);
-        return Ok(if all(Placement::Elsewhere) {
-            Some(CurvedEvent::None)
-        } else if at_ends.is_empty() && !all(Placement::Recorded) {
-            // Clear of the boundary, one end in and one out: the two
-            // certified answers contradict, and that keeps the door.
-            None
-        } else {
-            Some(CurvedEvent::Recorded)
-        });
+        if all(Placement::Elsewhere) {
+            return Ok(Some(CurvedEvent::None));
+        }
+        // With no end on the boundary, one end in and one out would
+        // need the arc to cross a boundary the certificate has just
+        // kept off its circle: two certified answers contradicting,
+        // which keeps the door.
+        let mixed = at_ends.is_empty() && !all(Placement::Recorded);
+        debug_assert!(
+            !mixed,
+            "an arc clear of the boundary has one end in the face and one out"
+        );
+        return Ok((!mixed).then_some(CurvedEvent::Recorded));
     }
     let [(_, Some(wu)), (_, Some(wv))] = placed else {
         return Ok(None);
     };
-    let mut dir =
-        arc_departure(x, edge_key, ends[0].0).ok_or(BooleanError::ClassificationInvariant {
-            what: "an arc on a carrier: no departure tangent at its own end",
-        })?;
+    let (mut dir, _) = curve.walk_tangents(
+        x.get_half_edge(e.he_plus)
+            .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
+            .start
+            == ends[0].0,
+    );
     let escalated =
         |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
     // A chain visits each edge of `y` at most once.
     let mut at = wu;
     for _ in 0..y.edges().count() {
-        let steps = super::rest::arcs_along(y, at, None, dir, band)?.map_err(escalated)?;
+        let steps = super::arcs::arcs_along(y, at, dir, band)?.map_err(escalated)?;
         let [step] = steps[..] else {
             return Ok(None);
         };
@@ -2003,13 +2037,8 @@ fn lying_on<T: Decide>(
             .get_vertex(step.to)
             .and_then(|vd| y.get_point(vd.point))
             .copied()
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "an arc on a carrier: a chain vertex has no point",
-            })?;
-        let off = p - center;
-        let h = off.dot(axis);
-        let rho = (off - axis * h).norm();
-        let miss = (h.powi(2) + (rho - radius).powi(2)).sqrt();
+            .ok_or_else(|| lost("an arc on a carrier: a chain vertex has no point"))?;
+        let miss = super::arcs::circle_miss(p, center, axis, radius);
         match decide("bool_arc_chain_on_circle", Margin::of(miss), band).map_err(escalated)? {
             Sign::Zero => {}
             Sign::Positive | Sign::Negative => return Ok(None),
@@ -2020,17 +2049,39 @@ fn lying_on<T: Decide>(
     Ok(None)
 }
 
+/// Where a boundary vertex sits against the arc's plane, as
+/// [`boundary_meets_circle_only_at`] reads it.
+#[derive(Clone, Copy, PartialEq)]
+enum PlaneSide {
+    /// Decided strictly on this side.
+    Off(Sign),
+    /// One of the vertices the arc's ends were paired with.
+    At,
+    /// Decided in the plane, and decided off the circle.
+    InPlaneOffCircle,
+}
+
 /// Whether `face`'s boundary meets the circle (`center`, unit `axis`,
 /// `radius`) nowhere but at the vertices `at`. The circle lies in the
 /// plane through `center` normal to `axis`, so the boundary is read
-/// against that plane, and each point where it meets the plane is decided
-/// off the circle: a vertex strictly off the plane or off the circle; a
-/// conic edge's crossings strictly inside its span (the splitting lane's
-/// certified roots, [`crate::splitting::conic_plane_crossing_roots`]), or
-/// a line edge's one crossing between the plane's two sides, each off the
-/// circle; no edge lying in the plane but a line between two of `at`.
-/// Anything undecided, and any carrier but a line or a conic, answers
-/// `false`.
+/// against that plane, and each point where it meets the plane must be
+/// decided off the circle or be one of `at`:
+///
+/// - a vertex: decided strictly off the plane, or decided in it and off
+///   the circle. One whose side escalates is placed nowhere, and fails;
+/// - a line: no crossing between two ends on one side; its one crossing
+///   between the two sides decided off the circle; an end in the plane
+///   with the other strictly off. A line lying in the plane is a chord
+///   only between two of `at`, and is certified when its midpoint is
+///   decided off the circle;
+/// - a conic: its crossings strictly inside its span (the splitting
+///   lane's certified roots,
+///   [`crate::splitting::conic_plane_crossing_roots`]) each decided off
+///   the circle, or a plane of its own decided parallel and off.
+///
+/// Everything else answers `false`: an undecided point, a conic lying
+/// in the plane, and any boundary edge the certificate cannot place (a
+/// NURBS or spiric carrier, or no certified curve).
 fn boundary_meets_circle_only_at<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
@@ -2044,11 +2095,12 @@ fn boundary_meets_circle_only_at<T: Decide>(
     let f = y.get_face(face).ok_or_else(lost)?;
     let height = |p: Point3<T>| (p - center).dot(axis);
     let off_circle = |p: Point3<T>| {
-        let h = height(p);
-        let rho = ((p - center) - axis * h).norm();
-        let miss = (h.powi(2) + (rho - radius).powi(2)).sqrt();
         matches!(
-            decide("bool_arc_boundary_off_circle", Margin::of(miss), band),
+            decide(
+                "bool_arc_boundary_off_circle",
+                Margin::of(super::arcs::circle_miss(p, center, axis, radius)),
+                band
+            ),
             Ok(Sign::Positive)
         )
     };
@@ -2058,18 +2110,16 @@ fn boundary_meets_circle_only_at<T: Decide>(
             .copied()
             .ok_or_else(lost)
     };
-    // A vertex's place: strictly off the plane on one side, in the plane
-    // (`Zero`) where it is one of `at` or decided off the circle, and
-    // `None` where nothing certifies it clear.
-    let place = |v: VertexKey| -> Result<Option<Sign>, BooleanError> {
+    let place = |v: VertexKey| -> Result<Option<PlaneSide>, BooleanError> {
         if at.contains(&v) {
-            return Ok(Some(Sign::Zero));
+            return Ok(Some(PlaneSide::At));
         }
         let p = point(v)?;
         Ok(
             match decide("bool_arc_plane_side", Margin::of(height(p)), band) {
-                Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
-                Ok(Sign::Zero) | Err(_) => off_circle(p).then_some(Sign::Zero),
+                Ok(s @ (Sign::Positive | Sign::Negative)) => Some(PlaneSide::Off(s)),
+                Ok(Sign::Zero) => off_circle(p).then_some(PlaneSide::InPlaneOffCircle),
+                Err(_) => None,
             },
         )
     };
@@ -2098,15 +2148,20 @@ fn boundary_meets_circle_only_at<T: Decide>(
                     };
                     let (t0, t1) = c.params();
                     let clear = match c.carrier() {
-                        geom::Curve3::Line { .. } => match (sa, sb) {
-                            (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
-                                let (pa, pb) = (point(a)?, point(b)?);
-                                let (ha, hb) = (height(pa), height(pb));
-                                off_circle(pa + (pb - pa) * (ha / (ha - hb)))
+                        geom::Curve3::Line { .. } => {
+                            let (pa, pb) = (point(a)?, point(b)?);
+                            match (sa, sb) {
+                                (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
+                                    let (ha, hb) = (height(pa), height(pb));
+                                    off_circle(pa + (pb - pa) * (ha / (ha - hb)))
+                                }
+                                (PlaneSide::Off(_), _) | (_, PlaneSide::Off(_)) => true,
+                                (PlaneSide::At, PlaneSide::At) => {
+                                    off_circle(pa.lerp(pb, T::from_f64(0.5)))
+                                }
+                                _ => false,
                             }
-                            (Sign::Zero, Sign::Zero) => at.contains(&a) && at.contains(&b),
-                            _ => true,
-                        },
+                        }
                         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                             match crate::splitting::conic_plane_crossing_roots(
                                 c.carrier(),
@@ -2127,7 +2182,7 @@ fn boundary_meets_circle_only_at<T: Decide>(
                                 Err(()) | Ok(ConicPlaneMeet::Roots(Err(_))) => false,
                             }
                         }
-                        _ => false,
+                        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => false,
                     };
                     if !clear {
                         return Ok(false);
@@ -2137,24 +2192,6 @@ fn boundary_meets_circle_only_at<T: Decide>(
         }
     }
     Ok(true)
-}
-
-/// The departure tangent of the certified conic edge `edge` at its end
-/// `at`: the carrier's derivative at the start of the span when `at` is
-/// the start of `he_plus`, its negated derivative at the end otherwise.
-fn arc_departure<T: Decide>(
-    x: &Body<T>,
-    edge: EdgeKey,
-    at: VertexKey,
-) -> Option<geom_core::Vec3<T>> {
-    let e = x.get_edge(edge)?;
-    let curve = x.get_curve_geom(e.curve).and_then(CurveGeom::certified)?;
-    let (t0, t1) = curve.params();
-    Some(if x.get_half_edge(e.he_plus)?.start == at {
-        curve.carrier().deriv(t0)
-    } else {
-        -curve.carrier().deriv(t1)
-    })
 }
 
 /// Whether the carrier ladder decides EVERY surface of a face the edge
@@ -2176,7 +2213,7 @@ fn parents_distinct_from<T: Decide>(
     .all(|pf| {
         pf.is_some_and(|pf| {
             matches!(
-                super::rest::carrier_pair_relation(x, pf, y, face, false, band),
+                super::carrier_eq::carrier_pair_relation(x, pf, y, face, false, band),
                 Some(Ok(super::carrier_eq::CarrierRelation::Distinct))
             )
         })

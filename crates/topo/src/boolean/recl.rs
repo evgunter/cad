@@ -34,7 +34,7 @@ use crate::validate::decide;
 use geom_core::k_stats::NonzeroSign;
 
 /// The sector face's ORIENTED carrier description
-/// ([`super::rest::face_carrier`] —
+/// ([`super::carrier_eq::face_carrier`] —
 /// the face's material side with S10's sense bit already folded in,
 /// which is what the Same±-orientation verdict below has to mean: the
 /// whole point of the verdict is which way the two materials face).
@@ -45,7 +45,7 @@ fn carrier_of<T: Decide>(
     operand: super::Operand,
     s: &BoolSector<T>,
 ) -> Result<CarrierDesc<T>, BooleanError> {
-    super::rest::face_carrier(body, s.face).ok_or_else(|| {
+    super::carrier_eq::face_carrier(body, s.face).ok_or_else(|| {
         let kind = body
             .get_face(s.face)
             .and_then(|f| body.get_surface(f.surface))

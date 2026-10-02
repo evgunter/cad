@@ -179,7 +179,7 @@ fn ring_half(
 /// of a cylinder/sphere is a `(u, v)` derivative cross product this
 /// layer has no business re-deriving. `sense: true` means the outward
 /// normal IS that chart normal, pointing away from the axis/centre
-/// (the convention `boolean::rest::face_carrier` states).
+/// (the convention `boolean::carrier_eq::face_carrier` states).
 ///
 /// **The gate is on the kind and on the point, in that order.** The
 /// gradient is honest poison where the surface itself is singular — a

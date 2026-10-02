@@ -227,7 +227,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             };
             let planar = plane.is_some()
                 && matches!(
-                    super::rest::face_carrier(piercing_body, s.face),
+                    super::carrier_eq::face_carrier(piercing_body, s.face),
                     Some(super::carrier_eq::CarrierDesc::Plane { .. })
                 );
             let fact = (planar && class == crate::contact::ContactClass::Rest)
@@ -341,7 +341,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // the face sense exactly as `face_plane` does — S10); a kind
         // outside the `Rest` ladder's inventory (cone, torus, NURBS)
         // keeps the C5 typed refusal.
-        let Some(sector_carrier) = super::rest::face_carrier(piercing_body, s.face) else {
+        let Some(sector_carrier) = super::carrier_eq::face_carrier(piercing_body, s.face) else {
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
