@@ -16,7 +16,7 @@
 //!   bounds Out instead turns two `review_m3_pr55` rows
 //!   (`g_stacked_full_on_edge_germ_dump`,
 //!   `g_boundary_on_boundary_refusals_sharp`) and
-//!   `verbs_1031b_arcwind::the_boolean_on_the_cup_reaches_the_join`
+//!   `verbs_1031b_arcwind::the_boolean_on_the_cup_builds_and_balances`
 //!   red, which the other two mutations leave green; it also turns
 //!   [`matching_reads_the_germs_loci`] red. (Re-measured at fix pass 2.)
 //!

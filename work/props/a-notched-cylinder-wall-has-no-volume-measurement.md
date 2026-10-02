@@ -59,7 +59,8 @@ on a wall half-cylinder the cutter notches along two rulings and an arc.
 (Superseded the same day: BAND's one-wall-per-run sweeps, PR 3736,
 rebuilt the cup without the merge, and that cup's subtract refuses
 `Join(UnpairedLooseEnds { count: 4 })` on main and on JOIN-1 alike —
-`the_boolean_on_the_cup_reaches_the_join`. The witness above is the
+`the_boolean_on_the_cup_reaches_the_join` (since PR 3851
+`the_boolean_on_the_cup_builds_and_balances`). The witness above is the
 merged cup's.)
 
 ## Evidence (2026-10-01, TANG's circle × cylinder cell): Ev's engraving pose, slid across the rim

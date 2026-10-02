@@ -205,11 +205,15 @@ fn the_re_posed_cup_is_the_same_cup() {
     assert_the_cup_as_built("re-posed cup", &posed, tol);
 }
 
-/// **The boolean on the cup, MEASURED.** F7 does not answer and the
-/// crossing layer passes: the subtract stops at the join,
-/// `UnpairedLooseEnds { count: 4 }`. That is this row's whole content —
-/// it records where the cup's boolean actually stands, and the boundary
-/// it names belongs to the join.
+/// **The boolean on the cup, MEASURED: it builds.** F7 does not answer,
+/// the crossing layer passes, the join builds, and the cup's wall the
+/// cutter notches measures: a cylinder face's flux is its chart Green
+/// form over every loop, so a notched wall is no longer refused by the
+/// iso-rectangle premise (`props_rim_level`, where this row stopped
+/// before TANG's PR 3851). The difference and the intersection both pass
+/// every tier, and they balance against the cup itself: their volumes
+/// sum to the cup's within the certified pads, a statement no single
+/// op's reading can satisfy by itself.
 ///
 /// The crossing layer's door it once stopped at was the cutter's edge
 /// `x = 0.02, y = 0.1` (along `z`) against one of the cup's
@@ -219,23 +223,32 @@ fn the_re_posed_cup_is_the_same_cup() {
 /// negative (`SpanVerdict::Elsewhere`), and the sibling half records
 /// the crossing on its own visit.
 #[test]
-fn the_boolean_on_the_cup_reaches_the_join() {
+fn the_boolean_on_the_cup_builds_and_balances() {
     let tol = Tol::witness();
-    let out = topo::boolean::subtract(&teapot_cup(tol), &cutter(tol), tol);
+    let (cup, cut) = (teapot_cup(tol), cutter(tol));
+    let measure = |what: &str, out: Result<topo::BooleanResult<f64>, topo::BooleanError>| {
+        let out = out.unwrap_or_else(|e| panic!("cup {what}: refused {e:?}"));
+        let topo::BooleanResult::Body(out) = out else {
+            panic!("cup {what}: came back empty");
+        };
+        assert_eq!(
+            topo::validate_geometric(&out.body, tol),
+            Ok(()),
+            "cup {what}: tier 3"
+        );
+        let m = topo::mass_properties(&out.body, tol)
+            .unwrap_or_else(|e| panic!("cup {what}: mass properties {e:?}"));
+        (m.volume, m.volume_pad)
+    };
+    let (vd, pd) = measure("∖ cutter", topo::boolean::subtract(&cup, &cut, tol));
+    let (vi, pi) = measure("∩ cutter", topo::boolean::intersect(&cup, &cut, tol));
+    let whole = topo::mass_properties(&cup, tol).expect("the cup measures");
+    let gap = (vd + vi - whole.volume).abs();
     assert!(
-        matches!(
-            out,
-            Err(topo::BooleanError::VolumeUnmeasured {
-                operand: None,
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::props::PropsError::NotIsoRectangle {
-                        what: "props_rim_level"
-                    },
-                    ..
-                },
-            })
-        ),
-        "the cup clears F7 and the crossing layer and stops at the join, got {:?}",
-        out.map(|_| "Ok")
+        vi > 0.0 && gap <= pd + pi + whole.volume_pad + 1e-12 * whole.volume,
+        "cup ∖ cutter ({vd} ± {pd}) and cup ∩ cutter ({vi} ± {pi}) must sum to the cup \
+         ({} ± {}): off by {gap}",
+        whole.volume,
+        whole.volume_pad
     );
 }
