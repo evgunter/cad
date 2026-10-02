@@ -350,16 +350,20 @@ read-shut theorem counts with the read on. The tier-wide form of the
 contract is not restored: `the-read-at-its-node-relabels-a-cancellation-above-it`
 carries it.
 
-## 2026-10-02 — three more instances, from PATHS 5b (#3774)
+## 2026-10-02 — PATHS 5b (#3774), over the closed item
 
-With the constructions storing the carriers they build, the decision read
-answers decisions that are theorems with G and the read shut
-(`decide_3_split_rows_interval`, at the nominal, every ε):
-- `r2_link` `dihedral_wedge`: `[32, 0, 0, 96] -> [0, 32, 0, 96]`;
-- `r2_link` `path_seam_arrival_turn`: `[1, 0, 0, 0] -> [0, 1, 0, 0]`;
-- `r2_filleted_bracket` `dihedral_wedge`: `[8, 0, 8, 216] -> [0, 8, 0, 224]`.
-  Here the 8 decisions the fillet's incoming-tangency registration
-  discharges with the read shut stay numeric with it on. Main's shipped
-  row was `[0, 16, 0, 216]`, so the bracket's 8 are a loss against main.
+Before DECIDE-9 merged, 5b's branch showed three more instances
+(`decide_3_split_rows_interval`, at the nominal):
+- the link's `dihedral_wedge`, 32;
+- the link's `path_seam_arrival_turn`, 1;
+- the bracket's `dihedral_wedge`, 8, beside 8 the fillet's
+  incoming-tangency registration discharges.
 
-`decide_3` re-baselines all three, citing this item.
+With #3807 merged, every one of them reads the same with the read on and
+with it shut. The link's `dihedral_wedge` is `[32, 0, 0, 96]` and its
+`path_seam_arrival_turn` `[1, 0, 0, 0]`. The bracket's `dihedral_wedge` is
+`[8, 0, 8, 216]`, which against main's `[16, 0, 0, 216]` is eight theorems
+that are registered instead. The fillet's tangency there is the
+registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
+centre's algebra. That is the cost of #3774's fork 3, not this class, and
+`decide_3` carries no re-baseline for it.

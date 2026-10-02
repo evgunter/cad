@@ -183,6 +183,8 @@ are on the PR:
 - `r2_link`'s ceiling falls from 4.930e2·ε to 3.029e2·ε, and four of its
   predicates move. The half-turn's `2w/|2w|` is a sign the tier does not
   hold, so no registration on the built values reaches it.
-- 8 `dihedral_wedge` decisions on `r2_filleted_bracket` go from gated to
-  numeric. The decision read pre-empts them; this is recorded on the DECIDE
-  item.
+- 8 `dihedral_wedge` decisions on `r2_filleted_bracket` that are theorems
+  on main (DECIDE-9, #3807) are registered here instead. The fillet's
+  tangency is the registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of
+  the offset centre's algebra. The bracket's document still gains:
+  `[1121, 5, 146, 781]` → `[1257, 5, 42, 749]`.
