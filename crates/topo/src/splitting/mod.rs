@@ -11,16 +11,15 @@
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
 //!
-//! 1. **Operand gate (F5 → THE C5 table, M5 PR 5)**: every face's
-//!    `(kind × plane)` arm must be one the pipeline executes —
-//!    `Plane` (the M3 seam, bit-identical), `Cylinder` or `Cone` (the
-//!    rung-2 conic lanes); other kinds refuse typed CITING their rung routing
-//!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
-//!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
-//!    pass; `Nurbs` refuses
-//!    ([`SplitReduceError::CurvedEdgeUnsupported`]) — a rung-3 carrier
-//!    in the input operand, refused on this gate's own footing: the
-//!    general rung is implemented, and gates retire per arm.
+//! 1. **Operand gate (the C5 table, scoped to the plane's reach)**:
+//!    a face of a kind the pipeline has no `(kind × plane)` arm for
+//!    (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed
+//!    ([`SplitReduceError::CurvedBooleanUnsupported`]) only when the
+//!    plane may meet its padded reach box; one behind a box that
+//!    clears passes through the split whole. Edge carriers
+//!    `Line`/`Circle`/`Ellipse` pass; `Spiric` and `Nurbs` refuse
+//!    ([`SplitReduceError::CurvedEdgeUnsupported`]) on the same
+//!    reach-scoped terms.
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
 //!    through the Q1 trilean `split_vertex_side` — definitely-off ⇒
 //!    clean side, coincident ⇒ [`PlaneSide::On`], in-band ⇒ the typed
@@ -202,23 +201,22 @@ pub struct SplitReduction<T: Real> {
 pub enum SplitReduceError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
-    /// A face's `(kind × plane)` arm of THE C5 dispatch table is not
-    /// executed by the split pipeline (`Plane`, `Cylinder` and `Cone`
-    /// are; the refusal retires PER ARM, never wholesale — C12.1). The
-    /// Display cites the arm's rung routing from
-    /// [`geom_brep::intersect::route`].
+    /// The plane may meet a face whose `(kind × plane)` arm of the C5
+    /// dispatch table the split pipeline does not execute (`Plane`,
+    /// `Cylinder` and `Cone` are; C12.1). "May meet": the face's padded
+    /// reach box, axis-aligned in world coordinates, is not certainly
+    /// on one side of the plane; a face behind a box that clears does
+    /// not refuse.
     CurvedBooleanUnsupported {
         /// The offending face.
         face: FaceKey,
         /// Its surface kind (the table row).
         kind: geom::SurfaceKind,
     },
-    /// An edge carrier is the `Nurbs` fallback — a rung-3 carrier in
-    /// the INPUT operand. The general rung itself is implemented (SSI);
-    /// this gate is what has not retired, and gates retire per arm,
-    /// never wholesale (C12.1) — so the refusal rests on its own
-    /// footing, not on SSI's absence. Line/circle/ellipse carriers all
-    /// pass the gate.
+    /// The plane may meet an edge on a `Spiric` or `Nurbs` carrier, which
+    /// no crossing lane reads (`Line`, `Circle` and `Ellipse` carriers
+    /// all pass). An edge clears behind its own reach box or the box of
+    /// either face it bounds.
     CurvedEdgeUnsupported {
         /// The offending edge.
         edge: EdgeKey,
@@ -356,28 +354,10 @@ impl core::fmt::Display for SplitReduceError {
         use geom_core::RANGE_RECOURSE;
         match self {
             Self::Band(e) => write!(f, "{e}"),
-            // Raised by the operand gate for ANY face of such a kind in
-            // the body, before the plane is consulted, so no placement
-            // of the plane is a way through. The gate also reports a
-            // face whose surface does not resolve under the spline
-            // kind, which is why that arm names both.
-            // The gate reports a face whose surface does not resolve as
-            // `Nurbs` (`classify::gate_operand`), so that arm says both
-            // things it can mean, and names the second as the corrupt
-            // body it is rather than as a feature not built yet.
-            Self::CurvedBooleanUnsupported {
-                kind: geom::SurfaceKind::Nurbs,
-                ..
-            } => write!(
-                f,
-                "the body has a spline (NURBS) face, which the split cannot cut yet, or a \
-                 face with no surface, which means the body is corrupt. There is no way \
-                 through yet"
-            ),
             Self::CurvedBooleanUnsupported { kind, .. } => write!(
                 f,
-                "the body has {}, and the split cannot cut a body with such a face \
-                 yet. There is no way through yet",
+                "the split plane may meet {}, and the split cannot cut such a face yet. \
+                 Recourse: move the split plane clear of that face's bounding box",
                 match kind {
                     geom::SurfaceKind::Approx => "an approximated spline face",
                     geom::SurfaceKind::Cone => "a cone face",
@@ -390,8 +370,9 @@ impl core::fmt::Display for SplitReduceError {
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
-                "the body has an edge on a spline (NURBS) or spiric curve, which the split \
-                 cannot take yet. There is no way through yet"
+                "the split plane may meet an edge on a spline (NURBS) or spiric curve, which \
+                 the split cannot take yet. Recourse: move the split plane clear of the \
+                 bounding boxes of that edge and the faces beside it"
             ),
             // The fault's routing is the Boolean's too: a crossing
             // decision ends as that decision does, and a coincidence
@@ -468,7 +449,7 @@ impl core::fmt::Display for SplitReduceError {
 
 impl std::error::Error for SplitReduceError {}
 
-/// The non-mutating prefix of the reduction — the F5 planar gate plus
+/// The non-mutating prefix of the reduction — the operand gate plus
 /// the cached vertex sweep — exposed so classification
 /// ([`classify_neighborhood`]) can be inspected/reviewed independently
 /// of surgery. Returns the per-vertex side cache and the ON set of the
@@ -484,7 +465,7 @@ pub fn vertex_sides<T: geom_core::Decide>(
     tol: Tol,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
     let band = geom_core::Band::linear(tol)?;
-    classify::gate_operand(body)?;
+    classify::gate_operand(body, plane, band)?;
     classify::classify_vertices(body, plane, band)
 }
 
@@ -515,7 +496,7 @@ pub fn split_reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut reduced = operand.clone();
     let mut body = reduced.begin_surgery();
 
-    classify::gate_operand(&body)?;
+    classify::gate_operand(&body, plane, band)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
     classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
