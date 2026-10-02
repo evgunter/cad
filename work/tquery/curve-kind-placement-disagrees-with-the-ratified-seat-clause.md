@@ -2,13 +2,12 @@
 id: curve-kind-placement-disagrees-with-the-ratified-seat-clause
 kind: ruling
 title: The ratified VERB-SEAT S1 puts CurveKind beside Curve3; the code has kept it in topo::query since SEAT-2
-status: open
+status: closed
 opened: 2026-09-14
-needs_ev: true
 refs: [edge-carrier-kind-has-no-readback-door, 2587, 3664]
 priority: P1
 cost: M
-design: true
+closed: 2026-10-02
 ---
 
 
@@ -90,3 +89,12 @@ STAY reasoning ("both readers are in `topo`") has been false since
 3664, and `geom-brep` sits below `topo`, so no copy in `topo` can be
 the one. The question is therefore one mirror per enum and its home,
 not the placement of one type; the `[ev]` PR asks that.
+
+## Ruled (2026-10-02, PR 3763)
+
+Ev, on the recommendation (one fieldless mirror per enum, in `geom`
+beside the enum, the sets and predicates staying in `topo::query`):
+"ok makes sense". On authoring: "whatever is simplest/safest of
+handwritten with tripwire, derived as described, or macro is ok".
+`crates/verbs/README.md` §1 S1 carries the rule. The build is
+`one-kind-mirror-per-geometry-enum`.
