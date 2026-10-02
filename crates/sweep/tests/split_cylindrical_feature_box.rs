@@ -60,7 +60,10 @@ fn uni(what: &str, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 /// The tour's 15-op enclosure, less the vent at `(column, wall)` when
-/// `skip` names one.
+/// `skip` names one: a copy of `projectbox::build` in
+/// `demos/tour/src/projectbox.rs`, which lives in a detached cargo
+/// root this crate cannot call. A change to that body is a change to
+/// this one.
 fn project_box(skip: Option<(usize, usize)>) -> Body<f64> {
     let outer = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5));
     let cavity = slab((0.25, 2.75), (0.25, 1.75), (0.25, 2.0));

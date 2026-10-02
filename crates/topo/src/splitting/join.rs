@@ -124,7 +124,8 @@ pub(super) fn split_connect<T: Decide>(
         plane: red.plane,
         band,
         section: SectionCtx {
-            plane: red.plane.section(),
+            origin: red.plane.origin,
+            normal: red.plane.normal,
             plane_key: None,
         },
     };

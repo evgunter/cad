@@ -103,16 +103,6 @@ pub struct SplitPlane<T: Real> {
     pub normal: UnitVec3<T>,
 }
 
-impl<T: Real> SplitPlane<T> {
-    /// The plane as the section lanes carry it.
-    pub(crate) fn section(&self) -> crate::chord_join::SectionPlane<T> {
-        crate::chord_join::SectionPlane {
-            origin: self.origin,
-            normal: self.normal.get(),
-        }
-    }
-}
-
 /// A trilean side verdict against the split plane (the classification
 /// currency of the whole reduction; `comp`'s −1/0/+1 as a typed enum).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

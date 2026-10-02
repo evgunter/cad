@@ -105,7 +105,7 @@
 //! boolean intersection polygons are in general non-planar (§15.7);
 //! degenerate results are netted at the component stage instead.
 
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 use slotmap::SecondaryMap;
 
 use super::shell_witness::{Reading, complex_side};
@@ -120,6 +120,13 @@ use crate::face_normal::face_outward_normal;
 use crate::null::NullFacePair;
 use crate::validate::decide;
 use geom_core::Tol;
+
+/// The K funnel name of a germ plane's normal-length decision: the
+/// boolean reads a plane carrier's normal into the section lanes, and
+/// decides its length there because the carrier's unit length is an
+/// at-rest convention no tier certifies. Its comparand is the vector's
+/// norm, a genuine length, through the plain [`Margin::norm3`] door.
+const BOOL_GERM_PLANE_NORMAL: &str = "bool_germ_plane_normal";
 
 /// One completed section-polygon **pair**: the 2-loop null face in
 /// each solid, with the loop roles as F9 data (IN copy = the loop
@@ -177,19 +184,21 @@ enum AuxDatum {
 }
 
 impl SolidJoin {
-    /// The wall-side chord lane against `plane`: one chord through
+    /// The wall-side chord lane against the germ plane through `origin`
+    /// with chart normal `normal`: one chord through
     /// [`JoinLane::Split`], its aux plane read from and minted into
     /// [`Self::aux`] under `datum`.
     fn join_split<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         (h1, h2): (HalfEdgeKey, HalfEdgeKey),
-        plane: crate::chord_join::SectionPlane<T>,
+        (origin, normal): (Point3<T>, UnitVec3<T>),
         datum: AuxDatum,
         tol: Tol,
     ) -> Result<(), BooleanError> {
         let mut ctx = crate::chord_join::SectionCtx {
-            plane,
+            origin,
+            normal,
             plane_key: self.aux.get(&datum).copied(),
         };
         self.joiner
@@ -416,17 +425,27 @@ pub(super) fn bool_connect<T: Decide>(
                     .ok_or(desync("germ face surface no longer resolves"))
             };
         // The germ faces' SURFACES, deliberately unoriented (S10): what
-        // the curved lanes below take from a plane germ is a
-        // [`SectionPlane`] — a section datum, an operation input whose
+        // the curved lanes below take from a plane germ is a point and
+        // a chart normal — a section datum, an operation input whose
         // normal names a chart, not a material side. The plane as a
         // point set (and hence the section conic, its azimuth window,
         // and the auxiliary surface minted for it) is identical under
         // a sense flip, so folding the sense in here would rewrite an
         // input that never meant "outward"; the created faces' own
         // orientation comes from the joiner's stored winding.
+        // The lanes read the germ normal's components as direction
+        // cosines, so its length is decided here, at the read: a plane
+        // carrier's normal is unit only by the surfaces' at-rest
+        // convention, which no tier certifies. A normal with no decided
+        // length is an operand whose plane breaks that convention.
+        let germ_normal = |n: Vec3<T>| {
+            UnitVec3::new(n, BOOL_GERM_PLANE_NORMAL, band).map_err(|_| {
+                desync("a germ plane's normal has no decided length (a broken plane carrier)")
+            })
+        };
         let (ka, ga) = surf_of(&red.a, germ.a_face)?;
         let (kb, gb) = surf_of(&red.b, germ.b_face)?;
-        use crate::chord_join::{JoinLane, SectionPlane, face_azimuth_window};
+        use crate::chord_join::{JoinLane, face_azimuth_window};
         use geom::Surface as Sf;
         match (&ga, &gb) {
             (
@@ -451,10 +470,8 @@ pub(super) fn bool_connect<T: Decide>(
                         a1,
                         a2,
                         JoinLane::Planar {
-                            plane: SectionPlane {
-                                origin: *ob,
-                                normal: *nb,
-                            },
+                            origin: *ob,
+                            normal: germ_normal(*nb)?,
                         },
                         tol,
                     )
@@ -465,10 +482,8 @@ pub(super) fn bool_connect<T: Decide>(
                         b1,
                         b2,
                         JoinLane::Planar {
-                            plane: SectionPlane {
-                                origin: *oa,
-                                normal: *na,
-                            },
+                            origin: *oa,
+                            normal: germ_normal(*na)?,
                         },
                         tol,
                     )
@@ -480,10 +495,7 @@ pub(super) fn bool_connect<T: Decide>(
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
                 sa.join_bool_planar(&mut red.a, (a1, a2), gb.clone(), window, germ.b_face, tol)?;
-                let plane = SectionPlane {
-                    origin: *origin,
-                    normal: *normal,
-                };
+                let plane = (*origin, germ_normal(*normal)?);
                 sb.join_split(
                     &mut red.b,
                     (b1, b2),
@@ -494,10 +506,7 @@ pub(super) fn bool_connect<T: Decide>(
             }
             (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
             | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
-                let plane = SectionPlane {
-                    origin: *origin,
-                    normal: *normal,
-                };
+                let plane = (*origin, germ_normal(*normal)?);
                 sa.join_split(
                     &mut red.a,
                     (a1, a2),
@@ -528,10 +537,7 @@ pub(super) fn bool_connect<T: Decide>(
                         center,
                         axis,
                         ..
-                    })) => SectionPlane {
-                        origin: center,
-                        normal: axis,
-                    },
+                    })) => (center, germ_normal(axis)?),
                     Ok(_) => {
                         return Err(desync("germ pair's sphere×sphere section is not a circle"));
                     }
