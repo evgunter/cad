@@ -165,24 +165,28 @@ half-edges on one surface with two chart images (`u = α` and
 `u = α + 2π`), so no coarser key works. Its parameter *is* the carrier's
 `he_plus`-forward parameter; traversal sense per face is derived, never
 stored. `PcurveCache::certify` is the only constructor. The certified
-statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement. For a fitted
-image it is certified at the shared schedule, plus a between-samples
-envelope whose own statement the certificate names (`EnvelopeStatement`,
-whose variants carry their own derivations): hull-bounded on NURBS
-charts, and only the carrier's incidence with the chart surface
-(`OnLocusHull`) on a periodic analytic chart, where `S ∘ P` is
-transcendental. For `Pcurve::Harmonic` the envelope alone is the
-certified statement: closed-form over the whole span (both sides in
-`span{1, cos t, sin t, t}`, so a corruption hiding between samples is
-unrepresentable), spelled in the carrier's own coefficients, never
-through the chart's angle, as the carrier's incidence with the chart
-(centre on the axis, radius, orientation, axial line, per chart arm)
-plus the stored image's fidelity to the image `certify` re-derives from
-the carrier, metered through the chart's stretch. There the shared
-schedule is the closed-form tables' cross-check, run where the scalar
-is a point and as a property test of `chart_image_harmonic ∘
+statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole
+edge, bounded by an envelope whose own statement the certificate names
+(`EnvelopeStatement`, whose variants carry their own derivations).
+Where `S ∘ P` has a closed form, the envelope alone is the certified
+statement: it bounds the displacement over the whole span, spelled in
+the carrier's own coefficients so that a minted row's identity is a
+theorem rather than a trig round trip, and a sampled check adds
+nothing it does not already prove. For `Pcurve::Harmonic` (both sides
+in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
+is unrepresentable) that spelling is the carrier's incidence with the
+chart (centre on the axis, radius, orientation, axial line, per chart
+arm) plus the stored image's fidelity to the image `certify` re-derives
+from the carrier, metered through the chart's stretch; the shared
+schedule is then the closed-form tables' cross-check, run where the
+scalar is a point and as a property test of `chart_image_harmonic ∘
 chart_pcurve = carrier_harmonic` over the covered classes, not in a
-certificate over a parameter box. No UV-space tolerance appears in
+certificate over a parameter box. Where no closed form exists, the
+certificate falls back to the displacement at the shared schedule plus
+a between-samples envelope: hull-bounded for fitted images on NURBS
+charts, and only the carrier's incidence with the chart surface
+(`OnLocusHull`) for a fitted image on a periodic analytic chart, where
+`S ∘ P` is transcendental. No UV-space tolerance appears in
 any certified statement; the chart's stretch is the lever arm. Domain
 validity is part of the certificate: one branch pinned at the start (a
 τ jump is unrepresentable in `Harmonic`'s `α + β·t`; the branch per face
