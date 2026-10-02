@@ -2,8 +2,9 @@
 id: memoized-refusals-speak-inner-nodes-through-the-frame
 kind: unit
 title: A memoized failure's inner node ids (NodeErrorKind, PartFault, MateFault) speak through the frame that hands it out
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-02
 priority: P2
 cost: H
 parent: node-labels-are-document-data
