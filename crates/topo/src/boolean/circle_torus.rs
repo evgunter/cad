@@ -256,7 +256,8 @@ pub(super) fn circle_torus_roots<T: Decide>(
         HalfAngleFrame {
             t0,
             t1,
-            radius,
+            speed_lo: radius,
+            speed_hi: radius,
             lever,
             noise: rounding_charge(terms),
             f_per_metre,

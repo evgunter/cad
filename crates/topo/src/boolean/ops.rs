@@ -2452,28 +2452,50 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             }
                         }
                     }
-                    Some(geom::Surface::Cylinder { .. }) => {
-                        // No exact sphere-vs-cylinder-face certificate
-                        // is wired: the cyl×sphere lane is PR 9c
-                        // deviation 1, and since M6-2 its blocker is
-                        // the unwired JOIN lane alone — the generic
-                        // lift and Pcurve::Fitted both landed there.
-                        // The exact DECLARED-coaxial classification
-                        // does not retire this and the message is
-                        // re-verified rather than moved: this scan asks
-                        // about NEARNESS between two arbitrary trimmed
-                        // faces, which no coaxial section answers, and
-                        // it has no declaration channel to reach one
-                        // through in any case. Certified boxes prove
-                        // separation, anything closer refuses typed.
-                        if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                    Some(&geom::Surface::Cylinder {
+                        origin,
+                        axis: w_axis,
+                        radius: w_radius,
+                        ..
+                    }) => {
+                        // Certified boxes prove separation first. Past
+                        // them, the one certificate wired is the
+                        // CARRIER's: a sphere definitely clear of the
+                        // wall's whole cylinder, or definitely inside it
+                        // (its centre's distance `d` from the axis
+                        // within `r_w − r`), meets no face on it. Like the
+                        // sphere pair's gap and nesting tests below, both
+                        // read SURFACES, which is the sound direction:
+                        // each face is a subset of its carrier. Anything
+                        // closer refuses typed: no
+                        // exact sphere-vs-cylinder-FACE nearness is
+                        // wired (the cyl×sphere seam lane, PR 9c
+                        // deviation 1, whose blocker since M6-2 is the
+                        // unwired JOIN lane alone), and this scan has no
+                        // declaration channel to reach a coaxial
+                        // classification through.
+                        let clear = || {
+                            let w = center - origin;
+                            let along = w.dot(w_axis);
+                            let d = (w - w_axis * along).norm();
+                            [
+                                ("bool_sphere_cylinder_gap", d - (radius + w_radius)),
+                                ("bool_sphere_cylinder_nested", w_radius - (d + radius)),
+                            ]
+                            .into_iter()
+                            .any(|(row, m)| {
+                                matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive))
+                            })
+                        };
+                        if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) && !clear() {
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,
                                 face,
                                 what: "the sphere's certified extent meets a cylinder \
-                                       face's box — the cyl×sphere seam lane is not \
-                                       wired (its fitted-chord window has no azimuth \
-                                       analog), so nearness cannot be classified",
+                                       face's box and the sphere straddles the wall's \
+                                       carrier — the cyl×sphere seam lane is not wired \
+                                       (its fitted-chord window has no azimuth analog), \
+                                       so nearness cannot be classified",
                             });
                         }
                     }

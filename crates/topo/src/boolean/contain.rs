@@ -709,7 +709,11 @@ pub(crate) fn curved_face_placement<T: Decide>(
                     body, face, origin, axis, radius, az, h, band,
                 )
                 .map_err(solid_err)?;
-                if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
+                if !matches!(
+                    outline,
+                    super::solid_contain::WallOutline::Rectangle { .. }
+                        | super::solid_contain::WallOutline::Chart { .. }
+                ) {
                     return Ok(CurvedPlacement::Trim(None));
                 }
                 outline

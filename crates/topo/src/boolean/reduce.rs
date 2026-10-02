@@ -1321,14 +1321,9 @@ pub(super) fn curved_face_arm<T: Decide>(
     // door, and an in-band clearance escalates (two-tolerance on the
     // arm, definite ones included). Ellipse/NURBS carriers keep the M5
     // unconditional door.
-    match *curve.carrier() {
-        geom::Curve3::Line { .. } => {}
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => {
+    match (curve.carrier(), geom_brep::Conic::of(curve.carrier())) {
+        (geom::Curve3::Line { .. }, _) => {}
+        (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, Some(conic)) => {
             // **The carrier-identity rung, consulted FIRST.** An edge
             // bounding a face whose carrier the door verified to BE
             // `face`'s carrier lies on `face`'s carrier identically, so
@@ -1342,8 +1337,7 @@ pub(super) fn curved_face_arm<T: Decide>(
             let clearance = if on_declared_rest_carrier(x, x_is, edge, face, declared) {
                 Ok(Sign::Zero)
             } else {
-                circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
-                    .ok_or_else(frontier)?
+                conic_clearance(&surface, &curve, &conic, band).ok_or_else(frontier)?
             };
             match clearance {
                 Ok(Sign::Positive) => return Ok(CurvedEvent::None),
@@ -1493,6 +1487,11 @@ pub(super) fn curved_face_arm<T: Decide>(
                 }
             }
         }
+        // A `Spiric` or `Nurbs` carrier: no enclosure of its residual
+        // along an arc exists here (the sampled one needs a bound on the
+        // carrier's speed and acceleration over the span), so nothing
+        // clears it and the frontier door stands
+        // (`work/reach/spiric-and-nurbs-edges-have-no-curved-face-clearance.md`).
         _ => return Err(frontier()),
     }
     let side = |p: Point3<T>| {
@@ -1840,8 +1839,8 @@ pub(super) fn curved_face_arm<T: Decide>(
     }
 }
 
-/// The two enclosures of a circle ARC's residual against `surface`,
-/// folded: the carrier's exact harmonic bounds and the arc's sampled
+/// The two enclosures of a conic ARC's residual against `surface` (a
+/// circle's or an ellipse's, `geom_brep::Conic`), folded: the carrier's exact harmonic bounds and the arc's sampled
 /// chord-dip range. Both enclose the arc's range, so the clearance
 /// margin is the larger of the two one-sidedness margins. `None` when
 /// the carrier enclosure has no form for the kind.
@@ -1849,26 +1848,21 @@ pub(super) fn curved_face_arm<T: Decide>(
 /// The line row's vertex CLAMP does not port here, and the reason is
 /// the curve: along a line the residual is exactly quadratic, so "the
 /// vertex is outside the span" is a statement about a parabola and is
-/// decided by the endpoint gap alone. Along a circle it has up to four
+/// decided by the endpoint gap alone. Along a conic it has up to four
 /// critical parameters, so an endpoint gap says nothing about where
 /// its minimum sits. Subdivision is what is available without solving
 /// for them.
-#[allow(clippy::too_many_arguments)]
-fn circle_clearance<T: Decide>(
+fn conic_clearance<T: Decide>(
     surface: &geom::Surface<T>,
     curve: &geom_brep::EdgeCurve<T>,
-    center: Point3<T>,
-    axis: geom_core::Vec3<T>,
-    radius: T,
-    u_ref: geom_core::Vec3<T>,
+    conic: &geom_brep::Conic<T>,
     band: Band,
 ) -> Option<Result<Sign, geom_core::Indeterminate>> {
-    let (lo, hi) = geom_brep::circle_residual_extremes(surface, center, axis, radius, u_ref)?;
+    let (lo, hi) = geom_brep::conic_residual_extremes(surface, conic)?;
     let carrier_margin = lo.max(-hi);
     let (t0, t1) = curve.params();
-    let arc_margin =
-        geom_brep::circle_arc_residual_range(surface, center, axis, radius, u_ref, t0, t1)
-            .map_or(carrier_margin, |(arc_lo, arc_hi)| arc_lo.max(-arc_hi));
+    let arc_margin = geom_brep::conic_arc_residual_range(surface, conic, t0, t1)
+        .map_or(carrier_margin, |(arc_lo, arc_hi)| arc_lo.max(-arc_hi));
     Some(decide(
         "bool_circle_curved_clearance",
         Margin::of(carrier_margin.max(arc_margin)),
@@ -1953,7 +1947,8 @@ enum SpanVerdict<T: geom_core::Real> {
 /// The curved-wall crossing route: solve the certified roots — a
 /// line's quadratic on a cylinder wall or a sphere, its quartic on a
 /// torus, a circle's closed form on a sphere and its half-angle quartic
-/// on a torus or a cylinder wall — keep the roots the EDGE's
+/// on a torus or a cylinder wall, an ellipse's half-angle quartic on a
+/// sphere or a cylinder wall — keep the roots the EDGE's
 /// span carries strictly inside, and place the landing point in the
 /// face's trim.
 ///
@@ -1984,7 +1979,8 @@ fn wall_crossing<T: Decide>(
     // The carrier's metres per unit of its parameter, so that a root's
     // distance from the span's ends is metered as a length: a `Line`'s
     // parameter runs `|dir|` metres per unit, a `Circle`'s is an angle and
-    // its arc length is `radius·Δθ`. The wall and sphere quadratics take
+    // its arc length is `radius·Δθ`, an `Ellipse`'s at least
+    // `minor·Δθ`. The wall and sphere quadratics take
     // any non-zero `dir`; the torus quartic
     // ([`super::solid_contain::line_torus_roots`]) assumes it UNIT, the
     // `Line` carrier's convention, which nothing checks.
@@ -2021,6 +2017,37 @@ fn wall_crossing<T: Decide>(
                 CircleRoots::OnSurface => (Err(SpanVerdict::Constant), radius),
                 CircleRoots::Uncertain => (Err(SpanVerdict::Unsettled), radius),
                 CircleRoots::Miss => (Err(SpanVerdict::Miss), radius),
+                CircleRoots::CountDisagrees => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "the constructed roots of a quartic disagree in number with its \
+                               certified count",
+                    });
+                }
+            }
+        }
+        // The ellipse door ([`super::ellipse_roots`]), on the kinds whose
+        // residual along it is a degree-2 trigonometric polynomial. Against
+        // a torus it is degree four (an octic in the half-angle), which no
+        // ladder here solves, so that cell is `Unsettled`. A root's
+        // distance from an end is metered at the semi-minor axis, the
+        // carrier's least speed, so a gap it calls definite is one in arc
+        // length too.
+        geom::Curve3::Ellipse { minor, .. } => {
+            use super::circle_roots::CircleRoots;
+            let found = match surface {
+                geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. } => {
+                    super::ellipse_roots::ellipse_roots(carrier, t0, t1, surface, band)?
+                }
+                _ => return Ok(SpanVerdict::Unsettled),
+            };
+            match found {
+                CircleRoots::Certified { count, thetas } => {
+                    roots = thetas;
+                    (Ok(count), minor)
+                }
+                CircleRoots::OnSurface => (Err(SpanVerdict::Constant), minor),
+                CircleRoots::Uncertain => (Err(SpanVerdict::Unsettled), minor),
+                CircleRoots::Miss => (Err(SpanVerdict::Miss), minor),
                 CircleRoots::CountDisagrees => {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "the constructed roots of a quartic disagree in number with its \

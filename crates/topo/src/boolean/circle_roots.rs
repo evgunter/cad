@@ -89,7 +89,8 @@
 //!   at most `6/κ`: the ladder sees a quartic whose coefficients, roots
 //!   and rounding are all bounded by a fixed multiple of the circle's
 //!   own scale. The margin is metered as the arc length
-//!   `ρ·(|F(pole)| − κA)/A` that bound guarantees. `κ = 1/16`.
+//!   `ρ·(|F(pole)| − κA)/A` that bound guarantees, `ρ` the carrier's
+//!   least speed. `κ = 1/16`.
 //!
 //! **Some anchor always passes, unless `F ≡ 0`.** By Parseval,
 //! `max|F|² ≥ mean F² = c₀² + (A₁² + A₂²)/2`, and by Cauchy–Schwarz
@@ -101,7 +102,9 @@
 //! margins.
 //!
 //! **Units.** The root variable handed to the ladder is the LENGTH
-//! `τ = 2ρ·t`, arc length to first order about the anchor. The ladder's
+//! `τ = 2ρ·t`, arc length to first order about the anchor, with `ρ` the
+//! carrier's least speed `|C′|` (a circle's radius, an ellipse's
+//! semi-minor axis), so that `τ` never overstates the arc it measures. The ladder's
 //! lever is the length its roots spread over, which is where its margins
 //! become lengths; each door supplies its own.
 //!
@@ -204,8 +207,10 @@ pub(super) struct HalfAngleRows {
     pub(super) decision: BooleanDecision,
 }
 
-/// Where [`half_angle_roots`] works: the arc `[t0, t1]` of a circle of
-/// `radius`, the ladder's `lever` (a length), and the noise meter's two
+/// Where [`half_angle_roots`] works: the arc `[t0, t1]` of a carrier
+/// whose speed `|C′(θ)|` lies in `[speed_lo, speed_hi]` metres per radian
+/// (both a circle's radius; an ellipse's semi-minor and semi-major
+/// axes), the ladder's `lever` (a length), and the noise meter's two
 /// inputs: `noise`, a bound on the `f64` evaluation error of `F` from
 /// its harmonics (in `F`'s units), and `f_per_metre`, a floor on
 /// `|F| / |residual|` over the surface's neighbourhood, which turns it
@@ -213,7 +218,8 @@ pub(super) struct HalfAngleRows {
 pub(super) struct HalfAngleFrame<T> {
     pub(super) t0: T,
     pub(super) t1: T,
-    pub(super) radius: T,
+    pub(super) speed_lo: T,
+    pub(super) speed_hi: T,
     pub(super) lever: T,
     pub(super) noise: T,
     pub(super) f_per_metre: T,
@@ -274,7 +280,8 @@ pub(super) fn half_angle_roots<T: Decide>(
     let HalfAngleFrame {
         t0,
         t1,
-        radius,
+        speed_lo,
+        speed_hi,
         lever,
         noise,
         f_per_metre,
@@ -296,7 +303,10 @@ pub(super) fn half_angle_roots<T: Decide>(
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let amplitude = f.c0.abs() + hypot(f.c1, f.s1) + hypot(f.c2, f.s2);
     let mid = (t0 + t1) / two;
-    let scale = two * radius;
+    // An arc length that must be a LOWER bound (the root variable, the
+    // conditioning margin) is metered at `speed_lo`; one that must be an
+    // UPPER bound (a root's slack) at `speed_hi`.
+    let scale = two * speed_lo;
     // The candidate anchors: the arc's midpoint first (its pole is the
     // antipode), then every `τ/32` step either side of it, nearest
     // first — so a pole off the arc is preferred and a pole inside it
@@ -336,7 +346,7 @@ pub(super) fn half_angle_roots<T: Decide>(
         match decide(
             rows.conditioning,
             Margin::over_lever(
-                radius * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
+                speed_lo * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
                 amplitude,
             ),
             band,
@@ -382,7 +392,7 @@ pub(super) fn half_angle_roots<T: Decide>(
                         let slope = f.s1 * c1t - f.c1 * s1t + two * (f.s2 * c2t - f.c2 * s2t);
                         match decide(
                             rows.root_slack,
-                            Margin::of(radius * noise / slope.abs()),
+                            Margin::of(speed_hi * noise / slope.abs()),
                             band,
                         ) {
                             Ok(Sign::Positive) => return Ok(CircleRoots::Uncertain),
@@ -420,8 +430,9 @@ pub(super) struct FirstHarmonicRows {
     pub(super) decision: BooleanDecision,
 }
 
-/// **The certified roots of a first-harmonic residual along a circle of
-/// `radius`**, reported within `π` of the midpoint of `[t0, t1]`: the
+/// **The certified roots of a first-harmonic residual along a carrier
+/// whose speed `|C′(θ)|` is at most `speed`** (a circle's radius, an
+/// ellipse's semi-major axis), reported within `π` of the midpoint of `[t0, t1]`: the
 /// decisions of the module docs ("The first-harmonic door"), under the
 /// caller's `rows`.
 ///
@@ -436,7 +447,7 @@ pub(super) struct FirstHarmonicRows {
 /// which decide the same carrier.
 pub(super) fn first_harmonic_roots<T: Decide>(
     h: &FirstHarmonic<T>,
-    radius: T,
+    speed: T,
     t0: T,
     t1: T,
     rows: &FirstHarmonicRows,
@@ -480,7 +491,7 @@ pub(super) fn first_harmonic_roots<T: Decide>(
     // |R′| at either root: A₁·|sin(θ − φ)| = √(A₁² − c₀²), factored so
     // that both factors are the definite extremes just decided.
     let slope = ((a1 - c0) * (a1 + c0)).max(T::zero()).sqrt();
-    match decide(rows.root_slack, Margin::of(radius * noise / slope), band) {
+    match decide(rows.root_slack, Margin::of(speed * noise / slope), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
     }

@@ -8,7 +8,7 @@
 //! With the carrier `C(θ) = C₀ + ρ(û cos θ + v̂ sin θ)`, `v̂ = n̂ × û`,
 //! and the wall `(o, â, r)`, the linearized residual is EXACTLY
 //! `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ` in metres
-//! (`geom_brep::circle_cylinder_harmonics`, which
+//! (`geom_brep::conic_cylinder_harmonics`, which
 //! `geom_brep::circle_residual_extremes` reads too), so the noise
 //! meter's floor on `|F|` per metre of residual is `1`, an identity
 //! rather than a neighbourhood bound. At most four crossings per turn.
@@ -118,8 +118,12 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
                    or a surface that is not a cylinder",
         });
     };
-    let h =
-        geom_brep::circle_cylinder_harmonics(center, axis, radius, u_ref, origin, w_axis, w_radius);
+    let h = geom_brep::conic_cylinder_harmonics(
+        &geom_brep::Conic::circle(center, axis, radius, u_ref),
+        origin,
+        w_axis,
+        w_radius,
+    );
     let two = T::from_f64(2.0);
     // The harmonics' rounding, in residual metres: the term bound is in
     // m², before the `2r` division.
@@ -159,7 +163,8 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
         HalfAngleFrame {
             t0,
             t1,
-            radius,
+            speed_lo: radius,
+            speed_hi: radius,
             // Not clamped by the wall's size, as the torus door clamps
             // by its extent: the wall is unbounded along its axis, and a
             // circle in a plane through that axis meets it at points a
