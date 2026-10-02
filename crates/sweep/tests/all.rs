@@ -320,6 +320,8 @@ mod must_carry_rule;
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]
 mod r2_sense_fold_probes;
+#[path = "ray_wall_margin_twins.rs"]
+mod ray_wall_margin_twins;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "readback_doors.rs"]
