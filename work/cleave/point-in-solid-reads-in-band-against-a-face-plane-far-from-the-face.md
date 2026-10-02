@@ -2,10 +2,11 @@
 id: point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face
 kind: issue
 title: point_in_solid reads witnesses in-band against a face's plane where the point is far from the face itself, so a shell or wedge whose witnesses all lie near such planes refuses (ShellWitnessExhausted) where the answer is clear
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P2
 cost: M
+branch: cleave/far-plane
 ---
 
 

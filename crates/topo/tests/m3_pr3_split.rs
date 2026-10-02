@@ -2,7 +2,7 @@
 //! vertex-grazing / face-coplanar planes on asymmetric solids, the
 //! Fig. 14.2 notched block (Above disconnected, coplanar artifacts),
 //! the PR 2 carry-forwards (tangent tip + BOB mirror through full
-//! split; one-sided tangency refused typed), ring re-homing through a
+//! split; one-sided tangency classified with its material), ring re-homing through a
 //! genus-1 fixture, slicing (`plane_section`), mirror-check pins
 //! (section-face normals; heads-join-heads), D9 byte-identical
 //! replay, and the interval lane.
@@ -420,29 +420,50 @@ fn moving_one_tip_copy_parts_it_from_its_twin() {
     assert_eq!(pseudomanifold_door(&above), Ok(()));
 }
 
-/// One-sided pure tangency (PR 2 carry-forward 2): the apex prism
-/// touching the plane from above along its apex edge only — the
-/// degenerate side is REFUSED typed (zero-area section polygon), no
-/// degenerate body is ever emitted; `plane_section` refuses the same
-/// way.
+/// One-sided pure tangency: a wedge touching the plane along its apex
+/// edge only, from above, from below and leaning, in both plane
+/// orientations.
+/// The apex is a convex edge whose material is all on one side, so the
+/// whole wedge lands there, the other side is `Empty`, the apex stays
+/// an ordinary edge, and the section has no polygon.
 #[test]
-fn one_sided_tangency_refused_typed() {
-    let profile = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)]; // apex down, ON y=1
-    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    let err = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            SplitError::Join(SplitJoinError::DegenerateSection { .. })
-                | SplitError::Finish(SplitFinishError::DegenerateSide { .. })
-        ),
-        "got {err:?}"
-    );
-    let err = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap_err();
-    assert!(matches!(
-        err,
-        topo::SectionError::Split(SplitError::Join(SplitJoinError::DegenerateSection { .. }))
-    ));
+fn one_sided_tangency_classifies_with_its_material() {
+    let from_above = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)];
+    let from_below = [(3.0, -2.0), (9.0, -2.0), (6.0, 1.0)];
+    // Its flanking faces' outward normals point one up and one down.
+    let leaning = [(6.0, 1.0), (8.0, 4.0), (7.0, 4.0)];
+    for (label, profile, material_above) in [
+        ("from above", &from_above, true),
+        ("from below", &from_below, false),
+        ("leaning, from above", &leaning, true),
+    ] {
+        let fx = prism::<f64>(profile, 1.0, Tol::witness());
+        let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
+        for s in [1.0, -1.0] {
+            let plane = topo::test_support::split_plane(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, s, 0.0),
+                Tol::witness(),
+            );
+            let r = split(&fx.body, &plane, Tol::witness()).unwrap();
+            let (full, empty) = if material_above == (s > 0.0) {
+                (&r.above, &r.below)
+            } else {
+                (&r.below, &r.above)
+            };
+            assert!(matches!(empty, SplitPart::Empty), "{label}, s = {s}");
+            let body = body_of(full);
+            assert_eq!(validate_closed(body), Ok(()), "{label}, s = {s}");
+            assert_eq!(census(body), census(&fx.body), "{label}, s = {s}");
+            let v = mass_properties(body, Tol::witness()).unwrap().volume;
+            assert!(
+                (v - v0).abs() <= 1e-12 * v0,
+                "{label}, s = {s}: {v} vs {v0}"
+            );
+            let section = plane_section(&fx.body, &plane, Tol::witness()).unwrap();
+            assert!(section.regions.is_empty(), "{label}, s = {s}");
+        }
+    }
 }
 
 /// The BOB mirror (PR 2 carry-forward 1b), CLOSED by M3 PR 6a's D7:
@@ -677,17 +698,15 @@ fn interval_lane_acceptance() {
     let s = plane_section(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     assert_eq!(s.regions.len(), 3);
 
-    // One-sided tangency refuses typed on this lane too.
+    // One-sided tangency classifies with its material on this lane too.
     let fx = prism::<Interval>(
         &[(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)],
         1.0,
         geom_core::Tol::witness(),
     );
-    let err = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap_err();
-    assert!(matches!(
-        err,
-        SplitError::Join(SplitJoinError::DegenerateSection { .. })
-    ));
+    let r = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
+    assert!(matches!(r.below, SplitPart::Empty));
+    assert_eq!(census(body_of(&r.above)), census(&fx.body));
 }
 
 /// ∅ sides are typed variants: a plane missing the body entirely, and

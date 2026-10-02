@@ -456,22 +456,20 @@ pub enum SsiError {
     },
     /// The fitting stack refused the marched polyline.
     Fit(FitError),
-    /// A traced branch yielded fewer samples than the cubic fit needs:
-    /// it is shorter than a few of the march's longest steps, which are
-    /// [`SSI_STEP_MAX`] of the caller's named feature extent. The extent
-    /// over-states this feature.
-    BranchUndersampled {
-        /// Samples the branch produced.
+    /// A trace too short to fit: no length to cut, or still short after
+    /// the short-branch re-march. The march cannot tell apart the
+    /// readings that reach it: the surfaces touch at a point (a plane
+    /// through a face's corner); the branch is shorter than the boundary
+    /// search resolves at the step (`SSI_BOUNDARY_BISECTIONS` halvings
+    /// of it); the branch runs within the band of the domain's boundary,
+    /// so no state of it is decided inside (a plane flush with a face's
+    /// edge); or the boundary search settled no crossing at either end.
+    /// A limit of the march, not a branch it can fit.
+    TraceUnresolved {
+        /// Samples the last march produced.
         samples: usize,
-        /// Samples the fit needs.
-        need: usize,
-        /// The branch's polyline length, in metres.
-        length: f64,
-        /// The march's longest step, in metres.
-        longest_step: f64,
-        /// The caller's named feature extent it was scaled from, in
-        /// metres.
-        extent: f64,
+        /// That march's longest step, in metres.
+        step: f64,
     },
     /// One branch's marched polyline exceeded
     /// [`SSI_MAX_FIT_SAMPLES`]. The tolerance and the operand
@@ -743,19 +741,21 @@ impl core::fmt::Display for SsiError {
                  distance {last_distance:e} m), so the on-locus residual against the \
                  NURBS operand cannot be stated"
             ),
-            Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
-            Self::BranchUndersampled {
-                samples,
-                need,
-                length,
-                longest_step,
-                extent,
-            } => write!(
+            Self::Fit(FitError::TooFewPoints { have, need }) => write!(
                 f,
-                "ssi: a traced branch is {length:e} m long, under a few of the march's longest \
-                 steps of {longest_step:e} m (scaled from the domain's {extent:e} m feature \
-                 extent), so it yielded {samples} samples where the cubic fit needs {need}"
+                "ssi: a traced branch gave the fitting stack {have} sample{}, and it needs at \
+                 least {need}",
+                if *have == 1 { "" } else { "s" }
             ),
+            Self::TraceUnresolved { samples, step } => write!(
+                f,
+                "ssi: a traced branch has {samples} sample{} at the march's {step:e} m step, too \
+                 few to fit: the surfaces touch at a point, or the branch is shorter than that \
+                 step resolves, runs within the tolerance of the domain's boundary, or ends where \
+                 no crossing settles",
+                if *samples == 1 { "" } else { "s" }
+            ),
+            Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
             Self::FitSampleBudget { samples, budget } => write!(
                 f,
                 "ssi: a branch marched {samples} samples against a {budget}-sample fit \
@@ -853,10 +853,6 @@ impl SsiError {
                 let (name, must) = field.words();
                 format!("Recourse: give the domain a {name} that is {must}")
             }
-            // The caller's extent sets the march's longest step.
-            Self::BranchUndersampled { length, .. } => format!(
-                "Recourse: name a feature extent no larger than this feature, here {length:e} m"
-            ),
             // A floor too fine for the domain is the geometry's scale,
             // decided exactly: no band, so no tolerance to name. One that
             // is not a length is the caller's knobs.
@@ -896,6 +892,12 @@ impl SsiError {
                 "Recourse: loosen the tolerance until a branch needs at most {budget} samples, \
                  {KERNEL_LIMIT_LAST_RESORT}"
             ),
+            // `march_both` hands the fit only a trace with more samples
+            // than the cubic needs, or one with a non-finite sample, which
+            // the fit names (`NonFinitePoint`) before it counts; so a
+            // short trace reaching the fit is the kernel's.
+            Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
+            Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
             // Decisions not yet given an ending
             // (`work/ssi/ssi-refusals-whose-decision-has-no-ending.md`).
             Self::ExhaustivenessInconclusive(_)
@@ -1257,6 +1259,17 @@ impl DomainField {
     }
 }
 
+/// [`SsiError::TraceUnresolved`]'s ending. The extent sets the step a
+/// short branch is resolved at, so it is the lever for a branch longer
+/// than the tolerance (a shorter one collapses into the band); a point
+/// contact and a branch along the domain's boundary have no decision
+/// yet
+/// (`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
+pub(crate) const TRACE_UNRESOLVED_RECOURSE: &str = "Recourse: if the surfaces meet along a curve longer \
+     than the tolerance, name a feature extent near its length so the march's step resolves it; \
+     a point contact, or a branch along the domain's boundary, is a known limit of the march \
+     with no way through yet";
+
 /// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
 /// on **one shared parameter** (the OQ4 contract).
 ///
@@ -1267,33 +1280,6 @@ impl DomainField {
 /// (`|S(P(t)) − C(t)| ≤ ε`), and it is why the ℝ⁴ trace discharges OQ4
 /// without any re-plumbing.
 fn fit_branch(
-    points: &[Point3<f64>],
-    charts: Option<ChartSamples<'_>>,
-    extent: f64,
-) -> Result<FittedBranch, SsiError> {
-    fit_samples(points, charts).map_err(|e| match e {
-        // A marched branch of at least two samples has too few for the
-        // cubic only when it is shorter than a few of the march's
-        // longest steps, which the caller's extent sets: name that, not
-        // the fit's count. Any other shortfall (one sample has no
-        // length to name) stays the fit's own refusal.
-        SsiError::Fit(FitError::TooFewPoints { have, need })
-            if have >= 2 && need == SSI_FIT_DEGREE + 1 =>
-        {
-            SsiError::BranchUndersampled {
-                samples: have,
-                need,
-                length: points.windows(2).map(|w| (w[1] - w[0]).norm()).sum(),
-                longest_step: SSI_STEP_MAX * extent,
-                extent,
-            }
-        }
-        e => e,
-    })
-}
-
-/// [`fit_branch`]'s fit, with the fitting stack's own refusals.
-fn fit_samples(
     points: &[Point3<f64>],
     charts: Option<ChartSamples<'_>>,
 ) -> Result<FittedBranch, SsiError> {
@@ -1749,7 +1735,7 @@ fn finish_r3(
 ) -> Result<SsiBranch, SsiError> {
     let march_tol = seam_tol(tol, band)?;
     let points = trace_points::<2, 3, _>(sys, trace);
-    let (carrier, _, _) = fit_branch(&points, None, domain.extent)?;
+    let (carrier, _, _) = fit_branch(&points, None)?;
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let cert = certify::certify_branch(
         &carrier,
@@ -1984,7 +1970,7 @@ fn finish_r4(
         .iter()
         .map(|s| geom_core::Point2::new(s[2], s[3]))
         .collect();
-    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a, &chart_b)), domain.extent)?;
+    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a, &chart_b)))?;
     let cert = certify::certify_branch(
         &carrier,
         pb.as_ref(),
@@ -2105,7 +2091,7 @@ pub fn trace_plane_nurbs_uncertified(
         .iter()
         .map(|s| geom_core::Point2::new(s[2], s[3]))
         .collect();
-    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a_pts, &chart_b_pts)), domain.extent)?;
+    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a_pts, &chart_b_pts)))?;
     match (pa, pb) {
         (Some(a), Some(b)) => Ok((carrier, a, b)),
         _ => Err(SsiError::UnsupportedCertificate {
@@ -2384,7 +2370,10 @@ mod ending_tests {
     /// their in-band margin gives (`m/K`, here `K = 10`), never a
     /// declaration (the doors take none); the spent fit budget ends in
     /// the loosening clause and the last resort, within 50 words
-    /// rendered.
+    /// rendered; the fit's sample shortfall, which `march_both` never
+    /// hands it, ends as a kernel defect with no fit recourse in its
+    /// payload; and a trace too short to fit ends as the march's limit,
+    /// with its own recourse.
     #[test]
     fn each_ssi_ending_is_its_decisions() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -2403,7 +2392,22 @@ mod ending_tests {
             samples: 4 * SSI_MAX_FIT_SAMPLES,
             budget: SSI_MAX_FIT_SAMPLES,
         };
+        let short = SsiError::Fit(geom::FitError::TooFewPoints { have: 3, need: 4 });
+        let single = SsiError::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 });
+        let unresolved = SsiError::TraceUnresolved {
+            samples: 1,
+            step: 3.125,
+        };
+        assert!(
+            unresolved
+                .to_string()
+                .contains("has 1 sample at the march's 3.125e0 m step"),
+            "{unresolved}"
+        );
+        assert!(single.to_string().contains(" 1 sample, "), "{single}");
         for (error, ending) in [
+            (&short, KERNEL_DEFECT_ENDING.to_owned()),
+            (&unresolved, super::TRACE_UNRESOLVED_RECOURSE.to_owned()),
             (
                 &death,
                 format!(

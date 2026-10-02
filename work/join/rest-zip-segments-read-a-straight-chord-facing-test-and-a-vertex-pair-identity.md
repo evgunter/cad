@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P0
 cost: H
 refs: [dumbbell-joint-union-leaves-four-loose-ends]
+parent: JOIN-2
 ---
 
 

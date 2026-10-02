@@ -2189,7 +2189,7 @@ pub(crate) fn offset_rechart<T: Real>(
 /// one point ([`group_by_point`]), solved once, so copies that share a
 /// point before the offset share one after it. A vertex the op does
 /// not move is in no group and keeps its point.
-pub(crate) fn move_points_then_rechart<T: Decide>(
+pub(crate) fn move_points_then_rechart<T: Decide + crate::props::AtRestPolicy>(
     work: &mut Body<T>,
     moved: &[(Vec<VertexKey>, Point3<T>)],
     charts: Vec<Rechart<T>>,

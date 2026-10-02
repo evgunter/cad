@@ -125,10 +125,13 @@ impl<H> From<Torn> for NestFault<H> {
 ///
 /// **What decides nothing**, leaving a hole [`Nesting::unplaced`]: an
 /// outline edge on a spiric or NURBS carrier, whose contacts nothing
-/// here decides; a containment or contact reading in the band; and the
-/// clockwise polygons the join mints when it chords a curved face
-/// across the wrong arc, which touch the outline around them
-/// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
+/// here decides, and a containment or contact reading in the band. A
+/// clockwise polygon touching the outline around it would land here
+/// too: that is what a chord run outside the face it divides makes, and
+/// the join pairs a face's crossings along the face's own section line
+/// or conic so that none does. A face the join leaves to the sweep's
+/// order — a curved face whose section is straight, a planar face whose
+/// line the band cannot certify — is not covered by that pairing.
 ///
 /// # Errors
 ///
