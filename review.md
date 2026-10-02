@@ -1,5 +1,4 @@
 # PR #3805 third delta review: fix pass 5ebc15ef73..7b8f75faf6 (checkout 7b8f75faf6)
-
 **Verdict: APPROVE-WITH-FIXES.** The MAJOR is fixed in general, by execution through the rung (0 wrong clearances in 12 931 certified, over 4 pose sets). The fixes asked are: pin the load-bearing sample charge with a row (MINOR-1), and finish the reader sweep (MINOR-2/3). PR head is now 337d85fbe (a later `main` merge), which I did not review.
 
 ## Findings
