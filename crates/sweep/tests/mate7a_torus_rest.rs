@@ -489,8 +489,11 @@ fn a_kissing_torus_rim_routes_to_the_unbuilt_cusp_family() {
     let text = format!("{err}");
     assert!(
         text.contains("opens to a thin slit")
-            && text.contains("cannot yet verify a Tangent declaration there"),
-        "the refusal must name the slit and say the declaration cannot be checked yet: {text}"
+            && text.contains("cannot yet verify a Tangent declaration there")
+            && text.contains("no tangent locus for these two surfaces")
+            && text.contains("cannot yet build the edge where they touch"),
+        "the refusal must name the slit, say the declaration cannot be checked yet, and \
+         name both missing pieces: {text}"
     );
 }
 

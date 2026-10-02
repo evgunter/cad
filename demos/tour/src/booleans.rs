@@ -208,7 +208,7 @@ pub fn expect_seamed<S: Scalar>(what: &str, v: Verdict<S>, expected: f64) -> Boo
 pub(crate) mod census {
     use super::{Body, Scalar};
     use core::cell::RefCell;
-    use pncad::geom_brep::SurfaceKind;
+    use pncad::prelude::SurfaceKind;
     use pncad::prelude::query;
 
     type KindPair = (Option<SurfaceKind>, Option<SurfaceKind>);
@@ -243,7 +243,7 @@ pub(crate) mod census {
 #[cfg(test)]
 mod consumer_census {
     use super::*;
-    use pncad::geom_brep::SurfaceKind;
+    use pncad::prelude::SurfaceKind;
 
     /// **Every consumer of [`flush_declarations`] declares PLANAR
     /// contacts, except the plant's socket** — the claim the flush

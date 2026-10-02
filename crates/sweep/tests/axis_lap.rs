@@ -16,8 +16,9 @@
 //!   off it, and from either side;
 //! - a LAP (the cutter from `z = 3` past the far cap, so one end wall
 //!   sits inside the rod) off the axis, or through the axis across the
-//!   rulings (`x = 0`), refuses `CurvedSectorSideUnsupported` — the
-//!   first-order sector-side frontier;
+//!   rulings (`x = 0`), refuses at the join where the cutter's edges
+//!   pierce the wall: a pierce ring has no join arm yet
+//!   (`work/tang/pierce-ring-has-no-join-arm`);
 //! - a lap in the plane `y = 0`, which holds both ruling edges, refuses
 //!   `Join(UnpairedLooseEnds)` — and so does the all-planar diamond
 //!   prism whose side edges sit in that same plane, which is what says
@@ -137,12 +138,14 @@ fn axis_lap_refuses_where_its_planar_twin_does() {
     }
 }
 
-/// Laps off the rulings: the cutter's end wall crosses the rod's wall
-/// inside a face, and that crossing's sector side is the frontier — the
-/// plane through the axis at `x = 0` included, so the axis alone is not
-/// what the lap above refuses on.
+/// Laps off the rulings: the cutter's end-wall edges pierce the rod's
+/// wall inside a face, the plane through the axis at `x = 0` included,
+/// so the axis alone is not what the lap above refuses on. Each pierce
+/// mints a ring in the wall, and a ring has no join arm yet
+/// (`work/tang/pierce-ring-has-no-join-arm`): the run that divides the
+/// wall carries only null scaffolding, so it has no azimuth window.
 #[test]
-fn laps_off_the_rulings_refuse_sector_side() {
+fn laps_off_the_rulings_stop_at_the_wall_pierce_ring() {
     for (x, y) in [
         (ACROSS, (0.2, 1.0)),
         (ACROSS, (0.35, 1.0)),
@@ -151,7 +154,13 @@ fn laps_off_the_rulings_refuse_sector_side() {
     ] {
         let err = cut(&rod(), x, y, LAP).expect_err("the lap refuses");
         assert!(
-            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::Join(SplitJoinError::SectionArcWindow {
+                    case: topo::ArcWindowCase::NoChartedRun,
+                    ..
+                })
+            ),
             "lap at x ∈ {x:?}, y ∈ {y:?}: {err:?}"
         );
     }
@@ -200,10 +209,11 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
     let part = |body: &Body<f64>, z0: f64, above: bool| -> Body<f64> {
         let split = topo::split(
             body,
-            &topo::SplitPlane {
-                origin: Point3::new(0.0, 0.0, z0),
+            &topo::test_support::split_plane(
+                Point3::new(0.0, 0.0, z0),
                 normal,
-            },
+                geom_core::Tol::witness(),
+            ),
             tol(),
         )
         .expect("the oblique split runs");
@@ -322,10 +332,11 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
     let theta = (R / (R + difference)).acos();
     let err = topo::split(
         &rod(),
-        &topo::SplitPlane {
-            origin: Point3::new(0.0, 0.0, LEN / 2.0),
-            normal: Vec3::new(0.0, -theta.sin(), theta.cos()),
-        },
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, LEN / 2.0),
+            Vec3::new(0.0, -theta.sin(), theta.cos()),
+            geom_core::Tol::witness(),
+        ),
         tol(),
     )
     .expect_err("the section's kind is undecided");

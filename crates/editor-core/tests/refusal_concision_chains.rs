@@ -1090,7 +1090,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FaceFrameNotPlanar",
             NodeErrorKind::FaceFrameNotPlanar {
-                carrier: geom_brep::SurfaceKind::Cylinder,
+                carrier: geom::SurfaceKind::Cylinder,
             },
         ),
         row(
@@ -1334,7 +1334,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "CurvedBooleanUnsupported",
             R::CurvedBooleanUnsupported {
                 face,
-                kind: geom_brep::SurfaceKind::Nurbs,
+                kind: geom::SurfaceKind::Nurbs,
             },
         ),
         ("CurvedEdgeUnsupported", R::CurvedEdgeUnsupported { edge }),
@@ -3707,7 +3707,7 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             "OpenFaceRingUnsupported",
             S::OpenFaceRingUnsupported {
                 face,
-                kind: geom_brep::SurfaceKind::Torus,
+                kind: geom::SurfaceKind::Torus,
             },
         ),
         (
@@ -4203,7 +4203,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             "KindUnsupported",
             PointInSolidError::KindUnsupported {
                 face,
-                kind: geom_brep::SurfaceKind::Nurbs,
+                kind: geom::SurfaceKind::Nurbs,
             },
         ),
         ("VolumeUncertified", PointInSolidError::VolumeUncertified),

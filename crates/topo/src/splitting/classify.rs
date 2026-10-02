@@ -30,21 +30,21 @@ pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceE
         let Some(surface) = body.get_surface(face.surface) else {
             return Err(SplitReduceError::CurvedBooleanUnsupported {
                 face: face_key,
-                kind: geom_brep::SurfaceKind::Nurbs,
+                kind: geom::SurfaceKind::Nurbs,
             });
         };
-        let kind = geom_brep::SurfaceKind::of(surface);
+        let kind = surface.kind();
         match kind {
-            geom_brep::SurfaceKind::Plane | geom_brep::SurfaceKind::Cylinder => {}
+            geom::SurfaceKind::Plane | geom::SurfaceKind::Cylinder => {}
             // `Approx` refuses HERE, by kind, rather than passing as
             // the spline its fit is: a split arm executed against the
             // fit would cut the approximation, not the surface the
             // modeller described.
-            geom_brep::SurfaceKind::Cone
-            | geom_brep::SurfaceKind::Sphere
-            | geom_brep::SurfaceKind::Torus
-            | geom_brep::SurfaceKind::Nurbs
-            | geom_brep::SurfaceKind::Approx => {
+            geom::SurfaceKind::Cone
+            | geom::SurfaceKind::Sphere
+            | geom::SurfaceKind::Torus
+            | geom::SurfaceKind::Nurbs
+            | geom::SurfaceKind::Approx => {
                 return Err(SplitReduceError::CurvedBooleanUnsupported {
                     face: face_key,
                     kind,
@@ -88,7 +88,7 @@ pub(super) fn classify_vertices<T: Decide>(
             .ok_or(SplitReduceError::CorruptOperand { vertex: vertex_key })?;
         let margin = Margin::of(crate::sector_shape::plane_offset(
             plane.origin,
-            plane.normal,
+            plane.normal.get(),
             p,
         ));
         let side = match decide("split_vertex_side", margin, band) {
@@ -150,7 +150,7 @@ fn conic_crossing_roots<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<ConicPlaneMeet<T>, ()> {
-    conic_plane_crossing_roots(carrier, t0, t1, plane.origin, plane.normal, band)
+    conic_plane_crossing_roots(carrier, t0, t1, plane.origin, plane.normal.get(), band)
 }
 
 /// What a conic carrier's span meets of a plane
@@ -540,7 +540,7 @@ pub(super) fn insert_crossings<T: Decide>(
                 }
                 let dist = |body: &Body<T>, vk: VertexKey| -> Option<T> {
                     let p = *body.get_point(body.get_vertex(vk)?.point)?;
-                    Some((p - plane.origin).dot(plane.normal))
+                    Some((p - plane.origin).dot(plane.normal.get()))
                 };
                 let (Some(d1), Some(d2)) = (dist(body, u), dist(body, v)) else {
                     return Err(SplitReduceError::CorruptOperand { vertex: u });
@@ -612,10 +612,11 @@ mod tests {
     }
 
     fn plane_y(c: f64) -> SplitPlane<f64> {
-        SplitPlane {
-            origin: Point3::new(0.0, c, 0.0),
-            normal: Vec3::unit_y(),
-        }
+        crate::test_support::split_plane(
+            Point3::new(0.0, c, 0.0),
+            Vec3::unit_y(),
+            geom_core::Tol::witness(),
+        )
     }
 
     /// **No side leaves `split` unless it is a closed solid.** An
@@ -719,9 +720,12 @@ mod tests {
     #[test]
     fn a_parallel_frame_reports_its_offset() {
         let c = circle();
-        let plane_z = |z: f64| SplitPlane {
-            origin: Point3::new(0.3, -0.2, z),
-            normal: Vec3::unit_z(),
+        let plane_z = |z: f64| {
+            crate::test_support::split_plane(
+                Point3::new(0.3, -0.2, z),
+                Vec3::unit_z(),
+                geom_core::Tol::witness(),
+            )
         };
         for (z, want) in [(0.0, 0.0), (2.0, -2.0)] {
             match conic_crossing_roots(&c, 0.1, 6.0, &plane_z(z), band()) {
@@ -772,10 +776,11 @@ mod tests {
             radius: ex(1.0),
             u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
         };
-        let plane = SplitPlane {
-            origin: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            normal: Vec3::new(ex(0.0), ex(1.0), ex(0.0)),
-        };
+        let plane = crate::test_support::split_plane(
+            Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            Vec3::new(ex(0.0), ex(1.0), ex(0.0)),
+            geom_core::Tol::witness(),
+        );
         // The span is the upper semicircle; the plane's two crossings
         // are its own endpoints.
         let (t0, t1) = (ex(0.0), ex(core::f64::consts::PI));

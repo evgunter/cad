@@ -6,11 +6,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::SurfaceKind;
 use tess_meter::{
-    Bound, CSV_HEADER, Chart, FaceName, FaceNameError, FaceRow, NurbsColumns, SPLIT_SCAN_DECADES,
+    Bound, CSV_HEADER, FaceName, FaceNameError, FaceRow, NurbsColumns, SPLIT_SCAN_DECADES,
     SPLIT_SCAN_SAMPLES, Sizing, SplitScan, best_split_cells, best_split_scan, best_split_steps,
-    divisions, floored_worst_excess, optimum_is_unfloored, shipped_split_scan_aspects, split_scan,
-    split_scan_aspects, unfloored_worst_excess,
+    divisions, floored_worst_excess, optimum_is_unfloored, shipped_split_scan_aspects, sized_lane,
+    split_scan, split_scan_aspects, unfloored_worst_excess,
 };
 use test_utils::fuzz;
 use test_utils::source;
@@ -962,14 +963,14 @@ fn the_split_scan_guard_reds_on_a_narrow_range_and_on_a_coarse_step() {
 }
 
 /// An off-lane row, hand-built. **The fields are `pub`, so every
-/// pairing of a [`Chart`] with a [`Sizing`] is constructible** — which
+/// pairing of a [`SurfaceKind`] with a [`Sizing`] is constructible** — which
 /// is what the refusals below are about, and what lets the two row
 /// shapes be written here without a body to tessellate.
 fn plane_row() -> FaceRow {
     FaceRow {
         face: 0,
         name: None,
-        chart: Chart::Plane,
+        chart: SurfaceKind::Plane,
         delta: 1e-3,
         triangles: 2,
         sizing: Sizing::OffLane,
@@ -1014,7 +1015,7 @@ fn both_row_shapes_have_the_headers_width() {
     let plane = plane_row();
     assert_eq!(plane.csv_row("s/b").split(',').count(), cols);
     let nurbs = FaceRow {
-        chart: Chart::Nurbs,
+        chart: SurfaceKind::Nurbs,
         sizing: Sizing::Measured(some_columns()),
         ..plane.clone()
     };
@@ -1086,7 +1087,7 @@ fn a_token_that_is_not_one_csv_field_is_not_a_face_name() {
 #[should_panic(expected = "the Hessian-sized lane's, and carries no columns")]
 fn a_sized_lane_chart_with_an_empty_tail_never_reaches_the_csv() {
     let row = FaceRow {
-        chart: Chart::Nurbs,
+        chart: SurfaceKind::Nurbs,
         ..plane_row()
     };
     let _ = row.csv_row("s/b");
@@ -1154,67 +1155,21 @@ fn the_lints_expected_header_is_this_one() {
     assert_eq!(header, CSV_HEADER);
 }
 
-/// The roster of every [`Chart`], and the wildcard-free match that
-/// makes it complete — generated from ONE spelling of the list, which
-/// is the whole mechanism.
-///
-/// **The enforcement is a COMPILE ERROR, not a red test, and it is
-/// exact**: a variant added to `Chart` and not named in this macro's
-/// invocation has no arm in the generated match, that match is
-/// non-exhaustive, and this crate's tests do not build. Nothing here
-/// runs to discover the gap, so nothing here can be green over one.
-///
-/// **What that buys over a hand-written array plus a slot function.**
-/// A slot function alone forces an ARM, never a roster entry: an arm
-/// reusing an existing slot, or naming one past the array's end that
-/// nothing ever indexes with, left every pin below iterating a list
-/// the new variant was not on — and green. Both defeats are
-/// unspellable here, because the array and the match are the same
-/// tokens and there are no slots at all.
-///
-/// **What it does not catch**: a variant listed TWICE. That arm is a
-/// duplicate rather than a missing one, so `unreachable_patterns` is
-/// what sees it — denied below, so it too is a compile error — and
-/// [`the_roster_names_each_chart_once`] carries the reading of that
-/// which a lint cannot make, that no two charts share a `tag`.
-macro_rules! chart_roster {
-    ($($v:ident),+ $(,)?) => {
-        /// Every [`Chart`] this crate has, in declaration order.
-        const EVERY_CHART: &[Chart] = &[$(Chart::$v),+];
-
-        /// Exhaustiveness over `Chart`, spelled in the same tokens as
-        /// [`EVERY_CHART`]. It is never called: the item exists for
-        /// the compile error its non-exhaustiveness would be, per
-        /// [`chart_roster`].
-        #[deny(unreachable_patterns)]
-        #[allow(dead_code)]
-        fn every_chart_is_rostered(c: Chart) {
-            match c {
-                $(Chart::$v => (),)+
-            }
-        }
-    };
-}
-
-chart_roster!(Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx);
-
-/// [`EVERY_CHART`] names each chart once, and each under its own tag.
-///
-/// Completeness is [`chart_roster`]'s compile error and is not
-/// re-asserted here. What is left for a run is the half a match cannot
-/// state: the pins below compare charts BY THEIR TAG, so two charts
-/// sharing one would make the roster containment pass for a row the
-/// CSV cannot tell apart afterwards.
+/// [`SurfaceKind::ALL`] names each chart under its own tag: the pins
+/// below compare charts BY THEIR TAG, so two charts sharing one would
+/// make the roster containment pass for a row the CSV cannot tell apart
+/// afterwards.
 #[test]
 fn the_roster_names_each_chart_once() {
-    let mut tags: Vec<&str> = EVERY_CHART.iter().map(|c| c.tag()).collect();
+    let mut tags: Vec<&str> = SurfaceKind::ALL.iter().map(|c| c.name()).collect();
     tags.sort_unstable();
     tags.dedup();
     assert_eq!(
         tags.len(),
-        EVERY_CHART.len(),
-        "EVERY_CHART is {EVERY_CHART:?}, whose tags are not {} distinct names",
-        EVERY_CHART.len()
+        SurfaceKind::ALL.len(),
+        "SurfaceKind::ALL is {:?}, whose tags are not {} distinct names",
+        SurfaceKind::ALL,
+        SurfaceKind::ALL.len()
     );
 }
 
@@ -1295,18 +1250,18 @@ fn string_array(code: &str, literals: &str, searched: &str, decl: &str) -> Vec<S
 /// The direction that IS owed runs the other way and is the one the
 /// lint cannot check for itself: a tag this crate ADDS arrives there
 /// as harness breakage on every row carrying it, with nothing on this
-/// side saying so. [`EVERY_CHART`] is what makes the containment
+/// side saying so. [`SurfaceKind::ALL`] is what makes the containment
 /// complete rather than a spot check, and its own guard is what makes
-/// [`EVERY_CHART`] complete.
+/// [`SurfaceKind::ALL`] complete.
 #[test]
 fn the_lints_roster_admits_every_tag_this_crate_emits() {
     let roster = lint_string_array("pub const CHART_TAGS");
-    for c in EVERY_CHART.iter().copied() {
+    for c in SurfaceKind::ALL {
         assert!(
-            roster.iter().any(|t| t == c.tag()),
+            roster.iter().any(|t| t == c.name()),
             "tess-lint's CHART_TAGS is {roster:?}, which does not admit {:?} — \
              a row carrying it would leave that crate as harness breakage",
-            c.tag()
+            c.name()
         );
     }
 }
@@ -1335,9 +1290,9 @@ fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
         "pub const CHART_TAGS",
     );
     assert_eq!(tags, ["plane", "cone"]);
-    let missing: Vec<&str> = EVERY_CHART
+    let missing: Vec<&str> = SurfaceKind::ALL
         .iter()
-        .map(|c| c.tag())
+        .map(|c| c.name())
         .filter(|t| !tags.iter().any(|r| r == t))
         .collect();
     assert_eq!(
@@ -1347,11 +1302,11 @@ fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
     );
 }
 
-/// **`tools/tess-lint`'s SIZED roster answers `Chart::sized_lane` on
+/// **`tools/tess-lint`'s SIZED roster answers `sized_lane` on
 /// every tag this crate can emit** — the same pin as the one above,
 /// over the second roster and in both directions.
 ///
-/// `tess_lint::SIZED_CHART_TAGS` restates [`Chart::sized_lane`] across
+/// `tess_lint::SIZED_CHART_TAGS` restates [`sized_lane`] across
 /// a cargo-root boundary, and `tess_lint::parse` reads it as a PAIRING:
 /// a row whose `chart` is in that roster owes the sizing block, and a
 /// row whose `chart` is not in it owes an empty tail. Both arms refuse.
@@ -1367,18 +1322,18 @@ fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
 /// for as long as a baseline row carries it, and equality would red
 /// this suite over an entry still doing the lint's work. What is owed,
 /// and what this asserts, is that every tag the crate emits TODAY is
-/// on the side of the roster [`Chart::sized_lane`] puts it on.
+/// on the side of the roster [`sized_lane`] puts it on.
 #[test]
 fn the_lints_sized_roster_answers_sized_lane_for_every_tag_this_crate_emits() {
     let sized = lint_string_array("pub const SIZED_CHART_TAGS");
-    for c in EVERY_CHART.iter().copied() {
+    for c in SurfaceKind::ALL {
         assert_eq!(
-            sized.iter().any(|t| t == c.tag()),
-            c.sized_lane(),
+            sized.iter().any(|t| t == c.name()),
+            sized_lane(c),
             "tess-lint's SIZED_CHART_TAGS is {sized:?}; {:?} is sized_lane = {} here, so \
              the lint's parse refuses the rows this crate writes for it",
-            c.tag(),
-            c.sized_lane()
+            c.name(),
+            sized_lane(c)
         );
     }
 }
@@ -1401,11 +1356,10 @@ fn the_sized_roster_pin_reds_on_a_missing_tag_and_on_an_extra_one() {
     };
     // The real roster answers `sized_lane` on every tag.
     let disagreeing = |roster: &[String]| -> Vec<&'static str> {
-        EVERY_CHART
-            .iter()
-            .copied()
-            .filter(|c| roster.iter().any(|t| t == c.tag()) != c.sized_lane())
-            .map(|c| c.tag())
+        SurfaceKind::ALL
+            .into_iter()
+            .filter(|c| roster.iter().any(|t| t == c.name()) != sized_lane(*c))
+            .map(|c| c.name())
             .collect()
     };
     let real = read("pub const SIZED_CHART_TAGS: [&str; 2] = [\"nurbs\", \"approx\"];\n");

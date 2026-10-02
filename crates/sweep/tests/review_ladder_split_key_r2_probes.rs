@@ -18,7 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point2, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
