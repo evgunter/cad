@@ -254,6 +254,14 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // ---- 6. Graft B whole (disjoint interiors: nothing discarded),
     // then glue every patch pair in BFS order. ----
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
+    // A REST union's patches are opposed contact faces, whose lump keeps
+    // neither copy, so it holds no region through a coincident copy and
+    // its rows have no held stretches (`DiscardRow::held`).
+    if !red.held.is_empty() {
+        return Err(BooleanError::JoinDesync {
+            what: "a declared-REST union holds a region through a coincident copy",
+        });
+    }
     // The contact patches are the faces this union discards; A's keys
     // are the result's, so its rows are taken here, before the zip.
     let mut discards = patch_discards(&red.a, &a_patch, Operand::A, &|u, w| Ok((u, w)))?;
@@ -333,7 +341,6 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts;
     let covered = red.covered;
-    let held = red.held;
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
@@ -359,19 +366,6 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let body = zipped;
     gate(&body)?;
     T::gate_volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
-    super::discard::attach_held(
-        &mut discards,
-        &held,
-        &a_fragments,
-        &b_fragments,
-        |operand, e| {
-            match operand {
-                Operand::A => Some(e),
-                Operand::B => graft.edges.get(e).copied(),
-            }
-            .filter(|&k| body.get_edge(k).is_some())
-        },
-    )?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -411,7 +405,7 @@ fn patch_discards<T: Decide>(
     let kept_across = |f: FaceKey| !patch.contains(&f);
     patch
         .iter()
-        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends))
+        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends, None))
         .collect()
 }
 

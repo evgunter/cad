@@ -533,8 +533,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
-    let held = red.held.clone();
-    let mut fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
+    let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
     // do not each re-derive the whole body, and `gate` below — tier 1
@@ -585,19 +584,6 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     gate(&body)?;
     T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     interior_loops?;
-    super::discard::attach_held(
-        &mut fin.discards,
-        &held,
-        &connected.a_fragments,
-        &connected.b_fragments,
-        |operand, e| {
-            match operand {
-                super::Operand::A => Some(e),
-                super::Operand::B => fin.graft.edges.get(e).copied(),
-            }
-            .filter(|&k| body.get_edge(k).is_some())
-        },
-    )?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,

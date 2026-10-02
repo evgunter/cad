@@ -79,10 +79,6 @@ pub(super) struct VtxFacOut<T: geom_core::Real> {
     /// `(A face, B face)` for each coincident sector whose lump keeps
     /// one copy of the region (`BooleanReduction::covered`).
     pub covered: Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
-    /// The piercing sector's edges in each such pair: the vertex lies
-    /// inside the pierced face, so they run into it
-    /// (`BooleanReduction::held`).
-    pub held: Vec<super::HeldEdge>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -206,7 +202,6 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // plane and the sector with it.
     let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
     let mut covered = Vec::new();
-    let mut held = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
         if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
             continue;
@@ -447,13 +442,6 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 Operand::A => (s.face, contact.face),
                 Operand::B => (contact.face, s.face),
             });
-            for (edge, _) in super::sectors::bound_edges(piercing_body, s)? {
-                held.push(super::HeldEdge {
-                    holder: piercing,
-                    edge,
-                    face: contact.face,
-                });
-            }
         }
         let lump = eq15_3_lump(op, piercing, rel);
         entries[k].class = lump;
@@ -479,7 +467,6 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         pairs: Vec::new(),
         ring: None,
         covered,
-        held,
     };
     if runs.is_empty() {
         return Ok(out); // tangential touch: 3′ contact only, no surgery

@@ -90,8 +90,18 @@ pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: PlaneRelation) -> 
 /// one face's region through the other face
 /// (`BooleanNaming::covered`). The other arms keep neither copy.
 pub fn lump_keeps_one(op: BooleanOp, relation: PlaneRelation) -> bool {
+    kept_copy(op, relation).is_some()
+}
+
+/// Which operand's copy of a coincident sector pair's region the Eq.
+/// 15.3 lump keeps, when it keeps exactly one ([`lump_keeps_one`]).
+pub fn kept_copy(op: BooleanOp, relation: PlaneRelation) -> Option<Operand> {
     let kept = |o| eq15_3_lump(op, o, relation) == super::finish::kept_side(op, o);
-    kept(Operand::A) != kept(Operand::B)
+    match (kept(Operand::A), kept(Operand::B)) {
+        (true, false) => Some(Operand::A),
+        (false, true) => Some(Operand::B),
+        _ => None,
+    }
 }
 
 /// A Table II result cell for one test sector.

@@ -149,23 +149,7 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
         .discards
         .iter()
         .filter(|r| !r.held.is_empty())
-        .map(|r| {
-            let ends = r
-                .held
-                .iter()
-                .map(|&e| {
-                    let edge = out.body.get_edge(e).expect("a held edge is live");
-                    let mut ends = [edge.he_plus, edge.he_minus].map(|he| {
-                        let v = out.body.get_half_edge(he).expect("a live half-edge").start;
-                        let p = topo::readback::vertex_point(&out.body, v).expect("a live vertex");
-                        [p.x, p.y, p.z].map(|c| (c * 1000.0).round() as i64)
-                    });
-                    ends.sort();
-                    ends
-                })
-                .collect();
-            (normal(&a, a_face(&out, r.face)), ends)
-        })
+        .map(|r| (normal(&a, a_face(&out, r.face)), stretches(&out, &r.held)))
         .collect();
     got.sort();
     assert_eq!(
@@ -174,34 +158,129 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
             (
                 [0, -1, 0],
                 vec![
-                    [[500, 0, 500], [501, 0, 500]],
+                    [[500, 0, 0], [500, 0, 500]],
                     [[501, 0, 500], [501, 0, 1000]]
                 ]
             ),
+            ([0, 0, -1], vec![[[500, 0, 0], [500, 1000, 0]]]),
             ([0, 0, 1], vec![[[501, 0, 1000], [501, 1000, 1000]]]),
             (
                 [0, 1, 0],
                 vec![
-                    [[501, 1000, 500], [501, 1000, 1000]],
-                    [[500, 1000, 500], [501, 1000, 500]]
+                    [[500, 1000, 0], [500, 1000, 500]],
+                    [[501, 1000, 500], [501, 1000, 1000]]
                 ]
             ),
         ],
-        "a's top and y-walls hold the edges of `b`'s notch inside them"
+        "each face of `a` that `b` covers holds `b`'s edges entering it at a shared vertex"
     );
+}
+
+/// Each stretch's two ends in thousandths, sorted, read through the
+/// zip's fusions.
+fn stretches(
+    out: &topo::BooleanBody<f64>,
+    rows: &[(topo::VertexKey, topo::VertexKey)],
+) -> Vec<Ends> {
+    let fused = out.naming.fused_into().expect("the fusions do not cycle");
+    let at = |v| {
+        let v = fused.get(&v).copied().unwrap_or(v);
+        let p = topo::readback::vertex_point(&out.body, v).expect("a held end is live");
+        [p.x, p.y, p.z].map(|c| (c * 1000.0).round() as i64)
+    };
+    let mut out: Vec<Ends> = rows
+        .iter()
+        .map(|&(u, w)| {
+            let mut e = [at(u), at(w)];
+            e.sort();
+            e
+        })
+        .collect();
+    out.sort();
+    out
 }
 
 /// The operand face of `a` (operand B) that discarded clone face `f` is
 /// a fragment of.
 fn a_face(out: &topo::BooleanBody<f64>, f: FaceKey) -> FaceKey {
-    let mut f = f;
-    while let Some(&(_, up)) = out
+    let rows = &out.naming.face_fragments_b;
+    topo::fragment_root(f, rows.len(), |k| {
+        rows.iter().find(|(new, _)| *new == k).map(|&(_, up)| up)
+    })
+    .expect("the fragment rows do not cycle")
+}
+
+/// **A held edge goes only to the fragment it enters.** As above, with
+/// a pillar over x 0.1..0.2, y 0.4..0.6 standing on `a`'s top, joined
+/// to the slab by a bridge above it. `a`'s top is discarded in two
+/// fragments: the strip from the slab on, and the pillar's footprint.
+/// The edge of `b`'s top at x 0.501 enters the strip at its corners and
+/// is held there; the footprint, a fragment of the same face that the
+/// edge never reaches, holds nothing.
+#[test]
+fn a_held_edge_goes_only_to_the_fragment_it_enters() {
+    let tol = Tol::witness();
+    let unit = (0.0, 1.0);
+    let a: Body<f64> = brick((0.0, 1.0), unit, unit, tol);
+    let b: Body<f64> = brick((0.5, 1.5), unit, unit, tol);
+    let slab = brick((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol);
+    let pillar = brick((0.1, 0.2), (0.4, 0.6), (0.5, 2.0), tol);
+    let bridge = brick((0.15, 0.55), (0.45, 0.55), (1.5, 1.8), tol);
+    let none = topo::BooleanDeclarations::default();
+    let union = |x: &Body<f64>, y: &Body<f64>| -> Body<f64> {
+        let BooleanResult::Body(o) =
+            union_with(x, y, &none, tol).expect("an undeclared union fuses")
+        else {
+            panic!("a union of non-empty blocks cannot be empty");
+        };
+        o.body
+    };
+    let x = union(&union(&union(&b, &slab), &bridge), &pillar);
+    let decls =
+        declare_all(&find_flush_candidates(&x, &a, tol).expect("the flush detector decides"));
+    let BooleanResult::Body(out) = union_with(&x, &a, &decls, tol).expect("the union fuses") else {
+        panic!("a union of non-empty blocks cannot be empty");
+    };
+    // `a`'s top's discarded fragments: how many stretches each borders
+    // a kept face along, and what it holds.
+    let mut tops: Vec<(usize, Vec<Ends>)> = out
         .naming
-        .face_fragments_b
+        .discards
         .iter()
-        .find(|(new, _)| *new == f)
-    {
-        f = up;
+        .filter(|r| r.operand == topo::Operand::B)
+        .filter(|r| normal(&a, a_face(&out, r.face)) == [0, 0, 1])
+        .map(|r| (r.bordered.len(), stretches(&out, &r.held)))
+        .collect();
+    tops.sort();
+    assert_eq!(
+        tops,
+        vec![(1, vec![[[501, 0, 1000], [501, 1000, 1000]]]), (4, vec![]),],
+        "the strip holds the edge at x 0.501; the pillar's footprint holds nothing"
+    );
+}
+
+/// **Faces on one plane that share no region are not covered.** `a` =
+/// [0,1]³ and a block on the same caps meeting it along a vertical edge,
+/// or standing apart beside it: the caps are coplanar and
+/// same-oriented, but neither holds any of the other's region, so the
+/// union records no covered pair.
+#[test]
+fn coplanar_faces_that_share_no_region_are_not_covered() {
+    let tol = Tol::witness();
+    let unit = (0.0, 1.0);
+    let a: Body<f64> = brick(unit, unit, unit, tol);
+    for (label, other) in [
+        ("edge", brick((1.0, 2.0), (1.0, 2.0), unit, tol)),
+        ("apart", brick((2.0, 3.0), unit, unit, tol)),
+    ] {
+        let decls = declare_all(
+            &find_flush_candidates(&a, &other, tol).expect("the flush detector decides"),
+        );
+        let BooleanResult::Body(out) =
+            union_with(&a, &other, &decls, tol).expect("the union fuses")
+        else {
+            panic!("{label}: a union of non-empty blocks cannot be empty");
+        };
+        assert_eq!(out.naming.covered, vec![], "{label}: covered pairs");
     }
-    f
 }

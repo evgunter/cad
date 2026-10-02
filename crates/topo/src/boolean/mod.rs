@@ -130,7 +130,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{LoopShape, loop_shape};
-pub use discard::{DiscardRow, HeldEdge};
+pub use discard::{DiscardRow, HeldEdge, fragment_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -2589,7 +2589,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
         covered.extend(out.covered);
-        held.extend(out.held);
     }
     for &c in &contacts.b_on_a {
         let out = vtxfac::classify_vertex_on_face(
@@ -2606,7 +2605,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
         covered.extend(out.covered);
-        held.extend(out.held);
     }
 
     // Vertex-vertex classification.
@@ -2642,6 +2640,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
     }
+    let held = border_held(held, &covered, &null_edges, &a, &b)?;
 
     a.sweep_and_close();
     b.sweep_and_close();
@@ -2658,12 +2657,56 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
             .collect(),
-        held: {
-            held.sort_by_key(|h: &HeldEdge| (h.holder == Operand::B, h.edge, h.face));
-            held.dedup();
-            held
-        },
+        held,
     })
+}
+
+/// The held edges that bound the held region from outside. A null edge
+/// is the split's scaffolding, not an edge of the face, and an edge
+/// whose two faces both cover the dropped face (a seam between two
+/// coplanar faces of the kept copy, or a face meeting itself) lies
+/// inside the held region; both are dropped. Sorted and deduplicated.
+fn border_held<T: Real>(
+    mut held: Vec<HeldEdge>,
+    covered: &[(FaceKey, FaceKey)],
+    null_edges: &[BoolNullEdgeRecord<T>],
+    a: &Body<T>,
+    b: &Body<T>,
+) -> Result<Vec<HeldEdge>, BooleanError> {
+    let mut out = Vec::with_capacity(held.len());
+    held.sort_by_key(|h| (h.holder == Operand::B, h.edge, h.face, h.at));
+    held.dedup();
+    for h in held {
+        if null_edges
+            .iter()
+            .any(|r| r.operand == h.holder && r.edge == h.edge)
+        {
+            continue;
+        }
+        let body = match h.holder {
+            Operand::A => a,
+            Operand::B => b,
+        };
+        let edge = body
+            .get_edge(h.edge)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a held edge no longer resolves",
+            })?;
+        let sides = [edge.he_plus, edge.he_minus].map(|he| body.face_of_half_edge(he));
+        let covers = |f: Option<FaceKey>| {
+            f.is_some_and(|f| {
+                covered.contains(&match h.holder {
+                    Operand::A => (f, h.face),
+                    Operand::B => (h.face, f),
+                })
+            })
+        };
+        if sides[0] == sides[1] || sides.iter().all(|&f| covers(f)) {
+            continue;
+        }
+        out.push(h);
+    }
+    Ok(out)
 }
 
 /// Fail-loud validation of a [`BooleanDeclarations`] payload against
