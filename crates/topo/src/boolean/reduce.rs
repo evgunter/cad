@@ -4291,7 +4291,10 @@ mod no_pierce_tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod lying_on_rows {
-    use super::{arc_chain_reaches, boundary_meets_circle_only_at, split_other_at_point};
+    use super::{
+        arc_chain_reaches, boundary_meets_circle_only_at, parents_distinct_from,
+        split_other_at_point,
+    };
     use crate::body::Body;
     use crate::boolean::Operand;
     use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -4483,6 +4486,42 @@ mod lying_on_rows {
         y.set_edge_curve(top, spec, Tol::witness())
             .expect("the NURBS line attaches");
         assert!(!meets(&y, face, plane, &[]), "a NURBS edge is not placed");
+    }
+
+    /// An arc's parents count as distinct from a face's carrier only on
+    /// a definite ladder `Distinct`. The sheet's bottom arc lies on a
+    /// second unit sheet's cylinder, its own parent's carrier: undeclared,
+    /// that is no decision. Against a radius-2 sheet it is `Distinct`.
+    /// (Through the boolean, an undeclared same-carrier pair refuses as a
+    /// continuation before the crossing layer, so only this row holds the
+    /// guard.)
+    #[test]
+    fn only_a_decided_distinct_parent_licenses_the_arc() {
+        let (x, _) = sheet(FRAC_PI_2);
+        let bottom = edge_between(
+            &x,
+            vertex_at(&x, Point3::new(1.0, 0.0, 0.0)),
+            vertex_at(&x, Point3::new(0.0, 1.0, 0.0)),
+        );
+        let edge = x.get_edge(bottom).unwrap();
+        let (same, same_face) = sheet(FRAC_PI_2);
+        assert!(
+            !parents_distinct_from(&x, edge, &same, same_face, band()),
+            "one carrier, undeclared: no decision"
+        );
+        let mut wide = Body::new();
+        let wide_face = cyl_wall_sheet(
+            &mut wide,
+            CylFrame::canonical(2.0),
+            None,
+            (0.0, FRAC_PI_2),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        assert!(
+            parents_distinct_from(&x, edge, &wide, wide_face, band()),
+            "a radius-2 wall is decided distinct"
+        );
     }
 
     /// A chain of circle arcs leaving along the tangent reaches its end
