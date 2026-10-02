@@ -1,11 +1,13 @@
 ---
 id: boolean-door-passes-a-geometrically-open-result-the-backstop-cannot-see
 kind: issue
-title: "A boolean result missing a face passes the door: the gate runs tiers 1-2 only, and no volume inequality bounds a short intersection from below"
-status: open
+title: A boolean result missing a face passes the door: the gate runs tiers 1-2 only, and no volume inequality bounds a short intersection from below
+status: review
 opened: 2026-10-01
 priority: P1
 cost: M
+pr: 3844
+branch: reach/door-backstop
 ---
 
 ## What

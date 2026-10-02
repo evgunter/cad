@@ -2,10 +2,12 @@
 id: volume-backstop-refuses-a-closed-form-rounding-tie
 kind: issue
 title: The volume backstop refuses ResultVolumeImplausible on a two-ulp tie between closed-form volumes, calling a correct body a kernel defect
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: M
+pr: 3844
+branch: reach/door-backstop
 ---
 
 
