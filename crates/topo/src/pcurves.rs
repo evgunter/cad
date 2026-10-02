@@ -325,7 +325,7 @@
 
 use geom::Surface;
 use geom_brep::{
-    ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, UncoveredClass, chart_pcurve,
+    BranchMiss, ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, UncoveredClass, chart_pcurve,
     whole_periods,
 };
 use geom_core::Tol;
@@ -3245,6 +3245,13 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
             half_edge: cycle[index],
             cause,
         },
+        WalkFail::Miss {
+            index,
+            miss: PinMiss::OutOfReach,
+        } => PcurveMintError::Certify {
+            half_edge: cycle[index],
+            error: PcurveCertifyError::BranchOutOfReach,
+        },
         WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
     })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
@@ -3332,6 +3339,13 @@ fn walk_runs<T: AtRestPolicy>(
                 half_edge: keys[index],
                 cause,
             }),
+            Err(WalkFail::Miss {
+                index,
+                miss: PinMiss::OutOfReach,
+            }) => refused.push(PcurveMintError::Certify {
+                half_edge: keys[index],
+                error: PcurveCertifyError::BranchOutOfReach,
+            }),
             Err(WalkFail::Item(e)) => refused.push(e),
             Err(WalkFail::NotClosed) => unreachable!("an open run checks no closure"),
         }
@@ -3385,6 +3399,10 @@ pub(crate) enum PinMiss {
     /// No representation fits and one of them escalated: the first
     /// such cause, deterministically.
     Escalated(Indeterminate),
+    /// No representation fits, none escalated, and one sat more than
+    /// [`geom_brep::MAX_BRANCH_PERIODS`] periods from the predecessor's
+    /// exit.
+    OutOfReach,
 }
 
 /// Why [`walk_cycle`] refused, with the index of the item it refused
@@ -3495,6 +3513,7 @@ fn pin_branch<T: Decide>(
     // their old escalate-immediately behavior through
     // exactly that arm.
     let mut deferred: Option<Indeterminate> = None;
+    let mut out_of_reach = false;
     let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
     for cand in candidates {
         let raw = cand.eval(entry_t);
@@ -3542,10 +3561,8 @@ fn pin_branch<T: Decide>(
         };
         let ku = match ku {
             Ok(k) => k,
-            Err(cause) => {
-                if deferred.is_none() {
-                    deferred = cause;
-                }
+            Err(miss) => {
+                defer(miss, &mut deferred, &mut out_of_reach);
                 continue;
             }
         };
@@ -3560,10 +3577,8 @@ fn pin_branch<T: Decide>(
                 band,
             ) {
                 Ok(kv) => shifted = shift_polar_branch(&shifted, kv, tau),
-                Err(cause) => {
-                    if deferred.is_none() {
-                        deferred = cause;
-                    }
+                Err(miss) => {
+                    defer(miss, &mut deferred, &mut out_of_reach);
                     continue;
                 }
             }
@@ -3590,7 +3605,28 @@ fn pin_branch<T: Decide>(
             return Ok(shifted);
         }
     }
-    Err(deferred.map_or(PinMiss::Discontinuity, PinMiss::Escalated))
+    Err(match deferred {
+        Some(cause) => PinMiss::Escalated(cause),
+        None if out_of_reach => PinMiss::OutOfReach,
+        None => PinMiss::Discontinuity,
+    })
+}
+
+/// A candidate's branch [`pin_branch`] could not decide: an undecided
+/// mark is the first deferred cause, a gap past
+/// [`geom_brep::MAX_BRANCH_PERIODS`] is remembered by type, and a gap
+/// on a mark is the wrong candidate (a sphere's base image, π off its
+/// twin) and costs nothing.
+fn defer(miss: BranchMiss, deferred: &mut Option<Indeterminate>, out_of_reach: &mut bool) {
+    match miss {
+        BranchMiss::Undecided(cause) => {
+            if deferred.is_none() {
+                *deferred = Some(cause);
+            }
+        }
+        BranchMiss::OutOfReach => *out_of_reach = true,
+        BranchMiss::OnMark => {}
+    }
 }
 
 /// The chart image of one walked half-edge, in loop direction.

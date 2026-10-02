@@ -273,6 +273,8 @@ mod shell_tolerance_chain;
 mod shell_winding;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "sphere_twin_rows_interval.rs"]
+mod sphere_twin_rows_interval;
 #[path = "split_edge_pcurve_rows.rs"]
 mod split_edge_pcurve_rows;
 #[path = "stated_general_image_mint.rs"]
