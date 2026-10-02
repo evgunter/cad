@@ -64,6 +64,13 @@ trimmed-group escape. Pinned by `snowman.rs`
 `a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds`, and
 `verbs_cylsph_opening` `a_contained_ball_builds_through_the_section_pass`.
 
+A crossing pair whose faces the certificate does not clear refuses
+`SpheresMeet` when the certificate finds the circle inside both faces
+(R-loop), and `FallbackExtentUnsupported` with the certificate's own
+reason otherwise. The plane arm's real trimmed-group escape is
+`trimmed-sphere-group-escaping-through-a-plane-face-refuses`, pinned
+by `a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape`.
+
 The rounded stack of PR 3657 is not this cause: it refuses at the
 section pass's R-tan on a coincident cylinder pair
 (`section_cylinder_pair_coincident`), and stays on
