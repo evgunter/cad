@@ -6,7 +6,9 @@
 //! variants, the same serde attributes, every impl derived; and
 //! [`NameRef`] as the handle it was, rendered, compared and written as
 //! the name it holds. `RoleSeg` and `Qualifier` are copied from
-//! `role.rs` with their docs left out; the variant row builds one
+//! `role.rs` with their docs left out (leaf types — the piece
+//! locators and the run of them, `PieceRun`, whose one-or-many wire is
+//! specified rather than derived — are shared); the variant row builds one
 //! segment of every variant in both families from one list, so a
 //! variant missing here stops that row's build.
 #![allow(dead_code, unreachable_pub)]
@@ -14,8 +16,8 @@
 use std::sync::Arc;
 
 pub(super) use super::role::{
-    CapEnd, EntityKind, MeridianEnd, PieceRole, ProfileEdgeRef, ProfileVertexRef, RimSupport,
-    SectionCircle, SplitHalf,
+    CapEnd, EntityKind, MeridianEnd, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
+    RimSupport, SectionCircle, SplitHalf,
 };
 pub(super) use crate::node::{RecipeNodeId, StepId};
 
@@ -105,7 +107,7 @@ pub(super) enum RoleSeg {
     OutputBody,
 
     Cap(CapEnd),
-    Lateral(ProfileEdgeRef),
+    Lateral(PieceRun),
     RimEdge(CapEnd, ProfileEdgeRef),
     LateralEdge(ProfileVertexRef),
     CapVertex(CapEnd, ProfileVertexRef),
@@ -113,11 +115,11 @@ pub(super) enum RoleSeg {
     LoftWall(Vec<ProfileEdgeRef>),
     LoftSeam(Vec<ProfileVertexRef>),
 
-    Band(ProfileEdgeRef),
+    Band(PieceRun),
     BandRim(ProfileVertexRef),
     BandRimPi(ProfileVertexRef),
-    BandPi(ProfileEdgeRef),
-    Meridian(MeridianEnd, ProfileEdgeRef),
+    BandPi(PieceRun),
+    Meridian(MeridianEnd, PieceRun),
     MeridianVertex(MeridianEnd, ProfileVertexRef),
     RevolveCap(MeridianEnd),
     Pole(ProfileVertexRef),

@@ -1647,12 +1647,23 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 /// **A chart-seam vertex, recognized structurally** — the point where a
 /// CLOSED rim was cut by the chart seams of its own two supports.
 ///
-/// Its shape, and the whole of it: four incident edges, of which two are
-/// CO-SURFACE seams (one surface on both sides, so the dihedral there is
-/// zero by construction and not by measurement — the same structural
-/// reading S10/S11 require of every sense question), and the other two
-/// carry ONE support pair between them, i.e. the same rim arriving and
-/// leaving.
+/// Its shape, and the whole of it: two incident edges carrying ONE
+/// support pair between them, i.e. the same rim arriving and leaving,
+/// and beside them one or two CO-SURFACE seams (one surface on both
+/// sides, so the dihedral there is zero by construction and not by
+/// measurement — the same structural reading S10/S11 require of every
+/// sense question). Two where both supports are periodic walls cut at
+/// their seams; one where a support is a whole face carrying both arcs —
+/// a full revolve's plane disc or annulus, which has no seam to cut it.
+/// The one-seam reading also needs `topo::query::rim_of` to list the
+/// rim through this vertex: an open run of cocircular arcs swept beside
+/// a whole face (one arc of a D's rim) has the same orbit at its
+/// station, and there the recourse's "request the rim whole, `rim_of`
+/// lists it" would be false — so the reading asks that door itself:
+/// `rim_lists(seed, arcs)` is the caller's `rim_of` read, true iff the
+/// rim it lists from `seed` holds every one of `arcs` (passed in, since
+/// that door wants `Bounds` and this classifier is generic over
+/// [`Decide`] alone).
 ///
 /// The two families must be the SAME geometry, not merely the right
 /// counts: each seam's surface has to be one of the rim's own two
@@ -1674,7 +1685,8 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 ///
 /// - **here** — a REFUSAL classifier over a chain end's edge orbit. It
 ///   reads incidence and nothing else: no convexity, no arm, no
-///   support-face resolution. It is the WEAKEST of the three, and that
+///   support-face resolution (the one-seam arm adds `rim_of`'s answer,
+///   itself a read of stored incidence and carrier bits). It is the WEAKEST of the three, and that
 ///   is load-bearing rather than incidental — a tag that fired only
 ///   where the carve succeeds could not name a door in its recourse at
 ///   all, and the price is that the recourse must be TRUE ON BOTH
@@ -1694,9 +1706,13 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 /// do, and more. Anything that narrows it must narrow the recourse with
 /// it; anything that widens the other two must not silently assume this
 /// one already screened it.
-fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
+fn is_seam_vertex<T: Decide>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+    rim_lists: impl FnOnce(EdgeKey, &[EdgeKey]) -> bool,
+) -> bool {
     let mut seams: Vec<SurfaceKey> = Vec::new();
-    let mut rim: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
+    let mut rim: Vec<(EdgeKey, (SurfaceKey, SurfaceKey))> = Vec::new();
     for e in edges {
         let Some((a, b)) = edge_surfaces(body, *e) else {
             return false;
@@ -1704,13 +1720,28 @@ fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
         if a == b {
             seams.push(a);
         } else {
-            rim.push((a, b));
+            rim.push((*e, (a, b)));
         }
     }
-    let [(p, q), second] = rim[..] else {
+    let [(arrive, (p, q)), (_, second)] = rim[..] else {
         return false;
     };
-    seams.len() == 2 && (p, q) == second && seams.iter().all(|s| *s == p || *s == q)
+    if (p, q) != second || !seams.iter().all(|s| *s == p || *s == q) {
+        return false;
+    }
+    match seams.len() {
+        2 => true,
+        // One seam: a whole face carries the rim on one side, so
+        // nothing about this vertex alone says the rim is CLOSED — one
+        // arc of an open cocircular run (a D's quarter arcs, swept) has
+        // the same orbit, and so do arcs that close on shared vertices
+        // but sit on circles `rim_of` does not read as one (the same
+        // point set stored on bits of its own per arc). The recourse
+        // promises `rim_of` lists the rim, so the reading is THAT
+        // door's answer: both rim arcs here are in the rim it lists.
+        1 => rim_lists(arrive, &rim.iter().map(|(e, _)| *e).collect::<Vec<_>>()),
+        _ => false,
+    }
 }
 
 /// The refusal for a ruled link's end that is not a transverse cap —
@@ -1870,7 +1901,10 @@ fn corner_at<T: Decide + Bounds>(
     // recognized before the valence is read as a corner configuration —
     // otherwise the refusal describes a wedge that is not there and
     // names a run-out policy that could not help.
-    if is_seam_vertex(body, &edges) {
+    let rim_lists = |seed: EdgeKey, arcs: &[EdgeKey]| {
+        topo::query::rim_of(body, seed).is_ok_and(|listed| arcs.iter().all(|e| listed.contains(e)))
+    };
+    if is_seam_vertex(body, &edges, rim_lists) {
         return Err(super::surgery::unbuilt_corner_config(
             vertex,
             CornerConfig::SeamVertex,

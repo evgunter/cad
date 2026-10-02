@@ -596,12 +596,9 @@ fn wall(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: editor_core::EntityKind::Face,
         node,
-        path: vec![RoleSeg::Lateral(crate::fixture::piece(
-            doc,
-            node,
-            0,
-            segment as usize,
-        ))],
+        path: vec![RoleSeg::Lateral(
+            crate::fixture::piece(doc, node, 0, segment as usize).into(),
+        )],
     }
 }
 

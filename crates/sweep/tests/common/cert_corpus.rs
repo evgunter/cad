@@ -203,8 +203,8 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         tol,
     )
     .unwrap();
+    let wall = tq.walls()[0][1].expect("outer wall");
     let mut body = tq.body;
-    let wall = tq.walls[0][1].expect("outer wall");
     let outer = body.get_face(wall).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("cycle");

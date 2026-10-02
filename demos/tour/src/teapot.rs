@@ -133,8 +133,11 @@
 //!
 //!    handle ∪ pot used to be torus × SPHERE at the operand gate. The
 //!    torus is on the union's KIND roster now, so the join gets past
-//!    the gate and stops at the maximal-faces precondition on the POT:
-//!    `NonMaximalFaces`, its full revolve's planar walls split in two,
+//!    the gate. It then stopped at the maximal-faces precondition on
+//!    the POT, whose full revolve split its planar walls in two; a full
+//!    revolve sweeps them whole now (BAND, one wall per run), and the
+//!    join reaches the pot's sphere face meeting the handle's torus, a
+//!    meeting the Boolean cannot yet trace: `GermFrameUnsupported`,
 //!    pinned in wall 2.
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
@@ -151,11 +154,9 @@
 //!    body's own edges, which is a narrower and more useful frontier.
 //!    Wall 3 pins the new variant and the note carries the payload.
 //!
-//!    Wall 2 is past the operand gate: the handle's torus is on the
-//!    union's KIND roster, and the join stops at the maximal-faces
-//!    precondition on the vessel, whose full revolve mints its planar
-//!    walls split in two. The schedule behind that is the revolve's
-//!    split-wall question, then the banked germ-chord lanes. **Both refusals arrive through the
+//!    Wall 2 is past the operand gate and past the maximal-faces
+//!    precondition, and stops where the vessel's sphere face meets the
+//!    handle's torus, which the Boolean cannot yet trace. **Both refusals arrive through the
 //!    DOCUMENT**: each join is a `Node::Boolean` that lowers to the
 //!    same kernel `union` and fails at `evaluate`, and what the note
 //!    quotes is that node's own carried refusal rather than a second
@@ -293,8 +294,8 @@ use pncad::prelude::{
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
-    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_pi, band_rim, edge_name,
-    face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
+    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, edge_name, face_carrier_kind,
+    face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, BooleanError, Operand};
@@ -895,14 +896,11 @@ fn build_doc(tol: Tol) -> Recipe {
 
     // ---- the vessel ----
     let bellied = revolved(&mut doc, plane, axis, vessel_meridian(), tol);
-    // The mouth is the two half-faces of the meridian's mouth-disc
-    // segment, NAMED. A full revolve cuts each wall of an
-    // axis-touching profile at the two seam meridians, so the mouth
-    // disc is two half-discs on one plane; the kernel's rim surgery
-    // lifts a chart as a whole and the document names both halves,
-    // the `Band` half first — which is the half that carries the rim.
+    // The mouth is the meridian's mouth-disc segment, NAMED. A full
+    // revolve sweeps a planar wall whole — no seam meridian cuts it —
+    // so the mouth disc is ONE face, its `Band`.
     let lip = edge_at(&doc, bellied, SEG_MOUTH, tol);
-    let mouth = vec![band(bellied, lip), band_pi(bellied, lip)];
+    let mouth = vec![band(bellied, lip)];
     let pot = insert(&mut doc, Node::shell(bellied, len(WALL), Vec::new()), tol);
     let cup = insert(&mut doc, Node::shell(bellied, len(WALL), mouth), tol);
 
@@ -1357,24 +1355,19 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
 fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // WALL 2 — the handle joined to the pot. The handle's torus is on
     // the union's KIND roster, so the gate has nothing to say about
-    // it; the join stops one door on, at the maximal-faces
-    // precondition, on the VESSEL: its full revolve mints split planar
-    // walls that F7 refuses.
+    // it. The join used to stop one door on, at the maximal-faces
+    // precondition, on the VESSEL, whose full revolve minted split
+    // planar walls; it sweeps them whole now (BAND, one wall per run),
+    // so the request reaches the vessel's sphere face meeting the
+    // handle's torus and refuses there: the germ frame has no arm for
+    // that pair of kinds.
     crate::walls::wall(
         "teapot",
         2,
         "join the handle to the vessel (union; both roots driven 11.2 mm past the \
          belly's inner wall — a real overlap, not a tangency)",
         join_outcome(ev, r.handle_union),
-        |e| {
-            matches!(
-                e,
-                BooleanError::NonMaximalFaces {
-                    operand: Operand::A,
-                    ..
-                }
-            )
-        },
+        |e| matches!(e, BooleanError::GermFrameUnsupported { .. }),
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
          walls 2 and 3, re-state the montage caption (which currently says four solids), \
          and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
@@ -1446,10 +1439,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bellied.edges().count(),
             bellied.faces().count(),
         ),
-        (8, 14, 8),
-        "four revolved meridian segments (the fifth is the axis and sweeps nothing), \
-         each cut at the two seam meridians into a pair of half-walls — one arc where \
-         the squared pot spent three segments on shoulder, belly, shoulder"
+        (6, 10, 6),
+        "four revolved meridian segments (the fifth is the axis and sweeps nothing): \
+         the two curved walls each cut at the two seam meridians into a pair of \
+         half-walls, the two planar discs swept whole — one arc where the squared pot \
+         spent three segments on shoulder, belly, shoulder"
     );
     // The mouth disc's segment index is read off the PROGRAM rather
     // than transcribed: it is the segment whose meridian step lands on
@@ -1459,32 +1453,30 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         SEG_MOUTH,
         "the mouth disc is segment {SEG_MOUTH} of the meridian in program order"
     );
-    // THE MOUTH, BY NAME. Two half-discs on ONE plane — the two names
-    // the shell node was authored with, asserted to denote exactly
-    // that: two planar faces, both on the mouth's own station.
+    // THE MOUTH, BY NAME. One disc on its plane — the name the shell
+    // node was authored with, asserted to denote exactly that: a planar
+    // face on the mouth's own station.
     let lip = edge_at(&r.doc, r.bellied, SEG_MOUTH, tol);
-    let mouth = [band(r.bellied, lip), band_pi(r.bellied, lip)];
+    let mouth = [band(r.bellied, lip)];
     for name in &mouth {
         assert_eq!(
-            face_carrier_kind(&ev, r.bellied, name).expect("the mouth half is named"),
+            face_carrier_kind(&ev, r.bellied, name).expect("the mouth is named"),
             SurfaceKind::Plane,
-            "a mouth half-disc's carrier is a plane"
+            "the mouth disc's carrier is a plane"
         );
         let origin = face_frame(&ev, r.bellied, name)
-            .expect("the mouth half is named")
+            .expect("the mouth is named")
             .origin;
         assert!(
             (origin.y - Y_MOUTH).abs() < 1e-12,
-            "the mouth's halves stand on the mouth plane: got {origin:?}"
+            "the mouth stands on the mouth plane: got {origin:?}"
         );
     }
-    // The CHART is those two faces and nothing else — the pin the
-    // numeric plane scan used to carry as `mouth.len() == 2`, said in
-    // both directions: the two names denote two DISTINCT faces, and
-    // the operand has exactly two planar faces on the mouth's station,
-    // so a designation of both is a designation of the whole chart
-    // (which is what `shell_open` requires and what
-    // `OpenFaceChartPartial` refuses).
+    // The CHART is that face and nothing else, said in both directions:
+    // the name denotes one face, and the operand has exactly one planar
+    // face on the mouth's station, so a designation of it is a
+    // designation of the whole chart (which is what `shell_open`
+    // requires and what `OpenFaceChartPartial` refuses).
     let named_mouth = bellied
         .faces()
         .filter(|&(k, _)| {
@@ -1500,9 +1492,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .count();
     assert_eq!(
         (named_mouth, on_mouth_plane),
-        (2, 2),
-        "the mouth is one PLANE worn by two half-disc faces — a full revolve's seam cut \
-         — and the two names the shell node carries are exactly those two"
+        (1, 1),
+        "the mouth is one PLANE worn by one disc face — a full revolve sweeps a planar \
+         wall whole — and the name the shell node carries is that face"
     );
 
     // ---- the gates, MEASURED off the operand before the verb runs ----
@@ -1585,8 +1577,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     assert_eq!(
         (pv, pe, pf),
-        (16, 28, 16),
-        "the operand's 8/14/8, twice: the cavity is the same boundary offset inward, \
+        (12, 20, 12),
+        "the operand's 6/10/6, twice: the cavity is the same boundary offset inward, \
          inserted whole through the shared void door"
     );
     assert_eq!(
@@ -1655,7 +1647,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // OPENED pot, because a teapot has a mouth. Both hollows are the
     // SAME operand and the SAME wall through the same node kind; what
     // separates them is the open list, which is empty for one and the
-    // mouth's two names for the other.
+    // mouth's name for the other.
     let cup = body_at(&ev, r.cup);
 
     // ---- the lid ----
@@ -2239,8 +2231,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     assert_eq!(
         faces_where(&ev, r.cup, SegPat::tag(SegTag::Rim)).len(),
         1,
-        "the revolve's seam is retired before the glue, so the mouth's two designated \
-         halves come back as ONE rim face and not as two half-annuli"
+        "the mouth disc comes back as ONE rim face"
     );
     let cup_props = pncad::topo::mass_properties(&cup, tol).expect("the cup's props");
     // The cup is the sealed wall LESS the disc of wall the mouth cap
@@ -2293,7 +2284,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 so what the montage shows is four bodies sitting where a teapot's parts \
                 sit, not a teapot",
         ops: "ONE recipe document: Profile -> Revolve -> Node::Shell(t = 7.8125 mm, the \
-              mouth's two half-discs BY NAME) for the vessel; Profile -> Revolve -> \
+              mouth disc BY NAME) for the vessel; Profile -> Revolve -> \
               Node::Fillet twice (the flange rim, then the dome foot + the knob top, all \
               by name) for the lid; Datum::Frame x{SPOUT_STATIONS} -> Profile(2 circle loops) \
               x{SPOUT_STATIONS} -> Node::Loft(v_degree 3) -> Node::Transform for the \
@@ -2307,9 +2298,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              the lid's three rims are NAMED by their role in the sweep, not found by a \
              numeric scan of the built body. THE VESSEL, SEALED THEN OPENED, is the \
              same operand and the same wall through the same node kind twice, parted \
-             only by the open list: EMPTY for the sealed hollow, the mouth's two \
-             half-disc names for the cup. Sealed it is {pv} vertices, {pe} edges, \
-             {pf} faces over TWO shells in one solid — the operand's 8/14/8 twice, \
+             only by the open list: EMPTY for the sealed hollow, the mouth disc's \
+             name for the cup. Sealed it is {pv} vertices, {pe} edges, \
+             {pf} faces over TWO shells in one solid — the operand's 6/10/6 twice, \
              since the cavity is that same boundary offset inward and inserted whole \
              through the shared void door. Genus 0. V = {:.9} m³ of WALL against the \
              difference of two closed-form SPHERICAL ZONES on a foot, and A = {:.9} m² \
@@ -2372,7 +2363,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              ({foot_major}, {ROLL}) at the crossing y = {foot_y}. ΔV = {dv_lid:.9} m³, \
              inside the three corner squares' bound {pappus_cap:.9}. The steam vent is \
              what makes those rims CLOSED edges at all: bore the finial and the profile \
-             is annular; leave it solid and each rim is two arcs over two half-discs, \
+             is annular; leave it solid and each rim is two arcs, \
              which the annulus band does not carve — and it is also why each of these \
              three rims is ONE name: an annular profile touches the axis nowhere, so \
              the full revolve mints one whole wall per segment and one CLOSED rim per \

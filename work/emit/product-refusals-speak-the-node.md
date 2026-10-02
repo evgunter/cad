@@ -2,9 +2,10 @@
 id: product-refusals-speak-the-node
 kind: unit
 title: ProductError speaks the node with its label at the doors that hold the document, and keeps the tag where a part's evaluation memoizes its sentence
-status: review
+status: closed
 pr: 3794
 opened: 2026-10-01
+closed: 2026-10-02
 priority: P2
 cost: M
 parent: node-labels-are-document-data

@@ -2335,8 +2335,8 @@ class Node:
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
-        Every face of one solid on a chart is named together (a full
-        revolve's cap is two half-faces). An unresolvable name, a name that is not a
+        Every face of one solid on a chart is named together (naming
+        only some of them refuses). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
         designated face refuses typed at `evaluate`. `thickness` mints
         a literal in the node's `shell_thickness` slot, moved by
@@ -4313,8 +4313,9 @@ def band(node: NodeId, piece: Piece) -> str:
 
 def band_pi(node: NodeId, piece: Piece) -> str:
     """The `[pi, 2pi)` band face swept from the profile piece `piece` —
-    `band`'s twin, where a full revolve emits a segment as two faces.
-    A face, as `band` is."""
+    `band`'s twin, where a full revolve emits a CURVED segment as two
+    faces. A planar segment sweeps whole, one face, its `band`, and has
+    no `band_pi`. A face, as `band` is."""
 
 def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts
