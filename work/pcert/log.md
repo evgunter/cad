@@ -410,3 +410,23 @@ because the code moved; the statement is stronger than `OnLocusHull`).
 A delta review on the bound follows its implementer report.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-02 — the widening fork converges; 3733 delta review
+
+- **The certificate-widening question** (the regression in PR 3759) was weighed by two designers.
+  - Round 1 split: a SYM tier rule for trig of `atan2`, against restating the certificate in the carrier's coefficients.
+  - Round 2 converged on the restatement. The tier rule's own author measured the restated terms as theorems at a ±1e-3 box, and found its rule cannot reach the UV-angle rows. Both now lean to moving a `Harmonic` row's schedule (check 3) off the box certificate.
+  - That is a C4 revision, so it went to Ev on `[ev]` PR 3781 (fork-log row 43).
+  - Restating check 4 is needed under either answer, so it is dispatched now as `pcurve-certificate-states-incidence-and-fidelity`, part 1 only, on a branch whose PR bases on 3759's branch.
+  - 3759 stays held until that lands. Logged alternative: land 3759 re-baselined to "certifies nothing" now. Not taken: it would re-baseline the flagship tour into a refusal, and both designers and the implementer lean to holding.
+- **3759 dual review.** R2 is in: not mergeable as-is. Its findings:
+  - nine undisclosed reds of the widening class (editor-core slow set, demo tour);
+  - two surviving mutants;
+  - the uncovered exemption is kept against C4's text;
+  - cycle-order masking.
+
+  R1 had its review drafted but held waiting for a go-ahead, so I told it to post. Adjudication waits on R1.
+- **3733 delta review: merge after fixes.**
+  - The Hermite constant, the Cauchy step and the chart factor hold.
+  - Check 4's glue is unsound for foreign images: per-end branch choice (a span winding a whole turn certifies), no image-domain check, and `max` where the derivation sums.
+  - The fix list went to the implementer.
