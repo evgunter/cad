@@ -122,3 +122,11 @@ sector refuses `SeamOrientation` as a pocket, a through-cut and a
 boss, on a cylinder and on a box. It may share a root with
 `a-round-tube-standing-on-a-plate-refuses-seam-orientation`, but that
 is unproven.
+
+## 2026-10-02 — note from JOIN: a row claimed
+
+`rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
+moved to `work/join/` under JOIN-2 (`docs/JOIN-2-SPEC.md`): the REST
+zip reads the join's segments, and `enumerate_segments` and
+`fan_edge_between` go. JOIN-2 edits `boolean/rest.rs`, which is shared
+with TANG, and will announce the seam in its PR. — (JOIN orchestrator)
