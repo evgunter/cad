@@ -324,3 +324,29 @@ pub fn spoken_name(name: crate::StableName, minter: crate::SpokenNode) -> crate:
     assert_eq!(name.node, minter.id(), "the minter is the name's own node");
     crate::SpokenName::forged(name, minter)
 }
+
+/// **A node as another document spells it** — the remapping split and
+/// inline carry nodes with (`refactor::remap_node`), with gauge
+/// references rewritten through `map` too and the world kept the world.
+/// A round-trip comparator reads two documents through it.
+///
+/// # Errors
+///
+/// The id the maps lack, as a sentence.
+pub fn remap_node(
+    node: &Node<ProfileProgram>,
+    map: &crate::refactor::NodeMap,
+    steps: &crate::refactor::StepMap,
+) -> Result<Node<ProfileProgram>, String> {
+    use crate::refactor::RemapMiss;
+    let regauge = |g: Option<RecipeNodeId>| match g {
+        None => Ok(None),
+        Some(g) => map.get(&g).copied().map(Some).ok_or(RemapMiss::Input(g)),
+    };
+    crate::refactor::remap_node(node, map, steps, &regauge).map_err(|miss| match miss {
+        RemapMiss::Input(id) => format!("input {id} is unmapped"),
+        RemapMiss::Name { name, missing } => {
+            format!("name {name:?} reaches {missing:?}, which is unmapped")
+        }
+    })
+}

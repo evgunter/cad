@@ -239,25 +239,26 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             instance: i,
             ..
         } => (none(), none(), none(), id(g), id(i), none(), none(), none()),
-        // The gauge a cut holds, or the one a cut instance's chain names
-        // that was deleted, is the `node`; the instance it is about is
-        // `instance`.
-        E::CutHoldsGauge { gauge } => (
+        // A gauge reference is a reading edge: the kept node hanging
+        // from a cut gauge reads it as a consumer reads its input.
+        E::SeveredGauge { gauge, kept } => (
+            none(),
+            id(kept),
             id(gauge),
-            none(),
-            none(),
             none(),
             none(),
             none(),
             none(),
             none(),
         ),
-        E::DeadGaugeReference { instance, gauge } => (
+        // The deleted gauge a cut node's chain names is the `node`; the
+        // cut gauge or instance it is about is `instance`.
+        E::DeadGaugeReference { node, gauge } => (
             id(gauge),
             none(),
             none(),
             none(),
-            id(instance),
+            id(node),
             none(),
             none(),
             none(),
@@ -645,10 +646,25 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
         ),
         // The instance is the subject: why it cannot be spliced is the
-        // variant, and an unplaced one's cause is in the message.
-        E::MatePlaced { instance, .. }
-        | E::Unplaced { instance, .. }
-        | E::NeedsAGauge { instance } => (
+        // variant, and an unplaced one's cause is in the message. A
+        // mate-placed instance's part root, when its offset is the
+        // remedy, is a node of the referenced document: it rides
+        // `root`.
+        E::MatePlaced {
+            instance,
+            part_root,
+            ..
+        } => (
+            id(instance),
+            none(),
+            none(),
+            none(),
+            none(),
+            part_root.as_ref().map_or_else(none, id),
+            none(),
+            none(),
+        ),
+        E::Unplaced { instance, .. } | E::MovedMemberOffset { instance } => (
             id(instance),
             none(),
             none(),

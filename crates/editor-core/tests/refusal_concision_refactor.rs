@@ -44,7 +44,7 @@ fn param() -> ParamName {
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
-        TornGroup, CutHoldsGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
+        TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
         HoistedMemberOffset, UncutParamReference, PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
@@ -56,7 +56,7 @@ test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
         PartCarriesMetadata, ParamConflict, UnplaceableFrame, MatePlaced, Unplaced,
-        NeedsAGauge, PartDeadGauge, MateFrameCrosses, MateFaceFrameCrosses, MatePairSplits,
+        MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MateFaceFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
         StrandedPartName, Edit,
     ];
@@ -88,8 +88,9 @@ fn split_refusals() -> Vec<SplitError> {
             instance: s(4, "InstantiatePart"),
             root_is_cut: true,
         },
-        SplitError::CutHoldsGauge {
+        SplitError::SeveredGauge {
             gauge: s(1, "Gauge"),
+            kept: s(4, "InstantiatePart"),
         },
         SplitError::TwoAnchors {
             node: s(4, "Extrude"),
@@ -98,7 +99,7 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::PlacingMateLeft { mate: s(7, "Mate") },
         SplitError::DeadGaugeReference {
-            instance: s(4, "InstantiatePart"),
+            node: s(4, "InstantiatePart"),
             gauge: s(1, "Gauge"),
         },
         SplitError::UnplacedAlone {
@@ -187,13 +188,20 @@ fn inline_refusals() -> Vec<InlineError> {
             instance: s(4, "InstantiatePart"),
             root: s(2, "InstantiatePart"),
             mates: vec![s(7, "Mate")],
+            part_root: None,
+        },
+        InlineError::MatePlaced {
+            instance: s(4, "InstantiatePart"),
+            root: s(2, "InstantiatePart"),
+            mates: vec![s(7, "Mate")],
+            part_root: Some(s(1, "InstantiatePart")),
         },
         InlineError::Unplaced {
             instance: s(4, "InstantiatePart"),
             cause: Unplaced::NoOffset,
         },
-        InlineError::NeedsAGauge {
-            instance: s(4, "InstantiatePart"),
+        InlineError::MovedMemberOffset {
+            instance: s(5, "InstantiatePart"),
         },
         InlineError::PartDeadGauge {
             node: s(3, "Extrude"),
