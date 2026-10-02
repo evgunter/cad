@@ -4442,9 +4442,13 @@ fn fidelity<T: Decide>(
     let (arm_u, arm_v) = match chart_stretch_sup(surface) {
         Ok(arms) => arms,
         Err(NoChartSup::ConeAzimuthGrowsWithV) => {
+            // `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
+            // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
+            // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant
+            // levers the azimuth, and the nearer one's is enough.
             let v_sup = harmonic_span_box(p0, pa, pb, pl, t0, t1)
                 .v_reach()
-                .max(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach());
+                .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach());
             (
                 SupSpeed::new(azimuth_lever(surface, v_sup)),
                 SupSpeed::new(T::one()),

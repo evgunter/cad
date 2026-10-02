@@ -566,43 +566,60 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     let tol = Tol::witness();
     let doc = the_plate(tol);
     let (_, nominal) = boxes(&doc).into_iter().next().unwrap();
+    // `Plain/Report` is not a form the plain walk builds: it counts the
+    // residuals rendered because they BLOCKED, and which ones block is
+    // the early walk's rules' to decide. So it is the one plain line a
+    // dial may move, and its count is pinned per dial set instead of
+    // compared across them: a dial that starts moving it moves a pin.
+    let is_report = |l: &str| l.trim_start().starts_with("Plain/Report");
     let plain_lines = |ledger: &str| {
         ledger
             .lines()
-            // `Plain/Report` is not a form the plain walk builds: it
-            // counts the residuals rendered because they BLOCKED, and
-            // which ones block is the early walk's rules' to decide
-            // (the plate's literal walk branch leaves 32 blocked
-            // shipped, 40 without the canonical root).
-            .filter(|l| {
-                let l = l.trim_start();
-                l.starts_with("Plain/") && !l.starts_with("Plain/Report")
-            })
+            .filter(|l| l.trim_start().starts_with("Plain/") && !is_report(l))
             .map(|l| l.trim().to_owned())
             .collect::<Vec<_>>()
     };
-    let sets: [(&str, SymRules); 4] = [
-        ("shipped", SymRules::shipped()),
-        ("without_canonical_root", SymRules::without_canonical_root()),
-        ("without_the_reads", SymRules::without_the_reads()),
+    let report_calls = |ledger: &str| {
+        ledger
+            .lines()
+            .find(|l| is_report(l))
+            .and_then(|l| l.split_whitespace().nth(2))
+            .and_then(|n| n.parse::<u64>().ok())
+    };
+    let sets: [(&str, SymRules, u64); 4] = [
+        ("shipped", SymRules::shipped(), @SHIPPED@),
+        (
+            "without_canonical_root",
+            SymRules::without_canonical_root(),
+            @NOROOT@,
+        ),
+        ("without_the_reads", SymRules::without_the_reads(), @NOREADS@),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
+            @BOTH@,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
-    for (name, rules) in sets {
+    for (name, rules, blocked) in sets {
         start_profile();
         let _ = replay(&doc, &nominal, rules, tol);
         let p = take_profile();
         let largest = p.ops.values().map(|o| o.max_terms_out).max().unwrap_or(0);
-        let lines = plain_lines(&p.walk_ledger());
+        let ledger = p.walk_ledger();
+        let lines = plain_lines(&ledger);
         println!(
-            "  {name}: largest form {largest}\n    {}",
+            "  {name}: largest form {largest}, Plain/Report {:?}\n    {}",
+            report_calls(&ledger),
             lines.join("\n    ")
+        );
+        assert_eq!(
+            report_calls(&ledger),
+            Some(blocked),
+            "{name}: the plain walk renders a different number of blocked residuals"
         );
         match &seen {
             None => seen = Some((name, lines)),

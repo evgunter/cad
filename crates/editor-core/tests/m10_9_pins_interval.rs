@@ -46,11 +46,21 @@ use crate::m10_8_harness::dials;
 /// magic constants and builders both).
 pub(crate) struct Study {
     pub(crate) name: &'static str,
-    /// A multiple of ε that certifies whole.
+    /// A multiple of ε that certified whole on M10-9's tier: the
+    /// certifying end of the bracket M10-9 measured. On the shipped
+    /// tree three of the five still certify whole there and two refuse
+    /// (`refused_by`).
     pub(crate) certifies_at: f64,
+    /// The predicate the whole-box replay refuses at, at
+    /// `certifies_at` on the shipped tree, or `None` where it certifies
+    /// whole there. Asserted, so the counts beside it are known to be
+    /// a truncated replay's where they are one.
+    pub(crate) refused_by: Option<&'static str>,
     /// A multiple of ε that refuses.
     pub(crate) refuses_at: f64,
-    /// `SymCounts::registered` at `certifies_at`, shipped set.
+    /// `SymCounts::registered` at `certifies_at`, shipped set (over the
+    /// decisions taken before the refusal, where `refused_by` names
+    /// one).
     pub(crate) registered: u64,
     /// `SymCounts::symbolic_zero` at `certifies_at`, shipped set — the
     /// THEOREM count beside the axiom count, pinned since SYM-8.
@@ -90,6 +100,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "two_hole_plate",
             certifies_at: 7.811e2,
             refuses_at: 7.814e2,
+            refused_by: None,
             registered: 148,
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
@@ -101,6 +112,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r1_annulus",
             certifies_at: 7.805e2,
             refuses_at: 7.810e2,
+            refused_by: None,
             registered: 148,
             symbolic_zero: 432,
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
@@ -109,6 +121,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_link",
             certifies_at: 4.930e2,
             refuses_at: 4.934e2,
+            refused_by: None,
             // DECIDE-3: rule G re-keys the link's roots on their value
             // class, so six more of the rim identity's samples meet
             // the registrant's forms (90 -> 96) and twenty-six more
@@ -133,6 +146,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_filleted_bracket",
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
+            refused_by: Some("pcurve_envelope"),
             // 144 until the certification schedule assigned its last
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
             // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
@@ -155,6 +169,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_rounded_pad",
             certifies_at: 2.083e3,
             refuses_at: 2.084e3,
+            refused_by: Some("pcurve_envelope"),
             // 86 until SYM-5's rule E (`common_factor`). The pad is
             // the one of the five whose `registered` the rule moves,
             // and it moves it UP: as measured when rule E landed, with
@@ -454,8 +469,11 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 /// make it one.
 ///
 /// The five measured documents are replayed at `Sym<Interval>` with the
-/// shipped set, at the scale each certifies whole at
-/// (`measured_studies`). **The width the row reads at is the ANALYZED
+/// shipped set, at the certifying end of M10-9's bracket for each
+/// (`measured_studies`): the plate, the annulus and the link certify
+/// whole there, and the bracket and the pad refuse at
+/// `pcurve_envelope`, asserted (`Study::refused_by`), so their counts
+/// are over the decisions taken before it. **The width the row reads at is the ANALYZED
 /// BOX** — `analyzed_box(doc, AnalysisPolicy::default())`, the same box
 /// the driver replays over — and that width is what the exact witness
 /// tests against, so the claim below is about the door's answers over
@@ -509,6 +527,17 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
         let (refusal, counts) =
             replay_counts(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
         println!("   {name} at eps={eps:e}: {counts:?} -> {refusal:?}");
+        match study.refused_by {
+            None => assert!(
+                refusal.is_none(),
+                "{name} at eps={eps:e}: certifies whole at M10-9's scale: {refusal:?}"
+            ),
+            Some(predicate) => assert!(
+                refusal.as_deref().is_some_and(|r| r.contains(predicate)),
+                "{name} at eps={eps:e}: refuses at `{predicate}` at M10-9's scale \
+                 (`work/pcert/fillet-meridian-radius-term-is-registered-only`): {refusal:?}"
+            ),
+        }
         assert_eq!(
             counts.registered, study.registered,
             "{name} at eps={eps:e}: the door discharges a DIFFERENT number of decisions \
@@ -551,10 +580,13 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// shipped). On Duff's basis rule F moved four of the pad's theorems
 /// into the door. The axis-order basis mints no `copysign` for rule F
 /// to fold, and at the scale the pad certifies whole at, over its
-/// analyzed box, the two dials now read the same receipt —
-/// `symbolic_zero` 893, `sign_gated` 34, `registered` 150, `numeric`
-/// 1002, `frozen` 2577 — and both certify
-/// (`work/sym/the-negative-arm-lost-its-document-consumer`).
+/// analyzed box, the two dials read the same receipt
+/// (`work/sym/the-negative-arm-lost-its-document-consumer`). Since the
+/// extrude closes with the pcurve mint, the pad refuses at
+/// `pcurve_envelope` at that scale under both dials
+/// (`work/pcert/fillet-meridian-radius-term-is-registered-only`), so the
+/// receipt below is over the decisions taken before that refusal; the
+/// claim is that the two dials still read the same one.
 ///
 /// `#[ignore]`d: it is two whole-box replays of the heaviest of the
 /// five documents, on top of the one the gating row above already
@@ -584,8 +616,9 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
             t0.elapsed().as_secs_f64()
         );
         assert!(
-            refusal.is_none(),
-            "{label}: the pad certifies whole at this scale: {refusal:?}"
+            refusal.as_deref().is_some_and(|r| r.contains("pcurve_envelope")),
+            "{label}: the pad refuses at `pcurve_envelope` at this scale \
+             (`Study::refused_by`): {refusal:?}"
         );
         got.push((
             c.symbolic_zero,
