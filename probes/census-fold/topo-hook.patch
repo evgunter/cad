@@ -1,9 +1,9 @@
 diff --git a/crates/topo/src/census_fold_probe.rs b/crates/topo/src/census_fold_probe.rs
 new file mode 100644
-index 00000000..152a01cc
+index 00000000..902042f5
 --- /dev/null
 +++ b/crates/topo/src/census_fold_probe.rs
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,241 @@
 +//! SCRATCH measurement hook (census-fold lane) — never committed to the
 +//! kernel; carried as `probes/census-fold/topo-hook.patch`.
 +//!
@@ -221,6 +221,30 @@ index 00000000..152a01cc
 +        let _ = f.write_all(line.as_bytes());
 +    }
 +}
++
++/// Logs the fingerprint of a body gated WITH non-empty contacts, so the
++/// reduction can tell a contact-carrying body from a contact-free one.
++pub(crate) fn declared<T: geom_core::Bounds>(body: &Body<T>, contacts: &ContactRecords) {
++    let Some(dir) = enabled() else { return };
++    let (fp, _) = fingerprint(body);
++    let n = contacts.vv.len()
++        + contacts.a_on_b.len()
++        + contacts.b_on_a.len()
++        + contacts.curves.len()
++        + contacts.patches.len();
++    let line = format!(
++        "{{\"declared\":\"{fp:016x}\",\"n\":{n},\"origin\":\"{}\"}}\n",
++        esc(&origin())
++    );
++    let path = format!("{dir}/{}.declared.jsonl", std::process::id());
++    if let Ok(mut f) = std::fs::OpenOptions::new()
++        .create(true)
++        .append(true)
++        .open(path)
++    {
++        let _ = f.write_all(line.as_bytes());
++    }
++}
 diff --git a/crates/topo/src/lib.rs b/crates/topo/src/lib.rs
 index 37a0fc94..574751ef 100644
 --- a/crates/topo/src/lib.rs
@@ -234,7 +258,7 @@ index 37a0fc94..574751ef 100644
  pub mod chart_bound;
  pub(crate) mod chart_groups;
 diff --git a/crates/topo/src/validate.rs b/crates/topo/src/validate.rs
-index f4cba4cc..cc165f32 100644
+index f4cba4cc..2765d20f 100644
 --- a/crates/topo/src/validate.rs
 +++ b/crates/topo/src/validate.rs
 @@ -4137,7 +4137,11 @@ pub fn validate_geometric_certificate<
@@ -260,3 +284,13 @@ index f4cba4cc..cc165f32 100644
      let lanes = CertifiedLanes::<T>::held();
      pseudomanifold_certificate_via(
          body,
+@@ -7909,6 +7916,9 @@ fn census_verdict<T: geom_core::Decide + geom_core::Bounds>(
+     tol: Tol,
+     region: Option<crate::chart_region::RegionLane<T>>,
+ ) -> Result<(), Vec<ValidationError>> {
++    if *contacts != crate::boolean::ContactRecords::default() {
++        crate::census_fold_probe::declared(body, contacts);
++    }
+     let errors = crate::census::census_and_certify(body, contacts, band, tol, region);
+     if errors.is_empty() {
+         Ok(())

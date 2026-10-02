@@ -1,0 +1,46 @@
+diff --git a/demos/tour/src/main.rs b/demos/tour/src/main.rs
+index eda4fd03..73b967e1 100644
+--- a/demos/tour/src/main.rs
++++ b/demos/tour/src/main.rs
+@@ -749,7 +749,27 @@ fn run_stop(
+     let bodies: Vec<ManifestBody> = stop
+         .bodies
+         .iter()
+-        .map(|sb| run_body(sb, stop.delta, outdir, dumps, tol))
++        .map(|sb| {
++            pncad::topo::census_fold_probe::set_origin(&format!("tour::{}::{}", stop.name, sb.name));
++            println!(
++                "CF-BODY\t{}\t{}\t{}",
++                stop.name,
++                sb.name,
++                match &sb.contacts {
++                    None => "none".to_string(),
++                    Some(c) if *c == ContactRecords::default() => "empty".to_string(),
++                    Some(c) => format!(
++                        "vv{}+ab{}+ba{}+cu{}+pa{}",
++                        c.vv.len(),
++                        c.a_on_b.len(),
++                        c.b_on_a.len(),
++                        c.curves.len(),
++                        c.patches.len()
++                    ),
++                }
++            );
++            run_body(sb, stop.delta, outdir, dumps, tol)
++        })
+         .collect();
+     manifest.push_str(&scene_json(stop, &bodies));
+ }
+@@ -1100,9 +1120,12 @@ fn main() {
+     let mut scenes: Vec<String> = Vec::new();
+     let mut dumps: Vec<uvdump::FaceDump> = Vec::new();
+     let mut cells = 0usize;
++    let mut last_end = std::time::Instant::now();
+     let mut run = |stop: &Stop| {
++        println!("CF-GAP\t{}\t{:e}\t{}", stop.name, last_end.elapsed().as_secs_f64(), stop.bodies.len());
+         manifest.clear();
+         run_stop(stop, &outdir, &mut manifest, &mut dumps, tol);
++        last_end = std::time::Instant::now();
+         scenes.push(manifest.clone());
+         cells += usize::from(stop.montage);
+     };
