@@ -561,6 +561,10 @@ mod germ_interior_saddle;
 mod germ_sphere_no_crossings;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
+#[path = "join1_r1_probes.rs"]
+mod join1_r1_probes;
+#[path = "join1_r1_rows.rs"]
+mod join1_r1_rows;
 #[path = "germ_torus_rods.rs"]
 mod germ_torus_rods;
 #[path = "m9_3_zip.rs"]
