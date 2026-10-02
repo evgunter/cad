@@ -29,3 +29,13 @@ So `ProductError` cannot simply hold `SpokenNode`s. Either the part's evaluation
 
 That choice is a design fork, so the row carries `design: true`. It is weighed by a designer pair first, then goes to Ev, before a lane builds it.
 
+
+## Forward sites inside spoken sentences
+
+Added by `selection-door-refusals-speak-the-node`. These sentences now speak their own nodes, but forward a `ProductError` by its tag `Display` (`{e}`). When this row gives `ProductError` a speaker rendering, they should forward `Said(e, by)`:
+
+- `AssemblyError::Product` (`assembly.rs`, `AssemblyError`'s `say`, the `Self::Product(e)` arm).
+- `AssemblyError::Space`'s `refusal` (`assembly.rs`, the same `say`): "the own space of the group rooted at … does not gather: {refusal}".
+- `ExportError::Product` (`pncad/src/export.rs`, `ExportError`'s `say`).
+
+`ChecksError::Product` carries a `reason` string, not the error, so it cannot be spoken later. That sentence is made by `Subject::refused` (`checks.rs`, `source.to_string()`), which holds no document; `run_checks` does, so the speaker would have to reach it there.

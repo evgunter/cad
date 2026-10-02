@@ -92,6 +92,8 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "blend_dual_sensitivity.rs"]
+mod blend_dual_sensitivity;
 #[path = "bool12r2_ec_probe.rs"]
 mod bool12r2_ec_probe;
 #[path = "bool13_r1_probes.rs"]

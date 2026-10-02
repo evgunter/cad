@@ -281,7 +281,7 @@ class TestAFailedVerdict(unittest.TestCase):
                 # there is nothing to refine here, so the rebind is
                 # onto a different feature entirely.
                 self.assertEqual(verdict.variant, "node_gone")
-                self.assertIn("no longer in the document", verdict.detail)
+                self.assertIn("its minting node was deleted", verdict.detail)
                 # Nothing structural offers itself for a node that is
                 # simply gone, and the empty list is the answer — not
                 # an absence.
@@ -463,7 +463,9 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
                 # which is the whole difference between the two arms
                 # of one state.
                 self.assertEqual(verdict.variant, "target_poisoned")
-                self.assertIn("poisoned by the failure at node", verdict.detail)
+                # The frame holding the document speaks the ancestor
+                # by its kind.
+                self.assertIn("poisoned by the failure at Fillet ", verdict.detail)
                 self.assertIn("the repair is upstream", verdict.detail)
 
     def test_a_run_that_never_reached_the_node_is_the_third_arm(self):

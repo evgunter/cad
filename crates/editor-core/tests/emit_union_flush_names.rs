@@ -230,7 +230,7 @@ const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
 const NEAR: Bx = ((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0));
 
 /// The ZIP row's shape
-/// (`work/zip/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
+/// (`work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
 /// `a`, `b` declared flush and a slab over `b`'s end.
 fn near_slab() -> Case {
     Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2], vec![(0, 1)])
@@ -441,6 +441,122 @@ fn a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names() {
     for (late, early) in [("[1, 2, 0]", "[0, 1, 2]"), ("[2, 1, 0]", "[1, 0, 2]")] {
         assert_eq!(count(late), count(early) + 2, "{late} against {early}");
     }
+}
+
+/// **The slab's cut of the merged top is named alike in every order.**
+/// In `near`, `[b, g, a]` and `[g, b, a]` cut `b`'s top before `a`
+/// joins, so `a`'s top is held as `a`'s piece beyond the slab and,
+/// past it, through `b`'s coincident top. The two tops are still one
+/// parent, cut by one obstacle the slab makes, so each piece is
+/// `Merged` of both and one `Borders` (N2), as where the merge comes
+/// first. The face table is compared, since the bodies differ by the
+/// leftover vertex above.
+#[test]
+fn a_cut_a_covered_face_meets_is_one_divider_in_every_order() {
+    let (faces, _) = face_tables(&near_slab());
+    assert!(
+        faces.contains_key("[1, 2, 0]") && faces.contains_key("[2, 1, 0]"),
+        "the orders that cut before they merge fuse: {:?}",
+        faces.keys()
+    );
+    assert!(faces.len() >= 4, "only {} orders fuse", faces.len());
+    let (first_at, first) = faces.iter().next().expect("a fused order");
+    let tops = first
+        .iter()
+        .filter(|n| {
+            matches!(n.path.as_slice(),
+                [RoleSeg::Merged(set), RoleSeg::Fragment(editor_core::Qualifier::Borders(_))]
+                    if set.len() == 2)
+        })
+        .count();
+    assert_eq!(
+        tops, 2,
+        "{first_at}: the merged top is not cut in two: {first:?}"
+    );
+    one_table(&faces);
+}
+
+/// Each fused order's published face names, by order, and the member
+/// ids of the run.
+fn face_tables(
+    case: &Case,
+) -> (
+    std::collections::BTreeMap<String, BTreeSet<StableName>>,
+    Vec<RecipeNodeId>,
+) {
+    let mut faces = std::collections::BTreeMap::new();
+    let mut members = Vec::new();
+    runs(case, |at, ev, ids, unions| {
+        members = ids.to_vec();
+        let union = unions[0].1;
+        if failure(ev, union).is_some() {
+            return;
+        }
+        let names: BTreeSet<StableName> = table(ev, union)
+            .iter()
+            .filter(|(n, _)| n.kind == EntityKind::Face)
+            .map(|(n, _)| n.clone())
+            .collect();
+        faces.insert(at.to_string(), names);
+    });
+    (faces, members)
+}
+
+/// Every fused order publishes the same face names.
+fn one_table(faces: &std::collections::BTreeMap<String, BTreeSet<StableName>>) {
+    let (first_at, first) = faces.iter().next().expect("a fused order");
+    for (at, names) in faces {
+        assert_eq!(
+            names.symmetric_difference(first).collect::<Vec<_>>(),
+            Vec::<&StableName>::new(),
+            "{at} against {first_at}: faces published in one order only"
+        );
+    }
+}
+
+/// **A boss on one piece of a covered face is cited in no order.** As
+/// `near`, with a pillar over x 0.1..0.2, y 0.4..0.6 standing on `a`'s
+/// top from z 0.5 up. The pillar's footprint is a hole in `a`'s piece
+/// of the merged top, bordering that piece only, so no `Borders` cites
+/// the pillar (N2), in whatever order the members fold; and every fused
+/// order publishes one face table.
+#[test]
+fn a_boss_on_one_piece_of_a_covered_face_is_cited_in_no_order() {
+    const PILLAR: Bx = ((0.1, 0.2), (0.4, 0.6), (0.5, 2.0));
+    let case = Case::flat(
+        "nearpillar",
+        vec![A, B, NEAR, PILLAR],
+        vec![0, 1, 2, 3],
+        vec![(0, 1)],
+    );
+    let (faces, ids) = face_tables(&case);
+    assert!(
+        faces.len() >= 8,
+        "only {} orders fuse: {:?}",
+        faces.len(),
+        faces.keys()
+    );
+    let pillar = ids[3];
+    let cites_pillar = |wall: &StableName| {
+        let mut members = BTreeSet::new();
+        member_faces(wall, &mut members);
+        members.iter().any(|(m, _)| *m == pillar)
+    };
+    for (at, names) in &faces {
+        for n in names {
+            if let [
+                ..,
+                RoleSeg::Fragment(editor_core::Qualifier::Borders(walls)),
+            ] = n.path.as_slice()
+            {
+                assert!(
+                    !walls.iter().any(cites_pillar),
+                    "{at}: {n:?} cites the pillar"
+                );
+            }
+        }
+    }
+    one_table(&faces);
 }
 
 /// `a` = [0,1]³ and a block touching it along an edge or at a corner.
