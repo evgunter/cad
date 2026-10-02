@@ -46,7 +46,7 @@ use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
     CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, Harmonics,
-    first_harmonic_roots, half_angle_roots, rounding_charge,
+    SubdivisionRows, first_harmonic_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -74,6 +74,12 @@ const CIRCLE_CYLINDER_LADDER_ROWS: HalfAngleRows = HalfAngleRows {
         odd: "bool_circle_cylinder_odd",
         split: "bool_circle_cylinder_split",
         split_lead: "bool_circle_cylinder_split_lead",
+    },
+    verify: SubdivisionRows {
+        clear: "bool_circle_cylinder_sub_clear",
+        monotone: "bool_circle_cylinder_sub_monotone",
+        side: "bool_circle_cylinder_sub_side",
+        width: "bool_circle_cylinder_sub_width",
     },
     decision: BooleanDecision::ArcCylinderRoots,
 };
@@ -339,6 +345,58 @@ mod tests {
     /// **The square arm**: a circle square to the axis crossing the
     /// wall twice — the parallel equal-radius cylinders' rim, at the
     /// pose of #347 — with the arc past the branch cut.
+
+    /// **A graze is read by its depth, in the band's own metres.** A
+    /// circle of the wall's own radius, its plane tilted 0.3 rad about the
+    /// `x` axis, lies inside the wall and touches it at `θ = 0` and `π`;
+    /// moved `depth` along `x`, it crosses the wall by `|depth|` on one
+    /// side. At the default band: a depth inside the zero band is no
+    /// certified answer either way, and a definite depth is two certified
+    /// crossings, each on the wall. The half-angle ladder alone certified
+    /// a `Miss` at depth 1e-9 m on a 50 m wall and at 1e-8 m on a 500 m
+    /// wall, answered `CountDisagrees` at −1e-8 m, and declined the
+    /// 5e-6 m crossing of the 500 m wall.
+    #[test]
+    fn a_graze_is_read_by_its_depth() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let tilt = 0.3_f64;
+        for (r, depth) in [
+            (50.0, 1e-9),
+            (500.0, 1e-8),
+            (500.0, -1e-8),
+            (500.0, 5e-6),
+            (50.0, 2e-8),
+            (5.0, -2e-8),
+        ] {
+            let label = format!("wall r {r}, depth {depth}");
+            let pose = Pose {
+                c: [depth, 0.0, 0.0],
+                n: [0.0, -tilt.sin(), tilt.cos()],
+                u: [1.0, 0.0, 0.0],
+                rho: r,
+            };
+            let got = circle_cylinder_roots(&pose.carrier(), -1.0, 1.0, &wall(0.0, 0.0, r), band);
+            if f64::abs(depth) <= band.zero() * 10.0 {
+                assert!(
+                    matches!(got, Ok(CircleRoots::Uncertain) | Err(_)),
+                    "{label}: a graze in the band, got {got:?}"
+                );
+                continue;
+            }
+            let Ok(CircleRoots::Certified { count, thetas }) = got else {
+                panic!("{label}: two certified crossings, got {got:?}");
+            };
+            assert_eq!(count, 2, "{label}");
+            for &t in &thetas[..count] {
+                let off = off_wall(pose, t, 0.0, 0.0, r).abs();
+                assert!(
+                    off <= band.zero(),
+                    "{label}: root {t} lies {off} off the wall"
+                );
+            }
+        }
+    }
+
     #[test]
     fn a_circle_square_to_the_axis_crosses_the_wall_twice() {
         let w = [1.2, 0.0, 1.0];

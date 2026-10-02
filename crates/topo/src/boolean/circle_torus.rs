@@ -91,8 +91,8 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, constant_residual_roots,
-    half_angle_roots, rounding_charge,
+    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, SubdivisionRows,
+    constant_residual_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -111,6 +111,12 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
         odd: "bool_circle_torus_odd",
         split: "bool_circle_torus_split",
         split_lead: "bool_circle_torus_split_lead",
+    },
+    verify: SubdivisionRows {
+        clear: "bool_circle_torus_sub_clear",
+        monotone: "bool_circle_torus_sub_monotone",
+        side: "bool_circle_torus_sub_side",
+        width: "bool_circle_torus_sub_width",
     },
     decision: BooleanDecision::ArcTorusRoots,
 };

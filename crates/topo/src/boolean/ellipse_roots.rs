@@ -49,7 +49,7 @@ use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
     CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, Harmonics,
-    first_harmonic_roots, half_angle_roots, rounding_charge,
+    SubdivisionRows, first_harmonic_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -80,6 +80,12 @@ const fn ladder_rows(decision: BooleanDecision) -> HalfAngleRows {
             odd: "bool_ellipse_odd",
             split: "bool_ellipse_split",
             split_lead: "bool_ellipse_split_lead",
+        },
+        verify: SubdivisionRows {
+            clear: "bool_ellipse_sub_clear",
+            monotone: "bool_ellipse_sub_monotone",
+            side: "bool_ellipse_sub_side",
+            width: "bool_ellipse_sub_width",
         },
         decision,
     }
@@ -146,7 +152,14 @@ pub(super) fn ellipse_roots<T: Decide>(
             sin_part: h.s1,
             noise: noise + second,
         };
-        return first_harmonic_roots(&first, conic.major, t0, t1, &first_rows(decision), band);
+        return first_harmonic_roots(
+            &first,
+            conic.speed_hi(),
+            t0,
+            t1,
+            &first_rows(decision),
+            band,
+        );
     }
     half_angle_roots(
         &Harmonics {
@@ -160,9 +173,9 @@ pub(super) fn ellipse_roots<T: Decide>(
         HalfAngleFrame {
             t0,
             t1,
-            speed_lo: conic.minor,
-            speed_hi: conic.major,
-            lever: two * conic.minor,
+            speed_lo: conic.speed_lo(),
+            speed_hi: conic.speed_hi(),
+            lever: two * conic.speed_lo(),
             noise,
             f_per_metre: T::one(),
         },
@@ -390,6 +403,58 @@ mod tests {
         );
     }
 
+    /// **A graze is read by its depth, in the band's own metres.** An
+    /// ellipse whose `y` semi-axis is the wall's radius plus `depth`, its
+    /// plane tilted `tilt` about `x` (the semi-axis lengthened to match),
+    /// crosses a wall about `z` near `θ = ±π/2` by `depth` (four roots)
+    /// or, at a depth inside the band, grazes it. At the default band: a
+    /// graze in the band is no certified answer either way, a definite
+    /// depth is four certified crossings, each on the wall. The
+    /// half-angle ladder alone certified a `Miss` at −1e-9 m on a 5 m
+    /// wall and answered `CountDisagrees` at 1e-8 m on a 50 m wall and at
+    /// 2e-8 m on a 500 m one.
+    #[test]
+    fn a_graze_is_read_by_its_depth() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (r, depth, tilt) in [
+            (5.0, -1e-9, 0.0_f64),
+            (50.0, 1e-8, 0.0),
+            (500.0, 2e-8, 0.0),
+            (50.0, 2e-8, 0.3),
+            (5.0, 5e-6, 0.3),
+        ] {
+            let label = format!("wall r {r}, depth {depth}, tilt {tilt}");
+            let e = ellipse(
+                [0.0; 3],
+                [0.0, -tilt.sin(), tilt.cos()],
+                [1.0, 0.0, 0.0],
+                0.6 * r,
+                (r + depth) / tilt.cos(),
+            );
+            let w = wall([0.0; 3], [0.0, 0.0, 1.0], r);
+            let got = ellipse_roots(&e, 0.0, PI, &w, band);
+            if f64::abs(depth) <= band.zero() * 10.0 {
+                assert!(
+                    matches!(got, Ok(CircleRoots::Uncertain) | Err(_)),
+                    "{label}: a graze in the band, got {got:?}"
+                );
+                continue;
+            }
+            let Ok(CircleRoots::Certified { count, thetas }) = got else {
+                panic!("{label}: four certified crossings, got {got:?}");
+            };
+            assert_eq!(count, 4, "{label}");
+            for &t in &thetas[..count] {
+                let p = e.eval(t);
+                let off = (p.x.hypot(p.y) - r).abs();
+                assert!(
+                    off <= band.zero(),
+                    "{label}: root {t} lies {off} off the wall"
+                );
+            }
+        }
+    }
+
     /// A carrier that is not an ellipse, or a surface the door has no
     /// harmonics for, is a dispatch desync.
     #[test]
@@ -417,5 +482,171 @@ mod tests {
             ellipse_roots(&e, 0.0, 1.0, &torus, band()),
             Err(BooleanError::ClassificationInvariant { .. })
         ));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod fuzz_rows {
+    //! A counterexample search at millimetre scale and high eccentricity,
+    //! the configurations where the ladder's root variable distorts arc
+    //! length most, checked against the TRUE distance, at three bands.
+
+    use core::f64::consts::{PI, TAU};
+
+    use super::*;
+    use geom_core::{Point3, Vec3};
+    use test_utils::fuzz;
+
+    fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
+        loop {
+            let v = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            if v.norm() > 0.2 && v.norm() < 1.0 {
+                return v.normalize();
+            }
+        }
+    }
+
+    fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
+        match *s {
+            geom::Surface::Sphere { center, radius, .. } => (p - center).norm() - radius,
+            geom::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => {
+                let w = p - origin;
+                (w - axis * w.dot(axis)).norm() - radius
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// **Every certified answer is true of the geometry.** For random
+    /// ellipses (semi-axes 0.5–5 mm, eccentricity up to 25, any stored
+    /// order) against random walls and spheres posed to cross them:
+    ///
+    /// - every certified root lies on the surface, its TRUE distance
+    ///   inside the zero band;
+    /// - a certified count is never below the true sign changes, which a
+    ///   dense sampling of the true distance finds;
+    /// - a `Miss` is never certified for a carrier that comes within the
+    ///   zero band of the surface, or crosses it.
+    ///
+    /// At ε = 1e-6 the ladder alone certified roots up to 1.9e-5 m of arc
+    /// off, 15 zero bands off the wall. The `Uncertain` count is printed.
+    #[test]
+    fn certified_answers_hold_against_the_true_distance() {
+        hold_against_the_true_distance(&mut fuzz::start("ellipse_roots::certified_answers_hold"));
+    }
+
+    /// **The pinned counterexample.** This seed reproduces the ladder's
+    /// certified roots off the surface at ε = 1e-6 (an eccentric
+    /// millimetre ellipse, its root several zero bands off the wall), the
+    /// defect [`certified_answers_hold_against_the_true_distance`] found;
+    /// the draws are too many to write out as a literal.
+    #[test]
+    fn the_ladders_off_surface_roots_stay_answered_truly() {
+        hold_against_the_true_distance(&mut fuzz::pinned(
+            "ellipse_roots::the_ladders_off_surface_roots",
+            0xdd46_6c66_b273_5249,
+        ));
+    }
+
+    fn hold_against_the_true_distance(rng: &mut fuzz::Rng) {
+        let dense = 20_000;
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            let (mut certified, mut misses, mut uncertain, mut escalated) = (0, 0, 0, 0);
+            for i in 0..fuzz::scaled(600) {
+                let n = unit(rng);
+                let u = unit(rng);
+                let big = rng.range(5e-4, 5e-3);
+                let small = big / rng.range(1.0, 25.0);
+                let (major, minor) = if rng.below(2) == 0 {
+                    (big, small)
+                } else {
+                    (small, big)
+                };
+                let e = geom::Curve3::Ellipse {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    axis: n,
+                    major,
+                    minor,
+                    u_ref: (u - n * u.dot(n)).normalize(),
+                };
+                // A surface through a random point of the carrier, so the
+                // pose crosses or grazes it more often than not.
+                let through = e.eval(rng.range(0.0, TAU));
+                let r = rng.range(2e-4, 3e-3);
+                let w = unit(rng);
+                let x = Vec3::new(1.0, 0.0, 0.0);
+                let s = if i % 2 == 0 {
+                    geom::Surface::Cylinder {
+                        origin: through + unit(rng).cross(w).normalize() * r,
+                        axis: w,
+                        radius: r,
+                        u_ref: (x - w * x.dot(w)).normalize(),
+                    }
+                } else {
+                    geom::Surface::Sphere {
+                        center: through + unit(rng) * r,
+                        radius: r,
+                        axis: w,
+                        u_ref: (x - w * x.dot(w)).normalize(),
+                    }
+                };
+                let t0 = rng.range(0.0, TAU);
+                let t1 = t0 + rng.range(0.1, TAU);
+                let mid = (t0 + t1) / 2.0;
+                let Ok(found) = ellipse_roots(&e, t0, t1, &s, band) else {
+                    escalated += 1;
+                    continue;
+                };
+                let samples: Vec<f64> = (0..=dense)
+                    .map(|k| distance(&s, e.eval(mid - PI + TAU * f64::from(k) / f64::from(dense))))
+                    .collect();
+                let changes = samples
+                    .windows(2)
+                    .filter(|w| w[0].signum() != w[1].signum())
+                    .count();
+                let closest = samples.iter().fold(f64::INFINITY, |m, d| m.min(d.abs()));
+                let label = format!(
+                    "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
+                    fuzz::replay()
+                );
+                match found {
+                    CircleRoots::Certified { count, thetas } => {
+                        certified += 1;
+                        for &t in &thetas[..count] {
+                            let off = distance(&s, e.eval(t)).abs();
+                            assert!(off <= eps, "{label}: root {t} lies {off} off the surface");
+                        }
+                        assert!(
+                            count >= changes,
+                            "{label}: {count} certified roots, {changes} sign changes"
+                        );
+                    }
+                    CircleRoots::Miss => {
+                        misses += 1;
+                        assert!(
+                            changes == 0 && closest > eps,
+                            "{label}: a Miss {closest} from the surface, {changes} sign changes"
+                        );
+                    }
+                    CircleRoots::Uncertain | CircleRoots::OnSurface => uncertain += 1,
+                    CircleRoots::CountDisagrees => panic!("{label}: CountDisagrees"),
+                }
+            }
+            println!(
+                "ε {eps}: {certified} certified, {misses} misses, {uncertain} uncertain, \
+                 {escalated} escalated"
+            );
+        }
     }
 }

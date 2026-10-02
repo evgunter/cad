@@ -71,6 +71,18 @@
 //! polynomial `F·(1 + t²)²` of degree FOUR in `t`, which
 //! [`half_angle_roots`] hands to the ray lane's certified quartic ladder.
 //!
+//! **The ladder no longer answers; it escalates.** Its count and roots
+//! are decided in its root variable `τ`, which is arc length only to
+//! first order about the anchor (and along an ellipse only up to the
+//! ratio of its semi-axes), so neither is certified in the metric the
+//! band speaks: measured, it placed roots fifteen zero bands off the
+//! wall, certified a `Miss` for definite crossings and for grazes inside
+//! the band, and answered `CountDisagrees` across definite crossings. The
+//! answer is the certified subdivision's ([`certified_subdivision`],
+//! decided on the residual itself); the ladder runs first, and an
+//! in-band sign it meets still escalates as the door's decision. The
+//! rest of this section describes the ladder as it stands.
+//!
 //! **Where the pole goes, and why it must be well conditioned.**
 //! `φ = θ − θₐ` is measured from an anchor `θₐ`, and the map covers every
 //! `θ` except its pole `θₐ + π`. The quartic's leading coefficient is `F`
@@ -154,13 +166,11 @@
 //! measurement, not proof (the torus door's module docs say which). The
 //! `Interval` lane needs no premise: every stage there is an enclosure.
 //!
-//! **What the ladder does with a configuration INSIDE the band is not
-//! the trilean's escalation.** Deciding on a discriminant rather than on
-//! the residual, it can certify a miss for a carrier crossing the
-//! surface by less than the zero band, and read an exact tangency as a
-//! miss once the carrier is tilted past the band — measured on the
-//! cylinder wall, filed on GERM
+//! **What the ladder did with a configuration INSIDE the band** — certify
+//! a miss for a carrier crossing the surface by less than the zero band,
+//! read an exact tangency as a miss — is why it no longer answers
 //! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
+//! The subdivision answers such a graze `Uncertain`.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
@@ -216,8 +226,28 @@ pub(super) struct HalfAngleRows {
     pub(super) root_slack: &'static str,
     /// The quartic ladder's own rows.
     pub(super) quartic: QuarticRows,
+    /// The certified subdivision's rows ([`certified_subdivision`]).
+    pub(super) verify: SubdivisionRows,
     /// The decision an in-band ladder sign escalates as.
     pub(super) decision: BooleanDecision,
+}
+
+/// The predicate rows one caller of [`certified_subdivision`] meters
+/// under, every one a residual in metres.
+pub(super) struct SubdivisionRows {
+    /// A piece is definitely root-free: `|F(m)|` exceeds the most `F` can
+    /// fall over the half-width.
+    pub(super) clear: &'static str,
+    /// A piece is definitely monotone: `|F′(m)|` exceeds the most `F′`
+    /// can fall over the half-width, read as the rise it certifies.
+    pub(super) monotone: &'static str,
+    /// The residual's sign at a monotone piece's ends, and ON the surface
+    /// at a located root.
+    pub(super) side: &'static str,
+    /// A piece is still wider, as arc length, than the zero band: below
+    /// it a piece that is neither clear nor monotone holds a double root
+    /// the band cannot resolve.
+    pub(super) width: &'static str,
 }
 
 /// Where [`half_angle_roots`] works: the arc `[t0, t1]` of a carrier
@@ -292,6 +322,23 @@ pub(super) fn half_angle_roots<T: Decide>(
     rows: &HalfAngleRows,
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
+    ladder_roots(f, &residual, &frame, rows, band)?;
+    certified_subdivision(f, &residual, &frame, &rows.verify, band)
+}
+
+/// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
+/// (module docs, "The half-angle ladder"). Its answer is not returned as
+/// it stands — [`certified_subdivision`] decides the roots in the
+/// residual's own metres — but its escalations are, and its
+/// `CountDisagrees`.
+#[allow(clippy::too_many_lines)] // the anchor search and the quartic, one walk
+fn ladder_roots<T: Decide>(
+    f: &Harmonics<T>,
+    residual: &impl Fn(T) -> T,
+    frame: &HalfAngleFrame<T>,
+    rows: &HalfAngleRows,
+    band: Band,
+) -> Result<CircleRoots<T>, BooleanError> {
     let HalfAngleFrame {
         t0,
         t1,
@@ -300,7 +347,7 @@ pub(super) fn half_angle_roots<T: Decide>(
         lever,
         noise,
         f_per_metre,
-    } = frame;
+    } = *frame;
     // **The noise meter** (module docs, "The ladder's noise meter"): it bounds the harmonics'
     // evaluation error, `noise`, a residual error of up to
     // `noise / f_per_metre` metres everywhere on the carrier, and refuses
@@ -420,6 +467,219 @@ pub(super) fn half_angle_roots<T: Decide>(
         );
     }
     Ok(CircleRoots::Uncertain)
+}
+
+/// The pieces the whole turn is cut into before [`certified_subdivision`]
+/// starts.
+const SUBDIVISION_START: u32 = 16;
+
+/// The most pieces [`certified_subdivision`] examines before it answers
+/// `Uncertain`: a bound on the walk (D9), far above what a transverse
+/// configuration needs (each simple root is isolated within a few dozen).
+const SUBDIVISION_BUDGET: usize = 4096;
+
+/// Where a piece may be split, as shares of its width, tried in order
+/// until the residual's sign there is definite: off the midpoint, so that
+/// a split never has to sit on a root the subdivision is closing in on.
+/// The same shares, of one starting piece, are the offsets tried for the
+/// turn's first cut.
+const SPLITS: [f64; 9] = [
+    0.472_135_954_999_579_4,
+    0.3,
+    0.618,
+    0.2,
+    0.8,
+    0.4,
+    0.55,
+    0.12,
+    0.88,
+];
+
+/// The bisection steps that locate a root in its monotone piece: enough
+/// to reach the scalar's resolution from a sixteenth of a turn.
+const BISECTIONS: u32 = 64;
+
+/// **The certified real roots of a degree-2 trigonometric polynomial
+/// `F(θ)` over the whole turn about the arc's midpoint, by subdivision
+/// decided in the RESIDUAL's metres.** It is [`half_angle_roots`]'
+/// answer; the ladder before it keeps only its escalations.
+///
+/// Why it is needed: the ladder decides on a quartic in a root variable
+/// whose length is arc length only to first order about the anchor, and
+/// only on a circle — along an ellipse an arc is up to `a/b` times its
+/// `τ`-length. Its count and its roots were therefore certified in a
+/// metric the band does not speak, and both went wrong: certified roots
+/// fifteen zero bands off the wall (an eccentric ellipse at ε = 1e-6),
+/// and a `Miss` for a carrier crossing a wall by a definite depth (an
+/// ellipse or a circle grazing into a wall of radius 5–500 m).
+///
+/// What it decides instead is Taylor's theorem about the piece's
+/// midpoint `m`, with the derivatives there to third order and the one
+/// global bound the harmonics give exactly, `|F⁗| ≤ M₄ = A₁ + 16A₂`. The
+/// turn is cut into pieces whose every end has a DEFINITE residual sign
+/// (a cut that would land in the band is moved along its piece). On a
+/// piece of half-width `w`:
+///
+/// - **clear** — `|F(m)| − (|F′(m)|w + |F″(m)|w²/2 + |F‴(m)|w³/6 +
+///   M₄w⁴/24)` (less the noise) definitely positive, in metres: `F`
+///   cannot reach zero on the piece;
+/// - **monotone** — `|F′(m)| − (|F″(m)|w + |F‴(m)|w²/2 + M₄w³/6)`, the
+///   least `|F′|` on the piece, definitely positive once read as the arc
+///   length over which it provably stays so — that least slope over the
+///   most `|F″|` can be on the piece, at the carrier's top speed: the
+///   piece holds at most one root, and
+///   holds one exactly when its ends' signs differ; that root is bisected on
+///   the residual itself
+///   to the scalar's resolution and must then read ON the surface
+///   (`side`, `Zero`), or the answer is `Uncertain`;
+/// - otherwise the piece is split, until its arc length is inside the
+///   band (`width`): a piece that small, neither clear nor monotone,
+///   holds a double root — a tangency — and the answer is `Uncertain`,
+///   never a certified `Miss`.
+///
+/// `F` shares the residual's sign; its margins are in metres through
+/// `f_per_metre`, with the harmonics' rounding (`noise`) charged.
+#[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
+fn certified_subdivision<T: Decide>(
+    f: &Harmonics<T>,
+    residual: &impl Fn(T) -> T,
+    frame: &HalfAngleFrame<T>,
+    rows: &SubdivisionRows,
+    band: Band,
+) -> Result<CircleRoots<T>, BooleanError> {
+    let HalfAngleFrame {
+        t0,
+        t1,
+        speed_hi,
+        noise,
+        f_per_metre,
+        ..
+    } = *frame;
+    let two = T::from_f64(2.0);
+    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
+    let (a1, a2) = (hypot(f.c1, f.s1), hypot(f.c2, f.s2));
+    let fourth_bound = a1 + T::from_f64(16.0) * a2;
+    let value = |t: T| {
+        let (s1t, c1t) = t.sin_cos();
+        let (s2t, c2t) = (two * t).sin_cos();
+        f.c0 + f.c1 * c1t + f.s1 * s1t + f.c2 * c2t + f.s2 * s2t
+    };
+    let slope = |t: T| {
+        let (s1t, c1t) = t.sin_cos();
+        let (s2t, c2t) = (two * t).sin_cos();
+        f.s1 * c1t - f.c1 * s1t + two * (f.s2 * c2t - f.c2 * s2t)
+    };
+    let bend = |t: T| {
+        let (s1t, c1t) = t.sin_cos();
+        let (s2t, c2t) = (two * t).sin_cos();
+        T::zero() - f.c1 * c1t - f.s1 * s1t - T::from_f64(4.0) * (f.c2 * c2t + f.s2 * s2t)
+    };
+    let jerk = |t: T| {
+        let (s1t, c1t) = t.sin_cos();
+        let (s2t, c2t) = (two * t).sin_cos();
+        f.c1 * s1t - f.s1 * c1t + T::from_f64(8.0) * (f.c2 * s2t - f.s2 * c2t)
+    };
+    let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
+    let definitely = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
+    let side = |t: T| match decide(rows.side, Margin::of(residual(t)), band) {
+        Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
+        Ok(Sign::Zero) | Err(_) => None,
+    };
+    // The first cut: one end in each sixteenth of the turn, each moved
+    // along its sixteenth until its sign is definite; the last end is the
+    // first a turn on.
+    let n = SUBDIVISION_START;
+    let piece = T::tau() / T::from_f64(f64::from(n));
+    let base = (t0 + t1) / two - T::pi();
+    let Some(mut ends) = (0..n)
+        .map(|k| {
+            let from = base + piece * T::from_f64(f64::from(k));
+            SPLITS.iter().find_map(|&share| {
+                let t = from + piece * T::from_f64(share);
+                side(t).map(|s| (t, s))
+            })
+        })
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Ok(CircleRoots::Uncertain);
+    };
+    let (first, first_side) = ends[0];
+    ends.push((first + T::tau(), first_side));
+    // Popped left to right, so the roots come out in order.
+    let mut pieces: Vec<((T, Sign), (T, Sign))> =
+        ends.windows(2).rev().map(|w| (w[0], w[1])).collect();
+    let mut roots: Vec<T> = Vec::new();
+    let mut examined = 0usize;
+    while let Some(((l, sl), (r, sr))) = pieces.pop() {
+        examined += 1;
+        if examined > SUBDIVISION_BUDGET {
+            return Ok(CircleRoots::Uncertain);
+        }
+        let half = (r - l) / two;
+        let m = l + half;
+        let (d1, d2, d3) = (slope(m).abs(), bend(m).abs(), jerk(m).abs());
+        let fall = d1 * half
+            + d2 * half.powi(2) / two
+            + d3 * half.powi(3) / six
+            + fourth_bound * half.powi(4) / twenty_four;
+        if definitely(rows.clear, (value(m).abs() - fall - noise) / f_per_metre) {
+            continue;
+        }
+        let most_bend = d2 + d3 * half + fourth_bound * half.powi(2) / two;
+        let least_slope =
+            d1 - d2 * half - d3 * half.powi(2) / two - fourth_bound * half.powi(3) / six;
+        if definitely(rows.monotone, speed_hi * (least_slope - noise) / most_bend) {
+            if sl == sr {
+                continue;
+            }
+            // Bisected on the residual evaluated at the point, not on `F`
+            // from its harmonics: the two share their zero set, and near a
+            // graze `|F′|` is small enough that the harmonics' rounding
+            // moves `F`'s sign change along the arc by more than the band.
+            let (mut lo, mut hi) = (l, r);
+            let at_lo = residual(l);
+            for _ in 0..BISECTIONS {
+                let c = (lo + hi) / two;
+                let product = residual(c) * at_lo;
+                lo = product.select_le_zero(lo, c);
+                hi = product.select_le_zero(c, hi);
+            }
+            // Reported within `π` of the arc's midpoint, so a caller
+            // compares it with `[t0, t1]` directly: the first cut's ends
+            // are moved along their pieces, so the last piece runs past
+            // the half-turn.
+            let mid = (t0 + t1) / two;
+            let root = mid + ((lo + hi) / two - mid).reduce_periodic_centred(T::tau());
+            match decide(rows.side, Margin::of(residual(root)), band) {
+                Ok(Sign::Zero) => roots.push(root),
+                _ => return Ok(CircleRoots::Uncertain),
+            }
+            continue;
+        }
+        if !definitely(rows.width, speed_hi * (r - l)) {
+            return Ok(CircleRoots::Uncertain);
+        }
+        let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
+            let c = l + (r - l) * T::from_f64(share);
+            side(c).map(|s| (c, s))
+        }) else {
+            return Ok(CircleRoots::Uncertain);
+        };
+        pieces.push(((c, sc), (r, sr)));
+        pieces.push(((l, sl), (c, sc)));
+    }
+    // A degree-2 polynomial changes sign an even number of times round
+    // the turn, at most four; anything else lost a root.
+    if roots.len() > 4 || roots.len() % 2 == 1 {
+        return Ok(CircleRoots::Uncertain);
+    }
+    let count = roots.len();
+    if count == 0 {
+        return Ok(CircleRoots::Miss);
+    }
+    let mut thetas = [T::zero(); 4];
+    thetas[..count].copy_from_slice(&roots);
+    Ok(CircleRoots::Certified { count, thetas })
 }
 
 /// **The answer for a residual constant along the carrier to within
