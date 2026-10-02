@@ -7,6 +7,8 @@ opened: 2026-10-02
 priority: P3
 cost: M
 design: true
+needs_ev: true
+branch: emit/ev-part-labels-at-the-seam
 parent: node-labels-are-document-data
 refs: [viewer-panes-speak-the-kernel-refusals-they-draw]
 ---

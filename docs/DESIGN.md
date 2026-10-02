@@ -1253,7 +1253,11 @@ these. All are shipped in `editor-core` except where noted:
   nothing resolves a label). Kernel sentences speak a node as its
   kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
   and tag when it has none; the label is read off the document when
-  the sentence is made, never from a value the evaluation memo reuses.
+  the sentence is made, never from a value the evaluation memo reuses
+  — except a part's nodes. A part's labels are in its pin, and the pin
+  is in the instance's key, so the fault that crosses the document seam
+  keeps the part's nodes as the pinned part says them; a rename in the
+  part is a new pin, a new reference and a new fault.
   The kernel mints no label; the viewer's create forms propose an
   editable "Kind N", stored only when the person commits it. Faces and
   bodies carry the same `Label` text as an appearance attribute.
