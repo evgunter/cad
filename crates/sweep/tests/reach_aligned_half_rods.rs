@@ -12,6 +12,8 @@
 //! sites are parallel edges told apart by the faces the germs lie on.
 //! The oracle is closed form: πr²h per rod.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::{Point2, Tol};
 use profile::circle_split;
 use sweep::test_support::{extruded, sketch_at};
