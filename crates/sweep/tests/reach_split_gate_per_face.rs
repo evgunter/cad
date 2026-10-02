@@ -162,21 +162,49 @@ fn a_plane_clear_of_a_sphere_or_torus_face_splits_the_body() {
 /// A plane through the curved face refuses naming it: the gate is
 /// scoped to the plane's reach, not lifted. The truncated ball's
 /// sphere face shares its rim with the cap and lies on the other side
-/// of it, so the plane through its interior refuses where the same
-/// plane clears the cap.
+/// of it, so a plane through its interior refuses where the same plane
+/// clears the cap. The plane cutting a small cap off the ball's flank
+/// meets the face in a circle that crosses no edge, so no later stage
+/// sees the sphere at all: the gate is the only refusal it has.
 #[test]
 fn a_plane_that_may_meet_the_face_refuses_naming_it() {
-    for (name, body, kind, qy) in [
-        ("sphere cap", capped_cylinder(), SurfaceKind::Sphere, 1.1),
+    let flank = |n: Vec3<f64>| SplitPlane {
+        origin: Point3::new(0.0, 0.25, 0.0) + n * 1.1,
+        normal: unit(n),
+    };
+    for (name, body, kind, cut) in [
+        (
+            "sphere cap",
+            capped_cylinder(),
+            SurfaceKind::Sphere,
+            plane(0.3, 1.1),
+        ),
         (
             "torus rounding",
             rounded_cylinder(),
             SurfaceKind::Torus,
-            1.1,
+            plane(0.3, 1.1),
         ),
-        ("truncated ball", truncated_ball(), SurfaceKind::Sphere, 0.5),
+        (
+            "truncated ball",
+            truncated_ball(),
+            SurfaceKind::Sphere,
+            plane(0.3, 0.5),
+        ),
+        (
+            "truncated ball's -z flank",
+            truncated_ball(),
+            SurfaceKind::Sphere,
+            flank(Vec3::new(0.0, 0.0, -1.0)),
+        ),
+        (
+            "truncated ball's +z flank",
+            truncated_ball(),
+            SurfaceKind::Sphere,
+            flank(Vec3::new(0.0, 0.0, 1.0)),
+        ),
     ] {
-        let err = split(&body, &plane(0.3, qy), Tol::witness()).unwrap_err();
+        let err = split(&body, &cut, Tol::witness()).unwrap_err();
         let SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported { face, kind: k }) = &err
         else {
             panic!("{name}: expected the gate's refusal, got {err:?}");
