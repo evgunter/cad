@@ -166,6 +166,10 @@ mod verbs_shell;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
+#[path = "join1_r2_probes.rs"]
+mod join1_r2_probes;
+#[path = "join1_r2_rand.rs"]
+mod join1_r2_rand;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
 #[path = "band_ruled_cap_ring.rs"]
