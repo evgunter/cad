@@ -18,7 +18,11 @@
 //! Each line is one pose: `SOUND` (tiers 2 and 3′, the certificate, the
 //! closed form, and a legal operand), `BAD` (any of the first four
 //! fails), `NONOP` (sound but no legal operand), `UNMEAS` or `ERR`. The
-//! closed forms read the tool's own measured volume, never the result's.
+//! closed forms read the tool's own measured volume, never the result's,
+//! and assume the profile lies inside the block's `[−1, 1]²`: a random arc
+//! of bulge 1 can leave it, and those poses print `BAD` on the volume
+//! alone and are re-graded against the clipped area off-line (each line
+//! prints every check and `v`, so nothing else is lost).
 //! `#[ignore]`d: run with `--ignored --nocapture` and diff two trees.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -71,17 +75,20 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
                     return format!("UNMEAS t2={t2} t3p={t3} cert={cert}");
                 };
                 let good = (v - want).abs() < 1e-7 * want.abs().max(1.0);
-                if !(t2 && t3 && cert && good) {
-                    return format!("BAD t2={t2} t3p={t3} cert={cert} v={v:.10} want={want:.10}");
-                }
                 let far = brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
-                match topo::union(&bb.body, &far, tol()) {
-                    Ok(_) => "SOUND".into(),
+                let op = match topo::union(&bb.body, &far, tol()) {
+                    Ok(_) => "op=ok".to_string(),
                     Err(e) => {
                         let s: String = format!("{e:?}").chars().take(100).collect();
-                        format!("NONOP {s}")
+                        format!("op=NONOP {s}")
                     }
-                }
+                };
+                let tag = match (t2 && t3 && cert && good, op == "op=ok") {
+                    (true, true) => "SOUND",
+                    (true, false) => "NONOP",
+                    _ => "BAD",
+                };
+                format!("{tag} t2={t2} t3p={t3} cert={cert} v={v:.10} want={want:.10} {op}")
             }
         },
     }
