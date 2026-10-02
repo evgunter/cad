@@ -520,8 +520,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         if !scope.holds_edge(edge) {
             continue;
         }
-        let (fa, fb) =
-            crate::replace_face::edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let (fa, fb) = crate::readback::edge_sides(body, edge)
+            .map_err(|_| ReplaceFaceError::Corrupt)?
+            .faces();
         let (ca, cb) = (
             chart_of(fa).ok_or(ReplaceFaceError::Corrupt)?,
             chart_of(fb).ok_or(ReplaceFaceError::Corrupt)?,

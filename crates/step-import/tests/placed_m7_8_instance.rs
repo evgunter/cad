@@ -40,8 +40,9 @@ fn m7_8_cube() -> topo::Body<f64> {
         .unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
-        let s1 = tc::face_surface_of_he(&body, edge.he_plus);
-        let s2 = tc::face_surface_of_he(&body, edge.he_minus);
+        let (s1, s2) = topo::readback::edge_sides(&body, edge_key)
+            .unwrap()
+            .surfaces();
         if s1 != wall && s2 != wall {
             continue;
         }

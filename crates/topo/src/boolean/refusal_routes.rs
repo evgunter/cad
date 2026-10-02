@@ -42,7 +42,7 @@ use geom_brep::recourse::{
 };
 use geom_core::{Indeterminate, UNREADABLE_MARGIN_NOTE};
 
-use crate::contact::ContactClass;
+use crate::contact::{BooleanCoincidence, ContactClass};
 
 pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
@@ -279,7 +279,7 @@ pub enum DeclarationRead {
     /// The door looked the pair up and found it declared under this
     /// class, and the question refused all the same: the declaration is
     /// spent there, and no second one is offered.
-    Spent(ContactClass),
+    Spent(BooleanCoincidence),
     /// No declaration read ahead of the question settles it: the site
     /// takes no declarations, or the door found none and admits no class
     /// that would change the verdict.
@@ -294,14 +294,16 @@ pub enum DeclarationRead {
 /// there ([`BooleanDecision::Coincidence`] renders it unsettled).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settling {
-    class: ContactClass,
+    class: BooleanCoincidence,
     question: Coincide,
 }
 
 impl Settling {
-    /// The class a declaration of which would settle the question.
+    /// The coincidence a declaration of which would settle the
+    /// question: the one the pair's senses make it, where the door read
+    /// them ([`BooleanCoincidence::of_senses`]).
     #[must_use]
-    pub const fn class(self) -> ContactClass {
+    pub const fn class(self) -> BooleanCoincidence {
         self.class
     }
 
@@ -330,7 +332,7 @@ impl super::DeclaredPairs {
             crate::entity::FaceKey,
         )],
         question: Coincide,
-        admitted: &[ContactClass],
+        admitted: &[BooleanCoincidence],
     ) -> DeclarationRead {
         if let Some(class) = pairs
             .iter()
@@ -349,9 +351,12 @@ impl super::DeclaredPairs {
 
     /// The plane door of two corners of the two solids read on one
     /// another (`vtxfac`'s coplanar lump, `recl`'s carrier identity),
-    /// with what it read of the pair's declaration: a `Rest` declaration,
-    /// which the door admits for two planar faces, bridges an in-band
-    /// parallelism ([`Coincide::OnPlanes`]).
+    /// with what it read of the pair's declaration: a one-carrier
+    /// declaration bridges an in-band parallelism
+    /// ([`Coincide::OnPlanes`]), and the door admits the one the pair's
+    /// `senses` make it ([`BooleanCoincidence::of_senses`]). Senses the
+    /// door could not read admit none: a guess would offer a declaration
+    /// the declaration door contradicts.
     pub(crate) fn on_pair_door(
         &self,
         pair: (
@@ -360,8 +365,10 @@ impl super::DeclaredPairs {
             super::Operand,
             crate::entity::FaceKey,
         ),
+        senses: Option<super::CarrierRelation>,
     ) -> PlaneDoor {
-        PlaneDoor::OnPair(self.read(&[pair], Coincide::OnPlanes, &[ContactClass::Rest]))
+        let admitted = senses.and_then(BooleanCoincidence::of_senses);
+        PlaneDoor::OnPair(self.read(&[pair], Coincide::OnPlanes, admitted.as_slice()))
     }
 }
 
@@ -520,21 +527,25 @@ impl Coincide {
     /// change this question's verdict: the one statement
     /// [`DeclaredPairs::read`](super::DeclaredPairs::read) settles by.
     ///
-    /// - [`Coincide::OnPlanes`]: a `Rest` pair's ladder bridges an
-    ///   in-band parallelism (`plane_eq`'s declared rung).
-    /// - [`Coincide::Sectors`], at `vtxfac`'s coplanar sector: a `Rest`
-    ///   pair's lump takes the residue through the carrier ladder's
-    ///   declared rung, and a `Tangent` pair's descends to the second
-    ///   order (`sectors::tangent_lump`).
+    /// - [`Coincide::OnPlanes`]: a one-carrier pair's (`Rest` or a
+    ///   continuation) ladder bridges an in-band parallelism
+    ///   (`plane_eq`'s declared rung).
+    /// - [`Coincide::Sectors`], at `vtxfac`'s coplanar sector: a
+    ///   one-carrier pair's lump takes the residue through the carrier
+    ///   ladder's declared rung, and a `Tangent` pair's descends to the
+    ///   second order (`sectors::tangent_lump`).
     ///
     /// Every other question refuses a declared pair as it refuses an
     /// undeclared one, or meets no declaration its door verifies.
     #[must_use]
-    pub const fn settled_by(self, class: ContactClass) -> bool {
+    pub const fn settled_by(self, class: BooleanCoincidence) -> bool {
+        use BooleanCoincidence::{Contact, Continuation};
         match (self, class) {
-            (Self::OnPlanes, ContactClass::Rest)
-            | (Self::Sectors, ContactClass::Rest | ContactClass::Tangent) => true,
-            (Self::OnPlanes, ContactClass::Tangent)
+            (Self::OnPlanes, Contact(ContactClass::Rest) | Continuation)
+            | (Self::Sectors, Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation) => {
+                true
+            }
+            (Self::OnPlanes, Contact(ContactClass::Tangent))
             | (
                 Self::Planes
                 | Self::VertexOnFace
@@ -553,7 +564,7 @@ impl Coincide {
                 | Self::Contact
                 | Self::Section
                 | Self::Join,
-                ContactClass::Rest | ContactClass::Tangent,
+                Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation,
             ) => false,
         }
     }
@@ -1395,11 +1406,13 @@ impl BooleanDecision {
                 which.settled()
             }
             // Overlapping plane flanks lie on one plane, which the door
-            // then asks to be one face: a declared `Rest` pair's is the
-            // one face it verified, so both senses pass there.
-            Self::Coincidence(Coincide::FlankSense, DeclarationRead::Spent(ContactClass::Rest)) => {
-                Ending::Sized(CORNER_SENSE)
-            }
+            // then asks to be one face: a declared one-carrier pair's
+            // (`Rest` or a continuation) is the one face it verified, so
+            // both senses pass there.
+            Self::Coincidence(
+                Coincide::FlankSense,
+                DeclarationRead::Spent(BooleanCoincidence::REST | BooleanCoincidence::Continuation),
+            ) => Ending::Sized(CORNER_SENSE),
             Self::Coincidence(which, _) => which.ending(),
             // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
             // and the offset rung asks next: a declared `Rest` pair's
@@ -1799,24 +1812,24 @@ mod tests {
 
     /// Every read a door can hand `which`, each minted by the one
     /// constructor ([`crate::boolean::DeclaredPairs::read`]): the pair
-    /// declared under each class ([`ContactClass::ALL`]), and undeclared
+    /// declared under each class ([`BooleanCoincidence::ALL`]), and undeclared
     /// with each class admitted, and with none.
     fn every_read(which: Coincide) -> impl Iterator<Item = DeclarationRead> + Clone {
         use crate::boolean::{BooleanDeclarations, DeclaredPairs, FacePairDeclaration};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let declared = |class: Option<ContactClass>| {
+        let declared = |class: Option<BooleanCoincidence>| {
             let decls = BooleanDeclarations {
                 coincident_faces: class
                     .map(|class| vec![FacePairDeclaration::new(face, face, class)])
                     .unwrap_or_default(),
                 ..BooleanDeclarations::none()
             };
-            DeclaredPairs::build(&decls, Default::default())
+            DeclaredPairs::without_struts(&decls, Default::default())
         };
         let mut reads = vec![declared(None).read(&pair, which, &[])];
-        for &class in ContactClass::ALL {
-            reads.push(declared(Some(class)).read(&pair, which, ContactClass::ALL));
+        for &class in BooleanCoincidence::ALL {
+            reads.push(declared(Some(class)).read(&pair, which, BooleanCoincidence::ALL));
             reads.push(declared(None).read(&pair, which, &[class]));
         }
         reads.dedup();
@@ -2001,11 +2014,11 @@ mod tests {
                 coincide_subject(which),
                 coincide_settled(which).expect("only a settleable question is minted settled"),
             ),
-            // The declared `Rest` pair's overlapping flanks are the face
-            // the door verified: both senses pass.
+            // A declared one-carrier pair's overlapping flanks are the
+            // face the door verified: both senses pass.
             BooleanDecision::Coincidence(
                 Coincide::FlankSense,
-                DeclarationRead::Spent(ContactClass::Rest),
+                DeclarationRead::Spent(BooleanCoincidence::REST | BooleanCoincidence::Continuation),
             ) => (
                 coincide_subject(Coincide::FlankSense),
                 Ending::Sized(LONGER, SizedPass::NonZero),
@@ -2441,11 +2454,15 @@ mod tests {
         use crate::boolean::{BooleanDeclarations, DeclaredPairs, FacePairDeclaration};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let none = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
-        let settled = |which: Coincide| -> &'static [ContactClass] {
+        let none = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+        let settled = |which: Coincide| -> &'static [BooleanCoincidence] {
             match which {
-                Coincide::OnPlanes => &[ContactClass::Rest],
-                Coincide::Sectors => &[ContactClass::Rest, ContactClass::Tangent],
+                Coincide::OnPlanes => &[BooleanCoincidence::REST, BooleanCoincidence::Continuation],
+                Coincide::Sectors => &[
+                    BooleanCoincidence::REST,
+                    BooleanCoincidence::TANGENT,
+                    BooleanCoincidence::Continuation,
+                ],
                 Coincide::Planes
                 | Coincide::VertexOnFace
                 | Coincide::VertexOnCurvedFace
@@ -2466,7 +2483,7 @@ mod tests {
             }
         };
         for which in Coincide::iter() {
-            for &class in ContactClass::ALL {
+            for &class in BooleanCoincidence::ALL {
                 let got = none.read(&pair, which, &[class]);
                 let want = if settled(which).contains(&class) {
                     DeclarationRead::Settles(Settling {
@@ -2486,13 +2503,40 @@ mod tests {
                     coincident_faces: vec![FacePairDeclaration::new(face, face, class)],
                     ..BooleanDeclarations::none()
                 };
-                let declared = DeclaredPairs::build(&decls, Default::default());
+                let declared = DeclaredPairs::without_struts(&decls, Default::default());
                 assert_eq!(
-                    declared.read(&pair, which, ContactClass::ALL),
+                    declared.read(&pair, which, BooleanCoincidence::ALL),
                     DeclarationRead::Spent(class),
                     "{which:?} declared {class:?}: the declaration is spent"
                 );
             }
+        }
+        // The plane door offers what the pair's senses make it, and
+        // nothing on senses it could not read.
+        use crate::boolean::CarrierRelation;
+        for (senses, offer) in [
+            (
+                Some(CarrierRelation::SameOpposite),
+                Some(BooleanCoincidence::REST),
+            ),
+            (
+                Some(CarrierRelation::SameOriented),
+                Some(BooleanCoincidence::Continuation),
+            ),
+            (Some(CarrierRelation::Distinct), None),
+            (None, None),
+        ] {
+            let want = offer.map_or(DeclarationRead::Moot, |class| {
+                DeclarationRead::Settles(Settling {
+                    class,
+                    question: Coincide::OnPlanes,
+                })
+            });
+            assert_eq!(
+                none.on_pair_door(pair[0], senses),
+                PlaneDoor::OnPair(want),
+                "senses {senses:?}"
+            );
         }
     }
 
@@ -2507,11 +2551,11 @@ mod tests {
         use crate::boolean::{BooleanDeclarations, DeclaredPairs};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let none = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+        let none = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
         let diag = diag_of(MarginDiag::value((band().zero() + band().escalate()) / 2.0));
         let mut carried_any = 0;
         for minted in Coincide::iter() {
-            for &class in ContactClass::ALL {
+            for &class in BooleanCoincidence::ALL {
                 let read = none.read(&pair, minted, &[class]);
                 if !matches!(read, DeclarationRead::Settles(_)) {
                     continue;
@@ -3060,7 +3104,7 @@ mod tests {
                     let text = BooleanError::plane_identity(
                         PlaneRung::Orientation,
                         PlaneDoor::OnPair(if id.declared {
-                            DeclarationRead::Spent(ContactClass::Rest)
+                            DeclarationRead::Spent(BooleanCoincidence::REST)
                         } else {
                             DeclarationRead::Moot
                         }),
@@ -3471,15 +3515,18 @@ mod tests {
         // Every door a plane rung reaches, the undeclared ones included:
         // no declaration reads poison, so none is offered, and the
         // refusal is the kernel's.
-        let undeclared = crate::boolean::DeclaredPairs::build(
+        let undeclared = crate::boolean::DeclaredPairs::without_struts(
             &crate::boolean::BooleanDeclarations::none(),
             Default::default(),
         );
         let face = crate::entity::FaceKey::default();
         let doors = [
-            undeclared.on_pair_door((Operand::A, face, Operand::B, face)),
-            PlaneDoor::OnPair(DeclarationRead::Spent(ContactClass::Rest)),
-            PlaneDoor::Screen(DeclarationRead::Spent(ContactClass::Tangent)),
+            undeclared.on_pair_door(
+                (Operand::A, face, Operand::B, face),
+                Some(crate::boolean::CarrierRelation::SameOpposite),
+            ),
+            PlaneDoor::OnPair(DeclarationRead::Spent(BooleanCoincidence::REST)),
+            PlaneDoor::Screen(DeclarationRead::Spent(BooleanCoincidence::TANGENT)),
             PlaneDoor::Neighbours,
         ];
         let merge = MergeCoplanarError::of_declared_refusal(unreadable_norm(b)).to_string();
