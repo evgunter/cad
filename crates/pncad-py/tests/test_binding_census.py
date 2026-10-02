@@ -3491,6 +3491,8 @@ MEMBERS_BOUND_AS = {
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
     "EditError::DeclareNamesMissingNode": "EditError.variant",
+    "EditError::DeclaredSiteNotAnOperand": "EditError.variant",
+    "EditError::DeclaredNameNotUpstream": "EditError.variant",
     "EditError::ReadSiteMissingNode": "EditError.variant",
     "EditError::NonFiniteDocParam": "EditError.variant",
     "EditError::InvalidDistribution": "EditError.variant",

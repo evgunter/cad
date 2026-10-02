@@ -2542,16 +2542,8 @@ impl DocSession {
         // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        // An empty list is undeclared; `declared_pairs` refuses only that.
-        let pairs = if declare.is_empty() {
-            Vec::new()
-        } else {
-            declared_pairs(&declare).unwrap_or_else(|error| {
-                unreachable!(
-                    "`declared_pairs` refuses only an empty list, and this one is not: {error}"
-                )
-            })
-        };
+        // An empty list is the undeclared boolean.
+        let pairs = declared_pairs(&declare);
         let staged = self.stage_run(|minted| {
             minted.is_empty().then(|| DocEdit::InsertNode {
                 node: Box::new(Node::Boolean {

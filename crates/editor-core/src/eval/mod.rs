@@ -1612,10 +1612,12 @@ pub enum NodeErrorKind {
     ///
     /// The site IS the side (DM4), so a site the consumer does not
     /// have is a declaration the consumer cannot read: there is no
-    /// table to resolve the name in. It is the EVALUATION's refusal
-    /// and not the edit door's, because `SetMembers` may drop a
-    /// declared member after the fact and the edit door checks only
-    /// that the site is a live node ([`crate::Node::payload_read_sites`]).
+    /// table to resolve the name in. Every door that writes a pair
+    /// refuses such a site ([`crate::EditError::DeclaredSiteNotAnOperand`]),
+    /// and a Boolean's operands never change, so this arm is a union's:
+    /// a later `SetMembers` that drops the member a pair is read at
+    /// strands the pair (N5), and the load door cannot tell that state
+    /// from a typo, so the evaluation is where it refuses.
     DeclareSiteNotAnOperand {
         /// The site the pair named.
         at: crate::node::RecipeNodeId,
@@ -2097,8 +2099,9 @@ impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
     }
 
     fn recourse(&self) -> &str {
-        "Recourse: declare the candidate pair this refusal carries on the Boolean \
-         (SetDeclare, its whole declared-pair list), or move the geometry"
+        "Recourse: add the candidate pair this refusal carries to the node's declared pairs \
+         (declare it with this finding, which keeps the pairs already declared), or move the \
+         geometry"
     }
 }
 

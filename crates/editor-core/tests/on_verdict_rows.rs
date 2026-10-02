@@ -353,7 +353,7 @@ fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
 
     let findings = find_flush_candidates(&ev, s, t, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 6, "one finding per face pair: {findings:?}");
-    let pairs = declared_pairs(&findings).unwrap();
+    let pairs = declared_pairs(&findings);
     let rows: Vec<Row> = OPS
         .iter()
         .map(|&op| {

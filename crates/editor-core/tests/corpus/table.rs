@@ -153,7 +153,7 @@ pub fn document() -> CorpusDoc {
             op: BooleanOp::Union,
             a: acc,
             b: ext,
-            declare: declared_pairs(&findings).expect("nonempty findings"),
+            declare: declared_pairs(&findings),
         });
         acc = uni;
         prior = Some(ev);

@@ -759,6 +759,33 @@ pub enum SnapshotError {
         /// The step it spells.
         step: crate::node::StepId,
     },
+    /// A Boolean's declared pair is read at a node that is not one of
+    /// its operands — the edit doors' [`crate::EditError::DeclaredSiteNotAnOperand`],
+    /// by the same rule (`node::declared_side_fault`). Asked of a
+    /// Boolean only: its operands never change, so no edit leaves it
+    /// such a pair. A union's member can be dropped by `SetMembers`
+    /// after its pair was written, which is N5's stranded state and
+    /// loads; the evaluation refuses it
+    /// ([`crate::eval::NodeErrorKind::DeclareSiteNotAnOperand`]).
+    DeclaredSiteNotAnOperand {
+        /// The Boolean.
+        node: SpokenNode,
+        /// The side's name.
+        name: SpokenName,
+        /// The node the side is read at.
+        site: SpokenNode,
+    },
+    /// A Boolean's or a Union's declared name is minted by the node
+    /// itself or by a live node after it in `order` — the edit doors'
+    /// [`crate::EditError::DeclaredNameNotUpstream`], by the same rule.
+    /// No edit leaves a document so: the doors refuse it when the pair
+    /// is written, and `order` only grows at its end.
+    DeclaredNameNotUpstream {
+        /// The declaring node.
+        node: SpokenNode,
+        /// The name.
+        name: SpokenName,
+    },
     /// A node's input ref does not name a live node.
     DanglingInput {
         /// The referring node.
@@ -1091,6 +1118,18 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "the {name} spells the profile step id {step}, which the document's mint log \
                  does not hold — the document never minted it",
+            ),
+            Self::DeclaredSiteNotAnOperand { node, name, site } => write!(
+                f,
+                "the declared {name} is read at {site}, which is not an operand of {node} — no \
+                 edit writes such a pair. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::DeclaredNameNotUpstream { node, name } => write!(
+                f,
+                "the declared {name} is not minted before {node} in `order` — no edit writes \
+                 such a pair. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::DanglingInput { node, input } => {
                 write!(f, "{node} takes input from {input}, which is not live")
@@ -1485,6 +1524,36 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             });
         }
     }
+    // Every declared pair, by the rule its edit doors ask
+    // (`node::declared_side_fault`): a name minted before its node, and
+    // — for a Boolean, whose operands never change — a site that is one
+    // of its operands. A union's sites are not judged here: a later
+    // `SetMembers` may have stranded one, which loads.
+    for (index, &id) in doc.order.iter().enumerate() {
+        let Some(node) = doc.nodes.get(&id) else {
+            continue;
+        };
+        let operands = node.inputs();
+        let sites = matches!(node, Node::Boolean { .. }).then_some(operands.as_slice());
+        match crate::node::declared_side_fault(node.declared_pairs(), sites, Some(index), |n| {
+            position.get(&n).copied()
+        }) {
+            None => {}
+            Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
+                return Err(SnapshotError::DeclaredSiteNotAnOperand {
+                    node: doc.spoken(id),
+                    name: doc.spoken_name(&side.name),
+                    site: doc.spoken(side.at),
+                });
+            }
+            Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
+                return Err(SnapshotError::DeclaredNameNotUpstream {
+                    node: doc.spoken(id),
+                    name: doc.spoken_name(&side.name),
+                });
+            }
+        }
+    }
     // The witness store's key rule, by the same
     // `doc::witness_site_fault` the witness edit doors ask: a witness
     // is attached to a live node that bears a sketch. This door names
@@ -1696,6 +1765,8 @@ mod tests {
             StepIds,
             MintLogOrder,
             NameStepNotMinted,
+            DeclaredSiteNotAnOperand,
+            DeclaredNameNotUpstream,
             DanglingInput,
             ForwardInput,
             WitnessSite,
@@ -1742,6 +1813,8 @@ mod tests {
             | SnapshotError::StepIds { .. }
             | SnapshotError::MintLogOrder { .. }
             | SnapshotError::NameStepNotMinted { .. }
+            | SnapshotError::DeclaredSiteNotAnOperand { .. }
+            | SnapshotError::DeclaredNameNotUpstream { .. }
             | SnapshotError::DanglingInput { .. }
             | SnapshotError::ForwardInput { .. }
             | SnapshotError::WitnessSite { .. }
@@ -1810,6 +1883,15 @@ mod tests {
             SnapshotError::NameStepNotMinted {
                 name: crate::SpokenName::absent(face()),
                 step: crate::node::StepId(9),
+            },
+            SnapshotError::DeclaredSiteNotAnOperand {
+                node: node(),
+                name: crate::SpokenName::absent(face()),
+                site: at(9),
+            },
+            SnapshotError::DeclaredNameNotUpstream {
+                node: node(),
+                name: crate::SpokenName::absent(face()),
             },
             SnapshotError::DanglingInput {
                 node: node(),

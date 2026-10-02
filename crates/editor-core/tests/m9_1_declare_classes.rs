@@ -89,7 +89,7 @@ fn declared_pairs_preserves_the_findings_class() {
     tangent.class = BooleanCoincidence::TANGENT;
     let findings = vec![detected[0].clone(), tangent];
 
-    let pairs = editor_core::declared_pairs(&findings).expect("findings declare");
+    let pairs = editor_core::declared_pairs(&findings);
     assert_eq!(pairs.len(), findings.len());
     for (pair, finding) in pairs.iter().zip(&findings) {
         assert_eq!(pair.0, finding.pair, "the pair survives");

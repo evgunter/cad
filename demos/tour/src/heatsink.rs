@@ -281,7 +281,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
                 ),
                 "every foot rests on the top: {found:#?}"
             );
-            declared_pairs(&found).expect("nonempty findings")
+            declared_pairs(&found)
         }
     };
     let solid = insert(

@@ -11,16 +11,22 @@
 //!   relation?" affordance given an API.
 //! - **Declare** — [`declare`] / [`declare_all`] are thin sugar over
 //!   the SHIPPED [`DocEdit::SetDeclare`] edit: they take
-//!   explicitly-passed findings and set them as a live Boolean's or
-//!   Union's declared pairs.
+//!   explicitly-passed findings and write them into a live Boolean's or
+//!   Union's declared pairs — [`declare`] adds its one finding's pair
+//!   to the pairs the node already declares, [`declare_all`] sets the
+//!   whole list.
 //! - **The menu** — the boolean's undeclared-coincidence refusal names
 //!   exactly two arms: declare the found class (→ the sugar) or move
 //!   the geometry. NO absorb arm (the #256 ruling applied to contact).
 //!
 //! # The no-fusion boundary (GS-Q3, RULED)
 //!
-//! Both `declare(finding)` and `declare_all(findings)` ship — the
-//! ruled boundary is FUSION, not arity. A fused detect-and-declare
+//! Both arities ship — the ruled boundary is FUSION, not arity — and
+//! they are two different edits. `declare(node, finding)` ADDS: a
+//! refusal names one contact at a time, so following the refusal
+//! finding by finding converges on a node that declares every contact
+//! it meets. `declare_all(node, findings)` REPLACES: the whole list,
+//! `SetDeclare`'s own shape. A fused detect-and-declare
 //! door is forbidden permanently: findings must pass through
 //! user-visible hands AS VALUES (separate detect and declare calls,
 //! inspectable in between), because that is the enforceable
@@ -361,10 +367,14 @@ fn tied_disagrees<T: Decide>(
 /// Why the declare sugar refused.
 #[derive(Debug)]
 pub enum DeclareError {
-    /// No findings were passed: an empty declaration records no intent
-    /// and would only pretend something was declared — refused loudly
-    /// rather than set silently. Clearing a declaration is
-    /// [`DocEdit::SetDeclare`] with an empty list, said in so many words.
+    /// [`declare_all`] was passed no findings: a declaration of nothing
+    /// records no intent and would only pretend something was declared
+    /// — refused loudly rather than set silently. Clearing a
+    /// declaration is [`DocEdit::SetDeclare`] with an empty list, said
+    /// in so many words; the list builder [`declared_pairs`] builds an
+    /// empty list without complaint, because an empty list is a legal
+    /// declaration (none) and only the door that is asked to declare
+    /// something needs a finding.
     NoFindings,
     /// The document edit itself refused (a stale finding naming a
     /// node the document no longer has, or a node that is not a
@@ -396,6 +406,13 @@ impl core::fmt::Display for DeclareError {
                         ". Recourse: declare findings inspected from this document as it now \
                          stands",
                     ),
+                    // A finding names the two operands it was inspected
+                    // between; another node's operands are not those.
+                    EditError::DeclaredSiteNotAnOperand { .. }
+                    | EditError::DeclaredNameNotUpstream { .. } => f.write_str(
+                        ". Recourse: declare it on the Boolean or Union whose operands the \
+                         finding was inspected between",
+                    ),
                     EditError::UnknownNode { .. } | EditError::SetDeclareOnNonDeclaring { .. } => {
                         f.write_str(". Recourse: declare on a live Boolean or Union")
                     }
@@ -413,31 +430,45 @@ impl core::error::Error for DeclareError {}
 /// class its finding carries — the buildable rung under
 /// [`declare`]/[`declare_all`] for callers that build their own edits
 /// (a new Boolean's `declare`, a [`DocEdit::SetDeclare`] they record
-/// themselves).
-///
-/// # Errors
-///
-/// [`DeclareError::NoFindings`] on an empty slice.
-pub fn declared_pairs(findings: &[FlushFinding]) -> Result<Vec<DeclaredPair>, DeclareError> {
-    if findings.is_empty() {
-        return Err(DeclareError::NoFindings);
-    }
-    Ok(findings.iter().map(|f| (f.pair.clone(), f.class)).collect())
+/// themselves). No findings build the empty list, which declares
+/// nothing.
+#[must_use]
+pub fn declared_pairs(findings: &[FlushFinding]) -> Vec<DeclaredPair> {
+    findings.iter().map(|f| (f.pair.clone(), f.class)).collect()
 }
 
-/// Declares ONE inspected finding on the live Boolean or Union `node`:
-/// [`declare_all`] of the one finding.
+/// ADDS one inspected finding's pair to the declared pairs of the live
+/// Boolean or Union `node`, keeping every pair it declares already —
+/// the door an undeclared-contact refusal's recourse names. A refusal
+/// carries one contact; following each refusal with this converges on
+/// a node that declares every contact it meets, where a whole-list
+/// replace would trade one contact for the next forever.
+///
+/// A pair on the same two sides as one the node declares already
+/// replaces it in place (the finding is the later inspection), so the
+/// list never holds a side pair twice. The edit is the whole-list
+/// [`DocEdit::SetDeclare`] of the result.
 ///
 /// # Errors
 ///
-/// [`DeclareError::Edit`] if the edit refuses.
+/// [`DeclareError::Edit`] if the edit refuses — the node not live, or
+/// not a Boolean or a Union, among them.
 pub fn declare<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     node: RecipeNodeId,
     finding: &FlushFinding,
     tol: Tol,
 ) -> Result<Applied<P>, DeclareError> {
-    declare_all(doc, node, core::slice::from_ref(finding), tol)
+    let mut pairs = doc
+        .node(node)
+        .map(|n| n.declared_pairs().to_vec())
+        .unwrap_or_default();
+    let added = (finding.pair.clone(), finding.class);
+    match pairs.iter_mut().find(|(sides, _)| *sides == added.0) {
+        Some(held) => *held = added,
+        None => pairs.push(added),
+    }
+    set_declared(doc, node, pairs, tol)
 }
 
 /// Sets a SET of inspected findings as the declared pairs of the live
@@ -458,7 +489,19 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
     findings: &[FlushFinding],
     tol: Tol,
 ) -> Result<Applied<P>, DeclareError> {
-    let pairs = declared_pairs(findings)?;
+    if findings.is_empty() {
+        return Err(DeclareError::NoFindings);
+    }
+    set_declared(doc, node, declared_pairs(findings), tol)
+}
+
+/// The [`DocEdit::SetDeclare`] both declare doors end in.
+fn set_declared<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    pairs: Vec<DeclaredPair>,
+    tol: Tol,
+) -> Result<Applied<P>, DeclareError> {
     // A declaration moves no group's root: the maintenance never asks
     // the reach, and the refusing one is the honest value here.
     apply(

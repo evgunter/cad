@@ -115,11 +115,13 @@ pub enum DocEdit<P> {
     /// operands. So this edit moves no DAG edge, and DM6's rule that no
     /// edit rewires a live node's inputs is untouched by it.
     ///
-    /// The pairs' names and sites are checked live exactly as an
-    /// insert checks a payload's ([`EditError::DeclareNamesMissingNode`],
-    /// [`EditError::NameStepNeverMinted`], [`EditError::ReadSiteMissingNode`]).
-    /// A node of any other kind refuses
-    /// [`EditError::SetDeclareOnNonDeclaring`].
+    /// The pairs are checked exactly as an insert checks them: names
+    /// and sites live ([`EditError::DeclareNamesMissingNode`],
+    /// [`EditError::NameStepNeverMinted`], [`EditError::ReadSiteMissingNode`]),
+    /// each site one of the node's operands
+    /// ([`EditError::DeclaredSiteNotAnOperand`]), and each name minted
+    /// before the node ([`EditError::DeclaredNameNotUpstream`]). A node
+    /// of any other kind refuses [`EditError::SetDeclareOnNonDeclaring`].
     SetDeclare {
         /// The Boolean or Union whose declaration is replaced.
         node: RecipeNodeId,
@@ -758,6 +760,30 @@ pub enum EditError {
     SetDeclareOnNonDeclaring {
         /// The node that carries no declaration.
         node: SpokenNode,
+    },
+    /// A declared pair's side is READ AT a node that is not one of the
+    /// declaring node's operands ([`crate::DeclaredPair`], DM4): the
+    /// site is the side, and a site the node does not have is a table
+    /// it cannot read the name in. Asked by every door that writes a
+    /// pair — the insert door, `SetDeclare` and `Rebind`.
+    DeclaredSiteNotAnOperand {
+        /// The node whose declaration it is.
+        node: SpokenNode,
+        /// The side's name.
+        name: SpokenName,
+        /// The node the side is read at.
+        site: SpokenNode,
+    },
+    /// A declared pair's name is minted by the declaring node itself
+    /// or by a node after it in document order: a declaration names
+    /// only what exists before the node ([`crate::DeclaredPair`]), and
+    /// no operand of the node can hold such an entity. Asked by the
+    /// same doors as [`EditError::DeclaredSiteNotAnOperand`].
+    DeclaredNameNotUpstream {
+        /// The node whose declaration it is.
+        node: SpokenNode,
+        /// The name.
+        name: SpokenName,
     },
     /// `SetProgram` aimed at a node that holds no profile program: a
     /// node of another kind, or a `Node::Profile` over a payload that
@@ -1763,6 +1789,15 @@ impl EditError {
             Self::GaugeNotLive { node, gauge: _ } => {
                 *node = node.respoken(doc);
             }
+            Self::DeclaredSiteNotAnOperand { node, name, site } => {
+                *node = node.respoken(doc);
+                *name = name.respoken(doc);
+                *site = site.respoken(doc);
+            }
+            Self::DeclaredNameNotUpstream { node, name } => {
+                *node = node.respoken(doc);
+                *name = name.respoken(doc);
+            }
             Self::NotAGauge { node, gauge } | Self::GaugeCycle { node, gauge } => {
                 *node = node.respoken(doc);
                 *gauge = gauge.respoken(doc);
@@ -1897,6 +1932,27 @@ impl EditError {
                 tail.recourse(
                     f,
                     format_args!("declare on the boolean or union that joins the pair"),
+                )
+            }
+            Self::DeclaredSiteNotAnOperand { node, name, site } => {
+                write!(
+                    f,
+                    "the declared {name} is read at {site}, which is not an operand of {node}"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("read it at the operand of {node} whose entity it is"),
+                )
+            }
+            Self::DeclaredNameNotUpstream { node, name } => {
+                write!(
+                    f,
+                    "the declared {name} is not minted before {node}, so none of its operands \
+                     can hold it"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("declare an entity of one of {node}'s operands"),
                 )
             }
             // A document's profile node always holds a program; the
@@ -3472,6 +3528,41 @@ fn check_payload_refs<P>(doc: &Doc<P>, new: &Doc<P>, node: &Node<P>) -> Result<(
     Ok(())
 }
 
+/// [`crate::node::declared_side_fault`] asked of the pairs `pairs` a
+/// door writes onto `node`, refused typed. `carrier` speaks the node
+/// and `at` is its place in `new`'s order (`None` for a node being
+/// inserted): every door that writes a pair asks this, so a pair no
+/// door admits is one no document holds.
+fn check_declared_sides<'p, P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    node: &Node<P>,
+    pairs: impl IntoIterator<Item = &'p crate::DeclaredPair>,
+    carrier: impl Fn() -> SpokenNode,
+    at: Option<usize>,
+) -> Result<(), EditError> {
+    let placed = new.positions();
+    let operands = node.inputs();
+    match crate::node::declared_side_fault(pairs, Some(&operands), at, |id| {
+        placed.get(&id).copied()
+    }) {
+        None => Ok(()),
+        Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
+            Err(EditError::DeclaredSiteNotAnOperand {
+                node: carrier(),
+                name: doc.spoken_name(&side.name),
+                site: doc.spoken(side.at),
+            })
+        }
+        Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
+            Err(EditError::DeclaredNameNotUpstream {
+                node: carrier(),
+                name: doc.spoken_name(&side.name),
+            })
+        }
+    }
+}
+
 /// Reject cycles in the recipe DAG (spec D3/D6). Defensive: insertion
 /// referencing only existing nodes cannot cycle, but the invariant is
 /// checked. Iterative DFS, three-color, deterministic order.
@@ -3722,6 +3813,14 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 }
             })?;
             check_node_inputs(doc, id, node)?;
+            check_declared_sides(
+                doc,
+                &new,
+                node,
+                node.declared_pairs(),
+                || SpokenNode::entering(id, node),
+                None,
+            )?;
             // A gauge reference is a reading edge, as a mate's operand
             // is: a never-live or wrong-kind one is a typo, refused here.
             check_gauge_ref(&new, id, node.gauge_ref(), || {
@@ -3901,9 +4000,17 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             };
             declare.clone_from(pairs);
             // The pairs are payload names and read sites, checked by the
-            // insert door's own function; no edge moved, so neither
+            // insert door's own functions; no edge moved, so neither
             // acyclicity nor the root set is asked again.
             check_payload_refs(doc, &new, &rewritten)?;
+            check_declared_sides(
+                doc,
+                &new,
+                &rewritten,
+                pairs,
+                || doc.spoken(*node),
+                new.positions().get(node).copied(),
+            )?;
             new.nodes.insert(*node, rewritten);
             EditRecord {
                 minted: None,
@@ -4128,8 +4235,34 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // rewritten below, not by this loop. Zero sites across
             // both = nothing to repair, refused.
             let mut declare_sites = 0usize;
-            for node in new.nodes.values_mut() {
+            let mut redeclared = Vec::new();
+            for (&id, node) in &mut new.nodes {
+                let before = node.declared_pairs().to_vec();
                 declare_sites += node.rebind_payload_names(from, to);
+                if node.declared_pairs() != before.as_slice() {
+                    redeclared.push((id, before));
+                }
+            }
+            // A rewritten declared pair is one this door writes, so it
+            // answers the rule every such door asks — of the pairs the
+            // rebind moved only, so a strand a union already held does
+            // not block an unrelated repair.
+            for (id, before) in redeclared {
+                let Some(node) = new.nodes.get(&id) else {
+                    continue;
+                };
+                let moved = node
+                    .declared_pairs()
+                    .iter()
+                    .filter(|pair| !before.contains(pair));
+                check_declared_sides(
+                    doc,
+                    &new,
+                    node,
+                    moved,
+                    || doc.spoken(id),
+                    new.positions().get(&id).copied(),
+                )?;
             }
             // Appearance keys are rebind sites (the attribute rides
             // the name — PR 7's store; also the spec D9 banked

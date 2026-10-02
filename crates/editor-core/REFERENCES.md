@@ -265,8 +265,13 @@ So the chain goes, not the link:
   stands at node `at`, where `at` is the member (for a pair boolean,
   the operand) — so a declaration says "this face of member `m` meets
   that face of member `n`" by naming the face IN the member with the
-  member beside it, and never names the union. A declaration therefore
-  names only what exists before the union does. A declaration is a
+  member beside it, and never names the union. Every door that writes
+  a pair (the insert door, `SetDeclare`, `Rebind`, the load door)
+  refuses, typed, a name not minted before the node in document order
+  and a site that is not one of the node's operands, so a declaration
+  names only what exists before the node does; the load door asks the
+  site of a pair boolean only, since a union's site can be stranded
+  afterwards (below). A declaration is a
   parameter, not an operand: it carries no material and mints no
   names, so `SetDeclare { node, pairs }` replaces a live boolean's or
   union's whole list, `SetMembers`' shape with nothing inferred, and

@@ -229,7 +229,7 @@ fn a_declared_curved_finding_verifies_and_the_mate_builds() {
             op: BooleanOp::Union,
             a: peg,
             b: block,
-            declare: declared_pairs(&findings).expect("findings declare"),
+            declare: declared_pairs(&findings),
         },
     );
     let ev = eval(&doc);

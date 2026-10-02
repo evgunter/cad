@@ -1671,9 +1671,11 @@ fn the_contact_class_mirror_matches_the_kernel() {
 #[test]
 fn declare_error_tags_are_stable() {
     use crate::tags::declare_error_tag;
-    use pncad::select::declared_pairs;
+    use pncad::select::declare_all;
 
-    let empty = declared_pairs(&[]).expect_err("an empty declaration refuses");
+    let doc = pncad::document::ProfileDoc::empty_derived("declare-error-tags", Tol::witness());
+    let empty = declare_all(&doc, pncad::document::RecipeNodeId(1), &[], Tol::witness())
+        .expect_err("declaring no findings refuses");
     assert_eq!(declare_error_tag(&empty), "no_findings");
 }
 
@@ -2696,6 +2698,21 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
     carries(&E::SetDeclareOnNonDeclaring { node: sp(1) }, &["node"]);
+    carries(
+        &E::DeclaredSiteNotAnOperand {
+            node: sp(1),
+            name: named(),
+            site: sp(2),
+        },
+        &["node", "input", "name"],
+    );
+    carries(
+        &E::DeclaredNameNotUpstream {
+            node: sp(1),
+            name: named(),
+        },
+        &["node", "name"],
+    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -4790,6 +4807,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_target",
             "continuous_param_cannot_be_count",
             "declare_names_missing_node",
+            "declared_name_not_upstream",
+            "declared_site_not_an_operand",
             "delete_would_dangle",
             "dimension",
             "doc_param_count_has_no_distribution",
@@ -5758,6 +5777,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_bound",
             "assertion_target",
             "dangling_input",
+            "declared_name_not_upstream",
+            "declared_site_not_an_operand",
             "duplicate_input",
             "epsilon_invalid",
             "forward_input",

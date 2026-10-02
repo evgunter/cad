@@ -2946,11 +2946,21 @@ macro_rules! node_rows {
 ///
 /// **A declared entity is SITED** (DM4): each side is a [`SitedRef`] —
 /// the entity's name, and the node it is READ AT, which is one of the
-/// node's own operands (a member, for a union). A declaration
-/// therefore names only what exists before the node, and the site is
-/// also the SIDE — a name carried by both operands says which one it
-/// means — so nothing about a declaration depends on the node's own
-/// name space.
+/// node's own operands (a member, for a union). The site is also the
+/// SIDE — a name carried by both operands says which one it means — so
+/// nothing about a declaration depends on the node's own name space.
+///
+/// **A declaration names only what exists before the node**: every
+/// door that writes a pair — the insert door,
+/// [`crate::DocEdit::SetDeclare`], [`crate::DocEdit::Rebind`] and the
+/// load door — refuses a name minted by the node itself or by a node
+/// after it in document order, and a site that is not one of the
+/// node's operands ([`declared_side_fault`]). Document order only
+/// grows at its end, so a name minted before the node stays so. A
+/// union's site alone can stop being an operand afterwards, when a
+/// [`crate::DocEdit::SetMembers`] drops the member it is read at: that
+/// is N5's stranded case, refused by the evaluation
+/// ([`crate::eval::NodeErrorKind::DeclareSiteNotAnOperand`]).
 ///
 /// **A union's own fold rows are therefore UNREPRESENTABLE here, not
 /// refused** — a `Seam`, a `Merged`, a `Fragment` or the output body of
@@ -3001,6 +3011,52 @@ macro_rules! node_rows {
 /// detail is serde's own missing-field message
 /// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
 pub type DeclaredPair = ((SitedRef, SitedRef), BooleanCoincidence);
+
+/// Why a node cannot carry a side of one of its declared pairs — the
+/// rule [`declared_side_fault`] states.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DeclaredSideFault {
+    /// The side is read at a node that is not one of the carrier's
+    /// operands, so the carrier has no table to read its name in.
+    SiteNotAnOperand,
+    /// The side's name is minted by the carrier itself or by a node
+    /// after it in document order — an entity the carrier's operands
+    /// cannot hold.
+    NameNotUpstream,
+}
+
+/// **The first side of `pairs` its carrier cannot carry**, and why:
+/// the one rule the insert door, `SetDeclare`, `Rebind` and the load
+/// door ask of a declared pair ([`DeclaredPair`]).
+///
+/// `operands` are the carrier's operands, or `None` where the sites
+/// are not this caller's to judge — the load door's for a union, whose
+/// site a later `SetMembers` may have stranded. `at` is the carrier's
+/// place in document order, `None` for a node not yet inserted, which
+/// comes after every live one; `position` is a node's place, `None`
+/// for a node that is not live. A name whose minter is not live is a
+/// strand (DM7) and is not this rule's to judge: the doors that write
+/// a name refuse a dead minter before they ask this.
+pub(crate) fn declared_side_fault<'p>(
+    pairs: impl IntoIterator<Item = &'p DeclaredPair>,
+    operands: Option<&[RecipeNodeId]>,
+    at: Option<usize>,
+    position: impl Fn(RecipeNodeId) -> Option<usize>,
+) -> Option<(&'p SitedRef, DeclaredSideFault)> {
+    pairs
+        .into_iter()
+        .flat_map(|((one, two), _)| [one, two])
+        .find_map(|side| {
+            if operands.is_some_and(|operands| !operands.contains(&side.at)) {
+                return Some((side, DeclaredSideFault::SiteNotAnOperand));
+            }
+            let upstream = match (position(side.name.node), at) {
+                (None, _) | (Some(_), None) => true,
+                (Some(minter), Some(at)) => minter < at,
+            };
+            (!upstream).then_some((side, DeclaredSideFault::NameNotUpstream))
+        })
+}
 
 /// Declared pairs that each assert the CONFORMAL class.
 ///
@@ -3415,6 +3471,17 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         find_row(self.rows_mut(), slot)
+    }
+
+    /// The node's declared pairs ([`DeclaredPair`]): a Boolean's or a
+    /// Union's own payload, and empty for every other kind, which
+    /// declares nothing.
+    #[must_use]
+    pub fn declared_pairs(&self) -> &[DeclaredPair] {
+        match self {
+            Node::Boolean { declare, .. } | Node::Union { declare, .. } => declare,
+            _ => &[],
+        }
     }
 
     /// The [`StableName`]s this payload REFERENCES — declared pairs, a

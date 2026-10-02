@@ -1324,7 +1324,9 @@ impl core::fmt::Display for ReplayTail<'_> {
         let Self(error, replay) = *self;
         match error {
             // A payload name on a node inserted AFTER the one carrying
-            // it — a Declare or a blend selection rebound forward. The
+            // it — a blend selection or a frame's face rebound forward
+            // (a declared pair cannot be: its doors refuse a name not
+            // minted before its node). The
             // replay inserts in document order, so no order satisfies
             // it. The remainder inserts one instance, whose names the
             // replay wrote itself.
@@ -1383,6 +1385,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SelectionNotCanonical { .. }
             | EditError::SetMembersOnNonList { .. }
             | EditError::SetDeclareOnNonDeclaring { .. }
+            | EditError::DeclaredSiteNotAnOperand { .. }
+            | EditError::DeclaredNameNotUpstream { .. }
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::StepIdsRefused { .. }
             | EditError::NodeIdCollides { .. }

@@ -1060,6 +1060,8 @@ test_utils::f6_variants! {
         StepIds,
         MintLogOrder,
         NameStepNotMinted,
+        DeclaredSiteNotAnOperand,
+        DeclaredNameNotUpstream,
     ];
 }
 
@@ -1410,6 +1412,43 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "minted by Extrude \"base plate\" (000000000005)",
                 "profile step id 000000000008",
                 "mint log does not hold",
+            ],
+        ),
+        (
+            SnapshotError::DeclaredSiteNotAnOperand {
+                node: held(6, "Boolean"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    node(),
+                ),
+                site: held(5, "Extrude"),
+            },
+            vec![
+                "read at Extrude 000000000005, which is not an operand of Boolean 000000000006",
+                "no edit writes such a pair",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ],
+        ),
+        (
+            SnapshotError::DeclaredNameNotUpstream {
+                node: held(6, "Boolean"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(5)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    node(),
+                ),
+            },
+            vec![
+                "minted by Extrude \"base plate\" (000000000005)",
+                "is not minted before Boolean 000000000006",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ],
         ),
     ];
@@ -3412,6 +3451,35 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
                 node: held(4, "Extrude"),
             },
             vec![held(4, "Extrude")],
+        ),
+        (
+            EditError::DeclaredSiteNotAnOperand {
+                node: held(6, "Union"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(4)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    held(4, "Extrude"),
+                ),
+                site: held(4, "Extrude"),
+            },
+            vec![held(6, "Union"), held(4, "Extrude")],
+        ),
+        (
+            EditError::DeclaredNameNotUpstream {
+                node: held(6, "Union"),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(tagged(7)),
+                        path: vec![RoleSeg::OutputBody],
+                    },
+                    held(7, "Extrude"),
+                ),
+            },
+            vec![held(6, "Union"), held(7, "Extrude")],
         ),
         (
             EditError::UnresolvedInput {

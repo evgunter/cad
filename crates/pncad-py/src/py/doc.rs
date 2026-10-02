@@ -242,17 +242,11 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
 }
 
 /// The kernel's declared-pair list for a boolean's or union's
-/// `declare=`: each inspected finding's pair and class. An empty list
-/// is the undeclared node, not the sugar's `no_findings` refusal.
-fn declared_pairs(
-    py: Python<'_>,
-    findings: Vec<super::flush::FlushFinding>,
-) -> PyResult<Vec<d::DeclaredPair>> {
-    if findings.is_empty() {
-        return Ok(Vec::new());
-    }
+/// `declare=` or a `DocEdit.set_declare`: each inspected finding's pair
+/// and class. An empty list is the undeclared node.
+fn declared_pairs(findings: Vec<super::flush::FlushFinding>) -> Vec<d::DeclaredPair> {
     let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-    pncad::select::declared_pairs(&kernel).map_err(|err| declare_err(py, &err))
+    pncad::select::declared_pairs(&kernel)
 }
 
 /// Raise `PersistError` carrying the refusal's stable tag and the
@@ -951,14 +945,14 @@ impl Doc {
     /// document, its record and its (empty) maintenance — is taken up
     /// whole through the swap point. Every `DeclareError` arm reaches
     /// Python through the same `declare_err`.
-    fn declare_findings(
+    /// Accept a declare door's edit through the `accept` swap point, or
+    /// raise its refusal.
+    fn accept_declared(
         &mut self,
         py: Python<'_>,
-        node: &NodeId,
-        findings: &[pncad::select::FlushFinding],
+        applied: Result<d::Applied<d::ProfileProgram>, pncad::select::DeclareError>,
     ) -> PyResult<()> {
-        let applied = pncad::select::declare_all(&self.inner, node.0, findings, Tol::witness())
-            .map_err(|err| declare_err(py, &err))?;
+        let applied = applied.map_err(|err| declare_err(py, &err))?;
         self.accept(applied);
         Ok(())
     }
@@ -1449,23 +1443,31 @@ impl Doc {
             .map(|label| label.as_str().to_owned()))
     }
 
-    /// Declare ONE inspected finding on the live boolean or union
-    /// `node`: its whole declared-pair list becomes that one finding's
-    /// pair — the detect/declare protocol's declare arm (SELECT-DESIGN
-    /// §3). Nothing here detects; findings reach this door as VALUES
-    /// the caller already inspected (the ruled no-fusion boundary).
+    /// ADD one inspected finding's pair to the declared pairs of the
+    /// live boolean or union `node`, keeping every pair it declares
+    /// already — the detect/declare protocol's declare arm
+    /// (SELECT-DESIGN §3), and the door an `undeclared_coincidence`
+    /// refusal's recourse names: following each refusal with its
+    /// `finding` converges on a node that declares every contact it
+    /// meets. A pair on the same two sides as one already declared
+    /// replaces it rather than repeating it. Nothing here detects;
+    /// findings reach this door as VALUES the caller already inspected
+    /// (the ruled no-fusion boundary).
     ///
     /// Raises `EditError`: `set_declare_on_non_declaring` when `node`
     /// is neither a boolean nor a union, `unknown_node` for a node the
-    /// document does not hold, and the name checks an insert runs on a
-    /// pair naming a node or step the document does not hold.
+    /// document does not hold, `declared_site_not_an_operand` for a
+    /// finding inspected between other operands than `node`'s, and the
+    /// name checks an insert runs on a pair naming a node or step the
+    /// document does not hold.
     fn declare(
         &mut self,
         py: Python<'_>,
         node: &NodeId,
         finding: &super::flush::FlushFinding,
     ) -> PyResult<()> {
-        self.declare_findings(py, node, core::slice::from_ref(&finding.0))
+        let applied = pncad::select::declare(&self.inner, node.0, &finding.0, Tol::witness());
+        self.accept_declared(py, applied)
     }
 
     /// Declare a SET of inspected findings on the live boolean or union
@@ -1481,7 +1483,8 @@ impl Doc {
         findings: Vec<super::flush::FlushFinding>,
     ) -> PyResult<()> {
         let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        self.declare_findings(py, node, &kernel)
+        let applied = pncad::select::declare_all(&self.inner, node.0, &kernel, Tol::witness());
+        self.accept_declared(py, applied)
     }
 
     /// How many nodes the document holds.
@@ -2742,7 +2745,6 @@ impl Node {
     #[staticmethod]
     #[pyo3(signature = (op, a, b, declare=Vec::new()))]
     fn boolean(
-        py: Python<'_>,
         op: BooleanOp,
         a: &NodeId,
         b: &NodeId,
@@ -2753,7 +2755,7 @@ impl Node {
                 op: op.to_document(),
                 a: a.0,
                 b: b.0,
-                declare: declared_pairs(py, declare)?,
+                declare: declared_pairs(declare),
             },
         })
     }
@@ -2786,14 +2788,13 @@ impl Node {
     #[staticmethod]
     #[pyo3(signature = (members, declare=Vec::new()))]
     fn union(
-        py: Python<'_>,
         members: Vec<NodeId>,
         declare: Vec<super::flush::FlushFinding>,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Union {
                 members: members.iter().map(|m| m.0).collect(),
-                declare: declared_pairs(py, declare)?,
+                declare: declared_pairs(declare),
             },
         })
     }
@@ -3686,20 +3687,22 @@ impl DocEdit {
     ///
     /// Refuses typed on `EditError`: `set_declare_on_non_declaring`
     /// for a node that is neither a boolean nor a union,
-    /// `unknown_node` for a node the document does not hold, and the
-    /// name checks an insert runs (`declare_names_missing_node`,
+    /// `unknown_node` for a node the document does not hold, the name
+    /// checks an insert runs (`declare_names_missing_node`,
     /// `name_step_never_minted`, `read_site_missing_node`) on a pair
-    /// naming what the document does not hold.
+    /// naming what the document does not hold, and the pair rule an
+    /// insert asks: `declared_site_not_an_operand` for a pair read at a
+    /// node that is not one of `node`'s operands,
+    /// `declared_name_not_upstream` for a name not minted before `node`.
     #[staticmethod]
     fn set_declare(
-        py: Python<'_>,
         node: &NodeId,
         findings: Vec<super::flush::FlushFinding>,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::DocEdit::SetDeclare {
                 node: node.0,
-                pairs: declared_pairs(py, findings)?,
+                pairs: declared_pairs(findings),
             },
         })
     }
