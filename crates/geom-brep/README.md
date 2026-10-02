@@ -48,14 +48,15 @@ escalated typed refusal, never a raw comparison.
 of an `Intersection` edge (the 3-D curve cached against the intensional
 description `{s1, s2, witness}`) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
-`Curve3::Ellipse` (tilted plane×cylinder, equal-radius cylinder×cylinder)
+`Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
+equal-radius cylinder×cylinder)
 and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
 section, one oval in the torus's own minor angle — minted by the
 offset-axial door for a hollowed partial revolve's rim, not by the C5
 table), whose residuals are zero by construction; rung 3, a fitted cubic
 `Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
-outside the inventory by decision: a generic-tilt plane×cone routes to
-rung 3 permanently. Conics round-trip to rational-quadratic NURBS only as
+outside the inventory by decision: a plane×cone section of either kind
+refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
 an export/tessellation form, never as the kernel carrier (the axes and
 centre are what dispatch consumes). There is no polyline rung.
 
@@ -212,7 +213,11 @@ a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
-closed from the carrier's own parameter), `Fitted`, `General`
+closed from the carrier's own parameter), `ConeSection` (a tilted
+plane×cone ellipse on its cone: the slant harmonic, the azimuth the
+Kepler true anomaly of the ellipse's projection, whose focus is the
+axis; its envelope is the harmonic closed form plus one remainder
+term), `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
@@ -241,8 +246,8 @@ own kind, not `Nurbs`: a locus claim against an approximating surface is
 a claim about the fit, and `Approx × anything` refuses because composing
 the fit's precision claim with the SSI limbs is not a ratified rule.
 Implemented: plane×plane, plane×sphere, sphere×sphere, axis-aligned
-plane×torus (rung 1); plane×cylinder, exact-degenerate plane×cone,
-declared-equal cylinder×cylinder (rung 2); cylinder×sphere and
+plane×torus (rung 1); plane×cylinder, plane×cone (all but the parabola
+and hyperbola), declared-equal cylinder×cylinder (rung 2); cylinder×sphere and
 plane×NURBS (rung 3). Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 
@@ -374,7 +379,9 @@ boundary walk with certified chordal bounds from hull-bounded jets
 (`nurbs_cert.rs`); general trimmed faces with pcurve-driven trim loops
 are not implemented (`UnsupportedCurvedShape`). (7) Mass properties on
 curved-cut faces are certified quadrature (C9, `props/quad.rs`):
-harmonic pcurve boundaries, polynomial and rational patch flux; rational
+harmonic pcurve boundaries, polynomial and rational patch flux; a cone
+face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
+the boundary's vector area; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
 `QuadratureBudget`, never a silent Gaussian. (8) In-house SVD and
 least-squares solvers with fixed elimination order

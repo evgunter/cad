@@ -702,7 +702,11 @@ class AssemblyError(PncadError):
 
 class ProductError(PncadError):
     """The whole-document gather refused. A product is all of the
-    roots or none of them — there are no partial products."""
+    roots or none of them — there are no partial products.
+
+    Its message names each node as the evaluation's own document holds
+    it (kind, label and tag): the document the gather was taken of.
+    `node` and `through` carry the full ids."""
 
     variant: str
     node: Optional[NodeId]
@@ -904,7 +908,8 @@ class ChecksError(PncadError):
     DI3, refused before any check runs) or `product_unavailable` (the
     roots gather into no product, so the registry has no subject for a
     check that reads one). `node` names the root on the first arm and
-    is `None` on the others.
+    is `None` on the others. Its message names each node as the
+    evaluation's own document holds it, the gather's included.
 
     NOT a finding. A check that ran and disagreed is a value in the
     report; this class means nothing was checked."""

@@ -3739,7 +3739,7 @@ mod tests {
     /// offer names another part.
     #[test]
     fn only_a_pin_that_no_longer_holds_offers_the_accept() {
-        use pncad::document::{NodeRefusal, ProductErrorKind};
+        use pncad::document::NodeRefusal;
 
         use crate::test_support::{PART_FILE, part_refused};
         let unresolved = |fault| PartFault::Unresolved {
@@ -3769,8 +3769,7 @@ mod tests {
                 node: RecipeNodeId(test_utils::refusal::tagged(7)),
             },
             PartFault::PartProduct {
-                kind: ProductErrorKind::RootFailed,
-                message: "the part's product refused".to_owned(),
+                refusal: ProductError::NoBodyRoots.into(),
             },
             PartFault::ReferenceCycle {
                 cycle: vec![*doc_ref],

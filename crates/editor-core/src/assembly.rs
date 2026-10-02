@@ -824,7 +824,7 @@ impl crate::spoken::Say for AssemblyError {
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         match self {
-            Self::Product(e) => write!(f, "{e}"),
+            Self::Product(e) => write!(f, "{}", crate::spoken::Said(&**e, by)),
             Self::Space {
                 group,
                 cause,
@@ -832,8 +832,9 @@ impl crate::spoken::Say for AssemblyError {
             } => write!(
                 f,
                 "the own space of the group rooted at {}, unplaced because {cause}, does not \
-                 gather: {refusal}",
-                by.node(*group)
+                 gather: {}",
+                by.node(*group),
+                crate::spoken::Said(&**refusal, by)
             ),
             Self::Mint { refusals } => {
                 write!(
