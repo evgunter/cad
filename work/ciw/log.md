@@ -2947,3 +2947,21 @@ an open PR when a lane's re-baseline commit is its tip. The header prose
 of `render.yml`, the report-only text of `.github/actions/rebaseline-lane`
 and `demos/README.md`'s "Rendering the montages" stop claiming that PR
 runs render.
+
+## 2026-10-02 — the `[render]` crossing, after review
+
+PR 3791's fix pass reworks the entry above. The tag is now read in
+`ci.yml`'s `filter` job (`git log -1 --format=%s HEAD^2` of the test
+merge; the separate `render tag` job is gone) and counts only as a
+whitespace-delimited token in the subject, on ready PRs. `ci.yml` takes a
+`pr` dispatch input that gates `refs/pull/<pr>/merge` pinned by sha, and
+every gated job (and `interval.yml`, via a new `ref` input) checks out
+the filter's `sha` output. `render.yml` loses its dead `gate` and
+`report_sha` inputs and the gate concurrency branch; `ci-on-new-head`
+dispatches ci.yml with `pr` and posts a failing `render re-gate` check
+when it cannot vouch for a head it made. `.github/actions/rebaseline-lane`
+drops `[skip ci]` from the bot commit and refuses (failing
+`render refused (<lane>)` check) when a non-bot commit landed on the
+branch during the render, except on the default branch. Note for CIW:
+`.github/actions/*` is not among `work/ciw/program.md`'s `paths`, though
+these composite actions are part of the hosted CI this program owns.

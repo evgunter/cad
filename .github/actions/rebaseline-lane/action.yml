@@ -51,14 +51,6 @@ inputs:
       as the old gate did, and commits nothing.
     required: false
     default: ""
-  report_sha:
-    description: >
-      The commit the neutral check is posted against WHEN NOTHING IS
-      COMMITTED (see `push_to`). Must be the PR's HEAD sha on a
-      pull_request — `github.sha` there is the merge commit, and a check
-      posted against that never appears on the PR.
-    required: false
-    default: ""
   token:
     description: "GITHUB_TOKEN. Needs contents:write and checks:write."
     required: true
@@ -71,7 +63,6 @@ runs:
         LANE: ${{ inputs.lane }}
         DIR: ${{ inputs.dir }}
         PUSH_TO: ${{ inputs.push_to }}
-        REPORT_SHA: ${{ inputs.report_sha }}
         GH_TOKEN: ${{ inputs.token }}
         RUN_ID: ${{ github.run_id }}
       run: |
@@ -103,8 +94,7 @@ runs:
 
         # REPORT-ONLY MODE (`push_to` empty): a run aimed at a named
         # `ref` with no `push_to`, which has no branch to commit onto.
-        # Say so, commit nothing. The check goes on REPORT_SHA when the
-        # caller names one, else on this run's own sha.
+        # Say so on this run's sha, commit nothing.
         if [ -z "$PUSH_TO" ]; then
           fix="local-scripts/render-hosted.sh --run ${RUN_ID} --lane ${LANE}"
           report_summary="$(printf '%s\n' \
@@ -112,7 +102,7 @@ runs:
             "" \
             "**Nothing is broken.** This run had no branch to commit to, so it did" \
             "not re-baseline. To commit new cells to a PR's branch, push a commit" \
-            "whose message carries \`[render]\`. If the render is what you intended," \
+            "whose subject carries \`[render]\`. If the render is what you intended," \
             "this check is a PASS." \
             "" \
             "To LOOK at the new cells before merging, take this run's artifact:" \
@@ -133,15 +123,27 @@ runs:
             '```')"
           gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
             -f "name=render drift (${LANE})" \
-            -f "head_sha=${REPORT_SHA:-$GITHUB_SHA}" \
+            -f "head_sha=${GITHUB_SHA}" \
             -f "status=completed" \
             -f "conclusion=neutral" \
             -f "output[title]=${DIR} differs from this render — not committed (no branch to commit to)" \
             -f "output[summary]=${report_summary}" \
             --silent
-          echo "reported drift on ${REPORT_SHA:-$GITHUB_SHA} (no commit: push_to empty)"
+          echo "reported drift on ${GITHUB_SHA} (no commit: push_to empty)"
           exit 0
         fi
+
+        # THE CELLS BELONG TO THE TREE THAT DREW THEM. Past the rendered
+        # commit the branch may hold only this workflow's own re-baseline
+        # commits (other lanes of this run); a commit from anyone else means
+        # the branch moved during the render, and these cells would be
+        # committed onto a tree they were not drawn from. That refuses, with
+        # a failing check on the new tip. The default branch is exempt: the
+        # nightly renders it while merges keep landing, a refusal there would
+        # starve it of every re-baseline on a busy day, and the next nightly
+        # re-draws whatever a moved tip made stale.
+        rendered="$(git rev-parse HEAD)"
+        default_branch="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .default_branch)"
 
         # The rendered cells are in the working tree, and the retry
         # below resets the tree to the remote — so stash them somewhere
@@ -165,6 +167,25 @@ runs:
           # holds the ancestry, so the resulting child commit is an
           # ordinary fast-forward push.
           git fetch --depth=1 origin "$PUSH_TO"
+          tip="$(git rev-parse "origin/$PUSH_TO")"
+          if [ "$tip" != "$rendered" ] && [ "$PUSH_TO" != "$default_branch" ]; then
+            cmp="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${rendered}...${tip}" \
+              --jq '[.status, ([.commits[] | select(.author.login != "github-actions[bot]") | .sha[:9]] | join(","))] | join(" ")')"
+            read -r status foreign <<<"$cmp"
+            if [ "$status" != ahead ] || [ -n "${foreign:-}" ]; then
+              why="${PUSH_TO} moved during the render (now ${tip}; ${status}${foreign:+, commits ${foreign}}), so these ${LANE} cells, drawn from ${rendered}, were not committed onto it. Push again with [render] in the subject to render the new tip. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"
+              gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
+                -f "name=render refused (${LANE})" \
+                -f "head_sha=${tip}" \
+                -f "status=completed" \
+                -f "conclusion=failure" \
+                -f "output[title]=the branch moved during the render; push again with [render]" \
+                -f "output[summary]=${why}" \
+                --silent
+              echo "::error title=${DIR} not re-baselined::${why}"
+              exit 1
+            fi
+          fi
           git reset --hard "origin/$PUSH_TO"
           mkdir -p "$DIR"
           cp -a "$staged/." "$DIR/"
@@ -173,7 +194,7 @@ runs:
             echo "$DIR already current on $PUSH_TO (another run landed it)."
             exit 0
           fi
-          git commit -m "render($LANE): re-baseline committed cells [skip ci]"
+          git commit -m "render($LANE): re-baseline committed cells"
           if git push origin "HEAD:$PUSH_TO"; then
             pushed="$(git rev-parse HEAD)"
             break

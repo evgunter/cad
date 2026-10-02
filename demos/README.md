@@ -176,23 +176,35 @@ enforce the commit side.
 
 **You do not render locally — CI does it and commits the result.** A
 PR's CI run renders nothing (`ci.yml` calls no render lane; `nightly.yml`
-renders every lane over `main` and commits what drifted). A PR that moves
-frames asks for them with **`[render]` in its head commit's message**:
+renders every lane over `main` and commits what drifted). A ready PR
+that moves frames asks for them with **`[render]` as a word of its head
+commit's subject line**:
 
 ```sh
 git commit -m "scene: widen the bracket [render]"
-git push        # ci.yml's `render tag` job dispatches render.yml on the
+git push        # ci.yml's `render tag` step dispatches render.yml on the
                 #   branch; a lane that differs is committed back to it
-                #   with a neutral ("!") check naming the cells, and CI
-                #   is dispatched again on that new head
+                #   with a neutral ("!") check naming the cells, and CI is
+                #   dispatched again on that new head, gating the PR's
+                #   merge with main
 git pull        # the frames are on your branch: look at them
 ```
 
-The tag is read from the PR's head commit only, on a `pull_request`
-run, so a later push without it renders nothing, and neither the bot's
-re-baseline commit nor the CI run dispatched on it can ask again. A PR
-from a fork cannot be rendered this way (its run's token can neither
-dispatch nor push to the fork); the job says so in a warning.
+The tag counts only in the subject, delimited by whitespace, of the PR's
+head commit, read on a `pull_request` run: `[render]` in a commit body,
+or glued to other text, does not fire, and a later push without it
+renders nothing. A draft renders nothing; marking it ready re-reads the
+tag. Neither the bot's re-baseline commit nor the CI run dispatched on it
+can ask again. A PR from a fork cannot be rendered this way (its run's
+token can neither dispatch nor push to the fork); the step says so in a
+warning.
+
+The head goes **red** rather than carrying only neutral checks when the
+render cannot vouch for it: a push to the branch while the render runs
+makes the lanes commit nothing and post a failing `render refused` check
+(push again with the tag), and lanes that did not all succeed after one
+committed, or a re-gate that could not be dispatched, post a failing
+`render re-gate` check.
 
 **If the render is what you intended, the neutral check is a pass.** It
 needs no re-run and no second commit. A drifting lane commits only when

@@ -31,11 +31,11 @@
 # THOUGH YOU RARELY WANT THOSE. Since 2026-08-17 every lane RE-BASELINES
 # itself — a run whose render differs from the committed cells commits
 # the new ones to the branch and marks the run neutral — so the ordinary
-# way to re-render a PR's branch is a commit whose message carries
-# `[render]` (ci.yml's `render tag` job dispatches this workflow on the
-# branch), then `git pull` and look at the images. The artifacts above
-# are for a dispatch aimed at a bare SHA (nowhere to commit to) and for
-# `--verify`.
+# way to re-render a ready PR's branch is a commit whose SUBJECT carries
+# `[render]` as a whitespace-delimited token (ci.yml's `filter` job
+# dispatches this workflow on the branch; drafts dispatch nothing), then
+# `git pull` and look at the images. The artifacts above are for a
+# dispatch aimed at a bare SHA (nowhere to commit to) and for `--verify`.
 #
 # `local-scripts/render-hosted.sh` is the one-command front end for the
 # DISPATCH path (push check -> dispatch -> poll -> install), and is what
@@ -123,11 +123,15 @@
 # of its own — so the PR would show that one neutral check and NOTHING
 # else, every green check stranded on the parent commit (measured on
 # PR #598: 30 green jobs on one sha, a head commit carrying a single
-# check). A dispatch closes that gap itself: its `ci-on-new-head` job
-# dispatches ci.yml on a branch whose open PR it re-baselined, and that
-# run's checks land on the new head. A render with no dispatch behind it
-# commits nothing to a PR; a PR that never asked for a render merges
-# with stale cells, and the nightly re-baselines main.
+# check). A dispatch of THIS workflow closes that gap: `ci-on-new-head`
+# dispatches ci.yml on a branch whose open PR it re-baselined, gating the
+# PR's merge with main, and its checks land on the new head. Nothing else
+# closes it: nightly.yml dispatched on a PR branch commits there through
+# `workflow_call`, and that head carries only the neutral checks. A lane
+# that finds its branch moved by someone else during the render commits
+# nothing and fails (`.github/actions/rebaseline-lane`), except on the
+# default branch, which the nightly keeps converging. A PR that never asked
+# for a render merges with stale cells, and the nightly re-baselines main.
 # `.github/actions/rebaseline-lane` carries the full reasoning,
 # including why neutral rather than red and why not silent green.
 #
@@ -213,14 +217,8 @@ on:
         description: "Branch to commit re-baselined lanes to (empty: this workflow's branch, unless `ref` is set)"
         required: false
         default: ""
-      report_sha:
-        description: "Commit the drift check is posted against when nothing is committed (leave empty: this run's own sha)"
-        required: false
-        default: ""
 
-  # ci.yml's render lane. Same inputs, plus `gate` — which no longer
-  # turns drift into a failure (both modes re-baseline) and survives as
-  # the caller's declared intent and the concurrency-group discriminator.
+  # nightly.yml's render lane. Same inputs.
   workflow_call:
     inputs:
       lanes:
@@ -252,41 +250,22 @@ on:
         type: string
         required: false
         default: ""
-      report_sha:
-        description: "Commit the neutral drift check is posted against when nothing is committed (must be the PR HEAD sha, not the merge commit)"
-        type: string
-        required: false
-        default: ""
-      gate:
-        description: >
-          Kept for the caller's intent and for the concurrency group. It
-          no longer turns drift into a failure — drift is re-baselined
-          and marked neutral in both modes; see the header.
-        type: boolean
-        required: false
-        default: false
 
 env:
-  # THE COMMIT TARGET, RESOLVED ONCE (three copies of this expression
-  # drifted into a bug: the dispatch fallback fired in GATE mode too and
-  # turned ci.yml's deliberate empty value into `github.ref_name`, which
-  # on a pull_request is `NNN/merge` — not a branch. `couldn't find
-  # remote ref 598/merge`, PR #598.)
-  #
-  # In GATE mode ci.yml is AUTHORITATIVE and an empty value MUST mean
-  # "do not commit" — it passes the branch on main pushes and nothing on
-  # PRs. Only a DISPATCH may fall back to the branch it was fired on,
-  # and only when no explicit `ref` made the target ambiguous.
-  PUSH_TARGET: ${{ inputs.push_to != '' && inputs.push_to || (!inputs.gate && inputs.ref == '' && github.ref_name || '') }}
+  # THE COMMIT TARGET, RESOLVED ONCE: `push_to` when given, else the branch
+  # this run is on, unless a `ref` makes the target ambiguous (it may be a
+  # bare SHA, which has nowhere to commit to). Empty means report only.
+  # Under `workflow_call` `github.ref_name` is the caller's; a caller on a
+  # pull_request would hand over `N/merge`, which is not a branch, so such a
+  # caller must pass `push_to` explicitly (none does).
+  PUSH_TARGET: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
 
 concurrency:
-  # On demand, a render someone ASKED for is never cancelled — a second
-  # dispatch queues behind the first. As ci.yml's gate the opposite is
-  # right: a superseded push should take its render down with the rest
-  # of the CI run that owns it, which is why the two modes do not share
-  # a group.
-  group: render-demos-${{ inputs.gate && 'gate' || 'dispatch' }}-${{ inputs.ref || github.ref }}
-  cancel-in-progress: ${{ inputs.gate == true }}
+  # A running render is never cancelled by a newer one. GitHub keeps ONE
+  # pending run per group, though: a third dispatch while one runs and one
+  # waits cancels the waiting one.
+  group: render-demos-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   # THE OBJECT THE LANES RENDER, RESOLVED ONCE AND PROBED BEFORE ANY LANE
@@ -794,10 +773,6 @@ jobs:
           lane: uv
           dir: demos/renders-uv
           push_to: ${{ env.PUSH_TARGET }}
-          # On a pull_request `github.sha` is the MERGE commit; a check
-          # posted there never shows on the PR. ci.yml passes the PR's
-          # head sha explicitly.
-          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 
       # ---- the MC density sheet: the tour writes it, this only
@@ -839,7 +814,6 @@ jobs:
           lane: mc
           dir: demos/renders-mc
           push_to: ${{ env.PUSH_TARGET }}
-          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 
       # ---- the wild-corpus montage. FreeCAD-free by ratified scope (its
@@ -905,10 +879,6 @@ jobs:
           lane: wild
           dir: demos/renders-wild
           push_to: ${{ env.PUSH_TARGET }}
-          # On a pull_request `github.sha` is the MERGE commit; a check
-          # posted there never shows on the PR. ci.yml passes the PR's
-          # head sha explicitly.
-          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 
   # THE TWO FreeCAD-DRAWN MONTAGES, IN ONE JOB (merged 2026-08-22). ONE
@@ -1340,10 +1310,6 @@ jobs:
           lane: kernel
           dir: demos/renders
           push_to: ${{ env.PUSH_TARGET }}
-          # On a pull_request `github.sha` is the MERGE commit; a check
-          # posted there never shows on the PR. ci.yml passes the PR's
-          # head sha explicitly.
-          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
       - name: re-baseline committed lane (freecad)
         if: ${{ !cancelled() && steps.render.outputs.freecad_ok == 'true' }}
@@ -1352,7 +1318,6 @@ jobs:
           lane: freecad
           dir: demos/renders-freecad
           push_to: ${{ env.PUSH_TARGET }}
-          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 
   # THE VIEWER'S OWN WINDOW, PHOTOGRAPHED. Every other lane in this file
@@ -1587,56 +1552,92 @@ jobs:
           lane: gui
           dir: demos/renders-gui
           push_to: ${{ env.PUSH_TARGET }}
-          # On a pull_request `github.sha` is the MERGE commit; a check
-          # posted there never shows on the PR. ci.yml passes the PR's
-          # head sha explicitly.
-          report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 
   # CI ON THE NEW HEAD. A lane's re-baseline commit is pushed with this run's
   # token, so it starts no CI run of its own and a PR's checks would stay on
-  # the parent. When a dispatched run's lanes left a re-baseline commit at the
-  # tip of a branch with an open PR, this dispatches ci.yml there; its checks,
-  # `gate ok` among them, attach to that sha whatever event made them. A
-  # ci.yml dispatch never reads the `[render]` tag, so this does not loop.
+  # the parent. When every commit past the rendered one is this workflow's
+  # bot commit and the branch has a ready open PR, this dispatches ci.yml
+  # with that PR's number: it gates the PR's test merge with its base, and
+  # its checks, `gate ok` among them, attach to the new head. ci.yml's
+  # dispatch never reads the `[render]` tag, so this does not loop.
+  #
+  # A head this job cannot vouch for goes RED, not neutral-only: lanes that
+  # did not all succeed after one committed (a partial set), or a re-gate
+  # that was not dispatched, post a failing `render re-gate` check on it.
+  #
   # Only a dispatch of THIS file: under nightly.yml's `workflow_call` the
-  # github context, `workflow_ref` included, is the caller's.
+  # github context, `workflow_ref` included, is the caller's. `always()` so
+  # a cancelled render still answers for the commits it left behind.
   ci-on-new-head:
     name: CI on the re-baselined head
     runs-on: ubuntu-latest
-    needs: [scene-inputs, montage, gui]
-    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && contains(github.workflow_ref, '/.github/workflows/render.yml@') }}
+    needs: [checkout-target, scene-inputs, montage, gui]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && contains(github.workflow_ref, '/.github/workflows/render.yml@') }}
     permissions:
       actions: write
+      checks: write
       contents: read
       pull-requests: read
     timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RENDERED: ${{ needs.checkout-target.outputs.ref }}
     steps:
-      - name: dispatch ci.yml on the branch if a lane committed to it
+      - name: re-gate the branch if a lane committed to it
         env:
-          GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
+          RESULTS: ${{ needs.scene-inputs.result }} ${{ needs.montage.result }} ${{ needs.gui.result }}
         run: |
           set -euo pipefail
-          if [ -z "$PUSH_TARGET" ]; then
-            echo "this run had no branch to commit to: nothing to re-run"
+          if [ -z "$PUSH_TARGET" ] || [ -z "$RENDERED" ]; then
+            echo "this run had no branch to commit to: nothing to re-gate"
             exit 0
           fi
           tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$PUSH_TARGET" --jq .object.sha)"
-          if [ "$tip" = "$GITHUB_SHA" ]; then
-            echo "$PUSH_TARGET is still at $GITHUB_SHA: no lane committed"
+          cmp="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RENDERED...$tip" \
+            --jq '[.status, ([.commits[] | select(.author.login != "github-actions[bot]") | .sha[:9]] | join(","))] | join(" ")')"
+          read -r status foreign <<<"$cmp"
+          case "$status" in
+            identical) echo "$PUSH_TARGET is still at the rendered commit: no lane committed"; exit 0 ;;
+            ahead) ;;
+            *) echo "$PUSH_TARGET's tip $tip is $status of the rendered $RENDERED: not a head this run made"; exit 0 ;;
+          esac
+          if [ -n "${foreign:-}" ]; then
+            echo "$PUSH_TARGET moved during the render ($foreign not this workflow's): a lane that met the move refused with a failing check; this run vouches for no head past it"
             exit 0
           fi
-          subject="$(gh api "repos/$GITHUB_REPOSITORY/commits/$tip" --jq '.commit.message | split("\n")[0]')"
-          case "$subject" in
-            "render("*"): re-baseline committed cells"*) ;;
-            *) echo "$PUSH_TARGET's tip $tip is not a re-baseline ($subject): its own push ran CI"; exit 0 ;;
-          esac
-          prs="$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=$OWNER:$PUSH_TARGET" --jq length)"
-          if [ "$prs" = 0 ]; then
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=$OWNER:$PUSH_TARGET" \
+            --jq 'map("\(.number) \(.draft)") | .[0] // ""')"
+          if [ -z "$pr" ]; then
             echo "$PUSH_TARGET has no open PR: nothing to gate"
             exit 0
           fi
-          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$PUSH_TARGET"
-          echo "dispatched ci.yml on $PUSH_TARGET (tip $tip):"
+          read -r number draft <<<"$pr"
+          case " $RESULTS " in
+            *" failure "*|*" cancelled "*)
+              gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+                -f "name=render re-gate" -f "head_sha=$tip" -f status=completed -f conclusion=failure \
+                -f "output[title]=partial render: re-render before merging" \
+                -f "output[summary]=This head carries cells from render run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID, whose lanes did not all succeed ($RESULTS). Push a commit whose subject carries [render] to re-render." \
+                --silent
+              echo "::error::lanes did not all succeed ($RESULTS) after one committed; failing check posted on $tip" ;;
+          esac
+          if [ "$draft" = true ]; then
+            echo "PR #$number is a draft: drafts run nothing, and marking it ready gates $tip"
+            exit 0
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" \
+            -f "ref=$PUSH_TARGET" -f "inputs[pr]=$number"
+          echo "dispatched ci.yml on $PUSH_TARGET to gate PR #$number's merge (tip $tip):"
           echo "  $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/ci.yml?query=branch%3A$PUSH_TARGET"
+      - name: a head this job could not answer for goes red
+        if: failure()
+        run: |
+          tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$PUSH_TARGET" --jq .object.sha)" || exit 1
+          [ "$tip" != "$RENDERED" ] || exit 0
+          gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f "name=render re-gate" -f "head_sha=$tip" -f status=completed -f conclusion=failure \
+            -f "output[title]=CI may not have re-run on this head" \
+            -f "output[summary]=Render run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID moved $PUSH_TARGET and its re-gate job failed. Push a commit to gate this head." \
+            --silent
