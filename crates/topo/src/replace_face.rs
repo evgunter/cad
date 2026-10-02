@@ -2173,7 +2173,7 @@ pub(crate) fn offset_rechart<T: Real>(
 /// because an edge between two moving charts certifies on neither pair
 /// of mixed charts; a spec names a chart by the key its face wears now.
 /// The offset doors' shared mutation step, run on their staged clone.
-pub(crate) fn move_points_then_rechart<T: Decide>(
+pub(crate) fn move_points_then_rechart<T: Decide + crate::props::AtRestPolicy>(
     work: &mut Body<T>,
     moved: &[(VertexKey, Point3<T>)],
     charts: Vec<Rechart<T>>,

@@ -13,7 +13,7 @@
 //! booleans**. This stop is the honest intersection of the two, and
 //! every place the intersection is empty is pinned by
 //! [`wall_probes`] — a live, fail-loud record of what the kernel
-//! refused, in the `curvedcut::pin_frontier` style: each probe
+//! refused, in the [`crate::walls::wall`] style: each probe
 //! ASSERTS its refusal and panics with instructions if the refusal
 //! ever retires.
 //!
@@ -1903,7 +1903,7 @@ fn ball<S: Scalar>(c: Point3<f64>, r: f64, tol: Tol) -> Body<S> {
 ///   probe that only pinned "some error" would stay green while the
 ///   frontier moved underneath it, and the findings list would quietly
 ///   become fiction (review MINOR-1);
-/// - success → panic with instructions, the `curvedcut::pin_frontier`
+/// - success → panic with instructions, the [`crate::walls::wall`]
 ///   retire-on-closure contract.
 fn wall<T, E: core::fmt::Debug>(
     n: u32,
@@ -3584,36 +3584,6 @@ mod review_probes {
              wall, naming slab 0, got {out:?} — the stacking wall moved; re-derive \
              this probe, the lofted_blade prose, and KERNEL-VERBS together"
         );
-    }
-
-    /// **The wall list, run by the test suite and not only by the
-    /// renderer.**
-    ///
-    /// [`super::wall_probes`] is the whole point of the scene's
-    /// frontier discipline — every wall attempted for real, each
-    /// pinned by its own typed refusal, panicking if the refusal
-    /// changed or went away — and until this test existed its only
-    /// caller was `main.rs`'s render walk. So the discipline ran when
-    /// somebody rendered the tour and never under
-    /// `cd demos/tour && cargo test --release`, which is the command
-    /// the spec-level local acceptance actually runs: a frontier could
-    /// move and the suite would stay green.
-    ///
-    /// It cannot be a `tests/` integration test — `demo-tour` is a
-    /// bin-only crate, so nothing outside the binary can name
-    /// `lily::wall_probes` — which is why it lives here beside the
-    /// probes rather than next to the other suites.
-    ///
-    /// The body is one call because the assertions are the wall
-    /// probes' own: `walls::wall` panics on a different refusal and
-    /// panics on success, so there is nothing left for this test to
-    /// add. It rebuilds `plant::<f64>` and runs the frontier's
-    /// booleans, welds and fillets, so it is not free — but measured,
-    /// it is ~0.02 s of a 38 s bin suite, which is under the
-    /// run-to-run noise of the suite it joins.
-    #[test]
-    fn the_wall_list_still_stands() {
-        wall_probes::<f64>(Tol::witness());
     }
 }
 

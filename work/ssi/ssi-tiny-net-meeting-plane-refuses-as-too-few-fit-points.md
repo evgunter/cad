@@ -35,4 +35,4 @@ nearest door, so look there first.
 
 ## Closed (2026-10-01, PR 3694)
 
-Not a floor case. The 3 cm branch is shorter than the march's longest step at the 1.5 m extent, so it yields 3 samples where the cubic fit needs 4. It refuses `BranchUndersampled` naming the extent, and following that recourse traces and certifies it. The row that pins it pins the refusal kind per spread. The design alternative, having the stepper trace short branches itself, is filed as `ssi-short-branch-step-reads-only-the-callers-extent`.
+Not a floor case. The 3 cm branch is shorter than the march's longest step at the 1.5 m extent, so it yielded 3 samples where the cubic fit needs 4. PR 3694 refused it as `BranchUndersampled`, naming the extent. PR 3730 (`ssi-short-branch-step-reads-only-the-callers-extent`) retired that refusal: the march now re-traces such a branch in steps cut from its own length, and this one certifies at the caller's extent. The row that pins it pins the outcome per spread.

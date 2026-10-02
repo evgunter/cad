@@ -124,7 +124,7 @@ mod interval {
     }
 }
 
-fn two_bricks<T: Decide + geom_core::Bounds>() -> (Body<T>, Body<T>) {
+fn two_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>() -> (Body<T>, Body<T>) {
     (
         brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
         brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
