@@ -36,3 +36,23 @@ Found by the sweep for edges skipped beside the sampled screen
 Decide per skip: an unresolved face or half-edge is a broken body
 (`BodyNotIntact`), and an uncertified carrier or a lone-vertex loop is
 either refused typed or argued harmless at the site.
+
+## Measured
+
+Five bare `continue`s, not four: the unresolved loop and the cycle that
+does not walk were two. Reachability through `fillet_edges`, which
+runs the battery on any `&Body` without a tier-2 gate:
+
+- unresolved face, unresolved half-edge, unresolved loop, cycle that
+  does not walk: no public door builds such a body (the arena mutators
+  are crate-private), and on any body the half-edge is live because
+  the closed walk that returned it read it, and the face because
+  `resolve_link` read it. Refused `BodyNotIntact`.
+- lone-vertex ring (`mev` into a support face, then `kemr`) and null
+  strut (`mev_null` at a support-face corner): both tier-1 valid, both
+  reach the screen. Before the fix the strut fell through to predicate
+  6 (`UnsupportedCorner`, valence 4) and the ring to the surgery's
+  `ring_circle` (`BodyNotIntact`). Each now refuses at the screen as
+  `UnsupportedGeometry`, the tag the surgery gives the same reads (the
+  ruled cap meter's lone-vertex cycle, every certified-carrier read).
+  Rows: `crates/sweep/tests/band_clearance_screen_reads_every_feature.rs`.
