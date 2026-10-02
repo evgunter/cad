@@ -137,8 +137,9 @@ pub enum CertCheck {
     /// transversality margin compares at an interior sample, which must
     /// exist: each surface's implicit gradient nonzero and defined over
     /// the sample point's enclosure. Named when the margin is undefined
-    /// because one is not (a point on a cylinder's axis, a cone's apex,
-    /// or an enclosure reaching one).
+    /// because one is not (a point on a cylinder's axis, a sphere's
+    /// centre, or an enclosure reaching one). A cone's apex never reaches
+    /// this check: the arm gate refuses there first (`dihedral_arm`).
     TangentPlanes,
     /// TangentIntersection: the normal-parallelism defect at an
     /// interior sample — `sin θ` metered at the lever arm `1/κ_rel`
@@ -681,10 +682,10 @@ const TANGENT_PLANES_UNDEFINED: &str = "a surface's gradient is zero or undefine
      is defined over it";
 
 /// The recourse of [`CertCheck::TangentPlanes`]: a gradient vanishes on
-/// a cylinder's axis and at a cone's apex, and an enclosure reaches one
+/// a cylinder's axis and at a sphere's centre, and an enclosure reaches one
 /// when the point and the surface's axis are enclosed apart by more
 /// than the radius, as two images of one widened map are.
-const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or apex; over \
+const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or centre; over \
      a parameter box, a narrower box encloses the edge and its surfaces closer to where they are";
 
 /// How one decision's refusals end: the one table [`recourse`] reads.
@@ -3210,7 +3211,7 @@ mod tests {
                 "the surfaces' tangent planes at sample 4 are undefined: a surface's gradient \
                  is zero or undefined somewhere over the enclosure of the point there, so no \
                  tangent plane, and no angle between the surfaces, is defined over it. \
-                 Recourse: keep the edge clear of each surface's axis or apex; over a \
+                 Recourse: keep the edge clear of each surface's axis or centre; over a \
                  parameter box, a narrower box encloses the edge and its surfaces closer to \
                  where they are",
                 "{reading:?}"

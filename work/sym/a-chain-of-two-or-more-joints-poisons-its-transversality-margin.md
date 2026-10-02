@@ -2,11 +2,12 @@
 id: a-chain-of-two-or-more-joints-poisons-its-transversality-margin
 kind: issue
 title: the wedge's transversality margin POISONS at two joints and at three, and it is what bounds the chain's certifiable box: just above the wall it is the first refusal at every link count
-status: dispatched
+status: closed
 opened: 2026-09-22
 priority: P1
 cost: D
 refs: [SYM-14]
+closed: 2026-10-02
 ---
 
 
@@ -229,7 +230,7 @@ point are each enclosed `±δ` across the radial direction:
     4 are undefined: a surface's gradient is zero or undefined somewhere
     over the enclosure of the point there, so no tangent plane, and no
     angle between the surfaces, is defined over it".
-  - Its recourse is "keep the edge clear of each surface's axis or apex;
+  - Its recourse is "keep the edge clear of each surface's axis or centre;
     over a parameter box, a narrower box encloses the edge and its
     surfaces closer to where they are", in place of the transversality
     margin's "may indicate a kernel bug".
@@ -264,3 +265,15 @@ point are each enclosed `±δ` across the radial direction:
   - `mcchain.rs`'s rendered caption, which says only that the box moves
     with ε;
   - the narration's `println!` quoting `1.083e-1`.
+
+## Closed (SYM-15, PR #3804, 2026-10-02)
+
+Answered: what goes to NaN is named, it is legitimate, and the
+certify path's refusal says so. What would move the chain's
+certifiable box is not the tier's and is carried by two successors:
+`interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`
+(PROPS, the wall at larger ε) and
+`transform-rigid-recertifies-images-enclosed-apart` (SHELL, the poison
+point, with the tier's own proof of `‖w‖ = r` as a candidate). The
+other `classify_dihedral` callers' text is a seam on PROPS'
+`invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`.

@@ -60,9 +60,9 @@ normalised vectors, where a shared magnitude sits on both sides.
     spelling);
   - `geom-brep/src/tangent.rs:79` (the tangent jet's `sin θ`);
   - `geom-brep/src/edge_nurbs.rs:788` (`normal_angle_sine`);
-  - `sweep/src/blend/battery.rs:735` (`sin θ` of two normalised
+  - `sweep/src/blend/battery.rs:729` (`sin θ` of two normalised
     tangents);
-  - `sweep/src/blend/battery.rs:2243`, a point-line distance
+  - `sweep/src/blend/battery.rs:2230`, a point-line distance
     `‖(foot − o) × d‖ / ‖d‖` with `d` on both sides.
 - None is changed here.
 - **Blind spot:** a spelling through intermediate names that are not

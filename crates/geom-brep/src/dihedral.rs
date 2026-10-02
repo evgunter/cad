@@ -229,7 +229,8 @@ pub(crate) enum WedgeEscalation {
     /// gradient is zero or undefined somewhere over the point's
     /// enclosure: the product of the two gradient magnitudes `sin θ`
     /// divides by is a readable value that reaches zero (a point on a
-    /// cylinder's axis, a cone's apex), so no tangent plane, and no
+    /// cylinder's axis, a sphere's centre; a cone's apex is refused
+    /// earlier, at the arm gate), so no tangent plane, and no
     /// angle, is defined there. Carries the wedge decision's own
     /// escalation, which is what [`classify_dihedral`] reports.
     NoTangentPlane(Indeterminate),
