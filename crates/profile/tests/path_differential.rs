@@ -103,8 +103,9 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
     .with_tangent_joints(joints.to_vec())
 }
 
-/// The blessed tables. One row per fixture name; see [`recorded`].
-#[allow(clippy::type_complexity)]
+/// The blessed tables. One row per fixture name; see [`recorded`]. The
+/// literals are recorded bits, not approximations of a constant.
+#[allow(clippy::type_complexity, clippy::approx_constant)]
 static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
     (
         "arc_center_ccw",
