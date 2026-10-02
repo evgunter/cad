@@ -221,3 +221,13 @@ on, then ran the decider one designer proposed:
 
 `test` is red only on main's inherited thread-count golden (PROPS's
 row). Merged over it, annotated on the PR.
+
+## 2026-10-02 — Ev rules the rim licence (PR 3756) (TANG orchestrator)
+
+Both questions are approved as recommended. Q2 (`Seam`) was approved
+first. Q1 was approved after a plain-geometry restatement on the PR,
+because the decision document's internal vocabulary confused it.
+Lesson for future `[ev]` bodies: state the geometry (f∘γ ≡ 0 against
+a double root) before the clause names. The two rows are implementation
+now. The P0 transverse rim follows PR 3752's cell; `Seam` is its own
+unit.

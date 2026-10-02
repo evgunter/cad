@@ -1,13 +1,11 @@
 ---
 id: a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall
 kind: issue
-title: Two solids abutting on an equal-radius rim refuse whatever the corner: C4's cover sentence holds back the transverse rim, and two curved incidence events are unbuilt
+title: Two solids abutting on an equal-radius rim refuse whatever the corner: the transverse rim needs the circle-lies-on-cylinder cell and a curved edge-edge event at the rim (C4 narrowed, PR 3756)
 status: open
 opened: 2026-10-01
 priority: P0
 cost: H
-design: true
-needs_ev: true
 ---
 
 
@@ -72,3 +70,14 @@ is the wrong question for two of the three corners:
   partner tangentially (double roots), so C4's graze sentence requires a
   declaration or structure. That is
   `pi-seam-between-two-operands-has-no-declaration`.
+
+## Ruled (Ev, PR 3756, 2026-10-02)
+
+C4's one-sided-cover sentence now governs touches only. An edge lying
+identically on the partner's carrier is an ON event when every surface
+of a face it bounds is decided distinct from that carrier by the
+carrier ladder. What remains is implementation: the circle × cylinder
+"lies on" cell (on `tang/circle-cylinder-crossing`, PR 3752) and a
+curved edge-edge coincidence event at the rim. The stacked
+same-carrier cylinder still needs `Continuation` on its walls;
+re-measure it declared so.

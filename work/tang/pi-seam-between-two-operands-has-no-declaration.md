@@ -1,13 +1,11 @@
 ---
 id: pi-seam-between-two-operands-has-no-declaration
 kind: issue
-title: A G1 (wedge-π) seam between two operands' distinct carriers has no declaration class: Tangent is opposed-only, Continuation same-carrier-only, so a capped tube or a torus chain cannot be unioned
+title: Build BooleanCoincidence::Seam: a declared G1 seam between two operands' distinct carriers (ruled, PR 3756)
 status: open
 opened: 2026-10-02
 priority: P0
 cost: H
-design: true
-needs_ev: true
 ---
 
 
@@ -35,3 +33,12 @@ sense-agnostic `Tangent` at the boolean seat. The text is on the
 profile stays the structural form and needs no declaration.
 `torus-declared-rest-lane-banked` item 3 and the lily's stem point
 here.
+
+## Ruled (Ev, PR 3756, 2026-10-02)
+
+Build `BooleanCoincidence::Seam` as C4 now states it: declared on a
+boolean node only; verified by the `Tangent` witness lane along the
+locus with the sense bit reversed; opposed senses contradict it; it is
+routed by the material wedge and zipped as the smooth seam carrying
+`TangentIntersection`. It is a cover source in C4's one-sided-cover
+list.
