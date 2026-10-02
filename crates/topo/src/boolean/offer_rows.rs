@@ -2131,25 +2131,7 @@ fn top_level_fn(line: &str) -> Option<String> {
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "carrier_cross.rs",
-        "meetings",
-        "BooleanDecision::Crossing",
-        1,
-    ),
-    (
-        "carrier_cross.rs",
-        "parallel_circles",
-        "BooleanDecision::Crossing",
-        1,
-    ),
-    (
-        "carrier_cross.rs",
-        "strictly_inside",
-        "BooleanDecision::Crossing",
-        1,
-    ),
-    (
-        "carrier_cross.rs",
-        "transverse",
+        "escalated",
         "BooleanDecision::Crossing",
         1,
     ),
