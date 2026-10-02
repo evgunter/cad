@@ -20,8 +20,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
-    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
-    RecipeNodeId, content_pin, evaluate,
+    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, Placement,
+    ProfileDoc, RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
@@ -132,18 +132,18 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let shelf_i = insert_into(&mut asm, Node::instantiate_part(shelf_ref), tol);
     edit_into(
         &mut asm,
-        DocEdit::SetPlacement {
-            node: shelf_i,
-            frame: Frame::translation(SHELF_AT),
+        DocEdit::SetOffset {
+            instance: shelf_i,
+            offset: Some(Placement::literal(&Frame::translation(SHELF_AT))),
         },
         tol,
     );
     let post_b = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
     edit_into(
         &mut asm,
-        DocEdit::SetPlacement {
-            node: post_b,
-            frame: Frame::translation(POST_B_AT),
+        DocEdit::SetOffset {
+            instance: post_b,
+            offset: Some(Placement::literal(&Frame::translation(POST_B_AT))),
         },
         tol,
     );
@@ -312,12 +312,53 @@ pub fn seat_op_under(
     class: pncad::select::ContactClass,
     alignment: pncad::document::Alignment,
 ) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
     SessionOp::AddMate {
-        a: super::head(in_part(post, &bench.post_top)),
-        b: super::head(in_part(shelf, &bench.shelf_bottom)),
+        a: post_top,
+        b: shelf_bottom,
         class,
         alignment,
     }
+}
+
+/// **[`seat_op_under`] with its operands swapped**: the same seat,
+/// `shelf` named first. The mate door clears the FIRST operand's root
+/// offset, so this is the seat that places a shelf on a post rather
+/// than a post under a shelf. `alignment` is written as
+/// [`seat_alignment`] writes it, post first; its two frames trade
+/// sides with the faces, and its primitive, sense and rider carry over
+/// as written.
+pub fn shelf_on_post_op(
+    bench: &Bench,
+    shelf: RecipeNodeId,
+    post: RecipeNodeId,
+    class: pncad::select::ContactClass,
+    alignment: pncad::document::Alignment,
+) -> SessionOp {
+    let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
+    SessionOp::AddMate {
+        a: shelf_bottom,
+        b: post_top,
+        class,
+        alignment: pncad::document::Alignment {
+            a: alignment.b,
+            b: alignment.a,
+            ..alignment
+        },
+    }
+}
+
+/// The two faces a seat names: `post`'s top cap and `shelf`'s
+/// underside, each as its instance holds it.
+fn seat_faces(
+    bench: &Bench,
+    post: RecipeNodeId,
+    shelf: RecipeNodeId,
+) -> (pncad::document::SitedFace, pncad::document::SitedFace) {
+    (
+        super::head(in_part(post, &bench.post_top)),
+        super::head(in_part(shelf, &bench.shelf_bottom)),
+    )
 }
 
 /// A `BTreeMap` from a small list — the shape a few rows want for

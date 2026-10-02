@@ -1172,7 +1172,7 @@ impl SessionOp {
     ///
     /// **This section is scoped to the tree as it stands.** DI5
     /// (`crates/editor-core/IDENTITY.md`, ratified) rules that releasing
-    /// a free-move gesture emits one `DocEdit::SetPlacement` and that
+    /// a free-move gesture emits one `DocEdit::SetOffset` and that
     /// `DisplayState::moves` empties, because a committed frame
     /// becomes document data. When that lands,
     /// [`SessionOp::CommitFreeMove`] becomes the only `true` row here
@@ -1562,8 +1562,8 @@ pub struct OpOutcome {
     /// every edit the action applied, in the order they applied and
     /// each edit's rows in the door's own order.
     ///
-    /// The log keeps only the cluster acts (replay re-applies them and
-    /// re-derives the rest), so this is the one place the other rows —
+    /// The log keeps the edits alone (replay re-applies them, and each
+    /// re-derives its rows), so this is the one place the rows —
     /// a name stranded or rewritten in place, an appearance key
     /// stranded, a declaration left with no consumer — leave the
     /// session. The chrome words them through

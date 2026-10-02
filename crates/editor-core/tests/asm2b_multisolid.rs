@@ -57,9 +57,11 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
             let dx = spacing * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
                 },
             );
             doc = next;
@@ -282,7 +284,7 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 
 // ---- Row 4: placements over a multi-solid instance ----
 
-/// Row 4 — `SetPlacement` on a multi-solid instance moves ALL of its
+/// Row 4 — `SetOffset` on a multi-solid instance moves ALL of its
 /// solids rigidly (every vertex x by exactly the translation, volume
 /// unchanged bit for bit), and the document's content pin moves with
 /// the edit.
@@ -301,9 +303,11 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
 
     let (moved, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([7.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                7.0, 0.0, 0.0,
+            ]))),
         },
     );
     assert_ne!(

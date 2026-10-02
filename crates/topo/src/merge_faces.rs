@@ -1678,17 +1678,10 @@ impl<T: Decide> Body<T> {
         // branch-anchored independently — the merged loop's one-branch
         // walk must be derived fresh, never stitched from the
         // fragments' rows. Still on the staged clone, so a mint
-        // refusal keeps the untouched-on-error contract.
-        //
-        // LATENT (named, not reachable by any current path): the mint
-        // pass holds the fitted door (`AtRestPolicy::fitted_lane`) and
-        // mints U2's `General` arm through it, but the FITTED variant
-        // itself still has no mint site, so a `Fitted`
-        // cache (at rest since M6-2) on a merged body would still come
-        // back as the mint pass's honest-skip — the face legally
-        // UNCACHED, its fitted certificate silently dropped. What is
-        // left of that item is `certify_fitted`'s own wiring, not the
-        // bound; this site inherits the fix when that lands.
+        // refusal keeps the untouched-on-error contract. A row the mint
+        // has no route to (a `Fitted` row on a class the closed-form
+        // lane does not cover) is carried across, re-certified, not
+        // dropped (`pcurves::carry_rows`).
         if !self.pcurves.is_empty() {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;

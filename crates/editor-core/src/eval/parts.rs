@@ -110,6 +110,12 @@ pub(crate) struct PartValue<T: Decide> {
     pub carried: Arc<Vec<crate::assembly::CarriedDeclaration>>,
     /// The same for the refusals it carried up.
     pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
+    /// The referenced document's own UNPLACED GROUPS, by root, with
+    /// their causes: material its world product leaves out (A9), which
+    /// the instantiating document must still be able to name.
+    pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
+    /// The same for the unplaced groups it carried up from its parts.
+    pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -122,6 +128,8 @@ impl<T: Decide> Clone for PartValue<T> {
             unminted: Arc::clone(&self.unminted),
             carried: Arc::clone(&self.carried),
             carried_unminted: Arc::clone(&self.carried_unminted),
+            unplaced: Arc::clone(&self.unplaced),
+            carried_unplaced: Arc::clone(&self.carried_unplaced),
         }
     }
 }
@@ -255,8 +263,15 @@ impl PartFault {
     }
 }
 
-impl core::fmt::Display for PartFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// Every node the fault names is numbered in the PART: a frame that does
+// not hold the part says them by tag (`Display`), and one that holds the
+// resolved part says them from it ([`PartFault::spoken`]).
+impl crate::spoken::Say for PartFault {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             // Raised only at an API door, each of which takes a
             // resolver; the viewer always carries one of its own.
@@ -287,30 +302,35 @@ impl core::fmt::Display for PartFault {
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
-            Self::PartRootFailed { node, .. } => write!(
-                f,
-                "the part's node {} failed, so the part has no body. {}",
-                node,
-                InThePart(format_args!("repair node {}", node)),
-            ),
-            Self::PartRootPoisoned { root, through, .. } => write!(
-                f,
-                "the part's node {} failed and poisoned its root, node {}, so the part has \
-                 no body. {}",
-                through,
-                root,
-                InThePart(format_args!("repair node {}", through)),
-            ),
-            Self::RootFailureUnrecorded { node } => write!(
-                f,
-                "the part's product names its node {} as failed and the part's evaluation holds \
-                 no failure there; the two disagree, so this is a kernel bug. {}",
-                node,
-                InThePart(format_args!(
-                    "see node {} as it evaluates, then report it with the part's file",
-                    node
-                )),
-            ),
+            Self::PartRootFailed { node, .. } => {
+                let node = by.node(*node);
+                write!(
+                    f,
+                    "the part's {node} failed, so the part has no body. {}",
+                    InThePart(format_args!("repair {node}")),
+                )
+            }
+            Self::PartRootPoisoned { root, through, .. } => {
+                let through = by.node(*through);
+                write!(
+                    f,
+                    "the part's {through} failed and poisoned its root, {}, so the part has \
+                     no body. {}",
+                    by.node(*root),
+                    InThePart(format_args!("repair {through}")),
+                )
+            }
+            Self::RootFailureUnrecorded { node } => {
+                let node = by.node(*node);
+                write!(
+                    f,
+                    "the part's product names its {node} as failed and the part's evaluation \
+                     holds no failure there; the two disagree, so this is a kernel bug. {}",
+                    InThePart(format_args!(
+                        "see {node} as it evaluates, then report it with the part's file"
+                    )),
+                )
+            }
             Self::PartProduct { kind, message } => {
                 write!(f, "the part has no product: {message}")?;
                 match product_recourse(*kind) {
@@ -353,6 +373,37 @@ impl core::fmt::Display for PartFault {
     }
 }
 
+/// The fault where the part is not in hand: each node by its tag.
+impl core::fmt::Display for PartFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl PartFault {
+    /// **The fault as a frame holding the resolved part says it**: each
+    /// node as `part` holds it now. Its node ids are the part's, so
+    /// `part` is the document the instance's reference names, at the
+    /// version it pins; no other document can say them. `tol` is the
+    /// tolerance the pin is computed under, the one the part was
+    /// resolved at.
+    ///
+    /// # Panics
+    ///
+    /// When `part` is not the document `doc_ref` names, at the version
+    /// it pins.
+    #[must_use]
+    pub fn spoken(
+        &self,
+        doc_ref: &DocRef,
+        part: &crate::ProfileDoc,
+        tol: geom_core::Tol,
+    ) -> String {
+        crate::spoken::assert_pinned("the part fault", doc_ref, part, tol);
+        crate::spoken::spoken_by(self, part)
+    }
+}
+
 /// The recourse of a repair the author makes inside the part: open it,
 /// and act there.
 struct InThePart<A>(A);
@@ -388,7 +439,7 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     match kind {
         K::NoBodyRoots => ProductRecourse::InThePart("give it a root that denotes a body"),
         K::Naming => ProductRecourse::InThePart("repair it there"),
-        K::PlacedUnderTwoRoots | K::Graft | K::RootInvalid | K::ProductInvalid => {
+        K::Unplaced | K::PlacedUnderTwoRoots | K::Graft | K::RootInvalid | K::ProductInvalid => {
             ProductRecourse::Carried
         }
         K::ContactLineage
@@ -619,6 +670,20 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             Ok(product) => product,
             Err(e) => return Err(product_fault(&e, evaluation)),
         };
+        // The part's unplaced groups are not in its product (A9), so
+        // they cross beside it: its own, and those its parts carried up
+        // to it, read off the evaluation rather than the product so a
+        // group below an instance no root gathers is named too.
+        let unplaced = Arc::new(
+            evaluation
+                .unplaced
+                .values()
+                .copied()
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .collect(),
+        );
+        let carried_unplaced = Arc::new(evaluation.all_unplaced_below());
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
@@ -632,6 +697,8 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             unminted: Arc::new(product.unminted),
             carried: Arc::new(product.carried),
             carried_unminted: Arc::new(product.carried_unminted),
+            unplaced,
+            carried_unplaced,
         })
     }
 }

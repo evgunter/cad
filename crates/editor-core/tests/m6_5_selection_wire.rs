@@ -68,7 +68,11 @@ fn the_selection_reaches_the_wire_canonical() {
     doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(body, len(0.0625), vec![rim(high as u32), rim(low as u32)]),
+            node: Box::new(Node::fillet(
+                body,
+                len(0.0625),
+                vec![rim(high as u32), rim(low as u32)],
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "at_rest_pcurve_rows.rs"]
+mod at_rest_pcurve_rows;
 #[path = "axis_source_rows.rs"]
 mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
@@ -73,6 +75,8 @@ mod bool4r1_probes;
 mod bool4r2_base_probe;
 #[path = "bool4r2_probes.rs"]
 mod bool4r2_probes;
+#[path = "boolean_covered.rs"]
+mod boolean_covered;
 #[path = "boolean_discards.rs"]
 mod boolean_discards;
 #[path = "box_with_hole.rs"]

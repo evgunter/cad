@@ -5,7 +5,7 @@ title: carrier_eq's torus axis-parallel margin is levered by one metre, not the 
 status: open
 opened: 2026-09-26
 priority: P1
-cost: D
+cost: M
 ---
 
 ## What
@@ -53,3 +53,13 @@ wrong answer. Each refused: in band (`bool_contact_edge`,
 `bool_sector_within`), at the join, or `ContactContradicted`. The
 metric readings downstream caught what the door's lever bridged. The
 fix above should lever the plane arm by the face extent too.
+
+## Where the literal lives (PR 3747)
+
+The 1 m arm is a `T::one()` literal at three sites in two crates, which
+the fix must move together: `rest::flush_pair_relation` and
+`rest::carrier_pair_verdict` (`crates/topo/src/boolean/rest.rs`), and
+`tangent_locus`'s `let arm = T::one()` (`crates/geom-brep/src/locus.rs`,
+the `tangent_locus_axis_parallel` row), which meters the DEV-1 witness
+lane's axis parallelism at the same arm. Their docs say the three must
+agree.

@@ -307,6 +307,14 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
     };
     for (door, verdict) in verdicts {
         let errors = verdict.expect_err("the corrupt wall is refused at every plain name");
+        let wall_rows = errors
+            .iter()
+            .filter(|e| matches!(e, ValidationError::Pcurve { .. }))
+            .count();
+        assert_eq!(
+            wall_rows, 1,
+            "{door}: the rowless corrupt wall's derivation refusal is reported, once"
+        );
         let mut edges: Vec<_> = errors
             .iter()
             .filter_map(|e| match e {

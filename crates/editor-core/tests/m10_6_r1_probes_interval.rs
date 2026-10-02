@@ -580,7 +580,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         Tol::witness(),
     )
     .expect("a stackup");
-    eprintln!("{}", report.render(&analyzed));
+    eprintln!("{}", report.render(&doc, &analyzed));
     // The tour's stop-2 sentence — "worst_case.lo < bound ⇒ the
     // requirement FAILS somewhere in the box" — is what a reader would
     // print here; the node itself says it has NO verdict.
@@ -996,11 +996,11 @@ fn the_mc_lane_over_a_min_clearance_document_decides_nothing_and_says_so() {
         Tol::witness(),
     )
     .expect("replays");
-    eprintln!("{}", report.render());
+    eprintln!("{}", report.render(&doc));
     assert_eq!(report.measures[0].unmeasured, 16);
     assert_eq!(report.assertions[0].unevaluated, 16);
     assert!(report.assertions[0].violation_fraction().is_none());
-    assert!(report.render().contains("no sample decided"));
+    assert!(report.render(&doc).contains("no sample decided"));
 }
 
 // --------------------------------------------- 9. the consumer walk
@@ -1118,7 +1118,7 @@ fn the_bracket_walk_through_the_public_doors() {
 
     eprintln!("== stackup(web)");
     let report = stackup(&doc, web, &analyzed, &verdict, None, true, tol).expect("a stackup");
-    eprintln!("{}", report.render(&analyzed));
+    eprintln!("{}", report.render(&doc, &analyzed));
     assert!(report.worst_case.lo <= 1.0 && 1.0 <= report.worst_case.hi);
 
     // **The walk's finding, and what the fix pass did with it.** This
@@ -1131,7 +1131,7 @@ fn the_bracket_walk_through_the_public_doors() {
     eprintln!("== stackup(min_clearance)");
     let clearance_report =
         stackup(&doc, clearance, &analyzed, &verdict, None, true, tol).expect("a stackup");
-    eprintln!("{}", clearance_report.render(&analyzed));
+    eprintln!("{}", clearance_report.render(&doc, &analyzed));
     assert!(
         clearance_report.worst_case.leaves > 0,
         "the gating column is built from the certified leaves"
@@ -1192,10 +1192,10 @@ fn the_bracket_walk_through_the_public_doors() {
 
     eprintln!("== histogram(web)");
     let h = leaf_histogram(&doc, &analyzed, &verdict, web, tol);
-    eprintln!("{}", h.render());
+    eprintln!("{}", h.render(&doc));
     eprintln!("== histogram(min_clearance)");
     let hc = leaf_histogram(&doc, &analyzed, &verdict, clearance, tol);
-    eprintln!("{}", hc.render());
+    eprintln!("{}", hc.render(&doc));
     assert_eq!(hc.rows.len(), verdict.certified().len());
     for row in &hc.rows {
         assert!(
@@ -1218,7 +1218,7 @@ fn the_bracket_walk_through_the_public_doors() {
 
     eprintln!("== mc");
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("replays");
-    eprintln!("{}", mc.render());
+    eprintln!("{}", mc.render(&doc));
     assert_eq!(mc.measures.len(), 2);
     assert_eq!(mc.measures[1].unmeasured, mc.samples);
 
@@ -1246,7 +1246,7 @@ fn the_bracket_walk_through_the_public_doors() {
     assert!(matches!(budget.basis, MassBasis::Forced { .. }));
     assert!(monte_carlo(&doc, &analyzed, &McConfig::default(), tol).is_err());
     if let Ok(report) = stackup(&doc, web, &analyzed, &verdict, None, true, tol) {
-        eprintln!("== band stackup\n{}", report.render(&analyzed));
+        eprintln!("== band stackup\n{}", report.render(&doc, &analyzed));
     }
 }
 

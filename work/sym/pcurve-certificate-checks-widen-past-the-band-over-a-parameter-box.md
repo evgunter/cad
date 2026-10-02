@@ -69,6 +69,15 @@ units of ε):
   Leaves near 1.5e-3 wide sit far above the plate family's new ceiling
   near ε, the mechanism measured on the two-parameter plate above;
   attributed, not separately measured to a ceiling.
+- **`m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document`**:
+  each of its five measured documents, replayed at its pinned
+  whole-certifying point (`certifies_at`, 3.87e2·ε to 7.81e2·ε), now
+  stops at the extrude, whose closing mint refuses with `MapResidual`
+  or `Envelope` (enclosure up to about 1.1–1.3·ε) at every ε row. So the
+  door counts it pins are those of a replay cut short: `registered`
+  two-hole plate 140 → 160, annulus 140 → 160, link 110 → 122, bracket
+  146 → 170, with `registrations_refused` and `theorems_disputed` still
+  0. No registrant lies; the row is left red, not re-pinned.
 - **`sweep`'s `sym11_far_placement_rows`**: the certified lane
   (`Sym<Interval>`, an `r` box of ±ε/64) refuses the stadium at the
   origin at every ε row (`Envelope`, enclosure `[0, 1.32e-9]` at

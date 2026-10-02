@@ -405,6 +405,7 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
         PcurveMintError::Unminted { face },
+        PcurveMintError::RowInterval { half_edge },
         PcurveMintError::UncertifiedImage { half_edge },
         PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
