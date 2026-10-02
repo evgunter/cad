@@ -24,11 +24,11 @@ use core::f64::consts::{FRAC_PI_2, PI, TAU};
 use crate::revolve_common::{axis_y, validated};
 use geom::Curve3;
 use geom_brep::{EdgeDescription, Pcurve, SectionError};
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitJoinError, SplitPart, SplitPlane, SplitResult, split};
-use topo::{Body, validate, validate_closed, validate_geometric};
+use topo::{Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
 
 /// The cone's half-angle: the radius changes by 1/2 per unit height.
 fn alpha() -> f64 {
@@ -77,11 +77,17 @@ fn widening() -> Frustum {
 /// `π·h/3·(R² + R·r + r²)` at `h = 1`, `R = 1`, `r = 1/2`.
 const FRUSTUM_VOLUME: f64 = 7.0 * PI / 12.0;
 
+/// A cut normal minted the way a caller holding a direction mints one.
+fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
+    let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
+    UnitVec3::new(v, DATUM_UNIT_NORM, band).expect("a cut normal has a length")
+}
+
 /// The plane through `(0, qy, 0)` with normal `(sin φ, cos φ, 0)`.
 fn plane(phi: f64, qy: f64) -> SplitPlane<f64> {
     SplitPlane {
         origin: Point3::new(0.0, qy, 0.0),
-        normal: Vec3::new(phi.sin(), phi.cos(), 0.0),
+        normal: unit(Vec3::new(phi.sin(), phi.cos(), 0.0)),
     }
 }
 
@@ -321,7 +327,7 @@ fn a_tilted_cone_cut_is_never_misread_by_containment() {
     let n = Vec3::new(0.0, 0.4f64.cos(), 0.4f64.sin());
     let cut = SplitPlane {
         origin: Point3::new(0.0, 0.5, 0.0),
-        normal: n,
+        normal: unit(n),
     };
     let result = split(&f.body, &cut, Tol::witness()).unwrap();
     let (above, below) = halves(&result, "x-tilted cut");
@@ -383,7 +389,11 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
                 let what = format!("psi {psi:.2}, phi {phi}, through y = {qy}");
                 let cut = SplitPlane {
                     origin: Point3::new(0.0, qy, 0.0),
-                    normal: Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin()),
+                    normal: unit(Vec3::new(
+                        phi.sin() * psi.cos(),
+                        phi.cos(),
+                        phi.sin() * psi.sin(),
+                    )),
                 };
                 let result =
                     split(&cone, &cut, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
