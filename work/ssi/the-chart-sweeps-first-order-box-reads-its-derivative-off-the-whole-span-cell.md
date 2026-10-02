@@ -16,8 +16,9 @@ Found by the lane on `plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps`
 
 `NurbsBoxes::deriv_box` (`crates/geom-brep/src/ssi/enclose.rs`) now
 cuts each span cell's net to the rectangle before it reads the quotient
-rule's hull (`CellNet::over`, blossoming in certification arithmetic).
-So limb 3's chart tube sees the wall's derivative over its own window.
+rule's hull (`CellNet::cut`, blossoming in certification arithmetic),
+and meets that box with the whole cell's. So limb 3's chart tube sees
+the wall's derivative over its own window.
 
 The exhaustiveness sweep does not. `sweep_chart_plane`
 (`ssi/exhaust.rs`) excludes cells with `NurbsBoxes::rect_box`, and the
@@ -50,6 +51,8 @@ So the move changes seeding. That was outside that lane's fence while
 ## Next
 
 - Call `deriv_box` from `rect_box`, and delete `cell_deriv_box`.
+  `deriv_box` is never wider than `cell_deriv_box`, since it meets
+  the two, so the sweep can only exclude more.
 - Retune `hull_slack_wall` so the mode holds on the tighter box.
 - Re-pin whatever moves.
 

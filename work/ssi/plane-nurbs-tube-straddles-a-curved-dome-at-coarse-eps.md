@@ -66,13 +66,25 @@ first and refuses. The exception is the tilt at d = 0.5, which
 straddled at 1e-9 too. So the earlier reading, that "the same cuts get
 past limb 3 at 1e-9", had the limb order backwards.
 
-**Fix** (`crates/geom-brep/src/ssi/enclose.rs`): `deriv_box` cuts each
-cell's net to the window's part of the span before it reads the hull
-(`CellNet::over`). It blossoms the homogeneous net `(w·(P − c), w)`
-to the window's Bézier block by de Boor's recurrence in certification
-arithmetic, then applies the same paired quotient-rule form. A cell
-the window covers whole reads exactly as before, so `chart_speeds` is
-bit-identical. `rect_box`, which the exhaustiveness sweep and seeding
+**Fix** (`crates/geom-brep/src/ssi/enclose.rs`): `deriv_box` also cuts
+each cell's net to the window's part of the span (`CellNet::cut`). It
+blossoms the homogeneous net `(w·(P − c), w)` to the window's Bézier
+block by de Boor's recurrence in certification arithmetic, applies the
+same paired quotient-rule form, and **meets** that box with the whole
+cell's.
+
+The meet is load-bearing. The cut's rounding is not always smaller
+than what it saves:
+- On a net constant along the cut whose `P − c` does not round
+  exactly, the cut alone reads a few ulps around zero where the whole
+  cell reads an exact zero. That turned `WallConstantAcrossLocus` into
+  a margin-0 straddle.
+- On a window a few ulps wide, `degree / (b − a)` amplifies the cut's
+  rounding far past the whole cell's box.
+
+So the box is never wider than the whole cell's, and exact zeros
+stay exact. A cell the window covers whole reads exactly as before,
+so `chart_speeds` is bit-identical. `rect_box`, which the exhaustiveness sweep and seeding
 read, keeps the whole-cell box (`cell_deriv_box`). Moving it is
 `the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell`.
 
@@ -88,8 +100,10 @@ read, keeps the whole-cell box (`cell_deriv_box`). Moving it is
 At ε 1e-9 the tilt at d = 0.5 goes from TS (295) to OK (0.663). The
 other rows refuse limb 1, limb 2 or the fit budget as before, with
 identical margins. At 1e-12 the fit budget refuses every row before
-the certificate runs. Pinned by
-`m5_pr7_ssi::a_curved_domes_cuts_prove_their_tube_at_the_widest_rung`
+the certificate runs. Pinned by `certify::tests::normal_crossing_tests::a_chart_constant_across_the_locus_refuses_on_a_net_that_is_not_one_point`,
+by `enclose::tests::the_derivative_box_is_never_wider_than_the_whole_cells`
+(a fuzzer),
+by `m5_pr7_ssi::a_curved_domes_cuts_prove_their_tube_at_the_widest_rung`
 (band 1e-6), by `a_seed_settled_off_the_walls_chart_is_no_branch` (now
 `Ok` at 1e-6), and by
 `enclose::tests::the_derivative_box_shrinks_with_its_window_below_a_span_cell`.

@@ -22,8 +22,8 @@
 //!   the 2×2 system `(f₁, f₂)` has non-singular Jacobian, so by the
 //!   implicit function theorem the solution set inside the box is a
 //!   **graph over the `e` axis** — one arc, no branch, no loop, no
-//!   second component. Straddling zero at the floor is the genuine
-//!   sliver (F6).
+//!   second component. Straddling zero escalates: either a genuine
+//!   sliver (F6) or the enclosure's remaining slack.
 //! - [`NurbsBoxes`] — the same three readings for a NURBS chart,
 //!   assembled from control-net hulls: the rational surface's point box
 //!   is the *Cartesian* control hull over a span cell (positive weights
@@ -116,6 +116,17 @@ impl Box3 {
             x: Interval::hull(self.x, o.x),
             y: Interval::hull(self.y, o.y),
             z: Interval::hull(self.z, o.z),
+        }
+    }
+
+    /// The componentwise meet of two enclosures of the same set:
+    /// [`Certification::meet`] per axis, so a refused side, or two sides
+    /// sharing no point, refuses that axis rather than keeping either.
+    pub(crate) fn meet_enclosure(self, o: Self) -> Self {
+        Self {
+            x: self.x.meet(o.x),
+            y: self.y.meet(o.y),
+            z: self.z.meet(o.z),
         }
     }
 
@@ -512,7 +523,7 @@ fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> bool {
 /// weights make `S` a convex combination of the local control points,
 /// which is exactly the rational hull property); the derivative box
 /// goes through the homogeneous quotient rule over each cell's net cut
-/// to the rectangle ([`CellNet::over`]), so it shrinks with the
+/// to the rectangle ([`CellNet::cut`]), so it shrinks with the
 /// rectangle below a span cell too.
 pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
@@ -595,9 +606,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// the quotient rule `S_d = (A_d − S·w_d)/w` evaluated entirely on
     /// hulls, per span cell, with `S` in that cell's point box
     /// ([`CellNet::quotient_numerator`] gives the numerator's form).
-    /// Each cell is first cut to the part of the rectangle inside it
-    /// ([`CellNet::over`]), so the box shrinks with the rectangle below
-    /// a span cell rather than reading the whole cell's net. Refused
+    /// Each cell is also cut to the part of the rectangle inside it
+    /// ([`CellNet::cut`]) and the two boxes met, so the box shrinks with
+    /// the rectangle below a span cell and is never wider than the whole
+    /// cell's. Refused
     /// when the weight hull touches zero (interval arithmetic refuses
     /// the divisor), the net is malformed, or the window has a NaN or
     /// inverted end.
@@ -629,21 +641,20 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 let Some(win) = self.surface.window(su, sv) else {
                     continue;
                 };
-                let net = if cut {
-                    CellNet::over(win, range.clamped_u, range.clamped_v)
-                } else {
-                    CellNet::of_cell(win)
+                let Some(whole) = CellNet::of_cell(win) else {
+                    return refused_box();
                 };
-                let d = match net {
-                    Some(net) => {
-                        let (num, w) = net.quotient_numerator(along_u, net.point_box());
-                        Box3 {
-                            x: num.x / w,
-                            y: num.y / w,
-                            z: num.z / w,
-                        }
-                    }
-                    None => refused_box(),
+                let d = whole.derivative_box(along_u);
+                // Both boxes enclose `S_d` over the window's part of the
+                // cell, so their meet does, and it is never wider than
+                // the whole cell's: a zero the whole cell reads exactly
+                // stays exact.
+                let d = match cut
+                    .then(|| whole.cut(win, range.clamped_u, range.clamped_v))
+                    .flatten()
+                {
+                    Some(net) => d.meet_enclosure(net.derivative_box(along_u)),
+                    None => d,
                 };
                 out = Some(match out {
                     None => d,
@@ -761,44 +772,48 @@ impl CellNet {
         })
     }
 
-    /// The cell's block cut to `wu × wv`: along each axis whose window
+    /// This cell block cut to `wu × wv`: along each axis whose window
     /// falls strictly inside the cell's span with positive width, the
     /// block is replaced by the Bézier block of the same polynomial
     /// piece over the window's part of the span, so its hulls enclose
-    /// that part alone. An axis the window covers whole, or meets in a
-    /// point, keeps the cell's own block, which holds the piece over the
-    /// whole span (a superset, so still sound).
+    /// that part alone. `None` when no axis is cut (the window covers
+    /// the span whole, or meets it in at most a point), or when a read
+    /// leaves the window, which its invariants rule out: the whole block
+    /// is the caller's answer either way, and a sound one.
     ///
     /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
     /// `b`s, run by de Boor's recurrence in certification arithmetic on
     /// the homogeneous net `(w·(P − c), w)`, and the Cartesian block is
-    /// read back as the quotient. `c` is the block's first point,
-    /// translating the net so the products are formed on differences.
-    /// Each de Boor step is `d₀ + α·(d₁ − d₀)`, so a net constant along
-    /// the cut stays constant exactly.
-    fn over<T: CertifiedBounds>(
+    /// read back as the quotient. `c` is the block's first point's lower
+    /// bracket end, translating the net so the products are formed on
+    /// differences; the cut block's points are in that frame.
+    ///
+    /// The cut block's boxes are not always narrower than the whole
+    /// block's. The recurrence's rounding can outgrow what the cut saves:
+    /// on a net constant along the cut whose `P − c` does not round
+    /// exactly, `d₁ − d₀` of two equal non-point intervals is a
+    /// symmetric interval rather than zero, and on a window a few ulps
+    /// wide the `degree / (b − a)` scale amplifies every such width. So
+    /// the caller meets the two ([`NurbsBoxes::deriv_box`]).
+    fn cut<T: CertifiedBounds>(
+        &self,
         win: SurfaceWindow<'_, T>,
         wu: (f64, f64),
         wv: (f64, f64),
     ) -> Option<Self> {
-        let whole = Self::of_cell(win)?;
         let (cut_u, cut_v) = (inside(win.span_u(), wu), inside(win.span_v(), wv));
         if cut_u.is_none() && cut_v.is_none() {
-            return Some(whole);
+            return None;
         }
-        let Self {
-            nv,
-            pts,
-            wts,
-            mut scale_u,
-            mut scale_v,
-        } = whole;
-        let nu = pts.len() / nv;
-        let origin = pts.first()?.map(Interval::lo);
+        let nv = self.nv;
+        let nu = self.pts.len() / nv;
+        let (mut scale_u, mut scale_v) = (self.scale_u.clone(), self.scale_v.clone());
+        let origin = self.pts.first()?.map(Interval::lo);
         // Four channels per control point: `w·(P − c)` and `w`.
-        let mut h: Vec<[Interval; 4]> = pts
+        let mut h: Vec<[Interval; 4]> = self
+            .pts
             .iter()
-            .zip(&wts)
+            .zip(&self.wts)
             .map(|(p, &w)| {
                 let at = |k: usize| w * (p[k] - Interval::point(origin[k]));
                 [at(0), at(1), at(2), w]
@@ -833,9 +848,25 @@ impl CellNet {
         })
     }
 
+    /// The box for `S_d` over the block's region: the quotient numerator
+    /// over the block's own point box, divided by its weight hull. Both
+    /// are read in the block's own frame, the only frame a cut block's
+    /// points are good for.
+    fn derivative_box(&self, along_u: bool) -> Box3 {
+        let (num, w) = self.quotient_numerator(along_u, self.point_box());
+        Box3 {
+            x: num.x / w,
+            y: num.y / w,
+            z: num.z / w,
+        }
+    }
+
     /// The hull of the block's Cartesian points: a box for `S` over the
     /// block's region (positive weights make `S` a convex combination of
-    /// them, the rational hull property).
+    /// them, the rational hull property), in the block's frame. That is
+    /// the absolute frame for [`CellNet::of_cell`]; for a [`CellNet::cut`]
+    /// block it is a box for `S − c`, good only as the `S` of that
+    /// block's own pair terms.
     fn point_box(&self) -> Box3 {
         let mut out: Option<Box3> = None;
         for p in &self.pts {
@@ -854,7 +885,7 @@ impl CellNet {
 
     /// The quotient rule's numerator `A_d − S·w_d` and the weight hull
     /// over the block, `(numerator hull, w hull)`, with `S` ranging over
-    /// `sbox`.
+    /// `sbox`, which is in the block's frame ([`CellNet::point_box`]).
     ///
     /// The numerator is a convex combination, under the degree-`p−1`
     /// basis, of one term per adjacent pair of the net in direction `d`:
@@ -1139,6 +1170,10 @@ mod tests {
         NurbsSurface::new(ku, kv, control, weights).expect("valid wall")
     }
 
+    /// A window strictly inside one span cell of every net the rows
+    /// below build, in both directions: a cut below the span on each.
+    const INSIDE_ONE_CELL: (f64, f64, f64, f64) = (0.41, 0.43, 0.62, 0.635);
+
     /// The translations the invariance rows read: the origin, a
     /// building's reach and the edge of a site.
     const TRANSLATIONS: [f64; 3] = [0.0, 100.0, 1.0e5];
@@ -1390,7 +1425,7 @@ mod tests {
             let speeds = boxes.chart_speeds().expect("mints");
             // The whole domain, a narrow window inside one span cell,
             // then a 3×3 grid of sub-rectangles.
-            let mut rects = vec![(0.0, 1.0, 0.0, 1.0), (0.41, 0.43, 0.62, 0.635)];
+            let mut rects = vec![(0.0, 1.0, 0.0, 1.0), INSIDE_ONE_CELL];
             for i in 0..3 {
                 for j in 0..3 {
                     let (a, b) = (f64::from(i) / 3.0, f64::from(j) / 3.0);
@@ -1453,7 +1488,7 @@ mod tests {
         }
         let dome = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("the dome");
         let boxes = NurbsBoxes::new(&dome);
-        let (u0, u1, v0, v1) = (0.41, 0.43, 0.62, 0.635);
+        let (u0, u1, v0, v1) = INSIDE_ONE_CELL;
         let du = boxes.deriv_box(u0, u1, v0, v1, true);
         let dv = boxes.deriv_box(u0, u1, v0, v1, false);
         assert!(
@@ -1477,6 +1512,93 @@ mod tests {
                         b.lo(),
                         b.hi()
                     );
+                }
+            }
+        }
+    }
+
+    /// **The derivative box over a window is never wider than the whole
+    /// cells' box.** Random nets (degree 1 to 3 per axis, 1 to 3 spans,
+    /// weights 0.5 to 2, every other one constant along `v`) and random
+    /// windows from a few ulps to the whole domain, some placed far from
+    /// the origin: on every axis the box `deriv_box` reads must lie
+    /// inside the one `cell_deriv_box` reads over the same rectangle. The
+    /// cut alone is not: its recurrence rounds, and a window a few ulps
+    /// wide divides that rounding by its width.
+    #[test]
+    fn the_derivative_box_is_never_wider_than_the_whole_cells() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("enclose::deriv_box_within_cell_deriv_box");
+        let clamped = |rng: &mut fuzz::Rng, p: usize, spans: usize| {
+            let mut k = vec![0.0; p + 1];
+            let mut inner: Vec<f64> = (1..spans).map(|_| rng.range(0.05, 0.95)).collect();
+            inner.sort_by(f64::total_cmp);
+            k.extend(inner);
+            k.extend(vec![1.0; p + 1]);
+            geom_core::spline::KnotVector::clamped(k, p).expect("clamped")
+        };
+        for case in 0..fuzz::scaled(40) {
+            let (pu, pv) = (1 + rng.below(3), 1 + rng.below(3));
+            let (su, sv) = (1 + rng.below(3), 1 + rng.below(3));
+            let (ku, kv) = (clamped(&mut rng, pu, su), clamped(&mut rng, pv, sv));
+            let (nu, nv) = (ku.knots().len() - pu - 1, kv.knots().len() - pv - 1);
+            let far = if case % 3 == 0 { 100.0 } else { 0.0 };
+            let flat_v = case % 2 == 0;
+            let mut control = Vec::with_capacity(nu * nv);
+            let mut weights = Vec::with_capacity(nu * nv);
+            for _ in 0..nu {
+                let row = Point3::new(
+                    far + rng.range(-1.0, 1.0),
+                    far + rng.range(-1.0, 1.0),
+                    far + rng.range(-1.0, 1.0),
+                );
+                let w = rng.range(0.5, 2.0);
+                for _ in 0..nv {
+                    let p = if flat_v {
+                        row
+                    } else {
+                        Point3::new(
+                            far + rng.range(-1.0, 1.0),
+                            far + rng.range(-1.0, 1.0),
+                            far + rng.range(-1.0, 1.0),
+                        )
+                    };
+                    control.push(p);
+                    weights.push(if flat_v { w } else { rng.range(0.5, 2.0) });
+                }
+            }
+            let net = NurbsSurface::new(ku, kv, control, weights).expect("a valid net");
+            let boxes = NurbsBoxes::new(&net);
+            for _ in 0..8 {
+                let side = |rng: &mut fuzz::Rng| {
+                    let width = 10f64.powf(rng.range(-15.0, 0.0));
+                    let lo = rng.range(0.0, 1.0 - width);
+                    (lo, lo + width)
+                };
+                let ((u0, u1), (v0, v1)) = (side(&mut rng), side(&mut rng));
+                for along_u in [true, false] {
+                    let cut = boxes.deriv_box(u0, u1, v0, v1, along_u);
+                    let whole = boxes.cell_deriv_box(u0, u1, v0, v1, along_u);
+                    for (axis, c, w) in [
+                        ("x", cut.x, whole.x),
+                        ("y", cut.y, whole.y),
+                        ("z", cut.z, whole.z),
+                    ] {
+                        assert!(
+                            c.is_certified()
+                                && w.is_certified()
+                                && w.lo() <= c.lo()
+                                && c.hi() <= w.hi(),
+                            "case {case} (degrees {pu}×{pv}, flat along v: {flat_v}, at {far} m), \
+                             along_u = {along_u}, axis {axis}: [{}, {}] not inside the whole \
+                             cells' [{}, {}] over [{u0}, {u1}]×[{v0}, {v1}]; {}",
+                            c.lo(),
+                            c.hi(),
+                            w.lo(),
+                            w.hi(),
+                            fuzz::replay()
+                        );
+                    }
                 }
             }
         }
