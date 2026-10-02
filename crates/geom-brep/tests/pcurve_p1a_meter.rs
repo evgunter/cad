@@ -295,8 +295,8 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
     assert_eq!(
         err,
         CertifyError::ChartImageUnavailable {
-            chart: geom_brep::SurfaceKind::Sphere,
-            carrier: geom_brep::CurveKind::Ellipse,
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Ellipse,
         },
         "the refusal must name the (chart, carrier) pair it could not state"
     );

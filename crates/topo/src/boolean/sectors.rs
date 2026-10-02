@@ -350,7 +350,7 @@ pub(super) fn sector_face<T: Decide>(
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand,
                 face: resolved.face,
-                kind: geom_brep::SurfaceKind::Cone,
+                kind: geom::SurfaceKind::Cone,
             });
         }
     }
@@ -654,7 +654,7 @@ pub(super) fn tangent_lump<T: Decide>(
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand: on_side,
                 face: sector_face,
-                kind: geom_brep::SurfaceKind::of(sector_surface),
+                kind: sector_surface.kind(),
             });
         }
     };

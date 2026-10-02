@@ -1405,7 +1405,7 @@ pub enum PcurveCertifyError {
     /// never a runtime fallback (C5).
     UnsupportedChart {
         /// The surface kind.
-        chart: crate::SurfaceKind,
+        chart: geom::SurfaceKind,
     },
     /// The carrier can lie on the chart, but no lane images this
     /// (chart, carrier) pair yet: valid input the kernel has not built
@@ -1414,9 +1414,9 @@ pub enum PcurveCertifyError {
     /// which is a legal at-rest state.
     UnsupportedCarrier {
         /// The chart kind.
-        chart: crate::SurfaceKind,
+        chart: geom::SurfaceKind,
         /// The carrier kind.
-        carrier: crate::CurveKind,
+        carrier: geom::CurveKind,
         /// The uncovered class.
         class: UncoveredClass,
     },
@@ -1424,9 +1424,9 @@ pub enum PcurveCertifyError {
     /// edge is not on its face, a body defect no lane will ever image.
     CarrierOffChart {
         /// The chart kind.
-        chart: crate::SurfaceKind,
+        chart: geom::SurfaceKind,
         /// The carrier kind.
-        carrier: crate::CurveKind,
+        carrier: geom::CurveKind,
         /// Why the pair has no common locus, named.
         why: &'static str,
     },
@@ -3067,7 +3067,7 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
             "azimuth_lever: a {} chart has no azimuth, and every caller asks on a \
              periodic chart only",
-            crate::SurfaceKind::of(surface).name()
+            surface.kind().name()
         ),
     }
 }
@@ -3248,7 +3248,7 @@ fn run_harmonic_checks<T: Decide>(
         unreachable!("run_harmonic_checks: both callers match `Pcurve::Harmonic` to reach it")
     };
     // ---- Check 1: the certified lane. ----
-    let chart = crate::SurfaceKind::of(surface);
+    let chart = surface.kind();
     // The closed-form lane is the analytic charts'; a spline chart —
     // the payload's or an approximating surface's fit — goes through
     // the fitted lane instead.
@@ -3477,7 +3477,7 @@ fn run_cone_section_checks<T: Decide>(
     } = surface
     else {
         return Err(PcurveCertifyError::UnsupportedChart {
-            chart: crate::SurfaceKind::of(surface),
+            chart: surface.kind(),
         });
     };
     let (Curve3::Ellipse { .. }, Some(carrier_form)) = (carrier, carrier_harmonic(carrier)) else {
@@ -3671,7 +3671,7 @@ fn run_spiric_checks<T: Decide>(
             why: "the carrier is not a spiric, so no spiric image is its own",
         });
     };
-    let chart = crate::SurfaceKind::of(surface);
+    let chart = surface.kind();
     let esc = |check: PcurveCheck| {
         move |cause| PcurveCertifyError::Escalated {
             check,
@@ -4759,7 +4759,7 @@ fn run_iso_arc_checks<T: Decide>(
     // being refused as an unimplemented chart.
     let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
-            chart: crate::SurfaceKind::of(surface),
+            chart: surface.kind(),
         });
     };
     if surface.is_placeholder_chart() {
@@ -5138,7 +5138,7 @@ fn run_iso_checks<T: Decide>(
     // being refused as an unimplemented chart.
     let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
-            chart: crate::SurfaceKind::of(surface),
+            chart: surface.kind(),
         });
     };
     if surface.is_placeholder_chart() {
@@ -6282,13 +6282,13 @@ pub fn chart_pcurve<T: Decide>(
             }
         }
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: crate::SurfaceKind::Nurbs,
+            chart: geom::SurfaceKind::Nurbs,
         }),
         // The closed-form pcurve mint is the analytic charts'. An
         // approximating surface's chart is a spline's, so it has no
         // harmonic image to mint — the fitted lane owns it.
         Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: crate::SurfaceKind::Approx,
+            chart: geom::SurfaceKind::Approx,
         }),
     }
 }
@@ -6304,10 +6304,7 @@ enum NoImage {
 
 impl NoImage {
     fn refusal<T: Real>(self, surface: &Surface<T>, carrier: &Curve3<T>) -> PcurveCertifyError {
-        let (chart, carrier) = (
-            crate::SurfaceKind::of(surface),
-            crate::CurveKind::of(carrier),
-        );
+        let (chart, carrier) = (surface.kind(), carrier.kind());
         match self {
             Self::Uncovered(class) => PcurveCertifyError::UnsupportedCarrier {
                 chart,
@@ -6499,10 +6496,10 @@ fn spiric_chart_pcurve<T: Decide>(
             Err(verdict.refusal(surface, carrier))
         }
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: crate::SurfaceKind::Nurbs,
+            chart: geom::SurfaceKind::Nurbs,
         }),
         Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: crate::SurfaceKind::Approx,
+            chart: geom::SurfaceKind::Approx,
         }),
     }
 }
@@ -7375,8 +7372,8 @@ mod tests {
             matches!(
                 err,
                 PcurveCertifyError::CarrierOffChart {
-                    chart: crate::SurfaceKind::Cone,
-                    carrier: crate::CurveKind::Ellipse,
+                    chart: geom::SurfaceKind::Cone,
+                    carrier: geom::CurveKind::Ellipse,
                     why,
                 } if why.contains("not on the cone")
             ),
@@ -7565,7 +7562,7 @@ mod tests {
     /// are.
     #[test]
     fn every_carrier_refusal_arm_names_its_pair_and_a_recourse() {
-        use crate::{CurveKind, SurfaceKind};
+        use geom::{CurveKind, SurfaceKind};
         // Exhaustive by construction: a new class fails to compile here
         // until it has a row.
         let classes = [

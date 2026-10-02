@@ -59,7 +59,8 @@
 //! — cannot host it at any price. The crate root is the deepest scope
 //! that can, and the two shared sector modules belong together.
 
-use geom_brep::{OutwardNormal, SurfaceKind};
+use geom::SurfaceKind;
+use geom_brep::OutwardNormal;
 use geom_core::Decide;
 
 use crate::body::Body;
@@ -220,7 +221,7 @@ pub(crate) fn resolve<T: Decide>(
         // The planar arm returned above; anything else has no arm.
         s => Err(SectorFaceError::Unsupported {
             face,
-            kind: SurfaceKind::of(s),
+            kind: s.kind(),
         }),
     }
 }

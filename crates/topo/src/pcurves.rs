@@ -4424,8 +4424,8 @@ mod recourse_tests {
             escalate: 1e-9,
         };
         let certify_error = PcurveCertifyError::CarrierOffChart {
-            chart: geom_brep::SurfaceKind::Sphere,
-            carrier: geom_brep::CurveKind::Line,
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Line,
             why: "a sphere holds no line",
         };
         let arms = [

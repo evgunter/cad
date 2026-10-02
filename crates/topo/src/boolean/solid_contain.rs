@@ -239,7 +239,7 @@ pub enum PointInSolidError {
         /// The face.
         face: FaceKey,
         /// Its kind — the row the arm is missing for.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// The at-infinity orientation probe needs the body's signed
     /// volume and the closed-form props lane refused to certify it.
@@ -539,7 +539,7 @@ pub(crate) fn face_plane<T: Decide>(
         // key that does not resolve is corruption.
         Some(s) => Err(PointInSolidError::KindUnsupported {
             face,
-            kind: geom_brep::SurfaceKind::of(s),
+            kind: s.kind(),
         }),
         None => Err(PointInSolidError::CorruptFace { face }),
     }
@@ -886,7 +886,7 @@ fn face_geo<T: Decide>(
         }
         Some(s) => Err(PointInSolidError::KindUnsupported {
             face,
-            kind: geom_brep::SurfaceKind::of(s),
+            kind: s.kind(),
         }),
         None => Err(PointInSolidError::CorruptFace { face }),
     }

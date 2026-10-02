@@ -109,7 +109,7 @@
 //! them (the split/boolean lanes do, typed).
 
 use geom::Surface;
-use geom::{Curve3, EllipseInvalid};
+use geom::{Curve3, EllipseInvalid, SurfaceKind};
 use geom_core::{Band, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
@@ -119,102 +119,6 @@ use geom_core::Decide;
 // ---------------------------------------------------------------------
 // Kinds, rungs, routing
 // ---------------------------------------------------------------------
-
-/// The closed kind tag of a [`Surface`] variant — the table's index
-/// set. Mirrors the enum exactly (D3: closed, compiler-enumerated).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum SurfaceKind {
-    /// [`Surface::Plane`].
-    Plane,
-    /// [`Surface::Cylinder`].
-    Cylinder,
-    /// [`Surface::Cone`].
-    Cone,
-    /// [`Surface::Sphere`].
-    Sphere,
-    /// [`Surface::Torus`].
-    Torus,
-    /// [`Surface::Nurbs`] — the universal fallback kind.
-    Nurbs,
-    /// [`Surface::Approx`] — a fitted stand-in for a description.
-    ///
-    /// **Its own kind, not `Nurbs`.** The payload is a NURBS and every
-    /// evaluator delegates to it, but a pair table indexed by kind is
-    /// deciding what a *locus claim* about the pair means, and a claim
-    /// about an approximating surface is a claim about the fit, not
-    /// about the surface the modeller asked for. Collapsing the two
-    /// tags would let every such table answer for `Approx` silently —
-    /// the exact failure the closed enum exists to prevent.
-    Approx,
-}
-
-impl SurfaceKind {
-    /// The kind of a surface value.
-    pub fn of<T: Real>(s: &Surface<T>) -> Self {
-        match s {
-            Surface::Plane { .. } => Self::Plane,
-            Surface::Cylinder { .. } => Self::Cylinder,
-            Surface::Cone { .. } => Self::Cone,
-            Surface::Sphere { .. } => Self::Sphere,
-            Surface::Torus { .. } => Self::Torus,
-            Surface::Nurbs(_) => Self::Nurbs,
-            Surface::Approx(_) => Self::Approx,
-        }
-    }
-
-    /// The kind's display name.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Plane => "plane",
-            Self::Cylinder => "cylinder",
-            Self::Cone => "cone",
-            Self::Sphere => "sphere",
-            Self::Torus => "torus",
-            Self::Nurbs => "nurbs",
-            Self::Approx => "approx",
-        }
-    }
-}
-
-/// The closed kind tag of a [`Curve3`] variant, [`SurfaceKind`]'s
-/// carrier-side twin (D3: closed, compiler-enumerated).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum CurveKind {
-    /// [`Curve3::Line`].
-    Line,
-    /// [`Curve3::Circle`].
-    Circle,
-    /// [`Curve3::Ellipse`].
-    Ellipse,
-    /// [`Curve3::Spiric`].
-    Spiric,
-    /// [`Curve3::Nurbs`].
-    Nurbs,
-}
-
-impl CurveKind {
-    /// The kind of a curve value.
-    pub fn of<T: Real>(c: &Curve3<T>) -> Self {
-        match c {
-            Curve3::Line { .. } => Self::Line,
-            Curve3::Circle { .. } => Self::Circle,
-            Curve3::Ellipse { .. } => Self::Ellipse,
-            Curve3::Spiric { .. } => Self::Spiric,
-            Curve3::Nurbs(_) => Self::Nurbs,
-        }
-    }
-
-    /// The kind's display name.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Line => "line",
-            Self::Circle => "circle",
-            Self::Ellipse => "ellipse",
-            Self::Spiric => "spiric",
-            Self::Nurbs => "nurbs",
-        }
-    }
-}
 
 /// C1's three-rung intersection-locus ladder — where a pair's locus
 /// representation lives.
@@ -274,12 +178,10 @@ impl PairRoute {
 /// `SurfaceKind` breaks this build at compile time (D3). Symmetric: the
 /// two orders of a pair share one arm via explicit `|` alternation.
 ///
-/// **Compile-break note (spec §6's doc-note, deliberately not a
-/// committed test)**: verified at spec time by adding a scratch
-/// seventh `SurfaceKind` variant — this match (and `SurfaceKind::of`
-/// / `name`) fail with E0004 non-exhaustive-patterns before anything
-/// else in the workspace; the no-wildcard grep row in
-/// `tests/pcurve_conic.rs` keeps the property pinned in CI.
+/// A variant added to [`Surface`] is a `SurfaceKind` by derivation, so
+/// it reaches this match as E0004 non-exhaustive-patterns; the
+/// no-wildcard grep row in `tests/pcurve_conic.rs` keeps the property
+/// pinned in CI.
 pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
     match (a, b) {
@@ -587,7 +489,7 @@ pub fn route_pose<T: Decide>(
     band: Band,
 ) -> Result<PairRoute, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-    let (ka, kb) = (SurfaceKind::of(a), SurfaceKind::of(b));
+    let (ka, kb) = (a.kind(), b.kind());
     let arm = route(ka, kb);
     let verdict = match (ka, kb) {
         (Plane, Cone) => plane_cone_section(a, b, extent, band).map(drop),

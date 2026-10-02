@@ -837,7 +837,7 @@ pub enum BooleanError {
         /// The face.
         face: FaceKey,
         /// Its surface kind — the C5 table row the refusal cites.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// A pierced face's torus is definitely outside the ring convention
     /// (D3: a horn or spindle torus, or one with no tube), a shape the
@@ -1267,11 +1267,11 @@ pub enum BooleanError {
         /// That face — the first such in face-arena order.
         face: FaceKey,
         /// Its kind: the half of the germ pair with no arm.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
         /// The other operand's face whose box it may meet.
         other_face: FaceKey,
         /// That face's kind: the other half of the germ pair.
-        other_kind: geom_brep::SurfaceKind,
+        other_kind: geom::SurfaceKind,
     },
     /// The containment fallback's curved-EXTENT scan (M5 S13) met a
     /// NURBS face. The extent test is UNWRITABLE for the kind with
@@ -1345,11 +1345,11 @@ pub enum BooleanError {
         /// The A-side germ face.
         a_face: FaceKey,
         /// Its kind — the A half of the germ pair.
-        a_kind: geom_brep::SurfaceKind,
+        a_kind: geom::SurfaceKind,
         /// The B-side germ face.
         b_face: FaceKey,
         /// Its kind — the B half of the germ pair.
-        b_kind: geom_brep::SurfaceKind,
+        b_kind: geom::SurfaceKind,
     },
     /// **A germ pair of two cylinder walls whose axes definitely
     /// INTERSECT** — the frame dispatch's named sub-case of "no
@@ -1867,10 +1867,10 @@ fn op_noun(op: BooleanOp) -> &'static str {
 /// A surface kind as the person holding the mouse reads it. The
 /// spline kinds get one spelling everywhere a Boolean refusal names
 /// them; every other kind is its own name.
-fn kind_word(kind: geom_brep::SurfaceKind) -> &'static str {
+fn kind_word(kind: geom::SurfaceKind) -> &'static str {
     match kind {
-        geom_brep::SurfaceKind::Nurbs => "spline (NURBS)",
-        geom_brep::SurfaceKind::Approx => "approximated spline",
+        geom::SurfaceKind::Nurbs => "spline (NURBS)",
+        geom::SurfaceKind::Approx => "approximated spline",
         other => other.name(),
     }
 }
@@ -3508,7 +3508,7 @@ mod tests {
             BooleanError::CurvedBooleanUnsupported {
                 operand: Operand::A,
                 face,
-                kind: geom_brep::SurfaceKind::Cone,
+                kind: geom::SurfaceKind::Cone,
             },
             BooleanError::CurvedSectorSideUnsupported {
                 verdict: geom_brep::recourse::Refused::Negative {
@@ -3594,18 +3594,18 @@ mod tests {
                 site: PairRefusalSite::OperandGate,
                 operand: Operand::A,
                 face,
-                kind: geom_brep::SurfaceKind::Cone,
+                kind: geom::SurfaceKind::Cone,
                 other_face: face,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                other_kind: geom::SurfaceKind::Plane,
             },
             BooleanError::CurvedPairUnsupported {
                 op: Some(BooleanOp::Union),
                 site: PairRefusalSite::InteriorLoopGuard,
                 operand: Operand::A,
                 face,
-                kind: geom_brep::SurfaceKind::Torus,
+                kind: geom::SurfaceKind::Torus,
                 other_face: face,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                other_kind: geom::SurfaceKind::Plane,
             },
             BooleanError::NurbsExtentUnsupported {
                 operand: Operand::A,
@@ -3625,9 +3625,9 @@ mod tests {
             },
             BooleanError::GermFrameUnsupported {
                 a_face: face,
-                a_kind: geom_brep::SurfaceKind::Cone,
+                a_kind: geom::SurfaceKind::Cone,
                 b_face: face,
-                b_kind: geom_brep::SurfaceKind::Torus,
+                b_kind: geom::SurfaceKind::Torus,
             },
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,

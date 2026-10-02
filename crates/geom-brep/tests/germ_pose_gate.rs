@@ -23,10 +23,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::tol::{band, eps};
-use geom::Surface;
-use geom_brep::intersect::{
-    PlaneConeSection, SectionError, SurfaceKind, plane_cone_section, route, route_pose,
-};
+use geom::{Surface, SurfaceKind};
+use geom_brep::intersect::{PlaneConeSection, SectionError, plane_cone_section, route, route_pose};
 use geom_core::{Point3, Vec3};
 
 const PI_6: f64 = core::f64::consts::FRAC_PI_6;
@@ -97,7 +95,7 @@ fn served(a: &Surface<f64>, b: &Surface<f64>) -> bool {
     let ab = route_pose(a, b, 4.0, band()).expect("the pose decides");
     let ba = route_pose(b, a, 4.0, band()).expect("the pose decides");
     assert_eq!(ab.implemented, ba.implemented, "asymmetric: {a:?} / {b:?}");
-    assert_eq!(ab.rung, route(SurfaceKind::of(a), SurfaceKind::of(b)).rung);
+    assert_eq!(ab.rung, route(a.kind(), b.kind()).rung);
     ab.implemented
 }
 

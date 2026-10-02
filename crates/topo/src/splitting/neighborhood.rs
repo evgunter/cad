@@ -128,11 +128,11 @@ pub(super) fn sector_face<T: Decide>(
         }
         SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
-            kind: geom_brep::SurfaceKind::Sphere,
+            kind: geom::SurfaceKind::Sphere,
         }),
         SectorCarrier::Torus => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
-            kind: geom_brep::SurfaceKind::Torus,
+            kind: geom::SurfaceKind::Torus,
         }),
     }
 }
@@ -381,7 +381,7 @@ mod tests {
         match sector_face(&body, vertex, orbit_he) {
             Err(SplitReduceError::CurvedBooleanUnsupported { face: f, kind }) => {
                 assert_eq!(f, face);
-                assert_eq!(kind, geom_brep::SurfaceKind::Sphere);
+                assert_eq!(kind, geom::SurfaceKind::Sphere);
             }
             other => panic!("expected the typed sphere refusal, got {other:?}"),
         }

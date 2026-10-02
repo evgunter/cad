@@ -7,13 +7,12 @@
 
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
-use geom::Surface;
+use geom::{Surface, SurfaceKind};
 use geom_brep::implicit_residual;
 use geom_brep::intersect::{
     CoaxialEvidence, CylinderSphereSection, EqualCylinderSection, PlaneConeSection,
-    PlaneCylinderSection, RadiusEvidence, Rung, SectionError, SurfaceKind,
-    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
-    route,
+    PlaneCylinderSection, RadiusEvidence, Rung, SectionError, cylinder_cylinder_section,
+    cylinder_sphere_section, plane_cone_section, plane_cylinder_section, route,
 };
 use geom_core::{Point3, Vec3};
 
