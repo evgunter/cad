@@ -136,3 +136,30 @@ against `None`), `Step`'s nested tuple, the tests living in a consumer
 module, and `TornLoop::Dangling` naming `last` rather than its `next`.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-02 — JOIN-2 and JOIN-3 specced; four lanes in cloud sessions
+
+Ev asked for more parallel work, and cloud sessions supply it beyond this
+box's disk and CPU. JOIN-1 (PR 3790) is in its last narrow review. Four
+lanes start from its head (`join/1-germ-locus`), each in its own cloud
+session. They are chosen to touch mostly different files:
+- **JOIN-2** (`docs/JOIN-2-SPEC.md`): the REST zip reads the join's
+  segments. Claims ZIP's `rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
+  by `git mv`.
+- **JOIN-3** (`docs/JOIN-3-SPEC.md`): the segment carries its curve. The
+  blind D's second defect.
+- **`reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`**
+  (P0/H): diagnose first.
+- **`locus-matching-moves-frontier-refusals-to-join-desync`** (P1/H):
+  the ball's pole-strut binding. Re-measure first, because JOIN-1's last
+  fix pass unified strut facing (`insert::strut_facing`).
+
+Held, so they do not collide on `insert.rs`/`vtxfac.rs`/`join.rs`:
+`whole-orbit-fan-end-has-three-spellings` and the single-site loop's
+surgery (`closed-in-face-section-loop-has-one-site`).
+
+Review tiers, decided when each PR lands: single FULL for the
+reflex and frontier lanes, and DUAL for JOIN-2 and JOIN-3 (they move
+the zip's and the ring lane's sources of truth; architectural).
+
+Signed (JOIN orchestrator).

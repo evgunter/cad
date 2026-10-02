@@ -1,8 +1,10 @@
-//! **The teapot's document, tabulated** — the one-request roll the
-//! scene ships, held to the class and to the kernel door.
+//! **The teapot lid's document, tabulated** — the SOLID lid the scene
+//! ships, held to the kernel door, and its ANNULAR twin (the same lid
+//! bored with a steam vent, so every latitude rim is ONE closed edge),
+//! held to the naming class.
 //!
-//! 1. **Every pair of the lid's rims composes in ONE request**, and so
-//!    do the scene's three. A band slits — and its trimline crosses —
+//! 1. **Every pair of the annular twin's rims composes in ONE
+//!    request**, and so does the triple `{1, 2, 4}`. A band slits — and its trimline crosses —
 //!    ONE support's seam meridian, so two rims at the two ends of one
 //!    meridian segment put two slits and two crossings on one source
 //!    meridian. On this lid those pairs are `{1, 2}` (the flange cone's
@@ -10,19 +12,20 @@
 //!    the BAND that made each: those pairs build, and the two slits
 //!    and two crossings on the flange seam carry that seam and one
 //!    band each.
-//! 2. **The one request builds the kernel's one-request body**: same
-//!    census, the three bands' stored `(station, major, minor)` bit for
-//!    bit, the mass to a relative 1e-14 — and the same face ORDER,
-//!    which is what the tess-budget rows and the uv sheet's cells key
-//!    on.
+//! 2. **The scene's one request builds the kernel's one-request
+//!    body**, on the solid lid, whose rims are each two half-arcs asked
+//!    for by both names: same census, the three bands' stored
+//!    `(station, major, minor)` bit for bit, the mass to a relative
+//!    1e-14 — and the same face ORDER, which is what the tess-budget
+//!    rows and the uv sheet's cells key on.
 //! 3. **The names are a function of the recipe's names, not of its
 //!    numbers**: the rolled lid's name set at two radii is one set.
 //!
-//! The meridian and the constants are re-spelled here because a demo
-//! binary's module cannot be imported by an integration test — the
-//! same reason `verbs_teapot.rs` carries its own `genus`. They are
-//! copied from `src/teapot.rs` and nothing here may be edited without
-//! editing it.
+//! The stations are copied from `src/teapot.rs` (a demo binary's
+//! module cannot be imported by an integration test — the same reason
+//! `verbs_teapot.rs` carries its own `genus`); `R_VENT` is this file's
+//! own, and the bore is what gives the class rows a closed rim at every
+//! vertex.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -73,9 +76,11 @@ fn line_to(x: f64, y: f64) -> ProgramStep {
     ProgramStep::LineTo(ProgramTarget::Point(lpt(x, y)))
 }
 
-fn lid_meridian() -> LoopProgram {
+/// The lid's meridian, bored to radius `bore` — `0.0` is the scene's
+/// solid lid, [`R_VENT`] its annular twin.
+fn lid_meridian(bore: f64) -> LoopProgram {
     LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(R_VENT, LID_BASE)),
+        ProgramStep::At(lpt(bore, LID_BASE)),
         line_to(R_FLANGE, LID_BASE),
         line_to(R_NECK, Y_FLANGE),
         ProgramStep::ArcTo(ProgramArcData::Center {
@@ -84,7 +89,7 @@ fn lid_meridian() -> LoopProgram {
             target: ProgramTarget::Point(lpt(R_KNOB, Y_KNOB)),
         }),
         line_to(R_KNOB, Y_TOP),
-        line_to(R_VENT, Y_TOP),
+        line_to(bore, Y_TOP),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }
@@ -103,13 +108,18 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -
     applied.record.minted.expect("insert mints an id")
 }
 
-/// A fresh document carrying the sharp lid, and that node's id.
+/// A fresh document carrying the sharp ANNULAR lid, and that node's id.
 fn sharp_lid(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    sharp_lid_in(Doc::empty_derived("teapot-lid", tol), tol)
+    sharp_lid_in(Doc::empty_derived("teapot-lid", tol), R_VENT, tol)
 }
 
-/// [`sharp_lid`] appended to `doc`, whatever it already holds.
-fn sharp_lid_in(mut doc: Doc<ProfileProgram>, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
+/// The sharp lid bored to `bore`, appended to `doc`, whatever it
+/// already holds.
+fn sharp_lid_in(
+    mut doc: Doc<ProfileProgram>,
+    bore: f64,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let plane = insert(
         &mut doc,
         Node::Datum(Datum::Frame {
@@ -132,7 +142,7 @@ fn sharp_lid_in(mut doc: Doc<ProfileProgram>, tol: Tol) -> (Doc<ProfileProgram>,
         &mut doc,
         Node::Profile(ProfileProgram {
             plane,
-            loops: vec![lid_meridian()],
+            loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
         }),
         tol,
@@ -327,14 +337,38 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
     }
 }
 
-/// **The one request builds the kernel's one-request body.**
+/// The latitude rim at meridian vertex `v` of an axis-touching lid,
+/// WHOLE: its two half-arcs' names. The second is spelled by hand
+/// (`work/emit/band-rim-pi-has-no-minting-builder.md`).
+fn rim_arcs(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> [StableName; 2] {
+    let piece = pieces_of(doc, lid, tol)
+        .vertex(0, v as usize)
+        .expect("the vertex is the meridian's");
+    [
+        band_rim(lid, piece),
+        StableName {
+            kind: EntityKind::Edge,
+            node: lid,
+            path: vec![RoleSeg::BandRimPi(piece)],
+        },
+    ]
+}
+
+/// **The scene's one request builds the kernel's one-request body.**
 ///
-/// Same census, the same three bands bit for bit, the same mass, the
-/// same face order: the document door adds names and nothing else.
+/// On the SOLID lid the scene ships, its three rims each asked for by
+/// both half-arc names. Same census, the same three bands bit for bit,
+/// the same mass, the same face order: the document door adds names
+/// and nothing else.
 #[test]
 fn one_request_builds_the_kernels_body() {
     let tol = Tol::witness();
-    let (doc, lid, rolled) = rolled_lid(&ROLLED, ROLL, tol);
+    let (mut doc, lid) = sharp_lid_in(Doc::empty_derived("teapot-solid-lid", tol), 0.0, tol);
+    let sel: Vec<StableName> = ROLLED
+        .iter()
+        .flat_map(|&v| rim_arcs(&doc, lid, v, tol))
+        .collect();
+    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel.clone()), tol);
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),
@@ -344,25 +378,26 @@ fn one_request_builds_the_kernels_body() {
     let sharp = body_at(&ev, lid);
     let doc_body = body_at(&ev, rolled);
 
-    // The kernel's request over the same three rims — their keys found
-    // through the NAMES, so the two doors are asked for the same edges
-    // and not merely for three edges each.
-    let keys: Vec<EdgeKey> = ROLLED
+    // The kernel's request over the same six half-arcs — their keys
+    // found through the NAMES, so the two doors are asked for the same
+    // edges and not merely for six edges each.
+    let keys: Vec<EdgeKey> = sel
         .iter()
-        .map(|&v| {
-            let want = rim(&doc, lid, v, tol);
+        .map(|want| {
             query::all_edges(&sharp)
                 .into_iter()
-                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(&want))
-                .expect("each rolled rim's key, by its name")
+                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(want))
+                .expect("each rolled half-arc's key, by its name")
         })
         .collect();
     let kernel = fillet_edges(&sharp, &keys, ROLL, tol)
         .expect("the kernel door rolls all three in one request")
         .body;
 
-    assert_eq!(census(&kernel), (9, 18, 9));
-    assert_eq!(census(&doc_body), (9, 18, 9));
+    assert_eq!(census(&sharp), (8, 14, 8));
+    assert_eq!(bands(&kernel).len(), 3, "three rims, three torus bands");
+    assert_eq!(census(&kernel), (14, 23, 11));
+    assert_eq!(census(&doc_body), (14, 23, 11));
     assert_eq!(
         bands(&kernel),
         bands(&doc_body),
@@ -644,7 +679,7 @@ fn a_split_carries_a_held_slits_band() {
         }),
         tol,
     );
-    let (mut doc, lid) = sharp_lid_in(doc, tol);
+    let (mut doc, lid) = sharp_lid_in(doc, R_VENT, tol);
     let sel = vec![rim(&doc, lid, 1, tol), rim(&doc, lid, 2, tol)];
     let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
     let ev = eval(&doc, tol);

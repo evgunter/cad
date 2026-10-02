@@ -5694,17 +5694,17 @@ fn first_arg_literals(code: &str, ident: &str) -> Vec<String> {
 /// The scan walks every `Stop {` struct literal (a `-> Stop {`
 /// function signature is not one) and reads its FIRST field, which is
 /// `name` in every case because that is the field's position in
-/// `main.rs`'s definition. Three forms are understood, and they are
-/// the three the tour actually writes:
+/// `main.rs`'s definition. Three forms are understood:
 ///
 /// 1. `name: "literal"` — the common case;
 /// 2. `name: match … { … "a", … "b" }` — every literal in the arms
-///    (`letterforms`' shadow trio);
+///    (no stop writes this form today);
 /// 3. `name,` — the field-init shorthand, where the name is either a
 ///    `let name: &'static str = match …` a few lines up (`heatsink`)
 ///    or a `&'static str` PARAMETER of the enclosing `fn` or closure,
 ///    in which case the names are the first-position literals at that
-///    helper's call sites (`bodies`' `stop`, `skinned`'s `shadow`).
+///    helper's call sites (`bodies`' `stop`, `skinned`'s and
+///    `letterforms`' `shadow`).
 ///
 /// **What this scan can and cannot see, stated rather than assumed.**
 /// It can see any stop whose name reaches `Stop.name` as a literal by
