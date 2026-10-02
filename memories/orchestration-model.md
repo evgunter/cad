@@ -145,6 +145,15 @@ Ev's standing instructions for implementation work:
   for more than a few seconds, you may combine the work in flight
   into a single PR. Anything that waits on Ev keeps its own PR, so it cannot
   hold the rest hostage.
+- **Lanes may run in their own cloud sessions (Ev, 2026-10-02)**:
+  when this container's CPU, RAM or disk is the constraint, or to run
+  more lanes in parallel than one container holds, launch a lane as a
+  separate Claude Code Remote session — the claude-code-remote MCP
+  server's `create_session` tool ("Create a new Claude Code Remote
+  session"), in its own container — rather than as a subagent here.
+  Hand it the brief with `send_message`, have it push its branch, and
+  check on it with `get_session` / `list_events`: a session that
+  finishes cleanly does not report back.
 - **Friction is a finding (Ev, 2026-09-28)** — say so when something
   slows you down. The bars: CI takes 15 min at most and typically
   under 10, and so does any local development step; binaries are
