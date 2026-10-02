@@ -317,11 +317,11 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             .faces()
             .map(|(key, f)| {
                 let kind = surface_of(other, f)?.kind();
-                Ok((key, kind, super::boxes::face_box(other, key, pad)?))
+                Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
             })
             .collect::<Result<_, BooleanError>>()?;
         for (face, kind) in offenders {
-            let boxed = super::boxes::face_box(body, face, pad)?;
+            let boxed = super::boxes::face_box(body, face, pad, band)?;
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box) && !covered(operand, face, other_face) {
                     return Ok(Some(UnsupportedPair {
@@ -681,6 +681,7 @@ fn face_tree<T: Decide + Bounds>(
     faces: &[FaceKey],
     knobs: &SweepKnobs,
     pad: f64,
+    band: Band,
 ) -> Result<bvh::Bvh, BooleanError> {
     let mut face_boxes = Vec::with_capacity(faces.len());
     for &f in faces {
@@ -698,7 +699,7 @@ fn face_tree<T: Decide + Bounds>(
                 max_z: f64::NEG_INFINITY,
             }
         } else {
-            boxes::face_box(y, f, pad)?
+            boxes::face_box(y, f, pad, band)?
         });
     }
     Ok(bvh::Bvh::build(&face_boxes))
@@ -751,13 +752,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     // unconditional and the brute-force arm below does not exist.
     #[cfg(feature = "sweep-testing")]
     let tree: Option<bvh::Bvh> = match strategy {
-        SweepStrategy::Realized => Some(face_tree(y, &faces, knobs, pad)?),
+        SweepStrategy::Realized => Some(face_tree(y, &faces, knobs, pad, band)?),
         SweepStrategy::Idealized => None,
     };
     #[cfg(not(feature = "sweep-testing"))]
     let tree: bvh::Bvh = {
         let SweepStrategy::Realized = strategy;
-        face_tree(y, &faces, knobs, pad)?
+        face_tree(y, &faces, knobs, pad, band)?
     };
     let mut worklist: std::collections::VecDeque<(EdgeKey, usize)> =
         x.edges().map(|(k, _)| (k, 0)).collect();

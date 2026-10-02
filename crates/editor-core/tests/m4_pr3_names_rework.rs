@@ -193,6 +193,74 @@ fn split_through_operand_edges_names_totally() {
     );
 }
 
+/// A plane through the 315° prism's reflex top corner `(0, 0, 1)`,
+/// tilted back over the prism so the corner's three edges read Above
+/// and its reflex bisector Below: the splitter's whole-orbit strut,
+/// whose copy is the BELOW end. The corner still takes one
+/// `OnToolVertex` per half, both naming the operand corner.
+#[test]
+fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (0.0, 0.0),
+            (2.0, 2.0),
+            (-2.0, 2.0),
+            (-2.0, -2.0),
+            (2.0, -2.0),
+            (2.0, 0.0),
+        ]],
+    );
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(1.0),
+        },
+    );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(1.0)],
+            normal: [scl(1.0), scl(0.0), scl(-1.0)],
+        }),
+    );
+    let (doc, sp) = insert(
+        doc,
+        Node::Split {
+            target: prism,
+            tool: plane,
+        },
+    );
+    let ev = run(&doc);
+    let v = ev
+        .value(sp)
+        .unwrap_or_else(|| panic!("reflex-corner split failed: {:?}", ev.nodes.get(&sp)));
+    let copies: Vec<_> = v
+        .name_table
+        .iter()
+        .filter_map(|(n, _)| match n.path.first() {
+            Some(RoleSeg::OnToolVertex { side, of }) => Some((*side, of.clone())),
+            _ => None,
+        })
+        .collect();
+    let sides: Vec<_> = copies.iter().map(|c| c.0).collect();
+    assert!(
+        sides.len() == 2
+            && sides.contains(&editor_core::SplitHalf::Above)
+            && sides.contains(&editor_core::SplitHalf::Below),
+        "one corner copy per half: {copies:?}"
+    );
+    assert_eq!(
+        copies[0].1, copies[1].1,
+        "both copies name the one operand corner"
+    );
+}
+
 // ---- R7: pattern of a multi-body master must refuse TYPED (never
 // silently conflate the split halves under instance body indices). ----
 //
