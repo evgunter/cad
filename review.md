@@ -21,6 +21,6 @@ Probes: `probes/reach-delta-3805/` (seed `0x57ca117cf138ede6`). The suites: `geo
 - `circle_roots.rs`: the ladder now runs in full only for its escalations, while about 100 lines of module docs still describe it "as it stands". A second answer engine is kept alive beside the first: Q1/Q7. **likely**
 - `reduce.rs:2312`: `map_or(T::zero(), ..)` makes a failed `Conic::of` a zero speed, so every gap reads `Zero` and the root sits "at the end". It is unreachable today (`ellipse_roots` desyncs first), but it is a silent default where fail-loud is the rule. **sure**
 - Q4 sibling of the MAJOR, pre-existing on main: `replace_face.rs:1469` `pose_reach` reads `major.abs()` as the ellipse's reach, which under-reaches when `minor > major`. The fix pass's sweep for signed or ordered semi-axis reads missed both this and `implicit.rs:963`. **likely**
-- `circle_roots.rs:499` `SPLITS`: nine magic shares (0.4721… is √5 − 2 + ½?) with no derivation. **unsure**
+- `circle_roots.rs:499` `SPLITS`: nine magic shares (0.4721… = 2√5 − 4, unexplained) with no derivation. **unsure**
 - `value`/`slope`/`bend`/`jerk` each recompute `sin_cos` of θ and 2θ at the same midpoint. **sure** (efficiency only)
 - PR body: "ladder alone … roots up to 1.9e-6 m off"; the review's and the code doc's figure is 1.9e-5 m (15 bands at 1e-6). **likely**
