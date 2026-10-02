@@ -50,6 +50,7 @@ order-dependence behind it: the `Rest` zip minted a STRAIGHT seam chord
 in the sharp operand's bottom face along each fillet's rim and kept
 operand A's seam edge, so with the sharp plate as A the result carried a
 chord where the arc belongs (`describe_minted_edges` refused it,
-`JoinDesync`). Both are fixed on `reach/mid-edge-tangency`;
+`JoinDesync`). PR 3814's twin chord (`rest::Twin`) closed the second on
+main; the hold-then-settle on `reach/mid-edge-tangency` closes the first;
 `a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order`
 holds every pose in both orders through ∪, A ∖ B, B ∖ A and ∩.

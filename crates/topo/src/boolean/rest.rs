@@ -5,7 +5,7 @@
 //! whose shared geometry lies entirely on both operands' boundaries:
 //! the contact region R is a union of coincident opposite-oriented
 //! face patches — on ANY carrier the ladder certifies (plane, sphere,
-//! cylinder; the C4 `Rest` inventory) — and its boundary ∂R — the
+//! cylinder, torus; the C4 `Rest` inventory) — and its boundary ∂R — the
 //! seam — runs along operand edges or across single faces, never
 //! through material. The chord joining ([`super::join`]) cannot
 //! complete such seams: at a REST site a germ direction lies in FOUR
@@ -25,31 +25,37 @@
 //! gates, coincidence doors, sweep splitting, classification — runs
 //! unchanged first; this lane consumes its RECORDS:
 //!
-//! 1. **Segments**: the null-pair germ records are matched into seam
-//!    segments by the SAME mutual-facing/nearest tests as the join
-//!    (`bool_join_chord` / `bool_join_facing` / `bool_join_nearest` —
-//!    reused predicate funnels, no new numeric predicate), with the
-//!    ambiguous face-pair identity dropped. Incomplete matching ⇒
-//!    not this frontier (the original join refusal stands).
-//! 2. **Lane door**: every declared face pair is verified through
-//!    [`super::oriented_plane_eq`]'s declared rung — a false
-//!    declaration refuses [`BooleanError::ContactContradicted`]
-//!    here, never a silent no-op. Opposite-oriented verified pairs
-//!    name the REST-contact surfaces.
-//! 3. **Undo the scaffolding**: the classification's null-edge struts
-//!    are removed (`kev`, reverse mint order) from clones of the
-//!    annotated operands — the sweep's edge splits and the pierce-ring
-//!    vertices remain (both are load-bearing: they make the seam
-//!    vertex sets congruent across the mate).
+//! 1. **REST-contact surfaces**: the `Rest` pairs the declaration door
+//!    verified one carrier with opposed senses (the reduction's
+//!    `rest_contacts`) name the REST-contact surfaces. The door verified
+//!    every declaration, and refused a false one
+//!    ([`BooleanError::ContactContradicted`]), before the reduction ran,
+//!    so this lane verifies nothing again. With no such pair the lane
+//!    is not this frontier, before matching runs.
+//! 2. **Segments**: the null-pair germ records are read, the
+//!    scaffolding is undone (step 3), and the germs are matched into
+//!    seam segments: first along circle arcs both operands carry
+//!    between the two sites ([`arcs_along`]), each such segment naming
+//!    its two arcs, then by facing along the straight chord through the
+//!    join's predicate funnels (`bool_join_chord` / `bool_join_facing` /
+//!    `bool_join_nearest`), with the ambiguous face-pair identity
+//!    dropped. Matching that leaves a germ unpaired is not this
+//!    frontier (the original join refusal stands), unless that germ's
+//!    arc lookup escalated, which is the refusal then.
+//! 3. **Undo the scaffolding**, inside step 2 between reading the germs
+//!    and matching them, so the arcs are found on the operands' own
+//!    vertex orbits: the classification's null-edge struts are removed
+//!    (`kev`, reverse mint order) from clones of the annotated operands
+//!    — the sweep's edge splits and the pierce-ring vertices remain
+//!    (both are load-bearing: they make the seam vertex sets congruent
+//!    across the mate).
 //! 4. **Seam realization** (splitting machinery reused): per segment
 //!    and per solid, either the segment already IS an operand edge
-//!    (structural fan walk — reused as the seam, minted nowhere), or
+//!    (the arc it was matched along, or a structural fan walk — reused
+//!    as the seam, minted nowhere), or
 //!    it is minted ONCE as a real chord through the standard
 //!    `mef`/`mekr` machinery in the unique face bounded by both
-//!    endpoints — on the other solid's edge curve where that solid
-//!    carries the segment as an edge (the seam then has one locus
-//!    whichever solid's edge the zip keeps), straight where neither
-//!    does. No new region algebra: a segment that does not
+//!    endpoints. No new region algebra: a segment that does not
 //!    resolve structurally refuses typed
 //!    ([`BooleanError::RestZipUnsupported`]) or falls back to the
 //!    original join refusal (pre-identification phases).
@@ -77,10 +83,11 @@
 //! (REST rests are consumed into structure — the census's consumed
 //! class), tier gates, and the volume backstop.
 
-use geom_brep::ExtentBall;
+use geom_brep::{EdgeCurveSpec, ExtentBall};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
+use super::arcs::{ArcStep, arcs_along};
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
@@ -92,16 +99,17 @@ use super::reduce::{face_oriented_source, face_plane};
 use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
+    BooleanReduction, BooleanResult, BooleanResultKind, Operand, OperandKeys,
 };
 use super::{Coincide, DeclarationRead, RestZipFrontier};
 use crate::body::Body;
-use crate::contact::{BooleanCoincidence, ContactClass};
+use crate::contact::BooleanCoincidence;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
+use crate::null::CurveGeom;
 use crate::splitting::finish::single_solid;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -121,13 +129,16 @@ fn unsupported(what: RestZipFrontier) -> BooleanError {
 
 /// One seam segment: the two end sites, as vertex keys per operand
 /// (the pre-insertion site vertices — they survive the scaffolding
-/// undo).
+/// undo), and, for a segment that runs along an arc of both operands,
+/// those two arcs ([`arcs_along`]): two vertices can bound more than
+/// one arc, so the ends alone do not name it.
 #[derive(Clone, Copy, Debug)]
 struct Segment {
     a_u: VertexKey,
     a_v: VertexKey,
     b_u: VertexKey,
     b_v: VertexKey,
+    arcs: Option<(EdgeKey, EdgeKey)>,
 }
 
 /// The declared-REST union lane (module docs). `red` is the finished
@@ -159,18 +170,17 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(None);
     }
 
-    // ---- 1. Segments from the germ records (A-side geometry — the
-    // site points are bitwise-shared between the solids). ----
-    let Some(segments) = enumerate_segments(&red, band)? else {
-        return Ok(None);
-    };
-
-    // ---- 2. Lane door: verify every declared pair; collect the
-    // REST-contact (opposite-oriented) surface sets. ----
-    let (a_rest, b_rest) = verify_declared_pairs(a_pristine, b_pristine, decls, band)?;
+    // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
+    let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
     if a_rest.is_empty() || b_rest.is_empty() {
         return Ok(None); // no opposite-oriented contact declared
     }
+
+    // ---- 2. Segments from the germ records (A-side geometry — the
+    // site points are bitwise-shared between the solids). ----
+    let Some(segments) = enumerate_segments(&mut red, band)? else {
+        return Ok(None);
+    };
 
     // Vertex correspondence across the mate, operand keys — record
     // data end to end (F9): the segment end sites, EXTENDED by the
@@ -203,9 +213,6 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
 
-    // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
-    undo_struts(&mut red)?;
-
     // Pierce-ring vertices: ring vertex → host face, per operand.
     let mut a_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
     let mut b_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
@@ -216,18 +223,16 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     }
 
-    // ---- 4. Seam realization, per solid. A segment one solid already
-    // carries as an edge is read there before either solid mints. ----
-    let a_segments: Vec<_> = segments.iter().map(|s| (s.a_u, s.a_v)).collect();
-    let b_segments: Vec<_> = segments.iter().map(|s| (s.b_u, s.b_v)).collect();
-    let from_b = partner_edges(&red.b, &b_segments)?;
-    let from_a = partner_edges(&red.a, &a_segments)?;
+    // ---- 4. Seam realization, per solid. ----
     let mut a_fragments = Vec::new();
     let mut b_fragments = Vec::new();
     let a_seam = realize_seam(
         &mut red.a,
-        &a_segments,
-        &from_b,
+        &red.b,
+        &segments
+            .iter()
+            .map(|s| ((s.a_u, s.a_v), s.arcs.map(|(ea, _)| ea), (s.b_u, s.b_v)))
+            .collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
         tol,
@@ -237,8 +242,11 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
     let b_seam = realize_seam(
         &mut red.b,
-        &b_segments,
-        &from_a,
+        &red.a,
+        &segments
+            .iter()
+            .map(|s| ((s.b_u, s.b_v), s.arcs.map(|(_, eb)| eb), (s.a_u, s.a_v)))
+            .collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
         tol,
@@ -247,11 +255,42 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(None);
     };
 
-    // ---- 5. Patch discovery + cross-mate pairing. ----
+    // ---- 5. Patch discovery, the interior curve networks made
+    // congruent, cross-mate pairing. ----
     let Some(a_patch) = patch_faces(&red.a, &a_seam, &a_rest)? else {
         return Ok(None);
     };
     let Some(b_patch) = patch_faces(&red.b, &b_seam, &b_rest)? else {
+        return Ok(None);
+    };
+    let b_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (a, b)).collect();
+    let a_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (b, a)).collect();
+    let a_interior = interior_edges(&red.a, &a_patch, &a_seam)?;
+    let b_interior = interior_edges(&red.b, &b_patch, &b_seam)?;
+    let Some(a_patch) = mirror_edges(
+        &mut red.a,
+        &red.b,
+        &b_interior,
+        &a_of,
+        &a_patch,
+        &a_rings,
+        &mut a_fragments,
+        tol,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(b_patch) = mirror_edges(
+        &mut red.b,
+        &red.a,
+        &a_interior,
+        &b_of,
+        &b_patch,
+        &b_rings,
+        &mut b_fragments,
+        tol,
+    )?
+    else {
         return Ok(None);
     };
     if a_patch.len() != b_patch.len() {
@@ -431,15 +470,18 @@ fn patch_discards<T: Decide>(
 }
 
 // ---------------------------------------------------------------
-// 1. Segment enumeration.
+// 2. Segment enumeration.
 // ---------------------------------------------------------------
 
 /// Matches the germ records into seam segments — [`super::join`]'s
 /// mutual-facing/nearest tests with the (REST-ambiguous) face-pair
-/// identity dropped. `None`: matching did not complete — not this
-/// lane's frontier.
+/// identity dropped, after the arcs ([`arc_along`]). The germs are read
+/// first and the null-edge scaffolding is then undone (step 3), so the
+/// arcs are found on the operands' own vertex orbits. `None`: matching
+/// did not complete — not this lane's frontier; an escalated arc
+/// lookup on a germ left unpaired refuses instead.
 fn enumerate_segments<T: Decide>(
-    red: &BooleanReduction<T>,
+    red: &mut BooleanReduction<T>,
     band: Band,
 ) -> Result<Option<Vec<Segment>>, BooleanError> {
     let mut a_by_edge: SecondaryMap<EdgeKey, &BoolNullEdgeRecord<T>> = SecondaryMap::new();
@@ -494,7 +536,60 @@ fn enumerate_segments<T: Decide>(
             diag,
         )
     };
+    // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
+    undo_struts(red)?;
     let mut segments = Vec::new();
+    // **Arcs first.** An arc's end germs need not face each other
+    // along its chord (a half circle's are square to it), so the
+    // straight test cannot pair them. Each germ looks up, once per
+    // operand, the arc it runs along from its site; two germs pair when
+    // each one's arcs arrive at the other's sites along the same two
+    // edges. A germ whose lookup escalates is left to the straight
+    // test, and its escalation stands only if that test leaves it
+    // unpaired.
+    let mut arcs: Vec<Result<Option<[ArcStep<T>; 2]>, geom_core::Indeterminate>> =
+        Vec::with_capacity(germs.len());
+    for g in &germs {
+        let (a, b) = sites[g.pair];
+        arcs.push(
+            match (
+                arc_along(&red.a, a, g.dir, band)?,
+                arc_along(&red.b, b, g.dir, band)?,
+            ) {
+                (Ok(None), _) | (_, Ok(None)) => Ok(None),
+                (Err(diag), _) | (_, Err(diag)) => Err(diag),
+                (Ok(Some(sa)), Ok(Some(sb))) => Ok(Some([sa, sb])),
+            },
+        );
+    }
+    for i in 0..germs.len() {
+        let Ok(Some([sa, sb])) = arcs[i] else {
+            continue;
+        };
+        if germs[i].used {
+            continue;
+        }
+        let back = (0..germs.len()).find(|&j| {
+            !germs[j].used
+                && sites[germs[j].pair] == (sa.to, sb.to)
+                && matches!(arcs[j], Ok(Some([ta, tb]))
+                    if ta.edge == sa.edge && tb.edge == sb.edge
+                        && (ta.to, tb.to) == sites[germs[i].pair])
+        });
+        let Some(j) = back else {
+            continue;
+        };
+        germs[i].used = true;
+        germs[j].used = true;
+        let ((au, bu), (av, bv)) = (sites[germs[i].pair], sites[germs[j].pair]);
+        segments.push(Segment {
+            a_u: au,
+            a_v: av,
+            b_u: bu,
+            b_v: bv,
+            arcs: Some((sa.edge, sb.edge)),
+        });
+    }
     loop {
         // Globally nearest mutually-facing unused pair (the join's
         // scan order and tie discipline).
@@ -551,7 +646,13 @@ fn enumerate_segments<T: Decide>(
             a_v: av,
             b_u: bu,
             b_v: bv,
+            arcs: None,
         });
+    }
+    for (g, arc) in germs.iter().zip(&arcs) {
+        if let (false, Err(diag)) = (g.used, arc) {
+            return Err(escalate(*diag));
+        }
     }
     if germs.iter().any(|g| !g.used) {
         return Ok(None); // leftover germs: not a pure REST seam
@@ -559,8 +660,28 @@ fn enumerate_segments<T: Decide>(
     Ok(Some(segments))
 }
 
+/// The one circle arc of `body` leaving `u` along `dir`
+/// ([`arcs_along`]): `None` when there is none, the alignment's
+/// escalation as the inner error, and a second such arc the typed
+/// refusal.
+fn arc_along<T: Decide>(
+    body: &Body<T>,
+    u: VertexKey,
+    dir: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Result<Option<ArcStep<T>>, geom_core::Indeterminate>, BooleanError> {
+    Ok(match arcs_along(body, u, dir, band)? {
+        Err(diag) => Err(diag),
+        Ok(steps) => match steps[..] {
+            [] => Ok(None),
+            [step] => Ok(Some(step)),
+            _ => return Err(unsupported(RestZipFrontier::ParallelSeamEdges)),
+        },
+    })
+}
+
 // ---------------------------------------------------------------
-// 2. The lane door.
+// 1. The REST-contact surfaces.
 // ---------------------------------------------------------------
 
 /// The per-operand verified REST-contact (opposite-oriented declared)
@@ -843,111 +964,28 @@ pub fn carrier_pair_verdict<T: Decide>(
     ))
 }
 
-/// Verifies every declared face pair through the declared rung and
-/// returns the opposite-oriented (REST-contact) surface sets per
-/// operand. A definitely-distinct declared pair is the typed
-/// [`BooleanError::ContactContradicted`] — a false REST
-/// declaration refuses at the lane, never a silent no-op.
-fn verify_declared_pairs<T: Decide>(
+/// The REST-contact surface sets per operand: the surfaces of the
+/// `Rest` pairs the declaration door verified one carrier with opposed
+/// senses ([`BooleanReduction`]'s `rest_contacts`). The door refused
+/// every false declaration before the reduction ran, so this lane reads
+/// its certificates and verifies nothing again.
+fn rest_surfaces<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
-    band: Band,
+    pairs: &[(FaceKey, FaceKey)],
 ) -> Result<RestSurfaces, BooleanError> {
+    let surface = |body: &Body<T>, f: FaceKey| {
+        body.get_face(f)
+            .map(|face| face.surface)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "REST lane: a verified declared face vanished",
+            })
+    };
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
-    for &FacePairDeclaration {
-        a: fa,
-        b: fb,
-        class,
-    } in &decls.coincident_faces
-    {
-        // Only the CONFORMAL class names REST-contact surfaces; a
-        // `Tangent` pair touches along a locus and a continuation is
-        // one surface carried on, each verified at the front door, and
-        // neither licenses a patch.
-        if class != BooleanCoincidence::REST {
-            continue;
-        }
-        // The one carrier-pair door: oriented sources, sense-folded
-        // descriptions and the consumed extent all live inside it —
-        // shared with the flush detector by construction, since that
-        // detector asks THIS function in its `declared: false`
-        // posture.
-        let relation = match carrier_pair_relation(a, fa, b, fb, true, band) {
-            Ok(relation) => relation,
-            Err(PairUnread::Extent(face)) => return Err(super::unreadable_extent(face)),
-            // `validate_declarations` refused every kind outside the
-            // inventory before this lane ran.
-            Err(PairUnread::OutsideInventory) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "REST lane: a declared face lost its carrier",
-                });
-            }
-        };
-        match relation {
-            Ok(PlaneRelation::SameOpposite) => {
-                let sa = a
-                    .get_face(fa)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "REST lane: declared A face vanished",
-                    })?
-                    .surface;
-                let sb = b
-                    .get_face(fb)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "REST lane: declared B face vanished",
-                    })?
-                    .surface;
-                a_rest.insert(sa, ());
-                b_rest.insert(sb, ());
-            }
-            // Aligned senses contradict `Rest` here as at the door.
-            Ok(PlaneRelation::SameOriented) => {
-                return Err(super::sense_contradiction(fa, fb, class, band));
-            }
-            Ok(PlaneRelation::Distinct) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "REST lane: declared rung returned Distinct instead of contradicting",
-                });
-            }
-            Err(PlaneEqError::Contradicted { fact, diag }) => {
-                // C4's verify-at-use: the refusal names the pair, the
-                // CLASS that was claimed and the margin that decided —
-                // and steers to the class that would fit when the
-                // counter-evidence is a separation (AQ6).
-                return Err(BooleanError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
-                        a: fa,
-                        b: fb,
-                        class: ContactClass::Rest,
-                    },
-                    steer: super::contact_verify::fit_steer(fact),
-                    fact: Some(fact),
-                    margin: diag,
-                });
-            }
-            Err(PlaneEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(
-                    rung,
-                    super::PlaneDoor::OnPair(super::DeclarationRead::Spent(
-                        BooleanCoincidence::REST,
-                    )),
-                    diag,
-                ));
-            }
-            Err(PlaneEqError::Unsettled { diag }) => {
-                return Err(super::unsettled_rest(BooleanCoincidence::REST, diag));
-            }
-            Err(PlaneEqError::Undeclared { diag, relation }) => {
-                // Unreachable with declared=true; refuse loudly anyway.
-                return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
-                    pair: [(Operand::A, fa), (Operand::B, fb)],
-                    relation,
-                });
-            }
-        }
+    for &(fa, fb) in pairs {
+        a_rest.insert(surface(a, fa)?, ());
+        b_rest.insert(surface(b, fb)?, ());
     }
     Ok((a_rest, b_rest))
 }
@@ -1001,57 +1039,19 @@ struct SeamSet {
     per_segment: Vec<EdgeKey>,
 }
 
-/// A segment's edge on the OTHER solid: its certified curve, and
-/// whether that curve runs from the segment's first end to its second.
-struct PartnerEdge<T: geom_core::Real> {
-    curve: geom_brep::EdgeCurve<T>,
-    forward: bool,
-}
+/// An edge's two vertices, `(u, v)`.
+type VertexPair = (VertexKey, VertexKey);
 
-/// Per segment, the edge `body` already carries between its ends (the
-/// fan walk), with its curve. The contact region's boundary runs along
-/// the two operands' face boundaries, so where one solid carries a
-/// segment as an edge, that edge's curve IS the seam's locus, and the
-/// other solid's chord takes it ([`mint_chord`]).
-fn partner_edges<T: Decide>(
-    body: &Body<T>,
-    segments: &[(VertexKey, VertexKey)],
-) -> Result<Vec<Option<PartnerEdge<T>>>, BooleanError> {
-    segments
-        .iter()
-        .map(|&(u, v)| {
-            let Some(e) = fan_edge_between(body, u, v)? else {
-                return Ok(None);
-            };
-            let edge = body
-                .get_edge(e)
-                .ok_or_else(|| desync("REST lane: a seam edge no longer resolves"))?;
-            let start = body
-                .get_half_edge(edge.he_plus)
-                .ok_or_else(|| desync("REST lane: a seam half no longer resolves"))?
-                .start;
-            let curve = body
-                .get_curve_geom(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-                .cloned()
-                .ok_or_else(|| desync("REST lane: a seam edge has no certified curve"))?;
-            Ok(Some(PartnerEdge {
-                curve,
-                forward: start == u,
-            }))
-        })
-        .collect()
-}
-
-/// Realizes the seam in one solid: per segment, the existing operand
-/// edge (fan walk) or a minted chord through the standard splitting
-/// machinery, on the partner solid's edge where it has one. `Ok(None)`:
-/// a segment does not resolve structurally — not this lane's frontier
-/// (pre-identification phase).
+/// Realizes the seam in one solid: per segment, the arc it was matched
+/// along, else the existing operand edge (fan walk), else a minted chord
+/// through the standard splitting machinery, on the other solid's edge
+/// for the segment where it has one. `Ok(None)`: a segment does not
+/// resolve structurally — not this lane's frontier (pre-identification
+/// phase).
 fn realize_seam<T: Decide>(
     body: &mut Body<T>,
-    segments: &[(VertexKey, VertexKey)],
-    partners: &[Option<PartnerEdge<T>>],
+    other: &Body<T>,
+    segments: &[(VertexPair, Option<EdgeKey>, VertexPair)],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -1060,10 +1060,22 @@ fn realize_seam<T: Decide>(
         set: SecondaryMap::new(),
         per_segment: Vec::with_capacity(segments.len()),
     };
-    for (&(u, v), partner) in segments.iter().zip(partners) {
-        let edge = match fan_edge_between(body, u, v)? {
+    for &((u, v), arc, theirs) in segments {
+        let found = match arc {
+            Some(e) => Some(e),
+            None => fan_edge_between(body, u, v)?,
+        };
+        let edge = match found {
             Some(e) => e,
-            None => match mint_chord(body, u, v, partner.as_ref(), rings, fragments, tol)? {
+            None => match mint_chord(
+                body,
+                u,
+                v,
+                Twin::of(other, theirs, (u, v))?.as_ref(),
+                rings,
+                fragments,
+                tol,
+            )? {
                 Some(e) => e,
                 None => return Ok(None),
             },
@@ -1072,6 +1084,84 @@ fn realize_seam<T: Decide>(
         out.per_segment.push(edge);
     }
     Ok(Some(out))
+}
+
+/// The edges of `body` interior to its contact patch, as endpoint
+/// pairs: both sides on patch faces, and not on the seam. Arena order.
+fn interior_edges<T: Decide>(
+    body: &Body<T>,
+    patch: &[FaceKey],
+    seam: &SeamSet,
+) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
+    let in_patch = |he| {
+        body.face_of_half_edge(he)
+            .is_some_and(|f| patch.contains(&f))
+    };
+    let mut out = Vec::new();
+    for (key, edge) in body.edges() {
+        if seam.set.contains_key(key) || !in_patch(edge.he_plus) || !in_patch(edge.he_minus) {
+            continue;
+        }
+        let start = |he| {
+            body.get_half_edge(he)
+                .map(|h| h.start)
+                .ok_or_else(|| desync("REST lane: interior edge half no longer resolves"))
+        };
+        out.push((start(edge.he_plus)?, start(edge.he_minus)?));
+    }
+    Ok(out)
+}
+
+/// **The two operands' interior curve networks, made congruent.** The
+/// seam bounds the contact region on both solids alike, but each solid
+/// divides the region into faces its own way: a full-turn bore is one
+/// face where the shaft against it is three. Patches pair by vertex
+/// cycles, so every edge interior to the OTHER solid's patch is given
+/// a twin in `body`'s: found between the corresponding vertices, or
+/// minted in the patch face holding both, on the other edge's carrier.
+/// The zip removes both patches as interior, so what the twins must get
+/// right is how they divide the faces.
+///
+/// Returns the patch grown by the faces the twins split off.
+/// `Ok(None)`: an interior edge whose ends have no counterpart here (a
+/// vertex of the other solid interior to the region), a closed one, or
+/// one whose host is not a single patch face — not this lane's frontier.
+#[allow(clippy::too_many_arguments)] // both solids, the vertex map, and the split bookkeeping `mint_chord` takes
+fn mirror_edges<T: Decide>(
+    body: &mut Body<T>,
+    other: &Body<T>,
+    other_interior: &[(VertexKey, VertexKey)],
+    here: &SecondaryMap<VertexKey, VertexKey>,
+    patch: &[FaceKey],
+    rings: &SecondaryMap<VertexKey, FaceKey>,
+    fragments: &mut Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
+) -> Result<Option<Vec<FaceKey>>, BooleanError> {
+    let mut patch = patch.to_vec();
+    for &(ou, ov) in other_interior {
+        let (Some(&u), Some(&v)) = (here.get(ou), here.get(ov)) else {
+            return Ok(None);
+        };
+        if u == v {
+            return Ok(None);
+        }
+        if fan_edge_between(body, u, v)?.is_some() {
+            continue;
+        }
+        let fu = incident_faces(body, u, rings)?;
+        let fv = incident_faces(body, v, rings)?;
+        let host: Vec<FaceKey> = fu.iter().filter(|f| fv.contains(f)).copied().collect();
+        if !matches!(host[..], [f] if patch.contains(&f)) {
+            return Ok(None);
+        }
+        let minted = fragments.len();
+        let twin = Twin::of(other, (ou, ov), (u, v))?;
+        if mint_chord(body, u, v, twin.as_ref(), rings, fragments, tol)?.is_none() {
+            return Ok(None);
+        }
+        patch.extend(fragments[minted..].iter().map(|&(new, _)| new));
+    }
+    Ok(Some(patch))
 }
 
 /// The existing edge from `u` to `v`, if any (structural fan walk —
@@ -1106,18 +1196,111 @@ fn fan_edge_between<T: Decide>(
     Ok(found)
 }
 
+/// The other solid's edge between the vertices a chord joins, read for
+/// the chord: a line (the straight chord IS its locus) or a circle, with
+/// its parameter span and which of this solid's two vertices that span
+/// starts at.
+enum Twin<T: geom_core::Real> {
+    Line,
+    Circle {
+        carrier: geom::Curve3<T>,
+        t0: T,
+        t1: T,
+        start: VertexKey,
+    },
+}
+
+impl<T: Decide> Twin<T> {
+    /// The other solid's edge from `ou` to `ov`, read for this solid's
+    /// `u` and `v` (`ou`, `ov` correspond to them), or `None` where the
+    /// other solid has no such edge. An edge whose curve is uncertified,
+    /// or neither a line nor a circle, refuses typed: no chord this
+    /// lane can mint is its twin. No union reaches that refusal today:
+    /// an ellipse or spline seam edge comes from a curved face's
+    /// boundary, where the crossing layer answers `Unread` first, or
+    /// from an oblique planar cut, whose body the containment door
+    /// refuses `VolumeUncertified` first (an obliquely capped rod
+    /// resting on a plate, declared `Rest`, in both operand orders);
+    /// an uncertified edge is turned away at the operand gate.
+    fn of(
+        other: &Body<T>,
+        (ou, ov): (VertexKey, VertexKey),
+        (u, v): (VertexKey, VertexKey),
+    ) -> Result<Option<Self>, BooleanError> {
+        let Some(edge) = fan_edge_between(other, ou, ov)? else {
+            return Ok(None);
+        };
+        let ed = other
+            .get_edge(edge)
+            .ok_or_else(|| desync("REST lane: twin edge no longer resolves"))?;
+        let curve = other
+            .get_curve_geom(ed.curve)
+            .and_then(CurveGeom::certified)
+            .ok_or_else(|| unsupported(RestZipFrontier::TwinCarrierUnsupported))?;
+        let first = other
+            .get_half_edge(ed.he_plus)
+            .ok_or_else(|| desync("REST lane: twin half no longer resolves"))?
+            .start;
+        let (t0, t1) = curve.params();
+        match curve.carrier() {
+            geom::Curve3::Line { .. } => Ok(Some(Self::Line)),
+            carrier @ geom::Curve3::Circle { .. } => Ok(Some(Self::Circle {
+                carrier: carrier.clone(),
+                t0,
+                t1,
+                start: if first == ou { u } else { v },
+            })),
+            _ => Err(unsupported(RestZipFrontier::TwinCarrierUnsupported)),
+        }
+    }
+
+    /// The twin's curve run from `from`: `None` for a line, which the
+    /// straight chord mints as it stands; a circle's own arc in the
+    /// direction asked (reversed by flipping the axis).
+    fn spec(&self, from: VertexKey) -> Option<EdgeCurveSpec<T>> {
+        let Self::Circle {
+            carrier,
+            t0,
+            t1,
+            start,
+        } = self
+        else {
+            return None;
+        };
+        let geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = *carrier
+        else {
+            return None;
+        };
+        if from == *start {
+            EdgeCurveSpec::arc_of_circle(carrier.clone(), *t0, *t1)
+        } else {
+            let reversed = geom::Curve3::Circle {
+                center,
+                axis: -axis,
+                radius,
+                u_ref,
+            };
+            EdgeCurveSpec::arc_of_circle(reversed, -*t1, -*t0)
+        }
+    }
+}
+
 /// Mints the seam chord `u → v` through the standard splitting
 /// machinery (`mef` same-loop, `mekr` for ring loops / pierce-ring
-/// vertices) in the unique face incident to both endpoints. With a
-/// `partner` edge the chord is that edge's curve, charted on the host
-/// face; without one it is the straight chord. `Ok(None)`: no unique
-/// host face, or a partner curve this lane cannot run the other way —
-/// not this lane's frontier.
+/// vertices) in the unique face incident to both endpoints, on its
+/// `twin`'s carrier where the other solid has the edge (a rim arc stays
+/// an arc), and as a straight chord where it has none.
+/// `Ok(None)`: no unique host face — not this lane's frontier.
 fn mint_chord<T: Decide>(
     body: &mut Body<T>,
     u: VertexKey,
     v: VertexKey,
-    partner: Option<&PartnerEdge<T>>,
+    twin: Option<&Twin<T>>,
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -1127,28 +1310,6 @@ fn mint_chord<T: Decide>(
     let common: Vec<FaceKey> = fu.iter().filter(|f| fv.contains(f)).copied().collect();
     let [face] = common[..] else {
         return Ok(None); // zero or ambiguous host face
-    };
-    let host = body
-        .get_face(face)
-        .ok_or_else(|| desync("REST lane: chord host face vanished"))?
-        .surface;
-    // The partner's curve, running from `u` when `from_u`, else from `v`.
-    let spec = |from_u: bool| -> Option<Option<geom_brep::EdgeCurveSpec<T>>> {
-        let Some(p) = partner else {
-            return Some(None);
-        };
-        let (t0, t1) = p.curve.params();
-        let (carrier, param_start, param_end) = if p.forward == from_u {
-            (p.curve.carrier().clone(), t0, t1)
-        } else {
-            (reversed(p.curve.carrier())?, -t1, -t0)
-        };
-        Some(Some(geom_brep::EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::chart(host),
-            carrier,
-            param_start,
-            param_end,
-        }))
     };
     let hu = halves_at(body, face, u)?;
     let hv = halves_at(body, face, v)?;
@@ -1167,19 +1328,27 @@ fn mint_chord<T: Decide>(
             .ok_or_else(|| desync("REST lane: chord half no longer resolves"))?
             .parent_loop)
     };
+    // The new edge's curve from `from` to `to`, where the twin states
+    // one; `None` takes the straight chord.
+    // The new edge's curve from `from`; `None` takes the straight chord.
+    let spec = |from: VertexKey| twin.and_then(|t| t.spec(from));
+    let mef = |body: &mut Body<T>, he1: HalfEdgeKey, he2: HalfEdgeKey, from| {
+        let site = MefSite::Chords { he1, he2 };
+        match spec(from) {
+            Some(curve) => body.mef(site, curve, FaceSurface::Inherit, tol),
+            None => body.mef_chord(site, tol),
+        }
+    };
+    let mekr = |body: &mut Body<T>, site: MekrSite, from| match spec(from) {
+        Some(curve) => body.mekr(site, curve, tol),
+        None => body.mekr_chord(site, tol),
+    };
     let created = match (&hu[..], &hv[..]) {
         ([hu], [hv]) => {
             let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
             if lu == lv {
-                let Some(curve) = spec(true) else {
-                    return Ok(None);
-                };
-                let site = MefSite::Chords { he1: *hu, he2: *hv };
-                let created = match curve {
-                    Some(c) => body.mef(site, c, FaceSurface::Inherit, tol),
-                    None => body.mef_chord(site, tol),
-                }
-                .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
+                let created = mef(body, *hu, *hv, u)
+                    .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
                 fragments.push((created.face, face));
                 created.edge
             } else {
@@ -1188,32 +1357,29 @@ fn mint_chord<T: Decide>(
                     .get_face(face)
                     .ok_or_else(|| desync("REST lane: chord host face vanished"))?
                     .outer;
-                let from_u = lv != outer;
-                let (target, ring) = if from_u { (*hu, *hv) } else { (*hv, *hu) };
-                let Some(curve) = spec(from_u) else {
-                    return Ok(None);
+                let ((target, from), ring) = if lv == outer {
+                    ((*hv, v), *hu)
+                } else {
+                    ((*hu, u), *hv)
                 };
-                mekr_with(body, MekrSite::Cycles { target, ring }, curve, tol)
+                mekr(body, MekrSite::Cycles { target, ring }, from)
                     .map_err(|_| unsupported(RestZipFrontier::ChordMekrRefused))?
+                    .edge
             }
         }
         ([], [hv]) => {
             let ring = ring_loop_of(body, u)
                 .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
-            let Some(curve) = spec(false) else {
-                return Ok(None);
-            };
-            mekr_with(body, MekrSite::EmptyRing { target: *hv, ring }, curve, tol)
+            mekr(body, MekrSite::EmptyRing { target: *hv, ring }, v)
                 .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
+                .edge
         }
         ([hu], []) => {
             let ring = ring_loop_of(body, v)
                 .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
-            let Some(curve) = spec(true) else {
-                return Ok(None);
-            };
-            mekr_with(body, MekrSite::EmptyRing { target: *hu, ring }, curve, tol)
+            mekr(body, MekrSite::EmptyRing { target: *hu, ring }, u)
                 .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
+                .edge
         }
         ([], []) => {
             return Err(unsupported(RestZipFrontier::ChordBetweenIsolatedPierces));
@@ -1223,55 +1389,6 @@ fn mint_chord<T: Decide>(
         }
     };
     Ok(Some(created))
-}
-
-/// `mekr` on a given curve, or the chord sugar without one; the new edge.
-fn mekr_with<T: Decide>(
-    body: &mut Body<T>,
-    site: MekrSite,
-    curve: Option<geom_brep::EdgeCurveSpec<T>>,
-    tol: Tol,
-) -> Result<EdgeKey, crate::euler::EulerOpError> {
-    match curve {
-        Some(c) => body.mekr(site, c, tol),
-        None => body.mekr_chord(site, tol),
-    }
-    .map(|m| m.edge)
-}
-
-/// The carrier traversed the other way, on the parameter `−t`: a line
-/// on its negated direction, a circle or an ellipse about its negated
-/// axis (which negates `axis × u_ref`, so the point at `−t` is the
-/// original's at `t`). `None` for the carriers with no such closed form.
-fn reversed<T: geom_core::Real>(carrier: &geom::Curve3<T>) -> Option<geom::Curve3<T>> {
-    match *carrier {
-        geom::Curve3::Line { origin, dir } => Some(geom::Curve3::Line { origin, dir: -dir }),
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => Some(geom::Curve3::Circle {
-            center,
-            axis: -axis,
-            radius,
-            u_ref,
-        }),
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            u_ref,
-        } => Some(geom::Curve3::Ellipse {
-            center,
-            axis: -axis,
-            major,
-            minor,
-            u_ref,
-        }),
-        _ => None,
-    }
 }
 
 /// The faces incident to `u`, deterministic orbit order (a pierce-ring
@@ -2171,8 +2288,16 @@ mod lever_rows {
     }
 
     fn door(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> Result<(), ContactRefusal> {
-        crate::boolean::contact_pair_verdict(a, fa, b, fb, ContactClass::Rest, None, band())
-            .map(|_| ())
+        crate::boolean::contact_pair_verdict(
+            a,
+            fa,
+            b,
+            fb,
+            crate::contact::ContactClass::Rest,
+            None,
+            band(),
+        )
+        .map(|_| ())
     }
 
     /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about
