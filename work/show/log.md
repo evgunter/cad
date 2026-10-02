@@ -353,3 +353,19 @@ The review precomputed the `baseline_census.rs` pins after 3792, 3816, 3824 and 
 - at_bound 13
 
 3836 (letterforms: rows −52, triangles −200, pairs −1398) composes on top. Each merge re-runs tess-lint on its merge commit regardless.
+
+## 2026-10-02 — letterforms reviewed (MERGE WITH FIXES)
+
+PR 3836. The oracles were independently confirmed: by hand, and az by sympy. Planted 1e-3 shifts all go red.
+
+The operand-order split is real and not a regression. Before #3770, 5 of the 6 nestings refused; #3770 narrowed that to 2. This points JOIN at the same mechanism.
+
+The fix pass:
+- adds a live wall for az's Z∩A;
+- fixes a stale Python T row;
+- narrows the projectbox-sixteenths row against #3811;
+- asserts the shadow claim.
+
+The reviewer's claim that "walls never run in CI" contradicts the teapot lane's finding that `eps_regression` spawns the tour binary. The lane must settle it with evidence.
+
+Composed census pins once all five overlapping PRs merge: rows 1551, pairs 28,265, triangles 427,690, scenes 78.
