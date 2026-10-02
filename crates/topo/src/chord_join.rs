@@ -75,9 +75,10 @@
 //! on the [`JoinLane::BoolPlanar`] arm, the partner wall's, arriving by
 //! value because the planar side has no chart to compute one from.
 //! A sphere section tilted against the chart's polar axis has no
-//! monotone azimuth for a window to bound, and its arc is selected by
-//! the side of the run it leaves on (`split_arc_run_side`) on either
-//! lane.
+//! monotone azimuth for a window to bound: on a divided sphere face its
+//! arc is selected by the side of the run it leaves on
+//! (`split_arc_run_side`), and the [`JoinLane::BoolPlanar`] arm, which
+//! has only the mate's window, refuses it.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
@@ -89,12 +90,12 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
+use crate::face_normal;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
 use crate::splitting::SplitPlane;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_carrier_loop};
 use crate::splitting::rules::face_extent;
-use crate::face_normal;
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -387,6 +388,20 @@ pub enum SplitJoinError {
         /// What failed.
         what: &'static str,
     },
+    /// The boolean's PLANAR side of a plane×sphere germ pair met a
+    /// section tilted against the sphere's chart polar axis
+    /// (`split_sphere_section_polar`). That side selects its arc by the
+    /// mate wall face's azimuth window, handed over by value, and a
+    /// tilted section's azimuth is not monotone, so there is no window
+    /// to select by; the wall side of the same pair, and both sides of
+    /// a sphere pair, take the run-side rule instead. A deliberate
+    /// typed frontier (`work/reach/planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue.md`).
+    SectionNotPolar {
+        /// The planar face being divided.
+        face: FaceKey,
+        /// The band the tilt was decided against.
+        band: Band,
+    },
     /// The run-side arc rule — the one a section whose chart azimuth
     /// is not monotone takes (`split_arc_run_side`) — named no arc.
     SectionArcSide {
@@ -549,6 +564,15 @@ impl SplitJoinError {
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
+            Self::SectionNotPolar { band, .. } => write!(
+                f,
+                "the planar side of a plane×sphere cut is tilted against the sphere's polar \
+                 axis, and that side takes its arc from the sphere face's azimuth window, \
+                 which a tilted section has none of ('split_sphere_section_polar', band \
+                 ({:e}, {:e})). Recourse: revolve the ball about the face's normal",
+                band.zero(),
+                band.escalate(),
+            ),
             Self::SectionArcSide { case, band, .. } => write!(
                 f,
                 "the section through a curved face has no arc to take: {case} \
@@ -1409,11 +1433,7 @@ fn select_arc_by_run_side<T: Decide>(
         };
         // The ccw candidate runs p1 → p2 with θ increasing: it leaves
         // p1 along +C′(θ₁) and leaves p2, walked back, along −C′(θ₂).
-        let leave = if at_p1 {
-            tangent(th1)
-        } else {
-            -tangent(th2)
-        };
+        let leave = if at_p1 { tangent(th1) } else { -tangent(th2) };
         let normal = match face_normal::face_outward_normal_at(body, face, end.at, band) {
             Ok(Some(n)) => n.vec(),
             Ok(None) => return Err(corrupt_face(face)),
@@ -1574,7 +1594,6 @@ fn chord_spec<T: Decide>(
                     &wall,
                     window,
                     partner_key,
-                    run,
                     u1,
                     u2,
                 ),
@@ -1809,7 +1828,6 @@ fn bool_planar_chord_spec<T: Decide>(
     wall: &geom::Surface<T>,
     window: (T, T),
     partner_key: &mut Option<SurfaceKey>,
-    run: &[HalfEdgeKey],
     u1: VertexKey,
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
@@ -1876,20 +1894,18 @@ fn bool_planar_chord_spec<T: Decide>(
     let p1 = vertex_point(body, u1)?;
     let p2 = vertex_point(body, u2)?;
     // ---- The arc side against the SUPPLIED (mate-face) window: the
-    // shared rule, called with a window this lane did not derive —
-    // or, for a section with no monotone azimuth, the run-side rule
-    // on this face's own run. ----
-    let (carrier, t_start, t_end) = if conic.azimuth_monotone {
-        let chart = ChartFrame {
-            origin: o_c,
-            axis: a_c,
-            radius: r_c,
-            u_ref: u_ref_c,
-        };
-        select_arc(face, band, &chart, &conic, window, p1, p2)?
-    } else {
-        select_arc_by_run_side(body, band, face, &conic, run, p1, p2)?
+    // shared rule, called with a window this lane did not derive. A
+    // section with no monotone azimuth has no window to be handed. ----
+    if !conic.azimuth_monotone {
+        return Err(SplitJoinError::SectionNotPolar { face, band });
+    }
+    let chart = ChartFrame {
+        origin: o_c,
+        axis: a_c,
+        radius: r_c,
+        u_ref: u_ref_c,
     };
+    let (carrier, t_start, t_end) = select_arc(face, band, &chart, &conic, window, p1, p2)?;
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {
@@ -3686,4 +3702,3 @@ mod section_case_pair_tests {
         }
     }
 }
-

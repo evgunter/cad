@@ -69,7 +69,10 @@ fn overlapping_balls_union_through_their_tilted_section() {
     // Two unit balls 1.2 apart share a lens of two caps of height 0.4.
     let h: f64 = 0.4;
     let want = 2.0 * 4.0 * PI / 3.0 - 2.0 * PI * h * h * (3.0 - h) / 3.0;
-    assert!((v - want).abs() <= 1e-9 * want, "union volume {v}, want {want}");
+    assert!(
+        (v - want).abs() <= 1e-9 * want,
+        "union volume {v}, want {want}"
+    );
 }
 
 /// **In-band clearance escalates by name** (two-tolerance, the F6
@@ -97,4 +100,3 @@ fn in_band_clearance_escalates_through_the_funnel() {
         other => panic!("expected an escalation, got {other:?}"),
     }
 }
-

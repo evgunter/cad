@@ -1456,6 +1456,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     what: "a section arc with no endpoint on the face's boundary",
                 },
             ),
+            ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
             (
                 "SectionArcSide",
                 J::SectionArcSide {

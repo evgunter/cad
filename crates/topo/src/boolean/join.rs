@@ -402,8 +402,8 @@ pub(super) fn bool_connect<T: Decide>(
         // planar side against the wall face's own window, so both
         // solids select the SAME geometric arc); plane×sphere (M5
         // S13) rides the same two lanes with the exact C5 Circle and
-        // the sphere chart's azimuth window, or, for a section tilted
-        // against that chart, each side's own run; a sphere pair rides the
+        // the sphere chart's azimuth window (a section tilted against
+        // that chart refuses on the planar side); a sphere pair rides the
         // wall-side lane on both sides against its radical plane; any
         // other pair refuses typed citing its C5 routing (per-arm,
         // C12.1).

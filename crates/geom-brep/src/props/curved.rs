@@ -33,8 +33,8 @@ use geom_core::{
 };
 
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
-use crate::enters::OutwardNormal;
 use crate::dihedral::decide;
+use crate::enters::OutwardNormal;
 
 /// The flux and area of a curved face from its **outer** loop (curved
 /// M2 faces carry no rings — the owning body refuses ringed curved
@@ -2204,7 +2204,11 @@ fn sphere_circle_loop<T: Decide>(
     }
     for (i, &(_, _, arrive, at)) in ends.iter().enumerate() {
         let (depart, from, _, _) = ends[(i + 1) % ends.len()];
-        require_zero("props_sphere_loop_closed", Margin::of((from - at).norm()), band)?;
+        require_zero(
+            "props_sphere_loop_closed",
+            Margin::of((from - at).norm()),
+            band,
+        )?;
         let normal = outward(at);
         require_cusp_free(arrive, depart, radius, band)?;
         turning = turning + normal.dot(arrive.cross(depart)).atan2(arrive.dot(depart));
@@ -2223,7 +2227,8 @@ fn sphere_circle_loop<T: Decide>(
         }
     }
     let va = loop_vector_area(edges, center)?;
-    let flux = SphereFluxSide::Sense(sense).signed(radius * area) + (center - Point3::origin()).dot(va);
+    let flux =
+        SphereFluxSide::Sense(sense).signed(radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
 }
 

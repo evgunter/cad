@@ -1,13 +1,37 @@
-//! probe
+//! **Sphere sections tilted against the chart**: a sphere pair whose
+//! centre line is off a ball's polar axis, and a plane that is not
+//! normal to it, under every boolean.
+//!
+//! Each ball is the canonical full revolve of a semicircle about `y`
+//! (two half-bands on one sphere key), moved off the origin. The pair's
+//! section is the radical-plane circle, handed to both sides' wall
+//! lanes; offset along `x` (or anywhere in
+//! the seam plane `z = c_z`) that circle is tilted against both charts'
+//! polar axis, so its azimuth doubles back and the join selects its arcs
+//! by the side of the run they leave on
+//! (`chord_join::select_arc_by_run_side`). The faces it leaves are
+//! bounded by circles that are neither rims nor meridians, and the
+//! sphere flux arm measures them by Gauss–Bonnet
+//! (`props::curved::sphere_circle_loop`). Every body is held to all
+//! three validation tiers and to its volume against the lens the two
+//! spheres share, computed here from the radii and the centre distance
+//! alone.
+//!
+//! The rows a tilted section does not yet reach are pinned at the door
+//! they stop at: an offset that leaves the seam plane (the sector side),
+//! and a plane tilted against the ball's chart (the boolean's planar
+//! side, which has only the sphere face's azimuth window to select by).
+
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, BooleanOp};
 
+/// A ball of radius `r` centred at `c`, poles on world `y`.
 fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
     let b = revolved_about_y(
         vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
@@ -17,83 +41,226 @@ fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
     topo::transform_rigid(&b, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
-fn slab(z0: f64, h: f64) -> Body<f64> {
-    let p = Profile::new(
-        SketchPlane::xy(),
-        vec![profile::ProfileLoop::polygon([
-            Point2::new(-2.0, -2.0),
-            Point2::new(2.0, -2.0),
-            Point2::new(2.0, 2.0),
-            Point2::new(-2.0, 2.0),
-        ])],
-    )
-    .validate(Tol::witness())
-    .unwrap();
-    let b = sweep::extrude(&p, sweep::Extrusion::Distance(h), Tol::witness()).unwrap().body;
-    topo::transform_rigid(&b, &Affine3::translation(Vec3::new(0.0, 0.0, z0)), Tol::witness()).unwrap()
+fn ball_volume(r: f64) -> f64 {
+    4.0 / 3.0 * PI * r.powi(3)
 }
 
-fn cap(r: f64, h: f64) -> f64 {
-    PI * h * h * (3.0 * r - h) / 3.0
+/// The volume of a spherical cap of height `h` on a sphere of radius `r`.
+fn cap_volume(r: f64, h: f64) -> f64 {
+    PI * h.powi(2) * (3.0 * r - h) / 3.0
 }
 
-fn lens(r1: f64, r2: f64, d: f64) -> f64 {
-    let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
-    cap(r1, r1 - x) + cap(r2, r2 - (d - x))
+/// The lens two balls `r1`, `r2` at centre distance `d` share: the cap
+/// of each beyond the radical plane, which sits at
+/// `x = (d² + r1² − r2²)/2d` from the first centre.
+fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
+    let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
+    cap_volume(r1, r1 - x) + cap_volume(r2, r2 - (d - x))
 }
 
-fn probe(pose: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, both: f64) {
-    for (label, op, x, y, want) in [
-        ("A u B", BooleanOp::Union, a, b, va + vb - both),
-        ("A n B", BooleanOp::Intersect, a, b, both),
-        ("A - B", BooleanOp::Subtract, a, b, va - both),
-        ("B - A", BooleanOp::Subtract, b, a, vb - both),
+/// Every tier of validation, then the volume against `expected` through
+/// the kernel's mass properties — closed-form on every face here, so
+/// the slack is rounding's and a wrong arc (the complement of a cap
+/// selected) misses by the cap's own volume.
+fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
+    assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
+    assert_eq!(
+        topo::validate_closed(body),
+        Ok(()),
+        "{label}: validate_closed"
+    );
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "{label}: validate_geometric"
+    );
+    let p = topo::mass_properties(body, Tol::witness())
+        .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
+    assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
+    assert!(
+        (p.volume - expected).abs() <= 1e-9 * expected.max(1.0),
+        "{label}: volume {} against the lens closed form {expected}",
+        p.volume
+    );
+}
+
+fn run(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+) -> Result<topo::BooleanResult<f64>, topo::BooleanError> {
+    match op {
+        BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
+        BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
+        BooleanOp::Subtract => topo::boolean::subtract(a, b, Tol::witness()),
+    }
+}
+
+/// `a ∪ b`, `a ∩ b`, `a ∖ b` and `b ∖ a`, each a body against its
+/// closed form from the operands' volumes and the shared volume.
+fn assert_every_op(pose: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, shared: f64) {
+    for (label, op, x, y, expected) in [
+        ("A ∪ B", BooleanOp::Union, a, b, va + vb - shared),
+        ("A ∩ B", BooleanOp::Intersect, a, b, shared),
+        ("A ∖ B", BooleanOp::Subtract, a, b, va - shared),
+        ("B ∖ A", BooleanOp::Subtract, b, a, vb - shared),
     ] {
-        let out = match op {
-            BooleanOp::Union => topo::boolean::union(x, y, Tol::witness()),
-            BooleanOp::Intersect => topo::boolean::intersect(x, y, Tol::witness()),
-            BooleanOp::Subtract => topo::boolean::subtract(x, y, Tol::witness()),
-        };
-        let out = match out {
-            Ok(o) => o,
-            Err(e) => {
-                eprintln!("PROBE {pose} {label}: refused {e:?}");
-                continue;
-            }
-        };
-        let body = &out.body().unwrap().body;
-        let p = topo::mass_properties(body, Tol::witness()).map(|p| p.volume);
-        eprintln!(
-            "PROBE {pose} {label}: faces {} v {:?} c {:?} g {:?} vol {:?} want {want}",
-            body.faces().count(),
-            topo::validate(body),
-            topo::validate_closed(body),
-            topo::validate_geometric(body, Tol::witness()),
-            p
+        let label = format!("{pose}, {label}");
+        let out = run(op, x, y).unwrap_or_else(|e| panic!("{label} refused: {e:?}"));
+        let body = &out
+            .body()
+            .unwrap_or_else(|| panic!("{label} came back empty"))
+            .body;
+        assert_body(&label, body, expected);
+    }
+}
+
+/// The unit ball every pose offsets from.
+const BASE: Vec3<f64> = Vec3::new(2.0, 2.0, 0.5);
+
+/// **Sphere pairs offset in the seam plane** build under every op: the
+/// radical plane is tilted against both charts, from a pair of equal
+/// balls whose section is a great-circle-sized cut to a small ball
+/// whose section lies wholly inside one half-band. Each pose is the
+/// `y`-poled unit ball at [`BASE`] against a ball of radius `r` at
+/// `BASE + offset`.
+#[test]
+fn sphere_pairs_tilted_against_both_charts_build_under_every_boolean() {
+    for (pose, r, offset) in [
+        ("equal balls along x", 1.0, Vec3::new(1.4, 0.0, 0.0)),
+        ("equal balls along x and y", 1.0, Vec3::new(1.2, 0.6, 0.0)),
+        ("a smaller ball along x", 0.6, Vec3::new(0.9, 0.0, 0.0)),
+        ("a small ball mostly inside", 0.3, Vec3::new(0.9, 0.0, 0.0)),
+        (
+            "a smaller ball along x and y",
+            0.5,
+            Vec3::new(0.8, 0.4, 0.0),
+        ),
+    ] {
+        assert_every_op(
+            pose,
+            &ball(1.0, BASE),
+            &ball(r, BASE + offset),
+            ball_volume(1.0),
+            ball_volume(r),
+            lens_volume(1.0, r, offset.norm()),
         );
     }
 }
 
+/// **The equal pair at the `Interval` scalar**: enclosures throughout,
+/// the run-side rule's trileans and the Gauss–Bonnet turning angles on
+/// enclosures, and every body certifies with a volume bracket around
+/// the lens closed form.
 #[test]
-fn probe_all() {
-    let (r1, r2) = (1.0, 0.7);
-    let (va, vb) = (4.0 * PI / 3.0, 4.0 * PI / 3.0 * r2 * r2 * r2);
-    probe("X", &ball(1.0, Vec3::new(2.0, 2.0, 0.5)), &ball(1.0, Vec3::new(3.4, 2.0, 0.5)), va, va, lens(1.0, 1.0, 1.4));
-    let c = Vec3::new(0.9, 0.3, 0.6);
-    let d = c.norm();
-    probe("diag", &ball(r1, Vec3::new(0.0, 0.0, 0.0)), &ball(r2, c), va, vb, lens(r1, r2, d));
-    let c = Vec3::new(0.0, 0.0, 1.2);
-    probe("Zoff", &ball(r1, Vec3::new(0.0, 0.0, 0.0)), &ball(r2, c), va, vb, lens(r1, r2, 1.2));
-    let base = Vec3::new(2.0, 2.0, 0.5);
-    for (name, r, off) in [
-        ("XY", 1.0, Vec3::new(1.2, 0.6, 0.0)),
-        ("XZ", 1.0, Vec3::new(1.3, 0.0, 0.2)),
-        ("Xsmall", 0.6, Vec3::new(0.9, 0.0, 0.0)),
-        ("Xsmall-in", 0.3, Vec3::new(0.9, 0.0, 0.0)),
-        ("XYsmall", 0.5, Vec3::new(0.8, 0.4, 0.0)),
+fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
+    use crate::common::interval::iv;
+    use geom_core::{Bounds, Interval};
+    let ball_iv = |c: Vec3<f64>| -> Body<Interval> {
+        let b = sweep::test_support::revolved_about_y_at::<Interval>(
+            vec![
+                (Point2::new(iv(0.0), iv(-1.0)), iv(1.0)),
+                (Point2::new(iv(0.0), iv(1.0)), iv(0.0)),
+            ],
+            Revolution::Full,
+            Tol::witness(),
+        );
+        let to = Vec3::new(iv(c.x), iv(c.y), iv(c.z));
+        topo::transform_rigid(&b, &Affine3::translation(to), Tol::witness()).unwrap()
+    };
+    let (a, b) = (ball_iv(BASE), ball_iv(BASE + Vec3::new(1.4, 0.0, 0.0)));
+    let lens = lens_volume(1.0, 1.0, 1.4);
+    let v1 = ball_volume(1.0);
+    for (op, expected) in [
+        (BooleanOp::Union, 2.0 * v1 - lens),
+        (BooleanOp::Intersect, lens),
+        (BooleanOp::Subtract, v1 - lens),
     ] {
-        let vb = 4.0 * PI / 3.0 * r * r * r;
-        probe(name, &ball(1.0, base), &ball(r, base + off), va, vb, lens(1.0, r, off.norm()));
+        let out = match op {
+            BooleanOp::Union => topo::boolean::union(&a, &b, Tol::witness()),
+            BooleanOp::Intersect => topo::boolean::intersect(&a, &b, Tol::witness()),
+            BooleanOp::Subtract => topo::boolean::subtract(&a, &b, Tol::witness()),
+        }
+        .unwrap_or_else(|e| panic!("Interval {op:?} refused: {e:?}"));
+        let body = &out
+            .body()
+            .unwrap_or_else(|| panic!("Interval {op:?} came back empty"))
+            .body;
+        assert_eq!(topo::validate(body), Ok(()), "Interval {op:?}: validate");
+        assert_eq!(
+            topo::validate_geometric(body, Tol::witness()),
+            Ok(()),
+            "Interval {op:?}: validate_geometric"
+        );
+        let v = topo::mass_properties(body, Tol::witness())
+            .unwrap_or_else(|e| panic!("Interval {op:?}: mass properties, got {e:?}"))
+            .volume;
+        let slack = 1e-9 * expected.max(1.0);
+        assert!(
+            v.lo() - slack <= expected && expected <= v.hi() + slack,
+            "Interval {op:?}: volume [{}, {}] against the lens closed form {expected}",
+            v.lo(),
+            v.hi()
+        );
     }
-    probe("slab", &slab(0.5, 2.5), &ball(1.0, Vec3::new(0.0, 0.0, 0.0)), 16.0 * 2.5, va, cap(1.0, 0.5));
+}
+
+/// **Where a tilted section stops.** An offset with a component off the
+/// seam plane drives the pierce off the seam, and the sector side's
+/// second-order charge refuses
+/// (`work/reach/slab-cut-cylinder-refuses-sector-side.md`). A PLANE
+/// tilted against the ball's chart — a box face across the ball, and a
+/// pip whose poles land on the cube's top — refuses on the planar side,
+/// which selects its arc by the sphere face's azimuth window and has no
+/// window for a tilted section
+/// (`work/reach/planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue.md`).
+#[test]
+fn a_tilted_section_stops_at_the_sector_side_and_the_planar_side() {
+    for (pose, b) in [
+        (
+            "off the seam plane",
+            ball(1.0, BASE + Vec3::new(1.3, 0.0, 0.2)),
+        ),
+        (
+            "a smaller ball off every axis",
+            ball(0.7, BASE + Vec3::new(0.9, 0.3, 0.6)),
+        ),
+    ] {
+        for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+            let e = run(op, &ball(1.0, BASE), &b)
+                .err()
+                .unwrap_or_else(|| panic!("{pose}, {op:?}: built where the frontier was pinned"));
+            assert!(
+                matches!(e, topo::BooleanError::CurvedSectorSideUnsupported { .. }),
+                "{pose}, {op:?}: expected the sector side, got {e:?}"
+            );
+        }
+    }
+    let box_face = sweep::test_support::brick((0.5, 3.0), (-2.0, 2.0), (0.0, 2.0), Tol::witness());
+    let cube = sweep::test_support::cube::<f64>(1.0, Tol::witness());
+    for (pose, a, b) in [
+        (
+            "a box face across the ball",
+            box_face,
+            ball(1.0, Vec3::new(0.0, 0.0, 0.0)),
+        ),
+        (
+            "a pip on the cube's top",
+            cube,
+            ball(0.3, Vec3::new(0.5, 0.5, 1.0)),
+        ),
+    ] {
+        for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+            let e = run(op, &a, &b)
+                .err()
+                .unwrap_or_else(|| panic!("{pose}, {op:?}: built where the frontier was pinned"));
+            assert!(
+                matches!(
+                    e,
+                    topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
+                ),
+                "{pose}, {op:?}: expected the planar side's tilted section, got {e:?}"
+            );
+        }
+    }
 }

@@ -38,7 +38,7 @@ Held, refuse-or-answer-correctly, by
 `crates/sweep/tests/germ_coplanar_conic.rs`
 `every_op_refuses_or_answers_its_closed_form` ("y-poled pip on the
 cube's top face"); `m5_pr9c_sphere_doors.rs`
-`the_die_pips_shape_stops_typed_at_its_pierce_ring` pins PR 9c's
+`the_die_pips_shape_stops_typed_at_its_tilted_section` pins PR 9c's
 smoke shape, the same class, at the join's refusal.
 
 ## What the taker owes
@@ -47,14 +47,3 @@ The crossings path re-charts a sphere group whose section with a plane
 face is tilted against its polar axis (as the fallback's re-cut does),
 or the join's tilted-section arm learns the section; either way the
 y-poled pip answers its closed form.
-
-## Evidence (2026-10-02, `reach/tilted-sphere-pair`)
-
-The join's tilted-section arm now selects the arc (the run-side rule,
-`chord_join::select_arc_by_run_side`), and the y-poled pip and the
-die-pips shape both move one step on: every op refuses
-`Join(SectionArcSide { case: NoCertifiedRun })`. The run the chord is
-handed carries only null scaffolding — the poles land on the face as a
-pierce ring, the routine source `ArcWindowCase::NoChartedRun` already
-names for the window rule — so what this row now waits on is the ring's
-own chord lane (`tang/pierce-ring-has-no-join-arm`) or the re-chart.

@@ -173,7 +173,9 @@ fn z_offset_pairs_refuse_at_the_curved_extent_scan() {
 fn seam_crossing_pairs_build() {
     let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));
     let joined = topo::union(&a, &ball_at(1.0, Vec3::new(3.4, 2.0, 0.5)), Tol::witness())
-        .unwrap_or_else(|e| panic!("offset along X, in the seam plane: the union builds, got {e:?}"));
+        .unwrap_or_else(|e| {
+            panic!("offset along X, in the seam plane: the union builds, got {e:?}")
+        });
     let tilted = topo::mass_properties(&joined.body().expect("a body").body, Tol::witness())
         .unwrap()
         .volume;

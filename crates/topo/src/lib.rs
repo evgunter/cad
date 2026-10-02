@@ -685,8 +685,8 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ArcSideCase, ArcWindowCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord, PlaneSide,
-    PointInLoopError, Section, SectionError, SectionPolygon, SectionRegion, SectorEntry,
+    ArcSideCase, ArcWindowCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord,
+    PlaneSide, PointInLoopError, Section, SectionError, SectionPolygon, SectionRegion, SectorEntry,
     SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
     SplitReduceError, SplitReduction, SplitResult, classify_neighborhood, plane_section,
     point_in_loop, split, split_reduce, vertex_sides,
