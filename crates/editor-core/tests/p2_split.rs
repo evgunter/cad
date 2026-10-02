@@ -552,6 +552,14 @@ fn i2_a_member_the_instance_placed_moves_onto_the_minted_gauge() {
     let after = min_corner(&body_of(&run(&out.doc, &o), top));
     crate::p2_gauges::close(before, after, "the top is where it was");
     same_extent(extent(&doc, &o), extent(&out.doc, &o), "no material moves");
+    // The edit list is the record: it replays with no reach and no
+    // solve to the same document.
+    let replayed = out.edits.iter().fold(doc, |d, e| {
+        editor_core::apply_replayed(&d, e, Tol::witness())
+            .unwrap_or_else(|err| panic!("{e:?} replays: {err}"))
+            .doc
+    });
+    assert!(replayed.bit_eq(&out.doc), "the list replays to the result");
 }
 
 /// **A moved member with a further offset refuses** (ruling 5): the top
