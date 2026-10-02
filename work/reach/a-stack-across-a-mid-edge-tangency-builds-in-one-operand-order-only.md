@@ -2,10 +2,11 @@
 id: a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only
 kind: issue
 title: A sharp-over-rounded stack (and a concave L) builds only with the rounded operand as A: the mid-edge tangency is a frontier in the other order
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: M
+branch: reach/mid-edge-tangency
 ---
 
 Found while building the continuation ruling (PR 3657) and widened by
@@ -36,3 +37,18 @@ split the sharp edges at the tangent points, so the touch lands on
 endpoints and is covered. The outcome therefore depends on sweep
 order rather than geometry. A fix either splits at structural tangent
 points before the sweep, or gives the cover a mid-edge arm.
+
+## Measured on `cd49025f`, and the fix
+
+Still refusing on `origin/main` at `cd49025f`: with the sharp operand as
+A, union, intersect and sharp − rounded refuse `CurvedPierceUnsupported`
+(the sharp bottom edge × the fillet cylinder, `wall_crossing`'s line ×
+wall roots answering `Tangent`), at every radius, plate and L alike.
+Holding the pair for both directions' splits exposed a second
+order-dependence behind it: the `Rest` zip minted a STRAIGHT seam chord
+in the sharp operand's bottom face along each fillet's rim and kept
+operand A's seam edge, so with the sharp plate as A the result carried a
+chord where the arc belongs (`describe_minted_edges` refused it,
+`JoinDesync`). Both are fixed on `reach/mid-edge-tangency`;
+`a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order`
+holds every pose in both orders through ∪, A ∖ B, B ∖ A and ∩.
