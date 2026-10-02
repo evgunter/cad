@@ -1014,9 +1014,9 @@ fn a_declared_unions_document_replays_in_document_order() {
 /// that merged wall, undeclared. Contact is judged pairwise before the
 /// fold (DM4), so the refusal names a face of `m3` and a face of one
 /// placement, never the merged row, and carries no merged set. Each
-/// placement touches `m3`, so there are two refusals to answer; with
-/// both declared, each resolves to the merged row through the
-/// look-through at `m3`'s step.
+/// placement touches `m3` and continues three of its faces, so each
+/// pair of members has refusals to answer; with all declared, each
+/// resolves to the merged row through the look-through at `m3`'s step.
 #[test]
 fn a_union_refusal_against_a_merged_wall_names_two_members() {
     let doc = ProfileDoc::empty_derived("rv_r2_merged_refusal", Tol::witness());
@@ -1040,16 +1040,23 @@ fn a_union_refusal_against_a_merged_wall_names_two_members() {
                     "a pairwise refusal carries no merged set: {merged:?}"
                 );
                 refused.push((finding.pair.0.at, finding.pair.1.at));
-                assert!(refused.len() <= 2, "{refused:?}");
+                // Per placement: its wall contact, and (since JOIN-1's fix
+                // pass 2) the three continuations across `m3` — the x = 0
+                // side and both caps, coplanar and abutting: an
+                // undeclared continuation the union would keep refuses
+                // too. Four per placement, eight in all.
+                assert!(refused.len() <= 8, "{refused:?}");
                 pairs.push((finding.pair.0.clone(), finding.pair.1.clone()));
             }
             other => panic!("the refusal a caller can act on, got {other:?}"),
         }
     }
-    // Each pair is spelled lower id first, and refused in id order.
+    // Each pair is spelled lower id first; both pairs are refused.
     let by_id = |x: RecipeNodeId, y: RecipeNodeId| (x.min(y), x.max(y));
     let mut want = vec![by_id(m1, m3), by_id(m2, m3)];
     want.sort();
+    refused.sort();
+    refused.dedup();
     assert_eq!(refused, want);
 }
 

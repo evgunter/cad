@@ -28,9 +28,12 @@ still a scaffold (`ScaffoldAtRest`): `validate_pseudomanifold` and
 `validate_geometric_certificate` refuse it, the gate passed it. R1
 counted 288 such poses among the hex-prism ∪ box battery, R2 found the
 same in random z-prism pairs (`join1_r2_rand::r2_rand_seed2_case390`).
-JOIN-1's fix pass closes that cause (the boolean's description pass
-now restates a scaffold at rest, as the split finish already did), but
-the gate would pass the next one the same way.
+JOIN-1's fix pass first restated the scaffold, which only hid it: the
+body then passed every tier and was still no legal operand (two
+same-sense coplanar neighbours). Fix pass 2 removed the restatement
+and refuses that union at the op (`UndeclaredCoincidence`, the
+continuation undeclared) or, declared, merges the pair. The gate would
+still pass the next cause of a scaffold at rest the same way.
 
 ## The fix
 

@@ -790,6 +790,13 @@ fn the_torus_waisted_union_builds_like_the_cylinder_control() {
             (v - want).abs() < 1e-9,
             "{handle:?}: the halves only touch, so the union is their sum: {v} against {want}"
         );
+        // Every boolean output is a legal boolean operand (DESIGN): the
+        // waists' seam is a recorded curved skip, the planar continuation
+        // none (both halves' discs are consumed).
+        let far =
+            sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
+        topo::union(&bb.body, &far, Tol::witness())
+            .unwrap_or_else(|e| panic!("{handle:?}: the union is a legal operand: {e:?}"));
     }
 }
 

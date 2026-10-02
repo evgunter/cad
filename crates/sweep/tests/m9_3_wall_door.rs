@@ -68,7 +68,9 @@ fn wall_declarations(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> Boole
         !decls.coincident_faces.is_empty(),
         "the fixture must have wall faces on both operands"
     );
-    decls
+    // The flush planar caps beside the walls are a continuation the
+    // union would keep: declared too (`common::with_flush_planes`).
+    crate::common::with_flush_planes(a, b, decls)
 }
 
 /// C8, the invariant half: the same touching geometry WITHOUT a
@@ -124,50 +126,28 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
                 .unwrap()
                 .volume;
             assert_eq!(vol, 16.0, "exactly-additive volume (closed form)");
-            // The surviving rim arcs sit between two COPLANAR planar
-            // faces (plate cap × peg cap): the surfaces under-
-            // determine the locus, so the D6 pass re-describes the
-            // stale intersection citations CONVENTIONALLY on the
-            // unchanged circle carriers — the arrival the curved
-            // smooth-seam `JoinDesync` door demands (the red half of
-            // this row was the measured refusal before the
-            // conventional-arc lane existed).
-            //
-            // **Re-expressed at PCURVE P-1b.** "Conventionally
-            // described" was the `MappedCurve` variant; U2 collapsed
-            // the conventional forms into one chart image, so the
-            // variant is gone. What the row is actually about survives
-            // untouched and is asserted directly: the rim is NOT
-            // intrinsically described — the coplanar pair cannot
-            // support an Intersection citation, and a stale one is
-            // exactly the `JoinDesync` defect this row exists for —
-            // and the chart it names is one of the two coplanar PLANES
-            // it lies between, which is what "conventionally, on the
-            // unchanged circle carrier" meant.
-            let mut rims = 0;
-            for (_, e) in b.body.edges() {
-                let Some(c) = b.body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-                    continue;
-                };
-                if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
-                    rims += 1;
-                    let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
-                        panic!(
-                            "a coplanar-adjacent rim is conventionally described: {:?}",
-                            c.description()
-                        );
-                    };
-                    assert!(!chart.seam, "a cap rim is not its chart's seam");
-                    assert!(
-                        matches!(
-                            b.body.get_surface(chart.surface),
-                            Some(geom::Surface::Plane { .. })
-                        ),
-                        "the chart is one of the two coplanar planar caps"
-                    );
-                }
-            }
-            assert_eq!(rims, 6, "two rim circles of three arcs each survive");
+            // The peg's caps are flush with the plate's and declared
+            // beside the walls (`wall_declarations`, JOIN-1 fix pass 2):
+            // the merge stage glues each into the plate's cap, so no rim
+            // circle survives and the union is the unbored plate's own
+            // boundary — a legal operand. Undeclared, the caps would be
+            // two coplanar neighbours, and the union refuses
+            // `UndeclaredCoincidence` instead.
+            let rims = b
+                .body
+                .edges()
+                .filter(|(_, e)| {
+                    b.body
+                        .get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                })
+                .count();
+            assert_eq!(rims, 0, "the flush caps merged: no rim survives");
+            let far =
+                topo::test_support::brick((50.0, 51.0), (50.0, 51.0), (0.0, 1.0), Tol::witness());
+            topo::union(&b.body, &far, Tol::witness())
+                .unwrap_or_else(|e| panic!("the union is a legal operand: {e:?}"));
         }
         Ok(BooleanResult::Empty) => panic!("a filled plate cannot be empty"),
         // PR-B: the zip's band closure landed — the union SUCCEEDS

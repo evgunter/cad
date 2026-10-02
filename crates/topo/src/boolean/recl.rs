@@ -590,9 +590,10 @@ pub(super) fn recl_edges<T: Decide>(
                 bm.start_holder,
             )?
             .map(|germ| match germ {
-                EdgeGerm::Held(g) => g,
-                EdgeGerm::Folded(germ) => place_germ(records, first_read, germ),
-            }),
+                EdgeGerm::Held(g) => Ok(g),
+                EdgeGerm::Folded(germ) => place_germ(records, first_read, &marked, germ),
+            })
+            .transpose()?,
             (Some(am), bm) if am.real => resolve_edge_sector(
                 records,
                 a_sectors,
@@ -688,21 +689,33 @@ pub(super) enum EdgeGerm {
 /// record when `pair_search` met no such pair, with its codes as read
 /// (the edge On at its bound) in both arrays; `mark_germ` folds them.
 /// Returns the record's index.
+///
+/// An existing record of the pair is overwritten only when no earlier
+/// event marked it its germ: a record that crosses along one ray of
+/// the pair's two planes crosses along no other, so its codes then are
+/// this event's On codes (cancelled below whatever they read) or a
+/// lump with nothing to cross. A record an earlier event already holds
+/// as its germ would lose that germ, which is refused, never
+/// overwritten.
 fn place_germ(
     records: &mut Vec<PairRecord>,
     first_read: &mut Vec<PairRecord>,
+    marked: &[usize],
     germ: PairRecord,
-) -> usize {
+) -> Result<usize, BooleanError> {
     match records.iter().position(|r| r.a == germ.a && r.b == germ.b) {
+        Some(g) if marked.contains(&g) => Err(BooleanError::ClassificationInvariant {
+            what: "an edge-edge germ's sector pair already holds another event's germ",
+        }),
         Some(g) => {
             records[g] = germ;
             first_read[g] = germ;
-            g
+            Ok(g)
         }
         None => {
             records.push(germ);
             first_read.push(germ);
-            records.len() - 1
+            Ok(records.len() - 1)
         }
     }
 }
@@ -840,7 +853,46 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                         }
                     };
                     if !same {
-                        inside = false; // touching, not overlapping
+                        // Touching, not overlapping: the two faces abut
+                        // along the common edge on one plane. With their
+                        // senses aligned that is a continuation (topo
+                        // README, C4): a same-sense coplanar adjacency the
+                        // union would keep, which only a declaration
+                        // licenses (the output's merge stage then glues
+                        // it). Undeclared, it refuses here, at the op that
+                        // would create it, naming the pair — never a body
+                        // with two coplanar neighbours (DESIGN, "Maximal
+                        // faces"). Opposed senses are no continuation.
+                        // Only ∪ keeps both faces: each reads outside the
+                        // other's wedge, so ∩ drops both and ∖ drops the
+                        // second operand's. Every other reading keeps the
+                        // old answer.
+                        let (own_op, other_op) = if own_is_a {
+                            (super::Operand::A, super::Operand::B)
+                        } else {
+                            (super::Operand::B, super::Operand::A)
+                        };
+                        if op == BooleanOp::Union
+                            && let Err(
+                                e @ BooleanError::UndeclaredCoincidence {
+                                    relation: PlaneRelation::SameOriented,
+                                    ..
+                                },
+                            ) = require_same(
+                                own_body,
+                                own_op,
+                                &own_secs[own_idx],
+                                other_body,
+                                other_op,
+                                &other_secs[oi],
+                                declared,
+                                arm,
+                                band,
+                            )
+                        {
+                            return Err(e);
+                        }
+                        inside = false;
                     } else {
                         let comparison = if own_is_a { Operand::A } else { Operand::B };
                         // Declared-`Tangent` flanking pairs (distinct

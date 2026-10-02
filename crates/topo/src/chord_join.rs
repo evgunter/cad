@@ -2313,23 +2313,26 @@ fn run_azimuth_images<T: Decide>(
     Ok(images)
 }
 
-/// **The chord of a section segment that IS an edge of this solid**
-/// ([`SegmentEdge::Is`]): the other copy of that edge, so its curve is
-/// the edge's own, from `u1` to `u2` (the edge's endpoints' copies, at
-/// its endpoints' points) — never a section the lane would compute
-/// from the germ's face pair, which along an edge both solids hold may
-/// be two coplanar faces with no section between them. A line is the
-/// straight chord; a circle is its own arc, on the carrier reversed
-/// when the chord runs against it. `None` when the segment lies inside
-/// a face, or on the split lane: the lane's section is the chord.
+/// **The chord of a section segment that is an edge of BOTH solids**
+/// ([`JoinLane::AlongEdge`], `segment` naming this solid's edge): the
+/// other copy of that edge, so its curve is the edge's own, from `u1`
+/// to `u2` (the edge's endpoints' copies, at its endpoints' points) —
+/// never a section the lane would compute from the germ's face pair,
+/// which may be two faces on one carrier with no section between them.
+/// A line is the straight chord; a circle is its own arc, on the
+/// carrier reversed when the chord runs against it. `None` on every
+/// other lane: there a segment along an edge of ONE solid lies in a
+/// face of the other, whose lane computes the section the chord takes
+/// (the rod's ruling, a lens rim on a wall).
 fn along_edge_spec<T: Decide>(
     body: &Body<T>,
+    along: bool,
     segment: SegmentEdge,
     face: FaceKey,
     u1: VertexKey,
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    let SegmentEdge::Is(Some(edge)) = segment else {
+    let (true, SegmentEdge::Is(Some(edge))) = (along, segment) else {
         return Ok(None);
     };
     let point = |v: VertexKey| {
@@ -2489,6 +2492,7 @@ impl ChordJoiner {
         };
 
         let mut chords = Vec::new();
+        let along = matches!(lane, JoinLane::AlongEdge);
         let mut newf = None;
         // The RUN the section chords co-bound (real halves between h1
         // and h2 in next order) — the divided face's other boundary,
@@ -2533,7 +2537,7 @@ impl ChordJoiner {
                 // the mef run walks the long way to the between edge,
                 // which is exactly cycle[h1..h2]) — one window.
                 let (u1, u2) = (start_of(body, h1)?, start_of(body, outside)?);
-                let spec = match along_edge_spec(body, segment, oldf, u1, u2)? {
+                let spec = match along_edge_spec(body, along, segment, oldf, u1, u2)? {
                     Some(spec) => Some(spec),
                     None => {
                         chord_spec(body, self.band, lane.reborrow(), oldf, &run_halves, u1, u2)?
@@ -2570,7 +2574,7 @@ impl ChordJoiner {
             // rather than guessing).
             let target_cycle = body.loop_cycle(target).ok_or_else(|| corrupt_he(target))?;
             let (u1, u2) = (start_of(body, target)?, start_of(body, ring)?);
-            let spec = match along_edge_spec(body, segment, oldf, u1, u2)? {
+            let spec = match along_edge_spec(body, along, segment, oldf, u1, u2)? {
                 Some(spec) => Some(spec),
                 None => chord_spec(
                     body,
@@ -2629,7 +2633,7 @@ impl ChordJoiner {
                 run_halves.clone()
             };
             let (u1, u2) = (start_of(body, h2)?, start_of(body, next(body, h1)?)?);
-            let spec = match along_edge_spec(body, segment, owner, u1, u2)? {
+            let spec = match along_edge_spec(body, along, segment, owner, u1, u2)? {
                 Some(spec) => Some(spec),
                 None => chord_spec(body, self.band, lane, owner, &run2, u1, u2)?,
             };

@@ -98,7 +98,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
             });
         }
     }
-    // Survivors arrive in creation order = A-major; pair consecutively
+    // Survivors are now in A-major order (the sort above); pair consecutively
     // (cyclically, starting at the first survivor).
     let mismatch = || BooleanError::PairingMismatch {
         a_vertex: contact.a,
@@ -242,7 +242,44 @@ fn mint_directed<T: Decide>(
     // convex-sector dot comparison). Senses follow the facing by the
     // sense theorem, so only the splice order moves. Run direction is
     // untouched (a strut's reverse run spans the whole orbit).
-    let spike_from_first = if run_fan(sectors, gf.0, gt.0)?.is_empty() {
+    // A germ along an edge of this solid names the side of the spike it
+    // faces structurally: the strut splices [he_plus, he_minus] between
+    // the corner's arrival half (`sectors[from].he`'s edge) and its
+    // departure half (the orbit successor's), so the half beside the
+    // germ's own locus edge faces it. The angular order below is the
+    // reading for germs inside a face only: two germs along the
+    // corner's two bounding edges sit exactly ON the comparison's
+    // bounds, where it bound them crossed (the lens and the ball's
+    // poles, JOIN-1 fix pass 2).
+    let own_edge = |g: &Germ<T>| match (operand, g.2.1) {
+        (Operand::A, (super::Locus::OnEdge(e), _)) | (Operand::B, (_, super::Locus::OnEdge(e))) => {
+            Some(e)
+        }
+        _ => None,
+    };
+    let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
+    let structural = if empty {
+        let corrupt = || BooleanError::CorruptOperand { operand, vertex };
+        let arrival = body
+            .get_half_edge(sectors[gf.0].he)
+            .ok_or_else(corrupt)?
+            .edge;
+        let mate = body.mate(sectors[gf.0].he).ok_or_else(corrupt)?;
+        let departure_he = body.get_half_edge(mate).ok_or_else(corrupt)?.next;
+        let departure = body.get_half_edge(departure_he).ok_or_else(corrupt)?.edge;
+        match (own_edge(&gf), own_edge(&gt)) {
+            (Some(e), _) if e == arrival => Some(true),
+            (Some(e), _) if e == departure => Some(false),
+            (_, Some(e)) if e == departure => Some(true),
+            (_, Some(e)) if e == arrival => Some(false),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let spike_from_first = if let Some(first) = structural {
+        first
+    } else if empty {
         let e_dir = anchor_dir(body, sectors[gf.0].he)?;
         // Metered at the shorter sector arm: the germ directions and
         // `e_dir` are all unit, so the bare dot difference was a

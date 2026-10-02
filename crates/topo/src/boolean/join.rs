@@ -55,6 +55,12 @@
 //!    ∖ (A-OUT, revert(B-IN)) — the kept loops are antiparallel at
 //!    the zip **iff each solid's section loops attach to its own
 //!    regions geometrically-CCW-consistently**. Op-independent.
+//!    An edge-edge germ's record may pair two COPLANAR flankers (each
+//!    solid's own fold flanker, `recl::place_germ`), where `nA×nB` is
+//!    zero and names no line: there the germ line is the common edge
+//!    itself (`insert`'s `germ_dir` takes the A flanker's bound read
+//!    On), and the loops' direction along it is the region boundaries'
+//!    as above, read on that edge.
 //! 2. **The sense theorem.** The half FACING germ `g` is UP (starts
 //!    at `below_end`) iff `g`'s own-solid forward-wedge code is Out;
 //!    geometrically, with the orbit-forward direction `w = σ·n_own×d`

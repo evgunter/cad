@@ -1705,6 +1705,17 @@ pub(super) fn describe_minted_edges<T: Decide>(
             }
         }
     }
+    // Whether two faces both belong to one recorded merge skip: the
+    // licensed cosurface pairs the merge stage ships unglued.
+    let recorded_skip = |f1: Option<crate::entity::FaceKey>, f2: Option<crate::entity::FaceKey>| {
+        let (Some(f1), Some(f2)) = (f1, f2) else {
+            return false;
+        };
+        merged
+            .skipped
+            .iter()
+            .any(|s| s.faces.contains(&f1) && s.faces.contains(&f2))
+    };
     for edge in worklist {
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
         let face_of = |body: &Body<T>, he| -> Option<crate::geometry::SurfaceKey> {
@@ -1773,12 +1784,16 @@ pub(super) fn describe_minted_edges<T: Decide>(
                         !(c.surface == s1 && c.surface == s2)
                     }
                     geom_brep::EdgeDescription::Chart(c) => !(c.surface == s1 || c.surface == s2),
-                    // A scaffold at rest is fenced whatever it names (the
-                    // split finish restates it the same way): a minted
-                    // chord that comes to rest on a smooth seam — an
-                    // edge-edge segment both solids folded In, kept by ∪
-                    // between two coplanar faces — is described here.
-                    geom_brep::EdgeDescription::Scaffold(_) => true,
+                    // A scaffold comes to rest here only between the two
+                    // faces of a declared pair the merge stage could not
+                    // glue and RECORDED (a curved group: DESIGN's
+                    // "only a curved group's skip is recorded and
+                    // shipped"); it is described where it rests. Any
+                    // other scaffold stays one, and tier 3 refuses it.
+                    geom_brep::EdgeDescription::Scaffold(_) => recorded_skip(
+                        body.face_of_half_edge(edge_data.he_plus),
+                        body.face_of_half_edge(edge_data.he_minus),
+                    ),
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order, exactly as the tier-3

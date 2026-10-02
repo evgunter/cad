@@ -51,6 +51,10 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, w
         .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
     let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
     assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
+    // Every boolean output is a legal boolean operand (DESIGN).
+    let far = brick((50.0, 51.0), (50.0, 51.0), (0.0, 1.0), tol());
+    topo::union(&bb.body, &far, tol())
+        .unwrap_or_else(|e| panic!("{what}: the result is no legal operand: {e:?}"));
 }
 
 const HEX: [(f64, f64); 6] = [
@@ -74,8 +78,40 @@ fn a_hexagon_unions_a_box_on_its_corner_edge_soundly() {
     let b = brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol());
     let (va, vb) = (0.75 * 2.0, 0.0625 * 4.0);
     let vi = 0.25 * 0.125 / 2.0 * 2.0;
-    assert_sound("hex ∪ box", topo::union(&hex, &b, tol()), va + vb - vi);
-    assert_sound("box ∪ hex", topo::union(&b, &hex, tol()), va + vb - vi);
+    // Undeclared, the union refuses: it would keep the hexagon's and the
+    // box's `y = −0.5` faces as two coplanar neighbours, a continuation
+    // no declaration licenses (DESIGN, "Maximal faces"). JOIN-1's fix
+    // pass, delta review.
+    for (what, r) in [
+        ("hex ∪ box", topo::union(&hex, &b, tol())),
+        ("box ∪ hex", topo::union(&b, &hex, tol())),
+    ] {
+        assert!(
+            matches!(
+                r,
+                Err(topo::BooleanError::UndeclaredCoincidence {
+                    relation: topo::PlaneRelation::SameOriented,
+                    ..
+                })
+            ),
+            "{what}: {r:?}"
+        );
+    }
+    // Declared (the flush detector finds the pair), it builds, and the
+    // merge stage glues the two faces: a legal operand.
+    use topo::flush::{declare_all, find_flush_candidates};
+    let d = declare_all(&find_flush_candidates(&hex, &b, tol()).unwrap());
+    assert_sound(
+        "hex ∪ box, declared",
+        topo::union_with(&hex, &b, &d, tol()),
+        va + vb - vi,
+    );
+    let d = declare_all(&find_flush_candidates(&b, &hex, tol()).unwrap());
+    assert_sound(
+        "box ∪ hex, declared",
+        topo::union_with(&b, &hex, &d, tol()),
+        va + vb - vi,
+    );
     // The ∖ and ∩ of the same pose build soundly on the head.
     assert_sound("hex ∖ box", topo::subtract(&hex, &b, tol()), va - vi);
     assert_sound("hex ∩ box", topo::intersect(&hex, &b, tol()), vi);

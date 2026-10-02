@@ -42,3 +42,20 @@ the kernel derives) is the open question on
 `cosurface-disjoint-curved-walls-refuse`. Its answer decides whether
 this output should merge or refuse. Either way, the op should not hand
 back a body that its own next op rejects.
+
+## The planar half at the chord join (JOIN-1 fix pass 2, PR 3790)
+
+Where the same-sense pair meets along an edge both operands hold (an
+edge-edge site of the vertex-vertex classification), a union now
+refuses an undeclared pair at the op: `UndeclaredCoincidence {
+relation: SameOriented }` naming the two faces (`recl.rs`
+`resolve_edge_edge`, the touching arm). Declared, the output's merge
+stage glues it. Pinned on the flush peg in the collar
+(`crates/sweep/tests/join1_mechanisms.rs`
+`an_undeclared_continuation_refuses_at_the_op`; the delta review's
+`join1_delta_probes::the_peg_collar_unions_are_operands`, now not
+ignored, builds legal operands with the caps declared) and on the
+stacked plates of this row (`a_stacked_plates_union_declares_its_walls`).
+The curved half — an undeclared CURVED cosurface adjacency — is not
+covered: the check reads the planar carrier ladder only.
+

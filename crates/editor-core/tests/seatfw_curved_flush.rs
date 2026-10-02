@@ -229,8 +229,13 @@ fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
         },
     );
     let ev = eval(&doc);
+    // JOIN-1's fix pass 2 opened the lane this mate stopped in: the
+    // union now builds (a strut's half beside a germ's locus edge faces
+    // that germ). The claim the row is about stands either way: no
+    // declaration-door refusal.
     let Some(NodeResult::Failed(e)) = ev.nodes.get(&union) else {
-        panic!("a purely cylindrical mate does not reach the zip today (issue #1032)");
+        assert!(ev.nodes.get(&union).is_some(), "the union node evaluated");
+        return;
     };
     let NodeErrorKind::Boolean(err) = &e.kind else {
         panic!("the boolean is what refuses: {e:?}");

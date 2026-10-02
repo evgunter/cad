@@ -92,6 +92,7 @@ fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
+    let d = crate::common::with_flush_planes(&p, &q, d);
     (p, q, d)
 }
 

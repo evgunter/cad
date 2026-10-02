@@ -399,6 +399,12 @@ fn overlapping_lens_prisms_declared_union_builds() {
     let line = outcome(r, want, 1e-6);
     println!("[lens] {line}");
     assert!(line.starts_with("OK SOUND"), "{line}");
+    // A legal operand: the union of the result with a far brick runs.
+    let r = topo::union_with(&a, &b, &d, tol()).unwrap();
+    let bb = r.body().unwrap();
+    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (0.0, 1.0), tol());
+    topo::union(&bb.body, &far, tol())
+        .unwrap_or_else(|e| panic!("the lens union is a legal operand: {e:?}"));
 }
 
 /// The hexagon ∪ box corner-edge pose (`join1_r1_rows`) builds on the
@@ -411,7 +417,7 @@ fn overlapping_lens_prisms_declared_union_builds() {
 /// operand" and "a same-sense cosurface adjacency it has no licence for
 /// refuses at the op that would create it". Main refuses the union.
 #[test]
-fn the_restated_seam_body_is_an_operand() {
+fn the_declared_seam_body_is_an_operand() {
     use sweep::test_support::brick;
     let hex: [(f64, f64, f64); 6] = [
         (0.5, 0.0, 0.0),
@@ -423,7 +429,17 @@ fn the_restated_seam_body_is_an_operand() {
     ];
     let a = zprism(&hex, (0.0, 0.0), (0.0, 2.0));
     let b = brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol());
-    let r = match topo::union(&a, &b, tol()).unwrap() {
+    // Fix pass 2: undeclared, the union refuses the continuation it
+    // would keep; declared, the merge stage glues it.
+    assert!(
+        matches!(
+            topo::union(&a, &b, tol()),
+            Err(topo::BooleanError::UndeclaredCoincidence { .. })
+        ),
+        "the undeclared continuation refuses at the op"
+    );
+    let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
+    let r = match topo::union_with(&a, &b, &d, tol()).unwrap() {
         topo::BooleanResult::Body(bb) => bb,
         topo::BooleanResult::Empty => panic!("empty"),
     };
@@ -462,7 +478,10 @@ fn the_restated_seam_body_is_an_operand() {
 /// run on it). Red on main (the REST zip's body) and on 21b7f289 (the
 /// join's) alike: both refuse `CoplanarNeighbours`. Not JOIN-1's.
 #[test]
-#[ignore = "red on main and on JOIN-1 alike; evidence for the coplanar-seam class"]
+// Red on main and on 21b7f289 with the walls alone declared; JOIN-1's
+// fix pass 2 refuses that union (the caps are an undeclared
+// continuation), and `wall_decls` now declares the caps beside the
+// walls, which the merge stage glues: green, so no longer ignored.
 fn the_peg_collar_unions_are_operands() {
     use crate::mate2_common::{collar_at, peg_at, wall_decls};
     use sweep::test_support::brick;

@@ -556,13 +556,40 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // faces its start germ with he_minus (copy → old), so the copy
         // is the below end — the mint side follows, keeping the body's
         // scaffold attribute and the record one datum.
-        let side = if strut {
+        //
+        // A strut whose START germ runs along the corner's ARRIVAL edge
+        // (the half the spike follows in the loop) faces it with
+        // he_plus instead: the half beside a germ's own locus edge is
+        // the one that faces it, structurally — the default facing
+        // bound the two germs of a pole's strut to each other's
+        // meridians (JOIN-1 fix pass 2). The side follows the facing,
+        // exactly as for a fan.
+        let MevSite::Fan { he2: corner, .. } = site else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a pierce run's site is not a fan",
+            });
+        };
+        let own_edge = |((_, loci), _): Germ<T>| match (piercing, loci) {
+            (Operand::A, (super::Locus::OnEdge(e), _))
+            | (Operand::B, (_, super::Locus::OnEdge(e))) => Some(e),
+            _ => None,
+        };
+        let arrival = piercing_body
+            .get_half_edge(corner)
+            .and_then(|h| piercing_body.get_half_edge(h.prev))
+            .map(|h| h.edge)
+            .ok_or(BooleanError::CorruptOperand {
+                operand: piercing,
+                vertex,
+            })?;
+        let start_on_arrival = strut && own_edge(start_germ) == Some(arrival);
+        let side = if strut && !start_on_arrival {
             NewVertexSide::Below
         } else {
             NewVertexSide::Above
         };
         let created = piercing_body.mev_null(site, side)?;
-        let (start_he, end_he) = if strut {
+        let (start_he, end_he) = if strut && !start_on_arrival {
             (created.he_minus, created.he_plus)
         } else {
             (created.he_plus, created.he_minus)

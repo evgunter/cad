@@ -192,7 +192,9 @@ fn wall_declarations(
                 .push(FacePairDeclaration::new(fa, fb, class));
         }
     }
-    decls
+    // The flush planar caps beside the walls are a continuation the
+    // union would keep: declared too (`common::with_flush_planes`).
+    crate::common::with_flush_planes(a, b, decls)
 }
 
 // -------------------------------------------------------------------
@@ -217,18 +219,31 @@ fn a_declared_torus_rest_pair_passes_the_declaration_door() {
         !decls.coincident_faces.is_empty(),
         "the socket's bore and the peg's wall must both be torus faces"
     );
-    let err = topo::union_with(&s, &p, &decls, Tol::witness())
-        .expect_err("the lane still stops downstream — see the frontier row");
-    assert!(
-        !matches!(
-            err,
-            BooleanError::InvalidDeclaration { .. }
-                | BooleanError::ContactContradicted { .. }
-                | BooleanError::UndeclaredCoincidence { .. }
-        ),
-        "the torus Rest declaration must be admitted and verified, not refused at the \
-         declaration door: {err:?}"
+    // The lane builds the peg-in-socket union since JOIN-1's fix pass 2
+    // (each strut's half beside a germ's locus edge faces it), with the
+    // flush planar caps declared beside the walls.
+    let r = topo::union_with(&s, &p, &decls, Tol::witness())
+        .expect("the torus Rest declaration is admitted, verified and built");
+    let bb = r.body().expect("a union of two solids is not empty");
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        Ok(()),
+        "tier 3′"
     );
+    assert!(
+        topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+        "the at-rest certificate"
+    );
+    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let (v, want) = (vol(&bb.body), vol(&s) + vol(&p));
+    assert!(
+        (v - want).abs() < 1e-9 * want.max(1.0),
+        "the parts only touch, so the union is additive: {v} against {want}"
+    );
+    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
+    topo::union(&bb.body, &far, Tol::witness())
+        .unwrap_or_else(|e| panic!("every boolean output is a legal operand: {e:?}"));
 }
 
 /// **The rung DECIDES, it does not merely admit.** A peg whose tube is
@@ -344,18 +359,36 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
 /// nothing but two boxes: the outer wall stands 0.03 m clear of the
 /// peg, and the two faces' windows are one rectangle about one spine
 /// circle, so no sound box separates them. With the torus on the KIND
-/// roster the pair's boxes decide nothing, and the op runs on to a
-/// typed refusal downstream — never the gate's, never a body.
+/// roster the pair's boxes decide nothing, and the op runs on — since
+/// JOIN-1's fix pass 2 it builds the union, sound and additive.
 #[test]
 fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
     let (s, p) = (socket(), segment_a());
     let decls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
-    let err = topo::union_with(&s, &p, &decls, Tol::witness())
-        .expect_err("the peg-in-socket union does not build yet");
-    assert!(
-        !matches!(err, BooleanError::CurvedPairUnsupported { .. }),
-        "the uncovered outer wall must not gate: {err:?}"
+    // The uncovered outer wall does not gate, and the union builds
+    // (JOIN-1 fix pass 2).
+    let r = topo::union_with(&s, &p, &decls, Tol::witness())
+        .expect("the uncovered outer wall must not gate");
+    let bb = r.body().expect("a union of two solids is not empty");
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        Ok(()),
+        "tier 3′"
     );
+    assert!(
+        topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
+        "the at-rest certificate"
+    );
+    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let (v, want) = (vol(&bb.body), vol(&s) + vol(&p));
+    assert!(
+        (v - want).abs() < 1e-9 * want.max(1.0),
+        "the parts only touch, so the union is additive: {v} against {want}"
+    );
+    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
+    topo::union(&bb.body, &far, Tol::witness())
+        .unwrap_or_else(|e| panic!("every boolean output is a legal operand: {e:?}"));
 }
 
 /// **Where the lane stops once the gate is past, held still.** Two
