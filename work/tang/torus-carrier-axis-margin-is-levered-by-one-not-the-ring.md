@@ -2,10 +2,11 @@
 id: torus-carrier-axis-margin-is-levered-by-one-not-the-ring
 kind: issue
 title: carrier_eq's torus axis-parallel margin is levered by one metre, not the ring's extent, so a declared tilt can bridge more than Kε at the tube
-status: open
+status: closed
 opened: 2026-09-26
 priority: P1
 cost: M
+closed: 2026-10-02
 ---
 
 ## What
@@ -108,3 +109,25 @@ caller. Rows: `contact9_side_codes`' wedge pose and sweep,
 `rest::lever_rows::an_offset_and_a_tilt_in_band_each_do_not_bridge_their_sum`.
 Filed: `the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op.md`,
 `lever-a-declared-pair-by-its-contact-patch-not-both-whole-faces.md`.
+
+## Closed (2026-10-02, TANG, PR 3795)
+
+The declared door reads a pair as one displacement over its consumed
+extent (`carrier_eq::declared_reading`). The upper bound sums the
+position data at a pivot, the angular data levered from it to the
+extent's far reach, and the radius differences. The lower bound is the
+displacement at a consumed face vertex. The verdict:
+- `Bridged` when the upper bound is in band;
+- `Contradicted` when the lower bound is past the band;
+- escalated in between (`Coincide::DeclaredReach`, the merge's
+  `MergeDecision::DeclaredReach`).
+
+The torus bound covers its centre, major-radius and tilt terms
+together. C4's `Rest` sentence is reworded to match, and the PR body
+names the one shift: a datum definite only at the ball's far side
+escalates instead of contradicting. Review: a single full review, then
+two delta reviews, each APPROVE-WITH-FIXES with no MAJOR. Filed out of
+it:
+- `lever-a-declared-pair-by-its-contact-patch-not-both-whole-faces`;
+- `the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op`;
+- `a-flush-pair-with-no-readable-extent-has-no-typed-finding`.
