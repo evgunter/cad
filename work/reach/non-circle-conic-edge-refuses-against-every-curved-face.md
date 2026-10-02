@@ -6,6 +6,7 @@ status: review
 opened: 2026-10-01
 refs: [line-edge-crossing-a-sphere-face-has-no-root-lane, sphere-union-sphere-refuses-though-the-section-is-closed-form]
 branch: reach/conic-edge-curved-face
+pr: 3805
 ---
 
 Found by the `reach-snowman` lane's sweep of the crossing layer's
