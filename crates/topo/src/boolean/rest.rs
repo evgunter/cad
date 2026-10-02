@@ -1183,20 +1183,32 @@ fn fan_edge_between<T: Decide>(
     Ok(found)
 }
 
-/// The other solid's edge between the vertices a chord joins: its
-/// carrier and parameter span, and which of this solid's two vertices
-/// its span starts at.
-struct Twin<T: geom_core::Real> {
-    carrier: geom::Curve3<T>,
-    t0: T,
-    t1: T,
-    start: VertexKey,
+/// The other solid's edge between the vertices a chord joins, read for
+/// the chord: a line (the straight chord IS its locus) or a circle, with
+/// its parameter span and which of this solid's two vertices that span
+/// starts at.
+enum Twin<T: geom_core::Real> {
+    Line,
+    Circle {
+        carrier: geom::Curve3<T>,
+        t0: T,
+        t1: T,
+        start: VertexKey,
+    },
 }
 
 impl<T: Decide> Twin<T> {
     /// The other solid's edge from `ou` to `ov`, read for this solid's
     /// `u` and `v` (`ou`, `ov` correspond to them), or `None` where the
-    /// other solid has no such edge.
+    /// other solid has no such edge. An edge whose curve is uncertified,
+    /// or neither a line nor a circle, refuses typed: no chord this
+    /// lane can mint is its twin. No union reaches that refusal today:
+    /// an ellipse or spline seam edge comes from a curved face's
+    /// boundary, where the crossing layer answers `Unread` first, or
+    /// from an oblique planar cut, whose body the containment door
+    /// refuses `VolumeUncertified` first (an obliquely capped rod
+    /// resting on a plate, declared `Rest`, in both operand orders);
+    /// an uncertified edge is turned away at the operand gate.
     fn of(
         other: &Body<T>,
         (ou, ov): (VertexKey, VertexKey),
@@ -1208,56 +1220,59 @@ impl<T: Decide> Twin<T> {
         let ed = other
             .get_edge(edge)
             .ok_or_else(|| desync("REST lane: twin edge no longer resolves"))?;
-        let Some(curve) = other
+        let curve = other
             .get_curve_geom(ed.curve)
             .and_then(CurveGeom::certified)
-        else {
-            return Ok(None);
-        };
+            .ok_or_else(|| unsupported(RestZipFrontier::TwinCarrierUnsupported))?;
         let first = other
             .get_half_edge(ed.he_plus)
             .ok_or_else(|| desync("REST lane: twin half no longer resolves"))?
             .start;
         let (t0, t1) = curve.params();
-        Ok(Some(Self {
-            carrier: curve.carrier().clone(),
-            t0,
-            t1,
-            start: if first == ou { u } else { v },
-        }))
+        match curve.carrier() {
+            geom::Curve3::Line { .. } => Ok(Some(Self::Line)),
+            carrier @ geom::Curve3::Circle { .. } => Ok(Some(Self::Circle {
+                carrier: carrier.clone(),
+                t0,
+                t1,
+                start: if first == ou { u } else { v },
+            })),
+            _ => Err(unsupported(RestZipFrontier::TwinCarrierUnsupported)),
+        }
     }
 
-    /// The twin's curve run from `from` (at `p_from`) to `p_to`: a line
-    /// as the chord between the two points, a circle as its own arc in
-    /// the direction asked (reversed by flipping the axis). `None` for
-    /// any other carrier, which keeps the straight chord.
-    fn spec(
-        &self,
-        from: VertexKey,
-        p_from: Point3<T>,
-        p_to: Point3<T>,
-    ) -> Option<EdgeCurveSpec<T>> {
-        match self.carrier {
-            geom::Curve3::Line { .. } => Some(EdgeCurveSpec::line_between(p_from, p_to)),
-            geom::Curve3::Circle {
+    /// The twin's curve run from `from`: `None` for a line, which the
+    /// straight chord mints as it stands; a circle's own arc in the
+    /// direction asked (reversed by flipping the axis).
+    fn spec(&self, from: VertexKey) -> Option<EdgeCurveSpec<T>> {
+        let Self::Circle {
+            carrier,
+            t0,
+            t1,
+            start,
+        } = self
+        else {
+            return None;
+        };
+        let geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = *carrier
+        else {
+            return None;
+        };
+        if from == *start {
+            EdgeCurveSpec::arc_of_circle(carrier.clone(), *t0, *t1)
+        } else {
+            let reversed = geom::Curve3::Circle {
                 center,
-                axis,
+                axis: -axis,
                 radius,
                 u_ref,
-            } => {
-                if from == self.start {
-                    EdgeCurveSpec::arc_of_circle(self.carrier.clone(), self.t0, self.t1)
-                } else {
-                    let reversed = geom::Curve3::Circle {
-                        center,
-                        axis: -axis,
-                        radius,
-                        u_ref,
-                    };
-                    EdgeCurveSpec::arc_of_circle(reversed, -self.t1, -self.t0)
-                }
-            }
-            _ => None,
+            };
+            EdgeCurveSpec::arc_of_circle(reversed, -*t1, -*t0)
         }
     }
 }
@@ -1302,22 +1317,16 @@ fn mint_chord<T: Decide>(
     };
     // The new edge's curve from `from` to `to`, where the twin states
     // one; `None` takes the straight chord.
-    let spec = |body: &Body<T>, from: VertexKey, to: VertexKey| -> Option<EdgeCurveSpec<T>> {
-        let at = |w: VertexKey| {
-            body.get_vertex(w)
-                .and_then(|vd| body.get_point(vd.point))
-                .copied()
-        };
-        twin?.spec(from, at(from)?, at(to)?)
-    };
-    let mef = |body: &mut Body<T>, he1: HalfEdgeKey, he2: HalfEdgeKey, from, to| {
+    // The new edge's curve from `from`; `None` takes the straight chord.
+    let spec = |from: VertexKey| twin.and_then(|t| t.spec(from));
+    let mef = |body: &mut Body<T>, he1: HalfEdgeKey, he2: HalfEdgeKey, from| {
         let site = MefSite::Chords { he1, he2 };
-        match spec(body, from, to) {
+        match spec(from) {
             Some(curve) => body.mef(site, curve, FaceSurface::Inherit, tol),
             None => body.mef_chord(site, tol),
         }
     };
-    let mekr = |body: &mut Body<T>, site: MekrSite, from, to| match spec(body, from, to) {
+    let mekr = |body: &mut Body<T>, site: MekrSite, from| match spec(from) {
         Some(curve) => body.mekr(site, curve, tol),
         None => body.mekr_chord(site, tol),
     };
@@ -1325,7 +1334,7 @@ fn mint_chord<T: Decide>(
         ([hu], [hv]) => {
             let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
             if lu == lv {
-                let created = mef(body, *hu, *hv, u, v)
+                let created = mef(body, *hu, *hv, u)
                     .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
                 fragments.push((created.face, face));
                 created.edge
@@ -1335,12 +1344,12 @@ fn mint_chord<T: Decide>(
                     .get_face(face)
                     .ok_or_else(|| desync("REST lane: chord host face vanished"))?
                     .outer;
-                let ((target, from), (ring, to)) = if lv == outer {
-                    ((*hv, v), (*hu, u))
+                let ((target, from), ring) = if lv == outer {
+                    ((*hv, v), *hu)
                 } else {
-                    ((*hu, u), (*hv, v))
+                    ((*hu, u), *hv)
                 };
-                mekr(body, MekrSite::Cycles { target, ring }, from, to)
+                mekr(body, MekrSite::Cycles { target, ring }, from)
                     .map_err(|_| unsupported(RestZipFrontier::ChordMekrRefused))?
                     .edge
             }
@@ -1348,14 +1357,14 @@ fn mint_chord<T: Decide>(
         ([], [hv]) => {
             let ring = ring_loop_of(body, u)
                 .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
-            mekr(body, MekrSite::EmptyRing { target: *hv, ring }, v, u)
+            mekr(body, MekrSite::EmptyRing { target: *hv, ring }, v)
                 .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
                 .edge
         }
         ([hu], []) => {
             let ring = ring_loop_of(body, v)
                 .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
-            mekr(body, MekrSite::EmptyRing { target: *hu, ring }, u, v)
+            mekr(body, MekrSite::EmptyRing { target: *hu, ring }, u)
                 .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
                 .edge
         }

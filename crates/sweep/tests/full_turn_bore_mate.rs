@@ -267,9 +267,12 @@ fn a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth() {
 
 /// **The other three ops refuse typed, never answer wrong.** The
 /// closed forms are `∩` empty and each difference its minuend whole;
-/// what the kernel answers today, at every azimuth, span and pose, is
-/// `FallbackExtentUnsupported`
+/// what the kernel answers today at azimuths 0°, 60° and 90°, every
+/// span and every pose, is `FallbackExtentUnsupported`
 /// (`work/reach/declared-rest-mate-intersect-and-differences-refuse-at-the-fallback-extent.md`).
+/// A shaft a hair off the bore's seam (1e-7°) answers
+/// `Escalated { Coincidence(Sectors) }` instead; this row does not
+/// cover that pose.
 #[test]
 fn intersect_and_differences_refuse_at_the_fallback_extent() {
     let tol = Tol::witness();

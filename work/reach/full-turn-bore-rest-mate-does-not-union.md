@@ -1,7 +1,7 @@
 ---
 id: full-turn-bore-rest-mate-does-not-union
 kind: issue
-title: A declared cylindrical Rest on a full-turn bore does not union - an on-carrier ruling crossing a rim's interior is recorded by nobody
+title: A declared cylindrical Rest on a full-turn bore does not union - a ruling fragment with both ends past the bore keeps the frontier, the zip cannot pair one bore face with three shaft walls, and vtxfac has no curved pierced carrier
 status: review
 opened: 2026-10-01
 refs: [full-period-wall-has-no-containment-verdict]
@@ -29,21 +29,20 @@ radius 0.5) turned `-π/2` about `x` so its axis is `y`. Declarations:
   The ruling spans `y ∈ [0.5, 2.5]`, through the bore's whole height
   window. Both endpoints are on the shared carrier and the door now
   places both `Out` (past each rim), so the declared-cover rung's
-  `(Zero, Zero)` arm records nothing and keeps the door
-  (`Placement::records_the_pair`). The ruling's crossings with the
-  bore's two rim CIRCLES are interior to both edges: nobody records
-  them. On `origin/main` the same mate refuses at the peg's
+  `(Zero, Zero)` arm records nothing and keeps the door (the rule that
+  is now `Placement::declared` with an unseen interior). The filer read
+  the ruling's crossings with the bore's rim circles as recorded by
+  nobody; measured since, the ruling also crosses the collar's flat caps
+  there, and the planar sweep records those crossings (see the cause
+  below). On `origin/main` the same mate refuses at the peg's
   `EdgeKey(4v1)`; with the band class, at `EdgeKey(5v1)`.
 - **Full engagement** (`peg(1.0, 1.0)`): the reduction passes and the
   join refuses `Join(UnpairedLooseEnds { count: 12 })`.
 
-The partial case is the same class as
-`crates/sweep/tests/mate2_r1_probes.rs`'s
-`probe_misaligned_azimuth_split_reports_its_outcome` (a rim arc
-crossing the partner's seam ruling in its interior, "recorded by
-NOBODY"): on a full-turn bore every rim is one circle with its vertex
-at the collar's seam, so every partner ruling not at that azimuth is
-misaligned.
+The partial case was filed as the same class as `mate2_r1_probes.rs`'s
+misaligned-azimuth probe (now `probe_misaligned_azimuth_split_unions`):
+a rim arc crossing the partner's seam ruling in its interior. That probe
+too unions with the crossing recorded at the collar's cap.
 
 ## Evidence (2026-10-01, `reach-snowman`): lily wall 12 now stops here
 

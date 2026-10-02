@@ -12,12 +12,16 @@
 //!
 //! [`boundary_crossing`] finds such a meeting, and the sweep splits both
 //! edges there as it splits a wall pierce landing on a boundary edge.
-//! Where the boundary edge's other face meets the edge transversally (a
-//! bore's rim and the flat cap beyond it) the planar lane records the
-//! crossing on its own; where it does not — two faces of ONE carrier
-//! meeting along that boundary curve, a bore split by a circle, or a
-//! shaft's wall thirds meeting at a seam ruling — this is the only
-//! place it is recorded. The candidate points are closed form per
+//! Where either crossing edge has a face transverse to the other (a
+//! bore's rim and the flat cap beyond it, which a shaft ruling crosses)
+//! the planar lane records the crossing as well. Where both edges have
+//! the shared carrier on both sides, this is the only recorder: measured
+//! on a bore split by a circle on its own carrier and crossed by a
+//! shaft's seam rulings
+//! (`full_turn_bore_mate::a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth`).
+//! Its other job is the certificate behind
+//! [`super::reduce`]'s all-`Elsewhere` reading: a span whose interior
+//! meets the boundary nowhere, with both ends outside, lies outside. The candidate points are closed form per
 //! carrier pair — every vertex of the face's boundary, and the
 //! transverse meetings of the edge's carrier with each boundary edge's
 //! carrier — and each is then asked the two questions the sweep already

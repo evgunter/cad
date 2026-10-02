@@ -45,3 +45,8 @@ count components across. Where the fallback stops for a declared
 conformal pair, and whether `∩`/`∖` of a pure-contact mate should be
 answered from the declaration (empty / the minuend) or through a zip
 of their own, is unmeasured.
+
+Measured by PR 3814's delta review: with the shaft's seam a hair off
+the bore's (1e-7°), `∩` and `∖` answer
+`Escalated { Coincidence(Sectors, Moot) }` instead of
+`FallbackExtentUnsupported`.

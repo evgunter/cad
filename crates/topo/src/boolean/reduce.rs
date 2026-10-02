@@ -1432,7 +1432,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// holds, and the sweep reaches that pair on its own visit.
 ///
 /// **An edge lying ON the carrier is asked about its interior first**
-/// ([`on_carrier_crossing`]): where it crosses `face`'s boundary between
+/// ([`interior`]): where it crosses `face`'s boundary between
 /// its ends — a shaft's seam ruling passing a full-turn bore's rim, a
 /// rim arc passing the partner's seam ruling — the crossing is split
 /// and recorded as a pierce landing on that boundary. With the interior
@@ -1707,7 +1707,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                 // it is the **interior question**, asked before either
                 // end: an arc lying on the carrier that crosses this
                 // face's boundary between its ends is split there
-                // ([`on_carrier_crossing`]), and only an arc whose
+                // ([`interior`]), and only an arc whose
                 // interior is certified clear of the boundary reads an
                 // all-`Elsewhere` pair as lying wholly outside the face
                 // ([`Placement::declared`]).
@@ -1719,10 +1719,8 @@ pub(super) fn curved_face_arm<T: Decide>(
                 // identity) with nothing recorded, whose interior this
                 // arm cannot see.
                 Ok(Sign::Zero) if covered => {
-                    if on_carrier
-                        && let Some(event) =
-                            on_carrier_crossing(y, x_is, face, &curve, band, frontier)?
-                    {
+                    let inside = interior(on_carrier, y, x_is, face, &curve, band, frontier)?;
+                    if let Interior::Crossing(event) = inside {
                         return Ok(event);
                     }
                     let side = |p: Point3<T>| {
@@ -1750,7 +1748,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                             Sign::Negative => return Err(frontier()),
                         }
                     }
-                    return Placement::declared(ends, on_carrier).ok_or_else(frontier);
+                    return Placement::declared(ends, inside.clear()).ok_or_else(frontier);
                 }
                 // **The circle × sphere, × cylinder and × torus root
                 // lanes.** An arc the enclosures could not clear against
@@ -1854,23 +1852,28 @@ pub(super) fn curved_face_arm<T: Decide>(
         // a genuine crossing — never the covered posture. Uncovered
         // keeps both frontier doors verbatim.
         // Both ends on the carrier. Where the carrier identity puts the
-        // line ON it (a parent face `Rest`-verified as `face`'s carrier),
-        // its interior is asked before its ends; a `Tangent`-covered
-        // line has no such certificate and keeps the ends-only rule.
+        // line ON it (a parent face verified as `face`'s carrier), its
+        // interior is asked before its ends; a `Tangent`-covered line has
+        // no such certificate and keeps the ends-only rule. No pose reds
+        // this gate forced open: a covered line with both ends on a curved
+        // carrier IS one of its rulings (a `Tangent` cover's line lies in
+        // the tangent plane, which meets a cylinder or a cone only along
+        // that ruling), so the boundary question would be well-posed
+        // without the certificate too. The gate asks for the certificate
+        // anyway, rather than reading "on the carrier" off a pair of ends.
         (Sign::Zero, Sign::Zero) if covered => {
             debug_assert!(
                 on_line,
                 "a covered circle keeps the frontier at the circle rung"
             );
             let on_carrier = on_declared_shared_carrier(x, x_is, edge, face, declared);
-            if on_carrier
-                && let Some(event) = on_carrier_crossing(y, x_is, face, &curve, band, frontier)?
-            {
+            let inside = interior(on_carrier, y, x_is, face, &curve, band, frontier)?;
+            if let Interior::Crossing(event) = inside {
                 return Ok(event);
             }
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-            Placement::declared([Some(hu), Some(hv)], on_carrier).ok_or_else(frontier)
+            Placement::declared([Some(hu), Some(hv)], inside.clear()).ok_or_else(frontier)
         }
         (Sign::Zero, Sign::Positive) if covered => {
             debug_assert!(
@@ -2203,25 +2206,50 @@ fn on_declared_shared_carrier<T: Decide>(
     .any(|pf| declared.verified_one_carrier(x_is, pf, x_is.other(), face))
 }
 
-/// The declared on-carrier arms' interior question: where `curve`, lying
-/// on `face`'s carrier, crosses `face`'s boundary strictly inside its
-/// span ([`super::carrier_cross`]). A crossing is a pierce landing on
-/// that boundary, split and recorded by the caller like any other;
-/// `None` certifies the span's interior meets the boundary nowhere, so
-/// its endpoints' placements are the pair's whole incidence. A carrier
-/// pair with no closed form keeps the frontier door.
-fn on_carrier_crossing<T: Decide>(
+/// What the declared arms know of an edge's interior against `face`.
+enum Interior<T: geom_core::Real> {
+    /// It crosses `face`'s boundary there: a pierce landing on that
+    /// boundary, split and recorded by the caller like any other.
+    Crossing(CurvedEvent<T>),
+    /// Certified: the interior meets `face`'s boundary nowhere, so the
+    /// endpoints' placements are the pair's whole incidence.
+    Clear,
+    /// Not asked: the edge has no certificate that it lies ON the
+    /// carrier, so the boundary question has no subject.
+    Unseen,
+}
+
+impl<T: geom_core::Real> Interior<T> {
+    /// Whether [`Placement::declared`] may read an all-`Elsewhere` pair
+    /// as lying outside the face.
+    fn clear(&self) -> bool {
+        matches!(self, Self::Clear)
+    }
+}
+
+/// The declared arms' interior question, asked only of an edge the
+/// carrier-identity rung puts ON `face`'s carrier (`on_carrier`): where
+/// it crosses `face`'s boundary strictly inside its span
+/// ([`super::carrier_cross`]). A carrier pair with no closed form keeps
+/// the frontier door.
+fn interior<T: Decide>(
+    on_carrier: bool,
     y: &Body<T>,
     x_is: Operand,
     face: FaceKey,
     curve: &geom_brep::EdgeCurve<T>,
     band: Band,
     frontier: impl Fn() -> BooleanError,
-) -> Result<Option<CurvedEvent<T>>, BooleanError> {
+) -> Result<Interior<T>, BooleanError> {
     use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
+    if !on_carrier {
+        return Ok(Interior::Unseen);
+    }
     match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
-        BoundaryCrossing::At { t, p, at } => Ok(Some(CurvedEvent::Pierce { t, p, at })),
-        BoundaryCrossing::Clear => Ok(None),
+        BoundaryCrossing::At { t, p, at } => {
+            Ok(Interior::Crossing(CurvedEvent::Pierce { t, p, at }))
+        }
+        BoundaryCrossing::Clear => Ok(Interior::Clear),
         BoundaryCrossing::Unread => Err(frontier()),
     }
 }
@@ -2598,12 +2626,18 @@ impl Placement {
     /// (`None`)?
     ///
     /// - **any `Undecided`** keeps the door: an endpoint the containment
-    ///   door could not place leaves the pair unknown;
+    ///   door could not place leaves the pair unknown. Only the truth
+    ///   table below holds this end to end: `Undecided` needs an
+    ///   on-carrier end on a face whose trim the chart door declines (a
+    ///   ringed face) while every boundary edge is a line or a circle
+    ///   (anything else answers `Unread` first), and the one such bore
+    ///   tried — a collar less a partial-revolve wedge — refuses
+    ///   `Join(SectionArcWindow{NoChartedRun})` before any mate;
     /// - **any `Recorded`** records;
     /// - **every on-carrier end `Elsewhere`** has placed nothing on this
     ///   face. That is no event only when `interior_clear` — the arm
     ///   certified the span's interior meets this face's boundary
-    ///   nowhere ([`on_carrier_crossing`]), so a span with both ends
+    ///   nowhere ([`interior`]), so a span with both ends
     ///   outside the face lies wholly outside it. Without that
     ///   certificate it keeps the door: an overlap lying wholly inside
     ///   this face's window, with both ends beyond it, must not turn
