@@ -405,25 +405,48 @@ const PLATE_MAX_TERMS: usize = 252;
 /// leaves blocked are rendered by the shape report (the `Report`
 /// lines, which build no form).
 ///
-/// **When the loop walk's branch became a literal `k`**
-/// (`geom_brep::whole_periods`, in place of a `floor` atom), every line
-/// moved. The stored azimuths carry no `floor` node, so the forms the
-/// certificate and the loop checks build shrink (`Plain/Decision`
-/// forms 16247 → 16018, `Early/Decision` 9125 → 8899, `Door/Decision`
-/// 13722 → 13212). The walk now asks the branch as sign decisions at
-/// the half-period marks, which moves the calls (`Plain/Decision`
-/// 1141 → 1127, both `Assertion` lines 612 → 666, `Door/Decision`
-/// 558 → 590, `Door/Assertion` 356 → 410). The residuals left blocked
-/// fall 62 → 32 on both `Report` lines: check 4's fidelity is a theorem
-/// on every walked row. Freezes are unchanged.
+/// **When check 4 was restated as frame, incidence and fidelity, check 3
+/// left the box, and the loop walk's branch became a literal** (PCERT,
+/// PR 3812), every line moved. Against the pin it replaced, in three
+/// steps, each measured on its own head:
+///
+/// | line | base | parts 1 + 2 | literal branch | frame twin |
+/// |---|---|---|---|---|
+/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16425 / 702 |
+/// | `Plain/Assertion` calls / forms | 578 / 3233 | 612 / 3237 | 666 / 3474 | 666 / 4051 |
+/// | `Plain/Report` calls | 176 | 62 | 32 | 32 |
+/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9184 |
+/// | `Early/Assertion` calls / forms | 578 / 4144 | 612 / 4166 | 666 / 4404 | 666 / 5015 |
+/// | `Door/Decision` calls / forms | 662 / 19170 | 558 / 13722 | 590 / 13212 | 590 / 13928 |
+/// | `Door/Assertion` calls | 322 | 356 | 410 | 410 |
+///
+/// - **Parts 1 and 2.** Check 3's samples on the wall rows are no longer
+///   decided over the box (they cross-check at the point witness,
+///   unlogged), so the map-residual forms leave every walk, and the
+///   step's forms and `Plain/Decision` freezes fall (1176 → 696; which
+///   share is check 3's and which check 4's was not split). Check 4
+///   re-derives each row's image, so the
+///   derivation's assertions are taken twice (`Assertion` calls up).
+/// - **The literal branch.** The stored azimuths carry no `floor`
+///   node; the walk asks each branch as sign decisions at the
+///   half-period marks (`Assertion` and `Door` calls up). Check 4's
+///   fidelity is a theorem on every walked row, so the blocked
+///   residuals the `Report` lines render halve (62 → 32).
+/// - **The frame twin.** Check 4 derives on the chart's Gram–Schmidt
+///   twin (`n̂ = axis/‖axis‖`, `ê₁` normalised) and adds the `Frame`
+///   term: the twin's normalisations are new forms in every walk, and
+///   six of them freeze in the plain walk (696 → 702). Calls do not
+///   move: the twin is the same frame on this plate's literal charts,
+///   so no decision is added or lost.
+
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1127 forms 16018 frozen 696 digest 4d5fb20c72472bf4f7aa81de3c22aadf\n\
-     Plain/Assertion calls 666 forms 3474 frozen 372 digest 26639ace5f0295249c738a76c40cca9f\n\
+     Plain/Decision calls 1127 forms 16425 frozen 702 digest a4f9c0b03859a7520b88b26d1588ac8d\n\
+     Plain/Assertion calls 666 forms 4051 frozen 372 digest 2d8a3120e46d4f5e79adece7f2080b4f\n\
      Plain/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 416 forms 8899 frozen 8 digest df7ac2fb3b22d79f84cecb6555dbacee\n\
-     Early/Assertion calls 666 forms 4404 frozen 0 digest c0e0484d40c4e226cff5edc2d9ff3766\n\
+     Early/Decision calls 416 forms 9184 frozen 8 digest 7c38961e4d49822f29b9fb92f5338f9a\n\
+     Early/Assertion calls 666 forms 5015 frozen 0 digest f8fb8acfd73cd5e780d9157d6836fa88\n\
      Early/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 590 forms 13212 frozen 0 digest dcd824deb2ec178d213f7c0c2d84ffbd\n\
+     Door/Decision calls 590 forms 13928 frozen 0 digest ad9c2d1d4a3be10b1f9edb793fc74e67\n\
      Door/Assertion calls 410 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
@@ -587,20 +610,20 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|n| n.parse::<u64>().ok())
     };
     let sets: [(&str, SymRules, u64); 4] = [
-        ("shipped", SymRules::shipped(), @SHIPPED@),
+        ("shipped", SymRules::shipped(), 32),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            @NOROOT@,
+            40,
         ),
-        ("without_the_reads", SymRules::without_the_reads(), @NOREADS@),
+        ("without_the_reads", SymRules::without_the_reads(), 32),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            @BOTH@,
+            40,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

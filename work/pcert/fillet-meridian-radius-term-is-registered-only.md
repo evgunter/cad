@@ -78,3 +78,12 @@ So neither spelling reaches the door in the registrant's form. The
 candidates are still the two above: ask the door for `‖q − c‖ = r` in
 the registrant's spelling before the quotient, or have the fillet mint
 its struts' offsets from the radius so `r² − q·q` is the zero form.
+
+**After 3812's fix pass** (check 4 meters the frame on the chart's
+Gram–Schmidt twin, `EnvelopeTerm::Frame`), the bracket's refusal at
+`3.87e2·ε` names `EnvelopeTerm::Frame` first (enclosure `[0, 3.5e-9]`
+at ε = 1e-9): its fillet cylinder's frame is not a literal unit frame,
+and its distance from the twin does not decide Zero over the box. So
+the fillet's chart carries a second identity that holds only up to the
+box's width, beside the struts' radius. The pad still refuses at
+`pcurve_envelope`.

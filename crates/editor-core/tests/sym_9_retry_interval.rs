@@ -421,29 +421,26 @@ fn sym_9_what_each_retry_recovers() {
 ///
 /// Every document moved UP when the extrude began closing with the
 /// pcurve mint: its wall rows' certificate is decided too. Without the
-/// ladder the plate reads `[939, 0, 140, 674]`, the annulus
-/// `[432, 24, 140, 421]`, the boss `[453, 20, 96, 392]`, the bracket
-/// `[1236, 51, 146, 1045]` and the link `[673, 0, 110, 719]`; the
-/// ladder still recovers the bracket's six, and the link's retries
-/// stay 14 (`[675, 0, 122, 705]` with it). Check 4 re-derives each
-/// row's image, so the derivation's decisions are taken twice, and its
-/// envelope is a theorem; a harmonic row's schedule is not run over the
-/// box.
+/// ladder the plate read `[915, 0, 164, 754]`, the annulus
+/// `[408, 24, 164, 501]`, the boss `[435, 20, 118, 448]`, the bracket
+/// `[1206, 51, 170, 1151]` and the link `[649, 0, 122, 811]`, with the
+/// link's retries at 24 (`[651, 0, 144, 787]` with the ladder).
 ///
-/// They moved again when the loop walk's branch became a literal `k`
-/// (`geom_brep::whole_periods`). Without the ladder the plate reads
-/// `[947, 0, 148, 698]`, the annulus `[432, 32, 148, 445]`, the boss
-/// `[453, 26, 102, 410]`, the bracket `[1235, 59, 156, 1078]` and the
-/// link `[681, 0, 118, 743]`. The walk now asks each row's branch as
-/// sign decisions at the half-period marks. Those are definite and
-/// read off the value, so `numeric` rises. Check 4's fidelity and some
-/// loop joints, which used to meet a `floor` atom, are now decided by
-/// the form, so `sign_gated` and `registered` rise too. The bracket's
-/// theorems go 1236 → 1235, one fewer; which predicate lost it is not
-/// measured here. The ladder still
-/// recovers the bracket's six, and the link's retries stay 14
-/// (`[683, 0, 130, 729]` with it).
-///
+/// PCERT's incidence-and-fidelity unit (PR 3812) moved every document
+/// again. Without the ladder the plate reads `[947, 0, 148, 698]`, the
+/// annulus `[432, 32, 148, 445]`, the boss `[453, 26, 102, 410]`, the
+/// bracket `[1235, 59, 156, 1078]` and the link `[681, 0, 118, 743]`:
+/// theorems up on every document, `registered` and `numeric` down on
+/// every one. On a harmonic row check 4's envelope (incidence plus
+/// fidelity) is the whole statement and decides as a theorem where it
+/// used to go through the door, and the schedule that cross-checks it
+/// is not run at this scalar, so the residuals it used to register or
+/// leave numeric are gone. The loop walk's literal branch adds definite
+/// sign decisions at the half-period marks and turns some loop joints
+/// over to the form (`sign_gated` up). The ladder still recovers the
+/// bracket's six, and the link's retries fall 24 → 14 (`[683, 0, 130,
+/// 729]` with it): the ten that went were the certificate's schedule.
+
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -548,6 +545,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// `registered`'s. Without the ladder neither appears and the line is
 /// the one a drive wrote before the ladder existed. The six themselves
 /// are the rule-A attempt's, and they are `registered` (156 → 162).
+/// Against the pin before PCERT's incidence-and-fidelity unit the
+/// receipt was `[1206, 51, 176, 1145, 6]` (bare `[1206, 51, 170, 1151,
+/// 0]`): the same six retried, and the restated certificate's
+/// theorems in place of the schedule's registered and numeric
+/// residuals.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();

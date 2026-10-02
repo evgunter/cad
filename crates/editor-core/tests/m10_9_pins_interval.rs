@@ -79,21 +79,25 @@ pub(crate) struct Study {
 
 /// The five, in the order every row here reports them.
 ///
-/// **Every count rose when the loop walk's branch became a literal
-/// `k`** (`geom_brep::whole_periods`), and none fell. `registered`:
-/// plate 140 → 148, annulus 140 → 148, link 110 → 118, bracket
-/// 146 → 156, pad 148 → 152. `symbolic_zero`: plate 811 → 947,
-/// annulus 328 → 432, link 545 → 681, bracket 1105 → 1249, pad
-/// 893 → 998. The registrants state nothing new. Each replay asks more
-/// decisions: the extrude's closing pcurve mint certifies the wall
-/// rows, and with a literal branch on every walked row check 4's
-/// fidelity, its sum and some loop joints are the form's to decide, so
-/// the certificate runs on past where a `floor` atom used to stop it.
+/// **PCERT's incidence-and-fidelity unit (PR 3812) moved every count,
+/// and none fell.** `registered`: plate 140 → 148, annulus 140 → 148,
+/// link 110 → 118, bracket 146 → 156, pad 148 → 152. `symbolic_zero`:
+/// plate 811 → 947, annulus 328 → 432, link 545 → 681, bracket
+/// 1105 → 1235, pad 893 → 980. The registrants state nothing new. Each
+/// replay asks more decisions: the extrude's closing pcurve mint
+/// certifies the wall rows, check 4's restated envelope and the loop
+/// walk's literal branch are the form's to decide, so the certificate
+/// runs on past where a `floor` atom used to stop it.
+///
 /// The scales are M10-9's brackets. The plate, the annulus and the link
 /// certify whole at them. The bracket and the pad refuse at the
-/// extrude's `pcurve_envelope`
-/// (`work/pcert/fillet-meridian-radius-term-is-registered-only`), so
-/// their counts are over the decisions taken before that refusal.
+/// extrude's `pcurve_envelope` (`refused_by`, asserted;
+/// `work/pcert/fillet-meridian-radius-term-is-registered-only`), so
+/// their counts are over the decisions taken before that refusal. The
+/// bracket's refusal names `EnvelopeTerm::Frame` (enclosure
+/// `[0, 3.5e-9]` at ε = 1e-9): its fillet cylinder's frame is not a
+/// literal unit frame, and its distance from its Gram–Schmidt twin does
+/// not decide Zero over the box.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -162,7 +166,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the bracket's fillet run out read against its arrival
             // carrier (`path_run_out_carrier`), a margin the tier proves
             // zero rather than measuring it.
-            symbolic_zero: 1249,
+            symbolic_zero: 1235,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -247,7 +251,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
-            symbolic_zero: 998,
+            symbolic_zero: 980,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
