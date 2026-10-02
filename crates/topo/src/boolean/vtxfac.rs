@@ -513,7 +513,13 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                         vertex,
                     })?
                     .next;
-                (MevSite::Fan { he1: first.he, he2 }, false)
+                // A run holding every real edge of the orbit leaves the
+                // In side strictly inside one physical sector, the one
+                // before `first`: `he2` comes back round to `first.he`,
+                // the empty run `mev` reads as a strut spliced before
+                // it. That strut is the dangling one of the In sector,
+                // so it is recorded and faced as dangling.
+                (MevSite::Fan { he1: first.he, he2 }, he2 == first.he)
             }
             _ => {
                 let after = entries[(run.0 + run.1) % n];
