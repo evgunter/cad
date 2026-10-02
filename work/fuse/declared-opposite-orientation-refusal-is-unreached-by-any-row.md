@@ -2,10 +2,12 @@
 id: declared-opposite-orientation-refusal-is-unreached-by-any-row
 kind: issue
 title: three planar-door consumers are reached by no row with a reversed planar face — merge_faces's declared-pair rung, join's ring_run_ccw, rest's face_carrier — so dropping the sense at the door survives the suites there
-status: open
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: E
+closed: 2026-10-02
+pr: 3884
 ---
 
 
