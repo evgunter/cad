@@ -527,11 +527,10 @@ const BISECTIONS: u32 = 64;
 ///   least `|F′|` on the piece, definitely positive once read as the arc
 ///   length over which it provably stays so — that least slope over the
 ///   most `|F″|` can be on the piece, at the carrier's top speed: the
-///   piece holds at most one root, and
-///   holds one exactly when its ends' signs differ; that root is bisected on
-///   the residual itself
-///   to the scalar's resolution and must then read ON the surface
-///   (`side`, `Zero`), or the answer is `Uncertain`;
+///   piece holds at most one root, and holds one exactly when its ends'
+///   signs differ; that root is bisected on the residual itself to the
+///   scalar's resolution and must then read ON the surface (`side`,
+///   `Zero`), or the answer is `Uncertain`;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
 ///   holds a double root — a tangency — and the answer is `Uncertain`,
