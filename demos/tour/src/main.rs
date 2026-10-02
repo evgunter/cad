@@ -878,7 +878,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the snowman (two coaxial balls under every boolean; the waist rolled into a \
-         torus band) --"
+         torus band; a head moved off the axis in the seam plane builds too) --"
     );
     for stop in snowman::stops(tol) {
         visit(&stop);
