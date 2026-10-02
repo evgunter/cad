@@ -725,3 +725,77 @@ fn a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds() {
         }
     }
 }
+
+/// A 6 × 1 × 6 slab whose near face lies in the plane at distance `s`
+/// from the origin along the y axis tilted by `tilt` degrees about x —
+/// toward azimuth π/2 of the lens's chart for a positive tilt, 3π/2 for
+/// a negative one, so the plane's circle on a lens sphere stays clear of
+/// the seam meridians in `z = 0`. Wide enough that its side faces clear
+/// every sphere.
+fn tilted_slab(tilt: f64, s: f64) -> Body<f64> {
+    use geom_core::{Affine3, Point3, Vec3};
+    let rot = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(1.0, 0.0, 0.0),
+        tilt.to_radians(),
+    );
+    let n = rot.transform_vec(Vec3::new(0.0, 1.0, 0.0));
+    let slab: Body<f64> =
+        sweep::test_support::brick((-3.0, 3.0), (0.0, 1.0), (-3.0, 3.0), Tol::witness());
+    topo::transform_rigid(&slab, &(Affine3::translation(n * s) * rot), Tol::witness()).unwrap()
+}
+
+/// **A tilted slab against the lens, away from its seam.** The slab's
+/// near plane, at 0.985 from the unit sphere's centre, cuts that
+/// sphere's carrier in a circle wholly inside the plane face, and no
+/// edge of either body crosses a face.
+///
+/// - Tilted 60° (toward azimuth π/2 and 3π/2), the circle lies on the
+///   part of the unit sphere the lens trims away: the lens's faces are
+///   certified apart from the plane face, so it is no escape, and every
+///   op builds against the lens's caps and the slab's 36.
+/// - Tilted 20°, the circle lies inside the lens's top face: the plane
+///   cuts a cap of height 0.015 off the lens, a real escape of a
+///   TRIMMED group, which the re-chart cannot serve. Every op refuses
+///   it typed. Skipping the trimmed group without asking whether its
+///   faces meet the plane face would instead build tier-3-valid bodies
+///   short or long by that cap.
+#[test]
+fn a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let v_lens = lens_volume(R1, R2, D);
+    let v_slab = 36.0;
+    for tilt in [60.0, -60.0] {
+        let slab = tilted_slab(tilt, 0.985);
+        for (op, x, y, want) in [
+            (BooleanOp::Union, &lens, &slab, v_lens + v_slab),
+            (BooleanOp::Union, &slab, &lens, v_lens + v_slab),
+            (BooleanOp::Intersect, &lens, &slab, 0.0),
+            (BooleanOp::Intersect, &slab, &lens, 0.0),
+            (BooleanOp::Subtract, &lens, &slab, v_lens),
+            (BooleanOp::Subtract, &slab, &lens, v_slab),
+        ] {
+            let name = format!("slab tilted {tilt}°: {op:?}");
+            match run_or_empty(op, x, y) {
+                Some(out) => assert_body(&name, &out, want),
+                None => assert!(want == 0.0, "{name}: empty against {want}"),
+            }
+        }
+    }
+    for tilt in [20.0, -20.0] {
+        let slab = tilted_slab(tilt, 0.985);
+        for (x, y) in [(&lens, &slab), (&slab, &lens)] {
+            for op in OPS {
+                let e = refusal(op, x, y);
+                assert!(
+                    matches!(
+                        e,
+                        topo::BooleanError::FallbackExtentUnsupported { what, .. }
+                            if what.contains("TRIMMED sphere face group escapes")
+                    ),
+                    "slab tilted {tilt}° under {op:?}: expected the trimmed escape, got {e:?}"
+                );
+            }
+        }
+    }
+}

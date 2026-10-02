@@ -465,15 +465,17 @@ BOUNDS_ALLOWLIST=(
   # callers, `interior_loop_verdict` (crossings) and
   # `section_extent_pass` (no crossings), which replaced the torus and
   # cylinder extent gates; and `section_report`, the test door over the
-  # same scan. With `sphere_extent_scan` and the rest of the file's
-  # pre-existing seams the count is 14. Two more ride the same seam:
-  # `pair_verdict`, the per-pair rule's driver, which builds the pair's
-  # reach from the two face boxes, and `sphere_faces_apart`, the extent
-  # scan's face-scoped reading of a crossing sphere pair, which builds
-  # the boxes it hands that driver. `section_cert.rs` itself, the
-  # classifier and the per-pair rule, reads no box and carries no
-  # compound bound.
-  'crates/topo/src/boolean/ops.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
+  # same scan. With the eleven pre-existing seams (the nine public and
+  # pipeline doors, `sphere_extent_scan` and `apply_recuts`) the count
+  # is 15. Four more ride the same seam: `face_rows`, which builds each
+  # face's certified box once; `walk_pairs`, the one walker over
+  # box-overlapping row pairs that `section_pairs` and the extent
+  # scan's face-scoped reading both take; `pair_verdict`, the per-pair
+  # rule's driver, which builds the pair's reach from the two boxes;
+  # and `sphere_faces_apart`, that face-scoped reading of a crossing
+  # sphere pair. 15 + 4 = 19. `section_cert.rs` itself, the classifier
+  # and the per-pair rule, reads no box and carries no compound bound.
+  'crates/topo/src/boolean/ops.rs 19 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE

@@ -53,12 +53,14 @@
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.
 //! - `boolean::ops`'s sphere-extent fallback refuses typed unless the
-//!   ball's certified extent CLEARS the face's box, so a bigger box
+//!   ball's certified extent CLEARS the face's box (the same
+//!   `face_rows` box), so a bigger box
 //!   turns a separated sphere × approximated-face pair into
 //!   `CurvedBooleanUnsupported`, and a plane face's boundary-edge box
 //!   met by a section circle's box into `FallbackExtentUnsupported`.
-//! - `boolean::ops`'s section certificate (`section_pairs`, on both
-//!   paths, and `sphere_faces_apart`, the sphere-extent fallback's
+//! - `boolean::ops`'s section certificate (`walk_pairs` over the boxes
+//!   `face_rows` builds once per face, taken by `section_pairs` on both
+//!   paths and by `sphere_faces_apart`, the sphere-extent fallback's
 //!   reading of a crossing sphere pair's faces) EXAMINES every pair
 //!   whose two face boxes overlap, and
 //!   builds from the overlap the pair's reach, which pivots and levers
@@ -2934,7 +2936,7 @@ pub(crate) mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         const PINNED: [(&str, usize); 4] = [
-            ("boolean/ops.rs", 5),
+            ("boolean/ops.rs", 2),
             ("boolean/reduce.rs", 5),
             ("census.rs", 7),
             ("separation.rs", 2),

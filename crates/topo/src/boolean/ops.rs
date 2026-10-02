@@ -108,6 +108,7 @@ use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::{kept_side, setopfinish};
 use super::join::bool_connect;
+use super::section_cert::Refusal as SectionRefusal;
 use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
@@ -909,16 +910,27 @@ impl SectionPath {
         use geom::Surface as S;
         let curved = |s: &geom::Surface<T>| !matches!(s, S::Plane { .. });
         let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
-        let passed = |s: &geom::Surface<T>| {
-            matches!(s, S::Cylinder { .. } | S::Torus { .. } | S::Cone { .. })
-        };
-        let scanned = (sphere(x) && !passed(y)) || (sphere(y) && !passed(x));
+        let scanned =
+            (sphere(x) && !section_pass_takes(y)) || (sphere(y) && !section_pass_takes(x));
         (curved(x) || curved(y)) && !(self == Self::Fallback && scanned)
     }
 
     /// Is `s` a face this path's refusal names?
     fn names<T: Real>(self, s: &geom::Surface<T>) -> bool {
         self.scope(s, s)
+    }
+}
+
+/// **The kinds whose pairs with a sphere the section pass certifies on
+/// the no-crossings path**, rather than the extent scan
+/// ([`sphere_extent_scan`]): none is ever an escape face, so the scan's
+/// only question of the pair is disjointness, which the pass answers per
+/// face pair.
+fn section_pass_takes<T: Real>(s: &geom::Surface<T>) -> bool {
+    use geom::Surface as S;
+    match s {
+        S::Cylinder { .. } | S::Torus { .. } | S::Cone { .. } => true,
+        S::Plane { .. } | S::Sphere { .. } | S::Nurbs(_) | S::Approx(_) => false,
     }
 }
 
@@ -1008,21 +1020,49 @@ pub(crate) fn place_witness<T: Decide>(
     }
 }
 
-/// One face of a section-certificate pair: its operand, body, face,
-/// surface and certified box.
-type PairSide<'s, T> = (
-    Operand,
-    &'s Body<T>,
-    FaceKey,
-    &'s geom::Surface<T>,
-    &'s bvh::Aabb,
-);
+/// One face as the section certificate reads it: its key, its surface's
+/// key and description, and its certified box.
+pub(crate) struct FaceRow<T: Real> {
+    face: FaceKey,
+    key: SurfaceKey,
+    surface: geom::Surface<T>,
+    bbox: bvh::Aabb,
+}
 
-/// **The section certificate's per-pair rule** for `f` (the section's
-/// `F`) against `g` (its `G`), whose boxes overlap: the pair's
-/// classified section and every component's witness, or the pair's
-/// refusal. The reach — the ball about the two boxes' overlap, which
-/// pivots and levers the angular margins — is built here
+/// Every face of `body` as a [`FaceRow`], in face-arena order.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a face whose surface
+/// does not resolve, and the box builder's own errors.
+pub(crate) fn face_rows<T: Decide + Bounds>(
+    body: &Body<T>,
+    band: Band,
+) -> Result<Vec<FaceRow<T>>, BooleanError> {
+    let pad = boxes::sweep_pad(band);
+    body.faces()
+        .map(|(face, fd)| {
+            let surface = body
+                .get_surface(fd.surface)
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "section certificate: a face surface is lost",
+                })?
+                .clone();
+            Ok(FaceRow {
+                face,
+                key: fd.surface,
+                surface,
+                bbox: boxes::face_box(body, face, pad)?,
+            })
+        })
+        .collect()
+}
+
+/// **The section certificate's per-pair rule** for A's face `fa` (the
+/// section's `F`) against B's face `fb` (its `G`), whose boxes overlap:
+/// the pair's classified section and every component's witness, or the
+/// pair's refusal. The reach — the ball about the two boxes' overlap,
+/// which pivots and levers the angular margins — is built here
 /// ([`super::section_cert`]'s module docs).
 ///
 /// # Errors
@@ -1030,62 +1070,105 @@ type PairSide<'s, T> = (
 /// [`BooleanError::ClassificationInvariant`] for a face whose loops do
 /// not resolve.
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    f: PairSide<'_, T>,
-    g: PairSide<'_, T>,
+    (a, fa): (&Body<T>, &FaceRow<T>),
+    (b, fb): (&Body<T>, &FaceRow<T>),
     band: Band,
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError> {
     use super::section_cert::{Refusal, Side, certify, classify};
-    let (f_is, f_body, ff, sf, box_f) = f;
-    let (g_is, g_body, fg, sg, box_g) = g;
-    if has_lone_vertex(f_body, ff)? || has_lone_vertex(g_body, fg)? {
+    if has_lone_vertex(a, fa.face)? || has_lone_vertex(b, fb.face)? {
         return Ok(Err(Refusal::LoneVertex));
     }
+    let (box_a, box_b) = (&fa.bbox, &fb.bbox);
     let (lo, hi) = (
         Vec3::new(
-            box_f.min_x.max(box_g.min_x),
-            box_f.min_y.max(box_g.min_y),
-            box_f.min_z.max(box_g.min_z),
+            box_a.min_x.max(box_b.min_x),
+            box_a.min_y.max(box_b.min_y),
+            box_a.min_z.max(box_b.min_z),
         ),
         Vec3::new(
-            box_f.max_x.min(box_g.max_x),
-            box_f.max_y.min(box_g.max_y),
-            box_f.max_z.min(box_g.max_z),
+            box_a.max_x.min(box_b.max_x),
+            box_a.max_y.min(box_b.max_y),
+            box_a.max_z.min(box_b.max_z),
         ),
     );
     let reach = super::section_cert::Reach {
         centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_f64),
         radius: T::from_f64((hi - lo).norm() * 0.5),
     };
-    let section = classify(sf, sg, reach, band);
+    let section = classify(&fa.surface, &fb.surface, reach, band);
     Ok(certify(
         &section,
         evented,
         |side| {
-            let (operand, body, face, surface) = match side {
-                Side::F => (f_is, f_body, ff, sf),
-                Side::G => (g_is, g_body, fg, sg),
+            let (operand, body, row) = match side {
+                Side::F => (Operand::A, a, fa),
+                Side::G => (Operand::B, b, fb),
             };
-            charts.describes(operand, body, face, surface, band)
+            charts.describes(operand, body, row.face, &row.surface, band)
         },
         |p| {
             [
-                place_witness(f_body, ff, sf, p, band),
-                place_witness(g_body, fg, sg, p, band),
+                place_witness(a, fa.face, &fa.surface, p, band),
+                place_witness(b, fb.face, &fb.surface, p, band),
             ]
         },
     ))
 }
 
+/// **The section certificate over pairs of rows**: every `(A row, B
+/// row)` pair whose certified boxes overlap and which `admit` takes, in
+/// the rows' order, each [`pair_verdict`]'s. `evented` says whether
+/// the reduction recorded an event on the pair `(A face, B face)`;
+/// `named` says whether A's face is the one a refusal names. With
+/// `stop` the walk returns at the first refusing pair.
+///
+/// # Errors
+///
+/// [`pair_verdict`]'s.
+#[allow(clippy::too_many_arguments)]
+fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
+    (a, a_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
+    (b, b_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
+    band: Band,
+    charts: &mut ChartCache,
+    admit: impl Fn(&FaceRow<T>, &FaceRow<T>) -> bool,
+    evented: impl Fn(FaceKey, FaceKey) -> bool,
+    named: impl Fn(&geom::Surface<T>) -> bool,
+    stop: bool,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
+    let mut out = Vec::new();
+    for fa in a_rows {
+        for &fb in &b_rows {
+            if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
+                continue;
+            }
+            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts)?;
+            let refused = verdict.is_err();
+            out.push(PairVerdict {
+                a_face: fa.face,
+                a_kind: fa.surface.kind(),
+                b_face: fb.face,
+                b_kind: fb.surface.kind(),
+                a_named: named(&fa.surface),
+                verdict,
+            });
+            if stop && refused {
+                return Ok(out);
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// **The section certificate over every in-scope pair** of `a` × `b`
 /// whose certified boxes overlap and which `skip` does not exempt, in
-/// arena order. `evented` says whether the reduction recorded an event
-/// on the pair `(A face, B face)`. With `stop` the scan returns at the
-/// first refusing pair.
-///
-/// `chart_boundary` is asked once per face and cached; each pair is
-/// [`pair_verdict`]'s.
+/// arena order ([`walk_pairs`]). `evented` says whether the reduction
+/// recorded an event on the pair `(A face, B face)`. With `stop` the
+/// scan returns at the first refusing pair. `chart_boundary` is asked
+/// once per face and cached.
 ///
 /// # Errors
 ///
@@ -1100,49 +1183,17 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: impl Fn(FaceKey, FaceKey) -> bool,
     stop: bool,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
-    let lost = || BooleanError::ClassificationInvariant {
-        what: "section certificate: a face surface is lost",
-    };
-    let pad = boxes::sweep_pad(band);
-    let faces =
-        |body: &Body<T>| -> Result<Vec<(FaceKey, geom::Surface<T>, bvh::Aabb)>, BooleanError> {
-            body.faces()
-                .map(|(k, fd)| {
-                    let s = body.get_surface(fd.surface).ok_or_else(lost)?.clone();
-                    Ok((k, s, boxes::face_box(body, k, pad)?))
-                })
-                .collect()
-        };
-    let (a_faces, b_faces) = (faces(a)?, faces(b)?);
-    let mut charts = ChartCache::default();
-    let mut out = Vec::new();
-    for (fa, sa, box_a) in &a_faces {
-        for (fb, sb, box_b) in &b_faces {
-            if !path.scope(sa, sb) || !box_a.overlaps(box_b) || skip(*fa, *fb) {
-                continue;
-            }
-            let verdict = pair_verdict(
-                (Operand::A, a, *fa, sa, box_a),
-                (Operand::B, b, *fb, sb, box_b),
-                band,
-                evented(*fa, *fb),
-                &mut charts,
-            )?;
-            let refused = verdict.is_err();
-            out.push(PairVerdict {
-                a_face: *fa,
-                a_kind: sa.kind(),
-                b_face: *fb,
-                b_kind: sb.kind(),
-                a_named: path.names(sa),
-                verdict,
-            });
-            if stop && refused {
-                return Ok(out);
-            }
-        }
-    }
-    Ok(out)
+    let (a_rows, b_rows) = (face_rows(a, band)?, face_rows(b, band)?);
+    walk_pairs(
+        (a, &a_rows),
+        (b, &b_rows),
+        band,
+        &mut ChartCache::default(),
+        |fa, fb| path.scope(&fa.surface, &fb.surface) && !skip(fa.face, fb.face),
+        evented,
+        |s| path.names(s),
+        stop,
+    )
 }
 
 /// **The no-crossings path's section pass.** With no event anywhere,
@@ -2310,8 +2361,12 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let pad = boxes::sweep_pad(band);
     let mut section_charts = ChartCache::default();
+    let rows = [face_rows(a, band)?, face_rows(b, band)?];
     let mut out: Vec<SphereRecut<T>> = Vec::new();
-    for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
+    for (x_is, x, x_rows, y, y_rows) in [
+        (Operand::A, a, &rows[0], b, &rows[1]),
+        (Operand::B, b, &rows[1], a, &rows[0]),
+    ] {
         // The scope is the whole operand: what the escape arm re-charts
         // is the sphere itself, which every wearer shares.
         let charts = crate::chart_groups::ChartGroups::of_body(x);
@@ -2354,13 +2409,18 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
             .padded(pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
-            for (yf, yfd) in y.faces() {
-                match y.get_surface(yfd.surface) {
-                    Some(&geom::Surface::Plane {
+            for (y_row, (yf, yfd)) in y_rows.iter().zip(y.faces()) {
+                if y_row.face != yf {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "extent scan: face rows out of arena order",
+                    });
+                }
+                match &y_row.surface {
+                    &geom::Surface::Plane {
                         origin,
                         normal,
                         u_ref,
-                    }) => {
+                    } => {
                         // A tangency (a decided zero) is a touching
                         // configuration the crossing layer cannot
                         // represent: it refuses with its decided margin,
@@ -2377,11 +2437,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             NonzeroSign::Positive
                                 if group.is_none()
                                     && sphere_faces_apart(
-                                        (x_is, x, fd.surface),
-                                        (y, yf),
+                                        (x_is, x, x_rows),
+                                        fd.surface,
+                                        (y, y_row),
                                         band,
                                         &mut section_charts,
-                                    )? => {}
+                                    )?
+                                    .is_none() => {}
                             NonzeroSign::Positive => {
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
@@ -2505,11 +2567,11 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             }
                         }
                     }
-                    Some(&geom::Surface::Sphere {
+                    &geom::Surface::Sphere {
                         center: c2,
                         radius: r2,
                         ..
-                    }) => {
+                    } => {
                         let d = (c2 - center).norm();
                         // A decided zero is band-decided: the spheres
                         // touch within the tolerance, and a positive gap
@@ -2540,12 +2602,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // of every face on this sphere against
                                 // `yf`: with no event anywhere, a circle
                                 // certified out of one face of each pair
-                                // leaves the two boundaries disjoint.
-                                // A circle inside both faces, or one no
-                                // witness places, refuses: whatever the
-                                // faces share lies off every edge, and
-                                // the join's sphere-pair arm had no
-                                // chord to run.
+                                // leaves the two boundaries disjoint. A
+                                // circle certified inside both faces is
+                                // spheres that meet off every edge; any
+                                // other refusal of the certificate is
+                                // its own reason, raised as the pass
+                                // raises it. A touch (a decided zero)
+                                // refuses on the carriers.
                                 let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
@@ -2553,45 +2616,48 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 )
                                 .map_err(esc(SphereQuestion::Nested))?;
                                 if let Some(verdict) = Refused::of(nested, band) {
-                                    let crossing = matches!(verdict, Refused::Negative { .. });
-                                    if !(crossing
-                                        && sphere_faces_apart(
-                                            (x_is, x, fd.surface),
-                                            (y, yf),
+                                    let faces = match verdict {
+                                        Refused::Negative { .. } => sphere_faces_apart(
+                                            (x_is, x, x_rows),
+                                            fd.surface,
+                                            (y, y_row),
                                             band,
                                             &mut section_charts,
-                                        )?)
-                                    {
-                                        return Err(BooleanError::SpheresMeet {
-                                            operand: x_is,
-                                            face,
-                                            verdict,
-                                        });
+                                        )?,
+                                        Refused::Zero(_) => Some(SectionRefusal::Loop),
+                                    };
+                                    match faces {
+                                        None => {}
+                                        Some(SectionRefusal::Loop) => {
+                                            return Err(BooleanError::SpheresMeet {
+                                                operand: x_is,
+                                                face,
+                                                verdict,
+                                            });
+                                        }
+                                        Some(refusal) => {
+                                            return Err(BooleanError::FallbackExtentUnsupported {
+                                                operand: x_is,
+                                                face,
+                                                what: refusal.what(),
+                                            });
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    Some(geom::Surface::Nurbs(_)) => {
+                    geom::Surface::Nurbs(_) => {
                         // Unreachable: the re-gate above runs first.
                         return Err(BooleanError::NurbsExtentUnsupported {
                             operand: x_is.other(),
                             face: yf,
                         });
                     }
-                    // A cylinder, cone or torus face is never an escape
-                    // plane, so the pair's one question is disjointness,
-                    // which the section pass certifies
-                    // (`SectionPath::Fallback`).
-                    Some(
-                        geom::Surface::Cylinder { .. }
-                        | geom::Surface::Cone { .. }
-                        | geom::Surface::Torus { .. },
-                    ) => {}
                     // `Approx` joins the no-wired-arm refusal, not the
                     // NURBS lane: the pair-scoped operand gate refuses
                     // it by kind before this scan runs.
-                    Some(geom::Surface::Approx(_)) => {
+                    geom::Surface::Approx(_) => {
                         // REACH FIRST, kind second. This arm asks
                         // whether the ball can escape past THIS face;
                         // a face whose box cannot meet the ball's
@@ -2600,24 +2666,25 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // relevant here than it is at the operand
                         // gate. Only a face the ball may actually
                         // reach costs the operation its answer.
-                        if !boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                        if !y_row.bbox.overlaps(&ball_box) {
                             continue;
                         }
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,
-                            kind: y
-                                .get_surface(yfd.surface)
-                                .ok_or(BooleanError::ClassificationInvariant {
-                                    what: "extent scan: face surface lost",
-                                })?
-                                .kind(),
+                            kind: y_row.surface.kind(),
                         });
                     }
-                    None => {
-                        return Err(BooleanError::ClassificationInvariant {
-                            what: "extent scan: face surface lost",
-                        });
+                    // Every other kind's pairs with a sphere are the
+                    // section pass's ([`section_pass_takes`]): never an
+                    // escape face, so the one question is disjointness.
+                    other => {
+                        if !section_pass_takes(other) {
+                            return Err(BooleanError::ClassificationInvariant {
+                                what: "extent scan: a surface kind neither the scan nor the \
+                                       section pass takes",
+                            });
+                        }
                     }
                 }
             }
@@ -2676,48 +2743,45 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// **Whether every face on `x`'s sphere `surface` is certified apart
-/// from `y`'s face `yf`**, whose carrier the sphere crosses: each pair
-/// whose boxes overlap clears every component of its section by the
-/// section certificate's rule, on the no-event path. `false` when any
-/// pair does not clear.
+/// from `y`'s face `y_row`**, whose carrier the sphere crosses: the
+/// section certificate's walk ([`walk_pairs`]) over those pairs on the
+/// no-event path. `None` when every pair clears, else the first
+/// pair's refusal, which is the cause.
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] for a face whose surface
-/// or loops do not resolve, and the box builder's own errors.
+/// [`walk_pairs`]'.
 fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    (x_is, x, surface): (Operand, &Body<T>, SurfaceKey),
-    (y, yf): (&Body<T>, FaceKey),
+    (x_is, x, x_rows): (Operand, &Body<T>, &[FaceRow<T>]),
+    surface: SurfaceKey,
+    (y, y_row): (&Body<T>, &FaceRow<T>),
     band: Band,
     charts: &mut ChartCache,
-) -> Result<bool, BooleanError> {
-    let lost = || BooleanError::ClassificationInvariant {
-        what: "extent scan: face surface lost",
-    };
-    let pad = boxes::sweep_pad(band);
-    let sy = y
-        .get_face(yf)
-        .and_then(|fd| y.get_surface(fd.surface))
-        .ok_or_else(lost)?;
-    let sx = x.get_surface(surface).ok_or_else(lost)?;
-    let box_y = boxes::face_box(y, yf, pad)?;
-    for (xf, _) in x.faces().filter(|(_, fd)| fd.surface == surface) {
-        let box_x = boxes::face_box(x, xf, pad)?;
-        if !box_x.overlaps(&box_y) {
-            continue;
-        }
-        let verdict = pair_verdict(
-            (x_is, x, xf, sx, &box_x),
-            (x_is.other(), y, yf, sy, &box_y),
+) -> Result<Option<SectionRefusal>, BooleanError> {
+    let on_sphere = x_rows.iter().filter(|r| r.key == surface);
+    let pairs = match x_is {
+        Operand::A => walk_pairs(
+            (x, on_sphere),
+            (y, [y_row]),
             band,
-            false,
             charts,
-        )?;
-        if verdict.is_err() {
-            return Ok(false);
-        }
-    }
-    Ok(true)
+            |_, _| true,
+            |_, _| false,
+            |_| true,
+            true,
+        )?,
+        Operand::B => walk_pairs(
+            (y, [y_row]),
+            (x, on_sphere),
+            band,
+            charts,
+            |_, _| true,
+            |_, _| false,
+            |_| true,
+            true,
+        )?,
+    };
+    Ok(pairs.into_iter().find_map(|p| p.verdict.err()))
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**
