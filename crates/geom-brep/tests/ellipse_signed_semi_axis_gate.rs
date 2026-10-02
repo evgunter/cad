@@ -21,7 +21,7 @@ use slotmap::SlotMap;
 /// which widened the gate. A negative `major` certifies as it always
 /// has (`tier3_tests` mints one so check 1 can refuse it).
 #[test]
-fn the_gate_meters_either_order_and_refuses_a_signed_semi_axis() {
+fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
     let band = Band::linear(Tol::witness()).unwrap();
     let alpha: f64 = 0.5;
     let (a, b) = (1.0 / alpha.cos(), 1.0);
