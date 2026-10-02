@@ -63,114 +63,72 @@
 //! `c` alone, an in-band spread can cross zero while `c` sits past the
 //! escalation threshold whenever `K` is near 1.
 //!
-//! # The half-angle ladder
+//! # The half-angle ladder, and the subdivision that answers
 //!
 //! A residual that is a trigonometric polynomial `F(θ)` of degree TWO —
 //! a circle against a torus's implicit, or against a cylinder wall it is
-//! tilted to — becomes, under the tangent half-angle `t = tan(φ/2)`, the
-//! polynomial `F·(1 + t²)²` of degree FOUR in `t`, which
-//! [`half_angle_roots`] hands to the ray lane's certified quartic ladder.
+//! tilted to, an ellipse against a sphere or a wall — has at most four
+//! roots round the turn. [`half_angle_roots`] answers it with
+//! [`certified_subdivision`], decided on the residual itself in the
+//! band's own metres (its docs: Taylor bounds on pieces, each piece
+//! clear or monotone, each root bisected and read ON the surface, a
+//! tangency `Uncertain`).
 //!
-//! **The ladder no longer answers; it escalates.** Its count and roots
-//! are decided in its root variable `τ`, which is arc length only to
-//! first order about the anchor (and along an ellipse only up to the
-//! ratio of its semi-axes), so neither is certified in the metric the
-//! band speaks: measured, it placed roots fifteen zero bands off the
+//! **The ladder runs first, for its escalations only.** Under the
+//! tangent half-angle `t = tan(φ/2)`, `F·(1 + t²)²` is a quartic in `t`,
+//! which the ray lane's certified quartic ladder decides; an in-band
+//! sign it meets escalates as the door's decision, and that `Err` is
+//! all [`half_angle_roots`] keeps. Its answers are dropped: they are
+//! decided in its root variable `τ`, arc length only to first order
+//! about the anchor (and along an ellipse only up to the ratio of its
+//! semi-axes), and measured, it placed roots fifteen zero bands off the
 //! wall, certified a `Miss` for definite crossings and for grazes inside
-//! the band, and answered `CountDisagrees` across definite crossings. The
-//! answer is the certified subdivision's ([`certified_subdivision`],
-//! decided on the residual itself); the ladder runs first, and an
-//! in-band sign it meets still escalates as the door's decision. The
-//! rest of this section describes the ladder as it stands.
+//! the band, and answered `CountDisagrees` across definite crossings
+//! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
+//! That its escalations are still read in that metric is filed
+//! (`work/hone/half-angle-ladder-escalates-in-its-own-metric.md`).
 //!
-//! **Where the pole goes, and why it must be well conditioned.**
-//! `φ = θ − θₐ` is measured from an anchor `θₐ`, and the map covers every
-//! `θ` except its pole `θₐ + π`. The quartic's leading coefficient is `F`
-//! at the pole. The arc's midpoint is tried first, so the pole is the
-//! arc's antipode; then anchors a `τ/32` step at a time either side of
-//! it, nearest first. A pole may land inside the arc: the one parameter
-//! the map cannot reach is then certified not a root by the first
-//! decision below, and the roots are reported within `π` of the arc's
-//! midpoint whatever the anchor.
+//! **The pole, and why it must be well conditioned.** `φ = θ − θₐ` is
+//! measured from an anchor `θₐ`, and the map covers every `θ` except its
+//! pole `θₐ + π`; the quartic's leading coefficient is `F` there. A pole
+//! near a root puts a root near `t = ∞` and the monic coefficients grow
+//! like the inverse of that distance (review of PR 3375), which would
+//! make the ladder's escalations spurious. So an anchor is used only
+//! when its pole passes two decisions:
 //!
-//! Non-zero is not enough. A pole definitely off the surface makes the
-//! division that normalizes the quartic a division by a non-zero — but a
-//! pole a milliradian from a root the arc does not hold puts a root near
-//! `t = ∞`, the monic coefficients grow like the inverse of that
-//! distance, and at `f64` the ladder then certified wrong counts: in-arc
-//! roots dropped, phantoms invented (review of PR 3375, executed at `δ`
-//! from 1e-3 to 1e-7). So an anchor is used only when its pole passes
-//! TWO decisions:
-//!
-//! - **pole** — the linearized residual at the pole is definitely
-//!   non-zero (it shares `F`'s sign). This is what refuses a carrier
-//!   lying ON the surface, whose `F` is identically zero and whose
-//!   coefficients are rounding noise that no ratio can be read off.
+//! - **pole** — the residual there is definitely non-zero (it shares
+//!   `F`'s sign);
 //! - **conditioning** — `|F(pole)| ≥ κ·A` with
 //!   `A = |c₀| + |(c₁, s₁)| + |(c₂, s₂)|`, which bounds `|F|` everywhere
-//!   and `|F′|` by `2A`. Every root is then at least `κ/2` radians from
-//!   the pole, so none is near `t = ∞`; and each coefficient of
-//!   `F·(1 + t²)²` is at most `6A` in size, so the monic coefficients are
-//!   at most `6/κ`: the ladder sees a quartic whose coefficients, roots
-//!   and rounding are all bounded by a fixed multiple of the circle's
-//!   own scale. The margin is metered as the arc length
-//!   `ρ·(|F(pole)| − κA)/A` that bound guarantees, `ρ` the carrier's
-//!   least speed. `κ = 1/16`.
+//!   and `|F′|` by `2A`: every root is then at least `κ/2` radians from
+//!   the pole, and the monic coefficients are at most `6/κ`. Metered as
+//!   the arc length `ρ·(|F(pole)| − κA)/A`, `ρ` the carrier's least
+//!   speed; `κ = 1/16`.
 //!
-//! **Some anchor always passes, unless `F ≡ 0`.** By Parseval,
-//! `max|F|² ≥ mean F² = c₀² + (A₁² + A₂²)/2`, and by Cauchy–Schwarz
-//! `A² = (c₀ + A₁ + A₂)² ≤ (1 + 2 + 2)(c₀² + A₁²/2 + A₂²/2)`, so `|F|`
-//! reaches `A/√5 ≈ 0.45A` somewhere, and within `π/32` of there — where
-//! some candidate lies — it is still at least `0.45A − 2A·π/32 ≈ 0.25A`,
-//! above `κA`. So `Uncertain` from the anchor search means `F` is
-//! (numerically) identically zero, or the band could not separate the
-//! margins.
+//! Some anchor among 32 evenly spaced ones always passes unless `F ≡ 0`:
+//! by Parseval and Cauchy–Schwarz `|F|` reaches `A/√5 ≈ 0.45A`
+//! somewhere, and within `π/32` of there it is still at least
+//! `0.45A − 2A·π/32 ≈ 0.25A > κA`.
 //!
-//! **Units.** The root variable handed to the ladder is the LENGTH
-//! `τ = 2ρ·t`, arc length to first order about the anchor, with `ρ` the
-//! carrier's least speed `|C′|` (a circle's radius, an ellipse's
-//! semi-minor axis), so that `τ` never overstates the arc it measures. The ladder's
-//! lever is the length its roots spread over, which is where its margins
-//! become lengths; each door supplies its own.
+//! **Units.** The ladder's root variable is the LENGTH `τ = 2ρ·t`; its
+//! lever, the length its roots spread over, is each door's own.
 //!
-//! # The ladder's noise meter
+//! # The harmonics' noise
 //!
 //! `F`'s harmonics are sums of terms much larger than `F` where the
 //! crossings live, so at `f64` their rounding is an error in `F` of about
 //! `u·T` (`T` a bound on the terms' magnitudes, [`NOISE_ULPS`] of them
-//! charged), which is a residual error of `u·T / f_per_metre` metres on
-//! the carrier, `f_per_metre` the door's floor on `|F|` per metre of
-//! residual. The ladder refuses when that error is DEFINITELY past the
-//! band's escalation threshold. The same error moves each root by
-//! `error/|F′|` radians; that arc length is held to the same threshold
-//! (the root-slack row), or a caller's span and trim decisions would be
-//! made on the wrong point.
+//! charged): `noise`, a residual error of `noise / f_per_metre` metres,
+//! `f_per_metre` the door's floor on `|F|` per metre of residual. The
+//! subdivision charges it to every Taylor term it reads (its docs), so a
+//! pose whose noise is past the band answers `Uncertain` there. A
+//! rounding estimate on `f64`, run on every scalar; the `Interval` lane
+//! carries its own enclosure.
 //!
-//! **Its posture on a reading in the band's gap is to pass it**, where
-//! the first-harmonic door refuses one. That is a known defect, held open
-//! with what refusing would cost
-//! (`work/germ/circle-torus-meters-accept-an-unreadable-reading.md`): the
-//! term bound is coarse enough that at `ε = 1e-12` ordinary unit-scale
-//! poses read in the gap.
-//!
-//! **What the meter covers, and what it does not.** It bounds ONE stage:
-//! the evaluation of the harmonics from the geometry. Everything
-//! downstream — the anchor rotation, the division by `F(pole)`, the monic
-//! `(2ρ)^k` rescale, the depression and the discriminant — rounds again,
-//! and those errors are covered only by the ladder's own band decisions,
-//! as they are for the line lane. The conditioning guard keeps that
-//! amplification a fixed multiple of the circle's scale, but no bound on
-//! it is computed here. So the premise is: **the downstream stages'
-//! rounding stays within what the ladder's band margins absorb** — the
-//! premise every `f64` ladder in the kernel rests on. What supports it is
-//! measurement, not proof (the torus door's module docs say which). The
-//! `Interval` lane needs no premise: every stage there is an enclosure.
-//!
-//! **What the ladder did with a configuration INSIDE the band** — certify
-//! a miss for a carrier crossing the surface by less than the zero band,
-//! read an exact tangency as a miss — is why it no longer answers
-//! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
-//! The subdivision answers such a graze `Uncertain`.
+//! The ladder meters the same noise before it runs, and passes a reading
+//! in the band's gap (`work/germ/circle-torus-meters-accept-an-unreadable-reading.md`);
+//! the rounding of its own later stages (the anchor rotation, the pole
+//! division, the rescale, the depression) is left to its band decisions.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
@@ -284,7 +242,7 @@ pub(super) struct HalfAngleFrame<T> {
 }
 
 /// How many units in the last place of the term bound the harmonics'
-/// evaluation error is charged (module docs, "The ladder's noise meter"). Each
+/// evaluation error is charged (module docs, "The harmonics' noise"). Each
 /// harmonic is a short chain from the inputs — a squared norm, a
 /// product, a sum of four terms — whose every rounding is half an ulp
 /// of a quantity the term bound dominates; sixteen is that chain's
@@ -311,23 +269,11 @@ const POLE_CONDITIONING: f64 = 1.0 / 16.0;
 const POLE_CANDIDATES: u32 = 32;
 
 /// **The certified real roots of a degree-2 trigonometric polynomial
-/// `F(θ)` along a circle, by the tangent half-angle** — a quartic in
-/// `t = tan((θ − θₐ)/2)`, solved by the ray lane's certified ladder.
-/// General over the surface: `residual` is the surface's linearized
-/// residual (metres) along the carrier, which must share `F`'s sign.
-///
-/// An anchor `θₐ` is USED only when its pole `θₐ + π` passes two
-/// decisions (module docs, "The half-angle ladder"): the residual there is
-/// definitely non-zero, and `|F(pole)|` clears `κ·A` with
-/// `A = |c₀| + |(c₁, s₁)| + |(c₂, s₂)|`, metered as the arc length
-/// `ρ·(|F(pole)| − κA)/A` that bound guarantees between the pole and
-/// every root. The antipode of the arc is tried first and poles off the
-/// arc are preferred, but a pole may land inside it (certified not a
-/// root); if no candidate passes the answer is `Uncertain`.
-///
-/// Before any of that, the noise meter (module docs, "The ladder's noise meter")
-/// must put the harmonics' rounding inside the band, and after it each
-/// root's position uncertainty must be inside the band too.
+/// `F(θ)` along a conic** (module docs, "The half-angle ladder, and the
+/// subdivision that answers"). General over the surface: `residual` is
+/// the surface's residual (metres) along the carrier, which must share
+/// `F`'s sign. The answer is [`certified_subdivision`]'s; the half-angle
+/// ladder runs first and only its escalations are kept.
 pub(super) fn half_angle_roots<T: Decide>(
     f: &Harmonics<T>,
     residual: impl Fn(T) -> T,
@@ -340,10 +286,10 @@ pub(super) fn half_angle_roots<T: Decide>(
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
-/// (module docs, "The half-angle ladder"). Its answer is not returned as
-/// it stands — [`certified_subdivision`] decides the roots in the
-/// residual's own metres — but its escalations are, and its
-/// `CountDisagrees`.
+/// (module docs, "The half-angle ladder, and the subdivision that answers"). Only its escalations (the
+/// `Err`) are returned; every answer it reaches — a count, roots, a
+/// `Miss`, `CountDisagrees` — is dropped, and [`certified_subdivision`]
+/// decides the roots in the residual's own metres.
 #[allow(clippy::too_many_lines)] // the anchor search and the quartic, one walk
 fn ladder_roots<T: Decide>(
     f: &Harmonics<T>,
@@ -361,7 +307,7 @@ fn ladder_roots<T: Decide>(
         noise,
         f_per_metre,
     } = *frame;
-    // **The noise meter** (module docs, "The ladder's noise meter"): it bounds the harmonics'
+    // **The noise meter** (module docs, "The harmonics' noise"): it bounds the harmonics'
     // evaluation error, `noise`, a residual error of up to
     // `noise / f_per_metre` metres everywhere on the carrier, and refuses
     // when that is definitely past the band's escalation threshold. The
@@ -492,10 +438,26 @@ const SUBDIVISION_START: u32 = 16;
 const SUBDIVISION_BUDGET: usize = 4096;
 
 /// Where a piece may be split, as shares of its width, tried in order
-/// until the residual's sign there is definite: off the midpoint, so that
-/// a split never has to sit on a root the subdivision is closing in on.
-/// The same shares, of one starting piece, are the offsets tried for the
-/// turn's first cut.
+/// until the residual's sign there is definite. The same shares, of one
+/// starting piece, are the offsets tried for the turn's first cut.
+///
+/// No answer depends on their values: every end is a point whose sign
+/// was DECIDED, so any share in `(0, 1)` keeps the walk sound. The values
+/// are chosen for what they avoid and for what they bound:
+///
+/// - **None is `1/2`, and the first is irrational.** A pose symmetric
+///   about the arc — a graze at a vertex, a wall square to an axis — puts
+///   its root or its tangency at the arc's midpoint, or a dyadic share of
+///   the turn from it: exactly where sixteenths from `mid − π` and halving
+///   splits would land, and where a sign reads in the band. The first
+///   share is `2√5 − 4 = 2/φ³ ≈ 0.4721`, irrational, so no point it
+///   places is a dyadic share of the turn from the midpoint. The rest are
+///   fallbacks, distinct and spread across the piece, so that a share
+///   whose point reads in the band is followed by one away from it.
+/// - **Each lies in `[0.12, 0.88]`**, so a split leaves each part at most
+///   `0.88` of its piece: `k` levels down, a piece is at most `0.88ᵏ` of
+///   a sixteenth of the turn, and the width row is reached in a number
+///   of levels logarithmic in the band.
 const SPLITS: [f64; 9] = [
     0.472_135_954_999_579_4,
     0.3,
@@ -550,7 +512,10 @@ const BISECTIONS: u32 = 64;
 ///   never a certified `Miss`.
 ///
 /// `F` shares the residual's sign; its margins are in metres through
-/// `f_per_metre`, with the harmonics' rounding (`noise`) charged.
+/// `f_per_metre`. The harmonics are rounded: `F` read from them is the
+/// true one to within `noise`, so its `k`-th derivative to within
+/// `2ᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
+/// degree 2), and each Taylor term above is charged its own share.
 #[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
 fn certified_subdivision<T: Decide>(
     f: &Harmonics<T>,
@@ -570,7 +535,10 @@ fn certified_subdivision<T: Decide>(
     let two = T::from_f64(2.0);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let (a1, a2) = (hypot(f.c1, f.s1), hypot(f.c2, f.s2));
-    let fourth_bound = a1 + T::from_f64(16.0) * a2;
+    let (four, eight) = (T::from_f64(4.0), T::from_f64(8.0));
+    // `|F⁗| ≤ A₁ + 16A₂`, for the true `F` once its harmonics' error is
+    // charged at `2⁴·noise`.
+    let fourth_hi = a1 + T::from_f64(16.0) * (a2 + noise);
     let value = |t: T| {
         let (s1t, c1t) = t.sin_cos();
         let (s2t, c2t) = (two * t).sin_cos();
@@ -629,18 +597,25 @@ fn certified_subdivision<T: Decide>(
         }
         let half = (r - l) / two;
         let m = l + half;
+        // The true `F`'s derivatives at `m`, each read from the rounded
+        // harmonics and widened by its own share of their error: `k`
+        // derivatives of an error bounded by `noise` are bounded by
+        // `2ᵏ·noise` (Bernstein's inequality, degree 2).
         let (d1, d2, d3) = (slope(m).abs(), bend(m).abs(), jerk(m).abs());
-        let fall = d1 * half
-            + d2 * half.powi(2) / two
-            + d3 * half.powi(3) / six
-            + fourth_bound * half.powi(4) / twenty_four;
+        let (d1_lo, d1_hi) = (d1 - two * noise, d1 + two * noise);
+        let d2_hi = d2 + four * noise;
+        let d3_hi = d3 + eight * noise;
+        let fall = d1_hi * half
+            + d2_hi * half.powi(2) / two
+            + d3_hi * half.powi(3) / six
+            + fourth_hi * half.powi(4) / twenty_four;
         if definitely(rows.clear, (value(m).abs() - fall - noise) / f_per_metre) {
             continue;
         }
-        let most_bend = d2 + d3 * half + fourth_bound * half.powi(2) / two;
+        let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
         let least_slope =
-            d1 - d2 * half - d3 * half.powi(2) / two - fourth_bound * half.powi(3) / six;
-        if definitely(rows.monotone, speed_hi * (least_slope - noise) / most_bend) {
+            d1_lo - d2_hi * half - d3_hi * half.powi(2) / two - fourth_hi * half.powi(3) / six;
+        if definitely(rows.monotone, speed_hi * least_slope / most_bend) {
             if sl == sr {
                 continue;
             }
@@ -680,8 +655,12 @@ fn certified_subdivision<T: Decide>(
         pieces.push(((c, sc), (r, sr)));
         pieces.push(((l, sl), (c, sc)));
     }
-    // A degree-2 polynomial changes sign an even number of times round
-    // the turn, at most four; anything else lost a root.
+    // Round the closed turn the ends' signs change an even number of
+    // times, and every change on a monotone piece was bisected; an odd
+    // count therefore means a change on a piece read CLEAR — the residual
+    // and its harmonics disagreeing by more than `noise` — and more than
+    // four is more than a degree-2 polynomial has. Either way a root was
+    // lost or invented, and nothing is certified.
     if roots.len() > 4 || roots.len() % 2 == 1 {
         return Ok(CircleRoots::Uncertain);
     }
@@ -823,4 +802,149 @@ pub(super) fn first_harmonic_roots<T: Decide>(
             T::zero(),
         ],
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod subdivision_guard_rows {
+    //! [`certified_subdivision`]'s guards, each on a residual built to sit
+    //! where that guard is the only thing between the walk and a wrong
+    //! answer. The harmonics and the residual are given separately — the
+    //! harmonics standing in for rounded ones, the residual for the true
+    //! one — because no physical pose the doors take puts the harmonics'
+    //! actual rounding, or a residual's resolution, near the band: the
+    //! guards hold the contract the noise charge and the residual
+    //! promise, and these rows are where that contract is exercised.
+
+    use core::f64::consts::PI;
+
+    use super::*;
+
+    const ROWS: SubdivisionRows = SubdivisionRows {
+        clear: "bool_ellipse_sub_clear",
+        monotone: "bool_ellipse_sub_monotone",
+        side: "bool_ellipse_sub_side",
+        width: "bool_ellipse_sub_width",
+    };
+
+    fn walk(
+        f: &Harmonics<f64>,
+        residual: &impl Fn(f64) -> f64,
+        noise: f64,
+        eps: f64,
+    ) -> CircleRoots<f64> {
+        let frame = HalfAngleFrame {
+            t0: -0.5,
+            t1: 0.5,
+            speed_lo: 1.0,
+            speed_hi: 1.0,
+            lever: 2.0,
+            noise,
+            f_per_metre: 1.0,
+        };
+        certified_subdivision(
+            f,
+            residual,
+            &frame,
+            &ROWS,
+            Band::new(eps, 10.0 * eps).unwrap(),
+        )
+        .unwrap()
+    }
+
+    /// The residual's sign changes round the turn, read on a grid fine
+    /// enough for the residuals below.
+    fn sign_changes(residual: &impl Fn(f64) -> f64) -> usize {
+        let n = 200_000;
+        let at = |k: usize| {
+            residual(
+                -PI + 2.0 * PI * f64::from(u32::try_from(k).unwrap())
+                    / f64::from(u32::try_from(n).unwrap()),
+            )
+        };
+        (0..n)
+            .filter(|&k| (at(k) < 0.0) != (at(k + 1) < 0.0))
+            .count()
+    }
+
+    fn sine(s1: f64) -> Harmonics<f64> {
+        Harmonics {
+            c0: 0.0,
+            c1: 0.0,
+            s1,
+            c2: 0.0,
+            s2: 0.0,
+        }
+    }
+
+    /// **The monotone test charges `F′` its share of the noise.** `F` read
+    /// from the harmonics is `10⁻³·sin θ`; the true residual differs from
+    /// it by at most `0.7·10⁻³` — inside the declared `noise` of
+    /// `0.8·10⁻³` — as a wiggle about `θ = 0` that crosses zero several
+    /// times. `F′` there is `10⁻³`, less than the `2·noise` its rounding
+    /// may move it by, so the piece is not certified monotone and the
+    /// answer is `Uncertain`. Charged nothing, the piece reads monotone,
+    /// one crossing is bisected, and two certified roots stand for a
+    /// residual that crosses zero more often.
+    #[test]
+    fn a_slope_inside_its_noise_is_not_monotone() {
+        let f = sine(1e-3);
+        let residual = |t: f64| {
+            let t = (t + PI).rem_euclid(2.0 * PI) - PI;
+            1e-3 * t.sin() - 0.7e-3 * (t / 0.01).sin() * (-(t / 0.03).powi(2)).exp()
+        };
+        let truth = sign_changes(&residual);
+        assert!(truth > 2, "the wiggle crosses zero, read {truth} changes");
+        match walk(&f, &residual, 0.8e-3, 1e-9) {
+            CircleRoots::Certified { count, .. } => {
+                assert_eq!(count, truth, "certified {count} roots of {truth}");
+            }
+            CircleRoots::Uncertain => {}
+            other => panic!("{other:?} for a residual crossing {truth} times"),
+        }
+    }
+
+    /// **A located root must read ON the surface.** The residual is
+    /// `sin θ` resolved only to steps of `20ε` — never zero, its sign
+    /// change a jump from `−10ε` to `+10ε` — the harmonics exact to within
+    /// that step (declared as the noise). Bisection closes on the jump,
+    /// where the residual reads `10ε` off, so the answer is `Uncertain`;
+    /// not checked, the jump is certified a root.
+    #[test]
+    fn a_root_that_reads_off_the_surface_is_not_certified() {
+        let eps = 1e-9;
+        let step = 20.0 * eps;
+        let residual = |t: f64| step * ((t.sin() / step).floor() + 0.5);
+        let got = walk(&sine(1.0), &residual, step, eps);
+        if let CircleRoots::Certified { count, thetas } = got {
+            for &t in &thetas[..count] {
+                let off = residual(t).abs();
+                assert!(off <= eps, "root {t} reads {off:e} off the surface");
+            }
+        }
+    }
+
+    /// **An odd count is not certified.** The harmonics read `sin θ`; the
+    /// residual is `−1` from `θ = −0.05` to `0.4` and `sin θ` elsewhere —
+    /// a disagreement no declared noise covers — so its one sign change
+    /// near the arc falls on a piece the harmonics read clear (the first
+    /// cut's piece from `0.185` to `0.578`) and is lost, while the change
+    /// at `π` is bisected. Round a closed turn that leaves an odd count,
+    /// which is `Uncertain`; not checked, one root is certified for a
+    /// residual that crosses twice.
+    #[test]
+    fn an_odd_count_is_not_certified() {
+        let residual = |t: f64| {
+            let t = (t + PI).rem_euclid(2.0 * PI) - PI;
+            if t > -0.05 && t < 0.4 { -1.0 } else { t.sin() }
+        };
+        assert_eq!(sign_changes(&residual), 2);
+        match walk(&sine(1.0), &residual, 0.0, 1e-9) {
+            CircleRoots::Certified { count, .. } => {
+                assert_eq!(count % 2, 0, "certified an odd count, {count}");
+            }
+            CircleRoots::Uncertain => {}
+            other => panic!("{other:?} for a residual crossing twice"),
+        }
+    }
 }

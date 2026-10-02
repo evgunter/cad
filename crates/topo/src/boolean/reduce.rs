@@ -2306,10 +2306,18 @@ fn wall_crossing<T: Decide>(
         },
         _ => return Ok(SpanVerdict::Unsettled),
     };
+    // The carrier's speed at a parameter: only the kinds `found` was
+    // read for reach here, and an ellipse whose frame cannot be read is
+    // a kernel bug, refused — never a zero speed that would read every
+    // root as at the span's end.
     let speed_at = |t: T| match *carrier {
-        geom::Curve3::Line { dir, .. } => dir.norm(),
-        geom::Curve3::Circle { radius, .. } => radius,
-        _ => geom_brep::Conic::of(carrier).map_or(T::zero(), |c| c.speed_at(t)),
+        geom::Curve3::Line { dir, .. } => Ok(dir.norm()),
+        geom::Curve3::Circle { radius, .. } => Ok(radius),
+        _ => geom_brep::Conic::of(carrier).map(|c| c.speed_at(t)).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a wall root's carrier is neither a line nor a conic",
+            },
+        ),
     };
     let (count, roots) = match found {
         CircleRoots::Certified { count, thetas } => (count, thetas),
@@ -2338,7 +2346,7 @@ fn wall_crossing<T: Decide>(
         for (gap, end) in [(t - t0, t0), (t1 - t, t1)] {
             match decide(
                 "bool_wall_root_in_span",
-                Margin::of(gap * speed_at(end)),
+                Margin::of(gap * speed_at(end)?),
                 band,
             ) {
                 Ok(Sign::Positive) => {}

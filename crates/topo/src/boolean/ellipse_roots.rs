@@ -774,7 +774,7 @@ mod graze_rows {
     //! on circles and ellipses in every stored order and sign, through the
     //! degree-2 doors' certified subdivision.
 
-    use core::f64::consts::{FRAC_PI_2, PI};
+    use core::f64::consts::FRAC_PI_2;
 
     use super::*;
     use crate::boolean::circle_cylinder::circle_cylinder_roots;
@@ -862,13 +862,41 @@ mod graze_rows {
                     }
                 };
                 // A vertex: the ends of the stored axes.
-                let vertex = FRAC_PI_2 * f64::from(u32::try_from(rng.below(4)).unwrap());
+                let k = rng.below(4);
+                let vertex = FRAC_PI_2 * f64::from(u32::try_from(k).unwrap());
+                let vertex_on_major = k % 2 == 0;
                 let p = e.eval(vertex);
                 let outward = (p - center).normalize();
                 let tangent = n.cross(outward);
-                let r = 10f64.powf(rng.range(-6.0, -4.0));
                 let gap = eps * rng.range(-40.0, 40.0);
-                let hub = p + outward * (r + gap);
+                // Either a small sphere or wall just outside the vertex,
+                // the carrier's distance from it least there; or the
+                // vertex's OSCULATING sphere or wall, which meets the
+                // carrier to fourth order (`F″ = 0` at the vertex), held
+                // off by `gap` — the carrier's distance from it is
+                // extreme at the vertex, least at the sharp vertex (the
+                // osculating circle inside the carrier) and greatest at
+                // the flat one.
+                let osculating = !circle && rng.below(2) == 0;
+                let (hub, r, wall_axis, least) = if osculating {
+                    let this = if vertex_on_major {
+                        major.abs()
+                    } else {
+                        minor.abs()
+                    };
+                    let other = if vertex_on_major {
+                        minor.abs()
+                    } else {
+                        major.abs()
+                    };
+                    let rho = other * other / this;
+                    let sharp = this >= other;
+                    let shift = if sharp { gap } else { -gap };
+                    (p - outward * (rho - shift), rho, n, sharp)
+                } else {
+                    let r = 10f64.powf(rng.range(-6.0, -4.0));
+                    (p + outward * (r + gap), r, tangent, true)
+                };
                 let x = Vec3::new(1.0, 0.0, 0.0);
                 let s = if rng.below(2) == 0 {
                     geom::Surface::Sphere {
@@ -880,7 +908,7 @@ mod graze_rows {
                 } else {
                     geom::Surface::Cylinder {
                         origin: hub,
-                        axis: tangent,
+                        axis: wall_axis,
                         radius: r,
                         u_ref: outward,
                     }
@@ -910,13 +938,17 @@ mod graze_rows {
                     _ => unreachable!(),
                 };
                 let label = format!(
-                    "ε {eps}, case {i}: gap {gap:e}, {e:?} against {s:?} — {}",
+                    "ε {eps}, case {i}: gap {gap:e}, osculating {osculating}, {e:?} against {s:?} — {}",
                     fuzz::replay()
                 );
                 match got {
                     Ok(CircleRoots::Miss) => {
                         misses += 1;
-                        assert!(gap > eps, "{label}: a certified Miss");
+                        // Clear only when the extreme distance, at the
+                        // vertex, is past the band on the far side.
+                        let at = distance(p);
+                        let clear = if least { at > eps } else { at < -eps };
+                        assert!(clear, "{label}: a certified Miss ({at:e} at the vertex)");
                     }
                     Ok(CircleRoots::Certified { count, thetas }) => {
                         certified += 1;
@@ -928,7 +960,6 @@ mod graze_rows {
                     Ok(CircleRoots::CountDisagrees) => panic!("{label}: CountDisagrees"),
                     _ => declined += 1,
                 }
-                let _ = PI;
             }
             println!("ε {eps}: {certified} certified, {misses} misses, {declined} declined");
         }

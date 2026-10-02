@@ -84,9 +84,10 @@
 //!   the answer is `Uncertain` — which is what keeps an undeclared
 //!   on-carrier circle away from every recording arm.
 //! - **A tangency** — the carrier grazing the tube, a double root — is a
-//!   contour-reach margin in band on the parallel arm, and on the ladder
-//!   is whatever the ladder reads it as (module docs of
-//!   [`super::circle_roots`], "The ladder's noise meter").
+//!   contour-reach margin in band on the parallel arm, and on the
+//!   general arm a piece neither clear nor monotone down to the band's
+//!   width, answered `Uncertain` (module docs of [`super::circle_roots`],
+//!   "The half-angle ladder, and the subdivision that answers").
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
