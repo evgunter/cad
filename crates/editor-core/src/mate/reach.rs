@@ -324,11 +324,11 @@ impl MateReach for RefusingReach {
     }
 }
 
-/// The kind a refusal names a face's surface by — `geom_brep`'s own
-/// closed mirror of [`Surface`], with its one name table
+/// The kind a refusal names a face's surface by — `geom`'s closed
+/// mirror of [`Surface`], with its one name table
 /// ([`SurfaceKind::name`]), so no second string table stands beside
 /// it and a caller branches on the value.
-pub use geom_brep::SurfaceKind;
+pub use geom::SurfaceKind;
 
 /// **A part's reach as the solve reads it**: [`body_reach`] with a
 /// faceless body refused ([`ReachRefusal::NoExtent`]) — the one
@@ -366,7 +366,7 @@ pub fn body_reach<T: Decide>(body: &Body<T>) -> Result<Option<T>, ReachRefusal> 
         };
         let bound = face_reach(body, key, surface, origin).ok_or(ReachRefusal::FaceUnbounded {
             face: key,
-            kind: SurfaceKind::of(surface),
+            kind: surface.kind(),
         })?;
         reach = Some(reach.map_or(bound, |r| r.max(bound)));
     }

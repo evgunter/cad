@@ -337,3 +337,27 @@ two fix passes, delta review. Merged with two red rows that are main's own
 Ev approved the designers' converged answer: the blend doors stay generic
 under DL5; H-R3's fillet third is retired. `S90-impl` becomes the pin
 (dual tangent rows), P1/M. Fork-log row 40 (A = Opus, B = Fable).
+
+## 2026-10-02 — `S90-impl` closed (PR #3764)
+
+The blend's dual tangents are pinned: a sweep row checks a filleted and a
+chamfered cube's `Dual64` volume tangent against central differences
+(blend size and an upstream cube size seeded) and the fillet against two
+closed forms; an editor-core row differentiates a stack-up measure
+through a 3D fillet. Each row reds under a tangent-freezing mutant
+(radius read through `.lo()`; chamfer distance; edge point). Reviewed by
+the orchestrator's read (tests only, mutants demonstrated). Filed TINT's
+`dual-tangent-is-unpinned-for-seven-recipe-verbs`.
+
+## 2026-10-02 — `face-clearance-screen-skips-boundary-edges-it-cannot-read` closed (PR #3786)
+
+Predicate 2's boundary-pair screen reads each support loop whole
+(`screened_loop`) and refuses what it cannot read instead of skipping it.
+Two arms are reachable on a tier-1-valid body through `fillet_edges`: a
+lone-vertex ring and an uncertified boundary carrier, both now
+`UnsupportedGeometry` naming the entity (each pinned by a row that reds on
+main). The other three (unresolved face, loop/cycle, half-edge) are torn-body
+states, refused `BodyNotIntact`. `touches_any` refuses an unresolved edge
+rather than reading it as apart, and the surgery's three
+`filter_map(get_half_edge)` member reads became its typed no-cycle refusal.
+Reviewed by the orchestrator's read (cost E).

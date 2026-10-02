@@ -2,8 +2,10 @@
 id: ray-wall-and-cone-near-root-cancels-over-a-small-lead
 kind: issue
 title: the cylinder and cone ray casts take the near root through a cancelling -b + sqrt(disc) divided by a lead only decided nonzero, 5.8e-11 off at eps 1e-12 against a 1e-11 band
-status: open
+status: closed
 opened: 2026-09-25
+closed: 2026-10-02
+branch: reach/opensign-red
 priority: P2
 cost: D
 ---
@@ -57,3 +59,25 @@ the two-sided hull is then as narrow as the root itself. Here the sign
 of `b2` picks WHICH of two roots the stable formula names, and at
 `b2 = 0` the two are `±√disc/a2`, which do not coincide. So no factor
 vanishes, and the frame decision above is still the repair.
+
+## Closed (2026-10-02)
+
+The repair needs no frame decision. Each root is spelled two ways,
+`(−b ∓ √disc)/a` and `c/(−b ± √disc)`, and `select_le_zero` on `b`
+picks, per root, the spelling whose sum adds magnitudes. Both spellings
+name the same root, so where `b` straddles zero at `Interval` the hull of
+the two is as narrow as either. The finding's objection was to a sign
+that picks WHICH root the formula names; this one picks only how a root
+is written. `solid_contain::quadratic_roots` is the one home, used by
+the wall, the sphere, the cone and the torus's two quadratic factors.
+
+The row is `solid_contain::wall_root_rows::a_near_axis_rays_exit_root_is_right_to_the_band`:
+a near-axis exit root that the textbook form gets wrong by 1.1e-11 at
+ε = 1e-12 and by 8.4e-8 at ε = 1e-9, and the new form by 4.5e-14 and
+4.5e-11.
+
+A root's error against the exact geometry also carries `c`'s own
+rounding (`|w⊥|² − r²` cancels for a point near the wall), which moves
+the near root by about as much as the cancellation did there. That is
+the input's conditioning on a near-axis line, not the formula's; no
+spelling of the roots removes it.

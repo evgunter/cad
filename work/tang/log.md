@@ -282,3 +282,13 @@ lane is not an orchestrator. In-process lanes still run with
 - **`a-pinch-union-refuses-ring-homing-in-one-member-order`** — cloud
   lane `tang/pinch-union-order`. Review: single, FULL (an
   order-dependence defect in ring homing).
+## 2026-10-02 — the E batch lands (PR 3784) (TANG orchestrator)
+
+Review tier: the orchestrator's read (diff read; `gate ok` green).
+`loop_shape` is now `loop_circle`, and the three classes nothing read
+are gone. `RimRouting::Cusp`'s refusal names both real gaps, the
+pair's locus arm and the kiss-edge consumer. The coaxiality docs name
+the axis-shaped channel. `tangent_locus`'s doc states the ruled reason
+a circle arm waits. Sweep siblings fixed in `docs/KERNEL-VERBS.md` and
+`verbs_cylsph_tangent_residuals.rs`. Both rows closed.
+- 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)

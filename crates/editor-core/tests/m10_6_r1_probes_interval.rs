@@ -1366,7 +1366,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             node,
             &Selector::of(NamePat::of_kind(EntityKind::Face)),
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                geom_brep::SurfaceKind::Cylinder,
+                geom::SurfaceKind::Cylinder,
             ))],
             &r.doc.param_env::<f64>(),
             tol,
