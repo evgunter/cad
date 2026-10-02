@@ -22,3 +22,25 @@ ruling and the repair shape (a `GeomSource` read first, allowlisted
 `eq_bits` only where no recipe exists) are on the row. The gate half
 is filed on GUARD.
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/split.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+
+## 2026-10-02 — first sitting: track taken
+
+An orchestrator holds the track (`status: active`). CLEAVE (active)
+shares `topo::split`'s ground (`crates/topo/src/splitting/*`); lanes
+here announce that seam in their PRs.
+
+**Review posture, answered** (the plan left it open): single FULL
+review (claims + style lane) on the two P0 units — both change what a
+public door decides, so believing them takes more than reading them;
+orchestrator's read for the `E` rows that ride along. No dual: neither
+unit is a broad architectural choice, and Ev already ruled the shape
+of the `rim_of` repair (PR 3156).
+
+**Dispatch, wave 1** (both measure first, since main has moved a long
+way under these rows since they were filed):
+- `tquery/split-cyl-feature` — `split-refuses-cylindrical-feature-box`:
+  re-measure both variants on current main, diagnose, fix.
+- `tquery/rim-of-recipe` — `rim-of-compares-point-bits-…` (Ev's
+  ruling) which also decides `rim-of-refuses-extruded-multi-arc-rims`;
+  riders in the same file: `rim-of-flattens-a-dangling-curve-key`,
+  `tquery-refusal-prose-outgrows-the-viewer`.
