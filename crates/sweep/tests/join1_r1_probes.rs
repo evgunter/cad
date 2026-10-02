@@ -115,6 +115,24 @@ fn overlap(a: (f64, f64), b: (f64, f64)) -> f64 {
 }
 
 fn outcome(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {
+    // delta-2 review: operand column.
+    let opnd = match &r {
+        Ok(rr) => match rr.body() {
+            Some(bb) => {
+                let far = brick((50.0, 51.0), (50.0, 51.0), (0.0, 1.0), tol());
+                match topo::union(&bb.body, &far, tol()) {
+                    Ok(_) => " OPERAND=ok".to_string(),
+                    Err(e) => format!(" OPERAND=REFUSED {:?}", e.kind()),
+                }
+            }
+            None => String::new(),
+        },
+        Err(_) => String::new(),
+    };
+    format!("{}{opnd}", outcome_inner(r, want))
+}
+
+fn outcome_inner(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {
     match r {
         Err(e) => {
             let s = format!("{e:?}");

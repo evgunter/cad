@@ -29,3 +29,5 @@ Running notes; restart-safe. Delta under review: 21b7f289..be0732270 net of main
   ERR RestZipUnsupported -> SOUND: 8   e.g. BRICK x=(-0.5, 1.0) y=(-0.5, 1.5) z=(-1.0, 0.0) decl=true AB U
 - head ignored join1_r1_*/delta_probes: all green except join1_r1_hex_detail (detail probe, expected). BADs: REFLEX sqQ1 sx=-0.5 sy=0.25 U v=16 (filed P0 work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume, pre-existing on main); SEAM ball S EMPTY WRONG want=5e-8 (oracle polygonisation residue).
 - the_peg_collar_unions_are_operands: GREEN with --ignored on head (proud+flush OK SOUND). Still #[ignore] in tree, contrary to PR body.
+- R1 all ignored batteries (reflex/tube/seam/declared/capsule/battery) main->head: 91938 poses; no SOUND->refusal; 4 BAD->FanStartMismatch; head BAD 2 (pre-existing); with operand column patched into join1_r1_probes outcome on review branch: 50470 builds, 0 operand refusals.
+- head sweep `all` release: 1913/1913 green at default eps and at CAD_TOLERANCE_EPS=1e-6.
