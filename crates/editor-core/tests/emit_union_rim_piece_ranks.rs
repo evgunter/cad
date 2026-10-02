@@ -454,8 +454,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// `work/emit/an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order.md`
 /// owns it.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 3338318820429833347),
-    ("r5pokehi", "U", 4, 4874358057828698747),
+    ("r5poke", "U", 4, 4887195795164089861),
+    ("r5pokehi", "U", 4, 1531953391093785927),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.

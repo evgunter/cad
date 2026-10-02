@@ -1692,7 +1692,6 @@ mod roster_tests {
     /// so the list is derived here and compared by NAME rather than
     /// by count: a helper added and a helper renamed are different
     /// edits to the doc, and a count cannot tell them apart.
-    use pncad::document::ExtrudeSide;
     #[test]
     fn the_helpers_that_take_no_ui_are_the_ones_named_here() {
         let source = test_utils::source::code_only(include_str!("widgets.rs"));
@@ -3579,7 +3578,7 @@ mod value_field_tests {
                     profile,
                     distance: Expr::written_length(WrittenLength::canonical_in(canonical, MM))
                         .expect("a finite written length"),
-                    side: ExtrudeSide::Along,
+                    side: pncad::document::ExtrudeSide::Along,
                 },
                 tol,
             );

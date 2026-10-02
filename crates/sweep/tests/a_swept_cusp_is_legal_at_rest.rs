@@ -143,15 +143,7 @@ fn on_the_rim(p: &Point3<f64>) -> bool {
 fn a_cusp_extrude_is_legal_either_way_it_extrudes() {
     let profile = validated(vec![lune()]);
     for d in [1.0, -1.0] {
-        let built = extrude(
-            &profile,
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
+        let built = extrude(&profile, crate::common::to_offset(d), Tol::witness()).unwrap();
         let cusps = tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
         assert!(
             built.strut_edges()[0].contains(&Some(cusps[0])),
@@ -257,15 +249,7 @@ fn a_raw_authored_cusp_is_legal_like_the_door() {
     let profile = validated(vec![raw_lune()]);
     assert_eq!(profile.loops()[0].tangent_joints(), &[2]);
     for d in [1.0, -1.0] {
-        let built = extrude(
-            &profile,
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
+        let built = extrude(&profile, crate::common::to_offset(d), Tol::witness()).unwrap();
         tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
     }
 }
@@ -282,15 +266,7 @@ fn a_hole_cusp_is_a_legal_slit_at_either_sign_and_either_winding() {
     for hole in [lune(), raw_lune()] {
         let profile = validated(vec![plate.clone(), hole]);
         for d in [1.0, -1.0] {
-            let built = extrude(
-                &profile,
-                Extrusion::Distance {
-                    depth: d,
-                    side: ExtrudeSide::Along,
-                },
-                Tol::witness(),
-            )
-            .unwrap();
+            let built = extrude(&profile, crate::common::to_offset(d), Tol::witness()).unwrap();
             tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
         }
     }

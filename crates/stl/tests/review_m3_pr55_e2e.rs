@@ -43,7 +43,7 @@ fn slab(
     extrude(
         &validated(sketch_from_axes(origin, u, v, Tol::witness()), lp),
         Extrusion::Distance {
-            depth: depth,
+            depth,
             side: ExtrudeSide::Along,
         },
         Tol::witness(),

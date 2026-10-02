@@ -686,3 +686,19 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
     sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
 }
+
+/// The extrusion whose far cap sits at signed offset `d` along the
+/// sketch normal: depth `|d|`, toward the side `d`'s sign names — how
+/// a row that runs "both directions" over one signed offset spells it
+/// at the door, which takes the pair. What a suite drives a door WITH,
+/// so it routes here.
+pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
+    sweep::Extrusion::Distance {
+        depth: d.abs(),
+        side: if d < 0.0 {
+            sweep::ExtrudeSide::Against
+        } else {
+            sweep::ExtrudeSide::Along
+        },
+    }
+}

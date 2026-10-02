@@ -744,8 +744,7 @@ fn accounting_text() -> String {
 /// so there is one home and a change to either reds this golden, which
 /// is exactly what a golden about someone else's fixture is for.
 fn planted_flip() -> ProfileDoc {
-    let eps = Tol::witness().eps();
-    crate::m10_3_driver_interval::slab(20.0 * eps, 40.0 * eps)
+    crate::m10_3_driver_interval::notch(-0.25, 0.3)
 }
 
 fn terminal_sliver() -> ProfileDoc {

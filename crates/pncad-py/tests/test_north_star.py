@@ -4341,7 +4341,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "bind_v_degree_param", "delete_node",
                 "insert_node", "rebind", "set_doc_param",
                 "set_doc_param_distribution", "set_doc_param_unit",
-                "set_doc_param_value",
+                "set_doc_param_value", "set_extrude_side",
                 "set_gauge", "set_label", "set_members", "set_offset",
                 "set_param", "set_program", "set_roots",
                 "set_tolerance", "update_reference",

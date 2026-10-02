@@ -148,7 +148,7 @@ let tol = Tol::witness();
 #         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #         .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
@@ -224,7 +224,7 @@ let applied = apply(&doc, &DocEdit::InsertNode {
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Extrude { profile, distance: len(1.0) }),
+    node: Box::new(Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along }),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol, &pncad::document::RefusingReach);
@@ -466,7 +466,7 @@ let tol = Tol::witness();
 # let rect: ClosedLoop<f64> = Open
 #     .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #     .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
-# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?, Extrusion::Distance(real(1.0)), tol)?.body;
+# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?.body;
 match validate_geometric(&body, tol) {
     Ok(()) => { /* the body is sound at tier 3 */ }
     Err(failures) => {

@@ -102,10 +102,10 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     r.doc
 }
 
-/// **A bounded chamber**: two extrudes, distances `q` and `c - q`, so
+/// **A bounded chamber**: two extrudes, depths `q` and `c - q`, so
 /// the witness branch holds only for `q` inside an interval bounded on
-/// BOTH sides — the geometry a containment-firing drive needs, and
-/// different geometry from every fixture the PR ships. A door for the
+/// BOTH sides, past either end of which one depth refuses — different
+/// geometry from every fixture the PR ships. A door for the
 /// tier's cost rows (`m10_sym_profile_interval`,
 /// `m10_sym_drive_memo_interval`); nothing in this suite drives it.
 pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {

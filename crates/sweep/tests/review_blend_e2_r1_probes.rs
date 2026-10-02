@@ -19,7 +19,6 @@
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
-use sweep::ExtrudeSide;
 use sweep::test_support::sketch_from_axes;
 use sweep::{Extruded, Extrusion, extrude};
 use topo::{Body, FaceKey, LoopBoundary, LoopKey, validate_geometric};
@@ -153,13 +152,7 @@ fn cap_chain(t: &Extruded<f64>, plane: &SketchPlane<f64>, lp: LoopKey) -> Vec<Po
 /// Both doors reaching the same signed `w · n`.
 fn doors(plane: &SketchPlane<f64>, d: f64) -> Vec<(&'static str, Extrusion<f64>)> {
     vec![
-        (
-            "Distance",
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
-        ),
+        ("Distance", crate::common::to_offset(d)),
         ("Vector", Extrusion::Vector(plane.normal() * d)),
     ]
 }

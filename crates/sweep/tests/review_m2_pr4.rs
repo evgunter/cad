@@ -267,10 +267,7 @@ fn survives_digon_outer_both_directions() {
     for d in [1.0, -1.0] {
         let t = extrude(
             &validated(vec![circle_loop(0.0, 0.0, 0.5)]),
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
+            crate::common::to_offset(d),
             Tol::witness(),
         )
         .unwrap();
@@ -317,15 +314,7 @@ fn survives_two_arc_hole_hand_traced_cycles() {
     assert_eq!(vp.loops()[1].role(), LoopRole::Hole);
 
     for d in [1.0f64, -0.5] {
-        let t = extrude(
-            &vp,
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
+        let t = extrude(&vp, crate::common::to_offset(d), Tol::witness()).unwrap();
         assert_all_tiers(&t.body);
         let (v, e, f, r) = counts(&t.body);
         assert_eq!((v, e, f, r), (12, 18, 8, 2));
@@ -522,15 +511,7 @@ fn survives_reversal_maps_and_orientation() {
     ));
 
     for d in [0.75, -0.75] {
-        let t = extrude(
-            &vp,
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
+        let t = extrude(&vp, crate::common::to_offset(d), Tol::witness()).unwrap();
         assert_all_tiers(&t.body);
         assert!(signed_volume(&t.body) > 0.0, "d = {d}");
         let (top_z, bot_z) = (
@@ -580,15 +561,7 @@ fn survives_reversal_maps_and_orientation() {
     // for planar faces): area 3, both directions.
     let vp_l = validated(vec![l_loop()]);
     for d in [1.5, -1.5] {
-        let t = extrude(
-            &vp_l,
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
+        let t = extrude(&vp_l, crate::common::to_offset(d), Tol::witness()).unwrap();
         let v = signed_volume(&t.body);
         assert!((v - 3.0 * d.abs()).abs() < 1e-9, "d {d}: V = {v}");
     }
@@ -611,15 +584,7 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
     // corner is canonical vertex 1.
     assert_eq!(vp.loops()[0].vertices()[1].x, 1.0);
     for d in [1.0e-3, -1.0e-3] {
-        let err = extrude(
-            &vp,
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap_err();
+        let err = extrude(&vp, crate::common::to_offset(d), Tol::witness()).unwrap_err();
         match err {
             ExtrudeError::SliverJoin {
                 loop_index,
@@ -1421,10 +1386,7 @@ fn survives_rebuild_byte_identity_zoo() {
                 .collect();
             extrude(
                 &validated(loops),
-                Extrusion::Distance {
-                    depth: *d,
-                    side: ExtrudeSide::Along,
-                },
+                crate::common::to_offset(*d),
                 Tol::witness(),
             )
             .unwrap()

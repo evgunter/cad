@@ -204,15 +204,7 @@ fn extruded_runs_build_one_wall_each() {
     ]);
     let v = prof(vec![outer, hole]);
     for d in [2.0, -2.0] {
-        let e = extrude(
-            &v,
-            Extrusion::Distance {
-                depth: d,
-                side: ExtrudeSide::Along,
-            },
-            tol(),
-        )
-        .unwrap();
+        let e = extrude(&v, crate::common::to_offset(d), tol()).unwrap();
         let z0 = if d > 0.0 { 0.5 } else { -1.5 };
         holds(
             &format!("extrude hole d={d}"),
