@@ -8,6 +8,7 @@ priority: P3
 cost: M
 design: true
 refs: [validate-passes-a-body-with-a-zero-width-slit-face, 3797]
+needs_ev: true
 ---
 
 
@@ -36,3 +37,22 @@ boolean's outputs do through `ContactRecords`? A pseudomanifold
 self-check of split's outputs, and the at-rest census of a stored pinch
 half, both depend on the answer. Which layer declares them, and in what
 vocabulary, is a design choice, so weigh it before building.
+
+## The fork (2026-10-02)
+
+Weighed by a designer pair and then a further designer
+(`docs/DESIGN-FORK-LOG.md` row 45). Both answers keep a pinch half as
+one body. They differ on how the touch is held:
+
+- **Shared point.** The copies an op cuts from one vertex keep that
+  vertex's `PointKey`. The census counts two vertices on one point as
+  structural sharing, the ladder's first rung, as it already counts
+  faces on one `SurfaceKey`. No record is needed.
+- **Records.** Each split side comes back as a body plus
+  `ContactRecords`, the boolean's shape. The records are projected at
+  mint time from `SplitReduction::null_edges`.
+
+The deciding question: when an op mints two vertices from one, is their
+coincidence an identity inside the body, or a placement the op asserts
+and the census verifies? The `[ev]` PR carries both, and DESIGN.md
+tier 3′ is edited to the recommended answer.
