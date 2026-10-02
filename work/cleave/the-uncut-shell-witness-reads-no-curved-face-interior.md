@@ -46,3 +46,12 @@ loop decides. If neither loop decides, the join refuses with
 `JoinDesync` ("neither section loop's regions hold a decisive
 witness"). No row reaches that refusal.
 
+## Under the `On` verdict (FUSE, branch `fuse/on-verdict`)
+
+The uncut-shell caller no longer ends at `ShellWitnessExhausted` when
+every witness read `OnBoundary` with none in band: it then asks the
+`On` question (`shell_witness::on_verdict`). This row's shape reaches
+it, and where the off-boundary curved face has no settled coincidence
+pair it refuses `CoincidentShell { orientation: Unpaired { face } }`
+instead. Still a refusal, still unreached by a
+fixture; the fix above is unchanged. The join caller is untouched.
