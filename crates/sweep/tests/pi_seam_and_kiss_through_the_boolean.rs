@@ -232,7 +232,9 @@ fn a_cap_abutting_on_the_rim_refuses_whatever_the_corner_with_its_discs_declared
         "the dome fixture is the spherical cap on the rim: {v} vs {dome_v}"
     );
     let cap_t = planes_at_z(&tube, H);
-    // G1 (wedge π), transverse (45°), and the same carrier continued.
+    // G1 (wedge π), transverse (45°), and the same carrier continued —
+    // whose walls are an undeclared continuation, refused at the
+    // reduction before the crossing layer is reached (C4).
     for (label, cap) in [
         ("hemisphere", hemisphere_on_the_cap()),
         ("dome", dome),
@@ -246,6 +248,19 @@ fn a_cap_abutting_on_the_rim_refuses_whatever_the_corner_with_its_discs_declared
                 // the tube's wall lands in band and escalates
                 // (`bool_circle_curved_clearance`) rather than piercing:
                 // the same crossing layer, one predicate earlier.
+                if label == "stacked cylinder" {
+                    assert!(
+                        matches!(
+                            e,
+                            BooleanError::UndeclaredCoincidence {
+                                relation: topo::PlaneRelation::SameOriented,
+                                ..
+                            }
+                        ),
+                        "{label}, discs {class:?}: the walls' undeclared continuation: {e:?}"
+                    );
+                    continue;
+                }
                 assert!(
                     is_pierce(&e) || matches!(e, BooleanError::Escalated { .. }),
                     "{label}, discs {class:?}: the crossing layer's refusal: {e:?}"

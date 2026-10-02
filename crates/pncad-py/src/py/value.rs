@@ -142,7 +142,7 @@ pub(crate) fn refused(
     // `Evaluation.find_flush_candidates` answers with, ready for
     // `Node.declare`/`Doc.declare`. `None` on every other kind.
     let finding = match kind {
-        d::NodeErrorKind::UndeclaredContact { finding, .. } => {
+        d::NodeErrorKind::UndeclaredCoincidence { finding, .. } => {
             match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
                 Ok(bound) => bound.unbind().into_any(),
                 Err(failed) => return failed,
@@ -1661,7 +1661,9 @@ impl Evaluation {
     /// ambiguity band (`reason="pair_in_band"` — neither reported nor
     /// silently dropped), a tied name whose candidates disagree
     /// (`"tied_disagrees"`), an unreadable name-table entry
-    /// (`"unreadable"`), and an ambient tolerance admitting no band at
+    /// (`"unreadable"`), a matched pair the kernel classifies as
+    /// distinct (`"distinct_finding"`, a kernel defect), and an
+    /// ambient tolerance admitting no band at
     /// all under the constructor's own word (`reason="empty"` when K·ε
     /// collapsed back onto ε, `"invalid_value"` when it overflowed).
     fn find_flush_candidates(

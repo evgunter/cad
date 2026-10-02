@@ -1394,3 +1394,24 @@ Spec `docs/SYM-15-SPEC.md`. Branch `sym/15-wedge-poison` from `main`.
   - The schedule leaves the box certificate.
   - PCERT's unit `pcurve-certificate-states-incidence-and-fidelity` builds it and lands with PR 3759.
   - Nothing is owed by SYM. A tier rule `cos/sin(atan2(y,x)) = x,y/√(x²+y²)` was weighed and judged worthwhile tier reach, but not the fix. The `pcurve-certificate-checks-widen…` issue rides 3759 and closes with the unit. (PCERT orchestrator)
+
+## 2026-10-02 — SYM-15 merged (#3804): the wedge poison is legitimate, named, and its levers filed
+
+Phase 1 stopped under the spec's first stop rule; the review found the
+stop only partly right (2 MAJOR). The ε-dependent wall is the `sin θ`
+formula's dependency (lever i, local to `dihedral.rs`), not width lost
+upstream; the poison point is the transform's decorrelated images
+(lever ii, SHELL's `transform.rs`); and the cause-naming refusal was
+local, so the spec's legitimate-poison Phase 2 shipped:
+`CertCheck::TangentPlanes`, read only after the wedge decision refuses,
+verdict-neutral over geom-brep, topo, sweep and the tour. Pins: the
+chain's wall row's message; the minimal row renamed
+`a_cylinder_gradient_reaching_zero_leaves_no_tangent_plane`. Successors:
+`work/props/interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`
+and `work/shell/transform-rigid-recertifies-images-enclosed-apart` (P2
+each); a seam line on PROPS'
+`invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`
+for `classify_dihedral`'s other callers. The chain's mechanism has one
+home, `chaintol.rs`'s "What sets the wall". Spec deleted
+(`docs/doc-ledger/sym-15-spec.md`). The arm's straddle
+(`a-chain-of-three-joints-straddles-dihedral-arm`) is next behind it.

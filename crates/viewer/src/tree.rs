@@ -1196,7 +1196,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // no row of this tree is.
         NodeErrorKind::Part { .. }
         | NodeErrorKind::DeclareResolve { .. }
-        | NodeErrorKind::UndeclaredContact { .. }
+        | NodeErrorKind::UndeclaredCoincidence { .. }
         | NodeErrorKind::UndeclarableContact { .. }
         | NodeErrorKind::BlendSelectionResolve { .. }
         | NodeErrorKind::BlendSelectionKind { .. }
