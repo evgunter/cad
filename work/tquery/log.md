@@ -55,3 +55,4 @@ way under these rows since they were filed):
 - 2026-10-02 — `split-edges-key-retention-direction-is-pinned-by-no-row`
   dispatched (`tquery/split-edge-retention`), orchestrator's-read tier:
   a test-only row whose content is written in the item.
+- 2026-10-02 — designers agreed on the final state (one kind mirror per enum, in `geom`; sets stay in `topo::query`), split only on authoring (hand-written vs `strum` derive); `[ev]` PR 3763 opened carrying both reports as A/B (fork-log row 41).
