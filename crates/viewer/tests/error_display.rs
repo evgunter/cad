@@ -450,7 +450,7 @@ fn indeterminate_wording_forwards_the_causes_own_words() {
             node: RecipeNodeId(tagged(6)),
         },
     };
-    let shown = indeterminate_wording("face", &cause);
+    let shown = indeterminate_wording("face", &cause, Speaker::TAG);
     assert!(shown.contains("face"), "{shown}");
     assert!(shown.contains(&cause.to_string()), "{shown}");
     prose(&shown, "ResolveIndeterminate");

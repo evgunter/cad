@@ -30,10 +30,10 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **two** of the seven doors that read a box from
-//! here; at four of the other five, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL, and at the fifth it is more
-//! exact work AND can be a refusal:
+//! PRUNES. That is **two** of the eight doors that read a box from
+//! here; at four of the other six, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the other two it is
+//! more exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
@@ -49,6 +49,16 @@
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
 //!   operation whose faces never meet.
+//! - `boolean::reduce`'s undeclared-continuation scan
+//!   (`refuse_undeclared_continuations`, its boxes built by the
+//!   driver in `boolean/mod.rs` and passed in) mostly PRUNES: a face pair
+//!   or an edge pair whose boxes clear is never asked, and whether two
+//!   faces meet is decided point-on-edge through `Decide`, so a bigger
+//!   box costs exact work there. Its one box-decided answer is the
+//!   fallback for an edge whose carrier has no point parameter
+//!   (ellipse, spline), which reads a long enough overlap as a shared
+//!   curve. There a bigger box can refuse, as an undeclared
+//!   continuation, a pair that only touches.
 //! - `separation` GRANTS on non-overlap — `Ok(())` IS the
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.
@@ -79,10 +89,10 @@
 //!   (`bool4r1_probes::probe_d`).
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The seven are not
+//! about a door, and the door has to be named. The eight are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! an eighth door cannot land unargued. **It pins WHERE the doors are
+//! a ninth door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -3046,9 +3056,16 @@ pub(crate) mod tests {
         // occurrence cannot arrive, leave or move unnoticed — which it
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
-        const PINNED: [(&str, usize); 4] = [
+        //
+        // `boolean/mod.rs`'s two and three of `boolean/reduce.rs`'s
+        // eight are ONE door, the undeclared-continuation scan: the
+        // driver builds its padded boxes (`boxes::face_box`/`edge_box`
+        // at `pad`) and hands them in as closures, and the scan's own
+        // calls through those closure parameters match the same text.
+        const PINNED: [(&str, usize); 5] = [
+            ("boolean/mod.rs", 2),
             ("boolean/ops.rs", 4),
-            ("boolean/reduce.rs", 5),
+            ("boolean/reduce.rs", 8),
             ("census.rs", 7),
             ("separation.rs", 2),
         ];

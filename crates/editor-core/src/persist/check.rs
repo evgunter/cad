@@ -2350,7 +2350,7 @@ mod tests {
                                 rv_name(derived, crate::names::EntityKind::Face),
                             ),
                         ),
-                        crate::mate::ContactClass::Rest,
+                        topo::BooleanCoincidence::REST,
                     )],
                 },
             );

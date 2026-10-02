@@ -159,10 +159,11 @@ fn the_merged_union_refuses_an_undeclared_third_brick_across_operands() {
         "({fa:?}, {fb:?}) is a flush pair of the two operands: {:?}",
         flush.coincident_faces
     );
-    // ...and it is the two BOTTOM caps: the merged union's octagonal
-    // bottom and c's bottom, the first flush pair the gate meets.
-    assert_eq!(face_height(&af.body, fa), Some(0.0), "{err:?}");
-    assert_eq!(face_height(&c(), fb), Some(0.0), "{err:?}");
+    // ...and it is the two TOP caps: the merged union's octagonal top
+    // and c's top, the first continuation the reduction's scan meets in
+    // arena order.
+    assert_eq!(face_height(&af.body, fa), Some(1.0), "{err:?}");
+    assert_eq!(face_height(&c(), fb), Some(1.0), "{err:?}");
 }
 
 /// **The bent seam's corner is deleted, and no record survives to
