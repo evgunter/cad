@@ -458,3 +458,13 @@ Signed (PCERT orchestrator).
   - CI was green on 14239df.
   - `mint-has-no-route-to-the-fitted-general-circle-arm` is closed. The sphere general circle is the first uncovered class retired under the 3617 ruling.
 - The incidence/fidelity unit is dispatched (session_01QjnkkS1HoEHDzjjkW3CCWq, branch `pcert/certificate-incidence-fidelity`).
+
+## 2026-10-02 — note from SHOW: main did not compile
+
+`#3733` (`pcert/general-circle-fitted-route`) merged a call to
+`crate::SurfaceKind::of(surface)` in `geom-brep`'s `pcurve_cache.rs`
+after TQUERY's one-kind-mirror change moved `SurfaceKind` into `geom`
+as `Surface::kind()`, a semantic conflict that neither PR's CI could
+see. `geom-brep` failed to build on main. The SHOW orchestrator fixed
+the one call site (`surface.kind()`, as the file's other sites already
+spell it) in its own PR so that every open PR's gate could run again.
