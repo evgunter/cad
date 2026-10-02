@@ -83,7 +83,7 @@ fn full_wire_holed_revolve_names_totally() {
             t.lookup(&minted(
                 EntityKind::Edge,
                 rev,
-                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 1, s))
+                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 1, s).into())
             ))
             .is_some()
         );

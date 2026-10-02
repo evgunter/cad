@@ -593,6 +593,15 @@ fn nurbs_tighten(
                            torus, so no spline chart mints one",
                 });
             }
+            // As the spiric: a cone-section image certifies on a cone
+            // chart only, so no spline chart mints one.
+            Pcurve::ConeSection { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a CONE-SECTION pcurve — that \
+                           image lives on a cone chart, so no spline chart mints one",
+                });
+            }
         };
         n = n
             .max(ceil_count(su * span, hu)?)

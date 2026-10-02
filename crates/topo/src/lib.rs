@@ -287,7 +287,7 @@ pub mod test_support {
         assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
         cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, face_surface_of_he,
         flush_declarations, geometric_cube, holed_block, identity_map, line, mapped_cube, plane,
-        plant_ring_face, prism, prism_ops, prism_z, straddle_seat,
+        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_samples::validation_error_samples;
@@ -601,7 +601,7 @@ pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
-pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
+pub use boolean::{PlantedDegradation, sweep_records, sweep_traces, sweep_traces_with_pad};
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the

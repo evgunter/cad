@@ -846,6 +846,76 @@ pub fn circle_sphere_harmonic<T: Real>(
     }
 }
 
+/// The residual of a circle against a cylinder wall as a trigonometric
+/// polynomial of degree two in the circle's parameter `θ`, in metres of
+/// residual:
+/// `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ`.
+///
+/// With `⊥x = x − â(â·x)`, `e = ⊥(C₀ − o)` and
+/// `w(θ) = e + ρ(⊥û cos θ + ⊥v̂ sin θ)`, the wall's linearized residual
+/// `(|w|² − r²)/2r` is EXACTLY this polynomial, so `[c₀ − A₁ − A₂,
+/// c₀ + A₁ + A₂]` bounds its range and the coefficients are the roots'
+/// own input — the one home of this algebra, read by the whole-turn
+/// range here and by the boolean's circle × cylinder root door.
+#[derive(Debug, Clone, Copy)]
+pub struct CircleCylinderHarmonics<T> {
+    /// The constant term.
+    pub c0: T,
+    /// The first harmonic's cosine coefficient, `2ρ e·⊥û / 2r`.
+    pub c1: T,
+    /// The first harmonic's sine coefficient, `2ρ e·⊥v̂ / 2r`.
+    pub s1: T,
+    /// The second harmonic's cosine coefficient.
+    pub c2: T,
+    /// The second harmonic's sine coefficient.
+    pub s2: T,
+    /// A bound on every magnitude the coefficients are built from (m²,
+    /// before the `2r` division), the rounding of the projection
+    /// included: `(|C₀ − o| + ρ)² + r²` — the scale their rounding is
+    /// charged against.
+    pub terms: T,
+}
+
+/// [`CircleCylinderHarmonics`] for the circle
+/// `center + radius·(u_ref cos θ + (axis × u_ref) sin θ)` against the
+/// wall `(origin, w_axis, w_radius)`. Frame precondition as for
+/// [`circle_arc_residual_range`]: `axis`, `u_ref` and `w_axis` unit,
+/// `axis ⊥ u_ref`, unchecked. Total arithmetic.
+#[must_use]
+pub fn circle_cylinder_harmonics<T: Real>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    origin: Point3<T>,
+    w_axis: Vec3<T>,
+    w_radius: T,
+) -> CircleCylinderHarmonics<T> {
+    let two = T::from_f64(2.0);
+    let half = T::from_f64(0.5);
+    // Named binding so the interval-square tripwire's grep does not
+    // false-positive on `a * a.dot(x)` (vector × projection
+    // coefficient, not a scalar square) — the blend.rs precedent.
+    let perp = |x: Vec3<T>| {
+        let along = w_axis.dot(x);
+        x - w_axis * along
+    };
+    let d = center - origin;
+    let e = perp(d);
+    let (up, vp) = (perp(u_ref), perp(axis.cross(u_ref)));
+    let (uu, vv) = (up.norm_squared(), vp.norm_squared());
+    let rho2 = radius.powi(2);
+    let per = two * w_radius;
+    CircleCylinderHarmonics {
+        c0: (e.norm_squared() + rho2 * (uu + vv) * half - w_radius.powi(2)) / per,
+        c1: two * radius * e.dot(up) / per,
+        s1: two * radius * e.dot(vp) / per,
+        c2: rho2 * (uu - vv) * half / per,
+        s2: rho2 * up.dot(vp) / per,
+        terms: (d.norm() + radius).powi(2) + w_radius.powi(2),
+    }
+}
+
 /// The composed residual's harmonic decomposition in RESIDUAL units:
 /// `(c₀, A₁, A₂)` of `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)`. The whole-turn
 /// range and the curvature bound are both views of this one algebra
@@ -865,7 +935,6 @@ fn circle_residual_harmonics<T: Real>(
     radius: T,
     u_ref: Vec3<T>,
 ) -> Option<(T, T, T)> {
-    let two = T::from_f64(2.0);
     let u = u_ref;
     let v = axis.cross(u_ref);
     let amp = |a: T, b: T| (a.powi(2) + b.powi(2)).sqrt();
@@ -889,26 +958,8 @@ fn circle_residual_harmonics<T: Real>(
             radius: r,
             ..
         } => {
-            // The radial part w(θ) = perp(e) + R_c(perp(û)cosθ +
-            // perp(v̂)sinθ) has |w|² of trigonometric degree ≤ 2; its
-            // constant term and harmonic amplitudes are exact, and
-            // |A₁ cos + B₁ sin| + |second harmonic| bounds the swing.
-            // Named binding so the interval-square tripwire's grep does
-            // not false-positive on `a * a.dot(x)` (vector × projection
-            // coefficient, not a scalar square) — the blend.rs precedent.
-            let perp = |x: Vec3<T>| {
-                let along = a.dot(x);
-                x - a * along
-            };
-            let e = perp(center - origin);
-            let up = perp(u);
-            let vp = perp(v);
-            let c0 =
-                e.norm_squared() + radius.powi(2) * (up.norm_squared() + vp.norm_squared()) / two;
-            let a1 = two * radius * amp(e.dot(up), e.dot(vp));
-            let a2 =
-                radius.powi(2) * amp((up.norm_squared() - vp.norm_squared()) / two, up.dot(vp));
-            Some(((c0 - r.powi(2)) / (two * r), a1 / (two * r), a2 / (two * r)))
+            let h = circle_cylinder_harmonics(center, axis, radius, u_ref, origin, a, r);
+            Some((h.c0, amp(h.c1, h.s1), amp(h.c2, h.s2)))
         }
         // `Approx` joins the no-closed-form group: the fit is a spline
         // and the description's offset locus has no harmonic residual.

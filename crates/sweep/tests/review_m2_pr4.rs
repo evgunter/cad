@@ -251,7 +251,7 @@ fn dump(t: &Extruded<f64>) -> String {
     for (k, h) in t.body.half_edges() {
         s.push_str(&format!("{k:?} {h:?}\n"));
     }
-    s.push_str(&format!("{:?} {:?}\n", t.side_faces, t.strut_edges));
+    s.push_str(&format!("{:?} {:?}\n", t.side_faces(), t.strut_edges()));
     s
 }
 
@@ -518,7 +518,7 @@ fn survives_reversal_maps_and_orientation() {
         // (corner struts carry upgraded Intersection descriptions, so
         // probe the topology: `he_plus` runs bottom → raised, and its
         // start vertex is the swept vertex).
-        for (j, &edge) in t.strut_edges[0].iter().enumerate() {
+        for (j, edge) in t.strut_edges()[0].iter().map(|e| e.unwrap()).enumerate() {
             let he_plus = t.body.get_edge(edge).unwrap().he_plus;
             let bottom_v = t.body.get_half_edge(he_plus).unwrap().start;
             let p = *t
@@ -540,7 +540,7 @@ fn survives_reversal_maps_and_orientation() {
         // Marked-segment map: exactly one cylinder wall; at swept index
         // 1 forward, n−1−1 = 3 reversed.
         let cyl_at = if d > 0.0 { 1 } else { n - 1 - 1 };
-        for (j, &fk) in t.side_faces[0].iter().enumerate() {
+        for (j, &fk) in t.side_faces()[0].iter().enumerate() {
             let sk = t.body.get_face(fk).unwrap().surface;
             let is_cyl = matches!(t.body.get_surface(sk).unwrap(), Surface::Cylinder { .. });
             assert_eq!(is_cyl, j == cyl_at, "d {d} wall {j}");
@@ -627,8 +627,8 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     )
     .unwrap();
     assert_all_tiers(&t.body);
-    let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
-    let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
+    let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
+    let k1 = t.body.get_face(t.side_faces()[0][1]).unwrap().surface;
     assert_ne!(k0, k1, "smooth-at-arm join must not silently share keys");
     // The strut stays conventional: two DISTINCT planes meeting
     // smoothly have zero relative normal curvature, so the pair
@@ -645,7 +645,7 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     // test could not see and `assert_all_tiers` above now does. The
     // row asserts the authority record AND the chart, so a strut that
     // stopped at the scaffolding door fails here as well as there.
-    let strut = t.strut_edges[0][1];
+    let strut = t.strut_edges()[0][1].unwrap();
     let (wall_a, wall_b) = edge_face_surfaces(&t.body, strut);
     assert_ne!(wall_a, wall_b, "the strut separates two distinct walls");
     let chart = match description(&t.body, strut) {
@@ -730,7 +730,7 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     .unwrap();
     assert_all_tiers(&t.body);
     assert!(matches!(
-        description(&t.body, t.strut_edges[0][1]),
+        description(&t.body, t.strut_edges()[0][1].unwrap()),
         EdgeDescription::Intersection { .. }
     ));
 }
@@ -739,10 +739,11 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
 // Assignments 3 + 4 — cosurface sharing and its honesty.
 // =====================================================================
 
-/// Exactly collinear adjacent lines share ONE plane key with a
-/// conventional join strut.
+/// Exactly collinear adjacent lines sweep ONE wall: no strut at their
+/// shared vertex, which stays on both caps (`crates/sweep/README.md`,
+/// "Walls: one per run").
 #[test]
-fn survives_collinear_lines_share_the_plane_key() {
+fn survives_collinear_lines_sweep_one_wall() {
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),
@@ -757,23 +758,20 @@ fn survives_collinear_lines_share_the_plane_key() {
     )
     .unwrap();
     assert_all_tiers(&t.body);
-    let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
-    let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
-    assert_eq!(k0, k1, "collinear walls share one plane");
-    // 2 caps + 4 distinct wall planes (5 segments, one shared pair).
+    let sides = t.side_faces();
+    assert_eq!(
+        sides[0][0], sides[0][1],
+        "collinear segments sweep one wall"
+    );
+    // 2 caps + 4 walls (5 segments, one run of two).
     assert_eq!(t.body.surfaces().count(), 6);
-    // The collinear join's strut: one plane on both sides
-    // under-determines its locus, so it is an image in that shared
-    // chart declared by the profile vertex's extrusion. (Pre-U2 this
-    // was the `MappedCurve` variant; U2 collapsed the conventional
-    // forms, and the authority record plus the chart key are what the
-    // variant stood for.)
-    assert_declared_image_in(&t.body, t.strut_edges[0][1], k0);
-    // The shared-key smooth join is skipped structurally; every true
-    // corner upgraded.
+    assert_eq!(t.body.faces().count(), 6);
+    let struts = t.strut_edges();
+    assert_eq!(struts[0][1], None, "the collinear vertex is a station");
+    // Every true corner upgraded.
     for j in [0usize, 2, 3, 4] {
         assert!(matches!(
-            description(&t.body, t.strut_edges[0][j]),
+            description(&t.body, struts[0][j].unwrap()),
             EdgeDescription::Intersection { .. }
         ));
     }
@@ -801,18 +799,18 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
     assert_all_tiers(&t.body);
     // Walls: [arc, line, line, arc]; the wrap join (segment 3 → 0)
     // shares faces[0]'s cylinder.
-    let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
-    let k3 = t.body.get_face(t.side_faces[0][3]).unwrap().surface;
+    let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
+    let k3 = t.body.get_face(t.side_faces()[0][3]).unwrap().surface;
     assert_eq!(k0, k3, "wrap-join same-carrier arcs share one cylinder");
     // 2 caps + 1 cylinder + 2 planes.
     assert_eq!(t.body.surfaces().count(), 5);
     // Strut 0 (the wrap join) stays conventional — the shared cylinder
     // under-determines its locus, so it is an image in that chart
     // declared by the profile vertex; the line corners upgrade.
-    assert_declared_image_in(&t.body, t.strut_edges[0][0], k0);
+    assert_declared_image_in(&t.body, t.strut_edges()[0][0].unwrap(), k0);
     for j in [1usize, 2, 3] {
         assert!(matches!(
-            description(&t.body, t.strut_edges[0][j]),
+            description(&t.body, t.strut_edges()[0][j].unwrap()),
             EdgeDescription::Intersection { .. }
         ));
     }
@@ -854,7 +852,7 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
     assert_eq!(vp.loops()[0].vertices()[0].x, -1.0);
     let t = extrude(&vp, Extrusion::Distance(0.5), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    let key = |j: usize| t.body.get_face(t.side_faces[0][j]).unwrap().surface;
+    let key = |j: usize| t.body.get_face(t.side_faces()[0][j]).unwrap().surface;
     // The whole wrap-crossing run {2, 3, 0} shares ONE key…
     assert_eq!(key(2), key(3));
     assert_eq!(key(0), key(2), "the wrap-crossing run must share one key");
@@ -871,11 +869,11 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
     // are same-key smooth joins and stay conventional — images in the
     // run's ONE cylinder chart, declared by their profile vertices;
     // the chord's two corners upgrade.
-    assert_declared_image_in(&t.body, t.strut_edges[0][0], key(0));
-    assert_declared_image_in(&t.body, t.strut_edges[0][3], key(0));
+    assert_declared_image_in(&t.body, t.strut_edges()[0][0].unwrap(), key(0));
+    assert_declared_image_in(&t.body, t.strut_edges()[0][3].unwrap(), key(0));
     for j in [1usize, 2] {
         assert!(matches!(
-            description(&t.body, t.strut_edges[0][j]),
+            description(&t.body, t.strut_edges()[0][j].unwrap()),
             EdgeDescription::Intersection { .. }
         ));
     }
@@ -964,8 +962,8 @@ fn survives_cosurface_bitwise_center_agreement() {
     )
     .unwrap();
     assert_all_tiers(&t.body);
-    let k = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
-    assert_eq!(k, t.body.get_face(t.side_faces[0][1]).unwrap().surface);
+    let k = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
+    assert_eq!(k, t.body.get_face(t.side_faces()[0][1]).unwrap().surface);
     let Surface::Cylinder { origin, .. } = *t.body.get_surface(k).unwrap() else {
         panic!("cylinder");
     };
@@ -1022,7 +1020,7 @@ fn survives_mixed_turn_arcs_cap_certifies() {
     // Turn-signed cylinder axes: find the two cylinders and check the
     // axis sign against the canonical segment turns.
     let mut axes = Vec::new();
-    for (j, &fk) in t.side_faces[0].iter().enumerate() {
+    for (j, &fk) in t.side_faces()[0].iter().enumerate() {
         let sk = t.body.get_face(fk).unwrap().surface;
         if let Surface::Cylinder { axis, .. } = *t.body.get_surface(sk).unwrap() {
             let profile::SegmentKind::Arc { turn, .. } = vp.loops()[0].segments()[j].kind else {
@@ -1134,16 +1132,15 @@ fn survives_far_offset_profiles_honest() {
 fn survives_sub_eps_oblique_vector_used_as_given() {
     let dx = 0.5 * eps();
     let v = Vec3::new(dx, 0.0, 1.0);
-    // Use the collinear-bottom profile: its collinear join keeps strut 1
-    // as a conventional ExtrudedPoint (corner struts get re-described as
-    // Intersection, discarding the vec payload), so the stored vector is
-    // observable.
-    let lp = ProfileLoop::polygon([
-        Point2::new(0.0, 0.0),
-        Point2::new(1.0, 0.0),
-        Point2::new(2.0, 0.0),
-        Point2::new(2.0, 2.0),
-        Point2::new(0.0, 2.0),
+    // Use a D whose arc is two cocircular quarters: their join keeps
+    // strut 1 as a conventional ExtrudedPoint image in the one shared
+    // cylinder (corner struts get re-described as Intersection,
+    // discarding the vec payload), so the stored vector is observable.
+    let q = FRAC_PI_8.tan(); // quarter-arc bulge
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), q),
+        (Point2::new(1.0, 0.0), q),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let t = extrude(&validated(vec![lp]), Extrusion::Vector(v), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -1158,20 +1155,20 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
     // moves: the stored vector is still the input, bitwise, and the
     // raised vertices are still measured against it below.
     let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
-        authority(&t.body, t.strut_edges[0][1])
+        authority(&t.body, t.strut_edges()[0][1].unwrap())
     else {
-        panic!("the collinear join's strut keeps its declaring pushforward");
+        panic!("the cocircular join's strut keeps its declaring pushforward");
     };
     assert_eq!(vec.x.to_bits(), v.x.to_bits());
     assert_eq!(vec.y.to_bits(), v.y.to_bits());
     assert_eq!(vec.z.to_bits(), v.z.to_bits());
-    // The raised canonical start vertex (0,0) lands at (dx, 0, 1)
+    // The raised canonical start vertex (0,−1) lands at (dx, −1, 1)
     // exactly: the shear is measurable in the built body, not snapped.
     let top_outer = loop_points(&t.body, t.body.get_face(t.top).unwrap().outer);
     assert!(
         top_outer
             .iter()
-            .any(|p| p.x.to_bits() == dx.to_bits() && p.y == 0.0 && p.z == 1.0),
+            .any(|p| p.x.to_bits() == dx.to_bits() && p.y == -1.0 && p.z == 1.0),
         "raised start vertex must be sheared by exactly the sub-ε component; got {top_outer:?}"
     );
 }

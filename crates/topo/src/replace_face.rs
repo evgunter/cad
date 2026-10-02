@@ -1875,7 +1875,9 @@ fn plan_edge<T: Decide>(
             image: Some(shift_chart_v(&c.pcurve, shift).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
-                    what: "a fitted chart image whose v channel has no closed-form parameter shift",
+                    what: "a chart image with no closed-form parameter shift: a fitted \
+                           image's v channel is a control net, and an offset cone section \
+                           is no plane section of the offset cone",
                 },
             )?),
             seam: false,
@@ -2050,7 +2052,8 @@ fn plan_edge<T: Decide>(
 /// not bend the curve drawn in it. `None` for a fitted image, whose
 /// `v` channel is a control net rather than a closed form — refused
 /// rather than shifted point-by-point, which would author a fit this
-/// door has no certificate for.
+/// door has no certificate for — and for a cone-section image, whose
+/// offset is no plane section of the offset cone.
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
@@ -2106,7 +2109,11 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                 },
             },
         },
-        Pcurve::Fitted(_) | Pcurve::General(_) => return None,
+        // A cone section's image is tied to its cone through `β`, the
+        // projected ellipse's eccentricity: the offset moves the curve
+        // off the plane section it was, so no image of the same form
+        // is shifted out of this one.
+        Pcurve::ConeSection { .. } | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
 
@@ -2519,5 +2526,40 @@ mod offset_fit_door_rows {
             bits(free.fit()),
             "the door's fit and the free function's differ in some bit of their nets"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod shift_chart_v_rows {
+    use geom_brep::Pcurve;
+    use geom_core::{Point2, Vec2};
+
+    use super::shift_chart_v;
+
+    /// The offset's `v` shift moves a harmonic image's constant term and
+    /// refuses a cone-section image, whose offset is no plane section of
+    /// the offset cone.
+    #[test]
+    fn a_cone_section_image_has_no_shift() {
+        let section = Pcurve::ConeSection {
+            u0: 0.1,
+            v0: 2.0,
+            va: -0.4,
+            vb: 0.0,
+            beta: 0.2,
+            sense: 1.0,
+        };
+        assert!(shift_chart_v(&section, 0.3).is_none());
+        let harmonic = Pcurve::Harmonic {
+            p0: Point2::new(0.0, 1.0),
+            pa: Vec2::new(0.5, 0.0),
+            pb: Vec2::new(0.0, 0.5),
+            pl: Vec2::new(0.0, 0.0),
+        };
+        let Some(Pcurve::Harmonic { p0, .. }) = shift_chart_v(&harmonic, 0.25) else {
+            panic!("a harmonic image shifts");
+        };
+        assert_eq!(p0.y, 1.25);
     }
 }
