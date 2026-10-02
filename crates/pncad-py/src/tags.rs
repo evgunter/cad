@@ -1779,7 +1779,10 @@ pub fn reach_refusal_tag(refusal: &ReachRefusal) -> &'static str {
 }
 
 /// The stable tag for why a group is unplaced (A11 (2)): no member
-/// carries an offset, or its gauge chain names a deleted gauge.
+/// carries an offset, or its gauge chain names a deleted gauge. The
+/// words are the kernel's own ([`Unplaced::word`], which the clearance
+/// goldening form prints); they are spelled here as literals because
+/// the tag inventory reads this file, and a test holds the two equal.
 pub fn unplaced_tag(cause: &Unplaced) -> &'static str {
     match cause {
         Unplaced::NoOffset => "no_offset",

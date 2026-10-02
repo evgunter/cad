@@ -360,7 +360,7 @@ wall in a solid is one face. Walls are stored per run; names go through
 `PieceRun` (a one-piece run is spelled as its bare locator, so bodies with
 no multi-piece run keep their names) and one constituents view
 (`names/merged.rs`). No `merge_coplanar_faces` is left on the sweep path.
-Dual review, class H (DR row on the PR): both NOT-MERGEABLE-AS-IS on the
+Dual review, class H (DR-36): both NOT-MERGEABLE-AS-IS on the
 same two CI-demonstrated MAJORs, tally 0; the union was taken in one fix
 pass, plus a delta read. Filed: `swept-cocircular-arc-runs-build-one-wall`
 (P1), `lamina-plane-annulus-keeps-its-slit`,

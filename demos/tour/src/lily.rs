@@ -88,9 +88,7 @@
 //! their lanceolate arcs back is a real follow-up, not a settled
 //! choice, and nothing in the kernel stands in its way any more: the
 //! rational wall an arc-margined blade skins converges through the
-//! interior knots its swept spine puts there, and a blade of this
-//! stop's proportions prints an exact volume like every other body
-//! here.
+//! interior knots its swept spine puts there.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -733,12 +731,13 @@ const SEPAL_STATIONS: usize = 13;
 /// **Restoring the lanceolate arcs is outstanding work on this
 /// stop** — the kite is what the blade was given, not a limit of the
 /// vocabulary — and the quadrature that used to stand in its way no
-/// longer does. The blade this stop would draw has been built and
-/// measured: a crescent section on this spine, at [`LEAF_STATIONS`]
-/// stations and [`LEAF_V_DEGREE`], certifies an exact volume like
-/// every other body here. That measurement is a standing row, not a
-/// claim — `sweep`'s `cert5_offgrid_knot_rational::the_lily_crescent_
-/// blade_certifies` rebuilds exactly this geometry and re-takes it.
+/// longer does: `sweep`'s `cert5_offgrid_knot_rational` rows certify
+/// rational walls whose skinned direction carries off-grid interior
+/// knots, which is what an arc-margined section on this spine makes.
+/// Those rows stack arc sections straight; the blade on THIS spine is
+/// not measured yet, and at the tightest ε a rational wall may report
+/// a certified bracket rather than a number, as the teapot's spout
+/// does (`work/show/lily-lanceolate-blade-sections.md`).
 ///
 /// Nothing here approximates a curve with a chord, meanwhile: a kite
 /// is exactly a kite.
@@ -2282,22 +2281,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     with no planar contact anywhere on it.
     //
     //     It refuses one door short of the zip, at the reduction's
-    //     curved-face arm rather than the declaration gate, and the
-    //     edge it names is a measurement of how far the sweep gets,
-    //     not what the wall is about. The bore itself is placed:
-    //     the cylinder chart's full-turn band gives every endpoint on
-    //     the corm's bore wall a verdict. The sweep then stops at
-    //     operand B's seam ruling `EdgeKey(4v1)` against the corm's
-    //     SPHERE zone `FaceKey(5v1)`: in the reduction's working copy,
-    //     split at the bore's rims, the fragment keeping that key runs
-    //     `z ∈ [-0.92, -0.72]` at azimuth 0 and straddles the sphere
-    //     (the authored ruling, `z ∈ [-0.92, 0]`, does not), and the
-    //     reduction has no
-    //     line × sphere root lane to place the crossing
-    //     (`work/reach/line-edge-crossing-a-sphere-face-has-no-root-lane.md`).
-    //     Behind it, a purely cylindrical mate on a full-turn bore does
-    //     not union on its own either
-    //     (`work/reach/full-turn-bore-rest-mate-does-not-union.md`).
+    //     curved-face arm rather than the declaration gate. The sphere
+    //     zone no longer stops it: the line x sphere root lane landed
+    //     (`work/reach/line-edge-crossing-a-sphere-face-has-no-root-lane.md`,
+    //     closed). What stops it now is the foot's seam ruling against
+    //     the corm's own BORE wall: the ruling's endpoints sit on the
+    //     shared carrier past each rim, so the declared cover records
+    //     nothing, and its crossings with the bore's rim circles are
+    //     interior to both edges and recorded by nobody — the class
+    //     `work/reach/full-turn-bore-rest-mate-does-not-union.md` names
+    //     on its minimal shaft-in-a-revolved-bore fixture.
     let (corm_body, foot_body) = (by("lily_corm"), by("lily_foot"));
     let bore_decls = crate::booleans::flush_declarations(corm_body, foot_body, tol);
     wall(

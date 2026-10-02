@@ -522,7 +522,7 @@ pub fn at_the_door(
             let id = applied.record.minted.expect("an insert mints an id");
             Ok((applied.doc, id))
         }
-        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node.id(), *fault)),
+        Err(editor_core::EditError::MateRefused { node, fault, .. }) => Err((node.id(), *fault)),
         Err(other) => panic!("the door refused otherwise: {other:?}"),
     }
 }
