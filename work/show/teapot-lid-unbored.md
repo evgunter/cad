@@ -2,10 +2,12 @@
 id: teapot-lid-unbored
 kind: unit
 title: the teapot lid loses its steam vent: the unbored hemisphere equator now carves as one band
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
+pr: 3824
+closed: 2026-10-02
 ---
 
 ## What

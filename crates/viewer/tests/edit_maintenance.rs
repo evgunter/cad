@@ -504,8 +504,8 @@ fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
 
 /// **The path editor's door moves no name either** when it keeps
 /// every step: `EditProfile` lands its program as one `SetProgram`,
-/// and a program whose steps are all kept strands nothing, whichever
-/// way its numbers turn it.
+/// and a program that keeps every step and still draws every piece
+/// strands nothing, whichever way its numbers turn it.
 #[test]
 fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let (doc, profile, _) = framed_triangle("maint-profile-flip");
@@ -521,7 +521,7 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::EditProfile {
         node: profile,
-        ids: viewer::sketch::kept_in_place(&base),
+        ids: base.kept_in_place(),
         base,
         loops,
     };
@@ -532,6 +532,81 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
         outcome.committed
     );
     assert_quiet(&outcome, op);
+}
+
+/// A square `(0, 0) → (2, 2)` whose corner at `(2, 0)` is sharp, or
+/// filleted at radius `0.5` when `filleted`: the fillet's arrival
+/// `at` stands at its tangent point, and the `line` after it runs on
+/// to `(2, 2)` along the fillet's run out. Each sharp step has a step
+/// of the same verb in the filleted program.
+fn corner(filleted: bool) -> LoopProgram {
+    let toward = |dx: f64, dy: f64| ProgramStep::Toward {
+        dx: common::scl(dx),
+        dy: common::scl(dy),
+    };
+    let mut steps = vec![ProgramStep::At(common::len2([0.0, 0.0])), toward(1.0, 0.0)];
+    if filleted {
+        steps.extend([
+            ProgramStep::Line(common::len(1.0)),
+            ProgramStep::Fillet(common::len(0.5)),
+            toward(0.0, 1.0),
+            ProgramStep::At(common::len2([2.0, 0.5])),
+            ProgramStep::Line(common::len(1.5)),
+        ]);
+    } else {
+        steps.extend([
+            ProgramStep::Line(common::len(2.0)),
+            toward(0.0, 1.0),
+            ProgramStep::Line(common::len(2.0)),
+        ]);
+    }
+    steps.extend([
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([0.0, 2.0]))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    LoopProgram::Chain(steps)
+}
+
+/// **A fillet inserted before a framed leg is counted before Apply and
+/// reported after it.** The path editor keeps every step and inserts
+/// a fillet at the corner below the right wall: the fillet's run out
+/// takes that wall's segment, so the kept leg the frame names is no
+/// longer drawn. The door's own pre-click report — what the Apply
+/// button counts — names the frame's strand, and the landed edit
+/// reports the same row to the line.
+#[test]
+fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-profile-shadow", Tol::witness());
+    let (doc, profile, extrude) = extruded(&doc, vec![corner(false)]);
+    let right = wall(&doc, extrude, 0, 1);
+    let (doc, carrier) = frame_on(&doc, extrude, right.clone());
+    let Some(Node::Profile(base)) = doc.node(profile).cloned() else {
+        panic!("the fixture's profile")
+    };
+    let mut ids = base.kept_in_place();
+    ids[0].insert(3, None);
+    ids[0].insert(5, None);
+    let expected = vec![Maintenance::Strand {
+        node: doc.spoken(carrier),
+        name: doc.spoken_name(&right),
+    }];
+    let mut session = DocSession::inline(doc, Tol::witness());
+    assert_eq!(
+        session
+            .edit_profile_report(profile, &base, vec![corner(true)], ids.clone())
+            .expect("the reshaping is legal"),
+        expected,
+        "the count Apply shows before the click"
+    );
+    let op = SessionOp::EditProfile {
+        node: profile,
+        base,
+        loops: vec![corner(true)],
+        ids,
+    };
+    let outcome = session.perform(op.clone());
+    assert_eq!(outcome.maintenance, expected);
+    assert_line_words(&line_after(&outcome, op), &expected);
 }
 
 /// **A parameter edit through a state that draws nothing reports
