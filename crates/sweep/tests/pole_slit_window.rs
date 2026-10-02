@@ -230,15 +230,23 @@ fn assert_refused_at_the_gate<T: Decide + topo::AtRestPolicy + Bounds>(
         })
         .collect();
     tips.sort_by(|a, b| a.partial_cmp(b).expect("finite poles"));
-    assert_eq!(tips.len(), poles.len(), "{what}: one finding per pole: {tips:?}");
+    assert_eq!(
+        tips.len(),
+        poles.len(),
+        "{what}: one finding per pole: {tips:?}"
+    );
     for (tip, pole) in tips.iter().zip(poles) {
         let off = (tip.0 - pole.0).hypot(tip.1 - pole.1).hypot(tip.2 - pole.2);
-        assert!(off < 1e-9, "{what}: strut tip {tip:?} is not the pole {pole:?}");
+        assert!(
+            off < 1e-9,
+            "{what}: strut tip {tip:?} is not the pole {pole:?}"
+        );
     }
 }
 
 fn slit_operands_refuse_at_the_gate<T: Decide + topo::AtRestPolicy + Bounds>(lane: &str) {
-    let brick = sweep::test_support::brick::<T>((-2.0, 2.0), (0.5, 2.0), (-2.0, 2.0), Tol::witness());
+    let brick =
+        sweep::test_support::brick::<T>((-2.0, 2.0), (0.5, 2.0), (-2.0, 2.0), Tol::witness());
     for (i, slit) in slits::<T>().iter().enumerate() {
         assert_refused_at_the_gate(
             &format!("[{lane}] slit dome {i} ∖ brick"),
