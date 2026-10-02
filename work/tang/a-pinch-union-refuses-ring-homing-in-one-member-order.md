@@ -30,3 +30,40 @@ fixture `pinch`); the refusal is raised by the ring rehoming in
 (`SplitJoinError::RingHomingAmbiguous`). The same order-set's
 `[p1, p2, plate]` body trips the tessellator's watertight census
 (`work/tess/a-pinch-union-body-trips-the-watertight-census-in-one-member-order.md`).
+
+## Outcome (2026-10-02, branch `tang/pinch-union-order`)
+
+**Cause.** `p1` and `p2` touch along the vertical line x = 1.5, y = 1, and
+the union keeps that contact as two coincident edges. A fold that joins
+the blocks first then meets the plate's top with two edges piercing it at
+one point, and mints one ring vertex per pierce. A fold that reaches the
+plate before the second block meets the point as a vertex already there
+(a v-v event) and builds one valence-6 vertex.
+- `[p1, p2, plate]` therefore kept the top as one face through two
+  coincident vertices (F 18, V 33): tier 3 passed, and the tessellator's
+  census tripped.
+- `[p2, p1, plate]` refused earlier: ring homing tested only a ring's
+  anchor vertex, which was the other pierce's twin, so it landed
+  `OnBoundary`.
+
+This is a planar defect, not the valence-4 vocabulary of
+`pinch-carrying-machinery-valence-4.md`. The result's pinch vertex is an
+ordinary manifold vertex whose umbrella is one cycle of six faces.
+
+**Fix.**
+- `rehome_rings` homes a ring by its first vertex off the dividing run.
+- After the carve, `weld_pinches` joins two pierces that survive on one
+  kept face with a zero-length edge and collapses it. Across one loop
+  this divides the face; across two loops (holes meeting at a corner) it
+  joins them.
+- The zip reads a pinch's correspondent per seam and through earlier
+  fusions.
+- The namer names the fused vertex by its seam junction.
+
+All six orders now build F 19, E 49, V 32, tier-3 valid, at volume
+8.215, the closed form, and every result tessellates.
+
+**Filed.**
+- `three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`
+  (TANG)
+- `a-pinch-vertexs-name-depends-on-the-unions-member-order` (WIRE)
