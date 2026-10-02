@@ -84,10 +84,13 @@ chart form `∇φ·e⊥ / ‖chart stretch‖`. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 The tube says nothing about a disjoint component at other `e`-levels;
-that is C3's exhaustiveness obligation, a separate theorem. A straddling
-enclosure is a genuine sliver of the operand pair and escalates
-(`ssi_tube_transversality`, `SsiError::TubeStraddles`), never a
-retry. Hull bounds are an entry requirement: no schedule-max-only
+that is C3's exhaustiveness obligation, a separate theorem. Refusal
+is typed, never a retry loop: an enclosure that does not clear the
+band at any rung escalates (`ssi_tube_transversality`,
+`SsiError::TubeStraddles`). Two branches passing within the band of
+each other is a genuine sliver of the operand pair, and escalation is
+correct for it, F6's ladder speaking. The enclosure's own remaining
+slack can straddle too, and escalates the same way. Hull bounds are an entry requirement: no schedule-max-only
 certificate ever reaches an at-rest body, and the tube is required for
 every fitted `Intersection`, not only where several branches were found.
 The witness is `carrier(mid)`, minted from the cache the schedule sees.
@@ -212,10 +215,12 @@ nothing it does not already prove. For `Pcurve::Harmonic` (both sides
 in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
 is unrepresentable) that spelling is the carrier's incidence with the
 chart (centre on the axis, radius, orientation, axial line, per chart
-arm) plus the stored image's fidelity to the image `certify` re-derives
-from the carrier, metered through the chart's stretch; the shared
-schedule is then the closed-form tables' cross-check, run where the
-scalar is a point and as a property test of `chart_image_harmonic ∘
+arm, and the chart frame's own unit and orthogonality defects) plus the
+stored image's fidelity to the image `certify` re-derives from the
+carrier, metered through the chart's stretch; the shared schedule is
+then the closed-form tables' cross-check, run on the point lane (the
+f64 witness replay, the `Witness::Inexact` scalars) and as a property
+test of `chart_image_harmonic ∘
 chart_pcurve = carrier_harmonic` over the covered classes, not in a
 certificate over a parameter box. Where no closed form exists, the
 certificate falls back to the displacement at the shared schedule plus

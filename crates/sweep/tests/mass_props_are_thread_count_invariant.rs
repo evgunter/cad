@@ -351,6 +351,16 @@ fn digest() -> String {
 /// and the arc loft's `s²·(18 + π(1+√2))`.
 /// Volumes, volume pads, refusals, verdict hashes and the sym-session
 /// counts are unchanged.
+///
+/// **Re-cut at all three ε when check 4 of the pcurve certificate became
+/// incidence plus fidelity** (`geom_brep::pcurve_cache`, C4). The
+/// quadrature's map-residual honesty pad reads each edge's certificate
+/// envelope, and on `tilted_cut_upper`'s cylinder wall the restated
+/// envelope is smaller. Only that row moves, and only down: `vpad` and
+/// `apad` fall by 2.5e-9 of themselves at ε = 1e-9, by ~5e-12 at
+/// 1e-6, and by 1.3e-6 at 1e-12. The volume's midpoint moves two ulps
+/// with its pad at 1e-6 and 1e-12. Areas, refusals, verdict hashes and
+/// the sym-session counts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

@@ -4632,6 +4632,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "arc_loop_containment_unsupported",
             "band",
             "classification_invariant",
+            "coincident_shell",
             "contact_contradicted",
             "containment",
             "continuation_contradicted",
@@ -4963,6 +4964,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrusion_escalated",
             "oblique_extrusion",
             "op",
+            "pcurve",
             "side_plane",
             "sliver_join",
             "sliver_rim",
@@ -6235,7 +6237,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // these four rows say only that the sharing is deliberate.
     ("payload_doc_param_dimension", 2),
     ("payload_unknown_doc_param", 2),
-    ("pcurve", 5),
+    ("pcurve", 6),
     ("pcurves", 3),
     // One fact: a placement on an instance's frame did not evaluate —
     // the instance's own row, and why its checked offset went unchecked.

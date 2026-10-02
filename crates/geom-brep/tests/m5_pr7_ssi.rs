@@ -3901,12 +3901,11 @@ fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
 /// or as a trace of one sample. Settled outside, the seed is no
 /// branch, and a seed further in marches the branch to the edge.
 ///
-/// What the cut refuses now is pinned by name and ε:
-/// - `TubeStraddles` at 1e-6
-///   (`work/ssi/plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps.md`);
-/// - limb 2 at 1e-9, inferred but not traced to be cause 4 of
-///   `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
-/// - the fit budget at 1e-12, that row's cause 2.
+/// What the cut does is pinned by ε:
+/// - at 1e-6 it certifies, one branch;
+/// - at 1e-9 it refuses limb 2, inferred but not traced to be cause 4
+///   of `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
+/// - at 1e-12 it refuses the fit budget, that row's cause 2.
 ///
 /// None of them is a carrier off the wall.
 #[test]
@@ -3935,7 +3934,7 @@ fn a_seed_settled_off_the_walls_chart_is_no_branch() {
             panic!("{at}: a carrier off the wall's chart: {r:?}");
         }
         let pinned = match eps() {
-            1.0e-6 => matches!(r, Err(SsiError::TubeStraddles { .. })),
+            1.0e-6 => matches!(r, Ok(ref o) if o.branches.len() == 1),
             1.0e-9 => matches!(
                 r,
                 Err(SsiError::CertificateLimb {
@@ -3956,7 +3955,50 @@ fn a_seed_settled_off_the_walls_chart_is_no_branch() {
                 true
             }
         };
-        assert!(pinned, "{at}: the cut's refusal moved: {r:?}");
+        assert!(pinned, "{at}: the cut's outcome moved: {r:?}");
+    }
+}
+
+/// **A curved dome's cuts prove their tube at the widest rung.** The
+/// dome `W(d)` is one quadratic Bézier patch, so every tube window lies
+/// in its one span cell. Limb 3 reads the wall's derivative over each
+/// window cut to that window, and the plane's gradient along the chart
+/// stays zero-free there: the tilt cut (an open arc) and the level cut
+/// (an interior loop) certify at d = 1 and d = 3, each at the widest
+/// rung, `SSI_TUBE_RADIUS_MAX` of the extent. Read off the whole cell
+/// instead, `S_u.y` and `S_v.y` span `[−2d, 2d]`, and every rung down to
+/// the floor straddles.
+///
+/// The band is the row's own 1e-6: limbs 1 and 2 refuse these cuts at
+/// 1e-9 and the fit budget at 1e-12 before limb 3 runs.
+#[test]
+fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
+    let b = band_at(1e-6);
+    for d in [1.0, 3.0] {
+        let (tilt, dom) = dome_tilt(d);
+        let level = Surface::Plane {
+            origin: dom.center,
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wall = dome_wall(d);
+        for (cut, plane) in [("tilt", tilt), ("level", level)] {
+            let at = format!("{cut} cut, d = {d}");
+            let out = match ssi::plane_nurbs_ssi(&plane, &wall, dom, b) {
+                Ok(out) => out,
+                Err(e) => panic!("{at}: expected one certified branch, got {e:?}"),
+            };
+            assert_eq!(out.branches.len(), 1, "{at}: {out:?}");
+            let cert = &out.branches[0].certificate;
+            match cert.tube {
+                SsiTube::Chart { rung, .. } => assert_eq!(
+                    rung,
+                    geom_brep::ssi::certify::SSI_TUBE_RADIUS_MAX * dom.extent,
+                    "{at}: the tube certified below the widest rung"
+                ),
+                SsiTube::Spatial { .. } => panic!("{at}: the chart arm proved a spatial tube"),
+            }
+        }
     }
 }
 

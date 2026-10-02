@@ -97,11 +97,12 @@
 //! the floor otherwise. Uniqueness in this module and completeness
 //! there are two theorems, and neither is doing the other's work.
 //!
-//! An enclosure that **straddles** zero at the chain's box size is not
-//! a resolution failure to retry: two branches passing within the band
-//! of each other is a genuine sliver of the operand pair, and F6's
-//! ladder says escalate. That is `ssi_tube_transversality` landing in
-//! `Sign::Zero`, and it refuses toward C7.
+//! An enclosure that **straddles** zero at every rung escalates, typed,
+//! never retried: `ssi_tube_transversality` lands in `Sign::Zero` and
+//! refuses toward C7. Two branches passing within the band of each
+//! other is a genuine sliver of the operand pair, where F6's ladder says
+//! escalate; the enclosure's remaining slack can also straddle, and
+//! escalates the same way.
 //!
 //! # The witness is unchanged
 //!
@@ -1324,6 +1325,33 @@ mod tests {
                 ),
                 "a chart constant across the locus answered {verdict:?} instead of \
                  refusing by name"
+            );
+        }
+
+        /// **A chart constant across the locus refuses by name when its
+        /// net is not one point.** Rows `a, a` and `b, b`: `S_v` is exactly
+        /// zero and `S_u` is not. The tube windows are cut below the span,
+        /// and `a − c`, `b − c` do not round exactly, so the cut box alone
+        /// reads `S_v` as a few ulps around zero rather than zero; met with
+        /// the whole cell's exact zero, the stretch along e⊥ = `e_v` is
+        /// zero again and the probe names the degeneracy rather than
+        /// reporting a margin of 0.
+        #[test]
+        fn a_chart_constant_across_the_locus_refuses_on_a_net_that_is_not_one_point() {
+            let a = Point3::new(iv(0.1), iv(0.1), iv(0.1));
+            let b = Point3::new(iv(0.7), iv(0.7), iv(0.7));
+            let ridge = NurbsSurface::new(linear_kv(), linear_kv(), vec![a, a, b, b], vec![1.0; 4])
+                .expect("a patch a caller can build");
+            let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
+            let verdict = probe_tube_chart(&u_line(), &ridge, normal, (0.01, 0.01));
+            assert!(
+                matches!(
+                    verdict,
+                    Err(SsiError::TubeDegenerate(
+                        TubeDegeneracy::WallConstantAcrossLocus
+                    ))
+                ),
+                "a chart constant along v answered {verdict:?} instead of refusing by name"
             );
         }
 
