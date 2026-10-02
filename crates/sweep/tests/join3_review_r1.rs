@@ -169,6 +169,9 @@ fn j3r1_mixed_pockets() {
             ("bottom", -0.5, 1.0),
             ("through", -0.5, 2.0),
             ("void", 0.25, 0.5),
+            ("flushtop", 0.5, 0.5),
+            ("flushbot", 0.0, 0.5),
+            ("flushboth", 0.0, 1.0),
         ] {
             let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
             let Some(t) = tool(plane, &ch, h) else {
@@ -214,7 +217,7 @@ fn j3r1_tilted_through() {
 #[test]
 #[ignore = "differential battery; run with --ignored"]
 fn j3r1_d_family() {
-    let r = 0.5;
+    let r: f64 = 0.5;
     for flat in [
         -0.4999, -0.49, -0.45, -0.3, -0.1, 0.0, 0.1, 0.3, 0.45, 0.49, 0.499, 0.4999,
     ] {
@@ -227,6 +230,9 @@ fn j3r1_d_family() {
             ("bottom", -0.5, 1.0),
             ("through", -0.5, 2.0),
             ("void", 0.25, 0.5),
+            ("flushtop", 0.5, 0.5),
+            ("flushbot", 0.0, 0.5),
+            ("flushboth", 0.0, 1.0),
         ] {
             let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
             let Some(t) = tool(plane, &ch, h) else {
