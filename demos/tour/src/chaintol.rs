@@ -35,7 +35,7 @@
 //! |---|---|---|---|---|
 //! | 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
 //! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
-//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`, margin poisoned | 0.31 s |
+//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.31 s |
 //! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.47 s |
 //! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.73 s |
 //!
@@ -44,17 +44,10 @@
 //! Evaluation order decides which refusal is reported first, and at
 //! the whole study the `dihedral_arm` straddle happens to come first
 //! at three and four links. Just above the WALL the first refusal is
-//! `dihedral_wedge`, on `EdgeKey(1v1)` at sample 4 (the tip pin's cap
-//! circle), at two, three and four links (nodes 14, 21, 30). **The
-//! wedge is what bounds the box**, and its margin is the same quantity
-//! at every ε; what it reads as just past the wall depends on ε. At
-//! the default ε it is POISONED (`1.02×` and `1.10×` of each link
-//! count's fraction). At `1e-6` and `1e-5`, `1.02×` of THAT ε's own
-//! fraction, it STRADDLES `K·ε`, with a lower end of `2.3e-6`–`3.0e-6`
-//! and `9.2e-5`–`9.3e-5` respectively
-//! (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
-//! "What Phase 1 found"). The arm's straddle is a second,
-//! ε-independent refusal that is first only over the whole study
+//! the wedge on `EdgeKey(1v1)` at sample 4 at two, three and four links
+//! (nodes 14, 21, 30): **the wedge is what bounds the box**, as the
+//! next section says. The arm's straddle is a second, ε-independent
+//! refusal that is first only over the whole study
 //! (`work/sym/a-chain-of-three-joints-straddles-dihedral-arm`).
 //!
 //! **The plain interval lane does not carry a widened rotation angle
@@ -85,28 +78,39 @@
 //! doubles with it, to `3.81°`. The invariant across LINK COUNTS is
 //! real; the angle was not the invariant.
 //!
-//! **The mechanism, measured at the margin's own inputs.** The wall's
-//! edge is a plane × cylinder `Intersection` the outer joint's
-//! transform re-certifies. Its point and its cylinder's axis are
-//! mapped and enclosed APART, each carrying the tip's lateral
-//! half-width `δ` across the chain, so the radial vector `p − origin`
-//! the cylinder's gradient is built from is enclosed `r ± 2δ` wide.
-//! The wedge's `sin θ` divides by that gradient's magnitude: its lower
-//! end falls toward zero as `2δ` approaches the radius, and at
-//! `2δ = r` the divisor's enclosure reaches zero and the quotient is
-//! undefined, the poisoned margin. That box does not move with ε;
-//! the wall does, because the box stops certifying where the margin's
-//! lower end, about `r·(1 − x)/(1 + x)` with `x` the box over the one
-//! where `2δ = r`, drops under `K·ε`. At the default ε that crossing is
-//! 25 ppm short of the poison, so the poison is what the next box up
-//! meets. That is why the tip sits at half the pin radius, at every
-//! link count and at both radii tried. The enclosures and the
-//! fractions at three ε are on
-//! `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`;
-//! `geom_brep`'s `a_cylinder_gradient_reaching_zero_poisons_the_wedge`
-//! is the same poison on one plane and one cylinder. The one-link row
-//! is outside the pattern and says why: it is capped by the study
-//! itself (`f = 1` at `0.450` of the radius), the wall lying beyond it.
+//! **What sets the wall: this paragraph is the mechanism's one home.**
+//! The wall's edge is the tip pin's cap circle, a plane × cylinder
+//! `Intersection` the outer joint's transform re-certifies. Its point
+//! and its cylinder's axis are mapped and enclosed APART, each carrying
+//! the tip's lateral half-width `δ` across the chain, so the radial
+//! vector `p − origin` the cylinder's gradient is built from is enclosed
+//! `r ± 2δ` wide. Two things follow, from two different causes:
+//!
+//! - **The poison, at `2δ = r`.** The gradient's enclosure reaches zero,
+//!   no tangent plane is defined over the box, and the wedge refuses
+//!   with "the surfaces' tangent planes at sample 4 are undefined". The
+//!   box where that happens does not move with ε. It is set by the
+//!   transform enclosing the two images apart
+//!   (`work/shell/transform-rigid-recertifies-images-enclosed-apart`),
+//!   and at the default ε it IS the wall, so the tip's certified box is
+//!   half the pin radius.
+//! - **The straddle, before it.** `sin θ = ‖n1 × n2‖/(‖n1‖·‖n2‖)`
+//!   carries the gradient's magnitude in both its numerator and its
+//!   denominator, so its enclosure's lower end falls toward zero as
+//!   `2δ` approaches `r`, although the true value over these boxes is
+//!   one. The box stops certifying where that lower end drops under
+//!   `K·ε`, which is why the fraction moves with ε. That width is the
+//!   formula's
+//!   (`work/props/interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`).
+//!
+//! The enclosures, the model, and the fractions and first refusals at
+//! three ε are on
+//! `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`
+//! ("What Phase 1 found"). `geom_brep`'s
+//! `a_cylinder_gradient_reaching_zero_leaves_no_tangent_plane` is the
+//! poison on one plane and one cylinder. The one-link row is outside
+//! the pattern and says why: it is capped by the study itself (`f = 1`
+//! at `0.450` of the radius), the wall lying beyond it.
 //!
 //! At that box the drive certifies the whole box in ONE leaf — it
 //! splits nothing, because nothing refuses — and **the four-link tip's
@@ -354,9 +358,8 @@ pub fn narration(tol: Tol) {
 
     // **Whether that box still certifies HERE.** The fraction moves
     // with ε — MEASURED, `1.083e-1` at ε = 1e-6 against `1.110e-1` at
-    // the default — because the wall is where the wedge margin's lower
-    // end drops under `K·ε` (the header's mechanism;
-    // `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`).
+    // the default — for the reason the module header's "What sets the
+    // wall" gives.
     // So the cell asks rather than reasoning: it declares the
     // frontier instead of assuming its own published number
     // (`demos/tour/tests/eps_regression.rs` on a declared frontier),
@@ -642,20 +645,17 @@ fn certifiable_fraction(links: usize, tol: Tol) -> f64 {
     // (`the_wall_is_the_wedge_not_the_arm`). What is ASSUMED is
     // monotonicity BELOW the answer — that no narrower box refuses.
     //
-    // For the wall itself the argument is the enclosure's: the wedge
-    // refuses where its margin's lower end, set by the cylinder
-    // gradient's enclosure, drops under `K·ε`, and poisons where that
-    // enclosure reaches zero (the module header). A narrower box is a
-    // sub-box, and on the same sequence of operations interval
-    // arithmetic encloses a sub-box inside the wider box's enclosure,
-    // so neither can come back narrower. That covers the wedge, not
-    // every refusal the leaf could meet on the way down, and a branch
-    // a narrower box decides differently is not the same sequence.
+    // For the wall there is an argument, not a guarantee: on the same
+    // sequence of operations interval arithmetic encloses a sub-box
+    // inside the wider box's enclosure, so the wedge's lower end (the
+    // module header's "What sets the wall") should not fall narrower.
+    // Nothing enforces that sequence across boxes, and it says nothing
+    // of the leaf's other refusals.
     //
-    // So the assumption is carried as an assumption, with the check
-    // that would catch it RUN rather than described: the fractions
-    // row re-certifies each answer at 1/2 and 1/4 of its width, so a
-    // refusal returning anywhere in that range reds. Outside it the
+    // So the assumption is carried as an assumption, and the guard is
+    // the half and quarter rows: the fractions row re-certifies each
+    // answer at 1/2 and 1/4 of its width, so a refusal returning
+    // anywhere in that range reds. Outside it the
     // claim the constants actually carry is the executed one —
     // certifies at this width, refuses 2% above.
     let mut lo = lo;
@@ -739,14 +739,15 @@ mod tests {
     /// asked just above the wall: at `1.02×` and `1.10×` of each link
     /// count's published fraction — the DEFAULT ε's
     /// ([`CERTIFIABLE_FRACTION_BY_LINKS`]) — the first refusal is the
-    /// wedge's POISONED margin, at two, three and four links alike.
+    /// wedge with no tangent plane, at two, three and four links alike,
+    /// and it says so in words rather than as an invalid margin.
     ///
     /// Those boxes are past the one where the tip pin's gradient
-    /// enclosure reaches zero, which does not move with ε, so the row
-    /// asks the same question at every ε it runs at (measured poisoned
-    /// at the default, `1e-6` and `1e-5`). Just above a LARGER ε's own wall
-    /// the same margin straddles `K·ε` instead (the module header);
-    /// this row does not ask that.
+    /// enclosure reaches zero, which does not move with ε (the module
+    /// header's "What sets the wall"), so the row asks the same
+    /// question at every ε it runs at. Just above a LARGER ε's own wall
+    /// the same margin straddles `K·ε` instead; this row does not ask
+    /// that.
     #[test]
     fn the_wall_is_the_wedge_not_the_arm() {
         let tol = Tol::witness();
@@ -766,9 +767,10 @@ mod tests {
                      {over}× the fraction, the first refusal was: {first}"
                 );
                 assert!(
-                    first.contains("margin is invalid"),
-                    "the header says the margin is POISONED past the default ε's wall, not \
-                     straddling; at {links} links, {over}× the fraction: {first}"
+                    first.contains("the surfaces' tangent planes at sample 4 are undefined"),
+                    "the header says past the default ε's wall the wedge has no tangent \
+                     plane, and names that as its cause; at {links} links, {over}× the \
+                     fraction: {first}"
                 );
             }
         }
@@ -820,9 +822,8 @@ mod tests {
     ///
     /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
     /// the default — because the fractions move with ε: `1.110e-1` at
-    /// the default against `1.083e-1` at `1e-6`, measured: the wall is
-    /// where the wedge margin's lower end drops under `K·ε` (the module
-    /// header).
+    /// the default against `1.083e-1` at `1e-6`, measured, for the
+    /// reason the module header's "What sets the wall" gives.
     ///
     /// It also runs the check the bisection's monotonicity assumption
     /// owes (see `certifiable_fraction`): each answer is re-certified

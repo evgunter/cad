@@ -214,75 +214,79 @@ pub fn classify_dihedral<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<DihedralClass, LeverEscalation> {
-    wedge_decided(s1, s2, p, extent, band).map(|(class, _)| class)
+    wedge_decided(s1, s2, p, extent, band)
+        .map(|(class, _)| class)
+        .map_err(WedgeEscalation::into_lever)
+}
+
+/// Why [`wedge_decided`] could not classify: a rung of the levered
+/// reading, or no tangent plane to read an angle between.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum WedgeEscalation {
+    /// The arm gate or the wedge's own reading escalated.
+    Lever(LeverEscalation),
+    /// The wedge's margin is invalid because a surface's implicit
+    /// gradient is zero or undefined somewhere over the point's
+    /// enclosure: the product of the two gradient magnitudes `sin θ`
+    /// divides by is a readable value that reaches zero (a point on a
+    /// cylinder's axis, a cone's apex), so no tangent plane, and no
+    /// angle, is defined there. Carries the wedge decision's own
+    /// escalation, which is what [`classify_dihedral`] reports.
+    NoTangentPlane(Indeterminate),
+}
+
+impl WedgeEscalation {
+    /// The levered escalation [`classify_dihedral`] reports: a missing
+    /// tangent plane is the wedge reading's own invalid margin.
+    fn into_lever(self) -> LeverEscalation {
+        match self {
+            Self::Lever(e) => e,
+            Self::NoTangentPlane(diag) => LeverEscalation::reading(diag),
+        }
+    }
 }
 
 /// [`classify_dihedral`], keeping the wedge decision's reporting
 /// margin for a refusal that quotes it (certification's
-/// `NotTransverse`).
+/// `NotTransverse`), and naming a missing tangent plane as its own
+/// cause ([`WedgeEscalation::NoTangentPlane`]).
 pub(crate) fn wedge_decided<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     p: Point3<T>,
     extent: T,
     band: Band,
-) -> Result<(DihedralClass, geom_core::MarginDiag), LeverEscalation> {
+) -> Result<(DihedralClass, geom_core::MarginDiag), WedgeEscalation> {
     let n1 = implicit_gradient(s1, p);
     let n2 = implicit_gradient(s2, p);
-    let sin_theta = if std::env::var_os("SYM15_COSFORM").is_some() {
-        // review probe: the same angle from its cosine, which does not
-        // carry the gradient magnitude in numerator and denominator
-        let cos = n1.dot(n2) / (n1.norm() * n2.norm());
-        (T::from_f64(1.0) - cos * cos).sqrt()
-    } else {
-        n1.cross(n2).norm() / (n1.norm() * n2.norm())
-    };
+    let magnitudes = n1.norm() * n2.norm();
+    let sin_theta = n1.cross(n2).norm() / magnitudes;
     let arm = folded_lever_arm(s1, s2, p, extent);
-    if std::env::var_os("SYM15_PROBE").is_some() {
-        let probe_surface = |s: &Surface<T>| match s {
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => {
-                let q = p - *origin;
-                let h = q.dot(*axis);
-                let w = q - *axis * h;
-                format!(
-                    "Cylinder origin={origin:?} axis={axis:?} radius={radius:?}\n    q={q:?}\n    h={h:?}\n    w={w:?}\n    w.norm_sq={:?}\n    resid={:?}",
-                    w.norm_squared(),
-                    crate::implicit_residual(s, p)
-                )
-            }
-            Surface::Plane { normal, .. } => format!(
-                "Plane normal={normal:?} resid={:?}",
-                crate::implicit_residual(s, p)
-            ),
-            other => format!("{:?}", other.kind()),
-        };
-        eprintln!(
-            "SYM15 wedge p={p:?}\n  s1: {}\n  s2: {}\n  n1={n1:?}\n  n2={n2:?}\n  |n1|={:?}\n  |n2|={:?}\n  cross={:?}\n  |cross|={:?}\n  |n1||n2|={:?}\n  sin_theta={sin_theta:?}\n  extent={extent:?}\n  arm={arm:?}\n  margin={:?}",
-            probe_surface(s1),
-            probe_surface(s2),
-            n1.norm(),
-            n2.norm(),
-            n1.cross(n2),
-            n1.cross(n2).norm(),
-            n1.norm() * n2.norm(),
-            sin_theta * arm
-        );
-    }
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm. A Zero arm escalates
     // with its decided margin, a (for a true magnitude, unreachable)
     // Negative one as Invalid, and an in-band or poisoned arm as the
     // funnel's own escalation.
-    crate::enters::decide_arm("dihedral_arm", Margin::of(arm), band)
-        .map_err(|diag| LeverEscalation::arm(at_wedge(diag, arm, sin_theta, band)))?;
+    crate::enters::decide_arm("dihedral_arm", Margin::of(arm), band).map_err(|diag| {
+        WedgeEscalation::Lever(LeverEscalation::arm(at_wedge(diag, arm, sin_theta, band)))
+    })?;
     let margin = Margin::levered(sin_theta, arm);
+    // The cause of an invalid margin, read only once the decision has
+    // refused, so no verdict can move. Past a certified arm, `sin θ` is
+    // invalid only through the gradients: a poisoned one (no implicit
+    // form, an off-locus point) poisons their magnitudes too; a
+    // readable product of magnitudes means the quotient is undefined
+    // because that product reaches zero, or a gradient is undefined
+    // over the enclosure. Poison is a structure question
+    // (`Real::is_poison`), not a decision on the value.
     let Decided { sign, margin } =
-        decide_reported("dihedral_wedge", margin, band).map_err(LeverEscalation::reading)?;
+        decide_reported("dihedral_wedge", margin, band).map_err(|diag| {
+            if diag.margin.is_invalid() && !magnitudes.is_poison() {
+                WedgeEscalation::NoTangentPlane(diag)
+            } else {
+                WedgeEscalation::Lever(LeverEscalation::reading(diag))
+            }
+        })?;
     let class = match sign {
         Sign::Positive => DihedralClass::Transverse,
         Sign::Zero => DihedralClass::Smooth,
@@ -1328,18 +1332,20 @@ mod tests {
         assert_eq!(err.diag.margin, geom_core::MarginDiag::INVALID);
     }
 
-    /// **A cylinder's gradient enclosure that reaches zero poisons the
-    /// wedge.** The point and the cylinder's axis are enclosed apart,
-    /// each `±δ` across the radial direction, as two images of one
-    /// widened rigid map are: the radial vector `p − origin` is then
-    /// enclosed `r ± 2δ` wide, and once `2δ ≥ r` the enclosures admit
-    /// a point on the axis, where no tangent plane exists. `sin θ`
-    /// divides by `|∇F|`, whose enclosure then reaches zero, so the
-    /// margin is undefined (`Trv`) rather than straddling: a reading
-    /// escalation at `"dihedral_wedge"` with an INVALID margin. Below
-    /// half the radius the same pair is a definite corner.
+    /// **A cylinder's gradient enclosure that reaches zero leaves no
+    /// tangent plane, and the wedge says so.** The point and the
+    /// cylinder's axis are enclosed apart, each `±δ` across the radial
+    /// direction, as two images of one widened rigid map are: the radial
+    /// vector `p − origin` is then enclosed `r ± 2δ` wide, and once
+    /// `2δ ≥ r` the enclosures admit a point on the axis, where the
+    /// gradient vanishes. `sin θ` divides by the gradients' magnitudes,
+    /// whose enclosure then reaches zero, so the margin is undefined
+    /// (`Trv`): [`WedgeEscalation::NoTangentPlane`], which
+    /// [`classify_dihedral`] still reports as the wedge reading's
+    /// invalid margin. Below half the radius the same pair is a definite
+    /// corner; a poisoned gradient stays the reading's own invalid margin.
     #[test]
-    fn a_cylinder_gradient_reaching_zero_poisons_the_wedge() {
+    fn a_cylinder_gradient_reaching_zero_leaves_no_tangent_plane() {
         use geom_core::Interval;
         let i = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
         let pt = |x: f64, y: Interval| Point3::new(Interval::from_f64(x), y, Interval::zero());
@@ -1351,33 +1357,128 @@ mod tests {
             )
         };
         let r = 1.0;
-        let wedge = |delta: f64| {
-            let cyl = Surface::Cylinder {
-                origin: pt(0.0, i(-delta, delta)),
-                axis: unit(0.0, 0.0, 1.0),
-                radius: Interval::from_f64(r),
-                u_ref: unit(1.0, 0.0, 0.0),
-            };
-            let cap = Surface::Plane {
-                origin: pt(0.0, Interval::zero()),
-                normal: unit(0.0, 0.0, -1.0),
-                u_ref: unit(1.0, 0.0, 0.0),
-            };
-            let p = pt(0.0, i(r - delta, r + delta));
-            classify_dihedral(&cap, &cyl, p, Interval::from_f64(2.0 * r), band())
+        let cap = Surface::Plane {
+            origin: pt(0.0, Interval::zero()),
+            normal: unit(0.0, 0.0, -1.0),
+            u_ref: unit(1.0, 0.0, 0.0),
         };
+        let cyl = |delta: f64| Surface::Cylinder {
+            origin: pt(0.0, i(-delta, delta)),
+            axis: unit(0.0, 0.0, 1.0),
+            radius: Interval::from_f64(r),
+            u_ref: unit(1.0, 0.0, 0.0),
+        };
+        let p = |delta: f64| pt(0.0, i(r - delta, r + delta));
+        let extent = Interval::from_f64(2.0 * r);
+        let wedge = |delta: f64| wedge_decided(&cap, &cyl(delta), p(delta), extent, band());
         assert_eq!(
-            wedge(0.49 * r).unwrap(),
+            wedge(0.49 * r).unwrap().0,
             DihedralClass::Transverse,
             "2δ = 0.98 r: the radial enclosure excludes zero"
         );
-        let err = wedge(0.51 * r).unwrap_err();
-        assert_eq!(err.rung, LeverRung::Reading, "{err:?}");
-        assert_eq!(err.diag.predicate, Some("dihedral_wedge"), "{err:?}");
+        let Err(WedgeEscalation::NoTangentPlane(diag)) = wedge(0.51 * r) else {
+            panic!(
+                "2δ = 1.02 r: the radial enclosure reaches zero, so the tangent plane is \
+                 undefined: {:?}",
+                wedge(0.51 * r)
+            );
+        };
+        assert_eq!(diag.predicate, Some("dihedral_wedge"), "{diag:?}");
+        assert_eq!(diag.margin, geom_core::MarginDiag::INVALID, "{diag:?}");
+        let public =
+            classify_dihedral(&cap, &cyl(0.51 * r), p(0.51 * r), extent, band()).unwrap_err();
         assert_eq!(
-            err.diag.margin,
-            geom_core::MarginDiag::INVALID,
-            "2δ = 1.02 r: the radial enclosure reaches zero: {err:?}"
+            public,
+            LeverEscalation::reading(diag),
+            "classify_dihedral reports the same escalation it always did"
+        );
+        let off_locus = wedge_decided(
+            &plane(Vec3::unit_z(), Vec3::unit_x()),
+            &Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            Point3::new(f64::NAN, 1.0, 0.0),
+            1.0,
+            band(),
+        );
+        assert!(
+            matches!(off_locus, Err(WedgeEscalation::Lever(e)) if e.rung == LeverRung::Reading),
+            "a poisoned point poisons the gradient, which is not a missing tangent plane: \
+             {off_locus:?}"
+        );
+    }
+
+    /// Review probe (SYM-15 delta): which variant the gate gives for
+    /// causes other than a radial enclosure reaching zero.
+    #[test]
+    #[ignore]
+    fn sym15_review_gate_causes() {
+        use geom_core::Interval;
+        let unit = |x: f64, y: f64, z: f64| {
+            Vec3::new(
+                Interval::from_f64(x),
+                Interval::from_f64(y),
+                Interval::from_f64(z),
+            )
+        };
+        let cap = Surface::Plane {
+            origin: Point3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+            normal: unit(0.0, 0.0, -1.0),
+            u_ref: unit(1.0, 0.0, 0.0),
+        };
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+            axis: unit(0.0, 0.0, 1.0),
+            radius: Interval::from_f64(1.0),
+            u_ref: unit(1.0, 0.0, 0.0),
+        };
+        // (a) an exact on-circle point carrying an inherited Trv decoration
+        let trv_zero = Interval::from_bounds(-1.0, 1.0).sqrt() * Interval::zero();
+        let p = Point3::new(
+            Interval::zero(),
+            Interval::from_f64(1.0) + trv_zero,
+            Interval::zero(),
+        );
+        eprintln!(
+            "SYM15D (a) trv point: {:?}",
+            wedge_decided(&cap, &cyl, p, Interval::from_f64(2.0), band())
+        );
+        // (b) cone apex, f64 and interval
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let pl = plane(Vec3::unit_z(), Vec3::unit_x());
+        eprintln!(
+            "SYM15D (b) cone apex f64: {:?}",
+            wedge_decided(&pl, &cone, Point3::origin(), 1.0, band())
+        );
+        // (c) f64 cylinder, point exactly on the axis
+        let cyl64 = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        eprintln!(
+            "SYM15D (c) f64 on axis: {:?}",
+            wedge_decided(&pl, &cyl64, Point3::origin(), 1.0, band())
+        );
+        // (d) f64 sphere centre
+        let sph = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        eprintln!(
+            "SYM15D (d) f64 sphere centre: {:?}",
+            wedge_decided(&pl, &sph, Point3::origin(), 1.0, band())
         );
     }
 }

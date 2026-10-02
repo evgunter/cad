@@ -82,7 +82,7 @@ since those boxes are past the poison point, which does not move with
 ε). At `1.02×` of `1e-6`'s and `1e-5`'s OWN fractions it STRADDLES
 `K·ε`. Measured in `a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
 "What Phase 1 found (SYM-15)"; the poison alone is
-`geom_brep`'s `a_cylinder_gradient_reaching_zero_poisons_the_wedge`.
+`geom_brep`'s `a_cylinder_gradient_reaching_zero_leaves_no_tangent_plane`.
 
 The widest box that certifies whole, per link count, is `1.000`,
 `0.370`, `0.185` and `0.111` of the study — one number in four

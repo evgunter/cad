@@ -29,6 +29,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::{Doc, ProfileProgram, Said, Say, Speaker};
 use pncad::prelude::StableName;
 use pncad::select::UnnamedEntity;
 
@@ -186,28 +187,44 @@ pub enum IdAnswer {
     },
 }
 
-impl core::fmt::Display for IdAnswer {
+impl Say for IdAnswer {
     /// Each arm in the words of the layer that raised it: a name
-    /// through [`name_and_path`], an unnamed patch through its own
-    /// refusal's `Display`, and an unassigned id as the picture's own
+    /// through [`NameAndPath`], an unnamed patch through its own
+    /// refusal's sentence, and an unassigned id as the picture's own
     /// fact. The id is `id N` in every arm that carries one, because
     /// it is one `u32` read out of the id buffer, whatever it turns out
     /// to denote.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Nothing => f.write_str("nothing"),
-            Self::Named(name) => f.write_str(&name_and_path(name)),
-            Self::Unnamed { id, error } => write!(f, "id {id}, a drawn patch: {error}"),
+            Self::Named(name) => write!(f, "{}", NameAndPath(name, by)),
+            Self::Unnamed { id, error } => {
+                write!(f, "id {id}, a drawn patch: {}", Said(error, by))
+            }
             Self::Unassigned { id } => write!(f, "id {id}, which no patch of this picture draws"),
         }
     }
 }
 
-/// A name as a sentence about two DIFFERING answers renders it: kind
-/// and minting node through [`StableName`]'s own `Display`, then the
-/// role path ([`Disagreement`]'s `Display` says why both halves).
-fn name_and_path(name: &StableName) -> String {
-    format!("{name} ({:?})", name.path)
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for IdAnswer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+/// **A name as a sentence that must tell two names apart says it**:
+/// kind and minting node ([`Speaker::name`]), then the role path
+/// ([`Disagreement`]'s sentence says why both halves). The one spelling
+/// of a name that two answers could otherwise share; the tie
+/// `crate::frame::pick_refusal` reports says its faces this way too.
+pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
+
+impl core::fmt::Display for NameAndPath<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self(name, by) = self;
+        write!(f, "{} ({:?})", by.name(name), name.path)
+    }
 }
 
 impl IdAnswer {
@@ -240,11 +257,10 @@ pub struct Disagreement {
     pub from_ray: Vec<StableName>,
 }
 
-impl core::fmt::Display for Disagreement {
-    /// The id side renders through [`IdAnswer`]'s own `Display`. Every
-    /// NAME on either side renders through [`StableName`]'s `Display`
-    /// — kind and minting node, the half a user can act on — followed
-    /// by the role path ([`name_and_path`]).
+impl Say for Disagreement {
+    /// The id side is [`IdAnswer`]'s own sentence. Every NAME on
+    /// either side is said by kind and minting node, the half a user
+    /// can act on, followed by the role path ([`NameAndPath`]).
     ///
     /// BOTH halves of a name are load-bearing here, which is what makes this
     /// message different from every other one in this crate. The name's
@@ -263,23 +279,34 @@ impl core::fmt::Display for Disagreement {
     /// are load-bearing, and a third field added to
     /// [`Disagreement`] and left out of this sentence would falsify it
     /// silently. In the pattern it is E0027 instead.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
-        let ray = match &from_ray[..] {
-            [] => "nothing".to_owned(),
-            [name] => name_and_path(name),
-            tied => format!(
-                "tied between {}",
-                tied.iter()
-                    .map(name_and_path)
-                    .collect::<Vec<_>>()
-                    .join(" and ")
-            ),
-        };
         write!(
             f,
-            "picking paths disagree at the cursor: id buffer {from_gpu}, ray {ray}"
-        )
+            "picking paths disagree at the cursor: id buffer {}, ray ",
+            Said(from_gpu, by)
+        )?;
+        match &from_ray[..] {
+            [] => f.write_str("nothing"),
+            [name] => write!(f, "{}", NameAndPath(name, by)),
+            tied => {
+                f.write_str("tied between ")?;
+                for (i, name) in tied.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str(" and ")?;
+                    }
+                    write!(f, "{}", NameAndPath(name, by))?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for Disagreement {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -291,10 +318,17 @@ impl Disagreement {
     /// retires it on
     /// the id log's own judgement that the question has moved on.
     ///
+    /// Its names are said from `doc`, the landed document the index
+    /// that drew the picture was built against.
+    ///
     /// [`Retold::Again`]: the same hover says it again while the
     /// paths still disagree.
-    pub fn notice(&self) -> Message {
-        Message::new(Subject::Cursor, self.to_string(), Retold::Again)
+    pub fn notice(&self, doc: &Doc<ProfileProgram>) -> Message {
+        Message::new(
+            Subject::Cursor,
+            Said(self, Speaker::of(doc)).to_string(),
+            Retold::Again,
+        )
     }
 }
 
