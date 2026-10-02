@@ -23,20 +23,25 @@ is an at-rest posture with the PR 3 description gap".
 
 ## Measured
 
-Measured on `cd49025f`. Tier 3 (`AtRestPolicy::gate_at_rest`) ran on
-every result `boolean_op_recut` built in the `topo` and `sweep` suites
-(`ci` profile, default ε). The probe was temporary instrumentation
-after `gate` and the backstop. It timed the op, tier 3 and the
-backstop, and ran tier 3 on both operands too.
+The instrument is topo's `door-tier3-meter` feature
+(`crates/topo/src/boolean/door_meter.rs`), run by
+`python3 scripts/door-tier3-meter.py`. It runs `AtRestPolicy::gate_at_rest`
+on every result `boolean_op_recut` builds, after `gate` and the volume
+backstop, and on both operands. It times the op, tier 3 and the backstop,
+and changes no result. Measured on `reach/door-backstop` (`ci` profile,
+default ε):
 
-| corpus | results | tier 3 refuses | of which both operands pass tier 3 | tier 3 / op time (sum) | median, p90, max per result | backstop / op |
-|---|---|---|---|---|---|---|
-| topo | 687 | 55 (52 shipped) | 3 | 15 % | 11 %, 27 %, 72 % | 6 % |
-| sweep | 1125 | 42 (0 shipped: the backstop refuses the same bodies `VolumeUnmeasured`) | 42 | 13 % | 13 %, 29 %, 118 % | 26 % |
+| corpus | results | tier 3 refuses | of those, shipped | shipped with tier-3-clean operands | tier 3 / op time | median / p90 / max per result | backstop / op |
+|---|---|---|---|---|---|---|---|
+| topo | 693 | 55 | 55 | 3 | 15 % | 11 % / 27 % / 79 % | 6 % |
+| sweep | 1168 | 42 | 0 (the backstop refuses the same bodies `VolumeUnmeasured`) | 0 | 13 % | 13 % / 23 % / 226 % | 25 % |
+
+(On `cd49025f`, before the backstop's interval re-derivation, the same
+probe found 52 of the 55 topo refusals shipped.)
 
 - Every result the door ships from verb-built operands (the `sweep`
   corpus) passes tier 3.
-- Of the 52 shipped topo results that fail tier 3, 49 come from
+- Of the 55 shipped topo results that fail tier 3, 52 come from
   operands that fail it too. The tier-3 errors are `ScaffoldAtRest` and
   `TransverseNotIntrinsic` on the hand-built `review_m3_pr55` fixtures,
   `surgery::tests`, and the two `refusal_routes::offer_rows`

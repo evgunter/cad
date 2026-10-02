@@ -2255,12 +2255,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VolumeBackstop",
         1,
     ),
-    (
-        "ops.rs",
-        "encloses_material",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_class", "LeverArm::Seam", 1),

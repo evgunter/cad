@@ -703,8 +703,12 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
 /// faces). The union refuses `FallbackExtentUnsupported`: no crossing
 /// event exists, and that pass exempts no declared pair
 /// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
-/// B ∖ A, empty (the thin plate lies inside the thick one), refuses as
-/// the union does. The
+/// With the declarations keyed for (B, A), B ∖ A, empty (the thin
+/// plate lies inside the thick one), refuses as A ∪ B does, while B ∪ A
+/// builds the thick plate, its walls left split where the thin plate's
+/// lay (18 faces sunk, 14 flush, against the plate's 10): the union
+/// refuses in one operand order only.
+/// The
 /// flush-top intersect is the thin plate itself, whose `f64` volume
 /// rounds two ulps above the operand's through another face order; the
 /// backstop re-derives that tie in interval arithmetic and builds it.
@@ -713,10 +717,10 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
     let none = BooleanDeclarations::default();
     let a = plate(rounded(R), 0.0);
     let half = area(4.0) / 2.0;
-    for (label, z0, subtract_faces) in [
-        ("sunk inside", 0.25, 20),
-        ("flush top", 0.5, 10),
-        ("flush bottom", 0.0, 10),
+    for (label, z0, subtract_faces, union_faces) in [
+        ("sunk inside", 0.25, 20, 18),
+        ("flush top", 0.5, 10, 14),
+        ("flush bottom", 0.0, 10, 14),
     ] {
         let b = extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol());
         let (rest, cont) = findings(&a, &b);
@@ -756,10 +760,18 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
             half,
             10,
         );
-        let err = topo::subtract_with(&b, &a, &d, tol()).expect_err("B ∖ A refuses");
+        let (rest_ba, cont_ba) = findings(&b, &a);
+        let d_ba = with(&rest_ba, &cont_ba);
+        let err = topo::subtract_with(&b, &a, &d_ba, tol()).expect_err("B ∖ A refuses");
         assert!(
             matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
             "{label}, B ∖ A: {err:?}"
+        );
+        builds(
+            &format!("{label}, B ∪ A"),
+            topo::union_with(&b, &a, &d_ba, tol()),
+            area(4.0),
+            union_faces,
         );
     }
 }

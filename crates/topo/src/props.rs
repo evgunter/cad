@@ -627,17 +627,6 @@ impl<T: Decide> PastTarget<'_, T> {
         fold_runs(&self.walk.runs).0
     }
 
-    /// One face's area as this walk measured it — the enclosure's
-    /// midpoint for a quadrature face — or `None` for a face it did not
-    /// visit.
-    pub(crate) fn face_area(&self, face: FaceKey) -> Option<T> {
-        self.walk
-            .runs
-            .iter()
-            .find(|run| run.face == face)
-            .map(|run| run.contribution.area)
-    }
-
     /// **The enclosure re-derived in interval arithmetic** —
     /// `(volume, surface area)`, each an interval holding the exact
     /// value of the body's stored geometry.
@@ -664,52 +653,30 @@ impl<T: Decide> PastTarget<'_, T> {
     /// no rounding to hide behind, which can leave a classification
     /// open that the walk's scalar decided.
     pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
-        let lane = self.walk.quad?;
+        let walk = &self.walk;
+        let lane = walk.quad?;
         let measure = || {
             let (mut flux, mut area) = (Interval::zero(), Interval::zero());
-            for run in &self.walk.runs {
-                let (f, a) = self.interval_run(lane, run)?;
+            for run in &walk.runs {
+                let (f, a) = match run.contribution.enclosure {
+                    Some(enclosure) => enclosure,
+                    None => {
+                        let (face, surface) = resolve_face(walk.body, run.face)?;
+                        let loops = face_loops(walk.body, face)?;
+                        let c = (lane.closed_form)(surface, &loops, face.sense, walk.band)
+                            .map_err(|source| MassPropsError::Face {
+                                face: run.face,
+                                source,
+                            })?;
+                        (c.flux, c.area)
+                    }
+                };
                 flux = flux + f;
                 area = area + a;
             }
             Ok((flux / Interval::from_f64(3.0), area))
         };
         Some(measure())
-    }
-
-    /// One face's `(flux, area)` in interval arithmetic, as
-    /// [`Self::interval_volume`] sums them; `None` for a face this walk
-    /// did not visit, or when it holds no certified lane.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::interval_volume`].
-    pub(crate) fn interval_face(
-        &self,
-        face: FaceKey,
-    ) -> Option<Result<(Interval, Interval), MassPropsError>> {
-        let lane = self.walk.quad?;
-        let run = self.walk.runs.iter().find(|run| run.face == face)?;
-        Some(self.interval_run(lane, run))
-    }
-
-    fn interval_run(
-        &self,
-        lane: QuadLane<T>,
-        run: &FaceRun<T>,
-    ) -> Result<(Interval, Interval), MassPropsError> {
-        let walk = &self.walk;
-        if let Some(enclosure) = run.contribution.enclosure {
-            return Ok(enclosure);
-        }
-        let (surface, loops, sense) = closed_form_inputs(walk.body, run.face)?;
-        let c = (lane.closed_form)(surface, &loops, sense, walk.band).map_err(|source| {
-            MassPropsError::Face {
-                face: run.face,
-                source,
-            }
-        })?;
-        Ok((c.flux, c.area))
     }
 
     /// **One round further** on every face that met the target at a
@@ -1799,13 +1766,12 @@ struct FaceRun<T> {
     refusal: Option<PropsError>,
 }
 
-/// What a closed form reads of one face: its surface, its loops
-/// flattened (the outer first, then the rings), and its sense.
-#[allow(clippy::type_complexity)]
-fn closed_form_inputs<T: Decide>(
+/// A face and its surface, or the walk's typed refusal of a key that
+/// does not resolve.
+fn resolve_face<T: Real>(
     body: &Body<T>,
     face_key: FaceKey,
-) -> Result<(&Surface<T>, Vec<Vec<LoopEdge<T>>>, bool), MassPropsError> {
+) -> Result<(&crate::entity::Face, &Surface<T>), MassPropsError> {
     let Some(face) = body.faces.get(face_key) else {
         return Err(MassPropsError::Corrupt {
             what: "face key does not resolve",
@@ -1816,11 +1782,40 @@ fn closed_form_inputs<T: Decide>(
             what: "face surface key does not resolve",
         });
     };
-    let mut loops = Vec::with_capacity(1 + face.rings.len());
-    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-        loops.push(loop_edges(body, lk)?.0);
+    Ok((face, surface))
+}
+
+/// A face's loops flattened, the outer first, then the rings.
+fn face_loops<T: Decide>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+) -> Result<Vec<Vec<LoopEdge<T>>>, MassPropsError> {
+    core::iter::once(&face.outer)
+        .chain(&face.rings)
+        .map(|&lk| Ok(loop_edges(body, lk)?.0))
+        .collect()
+}
+
+/// **A face's closed form**, at whatever scalar its geometry is read
+/// at: a plane over every loop, any other surface over its outer loop
+/// and its sense. The face walk runs it at the walk's scalar, and
+/// [`QuadLane`]'s `closed_form` at the interval scalar over the same
+/// geometry lifted.
+fn closed_form_of<U: Decide>(
+    surface: &Surface<U>,
+    loops: &[Vec<LoopEdge<U>>],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<U>, PropsError> {
+    match *surface {
+        Surface::Plane { origin, .. } => planar_face(origin, loops),
+        _ => curved_face(
+            surface,
+            loops.first().map_or(&[][..], Vec::as_slice),
+            sense,
+            band,
+        ),
     }
-    Ok((surface, loops, face.sense))
 }
 
 /// The per-face body of the flux walk (module docs): resolve the
@@ -1836,16 +1831,7 @@ fn face_flux<T: Decide>(
     tol: Tol,
     window: RoundWindow,
 ) -> Result<FaceRun<T>, MassPropsError> {
-    let Some(face) = body.faces.get(face_key) else {
-        return Err(MassPropsError::Corrupt {
-            what: "face key does not resolve",
-        });
-    };
-    let Some(surface) = body.surfaces.get(face.surface) else {
-        return Err(MassPropsError::Corrupt {
-            what: "face surface key does not resolve",
-        });
-    };
+    let (face, surface) = resolve_face(body, face_key)?;
     let wrap = |source| MassPropsError::Face {
         face: face_key,
         source,
@@ -1857,12 +1843,8 @@ fn face_flux<T: Decide>(
     let mut converged_at = None;
     let mut refusal = None;
     let contribution: FaceContribution<T> = match *surface {
-        Surface::Plane { origin, .. } => {
-            let mut loops = Vec::with_capacity(1 + face.rings.len());
-            for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-                loops.push(loop_edges(body, lk)?.0);
-            }
-            planar_face(origin, &loops).map_err(wrap)?
+        Surface::Plane { .. } => {
+            closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
         }
         _ => {
             if !face.rings.is_empty() {
@@ -1942,7 +1924,7 @@ fn face_flux<T: Decide>(
                 // walk holding no [`QuadLane`] (a `_structural` door,
                 // which is how a dual measures) — whose honest outcome
                 // on a trimmed face is the closed form's typed refusal.
-                None => curved_face(surface, &outer, face.sense, band).map_err(wrap)?,
+                None => closed_form_of(surface, &[outer], face.sense, band).map_err(wrap)?,
             }
         }
     };
@@ -2954,8 +2936,7 @@ pub trait AtRestPolicy: Decide {
     /// The boolean engine's volume backstop over an op's two operands
     /// and its result (`crate::boolean::volume_backstop`, measuring
     /// through [`QuadLane::certified`], at certifying scalars; absent at
-    /// duals, and the outcome says which). `decls` are the op's
-    /// declarations, over the operands' keys.
+    /// duals, and the outcome says which).
     ///
     /// # Errors
     ///
@@ -2965,7 +2946,6 @@ pub trait AtRestPolicy: Decide {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
-        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError>;
@@ -3033,11 +3013,10 @@ impl AtRestPolicy for f64 {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
-        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, decls, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -3097,11 +3076,10 @@ impl AtRestPolicy for geom_core::Probe {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
-        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, decls, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -3157,11 +3135,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
-        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, decls, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -3230,11 +3207,10 @@ where
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
-        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, decls, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -3313,7 +3289,6 @@ where
         _a: &Body<Self>,
         _b: &Body<Self>,
         _result: &Body<Self>,
-        _decls: &crate::BooleanDeclarations,
         _band: Band,
         _tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
@@ -3443,15 +3418,7 @@ mod at_rest_policy_tests {
         let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
         assert!(
             matches!(
-                T::gate_volume_backstop(
-                    crate::BooleanOp::Union,
-                    &cube,
-                    &cube,
-                    &half,
-                    &crate::BooleanDeclarations::none(),
-                    band,
-                    tol,
-                ),
+                T::gate_volume_backstop(crate::BooleanOp::Union, &cube, &cube, &half, band, tol),
                 Err(crate::BooleanError::ResultVolumeImplausible { .. })
             ),
             "the certifying arm runs the volume backstop"
@@ -3537,7 +3504,6 @@ mod at_rest_policy_tests {
                 &cube,
                 &cube,
                 &half,
-                &crate::BooleanDeclarations::none(),
                 band,
                 tol
             )

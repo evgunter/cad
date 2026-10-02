@@ -1,24 +1,31 @@
-//! **A declared coincidence the door settles inside the band builds,
-//! whichever way its residue falls** — the volume backstop reads the
-//! residue as what the door may move, not as a defect.
+//! **A declared coincidence the door settles inside the band moves a
+//! correct result's volume, and at a tight bound the volume backstop
+//! refuses it** — a correct body refused, the safe direction, filed as
+//! `work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`.
 //!
 //! The fixture is a block and a parallelepiped cornered on its top face
 //! by a 5° wedge angle, the wedge's face there tilted about its one edge
-//! by an angle the door reads in band across both faces, so the two are
-//! declared one plane (a `Rest` contact standing on the block, a
+//! by `θ`, an angle the door reads in band across both faces, so the two
+//! are declared one plane (a `Rest` contact standing on the block, a
 //! continuation sunk flush into it). The door glues the pair onto one
-//! carrier, and the face it drops leaves a residue of at most the band's
-//! displacement over the wedge's face: each result's volume stands off
-//! the box arithmetic by that much, in the direction the tilt sends it.
-//! Tilted up, the union standing on the block exceeds `vol(A) + vol(B)`
-//! by 1.7e-12 m³ — a correct result past a bound by less than the band,
-//! which builds. The sunk intersect and subtract refuse in the join
+//! carrier, and the result's volume stands off the box arithmetic by at
+//! most the gap between the two faces, `½·|θ|·sin² φ`, in the direction
+//! the tilt sends it:
+//!
+//! - standing, tilted up: the union crosses `vol(A) + vol(B)`;
+//! - sunk, tilted down: the intersect crosses `vol(B)` and `A ∖ B`
+//!   crosses `vol(A) − vol(B)`;
+//! - every other op and tilt builds at the box arithmetic.
+//!
+//! A crossing refuses wherever the interval margin certifies it; the
+//! sunk intersect's does at every ε.
+//!
+//! Sunk at `2ε` the intersect and subtract refuse in the join instead
 //! (`work/join/a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync.md`).
 //!
 //! Oracle: box arithmetic — the block `3 × 4.5 × 1`, the parallelepiped
 //! `sin φ · h` (its base parallelogram's area, whatever the tilt, times
-//! its vertical height) — within the band's displacement over the
-//! wedge's face, `escalate · sin φ`.
+//! its vertical height).
 
 #![allow(clippy::expect_used, clippy::panic)]
 
@@ -51,97 +58,151 @@ fn declared(a: topo::FaceKey, b: topo::FaceKey, class: BooleanCoincidence) -> Bo
     }
 }
 
-/// The result's volume, or `0` for an empty one, after the result
-/// passes its at-rest gate.
-fn built(label: &str, out: Result<BooleanResult<f64>, BooleanError>, tol: Tol) -> f64 {
-    match out {
-        Ok(BooleanResult::Empty) => 0.0,
-        Ok(BooleanResult::Body(bb)) => {
-            assert_eq!(
-                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
-                Ok(()),
-                "{label}: tier 3′"
-            );
-            topo::mass_properties(&bb.body, tol)
-                .unwrap_or_else(|e| panic!("{label}: its volume: {e:?}"))
-                .volume
-        }
-        Err(e) => panic!("{label}: it builds: {e:?}"),
-    }
+/// What one op is expected to do.
+#[derive(Clone, Copy, Debug)]
+enum Want {
+    /// Build at this volume (`0` is empty), within the gap.
+    Builds(f64),
+    /// The result crosses this bound by up to the gap: the volume
+    /// backstop refuses it naming the bound wherever the interval
+    /// margin certifies the crossing, and below the interval's own
+    /// rounding (the two larger bodies at ε = 1e-12) it builds within
+    /// the gap.
+    Crosses(&'static str, f64),
+    /// The join refuses.
+    Join,
 }
 
 #[test]
-fn a_settled_in_band_coincidence_builds_whichever_way_its_residue_falls() {
+fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
+    use Want::{Builds, Crosses, Join};
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness band");
     let phi = 5.0_f64.to_radians();
     let p = Point3::new(0.5, 0.2, 1.0);
     let block = brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
     let block_volume = 3.0 * 4.5;
-    let wedge_volume = |height: f64| phi.sin() * height;
-    let residue = band.escalate() * phi.sin();
-    // (pose, its tilt over ε, the wedge's height and depth, the wedge
-    //  face on the block's top, the class, and ∪, ∩, A ∖ B, B ∖ A:
-    //  the oracle, or `None` for the join's refusal). Each tilt is one
-    // the door reads in band across both faces.
-    let poses = [
+    let wedge = |h: f64| phi.sin() * h;
+    let (standing, sunk) = ((1.0, 0.0, -1.0), (0.5, 0.5, 1.0));
+    let (rest, cont) = (BooleanCoincidence::REST, BooleanCoincidence::Continuation);
+    let (union_cap, cap, floor) = (
+        "vol(A ∪ B) ≤ vol(A) + vol(B)",
+        "vol(A ∩ B) ≤ vol(B)",
+        "vol(A ∖ B) ≥ vol(A) − vol(B)",
+    );
+    // (pose, θ over ε, (height, depth, the wedge face's facing), class,
+    //  [∪, ∩, A ∖ B, B ∖ A])
+    let rows = [
         (
-            "standing on the block",
+            "standing",
             1.2,
-            (1.0, 0.0),
-            -1.0,
-            BooleanCoincidence::REST,
+            standing,
+            rest,
             [
-                Some(block_volume + wedge_volume(1.0)),
-                Some(0.0),
-                Some(block_volume),
-                Some(wedge_volume(1.0)),
+                Crosses(union_cap, block_volume + wedge(1.0)),
+                Builds(0.0),
+                Builds(block_volume),
+                Builds(wedge(1.0)),
             ],
         ),
         (
-            "sunk into the block",
+            "standing",
+            -1.2,
+            standing,
+            rest,
+            [
+                Builds(block_volume + wedge(1.0)),
+                Builds(0.0),
+                Builds(block_volume),
+                Builds(wedge(1.0)),
+            ],
+        ),
+        (
+            "sunk",
+            1.2,
+            sunk,
+            cont,
+            [
+                Builds(block_volume),
+                Builds(wedge(0.5)),
+                Builds(block_volume - wedge(0.5)),
+                Builds(0.0),
+            ],
+        ),
+        (
+            "sunk",
+            -1.2,
+            sunk,
+            cont,
+            [
+                Builds(block_volume),
+                Crosses(cap, wedge(0.5)),
+                Crosses(floor, block_volume - wedge(0.5)),
+                Builds(0.0),
+            ],
+        ),
+        (
+            "sunk",
             2.0,
-            (0.5, 0.5),
-            1.0,
-            BooleanCoincidence::Continuation,
-            [Some(block_volume), None, None, Some(0.0)],
+            sunk,
+            cont,
+            [Builds(block_volume), Join, Join, Builds(0.0)],
         ),
     ];
-    for (pose, over_eps, (height, depth), facing, class, oracle) in poses {
-        for tilt in [1.0, -1.0] {
-            let theta = tilt * over_eps * band.zero();
-            let (ea, eb) = (
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
-            );
-            let wedge = mapped_cube::<f64>(
-                move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
-                tol,
-            );
-            let (top, face) = (face_facing(&block, 1.0), face_facing(&wedge, facing));
-            let ab = declared(top, face, class);
-            let ba = declared(face, top, class);
-            let ops = [
-                ("A ∪ B", topo::union_with(&block, &wedge, &ab, tol)),
-                ("A ∩ B", topo::intersect_with(&block, &wedge, &ab, tol)),
-                ("A ∖ B", topo::subtract_with(&block, &wedge, &ab, tol)),
-                ("B ∖ A", topo::subtract_with(&wedge, &block, &ba, tol)),
-            ];
-            for ((op, out), want) in ops.into_iter().zip(oracle) {
-                let label = format!("{pose}, tilted {tilt}, {op}");
-                let Some(want) = want else {
-                    assert!(
-                        matches!(out, Err(BooleanError::JoinDesync { .. })),
-                        "{label}: the join refuses: {out:?}"
+    let mut refused = 0;
+    for (pose, over_eps, (height, depth, facing), class, wants) in rows {
+        let theta = over_eps * band.zero();
+        let gap = 0.5 * theta.abs() * phi.sin().powi(2);
+        let (ea, eb) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
+        );
+        let tool = mapped_cube::<f64>(
+            move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+            tol,
+        );
+        let (top, face) = (face_facing(&block, 1.0), face_facing(&tool, facing));
+        let ab = declared(top, face, class);
+        let ba = declared(face, top, class);
+        let ops = [
+            ("A ∪ B", topo::union_with(&block, &tool, &ab, tol)),
+            ("A ∩ B", topo::intersect_with(&block, &tool, &ab, tol)),
+            ("A ∖ B", topo::subtract_with(&block, &tool, &ab, tol)),
+            ("B ∖ A", topo::subtract_with(&tool, &block, &ba, tol)),
+        ];
+        for ((op, out), want) in ops.into_iter().zip(wants) {
+            let label = format!("{pose} at θ = {over_eps}ε, {op}");
+            let builds = |out: Result<BooleanResult<f64>, BooleanError>, want: f64| match out {
+                Ok(BooleanResult::Empty) => assert_eq!(want, 0.0, "{label}: empty"),
+                Ok(BooleanResult::Body(bb)) => {
+                    assert_eq!(
+                        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+                        Ok(()),
+                        "{label}: tier 3′"
                     );
-                    continue;
-                };
-                let got = built(&label, out, tol);
-                assert!(
-                    (got - want).abs() <= residue,
-                    "{label}: {got} vs {want}, residue {residue}"
-                );
+                    let got = topo::mass_properties(&bb.body, tol)
+                        .expect("its volume")
+                        .volume;
+                    assert!(
+                        (got - want).abs() <= gap,
+                        "{label}: {got} vs {want}, the gap {gap}"
+                    );
+                }
+                Err(e) => panic!("{label}: it builds: {e:?}"),
+            };
+            match (want, out) {
+                (Builds(want), out) => builds(out, want),
+                (Crosses(bound, _), Err(BooleanError::ResultVolumeImplausible { which, .. })) => {
+                    assert_eq!(which, bound, "{label}");
+                    refused += 1;
+                }
+                (Crosses(_, want), out) => builds(out, want),
+                (Join, out) => assert!(
+                    matches!(out, Err(BooleanError::JoinDesync { .. })),
+                    "{label}: the join refuses: {out:?}"
+                ),
             }
         }
     }
+    assert!(refused >= 1, "no crossing refused at ε = {}", band.zero());
 }

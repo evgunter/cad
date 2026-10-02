@@ -69,17 +69,19 @@ A violation the interval margin does not certify is the rounding's and
 stays open. No pad and no constant is involved. The flush-top intersect
 builds at the oracle `(24 − (4 − π)/4)/2`.
 
+It is pinned by its own rows:
+
+- `sweep/tests/reach_continuation.rs`, the flush-top intersect;
+- `boolean::ops::tests::volume_backstop_passes_a_closed_form_rounding_tie`,
+  a non-dyadic prism started at two corners, whose sums round 3e-16 m³
+  apart.
+
+Both go red with the re-derivation skipped.
+
 The class's general form, a tie at a tight bound, has a second source
 that rounding does not explain: a declared coincidence the door settles
-inside the band. Measured on `cd49025f` with the in-band wedge fixture
-at its then `5.5ε` tilt, dipping: the sunk ∩ stood 8e-12 m³ past
-`vol(B)`, and `origin/main` refused it `ResultVolumeImplausible`. Since
-TANG #3795 the door contradicts that tilt, and at the `2ε` tilt it
-bridges, the sunk ∩ refuses `JoinDesync` first
-(`work/join/a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync.md`).
-The live witness is the new `vol(A ∪ B) ≤ vol(A) + vol(B)` arm: the
-union standing on the block at `+1.2ε` is 1.7e-12 m³ past it. Each
-margin is now widened by `band.escalate()` × the smaller face of each
-declared pair, and
-`topo/tests/door_backstop_settled_residue.rs` holds the poses through
-∪, ∩, A ∖ B and B ∖ A at both tilts.
+inside the band. It moves a correct result past the bound by up to the
+band over the glued face. That source still refuses (the safe
+direction). It is filed with its measurements as
+`a-settled-declared-coincidence-crosses-a-tight-volume-bound`, after a
+volume allowance for it was shown unsound in PR 3844's dual review.
