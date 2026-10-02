@@ -4156,9 +4156,13 @@ mod declaration_order_rows {
     /// The other class is contradicted as well.
     /// **The lump takes a sector's in-band residue where the door
     /// bridges it**: the two poses of the row below at a tilt the door
-    /// reads in band over both faces (standing at `1.2·ε`, sunk at
-    /// `2·ε`; standing at `2·ε` the zip refuses
-    /// `RestZipUnsupported { ChordBetweenIsolatedPierces }`). Undeclared,
+    /// reads in band over both faces (standing tilted down by `1.2·ε`,
+    /// sunk at `2·ε`; standing at `2·ε` the zip refuses
+    /// `RestZipUnsupported { ChordBetweenIsolatedPierces }`). Standing
+    /// tilted UP, the union's residue crosses `vol(A) + vol(B)` and the
+    /// volume backstop refuses it
+    /// (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
+    /// pinned in `topo/tests/door_backstop_settled_residue.rs`). Undeclared,
     /// the sector offers the class the senses make the pair; following
     /// the offer, the union builds at the volume box arithmetic gives,
     /// and the other class is contradicted.
@@ -4174,7 +4178,7 @@ mod declaration_order_rows {
         for (label, theta, sunk, facing, offered, other, volume) in [
             (
                 "standing on the block",
-                1.2 * band.zero(),
+                -1.2 * band.zero(),
                 false,
                 -1.0,
                 BooleanCoincidence::REST,
