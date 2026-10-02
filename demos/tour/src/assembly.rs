@@ -30,8 +30,8 @@
 //! and its at-rest gate passes outright; the stand TOUCHES, and its
 //! gate CERTIFIES, its two flush seats and the crate's rest across two
 //! gauges included (see [`stand_scene`]). Three `SetDocParamValue`
-//! edits on `swing` render three poses, each re-running only what
-//! stands on the turntable (see [`poses`]).
+//! edits on `swing` render three poses, each re-running only the
+//! turntable and the instances its chain places (see [`poses`]).
 //!
 //! Every door this file uses is `pncad::…`, the tour's standing
 //! invariant: the demos are the façade's acceptance corpus, so a scene
@@ -2129,7 +2129,7 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// is the turntable's frame composed onto the solve (A11 (5)), and
 /// the turntable's swing is a document parameter: one value edit
 /// moves every part on it, the crate on its nested shelf-top gauge
-/// included, and re-runs nothing that reads no gauge.
+/// included, and re-runs the turntable and those four instances alone.
 pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     let (mut ws, parts) = workspace(work, tol);
     println!(
