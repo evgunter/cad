@@ -2,14 +2,25 @@
 id: planar-side-join-takes-an-off-wall-arc-for-the-section-by-window-alone
 kind: issue
 title: The planar-side join takes a conic between edge for the section segment by window membership alone, never asking whether the arc lies on the wall
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-02
 cost: E
 priority: P3
 ---
 
 (REACH, PR 3627's delta review: the sibling of the line defect that PR
 fixed, on the same function.)
+
+## Closed as moot (JOIN-1, PR 3790)
+
+The arm is gone. The boolean lanes' adjacency skip no longer asks the
+between edge's geometry: it fires only when the between edge IS the edge
+the matched germs' locus names on that solid (`SegmentEdge::Is`), and a
+segment inside a face names none, so a foreign arc can never be taken
+for the section. `between_edge_is_section` answers the split lane alone;
+asked on a boolean lane it refuses `SectionInvariant`. The text below is
+the record of the defect as it stood.
 
 ## What
 
