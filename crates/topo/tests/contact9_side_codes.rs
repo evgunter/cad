@@ -356,7 +356,10 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
     assert!(
         matches!(
             metre,
-            Ok((topo::PlaneRelation::SameOpposite, topo::ContactVerdict::Bridged))
+            Ok((
+                topo::PlaneRelation::SameOpposite,
+                topo::ContactVerdict::Bridged
+            ))
         ),
         "at a 1 m arm the tilt reads in band and the declaration bridges it: {metre:?}"
     );

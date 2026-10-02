@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-02
 ---
 
-
 ## What
 
 The coplanar-sector refusal (`reduce.rs`, the `Coincide::Sectors`

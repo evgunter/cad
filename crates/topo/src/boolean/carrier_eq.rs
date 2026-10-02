@@ -442,12 +442,15 @@ pub fn at_consumed_extent<T: geom_core::Real>(
             },
             centre,
         ),
-        (c1, CarrierDesc::Cylinder {
-            origin,
-            axis,
-            radius,
-            outward,
-        }) if matches!(c1, CarrierDesc::Cylinder { .. }) => {
+        (
+            c1,
+            CarrierDesc::Cylinder {
+                origin,
+                axis,
+                radius,
+                outward,
+            },
+        ) if matches!(c1, CarrierDesc::Cylinder { .. }) => {
             let foot = reach.foot_on(origin, axis);
             (
                 c1,

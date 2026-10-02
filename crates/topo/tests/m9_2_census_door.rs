@@ -193,7 +193,8 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         radius: 1.0,
         u_ref: Vec3::unit_z(),
     };
-    let TangentLocus::Line { origin, dir } = tangent_locus(&plane_at(0.0), &cyl, metre_patch(), band()).unwrap();
+    let TangentLocus::Line { origin, dir } =
+        tangent_locus(&plane_at(0.0), &cyl, metre_patch(), band()).unwrap();
     assert!(
         origin.z.abs() < 1e-12 && origin.y.abs() < 1e-12,
         "{origin:?}"

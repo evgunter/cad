@@ -1944,8 +1944,7 @@ mod lever_rows {
             (lo..=hi).contains(&arm),
             "{what}: the door levers the tilt over the faces, {lo}..={hi} m, read {arm}"
         );
-        match crate::boolean::contact_pair_verdict(a, fa, b, fb, ContactClass::Rest, None, band())
-        {
+        match crate::boolean::contact_pair_verdict(a, fa, b, fb, ContactClass::Rest, None, band()) {
             Err(ContactRefusal::Contradicted { .. }) => {}
             other => {
                 panic!("{what}: the tilt at the extent contradicts the declaration: {other:?}")
@@ -2003,11 +2002,6 @@ mod lever_rows {
         let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
         let sense = a.get_face(fa).unwrap().sense;
         b.set_face_sense(fb, !sense).unwrap();
-        bridged_at_a_metre_contradicted_at_the_extent(
-            (&a, fa),
-            (&b, fb),
-            (5.0, 12.0),
-            "cylinder",
-        );
+        bridged_at_a_metre_contradicted_at_the_extent((&a, fa), (&b, fb), (5.0, 12.0), "cylinder");
     }
 }

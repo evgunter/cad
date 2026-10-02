@@ -58,7 +58,9 @@ impl<T: Real> ExtentBall<T> {
                 acc + (b.center - first.center)
             });
         let center = first.center + sum / n;
-        let radius = parts.iter().fold(T::zero(), |r, b| r.max(b.lever_from(center)));
+        let radius = parts
+            .iter()
+            .fold(T::zero(), |r, b| r.max(b.lever_from(center)));
         Some(Self::new(center, radius))
     }
 

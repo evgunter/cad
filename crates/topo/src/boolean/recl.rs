@@ -828,9 +828,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 other_body,
                                 other_sec.face,
                             )
-                            .ok_or(BooleanError::ClassificationInvariant {
-                                what: "declared-Tangent face pair has no readable extent",
-                            })?;
+                            .ok_or(
+                                BooleanError::ClassificationInvariant {
+                                    what: "declared-Tangent face pair has no readable extent",
+                                },
+                            )?;
                             super::sectors::tangent_lump(
                                 &s_own,
                                 &s_other,

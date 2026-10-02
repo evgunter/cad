@@ -1081,12 +1081,11 @@ fn face_boundary_points<T: Decide>(
 ///
 /// **The lever is the pair's own extent, per vertex.** Door 1 meters
 /// the same disagreement as an angle levered at a ball enclosing both
-/// faces (`bool_plane_parallel` via `carrier_pair_verdict`'s
-/// `consumed_arm`). Here the tilt's contribution to each term is
-/// `r·sin θ` with `r` that vertex's own distance from the carrier
-/// origin, and the offset term rides in the same length. A tilt a peg absorbs and a
-/// tilt that opens a millimetre across a table get different answers,
-/// which is the whole point.
+/// faces (`bool_plane_parallel` via `carrier_eq::at_consumed_extent`).
+/// Here the tilt's contribution to each term is `r·sin θ` with `r` that
+/// vertex's own distance from the carrier origin, and the offset term
+/// rides in the same length. A tilt a peg absorbs and a tilt that opens
+/// a millimetre across a table get different answers.
 ///
 /// **The margin is symmetric BY CONSTRUCTION** (the argument-order
 /// obligation): the vertex set is a UNION and both plane-distance
@@ -1212,10 +1211,11 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// # The carrier gates (the cylinder `carrier_agreement`)
 ///
 /// Door 1's ladder decided the same data over a ball enclosing both
-/// faces (`carrier_cyl_axis_parallel` at `consumed_arm`,
-/// `carrier_cyl_axis_offset`, `carrier_cyl_radius`); the enclosure
-/// re-decides at the PAIR'S OWN TRIMS (fixed order, D9). The quantity the gates must bound is
-/// the TRANSFER ERROR `E(p) = φ_A(T(u, v)) − p` — not merely the
+/// faces (`carrier_cyl_axis_parallel` levered by
+/// `carrier_eq::at_consumed_extent`, `carrier_cyl_axis_offset`,
+/// `carrier_cyl_radius`); the enclosure re-decides at the PAIR'S OWN
+/// TRIMS (fixed order, D9). The quantity the gates must bound is the
+/// TRANSFER ERROR `E(p) = φ_A(T(u, v)) − p` — not merely the
 /// carriers' radial separation — and to first order it decomposes as
 /// `|E| ≤ |Δr| + g⊥ + sin θ · ‖p − o_b‖`, where the last term is the
 /// displacement of `p` under the rigid rotation aligning the two

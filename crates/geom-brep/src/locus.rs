@@ -289,3 +289,48 @@ pub fn tangent_locus<T: Decide>(
         }),
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::Tol;
+
+    /// **The axis row is levered over the consumed extent.** A unit
+    /// cylinder resting on `z = 0` at the origin, its axis rising
+    /// `0.3·ε` per metre along `x`: over a 1 m patch about the origin
+    /// (a 2 m lever from the axis) the tilt reads zero and the ruling
+    /// is minted; over a 10 m patch along `x` the lever is 6 m, the tilt
+    /// reads in band, and the row escalates rather than mint a ruling
+    /// the far end stands `3·ε` off.
+    #[test]
+    fn the_axis_row_reads_the_tilt_across_the_extent() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let theta: f64 = 0.3 * band.zero();
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(theta.cos(), 0.0, theta.sin()),
+            radius: 1.0,
+            u_ref: Vec3::unit_z(),
+        };
+        let metre = ExtentBall::new(Point3::origin(), 1.0);
+        match tangent_locus(&plane, &cyl, metre, band) {
+            Ok(TangentLocus::Line { .. }) => {}
+            other => panic!("over a metre the tilt reads zero and the ruling is minted: {other:?}"),
+        }
+        let ten = ExtentBall::new(Point3::new(5.0, 0.0, 0.0), 5.0);
+        match tangent_locus(&plane, &cyl, ten, band) {
+            Err(TangentLocusError::Escalated(d)) => assert_eq!(
+                d.predicate,
+                Some("tangent_locus_axis_parallel"),
+                "the axis row escalates"
+            ),
+            other => panic!("over 10 m the tilt reads in band and escalates: {other:?}"),
+        }
+    }
+}

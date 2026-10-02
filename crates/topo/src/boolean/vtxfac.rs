@@ -335,8 +335,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                     what: "declared-Tangent face pair has no readable extent",
                 })?;
             let lump = super::sectors::tangent_lump(
-                &s_sector, &s_pierced, reach, n_pierced, p, op, piercing, s.face, s.arm, read,
-                band,
+                &s_sector, &s_pierced, reach, n_pierced, p, op, piercing, s.face, s.arm, read, band,
             )?;
             entries[k].class = lump;
             entries[(k + 1) % n].class = lump;
