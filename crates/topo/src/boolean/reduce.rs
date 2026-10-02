@@ -1440,7 +1440,7 @@ pub(super) fn settle_held<T: Decide>(
     a: &mut Body<T>,
     b: &mut Body<T>,
     held: Vec<HeldPair>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
