@@ -40,8 +40,10 @@
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
-//! `(Out,·,Out) → Out`, mixed → `In`. The split lane's F4 table agrees
-//! for a convex edge and deliberately DIVERGES for a reflex one
+//! `(Out,·,Out) → Out`, mixed → `In`, the one fold rule
+//! ([`super::sectors::fold_on_bound`]) the vertex-vertex attribution
+//! shares. The split lane's F4 table agrees for a convex edge and
+//! deliberately DIVERGES for a reflex one
 //! (`BOB → ABOVE`): the split must mint copies to keep the two pieces'
 //! fans representable, but a boolean tangential contact is a *legal 3′
 //! touching* (edge-on-face, both flanking faces the same side) already
@@ -115,16 +117,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .get_point(
             piercing_body
                 .get_vertex(vertex)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: piercing,
-                    vertex,
-                })?
+                .ok_or(BooleanError::corrupt_at(piercing, vertex))?
                 .point,
         )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: piercing,
-            vertex,
-        })?;
+        .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
     // The pierced face's oriented datum at `p`, from the one door.
     // `n_pierced` carries the material side, typed so the sense flip
     // cannot be dropped on the way; on a PLANE it is bit-identically
@@ -544,23 +540,33 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // Germ facings (F9 data): the run's two boundary transitions are
     // its germs; both lie in the pierced face's TANGENT plane at `p`,
     // so the germ's face pair = (transition sector's face, pierced
-    // face) in operand order. Parity: the class after crossing forward
+    // face) in operand order, and its loci are the transition sector's
+    // cell and the pierced face. Parity: the class after crossing forward
     // — Out at the run's start germ, In at its end germ (site-shared
     // with the ring strut below).
-    let germ_pair = |own: crate::entity::FaceKey| match piercing {
-        Operand::A => (own, contact.face),
-        Operand::B => (contact.face, own),
+    // Every run's germs are read before any run is minted: a mint moves
+    // the orbit the germ loci are read from.
+    let germ_of = |t: usize| -> Result<Germ<T>, BooleanError> {
+        let s = &sectors[t];
+        let own = super::sectors::germ_locus(piercing_body, s, (read[(t + 1) % n], read[t]))?;
+        let pierced = super::Locus::InFace(contact.face);
+        let cells = match piercing {
+            Operand::A => ((s.face, contact.face), (own, pierced)),
+            Operand::B => ((contact.face, s.face), (pierced, own)),
+        };
+        Ok((cells, pierce_germ_dir(s, n_pierced.vec(), band)?))
     };
-    let mut run_germs = Vec::new();
+    let run_germs = runs
+        .iter()
+        .map(|run| {
+            Ok((
+                germ_of((run.0 + n - 1) % n)?,
+                germ_of((run.0 + run.1 - 1) % n)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
     let mut run_edges = Vec::new();
-    for run in &runs {
-        let s_start = &sectors[(run.0 + n - 1) % n];
-        let s_end = &sectors[(run.0 + run.1 - 1) % n];
-        let dir_start = pierce_germ_dir(s_start, n_pierced.vec(), band)?;
-        let dir_end = pierce_germ_dir(s_end, n_pierced.vec(), band)?;
-        let (gs, ds) = (germ_pair(s_start.face), dir_start);
-        let (ge, de) = (germ_pair(s_end.face), dir_end);
-        run_germs.push(((gs, ds), (ge, de)));
+    for (run, &(start_germ, end_germ)) in runs.iter().zip(&run_germs) {
         let members = (0..run.1).map(|j| entries[(run.0 + j) % n]);
         let mut real = members.filter(|e| e.is_edge);
         let first = real.next();
@@ -571,16 +577,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             (Some(first), Some(last)) => {
                 let mate = piercing_body
                     .mate(last.he)
-                    .ok_or(BooleanError::CorruptOperand {
-                        operand: piercing,
-                        vertex,
-                    })?;
+                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
                 let he2 = piercing_body
                     .get_half_edge(mate)
-                    .ok_or(BooleanError::CorruptOperand {
-                        operand: piercing,
-                        vertex,
-                    })?
+                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?
                     .next;
                 // A run holding every real edge of the orbit leaves the
                 // In side strictly inside one physical sector, the one
@@ -606,13 +606,55 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // faces its start germ with he_minus (copy → old), so the copy
         // is the below end — the mint side follows, keeping the body's
         // scaffold attribute and the record one datum.
-        let side = if strut {
+        //
+        // Where a germ runs along an edge of the piercing solid, the
+        // half beside that edge faces it (`insert::strut_facing`, the
+        // one rule both strut minters read): a strut whose halves face
+        // that way round, he_plus toward its START germ, takes the fan's
+        // side. The side follows the facing, exactly as for a fan. With
+        // both germs inside faces the strut keeps the default above.
+        // At a closed edge's lone vertex with a germ along that edge,
+        // the edge cannot say which half faces it and this minter has
+        // no geometric reading of its own: refused typed. No row
+        // reaches it — a pierce whose section runs along a closed
+        // piercing edge puts that whole edge on the pierced face.
+        let MevSite::Fan { he2: corner, .. } = site else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a pierce run's site is not a fan",
+            });
+        };
+        let corrupt = || BooleanError::corrupt_at(piercing, vertex);
+        let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
+        let departure = corner_half.edge;
+        let arrival = piercing_body
+            .get_half_edge(corner_half.prev)
+            .ok_or_else(corrupt)?
+            .edge;
+        let facing = if strut {
+            super::insert::strut_facing(
+                arrival,
+                departure,
+                super::insert::own_locus_edge(piercing, start_germ.0),
+                super::insert::own_locus_edge(piercing, end_germ.0),
+            )?
+        } else {
+            super::insert::StrutFacing::Unnamed
+        };
+        if facing == super::insert::StrutFacing::ClosedEdge {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: pierced_op,
+                face: contact.face,
+                kind: pierced_kind(pierced_body, contact.face),
+            });
+        }
+        let start_on_arrival = facing == super::insert::StrutFacing::PlusFirst;
+        let side = if strut && !start_on_arrival {
             NewVertexSide::Below
         } else {
             NewVertexSide::Above
         };
         let created = piercing_body.mev_null(site, side)?;
-        let (start_he, end_he) = if strut {
+        let (start_he, end_he) = if strut && !start_on_arrival {
             (created.he_minus, created.he_plus)
         } else {
             (created.he_plus, created.he_minus)
@@ -633,20 +675,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             edge: created.edge,
             attr,
             dangling: strut,
-            germs: [
-                super::HalfGerm {
-                    he: start_he,
-                    a_face: gs.0,
-                    b_face: gs.1,
-                    dir: ds,
-                },
-                super::HalfGerm {
-                    he: end_he,
-                    a_face: ge.0,
-                    b_face: ge.1,
-                    dir: de,
-                },
-            ],
+            germs: [half_germ(start_he, start_germ), half_germ(end_he, end_germ)],
         };
         run_edges.push(rec);
         out.edges.push(rec);
@@ -681,16 +710,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .get_point(
             pierced_body
                 .get_vertex(u)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: pierced,
-                    vertex: u,
-                })?
+                .ok_or(BooleanError::corrupt_at(pierced, u))?
                 .point,
         )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: pierced,
-            vertex: u,
-        })?;
+        .ok_or(BooleanError::corrupt_at(pierced, u))?;
     // (1) chord strut u → pierce point (certified line, transient).
     let chord = pierced_body.mev(
         MevSite::Fan {
@@ -716,7 +739,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // facing the run's start germ (piercing UP) is the pierced DOWN
     // half — he_minus, starting at the created copy = `above_end`.
     let mut ring_anchor: Option<HalfEdgeKey> = None;
-    for (run_edge, ((gs, ds), (ge, de))) in run_edges.iter().zip(&run_germs) {
+    for (run_edge, &(start_germ, end_germ)) in run_edges.iter().zip(&run_germs) {
         let site = match ring_anchor {
             None => MevSite::Lone { r#loop: kemr.ring },
             Some(he) => MevSite::Fan { he1: he, he2: he },
@@ -733,18 +756,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             },
             dangling: true,
             germs: [
-                super::HalfGerm {
-                    he: created.he_minus,
-                    a_face: gs.0,
-                    b_face: gs.1,
-                    dir: *ds,
-                },
-                super::HalfGerm {
-                    he: created.he_plus,
-                    a_face: ge.0,
-                    b_face: ge.1,
-                    dir: *de,
-                },
+                half_germ(created.he_minus, start_germ),
+                half_germ(created.he_plus, end_germ),
             ],
         };
         out.edges.push(rec);
@@ -811,10 +824,7 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
             return Err(super::sectors::bisector_zero_refusal(band));
         }
-        entries[k].class = match (prev, next) {
-            (SideCode::Out, SideCode::Out) => SideCode::Out,
-            _ => SideCode::In,
-        };
+        entries[k].class = super::sectors::fold_on_bound(prev, next);
     }
     Ok(())
 }
@@ -897,6 +907,30 @@ fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom
     body.get_face(face)
         .and_then(|f| body.get_surface(f.surface))
         .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind)
+}
+
+/// A pierce germ as a run reads it: `(A face, B face)` and
+/// `(A locus, B locus)`, then its direction.
+type Germ<T> = (
+    (
+        (crate::entity::FaceKey, crate::entity::FaceKey),
+        (super::Locus, super::Locus),
+    ),
+    geom_core::Vec3<T>,
+);
+
+fn half_germ<T: geom_core::Real>(
+    he: HalfEdgeKey,
+    ((faces, loci), dir): Germ<T>,
+) -> super::HalfGerm<T> {
+    super::HalfGerm {
+        he,
+        a_face: faces.0,
+        b_face: faces.1,
+        a_locus: loci.0,
+        b_locus: loci.1,
+        dir,
+    }
 }
 
 /// Maximal cyclic Out-runs `(start, len)` (PR 2's `above_runs` on

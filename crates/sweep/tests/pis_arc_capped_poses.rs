@@ -586,7 +586,13 @@ fn a_spiric_bounded_face_refuses_only_within_its_reach() {
         .expect("the face's spiric edge");
     let got = topo::test_support::point_in_face(&cavity, spiric_face, on_spiric, band);
     assert!(
-        matches!(got, Err(PointInSolidError::EdgeCarrierUnsupported { face }) if face == spiric_face),
+        matches!(
+            got,
+            Err(PointInSolidError::EdgeCarrierUnsupported { face, cause })
+                if face == spiric_face
+                    && cause.r#loop == data.outer
+                    && cause.carrier == topo::UncrossableCarrier::Spiric
+        ),
         "on the spiric the face refuses typed, got {got:?}"
     );
 }

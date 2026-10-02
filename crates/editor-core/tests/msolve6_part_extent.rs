@@ -68,11 +68,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
     let Some(Node::Profile(program)) = part.node(profile) else {
         unreachable!("found as a profile")
     };
-    let ids = program
-        .ids
-        .iter()
-        .map(|lp| lp.iter().copied().map(Some).collect())
-        .collect();
+    let ids = program.kept_in_place();
     let loops = fixture::desc(program.plane, vec![fixture::square(0.0, 0.0, half)]).loops;
     let body = body_node(&part);
     let (part, _) = fixture::step(

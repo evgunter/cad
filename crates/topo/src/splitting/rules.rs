@@ -479,9 +479,9 @@ fn wall_graze<T: Decide>(
 ///   outer boundary at all, so its locus is unbounded and no finite
 ///   arm over-estimates anything. That is refused, not measured.
 ///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
-///   validated operand cannot carry one; the boolean's own operand
-///   gates (`gate_operand_pairs`, `gate_maximal_faces`) do not run
-///   that check, which is why the refusal is here rather than assumed.
+///   validated operand cannot carry one; the boolean's operand gate
+///   (`gate_operand_pairs`) runs it, but the split's operand gate does
+///   not, which is why the refusal is here rather than assumed.
 ///
 /// The refusal is [`SplitReduceError::CorruptOperand`], whose own doc
 /// is *"a traversal failed (broken orbit/loop or a **lone vertex**):

@@ -71,7 +71,8 @@ enum Want {
     /// the bound; below it the crossing is under the interval's own
     /// rounding and builds within the gap at this volume.
     Crosses(&'static str, f64, f64),
-    /// The join refuses.
+    /// The join refuses: its role probe reads neither section loop,
+    /// every witness within the band of the other solid.
     Join,
 }
 
@@ -200,7 +201,12 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
                 ),
                 (Crosses(_, want, _), out) => builds(out, want),
                 (Join, out) => assert!(
-                    matches!(out, Err(BooleanError::JoinDesync { .. })),
+                    matches!(
+                        out,
+                        Err(BooleanError::Join(
+                            topo::SplitJoinError::SectionLoopUndecided { .. }
+                        ))
+                    ),
                     "{label}: the join refuses: {out:?}"
                 ),
             }

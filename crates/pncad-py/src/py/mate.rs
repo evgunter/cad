@@ -1285,8 +1285,8 @@ impl Maintenance {
     /// `strand`, the appearance store's stranded key for a
     /// `stranded_appearance`. A stranded name is spelled as the
     /// document holds it — its minting node deleted, or its profile
-    /// step dropped — and `DocEdit.rebind` from that spelling is the
-    /// repair this surface carries.
+    /// piece no longer drawn — and `DocEdit.rebind` from that spelling
+    /// is the repair this surface carries.
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
