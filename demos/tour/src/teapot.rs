@@ -397,6 +397,8 @@ const SPOUT_R1: f64 = 3.0 / 256.0;
 const SPOUT_BORE: f64 = 3.0 / 4.0;
 /// How many sections the spout's skin is fitted through.
 const SPOUT_STATIONS: usize = 7;
+// The stop's `ops` line is a `&'static str` and spells this count.
+const _: () = assert!(SPOUT_STATIONS == 7);
 /// **How many arcs each circular section is authored as.**
 ///
 /// FOUR, not a plain `LoopProgram::Circle`: a `Circle` loop is two
@@ -1102,25 +1104,28 @@ fn band_faces(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
     faces_where(ev, node, SegPat::tag(SegTag::BandFace))
 }
 
-/// **A named rim's own circle, read back OFF THE EDGE THE NAME
+/// **A named rim's own circle, read back OFF THE EDGES THE NAME
 /// DENOTES**: its centre station and its radius.
 ///
 /// The direction matters and is the whole strength of the row. A
 /// numeric scan matched a DESCRIPTION — station and radius — and
 /// answered a key; this goes the other way, from the name to the one
 /// edge that carries it (`edge_name` over the body's edges is the
-/// only door the façade has for that direction), and then reads the
-/// circle off THAT edge's own certified carrier. So a name that
-/// resolved to a different rim standing at the same station cannot
-/// answer the right radius: the radius is the edge's, not a
-/// neighbouring vertex's.
+/// only door the façade has for that direction), out to the whole rim
+/// through `query::rim_of`, and then reads the circle off each of
+/// THOSE edges' own certified carriers. So a name that resolved to a
+/// different rim standing at the same station cannot answer the right
+/// radius: the radius is the edges', not a neighbouring vertex's.
 ///
-/// Three things are asserted and each is a way the tie could be
-/// false: the name denotes EXACTLY ONE edge, that edge's circle is
-/// centred on the axis, and the meridian VERTEX of the same profile
-/// vertex lies ON that circle — which is what makes the rim and the
-/// vertex two names for one place rather than two independent reads
-/// that happen to agree.
+/// The same read serves an annular profile (a rim of one closed edge)
+/// and an axis-touching one (two half-arcs, `BandRim` and
+/// `BandRimPi`). What is asserted, each a way the tie could be false:
+/// the `BandRim` name denotes EXACTLY ONE edge; the rim through it is
+/// named by this vertex's rim names and no others; every edge of it
+/// stands on one circle centred on the axis; and the meridian VERTEX of
+/// the same profile vertex lies ON that circle — which is what makes
+/// the rim and the vertex two names for one place rather than two
+/// independent reads that happen to agree.
 fn rim_circle(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
@@ -1129,11 +1134,25 @@ fn rim_circle(
     vertex: u32,
 ) -> (f64, f64) {
     let start = vertex_at(doc, node, vertex, Tol::witness());
-    let arcs = rim_arcs(node, start);
-    let carried: Vec<(f64, f64)> = query::all_edges(body)
+    let names = rim_arcs(node, start);
+    let seeds: Vec<_> = query::all_edges(body)
         .into_iter()
-        .filter(|&k| edge_name(ev, node, 0, k).is_ok_and(|n| arcs.contains(n)))
-        .map(|k| {
+        .filter(|&k| edge_name(ev, node, 0, k).ok() == Some(&names[0]))
+        .collect();
+    let [seed] = seeds[..] else {
+        panic!("the rim's BandRim name denotes exactly one edge, got {seeds:?}");
+    };
+    let rim = query::rim_of(body, seed).expect("a latitude rim chains into one closed rim");
+    let circles: Vec<(f64, f64)> = rim
+        .iter()
+        .map(|&k| {
+            let name = edge_name(ev, node, 0, k).expect("every rim edge is named");
+            assert!(
+                names.contains(name),
+                "the rim through {:?} carries an edge named {name:?}, not one of this \
+                 vertex's rim names",
+                names[0]
+            );
             let c = body
                 .get_edge(k)
                 .and_then(|e| body.get_curve_geom(e.curve))
@@ -1151,13 +1170,10 @@ fn rim_circle(
             }
         })
         .collect();
-    let [(station, radius), other] = carried[..] else {
-        panic!("the rim's two names denote exactly two edges, got {carried:?}");
-    };
-    assert_eq!(
-        (station, radius),
-        other,
-        "the rim's two half-arcs stand on one circle"
+    let (station, radius) = circles[0];
+    assert!(
+        circles.iter().all(|&c| c == (station, radius)),
+        "every edge of one rim stands on one circle: {circles:?}"
     );
     let p = vertex_position(ev, node, &meridian_vertex(MeridianEnd::Seam, node, start))
         .expect("the meridian vertex's name denotes a vertex");
@@ -1309,8 +1325,12 @@ fn pot_area(d: f64) -> f64 {
 // The scene
 // ---------------------------------------------------------------------
 
+/// A body's `(vertices, edges, faces)`.
+type Census = (usize, usize, usize);
+
 /// **Each of the lid's three rims asked for ON ITS OWN**, in a
-/// document of its own, and the answer printed.
+/// document of its own: the answer printed, and its census returned
+/// for the scene to hold each band to its own delta.
 ///
 /// A one-call refusal names ONE edge, and on a body where three rims
 /// are new that is not enough to say which arm the door turned away —
@@ -1318,7 +1338,7 @@ fn pot_area(d: f64) -> f64 {
 /// rim. They are asked on a SEPARATE document because the scene's own
 /// recipe is what the gallery opens, and three extra half-rolled lids
 /// in it would be three bodies the scene does not model.
-fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
+fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
     let (plane, axis) = frame_and_axis(&mut doc, tol);
     let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
@@ -1345,7 +1365,15 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
     );
     asked
         .into_iter()
-        .map(|(what, node)| (what, describe(&ev, node)))
+        .map(|(what, node)| {
+            let census = ev.value(node).and_then(|v| match &v.payload {
+                ValuePayload::Body(b) => {
+                    Some((b.vertices().count(), b.edges().count(), b.faces().count()))
+                }
+                _ => None,
+            });
+            (what, describe(&ev, node), census)
+        })
         .collect()
 }
 
@@ -1691,8 +1719,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // are new that is not enough to say which arm the door turned away
     // — so the scene asks three questions whose answers are each about
     // one rim.
-    for (what, answer) in per_rim_answers(tol) {
+    //
+    // Each band's own census delta is asserted here, one rim at a
+    // time, so the one-request total below is three of THIS delta and
+    // not a mix that happens to sum to it.
+    for (what, answer, census) in per_rim_answers(tol) {
         println!("   {what}: {answer}");
+        assert_eq!(
+            census,
+            Some((10, 17, 9)),
+            "{what}, rolled alone, is one band over its two half-arcs: the sharp 8/14/8 \
+             plus (+2, +3, +1)"
+        );
     }
     // THREE rims, THREE DIFFERENT coaxial arms. The lid is
     // the tour's carrier of the curved-support fillet family now that
@@ -1756,7 +1794,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             }
             assert!(
                 f.rings.is_empty(),
-                "a curved band is ring-free: one cycle, two closed trim circles and a slit"
+                "a band is ring-free: one cycle over its two half-arcs' trims and the \
+                 meridians between them"
             );
         }
         hit.unwrap_or_else(|| panic!("no band has its spine at {y}"))
@@ -2303,8 +2342,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "ONE recipe document: Profile -> Revolve -> Node::Shell(t = 7.8125 mm, the \
               mouth disc BY NAME) for the vessel; Profile -> Revolve -> \
               ONE Node::Fillet over the flange rim, the dome foot and the knob top, \
-              each by its two half-arcs' names, for the lid; Datum::Frame x{SPOUT_STATIONS} -> Profile(2 circle loops) \
-              x{SPOUT_STATIONS} -> Node::Loft(v_degree 3) -> Node::Transform for the \
+              each by its two half-arcs' names, for the lid; Datum::Frame x7 -> Profile(2 circle loops) \
+              x7 -> Node::Loft(v_degree 3) -> Node::Transform for the \
               spout, with the same frames lofted a second time WITHOUT the bore as its \
               volume's denominator; \
               Datum::Axis -> Node::Tube for the handle. Two walls pinned: both unions, \

@@ -4,6 +4,8 @@ kind: issue
 title: the minting builders spell band, band_pi and band_rim but not band_rim_pi, so a whole rim on an axis-touching revolve is hand-spelled
 status: open
 opened: 2026-10-02
+priority: P3
+cost: E
 ---
 
 
@@ -38,3 +40,6 @@ through `pncad::select` and the python `select` module. Perhaps also a
 `band_rim_whole(node, vertex) -> Vec<StableName>` answering one name on
 an annular profile and two on an axis-touching one, though that needs
 the profile's shape and so is a door rather than a builder.
+
+The viewer half of the same gap (a click picks half a rim) is
+`work/vseam/a-picked-half-rim-blends-half-and-refuses.md`.
