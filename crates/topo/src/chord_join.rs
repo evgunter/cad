@@ -303,15 +303,18 @@ pub enum SplitJoinError {
     /// at its far vertex, so a vertex's germs agree with the sections
     /// that reach it; what can still disagree is an edge leaving a
     /// vertex tangent to the surface it is read against (read to first
-    /// order in the boolean, to second in the split), a corrupt
-    /// reduction, or a kernel defect.
+    /// order in the boolean, to second in the split), a coincidence of
+    /// the two solids the join has no rule for (a declared continuation
+    /// over a rabbet's step reaches it,
+    /// `work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`),
+    /// a corrupt reduction, or a kernel defect.
     UnpairedLooseEnds {
         /// How many halves remained.
         count: usize,
     },
     /// A section loop mixed above copies with below-side vertices —
     /// the joining invariant (heads join heads, tails join tails)
-    /// failed (kernel bug, loudly).
+    /// failed, loudly.
     ///
     /// The join's role probe reads each copy's side through
     /// `point_in_solid`, so a misread there arrives here too: a planar
@@ -525,11 +528,14 @@ impl SplitJoinError {
                 "{count} section ends found no partner: the sides read at the vertices do \
                  not close into section polygons. An edge leaving a vertex tangent to the \
                  surface it is read against, whose side is then read to finite order, can \
-                 cause this; otherwise it is a kernel defect"
+                 cause this, as can a coincidence of the two solids the join has no rule \
+                 for yet"
             ),
             Self::SectionLoopMixed { face } => write!(
                 f,
-                "null face {face:?} has a side-mixed section loop (kernel bug)"
+                "null face {face:?} has a side-mixed section loop: its two copies do not \
+                 read as one above and one below, so which one bounds the result is \
+                 undecided"
             ),
             Self::CutInvariant { edge } => write!(
                 f,

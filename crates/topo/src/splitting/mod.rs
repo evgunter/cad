@@ -162,7 +162,7 @@ pub struct SectorEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NullEdgeRecord {
     /// The ON vertex whose neighborhood classification minted this
-    /// null edge (its below-side copy survives as `attr.below_end`).
+    /// null edge: the end of `attr` that is not the minted copy.
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
