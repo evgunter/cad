@@ -1414,7 +1414,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
+            (
+                "SingleSiteSectionLoop",
+                J::SingleSiteSectionLoop { count: 2 },
+            ),
             ("SectionLoopMixed", J::SectionLoopMixed { face }),
+            ("SectionLoopUndecided", J::SectionLoopUndecided { face }),
             ("CutInvariant", J::CutInvariant { edge }),
             (
                 "Corrupt",

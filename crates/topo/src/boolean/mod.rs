@@ -962,22 +962,40 @@ fn tangent_struts<T: Real>(
     out
 }
 
+/// The cell of one operand a section germ lies in. A germ ray running
+/// along a real edge of the operand lies in both faces that edge
+/// bounds, so a face does not name it; the edge does. The sweep splits
+/// an edge at every crossing, so both ends of a section segment along
+/// an edge name the same key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Locus {
+    /// Inside this face, off every edge of it.
+    InFace(FaceKey),
+    /// Along this edge.
+    OnEdge(crate::entity::EdgeKey),
+}
+
 /// The **germ** a null-edge half faces (F9 as data, PR 5): every
 /// surviving crossing record — a section-polygon edge emanating from
 /// the classified vertex — lies on the intersection line of one A-face
 /// and one B-face, and each null edge's two halves are spliced facing
-/// its two germs. The joining step matches halves across sites by this
-/// identity (same face pair, opposite record parity — the book's
-/// he1↔he2 "opposite roles" test carried as data), never by slot
-/// position or dynamic face lookups.
+/// its two germs. The joining step matches halves across sites by the
+/// germ's per-operand [`Locus`] (equal on both operands, opposite record
+/// parity — the book's he1↔he2 "opposite roles" test carried as data),
+/// never by slot position or dynamic face lookups.
 #[derive(Clone, Copy, Debug)]
 pub struct HalfGerm<T: Real> {
     /// The half-edge facing this germ.
     pub he: crate::entity::HalfEdgeKey,
-    /// The A-body face whose plane carries the germ line.
+    /// The A-body face whose carrier the join's chord lanes section
+    /// against: the face of the sector the germ was attributed to.
     pub a_face: FaceKey,
-    /// The B-body face whose plane carries the germ line.
+    /// The B-body face, likewise.
     pub b_face: FaceKey,
+    /// The cell of A the germ lies in: the germ's identity on A.
+    pub a_locus: Locus,
+    /// The cell of B the germ lies in.
+    pub b_locus: Locus,
     /// The germ's outgoing direction along the line (unit; points away
     /// from the site toward the polygon edge's other end) — the datum
     /// the joining's mutual-facing test decides on (`bool_join_facing`).
@@ -3109,8 +3127,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        // The codes as first read, which the germ loci are derived from.
+        let mut raw = records.clone();
         recl::recl_sectors(
             &mut records,
+            &mut raw,
             &a_sectors,
             &b_sectors,
             &a,
@@ -3123,6 +3144,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         )?;
         recl::recl_edges(
             &mut records,
+            &mut raw,
             &a_sectors,
             &b_sectors,
             &a,
@@ -3132,7 +3154,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             band,
         )?;
         let out = insert::insert_null_pairs(
-            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &declared, band,
+            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &raw, &declared, band,
         )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);

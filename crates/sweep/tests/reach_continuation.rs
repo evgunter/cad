@@ -1061,16 +1061,17 @@ fn overlapping_continuations_refuse_undeclared_and_build_declared() {
     }
 }
 
-/// **A declared continuation across a rabbet's step refuses its union,
-/// typed, and its subtract and intersect build.** The rabbeted plate and
-/// a block on its east edge that fills the rabbet and overlaps the plate
-/// beyond it (the step below, or the top beside it), every finding
-/// declared. The union, the 6 × 4 × 1 box, refuses
-/// `Join(UnpairedLooseEnds)` with six ends unpaired
-/// (`work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`);
-/// its text names the join's missing rule, not a kernel defect.
+/// **A declared continuation across a rabbet's step builds every op.**
+/// The rabbeted plate and a block on its east edge that fills the
+/// rabbet and overlaps the plate beyond it (the step below, or the top
+/// beside it), every finding declared. The union is the 6 × 4 × 1 box,
+/// six faces, a legal operand: it used to refuse
+/// `Join(UnpairedLooseEnds { count: 6 })`
+/// (`work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`),
+/// and JOIN-1's locus matching pairs those ends (the section segments
+/// along the step are edges of both solids).
 #[test]
-fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
+fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
     for (label, block, subtract, intersect) in [
         (
             "over the step",
@@ -1089,18 +1090,13 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
         let (rest, cont) = findings(&a, &block);
         assert_eq!(rest.coincident_faces.len(), 1, "{label}: one Rest pair");
         let d = with(&rest, &cont);
-        let err = topo::union_with(&a, &block, &d, tol()).expect_err("the union refuses");
-        assert!(
-            matches!(
-                err,
-                BooleanError::Join(topo::SplitJoinError::UnpairedLooseEnds { count: 6 })
-            ),
-            "{label}: {err:?}"
+        let union = builds(
+            &format!("{label}, union"),
+            topo::union_with(&a, &block, &d, tol()),
+            W * H,
+            6,
         );
-        assert!(
-            !err.to_string().contains("kernel"),
-            "{label}: a legal input is no kernel defect: {err}"
-        );
+        sweep::test_support::assert_legal_operand(label, &union.body, tol());
         builds(
             &format!("{label}, subtract"),
             topo::subtract_with(&a, &block, &d, tol()),
