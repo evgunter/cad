@@ -38,62 +38,6 @@ fn circle<S: Scalar>(cx: f64, cy: f64, r: f64, tol: Tol) -> ConstructedLoop<S> {
         .into()
 }
 
-/// L-bracket: polyline + one fillet arc at the inner corner, extruded.
-pub fn bracket<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
-    // The inner corner (1, 1) carries an r = 0.5 tangent fillet,
-    // authored through the CONSTRUCTIVE path (#101): `fillet` computes
-    // the tangent points (1.5, 1)/(1, 1.5) and the arc bulge exactly
-    // and declares both joints tangent by construction. History: the
-    // pre-#100 demo hand-supplied a decimal-rounded via point (1.146),
-    // whose carrier sat ~2.3e-6 clear of the adjacent lines — inside
-    // the escalation band at CAD_TOLERANCE_EPS=1e-6 (#99); #100 fixed
-    // the constant in place (1.5 − 0.5/√2, margin ~1e-16); #101
-    // replaces the hand computation entirely and makes the intent
-    // declared, verified data. Undeclared exact tangency is now
-    // refused typed (UndeclaredTangency), so the constructor is the
-    // demo's authoring path, not just a convenience. (The 1.146 datum
-    // itself lives on as the large-K lint's litmus fixture —
-    // tools/k-lint.)
-    //
-    // Algebra-authored at LIB-G1, which is where the two constructors
-    // it needed arrived. LIB-U2 PR-2 measured why it could not move
-    // then: the corner is never authored, so the PATHS spelling reaches
-    // it through a director, and `.angle(PI)` carries sin(PI) = 1.22e-16
-    // into the ray — 1 ulp on both trim vertices. `.toward(-1, 0)` fixes
-    // the RAY instead of an angle, so the corner comes out exactly
-    // (1, 1). The filleted side then has to END at its authored far
-    // vertex (1, 3), which needed the far-end anchor `.to(p)` — before
-    // it, the only spellings were a synthetic mid-side anchor plus a
-    // measured length. The lowering is bit-identical to the raw chain
-    // this replaces (pinned in path_differential).
-    let lp = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0), tol)
-        .expect("bracket base")
-        .line_to(p2(3.0, 1.0), tol)
-        .expect("bracket riser")
-        .toward(S::from_f64(-1.0), S::from_f64(0.0), tol)
-        .expect("west, exactly")
-        .fillet(S::from_f64(0.5), tol) // r = 0.5 inner fillet
-        .expect("bracket fillet fits")
-        .toward(S::from_f64(0.0), S::from_f64(1.0), tol)
-        .expect("north, exactly")
-        .to(p2(1.0, 3.0), tol)
-        .expect("the filleted side ends at its far vertex")
-        .line_to(p2(0.0, 3.0), tol)
-        .expect("bracket top")
-        .line_to(Start, tol)
-        .expect("bracket seam")
-        .into();
-    extrude(
-        &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
-        Extrusion::Distance(S::from_f64(0.75)),
-        tol,
-    )
-    .expect("extrude bracket")
-    .body
-}
-
 /// Rectangular plate with two circular holes: a genus-2 extrusion.
 pub fn plate<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     // Per-loop wholesale, never mixed within a loop: the outer
@@ -409,20 +353,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // than the bracket's single inner blend, while `diefillet`
         // covers the rolling-ball kind. The bracket keeps its
         // standalone render and every non-sheet role.
-        off_sheet(stop(
-            "bracket",
-            "L-bracket with a filleted inner corner (polyline + tangent arc profile)",
-            "PATHS algebra (toward/fillet/far-end anchor) -> Profile::validate -> extrude(Distance)",
-            1e-2,
-            View {
-                elev: 32.0,
-                azim: -55.0,
-                up: 'z',
-            },
-            [0.36, 0.56, 0.86],
-            bracket(tol),
-            None,
-        )),
+        off_sheet(crate::bracket::stop(tol)),
         // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30): `diechamfer` carries the chamfer verb on the
         // sheet, on a better part and at the SAME setback as

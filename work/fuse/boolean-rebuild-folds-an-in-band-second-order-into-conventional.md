@@ -2,10 +2,11 @@
 id: boolean-rebuild-folds-an-in-band-second-order-into-conventional
 kind: issue
 title: topo::boolean::ops folds an in-band tangent_second_order into the conventional posture, citing a tier-3 stance tier 3 does not take
-status: open
+status: dispatched
 opened: 2026-09-13
 priority: P0
 cost: M
+branch: fuse/rebuild-second-order
 ---
 
 
