@@ -459,10 +459,12 @@ fn seam_vertex_fires_only_where_rim_of_lists_the_rim() {
     assert!(fired > 0, "no row fired SeamVertex");
     // The sites the review measured flipping to `SeamVertex` when the
     // one-seam reading read incidence alone: one arc of a disc of
-    // arcs, whose arcs `rim_of` does not read as one rim.
+    // arcs. `rim_of` reads structure, so it lists the disc's arcs as
+    // one rim, and the tag's recourse holds there too.
     let disc = disc_of_arcs(2, 1.0, 1.0, t);
     let arcs = circle_arcs_at_z(&disc, 1.0);
     assert_eq!(arcs.len(), 2);
-    assert!(topo::query::rim_of(&disc, arcs[0]).is_err());
-    assert!(!refuses_seam_vertex(&disc, &arcs[..1]));
+    let rim = topo::query::rim_of(&disc, arcs[0]).expect("rim_of lists a disc of arcs");
+    assert!(arcs.iter().all(|a| rim.contains(a)), "the rim holds both arcs");
+    assert!(refuses_seam_vertex(&disc, &arcs[..1]));
 }
