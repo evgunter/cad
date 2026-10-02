@@ -2,9 +2,10 @@
 id: circle-sphere-root-slack-refuses-near-tangent-pairs-at-1e-12
 kind: issue
 title: At eps 1e-12 the circle x sphere root-slack meter refuses a near-tangent snowman the default band builds
-status: open
+status: review
+pr: 3847
 opened: 2026-10-01
-refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, sphere-union-sphere-refuses-though-the-section-is-closed-form]
+refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, sphere-union-sphere-refuses-though-the-section-is-closed-form, f64-cannot-place-a-shallow-crossing-within-the-finest-band, circle-cylinder-square-arm-root-slack-charges-the-whole-term-bound]
 ---
 
 The sphere instance of `circle-torus-root-slack-crowds-the-zero-band-at-1e-12`,
