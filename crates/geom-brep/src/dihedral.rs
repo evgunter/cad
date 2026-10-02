@@ -231,6 +231,32 @@ pub(crate) fn wedge_decided<T: Decide>(
     let n2 = implicit_gradient(s2, p);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
     let arm = folded_lever_arm(s1, s2, p, extent);
+    if std::env::var_os("SYM15_PROBE").is_some() {
+        let probe_surface = |s: &Surface<T>| match s {
+            Surface::Cylinder { origin, axis, radius, .. } => {
+                let q = p - *origin;
+                let h = q.dot(*axis);
+                let w = q - *axis * h;
+                format!(
+                    "Cylinder origin={origin:?} axis={axis:?} radius={radius:?}\n    q={q:?}\n    h={h:?}\n    w={w:?}\n    w.norm_sq={:?}\n    resid={:?}",
+                    w.norm_squared(), crate::implicit_residual(s, p)
+                )
+            }
+            Surface::Plane { normal, .. } => format!("Plane normal={normal:?} resid={:?}", crate::implicit_residual(s, p)),
+            other => format!("{:?}", other.kind()),
+        };
+        eprintln!(
+            "SYM15 wedge p={p:?}\n  s1: {}\n  s2: {}\n  n1={n1:?}\n  n2={n2:?}\n  |n1|={:?}\n  |n2|={:?}\n  cross={:?}\n  |cross|={:?}\n  |n1||n2|={:?}\n  sin_theta={sin_theta:?}\n  extent={extent:?}\n  arm={arm:?}\n  margin={:?}",
+            probe_surface(s1),
+            probe_surface(s2),
+            n1.norm(),
+            n2.norm(),
+            n1.cross(n2),
+            n1.cross(n2).norm(),
+            n1.norm() * n2.norm(),
+            sin_theta * arm
+        );
+    }
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm. A Zero arm escalates
     // with its decided margin, a (for a true magnitude, unreachable)
