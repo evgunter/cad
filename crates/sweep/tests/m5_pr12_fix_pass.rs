@@ -8,7 +8,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use geom_core::{ErrorTextReading, Tol};
+use geom_core::{Band, ErrorTextReading, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -181,6 +181,19 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// `θ` above 50°, and this clip's dihedrals are all within 0.4 rad of
 /// a right angle; so the rounded body lies strictly between the clip's
 /// volume and that less `r²·Σℓ`.
+///
+/// **And the pin on the octant's pcurve rows.** The oblique corners'
+/// contact circles are GENERAL circles of their sphere's chart — neither
+/// polar nor meridian — so the closed-form door has no image for them;
+/// the mint routes them through the fitted lane. Every half-edge of
+/// every corner face carries a certified row, some of them `Fitted`,
+/// each one's dense map residual — measured between its certification
+/// samples — under its stored envelope and that under the band, and
+/// tier 3's pcurve pass re-certifies them clean. Take the route
+/// away and those faces are rowless or refused, and this half goes red.
+/// The chart boundary of every corner face that stores a fitted row
+/// gets past the derivation (a pole joint or a wrap may still refuse
+/// it, each for its own reason).
 #[test]
 fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
@@ -243,5 +256,66 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
         rounded < clip && rounded > clip - r * r * total_length,
         "rounded {rounded} outside ({}, {clip})",
         clip - r * r * total_length
+    );
+
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut fitted = 0;
+    for &corner in &f.corner_faces {
+        let face = f.body.get_face(corner).expect("the corner face resolves");
+        let topo::LoopBoundary::Cycle { first } = f.body.get_loop(face.outer).unwrap().boundary
+        else {
+            panic!("a corner face's outer loop is a cycle");
+        };
+        let mut face_fitted = false;
+        for he in f.body.loop_cycle(first).unwrap() {
+            let row = f.body.pcurve(he).unwrap_or_else(|| {
+                panic!("corner face {corner:?} half-edge {he:?} carries no pcurve row")
+            });
+            if matches!(row.pcurve(), geom_brep::Pcurve::Fitted(_)) {
+                fitted += 1;
+                face_fitted = true;
+                // Between the samples: the dense map residual is under
+                // the stored envelope, which is under the band.
+                let edge = f.body.get_half_edge(he).unwrap().edge;
+                let curve = f.body.get_edge(edge).unwrap().curve;
+                let Some(topo::CurveGeom::Certified(curve)) = f.body.get_curve_geom(curve) else {
+                    panic!("a minted row's edge has a certified carrier");
+                };
+                let ((t0, t1), carrier) = (curve.params(), curve.carrier());
+                let surface = f.body.get_surface(face.surface).unwrap();
+                let envelope = row.certificate().envelope;
+                let dense = (0..=4000)
+                    .map(|k| {
+                        let t = t0 + (t1 - t0) * f64::from(k) / 4000.0;
+                        let p = row.pcurve().eval(t);
+                        (surface.eval(p.x, p.y) - carrier.eval(t)).norm()
+                    })
+                    .fold(0.0, f64::max);
+                assert!(
+                    dense <= envelope && envelope <= band.zero(),
+                    "half-edge {he:?}: dense map residual {dense:e} m, envelope {envelope:e} \
+                     m, band {:e} m",
+                    band.zero()
+                );
+            }
+        }
+        if face_fitted {
+            let chart = f.body.get_surface(face.surface).unwrap().clone();
+            if let Err(e) = topo::pcurves::chart_boundary(&f.body, corner, &chart, band) {
+                assert!(
+                    !matches!(e, topo::pcurves::PcurveMintError::Certify { .. }),
+                    "corner face {corner:?}'s boundary refused at the derivation: {e:?}"
+                );
+            }
+        }
+    }
+    assert!(
+        fitted > 0,
+        "the oblique corners' general circles take the fitted lane"
+    );
+    let findings = topo::pcurves::validate_pcurves(&f.body, band);
+    assert!(
+        findings.is_empty(),
+        "the octant's rows re-certify: {findings:?}"
     );
 }

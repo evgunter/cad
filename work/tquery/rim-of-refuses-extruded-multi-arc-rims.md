@@ -2,10 +2,13 @@
 id: rim-of-refuses-extruded-multi-arc-rims
 kind: issue
 title: topo::query::rim_of refuses every multi-arc rim extrude mints: the arcs' carrier circles are not bit-identical
-status: open
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
+branch: tquery/rim-of-structural
+pr: 3773
+closed: 2026-10-02
 ---
 
 
@@ -42,3 +45,7 @@ admits a tolerance it states — the door's doc argues against the
 second. Which arm belongs to the producer or the door is the
 orchestrator's call; the measurement is the r1 row above, on
 `test_support::disc_of_arcs(2, 0.5, 1.0, tol)` and `(3, …)`.
+
+## Closed (2026-10-02, PR 3773)
+
+`rim_of` reads one rim from structure (the seed's two surface keys, chained on shared vertex keys, oriented by the lower-key side) and compares no carrier; see the PR body and the reviewer's 43-body oracle `rim_of_structural_review_probes`.

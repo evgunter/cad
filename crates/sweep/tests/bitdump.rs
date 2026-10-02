@@ -51,7 +51,7 @@
 use std::fmt::Write as _;
 
 use geom::Surface;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;

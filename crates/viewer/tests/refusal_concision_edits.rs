@@ -585,6 +585,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                     mate: n(9),
                     instance: n(6),
                 }),
+                held: Default::default(),
             },
         ),
         (
@@ -940,6 +941,7 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
             EditError::MateRefused {
                 node: s(9, "Mate"),
                 fault: Box::new(fault),
+                held: Default::default(),
             },
         ));
     }
@@ -961,7 +963,6 @@ const LABELS: &[(&str, &str)] = &[
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",
         "at corner",
     ),
-    ("Edit/MateRefused(", "mate 000000000009"),
 ];
 
 /// The rows that state no recourse — no `Recourse:`, no "There is no way

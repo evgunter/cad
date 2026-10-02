@@ -186,7 +186,9 @@ fn cap_above() -> f64 {
 }
 
 /// **What the boolean does with the ruled fixtures on a block** — the
-/// groove (`block ∖ cylinder`) refuses `CurvedSectorSideUnsupported`;
+/// groove (`block ∖ cylinder`) refuses at the join, where the block's
+/// edges pierce the rod's wall and a pierce ring has no join arm yet
+/// (`work/tang/pierce-ring-has-no-join-arm`);
 /// a sunk rod SHORTER than the block (`z ∈ [0.2, 0.8]`) builds, and is
 /// the block plus the rod's segment above the top plane over its
 /// length. The rod's end caps meet the top plane along chords with one
@@ -199,7 +201,12 @@ fn the_boolean_refuses_the_groove_and_builds_a_short_sunk_rod() {
     assert!(
         matches!(
             groove,
-            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
+            Err(topo::BooleanError::Join(
+                topo::SplitJoinError::SectionArcWindow {
+                    case: topo::ArcWindowCase::NoChartedRun,
+                    ..
+                }
+            ))
         ),
         "the groove refuses at the boolean, got {groove:?}"
     );
@@ -516,8 +523,8 @@ fn a_tall_cylinder_wall_rim_carves_past_a_two_pi_meridian() {
             topo::query::edge_adjacent_matches(
                 &body,
                 k,
-                topo::query::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
-                topo::query::SurfaceKindSet::just(geom_brep::SurfaceKind::Cone),
+                topo::query::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+                topo::query::SurfaceKindSet::just(geom::SurfaceKind::Cone),
             )
         })
         .collect();

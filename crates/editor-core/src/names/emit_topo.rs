@@ -3183,7 +3183,7 @@ mod split_edge_lineage {
             body,
             &SplitPlane {
                 origin: *origin,
-                normal: normal.get(),
+                normal: *normal,
             },
             Tol::witness(),
         )
