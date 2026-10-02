@@ -815,6 +815,100 @@ pub struct CircleSphereHarmonic<T> {
     /// before the `2r` division) — the scale their rounding is charged
     /// against.
     pub terms: T,
+    /// The lower extreme `c₀ − A₁`, evaluated as `(D₋ − r)(D₋ + r)/2r`
+    /// with `D₋ = |(|e_uv| − ρ, e·n̂)|` the distance from the sphere's
+    /// centre to the circle's nearest point. Near a tangency `c₀` and
+    /// `A₁` agree to many digits and their difference keeps none of
+    /// them; this factored form cancels only in `D₋ − r`, a length.
+    pub lo: T,
+    /// The upper extreme `c₀ + A₁`, factored the same way about the
+    /// circle's farthest point `D₊ = |(|e_uv| + ρ, e·n̂)|`.
+    pub hi: T,
+    /// A first-order running bound on the rounding of [`Self::lo`]
+    /// (metres): each operation of its chain charges `u·|result|` and
+    /// propagates its operands' bounds, `u` the unit roundoff.
+    pub lo_error: T,
+    /// The same bound on [`Self::hi`].
+    pub hi_error: T,
+    /// The same bound on the vector `(e_u, e_v)`, as the sum of its two
+    /// components' (metres): the phase `φ` is off by at most this over
+    /// `|(e_u, e_v)|`, to first order.
+    pub phase_error: T,
+}
+
+/// A value and a first-order bound on its accumulated rounding — a
+/// running error bound. Each correctly rounded operation adds
+/// `u·|result|`, `u` the unit roundoff, and carries its operands'
+/// bounds through its partial derivatives; second-order terms (`u²` of
+/// the same magnitudes) are dropped. Its evaluation order is the one
+/// the plain expressions it shadows use, so `value` is bit-identical to
+/// theirs.
+#[derive(Clone, Copy)]
+struct Rounded<T> {
+    value: T,
+    error: T,
+}
+
+impl<T: Real> Rounded<T> {
+    fn unit() -> T {
+        T::from_f64(f64::EPSILON * 0.5)
+    }
+
+    fn exact(value: T) -> Self {
+        Self {
+            value,
+            error: T::zero(),
+        }
+    }
+
+    fn rounded(value: T, error: T) -> Self {
+        Self {
+            value,
+            error: error + Self::unit() * value.abs(),
+        }
+    }
+
+    fn add(self, o: Self) -> Self {
+        Self::rounded(self.value + o.value, self.error + o.error)
+    }
+
+    fn sub(self, o: Self) -> Self {
+        Self::rounded(self.value - o.value, self.error + o.error)
+    }
+
+    fn mul(self, o: Self) -> Self {
+        Self::rounded(
+            self.value * o.value,
+            self.value.abs() * o.error + o.value.abs() * self.error,
+        )
+    }
+
+    /// Division by an EXACT divisor.
+    fn div_exact(self, d: T) -> Self {
+        Self::rounded(self.value / d, self.error / d.abs())
+    }
+
+    /// `√(a² + b²)`, as `(a.powi(2) + b.powi(2)).sqrt()`. The norm is
+    /// 1-Lipschitz in each argument, and its own evaluation (two
+    /// squares, a sum of non-negatives, a square root) is off by at most
+    /// `2u` of the result — a bound with no division, so it holds at the
+    /// origin.
+    fn hypot(self, o: Self) -> Self {
+        let value = (self.value.powi(2) + o.value.powi(2)).sqrt();
+        Self {
+            value,
+            error: self.error + o.error + T::from_f64(2.0) * Self::unit() * value,
+        }
+    }
+}
+
+fn rounded_vec<T: Real>(v: Vec3<T>) -> [Rounded<T>; 3] {
+    [v.x, v.y, v.z].map(Rounded::exact)
+}
+
+/// [`Vec3::dot`]'s order, with its running bound.
+fn rounded_dot<T: Real>(a: [Rounded<T>; 3], b: [Rounded<T>; 3]) -> Rounded<T> {
+    a[0].mul(b[0]).add(a[1].mul(b[1])).add(a[2].mul(b[2]))
 }
 
 /// [`CircleSphereHarmonic`] for the circle
@@ -837,12 +931,33 @@ pub fn circle_sphere_harmonic<T: Real>(
     let offset = (e_u.powi(2) + e_v.powi(2)).sqrt();
     let c0 = e.norm_squared() + radius.powi(2);
     let a1 = two * radius * offset;
+    // The factored extremes, with the running bound shadowing each step.
+    let [cx, cy, cz] = rounded_vec(Vec3::new(center.x, center.y, center.z));
+    let [sx, sy, sz] = rounded_vec(Vec3::new(s_center.x, s_center.y, s_center.z));
+    let re = [cx.sub(sx), cy.sub(sy), cz.sub(sz)];
+    let (n, u) = (rounded_vec(axis), rounded_vec(u_ref));
+    let v = [
+        n[1].mul(u[2]).sub(n[2].mul(u[1])),
+        n[2].mul(u[0]).sub(n[0].mul(u[2])),
+        n[0].mul(u[1]).sub(n[1].mul(u[0])),
+    ];
+    let (re_u, re_v, re_n) = (rounded_dot(re, u), rounded_dot(re, v), rounded_dot(re, n));
+    let r_offset = re_u.hypot(re_v);
+    let (rho, r) = (Rounded::exact(radius), Rounded::exact(s_radius));
+    let extreme = |d: Rounded<T>| d.sub(r).mul(d.add(r)).div_exact(two * s_radius);
+    let lo = extreme(r_offset.sub(rho).hypot(re_n));
+    let hi = extreme(r_offset.add(rho).hypot(re_n));
     CircleSphereHarmonic {
         c0: (c0 - s_radius.powi(2)) / (two * s_radius),
         a1: a1 / (two * s_radius),
         e_u,
         e_v,
         terms: c0 + s_radius.powi(2) + a1,
+        lo: lo.value,
+        hi: hi.value,
+        lo_error: lo.error,
+        hi_error: hi.error,
+        phase_error: re_u.error + re_v.error,
     }
 }
 

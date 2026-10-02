@@ -133,12 +133,18 @@ pub(super) fn circle_cylinder_roots<T: Decide>(
         // a quarter of the zero band for any wall `r ≥ zero`, so it never
         // moves a decision a test can reach. It is kept because it is
         // what makes the first harmonic the residual to within `noise`.
+        let (a1, noise) = (hypot(h.c1, h.s1), noise + hypot(h.c2, h.s2));
         let first = FirstHarmonic {
             c0: h.c0,
-            a1: hypot(h.c1, h.s1),
+            a1,
             cos_part: h.c1,
             sin_part: h.s1,
-            noise: noise + hypot(h.c2, h.s2),
+            noise,
+            lo: h.c0 - a1,
+            hi: h.c0 + a1,
+            lo_noise: noise,
+            hi_noise: noise,
+            phase_noise: T::zero(),
         };
         return first_harmonic_roots(&first, radius, t0, t1, &CIRCLE_CYLINDER_SQUARE_ROWS, band);
     }

@@ -439,12 +439,25 @@ pub(super) fn constant_residual_roots<T: Decide>(
 /// in metres of residual, with `noise` the metres its harmonics may be
 /// off by (their rounding, and any term the caller dropped to reach
 /// this form).
+///
+/// The roots are read off the extremes `lo = c₀ − A₁` and `hi = c₀ + A₁`
+/// and the phase, each as the door evaluates it with a bound on its
+/// error: `lo_noise` and `hi_noise` in metres of residual, `phase_noise`
+/// in the units of `(cos_part, sin_part)`. A door with no sharper
+/// account passes `c₀ ∓ A₁` with `noise` on each and no phase charge —
+/// `noise` bounds the residual's error at every `θ`, the phase's share
+/// included.
 pub(super) struct FirstHarmonic<T> {
     pub(super) c0: T,
     pub(super) a1: T,
     pub(super) cos_part: T,
     pub(super) sin_part: T,
     pub(super) noise: T,
+    pub(super) lo: T,
+    pub(super) hi: T,
+    pub(super) lo_noise: T,
+    pub(super) hi_noise: T,
+    pub(super) phase_noise: T,
 }
 
 /// The predicate rows one caller of [`first_harmonic_roots`] meters
@@ -492,6 +505,11 @@ pub(super) fn first_harmonic_roots<T: Decide>(
         cos_part,
         sin_part,
         noise,
+        lo: lo_value,
+        hi: hi_value,
+        lo_noise,
+        hi_noise,
+        phase_noise,
     } = *h;
     match decide(rows.noise, Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
@@ -505,30 +523,38 @@ pub(super) fn first_harmonic_roots<T: Decide>(
             }
         });
     }
-    let lo = decide(rows.extreme, Margin::of(c0 - a1), band)?;
+    let lo = decide(rows.extreme, Margin::of(lo_value), band)?;
     if lo == Sign::Positive {
         return Ok(CircleRoots::Miss);
     }
-    let hi = decide(rows.extreme, Margin::of(c0 + a1), band)?;
+    let hi = decide(rows.extreme, Margin::of(hi_value), band)?;
     if hi == Sign::Negative {
         return Ok(CircleRoots::Miss);
     }
     if (lo, hi) != (Sign::Negative, Sign::Positive) {
         return Ok(CircleRoots::Uncertain);
     }
-    // |R′| at either root: A₁·|sin(θ − φ)| = √(A₁² − c₀²), factored so
-    // that both factors are the definite extremes just decided.
-    let slope = ((a1 - c0) * (a1 + c0)).max(T::zero()).sqrt();
-    match decide(rows.root_slack, Margin::of(radius * noise / slope), band) {
+    // At either root `R = lo·(1 − cos ψ)/2 + hi·(1 + cos ψ)/2` with
+    // `(1 + cos ψ)/2 = −lo/(hi − lo)`, so the extremes' errors move the
+    // residual there by `(hi·δlo − lo·δhi)/(hi − lo)`, and the phase's
+    // moves the root itself; `|R′| = √(−lo·hi)` at both roots.
+    let swing = hi_value - lo_value;
+    let slope = ((T::zero() - lo_value) * hi_value).max(T::zero()).sqrt();
+    let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
+    let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
+    let slack = radius * (at_root / slope + phase + rounding_charge(T::tau()));
+    match decide(rows.root_slack, Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
     }
     let two = T::from_f64(2.0);
     let phi = sin_part.atan2(cos_part);
-    let half_chord = (T::zero() - c0 / a1)
-        .max(T::zero() - T::one())
-        .min(T::one())
-        .acos();
+    // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
+    // zero: `2·asin(√(|near|/(hi − lo)))` past it. That reads the near
+    // extreme to its own relative precision where `acos` near `±1`
+    // would amplify the ratio's rounding by `1/√(1 − x²)`.
+    let past = |near: T| two * (near.abs() / swing).sqrt().asin();
+    let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
     let mid = (t0 + t1) / two;
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
     Ok(CircleRoots::Certified {

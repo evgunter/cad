@@ -74,21 +74,19 @@ pub(super) fn circle_sphere_roots<T: Decide>(
                    or a surface that is not a sphere",
         });
     };
-    let geom_brep::CircleSphereHarmonic {
-        c0,
-        a1,
-        e_u,
-        e_v,
-        terms,
-    } = geom_brep::circle_sphere_harmonic(center, axis, radius, u_ref, s_center, s_radius);
-    let noise = rounding_charge(terms) / (T::from_f64(2.0) * s_radius);
+    let h = geom_brep::circle_sphere_harmonic(center, axis, radius, u_ref, s_center, s_radius);
     first_harmonic_roots(
         &FirstHarmonic {
-            c0,
-            a1,
-            cos_part: e_u,
-            sin_part: e_v,
-            noise,
+            c0: h.c0,
+            a1: h.a1,
+            cos_part: h.e_u,
+            sin_part: h.e_v,
+            noise: rounding_charge(h.terms) / (T::from_f64(2.0) * s_radius),
+            lo: h.lo,
+            hi: h.hi,
+            lo_noise: h.lo_error,
+            hi_noise: h.hi_error,
+            phase_noise: h.phase_error,
         },
         radius,
         t0,
@@ -314,50 +312,89 @@ mod tests {
         }
     }
 
-    /// **The root-slack meter refuses a root it cannot place.** A
-    /// radius-100 circle dipping `3e-8` into a unit sphere: both
-    /// extremes are definite, so the roots exist, but the residual's
-    /// slope at them is so shallow that the harmonics' rounding moves
-    /// each by more than the band. Without the meter this pose answers
-    /// two roots.
-    #[test]
-    fn the_root_slack_meter_refuses_a_shallow_crossing() {
-        if !default_band() {
-            return;
-        }
-        let rho = 100.0;
-        let got = circle_sphere_roots(
-            &circle(rho),
+    /// The finest band the suite runs at, named here so the near-tangent
+    /// rows read the same at every ε row.
+    fn fine_band() -> Band {
+        Band::new(1e-12, 1e-11).unwrap()
+    }
+
+    /// The near-tangent pose: the unit circle and a sphere of radius
+    /// `R` centred at `(1 + R − δ, 0, 0)`, its nearest point `δ` inside
+    /// the sphere. Every number is dyadic, so `δ` is the pose's own and
+    /// not its rounding.
+    const R: f64 = 0.75;
+
+    fn near_tangent(delta: f64, band: Band) -> CircleRoots<f64> {
+        circle_sphere_roots(
+            &circle(1.0),
             -1.0,
             1.0,
-            &sphere([rho + 1.0 - 3e-8, 0.0, 0.0], 1.0),
-            band(),
+            &sphere([1.0 + R - delta, 0.0, 0.0], R),
+            band,
         )
-        .unwrap();
+        .unwrap()
+    }
+
+    /// **A shallow crossing is placed to within the finest band.** The
+    /// residual's slope at the roots shrinks as `√δ`, so the roots' arc
+    /// slack is the extremes' rounding over it. Down to `δ = 2⁻²⁰`
+    /// (`≈ 9.5e-7`) both roots are certified, and each lies within the
+    /// band of the closed-form crossing of the circle with the sphere's
+    /// great circle in its plane: `1 − cos θ = δ(2R − δ)/2dρ`, every
+    /// factor free of cancellation.
+    #[test]
+    fn a_near_tangent_crossing_is_placed_within_the_finest_band() {
+        for delta in [2f64.powi(-14), 2f64.powi(-17), 2f64.powi(-20)] {
+            let d = 1.0 + R - delta;
+            let want = 2.0 * (delta * (2.0 * R - delta) / (4.0 * d)).sqrt().asin();
+            let CircleRoots::Certified {
+                count: 2,
+                thetas: [ts @ .., _, _],
+            } = near_tangent(delta, fine_band())
+            else {
+                panic!("δ = {delta:e}: the extremes straddle, so two roots");
+            };
+            let mut got = ts.map(f64::abs);
+            got.sort_by(f64::total_cmp);
+            for t in got {
+                let off = (t - want).abs();
+                assert!(
+                    off <= 1e-12,
+                    "δ = {delta:e}: root ±{t} is {off:e} off the closed form {want}"
+                );
+            }
+            assert!(
+                ts[0] * ts[1] < 0.0,
+                "δ = {delta:e}: the roots straddle θ = 0, got {ts:?}"
+            );
+        }
+    }
+
+    /// **The root-slack meter refuses a root it cannot place.** The same
+    /// pose at `δ = 2⁻³³` (`≈ 1.2e-10`): both extremes are definite, so
+    /// the roots exist, but the slope at them is so shallow that the
+    /// extremes' rounding moves each by more than the band's escalation
+    /// threshold. Without the meter this pose answers two roots.
+    #[test]
+    fn the_root_slack_meter_refuses_a_shallow_crossing() {
+        let got = near_tangent(2f64.powi(-33), fine_band());
         assert!(
             matches!(got, CircleRoots::Uncertain),
             "the root-slack meter refuses: {got:?}"
         );
     }
 
-    /// **The root-slack meter refuses an unreadable reading.** The same
-    /// shallow crossing dipping `4e-5` instead: the slack (`≈ 4e-9`) lies
-    /// in the band's escalation gap while the noise is in its zero band.
+    /// **The root-slack meter refuses an unreadable reading — and that
+    /// is where the near-tangent family stops at the finest band.** At
+    /// `δ = 2⁻²³` (`≈ 1.2e-7`) the slack, about twice the band, lies in
+    /// its escalation gap while the noise is in its zero band: the
+    /// `f64` evaluation of the near extreme cannot place the root to
+    /// within `1e-12`
+    /// (`work/reach/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
     /// Without the `Err` arm this pose answers two roots.
     #[test]
     fn the_root_slack_meter_refuses_a_reading_in_the_band_gap() {
-        if !default_band() {
-            return;
-        }
-        let rho = 100.0;
-        let got = circle_sphere_roots(
-            &circle(rho),
-            -1.0,
-            1.0,
-            &sphere([rho + 1.0 - 4e-5, 0.0, 0.0], 1.0),
-            band(),
-        )
-        .unwrap();
+        let got = near_tangent(2f64.powi(-23), fine_band());
         assert!(
             matches!(got, CircleRoots::Uncertain),
             "the root-slack meter refuses: {got:?}"
