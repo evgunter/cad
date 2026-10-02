@@ -72,7 +72,7 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, max_bound, norm_sq, norm_sup};
+use geom_core::interval::{div_down, div_up, max_bound, norm_sq, norm_sup};
 use geom_core::spline::Span;
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -401,13 +401,16 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     dot3(cross3(g1, g2), constv(e))
 }
 
-/// The plane × NURBS chart probe's transversality margin over one span
-/// cell: `∇φ = (n·S_u, n·S_v)` over the derivative boxes `du`/`dv`, read
+/// The plane × NURBS chart probe's transversality margin over one
+/// chart window `rect` (`(u0, u1, v0, v1)`): `∇φ = (n·S_u, n·S_v)` read
 /// along the chart direction transverse to the pcurve's tangent, divided
 /// by the chart's stretch along that direction. `n` is the plane normal
 /// already crossed into certification arithmetic; `tangent` is
 /// `(t.x, t.y, ‖t‖)`, the tangent's bracket tops and a positive finite
-/// norm, which select the direction (structure, not a bound). `Ok(None)`
+/// norm, which select the direction (structure, not a bound). Both
+/// readings come from the derivative numerators' vector terms
+/// ([`CellNet::transverse_readings`]), so a rigid map that carries `n`
+/// with the wall moves the margin by its rounding width. `Ok(None)`
 /// when the stretch has no finite bound.
 ///
 /// # Errors
@@ -415,15 +418,13 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 /// [`TubeDegeneracy::WallConstantAcrossLocus`] when the stretch is
 /// zero: the chart is constant along e⊥ over this window, and a narrower
 /// window (a smaller rung) lies inside it, so it cannot cure that.
-pub(super) fn chart_transverse_margin(
+pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
     n: [Interval; 3],
-    du: Box3,
-    dv: Box3,
+    rect: (f64, f64, f64, f64),
     tangent: (f64, f64, f64),
 ) -> Result<Option<f64>, SsiError> {
     let (tx, ty, tn) = tangent;
-    let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
-    let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
     // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
     let ex = Interval::point(-ty / tn);
     let ey = Interval::point(tx / tn);
@@ -436,16 +437,12 @@ pub(super) fn chart_transverse_margin(
     // lane's `(∇f₁×∇f₂)·e` already is. An UPPER bound on the
     // stretch is used, which can only shrink the margin: the safe
     // direction.
-    let vt = Box3 {
-        x: du.x * ex + dv.x * ey,
-        y: du.y * ex + dv.y * ey,
-        z: du.z * ex + dv.z * ey,
-    };
-    let stretch = norm_sup(&[vt.x, vt.y, vt.z]);
+    let (phi, stretch) = boxes.transverse_readings(rect, n, ex, ey);
     // An admitted `+∞` stretch divides the margin to an exact `0`,
     // which the caller's fold then records as the certificate's worst
     // transversality — a number manufactured from an overflow, not a
-    // measurement. `norm_sup` is never negative, so `<= 0` is zero.
+    // measurement. A `NaN` stretch is refused the same way, and a
+    // finite one is never negative, so `<= 0` is zero.
     if !stretch.is_finite() {
         return Ok(None);
     }
@@ -455,10 +452,7 @@ pub(super) fn chart_transverse_margin(
         ));
     }
     // A lower bound over an upper bound stays one only rounded down.
-    Ok(Some(div_down(
-        zero_free_lower_bound(phi_u * ex + phi_v * ey),
-        stretch,
-    )))
+    Ok(Some(div_down(zero_free_lower_bound(phi), stretch)))
 }
 
 /// The certified distance of an enclosure from zero: `0` when it
@@ -535,8 +529,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self { surface }
     }
 
-    /// The wall's `{u, v}` chart speeds over its whole domain: the
-    /// outward norm ([`norm_sup`]) of each derivative box.
+    /// The wall's `{u, v}` chart speeds over its whole domain, each
+    /// [`NurbsBoxes::speed_sup`]: a function of the geometry, which a
+    /// rigid map moves by its rounding width.
     ///
     /// # Errors
     ///
@@ -549,8 +544,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             self.surface.knots_v().domain(),
         );
         let speed = |axis: ChartAxis| {
-            let b = self.deriv_box(ud.0, ud.1, vd.0, vd.1, axis == ChartAxis::U);
-            let m = norm_sup(&[b.x, b.y, b.z]);
+            let m = self.speed_sup(ud.0, ud.1, vd.0, vd.1, axis == ChartAxis::U);
             if !m.is_finite() {
                 Err(SsiError::ChartSpeed(ChartSpeedRefusal::NotFinite { axis }))
             } else if m <= 0.0 {
@@ -612,7 +606,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// cell's. Refused
     /// when the weight hull touches zero (interval arithmetic refuses
     /// the divisor), the net is malformed, or the window has a NaN or
-    /// inverted end.
+    /// inverted end. The tests' box reading of a cut cell; the chart
+    /// readings take norms from the same cut ([`NurbsBoxes::speed_sup`]).
+    #[cfg(test)]
     pub(crate) fn deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
         self.deriv_hull(u0, u1, v0, v1, along_u, true)
     }
@@ -628,41 +624,99 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// The derivative box over the rectangle, each touched cell's net cut
     /// to it or read whole.
     fn deriv_hull(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool, cut: bool) -> Box3 {
-        let Some(range) = self.cells(u0, u1, v0, v1) else {
-            return refused_box();
-        };
-        let mut out: Option<Box3> = None;
+        // Both boxes enclose `S_d` over the window's part of the cell,
+        // so their meet does, and it is never wider than the whole
+        // cell's: a zero the whole cell reads exactly stays exact.
+        self.fold_cells(
+            (u0, u1, v0, v1),
+            cut,
+            |net| net.derivative_box(along_u),
+            Box3::meet_enclosure,
+            Box3::hull,
+        )
+        .unwrap_or_else(refused_box)
+    }
+
+    /// An upper bound on `‖∂S/∂u‖` (or `‖∂S/∂v‖`) over the rectangle,
+    /// read per span cell from the quotient numerator's vector terms
+    /// ([`CellNet::derivative_norm_sup`]), each cell cut to the rectangle
+    /// as [`NurbsBoxes::deriv_box`] cuts it. A function of the geometry:
+    /// a rigid map moves it by its rounding width, where the norm of
+    /// [`NurbsBoxes::deriv_box`] reads between 1× and √3× the same
+    /// numerator bound depending on how the field sits against the axes,
+    /// and is never below it. `NaN` when refused.
+    pub(crate) fn speed_sup(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> f64 {
+        self.fold_cells(
+            (u0, u1, v0, v1),
+            true,
+            |net| net.derivative_norm_sup(along_u),
+            min_bound,
+            max_bound,
+        )
+        .unwrap_or(f64::NAN)
+    }
+
+    /// The chart probe's readings over the rectangle along the chart
+    /// direction `(ex, ey)`: an enclosure of `n·(S_u·ex + S_v·ey)` and an
+    /// upper bound on `‖S_u·ex + S_v·ey‖` ([`CellNet::transverse_readings`]),
+    /// each cell cut to the rectangle and met with its whole net.
+    fn transverse_readings(
+        &self,
+        (u0, u1, v0, v1): (f64, f64, f64, f64),
+        n: [Interval; 3],
+        ex: Interval,
+        ey: Interval,
+    ) -> (Interval, f64) {
+        self.fold_cells(
+            (u0, u1, v0, v1),
+            true,
+            |net| net.transverse_readings(n, ex, ey),
+            |(a, s), (b, t)| (a.meet(b), min_bound(s, t)),
+            |(a, s), (b, t)| (Interval::hull(a, b), max_bound(s, t)),
+        )
+        .unwrap_or((Interval::refused(), f64::NAN))
+    }
+
+    /// `read` over every nonempty span cell the rectangle touches,
+    /// `join`ed across cells. With `cut`, each cell's net is also cut to
+    /// the rectangle ([`CellNet::cut`]) and the two readings `meet`:
+    /// both hold over the rectangle's part of the cell. `None` for a
+    /// window with a NaN or inverted end or a malformed net.
+    fn fold_cells<R>(
+        &self,
+        (u0, u1, v0, v1): (f64, f64, f64, f64),
+        cut: bool,
+        read: impl Fn(&CellNet) -> R,
+        meet: impl Fn(R, R) -> R,
+        join: impl Fn(R, R) -> R,
+    ) -> Option<R> {
+        let range = self.cells(u0, u1, v0, v1)?;
+        let mut out: Option<R> = None;
         for su in range.u.0..=range.u.1 {
             for sv in range.v.0..=range.v.1 {
                 // An EMPTY span cell covers no parameters, so skipping
                 // it is sound and strictly tighter. The corner cell is
                 // always nonempty (`cells` locates its ends with
-                // `span_at`), so the hull is never left unseeded.
+                // `span_at`), so the fold is never left unseeded.
                 let Some(win) = self.surface.window(su, sv) else {
                     continue;
                 };
-                let Some(whole) = CellNet::of_cell(win) else {
-                    return refused_box();
-                };
-                let d = whole.derivative_box(along_u);
-                // Both boxes enclose `S_d` over the window's part of the
-                // cell, so their meet does, and it is never wider than
-                // the whole cell's: a zero the whole cell reads exactly
-                // stays exact.
-                let d = match cut
+                let whole = CellNet::of_cell(win)?;
+                let r = read(&whole);
+                let r = match cut
                     .then(|| whole.cut(win, range.clamped_u, range.clamped_v))
                     .flatten()
                 {
-                    Some(net) => d.meet_enclosure(net.derivative_box(along_u)),
-                    None => d,
+                    Some(net) => meet(r, read(&net)),
+                    None => r,
                 };
                 out = Some(match out {
-                    None => d,
-                    Some(acc) => acc.hull(d),
+                    None => r,
+                    Some(acc) => join(acc, r),
                 });
             }
         }
-        out.unwrap_or_else(refused_box)
+        out
     }
 
     /// A **first-order** certified box for `S` over an arbitrary
@@ -885,17 +939,37 @@ impl CellNet {
 
     /// The quotient rule's numerator `A_d − S·w_d` and the weight hull
     /// over the block, `(numerator hull, w hull)`, with `S` ranging over
-    /// `sbox`, which is in the block's frame ([`CellNet::point_box`]).
+    /// `sbox`, which is in the block's frame ([`CellNet::point_box`]):
+    /// the hull of every [`PairTerm`] at `sbox`.
+    fn quotient_numerator(&self, along_u: bool, sbox: Box3) -> (Box3, Interval) {
+        let Some(terms) = self.pair_terms(along_u) else {
+            return (refused_box(), Interval::refused());
+        };
+        let num = terms
+            .iter()
+            .map(|t| {
+                let [x, y, z] = t.at([sbox.x, sbox.y, sbox.z]);
+                Box3 { x, y, z }
+            })
+            .reduce(Box3::hull);
+        (
+            num.unwrap_or_else(refused_box),
+            self.weight_hull().unwrap_or_else(Interval::refused),
+        )
+    }
+
+    /// The numerator's terms, one per adjacent pair of the net in
+    /// direction `d`. `None` when a read leaves the net, which the
+    /// block's own construction rules out.
     ///
     /// The numerator is a convex combination, under the degree-`p−1`
-    /// basis, of one term per adjacent pair of the net in direction `d`:
-    /// `k·(w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − S))`, with `k` the pair's
-    /// scale. So its hull is the hull of those terms, each enclosed with
-    /// `S` in `sbox`. That form holds no absolute coordinate: every point
-    /// enters as a difference with another, so a translation moves the
-    /// box by its rounding width alone, and a net constant along `d`
-    /// (equal points, equal weights) reads an exact zero.
-    fn quotient_numerator(&self, along_u: bool, sbox: Box3) -> (Box3, Interval) {
+    /// basis, of these terms with `S` the surface point itself, so its
+    /// hull is theirs with `S` anywhere `S` can be. No term holds an
+    /// absolute coordinate: every point enters as a difference with
+    /// another, so a translation moves a reading by its rounding width
+    /// alone, and a net constant along `d` (equal points, equal weights)
+    /// reads an exact zero.
+    fn pair_terms(&self, along_u: bool) -> Option<Vec<PairTerm>> {
         let nv = self.nv;
         let nu = self.pts.len() / nv;
         let mut pairs = Vec::new();
@@ -912,39 +986,119 @@ impl CellNet {
                 }
             }
         }
-        let mut num: Option<Box3> = None;
-        let mut w: Option<Interval> = None;
-        for (i0, i1, scale) in pairs {
-            let (Some(p0), Some(p1), Some(&w0), Some(&w1)) = (
-                self.pts.get(i0),
-                self.pts.get(i1),
-                self.wts.get(i0),
-                self.wts.get(i1),
-            ) else {
-                return (refused_box(), Interval::refused());
-            };
-            let dw = w1 - w0;
-            let term = |k: usize, s: Interval| (w1 * (p1[k] - p0[k]) + dw * (p0[k] - s)) * scale;
-            let d = Box3 {
-                x: term(0, sbox.x),
-                y: term(1, sbox.y),
-                z: term(2, sbox.z),
-            };
-            num = Some(match num {
-                None => d,
-                Some(acc) => acc.hull(d),
-            });
-            for wv in [w0, w1] {
-                w = Some(match w {
-                    None => wv,
-                    Some(acc) => Interval::hull(acc, wv),
-                });
+        pairs
+            .into_iter()
+            .map(|(i0, i1, scale)| {
+                let (p0, p1) = (*self.pts.get(i0)?, *self.pts.get(i1)?);
+                let (w0, w1) = (*self.wts.get(i0)?, *self.wts.get(i1)?);
+                Some(PairTerm {
+                    scale,
+                    lever: core::array::from_fn(|k| w1 * (p1[k] - p0[k])),
+                    dw: w1 - w0,
+                    p0,
+                })
+            })
+            .collect()
+    }
+
+    /// The hull of the block's weights, which holds the weight function
+    /// over the block's region; `None` for an empty block.
+    fn weight_hull(&self) -> Option<Interval> {
+        self.wts.iter().copied().reduce(Interval::hull)
+    }
+
+    /// An upper bound on `‖S_d‖` over the block's region, read from the
+    /// norms of the quotient numerator's vector terms over the weight
+    /// function's lower bound, rounded outward; `NaN` when the weight
+    /// hull is not positive or a read refuses.
+    ///
+    /// Each [`PairTerm`] is affine in `S`, and `S` lies in the convex
+    /// hull of the block's points, so a term's norm, being convex in
+    /// `S`, is largest at one of those points: `max ‖term(P_j)‖` over
+    /// the pairs and the points is the numerator's norm bound with no
+    /// box in it. A rigid map carries every `term(P_j)` to its image, so
+    /// the bound moves by its rounding width alone. It is never above
+    /// the norm of the box [`CellNet::derivative_box`] reads, which
+    /// holds every `term(P_j)`.
+    fn derivative_norm_sup(&self, along_u: bool) -> f64 {
+        let Some((terms, w)) = self.pair_terms(along_u).zip(self.weight_hull()) else {
+            return f64::NAN;
+        };
+        if !(w.is_certified() && w.lo() > 0.0) {
+            return f64::NAN;
+        }
+        let num = terms
+            .iter()
+            .flat_map(|t| self.pts.iter().map(|&p| norm_sup(&t.at(p))))
+            .reduce(max_bound)
+            .unwrap_or(f64::NAN);
+        div_up(num, w.lo())
+    }
+
+    /// The chart probe's two readings along the chart direction
+    /// `e = (ex, ey)` over the block's region:
+    /// `(n·(S_u·ex + S_v·ey), sup ‖S_u·ex + S_v·ey‖)`, the first an
+    /// enclosure and the second an upper bound rounded outward (`NaN`
+    /// when refused).
+    ///
+    /// `S_u·ex + S_v·ey` is `(ex·N_u + ey·N_v)/w`, and since each
+    /// numerator's basis sums to one, `ex·N_u + ey·N_v` is a convex
+    /// combination of `ex·a(S) + ey·b(S)` over every `u` pair term `a`
+    /// and `v` pair term `b`. Each is affine in `S`, so `n·` of it is
+    /// extreme, and its norm largest, at one of the block's points: both
+    /// readings are read from the vectors `ex·a(P_j) + ey·b(P_j)` alone,
+    /// and a rigid map that carries `n` with the wall moves them by
+    /// their rounding width.
+    fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
+        let (Some(tu), Some(tv), Some(w)) =
+            (self.pair_terms(true), self.pair_terms(false), self.weight_hull())
+        else {
+            return (Interval::refused(), f64::NAN);
+        };
+        if !(w.is_certified() && w.lo() > 0.0) {
+            return (Interval::refused(), f64::NAN);
+        }
+        let mut along: Option<Interval> = None;
+        let mut norm: Option<f64> = None;
+        for &p in &self.pts {
+            let av: Vec<[Interval; 3]> = tu.iter().map(|t| t.at(p).map(|c| c * ex)).collect();
+            let bv: Vec<[Interval; 3]> = tv.iter().map(|t| t.at(p).map(|c| c * ey)).collect();
+            // `n·` is linear, so its range over the pairs `(a, b)` is the
+            // sum of its ranges over each side.
+            let side = |vs: &[[Interval; 3]]| vs.iter().map(|&v| dot3(n, v)).reduce(Interval::hull);
+            if let Some(d) = side(&av).zip(side(&bv)).map(|(a, b)| a + b) {
+                along = Some(along.map_or(d, |acc| Interval::hull(acc, d)));
+            }
+            for a in &av {
+                for b in &bv {
+                    let m = norm_sup(&core::array::from_fn(|k| a[k] + b[k]));
+                    norm = Some(norm.map_or(m, |acc| max_bound(acc, m)));
+                }
             }
         }
         (
-            num.unwrap_or_else(refused_box),
-            w.unwrap_or_else(Interval::refused),
+            along.map_or_else(Interval::refused, |a| a / w),
+            norm.map_or(f64::NAN, |m| div_up(m, w.lo())),
         )
+    }
+}
+
+/// One adjacent pair's term of the quotient numerator `A_d − S·w_d`,
+/// `k·(w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − S))` as a function of `S`: the
+/// scale `k`, the lever `w₁·(P₁ − P₀)`, the weight step `w₁ − w₀` and
+/// `P₀`.
+#[derive(Clone, Copy, Debug)]
+struct PairTerm {
+    scale: Interval,
+    lever: [Interval; 3],
+    dw: Interval,
+    p0: [Interval; 3],
+}
+
+impl PairTerm {
+    /// The term at `S = s`.
+    fn at(&self, s: [Interval; 3]) -> [Interval; 3] {
+        core::array::from_fn(|k| (self.lever[k] + self.dw * (self.p0[k] - s[k])) * self.scale)
     }
 }
 
@@ -1011,6 +1165,12 @@ fn bezier_on(
             Some(d[p])
         })
         .collect()
+}
+
+/// The smaller of two `f64` bounds, `NaN` if either is: the meet of two
+/// upper bounds on one quantity, which keeps a refused side refused.
+fn min_bound(a: f64, b: f64) -> f64 {
+    -max_bound(-a, -b)
 }
 
 fn refused_box() -> Box3 {
@@ -1231,6 +1391,128 @@ mod tests {
                 origin_floors,
                 "at {t} m a chart floor decides differently from the origin's"
             );
+        }
+    }
+
+    /// The chart readings a rigid map must carry: both speeds, the pads
+    /// and floor decisions minted from them, and the transversality
+    /// margin over three windows of one chart direction against the
+    /// plane normal `n`.
+    #[derive(Debug, PartialEq)]
+    struct ChartReadings {
+        speeds: [f64; 2],
+        pads: [f64; 2],
+        floors: [bool; 6],
+        margins: Vec<f64>,
+    }
+
+    /// The windows [`chart_readings`] reads the margin over: the whole
+    /// domain, a sub-rectangle across span cells, and one cut inside a
+    /// cell.
+    const MARGIN_WINDOWS: [(f64, f64, f64, f64); 3] =
+        [(0.0, 1.0, 0.0, 1.0), (0.0, 0.34, 0.2, 0.55), INSIDE_ONE_CELL];
+
+    fn chart_readings(wall: &NurbsSurface<f64>, n: Vec3<f64>) -> ChartReadings {
+        use super::super::exhaust::{FloorKind, SweepFloor, UvRect};
+        let boxes = NurbsBoxes::new(wall);
+        let speeds = boxes.chart_speeds().expect("the wall mints");
+        let root = UvRect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        };
+        let (pu, pv) = speeds.pad(1e-3);
+        let n = [n.x, n.y, n.z].map(Interval::point);
+        let (tx, ty) = (1.0_f64, 0.3_f64);
+        let tangent = (tx, ty, tx.hypot(ty));
+        let margins = MARGIN_WINDOWS
+            .into_iter()
+            .map(|rect| {
+                chart_transverse_margin(&boxes, n, rect, tangent)
+                    .expect("no window is degenerate")
+                    .expect("every stretch is finite")
+            })
+            .collect();
+        ChartReadings {
+            speeds: [speeds.u.get(), speeds.v.get()],
+            pads: [pu, pv],
+            floors: [1e-16, 1e-15, 1e-13, 1e-12, 1e-9, 1e-3].map(|m| {
+                SweepFloor::chart(root, m, speeds.max(), FloorKind::Accounting).is_ok()
+            }),
+            margins,
+        }
+    }
+
+    /// **A rigid map moves a wall's chart readings by their rounding
+    /// width alone, and every floor and tube decision minted from them
+    /// stands as it does seated.** Each reading is a norm or a dot with
+    /// the plane normal of a vector built from differences of control
+    /// points, and a rigid map carries each such vector to its image, so
+    /// only the rounding of the image's coordinates enters: a few hundred
+    /// ulps of the coordinates' reach, relative, scaled up on a window by
+    /// the cut's `1 / width` (a cut net's differences are divided by the
+    /// window's width, and its coordinates round at the reach). A norm
+    /// read off a
+    /// per-coordinate box would move by up to √3 instead (5.88 to 8.20
+    /// over 32 maps of the 1.8 / 0.7 wall's `u` speed).
+    #[test]
+    fn a_rigidly_mapped_wall_reads_the_seated_chart_speeds_floors_and_tube() {
+        use geom_core::Affine3;
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("enclose::rigid_map_chart_readings");
+        let mut walls = vec![
+            ("rational wall", rational_wall(0.0)),
+            ("two-span patch", multiplicity_2_patch()),
+        ];
+        walls.extend(varied_nets());
+        let n0 = Vec3::new(0.2, -0.5, 0.84).normalize();
+        let seated: Vec<ChartReadings> = walls.iter().map(|(_, w)| chart_readings(w, n0)).collect();
+        // Static witness, not a search: the margin rows compare a
+        // nonzero reading on some seated wall.
+        assert!(
+            seated.iter().any(|r| r.margins.iter().any(|&m| m > 0.0)),
+            "some seated margin must be zero-free: {seated:?}"
+        );
+        let close = |a: f64, b: f64, reach: f64, scale: f64| {
+            (a - b).abs() <= 256.0 * f64::EPSILON * (1.0 + reach) * scale * a.abs().max(b.abs())
+        };
+        let window_scale = MARGIN_WINDOWS.map(|(u0, u1, v0, v1)| 1.0 / (u1 - u0).min(v1 - v0));
+        for _ in 0..fuzz::scaled(32) {
+            let axis = Vec3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+            let pivot = Point3::new(rng.range(-10.0, 10.0), rng.range(-10.0, 10.0), rng.range(-10.0, 10.0));
+            let angle = rng.range(0.0, core::f64::consts::TAU);
+            let map = Affine3::rotation_about_axis(pivot, axis.normalize(), angle);
+            let reach = 2.0 * (pivot - Point3::origin()).norm() + 4.0;
+            for ((name, wall), at) in walls.iter().zip(&seated) {
+                let image = chart_readings(&wall.map_points(|p| map.transform_point(p)), map.linear * n0);
+                let pairs = at
+                    .speeds
+                    .iter()
+                    .zip(&image.speeds)
+                    .chain(at.pads.iter().zip(&image.pads))
+                    .map(|(&a, &b)| (a, b, 1.0))
+                    .chain(
+                        at.margins
+                            .iter()
+                            .zip(&image.margins)
+                            .zip(window_scale)
+                            .map(|((&a, &b), k)| (a, b, k)),
+                    );
+                for (a, b, scale) in pairs {
+                    assert!(
+                        close(a, b, reach, scale),
+                        "{name}: a rigid map about {axis:?} through {pivot:?} by {angle} moved \
+                         a chart reading {a} to {b}: seated {at:?}, mapped {image:?} — {}",
+                        fuzz::replay()
+                    );
+                }
+                assert_eq!(
+                    image.floors,
+                    at.floors,
+                    "{name}: a chart floor decides differently under the map about {axis:?} \
+                     by {angle} — {}",
+                    fuzz::replay()
+                );
+            }
         }
     }
 

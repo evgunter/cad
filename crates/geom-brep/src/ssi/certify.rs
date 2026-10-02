@@ -829,8 +829,6 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     let mut count = 0u32;
     for ChartWindow { rect, mid } in windows {
         let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
-        let du = boxes.deriv_box(u0, u1, v0, v1, true);
-        let dv = boxes.deriv_box(u0, u1, v0, v1, false);
         // The transverse chart direction is a DIRECTION — structure —
         // so it is selected through the bracket, exactly as the tube
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
@@ -848,7 +846,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
                 super::TubeDegeneracy::PcurveTangentUnusable,
             ));
         }
-        let Some(margin) = chart_transverse_margin(n, du, dv, (tx, ty, tn))? else {
+        let Some(margin) = chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin < worst {
