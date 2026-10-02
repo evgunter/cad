@@ -2,9 +2,11 @@
 id: tilted-sphere-pair-section-refuses-at-the-polar-gate
 kind: issue
 title: A sphere pair whose centre line is off either chart's polar axis refuses at the arc-side rule's polar gate
-status: open
+status: review
 opened: 2026-10-01
 refs: [sphere-union-sphere-refuses-though-the-section-is-closed-form]
+pr: 3817
+branch: reach/tilted-sphere-pair
 ---
 
 Found by the `reach-snowman` lane. Once the crossing layer had circle ×
