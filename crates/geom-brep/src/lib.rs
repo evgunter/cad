@@ -75,6 +75,7 @@ pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
 pub mod recourse;
+mod sphere_circle;
 pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;

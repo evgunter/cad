@@ -484,11 +484,13 @@ READMEs, and its schedule is the tracker. The lettered entries below
 are the ones other documents cite by letter ((a) composition surgery
 and (b) the SSI generic-`T` lift are discharged and keep no entry):
 
-- **(c) the fitted general-circle mint route** — `certify_fitted`'s
-  Circle-carrier arm is reachable from no mint site, so the
-  oblique-trihedron octant faces stay legally uncached; the cone/torus
-  oblique classes have no ring-computable meters composite and refuse
-  with the class named.
+- **(c) the oblique analytic-chart classes** — a sphere's general
+  circle mints through the fitted route
+  (`FittedLane::sphere_circle_image`, certified by `certify_fitted`'s
+  Circle-carrier arm), so the oblique-trihedron octant faces store
+  their rows; the cone/torus oblique classes have no ring-computable
+  meters composite and refuse with the class named, their faces left
+  uncached until each class's route lands.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest; what is missing is
   the join window itself (`run_azimuth_window`/`chart_pcurve` have no
