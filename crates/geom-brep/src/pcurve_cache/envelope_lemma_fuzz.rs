@@ -351,7 +351,7 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             // A small circle about a point of the chart, in a random
             // plane: its radial amplitude is real but its winding, an
             // area metered at the chart's lever, reads Zero or in band.
-            let rho = 10f64.powf(s.range(-7.5, -4.6));
+            let rho = band().zero() * 10f64.powf(s.range(1.5, 4.4));
             let (chart, point) = match s.below(4) {
                 0 => {
                     let (chart, radius, v0) = cylinder(s);
@@ -389,7 +389,7 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             // axial decision still reads Zero at the radius drawn, so a
             // turning class's two radial coefficients disagree
             // (`Orientation`).
-            let rho = 10f64.powf(s.range(-10.5, -5.0));
+            let rho = band().zero() * 10f64.powf(s.range(-1.5, 4.0));
             let theta = (band().zero() / rho).min(1.0) * s.range(0.0, 0.9);
             let normal = (axis + tang * theta).normalize();
             let chart = match s.below(4) {
@@ -928,10 +928,23 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
             }
         }
     }
+    // On an arm only circles reach, `Orientation` is second order in an
+    // in-band tilt of the circle's plane (`ρ·(1 − cos θ)` with `θ ≲ ε/ρ`,
+    // so `≲ ε²/ρ`): at a band this narrow that is under the f64 rounding
+    // every row is read to, at any radius the arm admits. The sphere
+    // parallel's is under it at every ε row (`arm_terms`).
+    let second_order = |arm: &str, t: EnvelopeTerm| {
+        band().zero() < 1e-10
+            && t == EnvelopeTerm::Orientation
+            && matches!(
+                arm,
+                "cone rim" | "sphere meridian, pole start" | "torus parallel"
+            )
+    };
     let missing: Vec<(&str, EnvelopeTerm)> = arm_terms()
         .into_iter()
         .flat_map(|(arm, terms)| terms.into_iter().map(move |t| (arm, t)))
-        .filter(|&(arm, t)| !seen.contains(&(arm, t.slot())))
+        .filter(|&(arm, t)| !seen.contains(&(arm, t.slot())) && !second_order(arm, t))
         .collect();
     assert!(
         missing.is_empty(),
@@ -1028,6 +1041,9 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         v_max: w,
     };
     let (t0, t1) = (0.2, 2.9);
+    // A move a thousand times the band's zero: definitely over it at
+    // every ε row, and far inside every class decision's margin.
+    let off = 1e3 * band().zero();
     let mut wrong = Vec::new();
     for (surface, carrier, name) in &fixtures {
         let sphere = name.starts_with("sphere");
@@ -1055,13 +1071,13 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
                 Err(false),
             ),
             (
-                "u + 1e-6",
-                h(Point2::new(p0.x + 1e-6, p0.y), pl),
+                "u + 1e3·ε",
+                h(Point2::new(p0.x + off, p0.y), pl),
                 Err(false),
             ),
             (
-                "v + 1e-6",
-                h(Point2::new(p0.x, p0.y + 1e-6), pl),
+                "v + 1e3·ε",
+                h(Point2::new(p0.x, p0.y + off), pl),
                 Err(false),
             ),
             (

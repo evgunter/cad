@@ -48,25 +48,25 @@ fn dense_sup(p: &Pcurve<f64>, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f6
 /// f64 (the point lane: schedule as cross-check); report both, and the
 /// dense residual of the f64 image.
 fn run(name: &str, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f64) -> (bool, bool, f64, f64) {
+    run_named(name, s, c, t0, t1).0
+}
+
+/// [`run`], with whether the interval refusal (if any) names the
+/// frame's own term.
+fn run_named(
+    name: &str,
+    s: &Surface<f64>,
+    c: &Curve3<f64>,
+    t0: f64,
+    t1: f64,
+) -> ((bool, bool, f64, f64), bool) {
     let eps = geom_core::Tol::witness().eps();
     let lift = |x: f64| Interval::from_f64(x);
     let (si, ci) = (s.map_scalar(lift), c.map_scalar(lift));
     let pi = chart_pcurve(&ci, &si, band()).expect("interval derivation");
     let at_box = PcurveCache::certify(pi, lift(t0), lift(t1), &ci, &si, window(), band());
     if let Err(e) = &at_box {
-        assert!(
-            matches!(
-                e,
-                PcurveCertifyError::ResidualExceeded {
-                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::Frame),
-                    ..
-                } | PcurveCertifyError::Escalated {
-                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::Frame),
-                    ..
-                }
-            ),
-            "[{name}] a refusal names the frame: {e:?}"
-        );
+        println!("[{name}] the interval refusal: {e:?}");
     }
     let pf = chart_pcurve(c, s, band()).expect("f64 derivation");
     let at_point = PcurveCache::certify(pf.clone(), t0, t1, c, s, window(), band());
@@ -86,7 +86,17 @@ fn run(name: &str, s: &Surface<f64>, c: &Curve3<f64>, t0: f64, t1: f64) -> (bool
         },
         sup / eps
     );
-    (at_box.is_ok(), at_point.is_ok(), env, sup)
+    let names_frame = matches!(
+        at_box,
+        Err(PcurveCertifyError::ResidualExceeded {
+            check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::Frame),
+            ..
+        } | PcurveCertifyError::Escalated {
+            check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::Frame),
+            ..
+        })
+    );
+    ((at_box.is_ok(), at_point.is_ok(), env, sup), names_frame)
 }
 
 /// **A cone whose `u_ref` is not ⊥ its axis.** The cone's at-rest
@@ -119,7 +129,8 @@ fn a_cone_frame_off_convention_refuses_over_the_box() {
         radius: h * half_angle.tan(),
         u_ref: Vec3::unit_x(),
     };
-    let (box_ok, point_ok, env, sup) = run("cone frame", &cone, &rim, 0.0, 3.0);
+    let ((box_ok, point_ok, env, sup), names_frame) =
+        run_named("cone frame", &cone, &rim, 0.0, 3.0);
     assert!(
         sup > 100.0 * eps,
         "the probe is off the chart by far more than ε"
@@ -129,6 +140,7 @@ fn a_cone_frame_off_convention_refuses_over_the_box() {
         !box_ok,
         "the interval certificate refuses (envelope {env:e}, true residual {sup:e})"
     );
+    assert!(names_frame, "the refusal names `EnvelopeTerm::Frame`");
 }
 
 /// **A cylinder whose axis is long by `δ`, inside the at-rest margin**
@@ -164,7 +176,8 @@ fn a_long_axis_inside_the_rest_margin_refuses_a_far_ruling_over_the_box() {
         origin: Point3::new(radius, 0.0, height),
         dir: Vec3::unit_z(),
     };
-    let (box_ok, point_ok, env, sup) = run("cylinder axis", &cyl, &ruling, 0.0, 1.0);
+    let ((box_ok, point_ok, env, sup), names_frame) =
+        run_named("cylinder axis", &cyl, &ruling, 0.0, 1.0);
     assert!(
         sup > 100.0 * eps,
         "the probe is off the chart by far more than ε"
@@ -174,6 +187,7 @@ fn a_long_axis_inside_the_rest_margin_refuses_a_far_ruling_over_the_box() {
         !box_ok,
         "the interval certificate refuses (envelope {env:e}, true residual {sup:e})"
     );
+    assert!(names_frame, "the refusal names `EnvelopeTerm::Frame`");
 }
 
 /// **No hand-made defect: an f64-normalized tilted axis at a far
