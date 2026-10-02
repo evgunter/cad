@@ -1299,7 +1299,7 @@ mod tests {
         // and the tree row is the channel. Both halves asserted, since
         // silence is only correct while the other channel speaks.
         assert!(
-            product_badge(Some(fault)).is_none(),
+            product_badge(Some(fault), session.committed_doc()).is_none(),
             "a failed root is the tree's to badge: {fault}"
         );
         assert!(
