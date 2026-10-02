@@ -177,10 +177,12 @@ nothing it does not already prove. For `Pcurve::Harmonic` (both sides
 in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
 is unrepresentable) that spelling is the carrier's incidence with the
 chart (centre on the axis, radius, orientation, axial line, per chart
-arm) plus the stored image's fidelity to the image `certify` re-derives
-from the carrier, metered through the chart's stretch; the shared
-schedule is then the closed-form tables' cross-check, run where the
-scalar is a point and as a property test of `chart_image_harmonic ∘
+arm, and the chart frame's own unit and orthogonality defects) plus the
+stored image's fidelity to the image `certify` re-derives from the
+carrier, metered through the chart's stretch; the shared schedule is
+then the closed-form tables' cross-check, run on the point lane (the
+f64 witness replay, the `Witness::Inexact` scalars) and as a property
+test of `chart_image_harmonic ∘
 chart_pcurve = carrier_harmonic` over the covered classes, not in a
 certificate over a parameter box. Where no closed form exists, the
 certificate falls back to the displacement at the shared schedule plus

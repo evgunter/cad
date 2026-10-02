@@ -421,12 +421,25 @@ fn sym_9_what_each_retry_recovers() {
 ///
 /// Every document moved UP when the extrude began closing with the
 /// pcurve mint: its wall rows' certificate is decided too. Without the
-/// ladder the plate reads `[915, 0, 164, 754]`, the annulus
+/// ladder the plate read `[915, 0, 164, 754]`, the annulus
 /// `[408, 24, 164, 501]`, the boss `[435, 20, 118, 448]`, the bracket
-/// `[1206, 51, 170, 1151]` and the link `[649, 0, 122, 811]`; the
-/// ladder still recovers the bracket's six, and the link's retries go
-/// 14 → 24 (`[651, 0, 144, 787]` with it), the ten more being the
-/// certificate's.
+/// `[1206, 51, 170, 1151]` and the link `[649, 0, 122, 811]`, with the
+/// link's retries at 24 (`[651, 0, 144, 787]` with the ladder).
+///
+/// PCERT's incidence-and-fidelity unit (PR 3812) moved every document
+/// again. Without the ladder the plate reads `[947, 0, 148, 698]`, the
+/// annulus `[432, 32, 148, 445]`, the boss `[453, 26, 102, 410]`, the
+/// bracket `[1235, 59, 156, 1078]` and the link `[681, 0, 118, 743]`:
+/// theorems up on every document, `registered` and `numeric` down on
+/// every one. On a harmonic row check 4's envelope (incidence plus
+/// fidelity) is the whole statement and decides as a theorem where it
+/// used to go through the door, and the schedule that cross-checks it
+/// is not run at this scalar, so the residuals it used to register or
+/// leave numeric are gone. The loop walk's literal branch adds definite
+/// sign decisions at the half-period marks and turns some loop joints
+/// over to the form (`sign_gated` up). The ladder still recovers the
+/// bracket's six, and the link's retries fall 24 → 14 (`[683, 0, 130,
+/// 729]` with it): the ten that went were the certificate's schedule.
 ///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
@@ -447,21 +460,21 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [915, 0, 164, 754], [915, 0, 164, 754], 0),
-        ("r1_annulus", [408, 24, 164, 501], [408, 24, 164, 501], 0),
+        ("two_hole_plate", [947, 0, 148, 698], [947, 0, 148, 698], 0),
+        ("r1_annulus", [432, 32, 148, 445], [432, 32, 148, 445], 0),
         (
             "r1_segment_boss",
-            [435, 20, 118, 448],
-            [435, 20, 118, 448],
+            [453, 26, 102, 410],
+            [453, 26, 102, 410],
             0,
         ),
         (
             "r2_filleted_bracket",
-            [1206, 51, 170, 1151],
-            [1206, 51, 176, 1145],
+            [1235, 59, 156, 1078],
+            [1235, 59, 162, 1072],
             6,
         ),
-        ("r2_link", [649, 0, 122, 811], [651, 0, 144, 787], 24),
+        ("r2_link", [681, 0, 118, 743], [683, 0, 130, 729], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -531,7 +544,12 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// the six as discharges a second attempt reached, not as a clause of
 /// `registered`'s. Without the ladder neither appears and the line is
 /// the one a drive wrote before the ladder existed. The six themselves
-/// are the rule-A attempt's, and they are `registered` (170 → 176).
+/// are the rule-A attempt's, and they are `registered` (156 → 162).
+/// Against the pin before PCERT's incidence-and-fidelity unit the
+/// receipt was `[1206, 51, 176, 1145, 6]` (bare `[1206, 51, 170, 1151,
+/// 0]`): the same six retried, and the restated certificate's
+/// theorems in place of the schedule's registered and numeric
+/// residuals.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -573,11 +591,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1206, 51, 176, 1145, 6],
+        [1235, 59, 162, 1072, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=176 retried=6\n"),
+        line.contains("registered=162 retried=6\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -593,7 +611,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1206, 51, 170, 1151, 0]
+        [1235, 59, 156, 1078, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),
