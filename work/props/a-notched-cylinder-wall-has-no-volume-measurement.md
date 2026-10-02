@@ -2,7 +2,8 @@
 id: a-notched-cylinder-wall-has-no-volume-measurement
 kind: issue
 title: a cylinder wall notched by rulings and an arc has neither a closed form nor a quadrature route
-status: open
+status: closed
+closed: 2026-10-02
 opened: 2026-10-01
 ---
 
@@ -54,3 +55,18 @@ lane it builds as far as the volume backstop and refuses
 the result's wall is notched by the pocket. Pinned by
 `crates/editor-core/tests/pierce_ring_engraving.rs`,
 `a_pocket_across_the_rim_stops_at_the_notched_walls_volume`, which reds when this row lands.
+
+## 2026-10-02 — closed: the cylinder flux is the chart Green form (`tang/pierce-ring`)
+
+The first arm of the fix above, for every cylinder face bounded by rims
+and rulings: `v du` is a global 1-form on the cylinder, so the face's
+signed chart area is `A = −Σ_loops ∮ v du` whatever the region's shape,
+rings included, and the flux is `R·(R·A) + origin·A⃗` with the side read
+off the traversal (`geom_brep::props::curved_face_loops`;
+`topo::props`' face walk hands a cylinder face its rings). The
+iso-rectangle premise no longer runs on a cylinder's flux; the shape
+door (`require_iso_rectangle`) and the material-side gate keep it.
+`reach_volume_backstop`'s notched half-disk builds at
+`2π − ½·(½·√3.75 + 4·asin ¼ − 1.5)`, the engraving pose across the rim
+at `πR²·0.5 − 0.005·segment(0.035)`, and #649's cylinder family
+(`geom-brep/tests/s58_iso_rectangle.rs`) at exact areas.

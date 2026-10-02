@@ -2,7 +2,8 @@
 id: pierce-ring-has-no-join-arm
 kind: issue
 title: A pierce RING has no join arm on any carrier: three typed doors, one missing lane
-status: open
+status: closed
+closed: 2026-10-02
 opened: 2026-08-30
 github: 1291
 refs: [347, 1068]
@@ -380,3 +381,47 @@ the poses that stopped one layer early now reach this unit's doors:
   ε row) now reaches this door rather than the sector side.
 - The story suite's rook keeps its square crown for this door; its
   module docs say so (`crates/viewer/tests/story_authoring.rs`).
+
+## 2026-10-02 — closed: the ring joins on a curved face (`tang/pierce-ring`)
+
+**Neither wall door was the ring's scaffolding.** Instrumented on main:
+
+- `NoChartedRun` (the bars through the wall, the laps, the spun
+  snowman) came from the cross-loop (`mekr`) join's SECOND chord, which
+  was handed `run_halves = []` — computed only for a same-loop join.
+- `NeitherContained` (the in-face pose) came from the `mekr` arm
+  reading its window from the TARGET RING's cycle: by then that ring
+  held a ruling and its mate, a window one azimuth wide. This is the
+  PAIRING reading the site's x₁ prose named.
+
+**The fork, and what settled it.** The ring stays a ring: no bridge
+chord, no hole bookkeeping on the chart. A cross-loop chord selects its
+arc by the S9 containment rule against the divided FACE's own window
+(`chord_join::cross_loop_window_cycle`, the face's outer cycle), the
+statement `bool_planar_chord_spec` already asks of the mate's whole
+face window. The code settled it; no C-clause names a ring
+representation.
+
+**What else the curved ring needed**, each a carrier generalisation of
+an existing planar door:
+
+- the join's ring lane (`boolean::join::choose_roles`) winds the island
+  on the wall's chart, `−∮ v du`, closed exactly along the section
+  plane (`chord_join::chart_island_winding`; same predicate,
+  `bool_ring_run_winding`);
+- ring re-homing reads a cylinder or sphere chart by ray parity
+  (`chord_join::chart_ring_side`);
+- the cylinder flux is its chart Green form over every loop
+  (`geom_brep::props::curved_face_loops`), so a notched or ringed wall
+  measures — which retires
+  `work/props/a-notched-cylinder-wall-has-no-volume-measurement.md`.
+
+**Rows moved.** The bars through the wall (symmetric, one-sided, long,
+and the in-face pose) build under ∪, ∩ and both ∖ at tier 3 and to the
+closed form; so do the laps, the grooves, the three-face rod, the
+off-centre bars, the crenellation, the boss in four member orders, and
+the spun snowman. The parallel cylinders now reach the cylinder pair's
+join (`work/tang/cylinder-pair-germ-has-no-join-arm.md`); the bar
+through a ball reaches the polar gate (`SectionNotPolar`); the boss's
+two plate-last orders stop at `point_in_solid`'s ringed-wall outline
+(`work/contact/point-in-solid-refuses-a-ringed-cylinder-wall.md`).

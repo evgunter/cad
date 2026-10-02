@@ -2434,7 +2434,9 @@ fn cross_loop_window_cycle<T: Decide>(
 ) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
     match outer_cycle(body, face)? {
         Some(cycle) => Ok(cycle),
-        None => body.loop_cycle(fallback).ok_or_else(|| corrupt_he(fallback)),
+        None => body
+            .loop_cycle(fallback)
+            .ok_or_else(|| corrupt_he(fallback)),
     }
 }
 
@@ -3059,10 +3061,12 @@ fn chart_ring_side<T: Decide>(
     };
     let tau = T::tau();
     let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
-    let images = face_azimuth_images(body, surface, newf, band)?
-        .ok_or(invariant("ring re-homing on a chart: the run is not a cycle"))?;
-    let (lo, hi) = azimuth_hull(&images)
-        .ok_or(invariant("ring re-homing on a chart: the run carries no charted edge"))?;
+    let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
+        "ring re-homing on a chart: the run is not a cycle",
+    ))?;
+    let (lo, hi) = azimuth_hull(&images).ok_or(invariant(
+        "ring re-homing on a chart: the run carries no charted edge",
+    ))?;
     let decide_m = |name, margin| {
         decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
     };
@@ -3111,8 +3115,14 @@ fn chart_ring_side<T: Decide>(
                 (image.exit, next.entry, None),
             ];
             for (u0, u1, edge) in rows {
-                let s0 = decide_m("split_ring_chart_ray_azimuth", Margin::levered(u_p - u0, radius))?;
-                let s1 = decide_m("split_ring_chart_ray_azimuth", Margin::levered(u_p - u1, radius))?;
+                let s0 = decide_m(
+                    "split_ring_chart_ray_azimuth",
+                    Margin::levered(u_p - u0, radius),
+                )?;
+                let s1 = decide_m(
+                    "split_ring_chart_ray_azimuth",
+                    Margin::levered(u_p - u1, radius),
+                )?;
                 if s0 == Sign::Zero || s1 == Sign::Zero {
                     continue 'vertex;
                 }
@@ -3121,11 +3131,13 @@ fn chart_ring_side<T: Decide>(
                 }
                 let f = (u_p - u0) / (u1 - u0);
                 let v_x = match edge {
-                    Some(image) => image
-                        .v_at(image.t.0 + f * (image.t.1 - image.t.0))
-                        .ok_or(invariant(
-                            "ring re-homing on a chart: a run edge's chart image is fitted",
-                        ))?,
+                    Some(image) => {
+                        image
+                            .v_at(image.t.0 + f * (image.t.1 - image.t.0))
+                            .ok_or(invariant(
+                                "ring re-homing on a chart: a run edge's chart image is fitted",
+                            ))?
+                    }
                     None => image.v.1 + f * (next.v.0 - image.v.1),
                 };
                 match decide_m(

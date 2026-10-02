@@ -24,8 +24,8 @@ use core::f64::consts::PI;
 use crate::corpus::{body_of, eval};
 use crate::fixture::{frame, insert, len, len2, scl, xform};
 use editor_core::{
-    BooleanOp, Evaluation, LoopProgram, Node, NodeResult, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    BooleanOp, Evaluation, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
 };
 use geom_core::Tol;
 

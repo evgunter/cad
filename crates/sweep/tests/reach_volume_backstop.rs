@@ -251,7 +251,10 @@ fn a_notched_wall_measures_in_closed_form() {
     ]);
     let half_disk: Body<f64> = extruded(SketchPlane::xy(), vec![half], 1.0, tol());
     let notch = brick((1.5, 2.5), (1.5, 2.5), (0.5, 2.5), tol());
-    let body = body_of(topo::subtract(&half_disk, &notch, tol()), "the notched half-disk");
+    let body = body_of(
+        topo::subtract(&half_disk, &notch, tol()),
+        "the notched half-disk",
+    );
     topo::validate_geometric_certificate(&body, tol())
         .unwrap_or_else(|e| panic!("the notched half-disk does not certify at rest: {e:?}"));
     let p = topo::mass_properties(&body, tol()).unwrap();

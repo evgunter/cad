@@ -691,10 +691,22 @@ fn a_three_face_cylinder_rod_builds_under_every_op() {
     let shared = 2.0 * h * (chord_integral(c + h) - chord_integral(c - h));
     let (v_cyl, v_rod) = (2.0 * core::f64::consts::PI, width * width * (t1 - t0));
     for (what, r, truth) in [
-        ("∪", topo::union(&cyl, &rod, Tol::witness()), v_cyl + v_rod - shared),
+        (
+            "∪",
+            topo::union(&cyl, &rod, Tol::witness()),
+            v_cyl + v_rod - shared,
+        ),
         ("∩", topo::intersect(&cyl, &rod, Tol::witness()), shared),
-        ("cyl ∖ rod", topo::subtract(&cyl, &rod, Tol::witness()), v_cyl - shared),
-        ("rod ∖ cyl", topo::subtract(&rod, &cyl, Tol::witness()), v_rod - shared),
+        (
+            "cyl ∖ rod",
+            topo::subtract(&cyl, &rod, Tol::witness()),
+            v_cyl - shared,
+        ),
+        (
+            "rod ∖ cyl",
+            topo::subtract(&rod, &cyl, Tol::witness()),
+            v_rod - shared,
+        ),
     ] {
         let out = r.unwrap_or_else(|e| panic!("{what}: refused {e:?}"));
         let body = &out.body().unwrap_or_else(|| panic!("{what}: empty")).body;

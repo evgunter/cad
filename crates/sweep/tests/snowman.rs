@@ -502,7 +502,11 @@ fn a_spun_snowman_builds_under_every_boolean() {
             ("A ∖ B", BooleanOp::Subtract, &a, &b, va - lens),
             ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - lens),
         ] {
-            assert_body(&format!("spun by {angle}: {label}"), &run(op, x, y), expected);
+            assert_body(
+                &format!("spun by {angle}: {label}"),
+                &run(op, x, y),
+                expected,
+            );
         }
     }
 }

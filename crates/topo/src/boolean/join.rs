@@ -1596,9 +1596,7 @@ fn ring_run_ccw<T: Decide>(
 /// The ring lane's role order from the decided winding: CCW keeps the
 /// order. A zero area is a degenerate run, so its in-band twin is the
 /// kernel's too.
-fn ring_winding_order(
-    wound: Result<Sign, geom_core::Indeterminate>,
-) -> Result<bool, BooleanError> {
+fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let sign = wound.map_err(|diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::RingWinding),

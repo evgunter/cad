@@ -53,7 +53,10 @@ fn half_chord_integral(y: f64) -> f64 {
 /// `x0 > 0` inside the disc and leaving it (`x1 ≥ 1`), so every chord
 /// it meets runs from `x0` to the circle.
 fn rect_disc_area((x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
-    assert!(x1 >= 1.0, "the rows' rectangles all leave the disc on the right");
+    assert!(
+        x1 >= 1.0,
+        "the rows' rectangles all leave the disc on the right"
+    );
     let half = half_chord_integral(y1) - half_chord_integral(y0);
     if x0 <= -1.0 {
         2.0 * half
@@ -94,8 +97,16 @@ fn assert_bar_through_the_pipe(x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
     };
     run("∪", topo::union(&pipe, &bar, tol), v_pipe + v_bar - shared);
     run("∩", topo::intersect(&pipe, &bar, tol), shared);
-    run("pipe ∖ bar", topo::subtract(&pipe, &bar, tol), v_pipe - shared);
-    run("bar ∖ pipe", topo::subtract(&bar, &pipe, tol), v_bar - shared);
+    run(
+        "pipe ∖ bar",
+        topo::subtract(&pipe, &bar, tol),
+        v_pipe - shared,
+    );
+    run(
+        "bar ∖ pipe",
+        topo::subtract(&bar, &pipe, tol),
+        v_bar - shared,
+    );
 }
 
 /// **The row the ring lane exists for.** A bar driven straight through

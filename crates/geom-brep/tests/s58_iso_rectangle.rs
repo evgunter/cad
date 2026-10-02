@@ -503,9 +503,9 @@ fn the_material_side_gate_refuses_a_plus_domain_at_every_rotation() {
             Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level",
             }) => {}
-            other => panic!(
-                "rotation {k}: the material-side gate answered on a plus domain: {other:?}"
-            ),
+            other => {
+                panic!("rotation {k}: the material-side gate answered on a plus domain: {other:?}")
+            }
         }
     }
 }
