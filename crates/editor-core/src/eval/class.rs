@@ -144,8 +144,8 @@ pub enum NodeErrorClass {
     DeclareSiteNotAnOperand,
     /// [`NodeErrorKind::DeclareUnsupportedPair`].
     DeclareUnsupportedPair,
-    /// [`NodeErrorKind::UndeclaredContact`].
-    UndeclaredContact,
+    /// [`NodeErrorKind::UndeclaredCoincidence`].
+    UndeclaredCoincidence,
     /// [`NodeErrorKind::UndeclarableContact`].
     UndeclarableContact,
     /// [`NodeErrorKind::BlendSelectionResolve`] refused by a fillet.
@@ -332,7 +332,7 @@ impl NodeErrorKind {
             Self::DeclareResolve { .. } => C::DeclareResolve,
             Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
             Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::UndeclaredContact { .. } => C::UndeclaredContact,
+            Self::UndeclaredCoincidence { .. } => C::UndeclaredCoincidence,
             Self::UndeclarableContact { .. } => C::UndeclarableContact,
             Self::BlendSelectionResolve { verb, .. } => {
                 by_verb(*verb, C::FilletSelectionResolve, C::ChamferSelectionResolve)
@@ -552,7 +552,7 @@ mod tests {
         DeclareResolve,
         DeclareSiteNotAnOperand,
         DeclareUnsupportedPair,
-        UndeclaredContact,
+        UndeclaredCoincidence,
         UndeclarableContact,
         FilletSelectionResolve,
         ChamferSelectionResolve,
@@ -845,7 +845,7 @@ mod tests {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
             },
-            C::UndeclaredContact => K::UndeclaredContact {
+            C::UndeclaredCoincidence => K::UndeclaredCoincidence {
                 finding: Box::new(crate::FlushFinding {
                     pair: (
                         crate::SitedRef {
@@ -857,7 +857,7 @@ mod tests {
                             name: name(),
                         },
                     ),
-                    class: topo::ContactClass::Rest,
+                    class: topo::BooleanCoincidence::REST,
                     evidence: crate::FlushEvidence {
                         relation: topo::PlaneRelation::SameOpposite,
                         rung: crate::FlushRung::DecidedCoincident,
@@ -911,7 +911,7 @@ mod tests {
                 found,
             }),
             C::FaceFrameNotPlanar => K::FaceFrameNotPlanar {
-                carrier: geom_brep::SurfaceKind::Cylinder,
+                carrier: geom::SurfaceKind::Cylinder,
             },
             C::FaceFrameReadback => K::FaceFrameReadback {
                 error: topo::readback::ReadbackError::NoCarrier,
@@ -961,8 +961,7 @@ mod tests {
                 part(crate::PartFault::RootFailureUnrecorded { node: n(7) })
             }
             C::PartProduct => part(crate::PartFault::PartProduct {
-                kind: crate::ProductErrorKind::NoBodyRoots,
-                message: "the document declares no body root".to_owned(),
+                refusal: crate::ProductError::NoBodyRoots.into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {
                 cycle: vec![doc_ref(), doc_ref()],

@@ -1209,6 +1209,21 @@ class TestAssemblyRefusals(BenchWorkspace):
             product(doc, evaluate(doc))
         self.assertEqual(gather.exception.variant, "root_failed")
 
+    def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
+        doc = Doc("no-resolver-labelled")
+        lonely = doc.insert(Node.instantiate_part(self.post_ref))
+        doc.apply(DocEdit.set_label(lonely, "lonely post"))
+        ev = evaluate(doc)
+        # The message says the root as the evaluation's document holds
+        # it, label and all; said by tag it would read `node <tag>`.
+        # The payload keeps the full id either way.
+        for door in (product, pncad.product_named):
+            with self.assertRaises(pncad.ProductError) as gather:
+                door(doc, ev)
+            self.assertEqual(gather.exception.variant, "root_failed")
+            self.assertIn('InstantiatePart "lonely post" (', str(gather.exception))
+            self.assertEqual(gather.exception.node, lonely)
+
     def test_a_moved_pin_refuses_and_carries_its_recourse_once_by_either_door(self):
         doc, post_i, _ = self.two_instances()
         # A part legitimately changes on disk. The assembly still pins

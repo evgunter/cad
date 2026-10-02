@@ -19,6 +19,12 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
+/// A ball of radius `arm` about the origin, no point of either face
+/// known: the extent a bare arm names.
+fn at(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm))
+}
+
 fn declared() -> PlaneIdentity<'static> {
     PlaneIdentity {
         s1: None,
@@ -134,7 +140,7 @@ fn probe_sphere_rung_mm_vs_metre_twin() {
             radius: 2.5 * scale,
             outward: false,
         };
-        match carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err() {
+        match carrier_eq(&a, &b, declared(), &at(1.0), band()).unwrap_err() {
             CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(
                     d.predicate,
@@ -173,19 +179,34 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
     let near = tilt(b.zero() * 0.001);
     assert!(
         matches!(
-            carrier_eq(&base, &near, PlaneIdentity::NONE, 1.0, band()),
+            carrier_eq(&base, &near, PlaneIdentity::NONE, &at(1.0), band()),
             Err(CarrierEqError::Undeclared { .. })
         ),
         "in-band, undeclared: refuses"
     );
     assert_eq!(
-        carrier_eq(&base, &near, declared(), 1.0, band()).unwrap(),
+        carrier_eq(&base, &near, declared(), &at(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite,
         "in-band, declared: bridged"
     );
     // Definite tilt: three orders above the escalate edge at the same
     // 1 m arm.
-    match carrier_eq(&base, &tilt(b.escalate() * 1000.0), declared(), 1.0, band()).unwrap_err() {
+    // A point of the face a metre up the axis, which the tilt has
+    // carried a thousand bands off.
+    let on = [Point3::new(3.0, 0.0, 1.0)];
+    let extent = topo::ConsumedExtent {
+        on: [&on, &[]],
+        ..at(1.0)
+    };
+    match carrier_eq(
+        &base,
+        &tilt(b.escalate() * 1000.0),
+        declared(),
+        &extent,
+        band(),
+    )
+    .unwrap_err()
+    {
         CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
         }

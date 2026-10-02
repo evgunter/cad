@@ -62,6 +62,7 @@ pub mod program;
 /// be the sampler it exists to improve on.
 pub mod range;
 pub mod refactor;
+pub mod refusal;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
 /// leaf-mass histogram, and the one content-key cache. Every report
@@ -132,6 +133,7 @@ pub use eval::{
     ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate,
     mate_reach,
 };
+pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 pub use spoken::{
     FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, held_by, node_kind_noun,
@@ -169,17 +171,17 @@ pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub(crate) use mint::NodeIdCollides;
 pub use mint::{Mint, Minted};
 pub use names::{
-    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
-    EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
-    FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef,
-    NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, ProfileEdgeRef,
-    ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
-    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, StableName,
-    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
-    band_pi, band_rim, carried, declare, declare_all, declare_node, denotation, edge_carrier_kind,
-    edge_frame, face_carrier_kind, face_frame, find_flush_candidates, meridian_vertex, select,
-    select_where, vertex_position,
+    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
+    ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,
+    DuplicateName, EntityKey, EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence,
+    FlushFinding, FlushRung, FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin,
+    NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole,
+    PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg,
+    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
+    StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    band, band_pi, band_rim, carried, declare, declare_all, declare_node, denotation,
+    edge_carrier_kind, edge_frame, face_carrier_kind, face_frame, find_flush_candidates,
+    meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
@@ -197,8 +199,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    OwnSpace, Product, ProductError, ProductErrorKind, SourceFinding, own_spaces, product,
-    product_named, product_recorded,
+    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, own_spaces,
+    product, product_named, product_recorded,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,

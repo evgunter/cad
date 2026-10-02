@@ -16,10 +16,10 @@ use crate::wire::doctored;
 
 use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, ContactClass, DocEdit, DocumentId, EditError, EntityKind, Evaluation,
-    Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind, NodeResult,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply, groups, load, product,
-    relative_freedom_components, save,
+    Alignment, AxisSense, BooleanCoincidence, ContactClass, DocEdit, DocumentId, EditError,
+    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
+    groups, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
@@ -1347,7 +1347,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
                         SitedRef::new(ids[1], in_part(ids[1], body, CapEnd::Start)),
                         SitedRef::new(ids[0], in_part(ids[0], body, CapEnd::Start)),
                     ),
-                    ContactClass::Rest,
+                    BooleanCoincidence::REST,
                 )],
             }),
         },
@@ -1498,7 +1498,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
             of: StableName {
                 kind: EntityKind::Face,
                 node: body,
-                path: vec![RoleSeg::Lateral(crate::fixture::no_piece())],
+                path: vec![RoleSeg::Lateral(crate::fixture::no_piece().into())],
             }
             .into(),
         }],

@@ -65,17 +65,18 @@ impl SpokenFrom {
 }
 
 /// Raise `ProductError` carrying the refusal's stable tag and the
-/// arm's own payload.
+/// arm's own payload, its message each node as `doc`, the gathered
+/// document, holds it.
 ///
 /// Every attribute is set on every arm, `None` where the arm does not
 /// carry it — the `WorkspaceError` posture: handling reads
 /// `err.node` without first branching on `err.variant`.
-pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError) -> PyErr {
+pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::ProfileDoc) -> PyErr {
     let (node, through, name) = product_fields(py, err);
     typed_err(
         py,
         ErrorClass::Product,
-        err.to_string(),
+        err.spoken(doc),
         &[
             (
                 "variant",
@@ -181,17 +182,17 @@ pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyR
     // door that mints declarations over the same geometry.
     evaluation
         .paired_with(doc)
-        .map_err(|m| mispaired_product(py, m))?;
+        .map_err(|m| mispaired_product(py, m, evaluation))?;
     evaluation
         .gathered(|memo, doc, ev| crate::product_memo::body(memo, doc, ev, tol))
         .map(|body| Body::plain(Arc::new(body)))
-        .map_err(|err| product_err(py, &err))
+        .map_err(|err| product_err(py, &err, evaluation.doc()))
 }
 
 /// A mispaired `(doc, evaluation)` as the gather's own refusal — the
 /// one the memo path cannot inherit from a gather it does not reach.
-fn mispaired_product(py: Python<'_>, m: d::Mispaired) -> PyErr {
-    product_err(py, &m.into())
+fn mispaired_product(py: Python<'_>, m: d::Mispaired, evaluation: &Evaluation) -> PyErr {
+    product_err(py, &m.into(), evaluation.doc())
 }
 
 /// The product, with the stable names its entities answer to —
@@ -220,10 +221,10 @@ pub(crate) fn product_named(
     let tol = Tol::witness();
     evaluation
         .paired_with(doc)
-        .map_err(|m| mispaired_product(py, m))?;
+        .map_err(|m| mispaired_product(py, m, evaluation))?;
     let (body, names) = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::body_and_names(memo, doc, ev, tol))
-        .map_err(|err| product_err(py, &err))?;
+        .map_err(|err| product_err(py, &err, evaluation.doc()))?;
     let names = names
         .iter()
         .map(|name| name_text(py, name))
@@ -682,14 +683,14 @@ impl Assembly {
 
 /// Raise `AssemblyError` carrying the refusal's stable tag and the
 /// arm's own payload.
-fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> PyErr {
+fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>) -> PyErr {
     use d::AssemblyError as E;
     // A gather refusal is not wrapped: the caller wants the gather's
     // own answer, and the wrapper adds nothing they can act on. It
     // still raises on THIS class — the door they called was the gate.
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
-    let from = SpokenFrom(Some(Arc::new(doc.clone())));
+    let from = SpokenFrom(Some(Arc::clone(&doc)));
     let mut node = none();
     let (refusals, findings) = match err {
         // The group is the subject; the space's own gather refusal is
@@ -725,7 +726,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> 
             return typed_err(
                 py,
                 ErrorClass::Assembly,
-                err.spoken(doc),
+                err.spoken(&*doc),
                 &[
                     (
                         "variant",
@@ -765,7 +766,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> 
     typed_err(
         py,
         ErrorClass::Assembly,
-        err.spoken(doc),
+        err.spoken(&*doc),
         &[
             (
                 "variant",
@@ -835,12 +836,12 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         assembly_err(
             py,
             &d::AssemblyError::Product(Box::new(m.into())),
-            evaluation.doc(),
+            evaluation.doc_shared(),
         )
     })?;
     let assembly = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
-        .map_err(|err| assembly_err(py, &err, evaluation.doc()))?;
+        .map_err(|err| assembly_err(py, &err, evaluation.doc_shared()))?;
     let names = assembly
         .names
         .iter()

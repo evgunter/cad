@@ -303,7 +303,7 @@ pub fn dump(t: &sweep::Revolved<f64>) -> String {
     for (k, h) in t.body.half_edges() {
         s.push_str(&format!("{k:?} {h:?}\n"));
     }
-    s.push_str(&format!("{:?} {:?} {:?}\n", t.walls, t.rims, t.kind));
+    s.push_str(&format!("{:?} {:?} {:?}\n", t.walls(), t.rims, t.kind));
     s
 }
 
@@ -355,7 +355,13 @@ pub fn full_pappus_y(t: &sweep::Revolved<f64>) -> f64 {
         panic!("full revolve expected")
     };
     let meridians = &meridians[0];
-    let chain: Vec<EdgeKey> = meridians.iter().filter_map(|m| *m).collect();
+    // A run's segments share its one meridian: each edge once.
+    let mut chain: Vec<EdgeKey> = Vec::new();
+    for m in meridians.iter().flatten() {
+        if !chain.contains(m) {
+            chain.push(*m);
+        }
+    }
     meridian_pappus_volume(
         &t.body,
         &chain,

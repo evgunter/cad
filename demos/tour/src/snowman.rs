@@ -48,9 +48,8 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, v3, validated};
 use pncad::geom::Surface;
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Point2, Tol, Vec2};
-use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
+use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::query::RimError;

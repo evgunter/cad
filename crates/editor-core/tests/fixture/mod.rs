@@ -1065,9 +1065,10 @@ pub fn die() -> Die {
             ));
             // The pip master extrudes INWARD (negative distance), so
             // its OUTER cap — the flush one — is Bottom (on the
-            // sketch plane, which IS the cube face's plane).
+            // sketch plane, which IS the cube face's plane), and it
+            // faces out of the cube as that face does: a continuation.
             let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
-            let decl = r.insert(Node::declare_rest(vec![(
+            let decl = r.insert(Node::declare_continuation(vec![(
                 SitedRef::new(acc, cube_face_names[face_idx].clone()),
                 SitedRef::new(tr, pip_cap),
             )]));
@@ -1481,7 +1482,7 @@ pub fn no_piece_of(doc: &editor_core::ProfileDoc) -> ProfileEdgeRef {
 /// A wall (lateral) role for outer-loop canonical segment `seg` of the
 /// profile the extrude `ext` sweeps, spelled by the piece it is.
 pub fn wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleSeg {
-    RoleSeg::Lateral(piece(doc, ext, 0, seg as usize))
+    RoleSeg::Lateral(piece(doc, ext, 0, seg as usize).into())
 }
 
 /// **The four flush families two x-offset blocks share** — the walls
@@ -1574,8 +1575,10 @@ pub fn declare_x_offset_flush_at(
 ) -> (ProfileDoc, RecipeNodeId) {
     // Each name is sited at the OPERAND whose table holds it, which
     // is what says which side of the boolean it is read on.
+    // The four families face the same way on both blocks: one carrier,
+    // aligned senses — continuations.
     let pairs = flush_pairs(&doc, (a_at, a_ext), (b_at, b_ext));
-    insert(doc, Node::declare_rest(pairs))
+    insert(doc, Node::declare_continuation(pairs))
 }
 
 /// **What every at-rest finding says about a declaration, in one

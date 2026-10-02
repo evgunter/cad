@@ -79,9 +79,10 @@ fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
 /// The three declared contact groups: the mating plane (P top × Q
 /// bottom) and the two cylinder bands, each peg declared against its
 /// own bore's walls only (cross-peg pairs are DISTINCT carriers and
-/// would be contradicted — correctly).
+/// would be contradicted — correctly) — and the plates' flush outer
+/// walls and peg ends, which are continuations.
 fn declarations(p: &Body<f64>, q: &Body<f64>) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(p, q);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(p, 1.0, true),
         plane_face(q, 1.0, false),
@@ -135,11 +136,12 @@ fn two_peg_plate_union_is_exactly_additive() {
     }
     // Topology pinned: ONE shell, genus 0 (every handle the bores
     // opened is closed by its peg). Euler–Poincaré with rings:
-    // V − E + F − R = 2(S − H); each peg's circular seam survives as
-    // an inner ring on the surrounding planar face, so R = 2.
+    // V − E + F − R = 2(S − H); each peg's end is flush with Q's top,
+    // a declared continuation the union merges, so no circular seam
+    // survives as a ring: R = 0.
     let counts = euler_counts(&body);
     assert_eq!(counts.s, 1, "one shell");
-    assert_eq!(counts.r, 2, "one surviving circular ring per peg seam");
+    assert_eq!(counts.r, 0, "the flush peg ends merge into the top face");
     assert_eq!(
         counts.genus(),
         Ok(0),
@@ -239,7 +241,8 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     let b = quarter_round_above();
     let va = mass_properties(&a, Tol::witness()).unwrap().volume;
     let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
+    // The two blocks' flush side walls are continuations.
+    let mut decls = crate::mate2_common::continuations(&a, &b);
     // The mate: B rests on A's top face.
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&a, 1.0, true),
@@ -296,15 +299,15 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
             .and_then(|h| body.get_loop(h.parent_loop))
             .and_then(|l| body.get_face(l.face))
             .and_then(|f| body.get_surface(f.surface))
-            .map(geom_brep::SurfaceKind::of)
+            .map(geom::Surface::kind)
     };
     let mut rim_edges = Vec::new();
     for (k, e) in body.edges() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if face_kind(e.he_plus) == Some(geom_brep::SurfaceKind::Cylinder)
-            && face_kind(e.he_minus) == Some(geom_brep::SurfaceKind::Cylinder)
+        if face_kind(e.he_plus) == Some(geom::SurfaceKind::Cylinder)
+            && face_kind(e.he_minus) == Some(geom::SurfaceKind::Cylinder)
         {
             rim_edges.push(k);
             assert!(
@@ -360,8 +363,8 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
         let e = body.get_edge(k).expect("marked edge exists");
         let kinds = [face_kind(e.he_plus), face_kind(e.he_minus)];
         assert!(
-            kinds.contains(&Some(geom_brep::SurfaceKind::Plane))
-                && kinds.contains(&Some(geom_brep::SurfaceKind::Cylinder)),
+            kinds.contains(&Some(geom::SurfaceKind::Plane))
+                && kinds.contains(&Some(geom::SurfaceKind::Cylinder)),
             "the surviving authored joint is the plane-wall/round-wall seam: {kinds:?}"
         );
     }

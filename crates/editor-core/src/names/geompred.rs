@@ -76,9 +76,7 @@ use crate::node::RecipeNodeId;
 // The kernel query seat's vocabulary, re-exported at its historical
 // home so this crate's public surface is unchanged (see the module
 // docs' layering note).
-pub use topo::query::{
-    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, SEL_DATUM_DISTANCE, SurfaceKindSet,
-};
+pub use topo::query::{CurveKind, CurveKindSet, SEL_DATUM_DISTANCE, SurfaceKindSet};
 
 /// The comparison a [`GeomPred::DatumDistance`] makes against its
 /// stated value: the SIGN trilean, never a bare float equality.
@@ -304,6 +302,11 @@ pub enum SelectRefusal {
     /// restated here: two copies of one derivation are two things to
     /// keep true, and this one has already drifted apart from that one.
     Band(BandError),
+    /// The detector's verify door handed back `Distinct` as a finding's
+    /// evidence, which no finding carries
+    /// ([`topo::flush::DistinctFinding`]): a kernel defect, refused
+    /// rather than reported as either class.
+    DistinctFinding(topo::flush::DistinctFinding),
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -419,6 +422,7 @@ impl crate::spoken::Say for SelectRefusal {
                 "select: the ambiguity band itself could not be built from the ambient \
                  tolerance, so no comparison below it can be trusted: {error}"
             ),
+            Self::DistinctFinding(defect) => write!(f, "select: {defect}"),
             Self::AcrossSpaces { group, cause } => write!(
                 f,
                 "select: the two nodes live in different spaces — one is in the own space of the \
@@ -631,6 +635,7 @@ mod census {
             AcrossSpaces,
             BadValue,
             Band,
+            DistinctFinding,
         ];
     }
 
@@ -698,6 +703,7 @@ mod census {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
+            SelectRefusal::DistinctFinding(topo::flush::DistinctFinding),
         ];
         let read: Vec<String> = samples
             .iter()
