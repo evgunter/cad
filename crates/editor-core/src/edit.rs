@@ -2737,7 +2737,8 @@ impl core::fmt::Display for Maintenance {
             // node was: what a reader has to know is that the paint
             // is still there and what took its referent. A store holds
             // a thing UNDER a key, and `SpokenName`'s Display supplies
-            // the noun ("face name minted by Extrude 3fa9c1d2a0b1"), so
+            // the noun ("face name minted by Extrude 3fa9c1d2a0b1 (the
+            // end cap)"), so
             // the article is this sentence's to provide.
             Self::StrandedAppearance { name } => write!(
                 f,

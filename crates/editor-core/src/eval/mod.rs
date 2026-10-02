@@ -2240,15 +2240,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "{}'s seam declaration crosses at the remainder's {} and claims \
-                 {} {} of the part (minted by its node {}), which the pinned part's \
-                 product does not name — the crossing does not re-verify against this \
-                 version of the part",
+                "{}'s seam declaration crosses at the remainder's {} and claims the part's \
+                 {name}, which the pinned part's product does not name — the crossing does \
+                 not re-verify against this version of the part",
                 by.node_as(*instance, "instance"),
                 by.name(outer),
-                name.kind.article(),
-                name.kind.noun(),
-                name.node
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -2548,8 +2544,8 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,
-                "the measure reference minted by {} could not be read back: {error}",
-                by.node(name.node)
+                "the measure reference's {} could not be read back: {error}",
+                by.name(name)
             ),
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {

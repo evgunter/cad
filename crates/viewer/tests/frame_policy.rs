@@ -1871,17 +1871,11 @@ fn answer(serial: u32, id: u32) -> u64 {
 /// **The status line tells two tied faces apart.**
 ///
 /// A refusal whose whole subject is that two answers cannot be
-/// separated cannot render them as the same words. The kernel's own
-/// message numbers its faces by name alone — `StableName`'s `Display`
-/// omits the role path on purpose, so two faces of ONE node come out
-/// as one phrase twice, and the ordinal is all a reader has. That is
-/// right for the kernel, whose typed payload carries the path; it is
-/// not enough on a status line, where there is no payload to open.
-///
-/// So `frame::pick_refusal` renders each tied face the way
-/// `idpass::Disagreement` does — kind and minting node, then the role
-/// path. The premise is asserted first: these two names really do
-/// render identically through `Display` alone.
+/// separated cannot render them as the same words. Two faces of ONE
+/// node are told apart by their leaf role in words, which the name's
+/// own `Display` carries, and `frame::pick_refusal` renders each tied
+/// face the way `idpass::Disagreement` does — that sentence, then the
+/// role path as the operator's diagnostic.
 #[test]
 fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let tol = Tol::witness();
@@ -1897,8 +1891,8 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let first = names.first().expect("the plate draws a face").clone();
     let second = names
         .iter()
-        .find(|name| name.path != first.path && name.to_string() == first.to_string())
-        .expect("the plate draws two faces of one node, which render as one phrase")
+        .find(|name| name.node == first.node && name.path != first.path)
+        .expect("the plate draws two faces of one node")
         .clone();
     let hit_at = |name: StableName, t: f64| pncad::select::PickHit {
         name,
@@ -1913,11 +1907,12 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
         hits: vec![hit_at(first.clone(), 1.0), hit_at(second.clone(), 1.0)],
     });
 
-    // The premise: by name alone the two faces are one phrase.
-    assert_eq!(
+    // By name alone the two faces are two phrases: the leaf role in
+    // words tells them apart.
+    assert_ne!(
         first.to_string(),
         second.to_string(),
-        "the two faces render identically through `Display` alone"
+        "two faces of one node render apart through `Display` alone"
     );
 
     let text = frame::pick_refusal(&refusal, landed).text().to_owned();

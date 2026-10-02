@@ -34,8 +34,10 @@
 //!   print alike.
 //!
 //! A [`StableName`] is a stored reference with no document behind it,
-//! so its own `Display` says its minting node by tag; a sentence made
-//! where the document is at hand says it as a [`SpokenName`].
+//! so its own `Display` says its minting node and its profile steps by
+//! tag; a sentence made where the document is at hand says it as a
+//! [`SpokenName`], each step where the profile pane shows it. Both are
+//! [`Speaker::name`]'s one sentence.
 
 use core::fmt;
 

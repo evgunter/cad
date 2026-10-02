@@ -2526,6 +2526,13 @@ NOT_BOUND = {
     "Step": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
+    # A name's leaf role in words. Python holds a name as its opaque
+    # text, and the words ride inside every sentence that names one —
+    # each door's refusal, spoken from the document it evaluated — so
+    # no value of the renderer's crosses.
+    "LeafRole": SHAPE,
+    "leaf_role": SHAPE,
+    "role_leaf": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
     # A cone-delete is composed caller-side in Python: the bound door
