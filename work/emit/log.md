@@ -1484,3 +1484,21 @@ This builds Ev's PR 3734 ruling.
 **Filed**
 - `a-pair-boolean-names-a-declared-covered-pair-by-operand-order` (`design: true`). Ev ruled unions only.
 - `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere` (P3). It now also records the latent attach-by-vertex gap at reflex vertices, which the kernel refuses today.
+
+## 2026-10-02 — selection-door refusals speak through their frame (PR 3760)
+
+**The ruling.** Every type in the row is either memoized (`NodeStanding`, `ResolveError`, `NamingError`, `MintRefusal`) or raised by doors that hold only an `Evaluation`. Those doors are pick, hit, select, flush, read-back and `step_for_node`. `AssemblyError` and `ExportError` also have doc-less siblings. So every one of them keeps bare ids, and the frame that hands it out speaks it with `spoken(doc)`.
+
+**`Speaker` / `Say`.** The template lives in one place: `Speaker` / `Say` in `spoken.rs`. It is public, so `ExportError` uses it too.
+
+**Python.** Python speaks from the `Evaluation`'s captured document. That includes the `__str__` of the assembly row objects.
+
+**Carried rows** from a part keep the part's tags. A collision fixture (the outer document and the part both mint the same id, under different labels) pins this. Both reviewer mutations turn it red.
+
+**Wording.** `NodeGone` says the node once, and the `ForeignNode` contradiction is fixed.
+
+**Filed:**
+- `check-findings-speak-their-root-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- The product row gained the forward sites.
+- The viewer row gained about 80 reads.
