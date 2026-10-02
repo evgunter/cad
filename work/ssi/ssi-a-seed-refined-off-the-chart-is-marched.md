@@ -62,10 +62,22 @@ tube covers. Pin the d = 1 and d = 2 rows.
 
 `march` now decides the settled seed with `ssi_branch_open_end` before
 it marches it. A seed decided outside refuses `SsiError::SeedOffDomain`,
-which both doors treat as no branch. A seed in the zero band is
-marched, and one in the escalation zone escalates. PR 3864 has the
-before and after table. The cut still refuses at d = 1–3 for other
-causes: `plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps` at
-ε 1e-6, and causes 4 and 2 of
-`plane-nurbs-ssi-does-not-certify-a-curved-dome` at 1e-9 and 1e-12.
-`a_seed_settled_off_the_walls_chart_is_no_branch` pins those refusals.
+which both doors treat as no branch. A seed in the band's zero is
+marched only if it is `within` the domain's box, as `push_boundary`
+admits a marched end; otherwise it is no branch too. A seed in the
+escalation zone escalates. PR 3864 has the before and after table.
+
+The cut still refuses, for other causes:
+- At ε 1e-6, d = 1–3:
+  `plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps`.
+- At ε 1e-9, d = 1–2: limb 2 (`HullSup`). Assigning it to cause 4 of
+  `plane-nurbs-ssi-does-not-certify-a-curved-dome` is an inference, not
+  a trace.
+- At ε 1e-9, d = 3: limb 1 escalates at 6.6ε. This is unexplained and
+  listed in that row.
+- At ε 1e-12: cause 2 (the fit budget).
+
+`a_seed_settled_off_the_walls_chart_is_no_branch` pins the refusals at
+d = 1 and d = 2. `a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found`
+pins the ℝ³ lane's catch: before this fix that cut refused
+`TraceUnresolved { samples: 1 }`.

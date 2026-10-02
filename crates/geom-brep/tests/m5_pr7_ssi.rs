@@ -3669,6 +3669,51 @@ fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
     }
 }
 
+/// **The ℝ³ lane drops a seed Newton settles outside the slab, and
+/// still finds the branch.** The slab's top face `z = 0.996` cuts the
+/// planted north loop, whose height runs from 0.9939 to 0.9988, at a
+/// shallow angle. Near the crossing the curve runs almost along the
+/// face, so min-norm Newton settles the subdivision's cell centre
+/// `(0.0378125, −0.08046875, 0.9944375)` on the loop about 0.1 mm above
+/// the face. That seed is no branch. A seed further in marches the arc
+/// below the face, which certifies as the one branch, ending on the
+/// boundary.
+#[test]
+fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
+    let d = SsiDomain {
+        center: Point3::new(0.03, 0.0, 0.896),
+        half_extent: 0.1,
+        extent: 0.2,
+        floor_scale: 1.0,
+    };
+    let seed = Point3::new(0.0378125, -0.08046875, 0.9944375);
+    match ssi::idealized_trace_r3(&threaded_cylinder(), &sphere(), seed, d, band()) {
+        Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+            margin < -1.0e-5,
+            "the seed settles outside the slab: {margin:e} m"
+        ),
+        other => panic!("the seed at {seed:?} is no branch, got {other:?}"),
+    }
+    let out = match ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band()) {
+        Ok(out) => out,
+        Err(SsiError::FitSampleBudget { .. }) => {
+            vacuity::stood_down(
+                &format!("the clipped north loop, ε {:e}", eps()),
+                "the arc wants more samples than the fit budget allows, so the door's \
+                 handling of the off-slab seed is not asserted at this ε",
+            );
+            return;
+        }
+        Err(e) => panic!("the clipped north loop does not certify: {e:?}"),
+    };
+    assert_eq!(out.branches.len(), 1, "the arc below the face");
+    assert_ne!(
+        out.branches[0].end,
+        BranchEnd::Closed,
+        "the arc ends on the face"
+    );
+}
+
 /// The dome `W(d)`: a clamped quadratic 3×3 net, weights 1, control
 /// points `(i/2, 0, j/2)` with the centre one moved to `y = −d`. Its
 /// surface is `x = s, z = t, y = −4d·s(1−s)·t(1−t)`, with section
@@ -3713,11 +3758,14 @@ fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
 /// or as a trace of one sample. Settled outside, the seed is no
 /// branch, and a seed further in marches the branch to the edge.
 ///
-/// What the cut refuses now is pinned by name and ε, each to the cause
-/// it belongs to (`work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`
-/// causes 2 and 4,
-/// `work/ssi/plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps.md`).
-/// None is a carrier off the wall.
+/// What the cut refuses now is pinned by name and ε:
+/// - `TubeStraddles` at 1e-6
+///   (`work/ssi/plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps.md`);
+/// - limb 2 at 1e-9, inferred but not traced to be cause 4 of
+///   `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
+/// - the fit budget at 1e-12, that row's cause 2.
+///
+/// None of them is a carrier off the wall.
 #[test]
 fn a_seed_settled_off_the_walls_chart_is_no_branch() {
     let b = band();
@@ -3756,7 +3804,14 @@ fn a_seed_settled_off_the_walls_chart_is_no_branch() {
                 })
             ),
             1.0e-12 => matches!(r, Err(SsiError::FitSampleBudget { .. })),
-            _ => true,
+            _ => {
+                vacuity::stood_down(
+                    &at,
+                    "the cut's remaining refusal is measured at ε 1e-6, 1e-9 and 1e-12 only, \
+                     so which cause refuses it here is not pinned",
+                );
+                true
+            }
         };
         assert!(pinned, "{at}: the cut's refusal moved: {r:?}");
     }

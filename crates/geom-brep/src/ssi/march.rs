@@ -96,8 +96,12 @@
 //!   self-crossing makes the uniqueness tube's enclosure straddle.
 //! - **`ssi_branch_open_end`** — "the branch ends on the domain
 //!   boundary": the margin is the signed distance to the named domain
-//!   in meters. `Negative` ends the branch open; `Zero` also ends it
-//!   and **labels the end in-band** ([`BranchEnd::BoundaryInBand`]).
+//!   in meters. On a marched state, `Negative` ends the branch open;
+//!   `Zero` also ends it and **labels the end in-band**
+//!   ([`BranchEnd::BoundaryInBand`]). On the settled seed, `Negative`,
+//!   or `Zero` outside the box, makes the seed no branch
+//!   ([`super::SsiError::SeedOffDomain`]); in the escalation zone it
+//!   escalates on either.
 //!   The label is a report, not a mechanism: nothing keys off it. A
 //!   region no tube covers — including one past an in-band end — is
 //!   refined by the accounting pass and refuses typed at the floor,
@@ -547,20 +551,15 @@ where
 {
     let mut x = newton_refine(sys, seed, ctx.tol)
         .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
-    // The seed is decided inside the domain before it is marched, by
-    // the decision every marched state gets. Min-norm Newton moves a
-    // seed across the domain's boundary as readily as a step, and a
-    // seed outside is no state to march from: `push_boundary` bisects
-    // toward it as the inside end and finds nothing, and the fit reads
-    // a chart evaluated off its domain. A seed decided outside is no
-    // branch, as one that will not settle is: the branch it lies on
-    // is reached by another seed or the accounting pass refuses its
-    // cell at the floor. A seed in the band's zero is on the boundary,
-    // where a marched end may be too, and is marched.
+    // The seed is decided as a marched state is, and enters the trace
+    // on the terms `push_boundary` gives a marched end: definitely
+    // inside, or in the band and `within` the box. Any other seed is no
+    // branch; the accounting pass decides whether that was a miss.
     let margin = domain_margin(&x, &ctx, sys, &x);
     match decide("ssi_branch_open_end", Margin::of(margin), band) {
-        Ok(Sign::Positive | Sign::Zero) => {}
-        Ok(Sign::Negative) => {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Zero) if within(&x, &ctx.domain) => {}
+        Ok(Sign::Zero | Sign::Negative) => {
             return Err(SsiError::SeedOffDomain {
                 mode: mode.name(),
                 margin,
@@ -1648,7 +1647,9 @@ mod tests {
     /// lies inside every domain below; Newton settles it to the origin,
     /// at `y = 0`. The `y` face of the domain is placed so the settled
     /// seed is definitely outside (no branch, naming its margin), in the
-    /// band's escalation zone (the open end escalates), on the face
+    /// band's escalation zone (the open end escalates), in the band's
+    /// zero but outside the box (no branch, as `push_boundary` drops a
+    /// marched end there), on the face or in the band inside the box
     /// (marched), and inside (marched). The `x` faces sit a few
     /// idealized steps from the origin so a marched seed ends.
     #[test]
@@ -1685,7 +1686,16 @@ mod tests {
             }) => {}
             other => panic!("in the escalation zone: expected the open end, got {other:?}"),
         }
-        for y_lo in [0.0, -0.1] {
+        match run(5.0e-10) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => {
+                assert!(
+                    (margin + 5.0e-10).abs() < 1.0e-20,
+                    "in the band, outside the box: {margin:e}"
+                );
+            }
+            other => panic!("in the band, outside the box: expected no branch, got {other:?}"),
+        }
+        for y_lo in [0.0, -5.0e-10, -0.1] {
             let t = run(y_lo).unwrap_or_else(|e| panic!("y ≥ {y_lo}: the seed is marched: {e}"));
             assert_eq!(t.states[0], [0.0; 3], "y ≥ {y_lo}: the settled seed");
         }

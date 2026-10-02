@@ -375,8 +375,9 @@ pub enum SsiError {
         /// Which stepper.
         mode: &'static str,
     },
-    /// Newton refinement settled a seed onto the surface pair at a state
-    /// decided outside the march domain. The seed is then no branch,
+    /// Newton refinement settled a seed onto the surface pair outside
+    /// the march domain: decided outside, or in the band's zero but
+    /// outside the domain's box. The seed is then no branch,
     /// which the accounting pass decides was or was not a miss.
     SeedOffDomain {
         /// Which stepper.
@@ -1438,8 +1439,9 @@ impl TraceDecision {
     ///   caller intends, so they end in their lever alone, as
     ///   [`SsiError::StepCollapsed`] and [`SsiError::SelfCrossingLocus`] do.
     /// - The open end passes on every definite sign, so only a marched
-    ///   state landing within the band of the domain's boundary refuses
-    ///   it: moving the boundary, or the geometry under it, moves that.
+    ///   state, or the settled seed, landing within the band of the
+    ///   domain's boundary refuses it: moving the boundary, or the
+    ///   geometry under it, moves that.
     /// - The return passes on every definite sign too, so only where an
     ///   untrusted marched sample landed against the seed refuses it,
     ///   which no lever the caller holds moves: the last resort.
@@ -1480,10 +1482,11 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
 };
 
 /// The open end (`ssi_branch_open_end`), refused only where a marched
-/// state lands within the band of the domain's boundary. The boundary
-/// is the caller's domain, or a spline operand's own edge, which moves
-/// with the geometry. Read on its sign-certain arm alone: where a state
-/// lands is the march's own, no size a caller intends.
+/// state, or the settled seed, lands within the band of the domain's
+/// boundary. The boundary is the caller's domain, or a spline operand's
+/// own edge, which moves with the geometry. Read on its sign-certain arm
+/// alone: where a state lands is the march's own, no size a caller
+/// intends.
 const OPEN_END: SizedDecision = SizedDecision {
     lever: "move the domain's boundary, or the geometry, a little, so the traced branch does \
             not leave the domain within a few tolerances of a marched state",
@@ -1701,8 +1704,9 @@ pub fn cylinder_sphere_ssi(
             Ok(t) => t,
             // A seed that will not settle, or settles outside the
             // domain, is not a branch; the subdivision's accounting
-            // pass is what decides whether that was a miss. Every other refusal propagates, a march
-            // that lost its branch mid-trace included.
+            // pass is what decides whether that was a miss. Every other
+            // refusal propagates, a march that lost its branch mid-trace
+            // included.
             Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
             Err(e) => return Err(e),
         };
