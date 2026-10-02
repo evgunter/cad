@@ -115,6 +115,15 @@ fn scene(label: &str) -> Scene {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    // The top sits where its mates put it: the base roots every group
+    // the rows' mates make, and a mate moves the top's copies onto it.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance: top,
+            offset: None,
+        },
+    );
     Scene {
         doc,
         opts,
@@ -139,11 +148,11 @@ fn control_seat(label: &str) -> Affine3<f64> {
     let (doc, _) = step(
         s.doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head(b.clone()),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &s.opts);
@@ -209,7 +218,7 @@ fn circular(
 /// A quarter turn — the step every rotating rule here takes.
 const Q: f64 = std::f64::consts::FRAC_PI_2;
 
-/// **The partition the registry is keyed by and the partition the
+/// **The partition the roots are read off and the partition the
 /// solve folds over are ONE partition.** `groups` and
 /// `solve_document` read which mates weld through one door
 /// (`read_mates`), so a document's group membership and its solved
@@ -285,11 +294,11 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, b.clone()),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -430,21 +439,21 @@ fn a2b_sibling_outer_copies_close_a_loop() {
         let (doc, m1) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat_at(
+                node: Box::new(seat_at(
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(outer, named(0)),
                     FIRST_SEAT,
-                ),
+                )),
             },
         );
         let (doc, m2) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat_at(
+                node: Box::new(seat_at(
                     crate::fixture::head(a),
                     crate::fixture::head_at(outer, named(1)),
                     second,
-                ),
+                )),
             },
         );
         (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -493,27 +502,27 @@ fn a2a_sibling_inner_copies_close_a_loop() {
             let (doc, m1) = step(
                 doc,
                 DocEdit::InsertNode {
-                    node: seat_at(
+                    node: Box::new(seat_at(
                         crate::fixture::head(a.clone()),
                         crate::fixture::head_at(
                             outer_a,
                             in_copy(outer_a, 0, in_copy(inner, i1a, master.clone())),
                         ),
                         FIRST_SEAT,
-                    ),
+                    )),
                 },
             );
             let (doc, m2) = step(
                 doc,
                 DocEdit::InsertNode {
-                    node: seat_at(
+                    node: Box::new(seat_at(
                         crate::fixture::head(a),
                         crate::fixture::head_at(
                             outer_b,
                             in_copy(outer_b, 0, in_copy(inner, i1b, master)),
                         ),
                         second,
-                    ),
+                    )),
                 },
             );
             (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -553,27 +562,27 @@ fn a2c_copies_differing_at_both_levels_close_a_loop() {
         let (doc, m1) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat_at(
+                node: Box::new(seat_at(
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(
                         outer_a,
                         in_copy(outer_a, 0, in_copy(inner, 1, master.clone())),
                     ),
                     FIRST_SEAT,
-                ),
+                )),
             },
         );
         let (doc, m2) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat_at(
+                node: Box::new(seat_at(
                     crate::fixture::head(a),
                     crate::fixture::head_at(
                         outer_b,
                         in_copy(outer_b, 1, in_copy(inner, 2, master)),
                     ),
                     second,
-                ),
+                )),
             },
         );
         (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -611,11 +620,11 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(part, b.clone()),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -666,17 +675,21 @@ fn a3b_two_operands_over_one_copy_are_two_members() {
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 at_pattern.clone(),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(crate::fixture::head(a), at_part.clone(), FIRST_SEAT),
+            node: Box::new(seat_at(
+                crate::fixture::head(a),
+                at_part.clone(),
+                FIRST_SEAT,
+            )),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
@@ -724,11 +737,11 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(moved, b.clone()),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -791,15 +804,20 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: seat_at(crate::fixture::head(a), reference.clone(), FIRST_SEAT),
+                node: Box::new(seat_at(
+                    crate::fixture::head(a),
+                    reference.clone(),
+                    FIRST_SEAT,
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .expect_err("a disagreeing Part refuses");
-    let editor_core::EditError::MateRefused { node: mate, fault } = err else {
+    let editor_core::EditError::MateRefused { node, fault, .. } = err else {
         panic!("expected MateRefused, got {err:?}");
     };
+    let mate = node.id();
     let fault = *fault;
     let MateFault::PartSelectsAnotherCopy {
         mate: at,
@@ -849,11 +867,11 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a),
                 crate::fixture::head_at(part, b.clone()),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -926,7 +944,11 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(crate::fixture::head(a.clone()), r.clone(), FIRST_SEAT),
+            node: Box::new(seat_at(
+                crate::fixture::head(a.clone()),
+                r.clone(),
+                FIRST_SEAT,
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -981,7 +1003,11 @@ fn a1c_three_levels_deep_seat() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(crate::fixture::head(a.clone()), r.clone(), FIRST_SEAT),
+            node: Box::new(seat_at(
+                crate::fixture::head(a.clone()),
+                r.clone(),
+                FIRST_SEAT,
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -1032,21 +1058,21 @@ fn rotating_outer_tree_edge(
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, named(1)),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, named(2)),
                 [8.5, 8.5, BASE_HEIGHT],
-            ),
+            )),
         },
     );
     (doc, s.opts, m1.unwrap(), m2.unwrap(), a, named(1))
@@ -1112,21 +1138,21 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(part1, b.clone()),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a),
                 crate::fixture::head_at(part2, b.clone()),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
@@ -1198,7 +1224,11 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(crate::fixture::head(a.clone()), r.clone(), FIRST_SEAT),
+            node: Box::new(seat_at(
+                crate::fixture::head(a.clone()),
+                r.clone(),
+                FIRST_SEAT,
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -1337,11 +1367,11 @@ fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, named(0)),
                 FIRST_SEAT,
-            ),
+            )),
         },
     );
     // The declaring mate's frame is authored THREE UNITS above the
@@ -1349,11 +1379,11 @@ fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_at(
+            node: Box::new(seat_at(
                 crate::fixture::head(a),
                 crate::fixture::head_at(outer, named(1)),
                 [SECOND_SEAT[0], SECOND_SEAT[1], SECOND_SEAT[2] + 3.0],
-            ),
+            )),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());

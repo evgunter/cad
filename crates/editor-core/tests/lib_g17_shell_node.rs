@@ -433,7 +433,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
-    let blank = format!("{:012x}", blank_of(&doc).0);
+    let blank = test_utils::refusal::tag(blank_of(&doc).0);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
     assert_eq!(
         e.to_string(),
@@ -464,8 +464,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     assert_eq!(
         e.to_string(),
         format!(
-            "the shell open-face name minted by node {:012x} denotes an edge, not a face",
-            blank_of(&doc).0
+            "the shell open-face name minted by node {} denotes an edge, not a face",
+            test_utils::refusal::tag(blank_of(&doc).0)
         )
     );
 
@@ -615,7 +615,7 @@ fn a_repeated_open_entry_is_refused_at_load() {
     let corrupt = format!("{}[{entry}, {entry}]{}", &text[..start], &text[end + 1..]);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
-            fault: editor_core::InputFault::RepeatedDesignation { first: 0, again: 1 },
+            fault: editor_core::ListFault::RepeatedDesignation { first: 0, again: 1 },
             ..
         })) => {}
         other => panic!("a repeated designation must refuse typed, got {other:?}"),
@@ -669,7 +669,7 @@ fn both_documents_round_trip_through_persistence() {
         let empty = ProfileDoc::empty_derived("lib-g17-roundtrip", Tol::witness());
         let mut expected = empty.clone();
         for edit in &d.edits {
-            expected = editor_core::apply_logged(&expected, edit, Tol::witness())
+            expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
                 .expect("a corpus edit applies")
                 .doc;
         }

@@ -553,7 +553,14 @@ BOUNDS_ALLOWLIST=(
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/surgery.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
+  # carry-through pass's support-boundary arm split into its own
+  # function — the same edge-blend seam, reading brackets only where
+  # `ring_clearance` and the piece meters already do, plus one
+  # selection definite by a setback (which side of the trim the rim
+  # lies on; DL5(b), as `CircleFrame::misses`), the precedent
+  # `seam_split_param` set in this file.
+  'crates/sweep/src/blend/surgery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/planar.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
@@ -578,8 +585,18 @@ BOUNDS_ALLOWLIST=(
   # M7-8, the declare-and-check edge lane.
   'crates/geom-brep/src/edge_nurbs.rs 6 M7-8, the declare-and-check edge lane'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the two
-  # DOORS that name the certified body `plane_nurbs_limbs`.
-  'crates/geom-brep/src/certify.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
+  # DOORS that name the certified body `plane_nurbs_limbs`. The second
+  # occurrence is the lane's door value, `NurbsLane::certified`'s block
+  # (`Decide + CertifiedBounds`) — the shape `FittedLane::certified`
+  # has: the certification RIGHT the value stands for, so the type
+  # cannot be written at a scalar without it; it holds one function
+  # pointer to `plane_nurbs_limbs` and reads no bracket. Same seam, the
+  # bound of the `certify_nurbs_lane` block beside it and nothing wider.
+  # The third is `wiring_rows::holds_the_certified_nurbs_lane`, which
+  # forms that constructor at each certifying scalar and so restates its
+  # bound and nothing wider, in a `#[cfg(test)]` module that reads no
+  # bracket.
+  'crates/geom-brep/src/certify.rs 3 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound'
   'crates/topo/src/euler.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'

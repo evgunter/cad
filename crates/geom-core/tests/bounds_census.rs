@@ -290,6 +290,16 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/battery.rs",
+        subject: "short_arm",
+        why: Payload(
+            "the chain-arm refusal's constructor: the arm `fillet3_chain_arm` already \
+             decided non-positive goes through `measured` into the `Indeterminate` \
+             payload and stops. It reads no bracket itself and nothing downstream \
+             branches on it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/battery.rs",
         subject: "measured",
         why: Payload(
             "the one bracket read behind every blend refusal payload: both ends into a \
@@ -327,7 +337,8 @@ const ROSTER: &[Site] = &[
         subject: "impl<T: Bounds> CircleFrame<T>",
         why: Selection(
             "an arc's closed-form extremes (`distance`, `along`). `misses` reads the \
-             stored window's brackets to SELECT, per extreme, between the arc's two ends \
+             stored window's and the angle's brackets, asking `geom::periodic_window_may_hold`, \
+             to SELECT, per extreme, between the arc's two ends \
              and the whole circle's value; the result is a margin `ring_clearance` \
              decides, and the branch is the value channel's (a dual's bracket is its \
              value's). The branch is locally constant everywhere off the switch, and AT \
@@ -357,6 +368,31 @@ const ROSTER: &[Site] = &[
              segment's clamped foot is `max`/`min` arithmetic with no bracket read, and a \
              circle's reads are `CircleFrame`'s above, whose DL5(b) disposition this \
              inherits",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "boxed_reach",
+        why: Selection(
+            "a certified latitude range over an ellipse, spiric or NURBS piece. Its only \
+             bracket reads are the `boxes` constructors' above, whose f64 endpoints it \
+             lifts back by `from_f64` — so at a dual the box corners carry no tangent, \
+             though the true range moves with the carrier's seeds: the #874 shape, were \
+             the range ever built on. It is not: its sole consumer \
+             `support_boundary_clearance` turns it into the margin `ring_clearance` \
+             decides, whose passing branch builds nothing from the margin and whose \
+             refusing branch carries it as a payload, so it inherits that door's DL5(b) \
+             disposition and no other",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "old_misses",
+        why: Payload(
+            "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
+             the f64 and interval lanes are compared against one spelling: the former \
+             `CircleFrame::misses` predicate, whose bracket reads become the bool one \
+             `assert_eq!` compares and stop",
         ),
     },
     Site {
@@ -418,47 +454,6 @@ const ROSTER: &[Site] = &[
              the `bounds_allowlist` 2026-09-02 certified at-rest entry in `real.rs`, which \
              discloses this as the file's one bracket read",
         ),
-    },
-    Site {
-        path: "crates/topo/src/query.rs",
-        subject: "rim_of",
-        why: Selection(
-            "the rim selector: which stored circle edges carry the SAME circle as the seed, \
-             read bit for bit (both bracket ends, so two enclosures that merely overlap are \
-             different values) — an exact-f64 structure read, locally constant by \
-             construction. It chooses edges for a request and decides nothing about them; \
-             its one other read is the refusal's gap parameter, a payload (DL5(a))",
-        ),
-    },
-    Site {
-        path: "crates/topo/src/query.rs",
-        subject: "order_rim",
-        why: Payload(
-            "`rim_of`'s chain walk. Its ONE bracket read is the refusal's gap parameter, \
-             which becomes an `f64` field of `NotOneRim` and stops there — DL5(a), not a \
-             selection: the walk itself branches on vertex-KEY equality and never on a \
-             bracket. The bound is carried because the read is in this function",
-        ),
-    },
-    Site {
-        path: "crates/topo/src/query.rs",
-        subject: "impl<T: Bounds> CircleId<T>",
-        why: Impl("`rim_of`'s circle-identity comparison, whose bound is the bracket door itself"),
-    },
-    Site {
-        path: "crates/topo/src/query.rs",
-        subject: "same_bits",
-        why: Selection("the bitwise same-stored-value test `rim_of`'s circle match is built from"),
-    },
-    Site {
-        path: "crates/topo/src/query.rs",
-        subject: "same_point_bits",
-        why: Selection("[`same_bits`] over a point"),
-    },
-    Site {
-        path: "crates/topo/src/query.rs",
-        subject: "same_vec_bits",
-        why: Selection("[`same_bits`] over a vector"),
     },
     Site {
         path: "crates/sweep/src/test_support.rs",

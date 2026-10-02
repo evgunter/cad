@@ -56,15 +56,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Sign, Tol, Vec2, Vec3};
+use geom_core::{Affine3, Band, Point2, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::blend::battery::corner_config;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
-    ALL_RECOURSES, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
-    FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
-    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE,
-    FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
-    FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+    ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
+    FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
+    FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE,
+    FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
+    FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+    FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -378,6 +380,60 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     builds(&body, &edges, 0.1, "every corner fully requested");
 }
 
+/// **`FILLET3_CORNER_INDEPENDENCE_RECOURSE` — followed by each of its
+/// levers, at the corner classifier itself.**
+///
+/// **No fixture in this suite reaches `fillet3_corner_independence` in
+/// band through a door.** The PREMISE: an in-band determinant at a
+/// uniform trivalent corner needs three faces all nearly parallel to
+/// one line — two faces nearly coplanar, or the apex of a tall, sharp
+/// three-sided pyramid — and no builder these rows use mints either. So
+/// the row runs the classifier both doors run (`battery::corner_config`)
+/// on such a trihedron, reads the refusal it carries, and executes each
+/// lever the sentence names on the same corner: a face tilted clear, a
+/// larger blend size, and the tolerance the ending offers.
+#[test]
+fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
+    let vertex = topo::VertexKey::default();
+    let band = Band::linear(tol()).unwrap();
+    let k = band.escalate() / band.zero();
+    // `det(x, y, n) = n.z`, so the third face's tilt off the first is the
+    // margin at size 1, inside the band.
+    let t = (band.zero() + band.escalate()) / 2.0;
+    let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let near = [x, y, Vec3::new((1.0 - t * t).sqrt(), 0.0, t)];
+    let err = corner_config(vertex, 3, 3, near, 1.0, band).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::CornerIndependence,
+                ..
+            }
+        ),
+        "a nearly flat trihedron escalates the independence decision, got {err:?}"
+    );
+    let text = err.to_string();
+    assert!(
+        text.contains(FILLET3_CORNER_INDEPENDENCE_RECOURSE) && !text.contains("declare"),
+        "{text}"
+    );
+    // The faces tilted clear of one line.
+    corner_config(vertex, 3, 3, [x, y, Vec3::new(0.0, 0.0, 1.0)], 1.0, band)
+        .expect("an orthonormal corner passes");
+    // A larger size, which the margin grows with.
+    corner_config(vertex, 3, 3, near, 2.0 * k, band).expect("the same corner at a larger size");
+    // The tolerance the ending names, at the margin's own value.
+    let offered: f64 = text
+        .split_once("tighten the tolerance below ")
+        .and_then(|(_, tail)| tail.strip_suffix(" m"))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| panic!("the ending offers a valued tolerance: {text}"));
+    assert_eq!(offered, t / k, "{text}");
+    let tighter = Band::new(offered / 2.0, offered / 2.0 * k).unwrap();
+    corner_config(vertex, 3, 3, near, 1.0, tighter).expect("decided passing below the offer");
+}
+
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
 /// every door it names is executed.** Four of them: the open clause and
 /// three readings of the closed clause's "whole latitude rim".
@@ -450,6 +506,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     for condition in [
         "fully requested trivalent plane\u{2013}plane corners",
         "of one convexity",
+        "chains whose links share both faces",
         "junction carry-through and run-outs are not implemented",
     ] {
         assert!(
@@ -467,6 +524,37 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         &query::all_edges(&boxy),
         0.1,
         "single plane–plane links at fully-requested corners",
+    );
+    // The joined clause: a cube whose bottom side was authored as a
+    // declared straight continuation, its walls merged — two of its
+    // rims are two links each on one support pair.
+    let t = tol();
+    let joined: profile::ProfileLoop<f64> = profile::Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .and_then(|p| p.line(0.5, t))
+        .and_then(|p| p.continue_to(Point2::new(1.0, 0.0), t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.line_to(profile::Start, t))
+        .expect("the continuation authors")
+        .into();
+    let prof = Profile::new(SketchPlane::xy(), vec![joined])
+        .validate(t)
+        .expect("the profile validates");
+    let mut merged = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0), t)
+        .expect("the prism extrudes")
+        .body;
+    merged
+        .merge_coplanar_faces(t)
+        .expect("the continuation's walls merge");
+    builds(
+        &merged,
+        &query::all_edges(&merged),
+        0.1,
+        "plane–plane links joined where consecutive links share both supports",
     );
     builds(&d, &[equator], 0.1, "a closed circular plane–sphere rim");
     let body = waisted(tol());
@@ -502,7 +590,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
 fn the_body_recourse_names_a_single_solid_that_builds() {
     let mut two = cube(1.0, tol());
     let other = cube(1.0, tol());
-    topo::instance::graft_disjoint_all(&mut two, &other, tol()).expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
     let e = query::all_edges(&two);
     let err = refusal(&two, &e[..1], 0.1, "a two-solid body", false);
     assert!(

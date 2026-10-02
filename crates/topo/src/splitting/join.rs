@@ -21,9 +21,26 @@
 //! engineered out). Each edge offers its two halves in a fixed data
 //! order (**up half first** — the half starting at `below_end`; the
 //! book's "he1 first" as data, not slot). A half either consumes a
-//! **loose end** — a registered half in the *same face* with the
-//! *opposite* up/down sense — or becomes one (growable typed
-//! collection; the book's `ends[30]` is gone).
+//! **loose end** or becomes one (growable typed collection; the book's
+//! `ends[30]` is gone).
+//!
+//! Which loose end a half consumes is decided two ways:
+//!
+//! - **On a planar face with more than two crossings, its partner,
+//!   fixed before the sweep** ([`line_partners`]): the face's crossings
+//!   in order along the face's own section line
+//!   ([`super::order::sort_along_line`]), each taking the first
+//!   unpaired one before it of opposite sense. The sweep's global order
+//!   is monotone along that line only for exact points, and computed
+//!   crossings on a line parallel to the order's `v` axis come out in
+//!   rounding order (`super::order`'s module docs) — the defect that
+//!   chorded a ringed cap across its hole. The partner of such a half
+//!   is consumed only by it, and it consumes only its partner.
+//! - **Elsewhere, the book's rule**: the first registered half in the
+//!   *same face* (at the time of the scan) with the *opposite* up/down
+//!   sense, among the halves with no fixed partner. A curved face's
+//!   crossings lie on a conic, which has no line order; their pairing
+//!   is `work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`.
 //!
 //! # What this lane adds to the core's `cut`
 //!
@@ -97,8 +114,10 @@ pub(super) fn split_connect<T: Decide>(
     let sorted = order::sort_indices_by_point(&points, &red.plane, band, exact)
         .map_err(|diag| SplitJoinError::OrderEscalated { diag })?;
 
+    let partner = line_partners(red, &above_set, band)?;
     let mut st = Sweep {
         ends: Vec::new(),
+        partner,
         joiner: ChordJoiner::new(band),
         completed: Vec::new(),
         above_set,
@@ -176,10 +195,136 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
     Ok(body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face)
 }
 
+/// The fixed partners of the null-edge halves on planar faces with
+/// more than two crossings (module docs), both ways round.
+///
+/// A face's halves are taken in insertion order (null-edge record
+/// order, up half first — the half starting at `below_end`, the order
+/// the sweep offers them in), keyed by their along-line coordinate
+/// `(p − origin)·d̂`, `d = n_face × n_plane`. A half left unpaired on
+/// its line keeps the book's rule.
+///
+/// **A face whose line the band cannot certify keeps the book's rule
+/// too, silently** (**`split_join_face_line`**: `|d|` levered by the
+/// crossings' spread is Zero). That is a face lying in the plane, or
+/// within the band of it, whose crossings are the plane's contact with
+/// it rather than a section line; its pairing is main's, with main's
+/// exposure to the global order. An escalated reading refuses.
+///
+/// The partners are fixed on the faces the sweep starts with. A chord
+/// minted earlier in the sweep can divide a face so that two partners
+/// end up in different faces; `Sweep::take_neighbor` re-checks the
+/// pair's face at use and, where they parted, returns both halves to
+/// the book's rule.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] naming the face, where its line or
+/// the order of two of its crossings along it is undecided.
+fn line_partners<T: Decide>(
+    red: &SplitReduction<T>,
+    above_set: &SecondaryMap<VertexKey, ()>,
+    band: Band,
+) -> Result<SecondaryMap<HalfEdgeKey, HalfEdgeKey>, SplitJoinError> {
+    let body = &red.body;
+    // The half's up/down sense, read as the sweep reads it (`is_down`).
+    let down_half = |he: HalfEdgeKey| -> Result<bool, SplitJoinError> {
+        let start = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start;
+        Ok(above_set.contains_key(start))
+    };
+    let mut faces: Vec<(FaceKey, Vec<HalfEdgeKey>)> = Vec::new();
+    for r in &red.null_edges {
+        let edge = body.get_edge(r.edge).ok_or_else(|| corrupt_edge(r.edge))?;
+        let plus_start = body
+            .get_half_edge(edge.he_plus)
+            .ok_or_else(|| corrupt_he(edge.he_plus))?
+            .start;
+        let up_first = if plus_start == r.attr.below_end {
+            [edge.he_plus, edge.he_minus]
+        } else {
+            [edge.he_minus, edge.he_plus]
+        };
+        for half in up_first {
+            let face = he_face(body, half)?;
+            match faces.iter_mut().find(|(f, _)| *f == face) {
+                Some((_, halves)) => halves.push(half),
+                None => faces.push((face, vec![half])),
+            }
+        }
+    }
+    let mut partner = SecondaryMap::new();
+    for (face, halves) in faces {
+        if halves.len() <= 2 {
+            continue;
+        }
+        let surface = body
+            .get_face(face)
+            .ok_or_else(|| corrupt_face(face))?
+            .surface;
+        let Some(&geom::Surface::Plane { normal, .. }) = body.get_surface(surface) else {
+            continue;
+        };
+        let points = halves
+            .iter()
+            .map(|&h| {
+                vertex_point(
+                    body,
+                    body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut spread = T::zero();
+        for p in &points {
+            spread = spread.max((*p - points[0]).norm());
+        }
+        let d = normal.cross(red.plane.normal);
+        match decide(
+            "split_join_face_line",
+            Margin::levered(d.norm(), spread),
+            band,
+        ) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => continue,
+            Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
+        }
+        let d = d.normalize();
+        let keys: Vec<T> = points
+            .iter()
+            .map(|p| (*p - red.plane.origin).dot(d))
+            .collect();
+        let order = super::order::sort_along_line(&keys, band)
+            .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
+        let mut loose: Vec<HalfEdgeKey> = Vec::new();
+        for i in order {
+            let h = halves[i];
+            let down = down_half(h)?;
+            let mut matched = None;
+            for (j, &e) in loose.iter().enumerate() {
+                if down_half(e)? != down {
+                    matched = Some(j);
+                    break;
+                }
+            }
+            match matched {
+                Some(j) => {
+                    let e = loose.remove(j);
+                    partner.insert(e, h);
+                    partner.insert(h, e);
+                }
+                None => loose.push(h),
+            }
+        }
+    }
+    Ok(partner)
+}
+
 /// The sweep state.
 struct Sweep<T: Decide> {
     /// Loose ends, in registration order (growable — no `ends[30]`).
     ends: Vec<HalfEdgeKey>,
+    /// Fixed partners of the halves on line-ordered faces
+    /// ([`line_partners`]).
+    partner: SecondaryMap<HalfEdgeKey, HalfEdgeKey>,
     /// The shared chord-join core.
     joiner: ChordJoiner,
     /// Completed polygons, in completion order.
@@ -207,19 +352,43 @@ impl<T: Decide> Sweep<T> {
         Ok(self.above_set.contains_key(start))
     }
 
-    /// `canjoin`: scan the loose ends for a topological neighbor of
-    /// `half` (same face, opposite sense); consume and return it, or
-    /// register `half` as a new loose end and return `None`.
+    /// `canjoin`: consume and return `half`'s loose partner — its fixed
+    /// one, or by the book's rule a loose end with no fixed partner in
+    /// the same face with the opposite sense (module docs) — or register
+    /// `half` as a new loose end and return `None`.
     fn take_neighbor(
         &mut self,
         body: &Body<T>,
         half: HalfEdgeKey,
     ) -> Result<Option<HalfEdgeKey>, SplitJoinError> {
         let face = he_face(body, half)?;
+        if let Some(&mate) = self.partner.get(half) {
+            match self.ends.iter().position(|&e| e == mate) {
+                // The partner waits in this half's face: the line's pair.
+                Some(i) if he_face(body, mate)? == face => {
+                    self.ends.remove(i);
+                    return Ok(Some(mate));
+                }
+                // An earlier chord divided the face between them (the
+                // fixed pairing is of the faces the sweep started with):
+                // both return to the book's rule below.
+                Some(_) => {
+                    self.partner.remove(half);
+                    self.partner.remove(mate);
+                }
+                None => {
+                    self.ends.push(half);
+                    return Ok(None);
+                }
+            }
+        }
         let down = self.is_down(body, half)?;
         for i in 0..self.ends.len() {
             let end = self.ends[i];
-            if he_face(body, end)? == face && self.is_down(body, end)? != down {
+            if !self.partner.contains_key(end)
+                && he_face(body, end)? == face
+                && self.is_down(body, end)? != down
+            {
                 self.ends.remove(i);
                 return Ok(Some(end));
             }

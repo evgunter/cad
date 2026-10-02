@@ -191,6 +191,59 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
     assert!(f.offers.is_empty());
 }
 
+/// **A tie a pass-through table carries is reported at the table that
+/// defined it**, whatever the ids: `at` is the first carrying table in
+/// evaluation order. The fixture moves the defining node's copy of the
+/// name downstream through transforms until one of them draws an id
+/// that sorts before the defining node's, so a walk in id order would
+/// report the transform.
+#[test]
+fn a_carried_tie_is_reported_at_its_defining_table() {
+    let (doc, sub) = tie_fixture();
+    let ev = run(&doc);
+    let tied = ev
+        .value(sub)
+        .unwrap()
+        .name_table
+        .iter()
+        .find_map(|(n, e)| {
+            matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
+        })
+        .expect("the U-cutter fixture ties");
+    let mut doc = doc;
+    let mut sorts_first = None;
+    for dx in 1..=64u32 {
+        let lift = editor_core::Step::Literal(editor_core::Frame::translation([
+            f64::from(dx) * 4.0,
+            0.0,
+            0.0,
+        ]));
+        let (next, moved) = insert(doc, Node::transform(sub, lift));
+        doc = next;
+        if moved < sub {
+            sorts_first = Some(moved);
+            break;
+        }
+    }
+    let moved = sorts_first.expect("a transform whose id sorts before the tie's defining node");
+    let doc = set(doc, tied.clone(), red());
+    let ev = run(&doc);
+    assert!(
+        ev.value(moved)
+            .unwrap()
+            .name_table
+            .iter()
+            .any(|(n, e)| *n == tied && matches!(e, editor_core::Entry::Tied(_))),
+        "the transform carries the tie"
+    );
+    let causes: Vec<_> = ev.appearance.losses.iter().map(|l| &l.cause).collect();
+    assert_eq!(
+        causes,
+        [&AppearanceLossCause::Ambiguous { at: sub, width: 2 }],
+        "one loss, at the defining table"
+    );
+}
+
 #[test]
 fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
     let (doc, ext) = block(
@@ -529,7 +582,7 @@ fn rebind_appearance_collision_is_refused_typed() {
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
-            name: target.clone(),
+            name: doc.spoken_name(&target),
             kind: AttrKind::Color,
         }
     );
@@ -542,7 +595,11 @@ fn rebind_appearance_collision_is_refused_typed() {
             kind: AttrKind::Color,
         },
     );
-    let doc = set(doc, cap.clone(), Attr::Label("lid".into()));
+    let doc = set(
+        doc,
+        cap.clone(),
+        Attr::Label(editor_core::Label::new("lid").unwrap()),
+    );
     let applied = doc
         .apply(
             &DocEdit::Rebind {
@@ -555,7 +612,10 @@ fn rebind_appearance_collision_is_refused_typed() {
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();
     assert_eq!(merged.attrs.len(), 2);
-    assert_eq!(merged.attrs[&AttrKind::Label], Attr::Label("lid".into()));
+    assert_eq!(
+        merged.attrs[&AttrKind::Label],
+        Attr::Label(editor_core::Label::new("lid").unwrap())
+    );
 }
 
 #[test]

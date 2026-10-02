@@ -1279,17 +1279,29 @@ impl PickIndex {
         display: &DisplayView,
     ) -> Result<Option<PickHit>, HitTestError> {
         let visible = |part: &&NodePick| !display.hidden_roots.contains(&part.node());
-        let unmoved: Vec<PickTarget<'_>> = self
+        // The unmoved parts, one batch per space: the kernel orders
+        // faces within one space only (A9, A11 (2)), and each space is
+        // drawn where the display puts it — today an unplaced group's
+        // own space at the world's origin — so the merge below orders
+        // the batches as drawn, which is display, not logic.
+        let mut unmoved: BTreeMap<Option<RecipeNodeId>, Vec<PickTarget<'_>>> = BTreeMap::new();
+        for part in self
             .parts
             .iter()
             .filter(visible)
             .filter(|part| !display.moved_roots.contains_key(&part.node()))
-            .map(NodePick::target)
-            .collect();
+        {
+            let space = eval.unplaced.get(&part.node()).map(|(group, _)| *group);
+            unmoved.entry(space).or_default().push(part.target());
+        }
         // Every group's whole answer, in group order: the unmoved
-        // batch, then the moved instances. A group that refuses
-        // contributes its tied faces rather than ending the call.
-        let mut candidates: Vec<PickHit> = group_answer(pick_face(eval, &unmoved, ray))?;
+        // batches, the world's first, then the moved instances. A
+        // group that refuses contributes its tied faces rather than
+        // ending the call.
+        let mut candidates: Vec<PickHit> = Vec::new();
+        for targets in unmoved.values() {
+            candidates.extend(group_answer(pick_face(eval, targets, ray))?);
+        }
         for (&node, frame) in &display.moved_roots {
             if display.hidden_roots.contains(&node) {
                 continue;

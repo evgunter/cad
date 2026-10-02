@@ -82,10 +82,14 @@ fn p1_order_swap_changes_only_the_rim_name() {
     assert_eq!(ba.vertices().count(), bb.vertices().count());
     let ta = &ea.value(sa).unwrap().name_table;
     let tb = &eb.value(sb).unwrap().name_table;
+    let tb_at_sa: Vec<StableName> = names_minus_rim(tb)
+        .iter()
+        .map(|n| fixture::renoded(n, sb, sa))
+        .collect();
     assert_eq!(
         names_minus_rim(ta),
-        names_minus_rim(tb),
-        "every non-rim name must be the same under either order"
+        tb_at_sa,
+        "every non-rim name must be the same under either order, up to the shell's own id"
     );
     assert_eq!(ta.iter().count(), tb.iter().count());
     // The volumes should agree exactly; record if they do not.
@@ -125,10 +129,16 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     let ta = &ea.value(sa).unwrap().name_table;
     let tb = &eb.value(sb).unwrap().name_table;
     let mut na: Vec<_> = ta.iter().map(|(n, _)| n.clone()).collect();
-    let mut nb: Vec<_> = tb.iter().map(|(n, _)| n.clone()).collect();
+    let mut nb: Vec<_> = tb
+        .iter()
+        .map(|(n, _)| fixture::renoded(n, sb, sa))
+        .collect();
     na.sort();
     nb.sort();
-    assert_eq!(na, nb, "two charts, two rims, the same names either way");
+    assert_eq!(
+        na, nb,
+        "two charts, two rims, the same names either way, up to the shell's own id"
+    );
     // The key discriminates on order even across distinct charts: a
     // harmless over-discrimination (two memo entries for one body),
     // stated at `feed_shell` and pinned here as the fact it is.
@@ -166,7 +176,9 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     };
     match apply(
         &d.doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {

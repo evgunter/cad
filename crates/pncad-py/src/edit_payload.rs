@@ -38,7 +38,8 @@
 //! values, so they cross under the node roles every other arm uses.
 
 use pncad::document::{
-    ContentPin, DocParamValue, EditError, FrameSite, MateFault, ParamName, RecipeNodeId, RootFault,
+    ContentPin, DocParamValue, EditError, FrameSite, HeldNodes, MateFault, ParamName, RecipeNodeId,
+    RootFault,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
@@ -102,9 +103,9 @@ pub struct EditPayload<'a> {
     pub offered: Option<DocParamValue>,
     /// A placement frame's linear determinant.
     pub determinant: Option<f64>,
-    /// Which of a node's placement frames: a transform's step, or an
-    /// explicit rule's listed placement — `None` for an instance's own
-    /// placement frame.
+    /// Which of a node's placement frames: a step of a transform's, a
+    /// gauge's or an instance offset's chain, or an explicit rule's
+    /// listed placement.
     pub index: Option<usize>,
     /// The AST child indices of an expression address, from the
     /// slot's root.
@@ -118,8 +119,9 @@ pub struct EditPayload<'a> {
     /// than as a word alone, because it is the same value
     /// `SolvedPoses.fault` answers for a mate the solve refused, and a
     /// caller reads its lever, its clash and its recourse off the
-    /// `MateFault` type it already knows.
-    pub fault: Option<&'a MateFault>,
+    /// `MateFault` type it already knows. Beside it, the nodes it
+    /// names as the door's document held them, which its words speak.
+    pub fault: Option<(&'a MateFault, &'a HeldNodes)>,
 }
 
 impl EditPayload<'_> {
@@ -219,12 +221,11 @@ impl EditPayload<'_> {
     };
 }
 
-/// The position a placement frame's site names — a transform's step or
-/// an explicit rule's listed placement — `None` for an instance's own
-/// placement frame, which is the only one it has.
+/// The position a placement frame's site names — a step of a
+/// transform's, a gauge's or an instance offset's chain, or an explicit
+/// rule's listed placement.
 fn frame_index(at: FrameSite) -> Option<usize> {
     match at {
-        FrameSite::Registry => None,
         FrameSite::Listed { index } | FrameSite::Step { index } => Some(index),
     }
 }
@@ -242,40 +243,47 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // doors that take a target, `node` at the doors that write
         // one, `at` where the fault is a position in the graph.
         EditError::UnknownNode { id } => EditPayload {
-            node: Some(*id),
+            node: Some(id.id()),
             ..none
         },
-        // The gauge the cluster-record maintenance was solving for is
-        // the subject: the instance whose frame the edit could not
-        // mint (refused) or the log does not carry (unrecorded).
-        EditError::MaintenanceRefused { gauge, .. }
-        | EditError::MaintenanceUnrecorded { gauge } => EditPayload {
-            node: Some(*gauge),
+        // A gauge reference: the node it is written on is the
+        // subject, and the id it names is the node it names.
+        EditError::GaugeNotLive { node, gauge }
+        | EditError::NotAGauge { node, gauge }
+        | EditError::GaugeCycle { node, gauge } => EditPayload {
+            node: Some(node.id()),
+            input: Some(gauge.id()),
             ..none
         },
         // The mate is the subject, and the solve's fault about it
         // crosses whole: `inner_variant` says which arm, `fault` is
         // the arm's own payload.
-        EditError::MateRefused { node, fault } => EditPayload {
-            node: Some(*node),
-            fault: Some(fault),
+        EditError::MateRefused { node, fault, held } => EditPayload {
+            node: Some(node.id()),
+            fault: Some((fault, held)),
+            ..none
+        },
+        EditError::WouldStartPlacing { mate } => EditPayload {
+            node: Some(mate.id()),
             ..none
         },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {
-            node: Some(*at),
+            node: Some(at.id()),
             ..none
         },
         EditError::SetMembersOnNonList { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
-        | EditError::PlacementOnNonInstance { node }
+        | EditError::OffsetOnNonInstance { node }
+        | EditError::GaugeOnNonPlaced { node }
         | EditError::PlacementRuleMismatch { node }
         | EditError::EmptyPlacementList { node }
 
         | EditError::NonFiniteAlignment { node }
-        | EditError::UpdateOnNonInstance { node } => EditPayload {
-            node: Some(*node),
+        | EditError::UpdateOnNonInstance { node }
+        | EditError::LabelUnchanged { node } => EditPayload {
+            node: Some(node.id()),
             ..none
         },
         // The nested refusals: `inner_variant` names the arm and the
@@ -283,24 +291,29 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         EditError::ProfileProgramRefused { node, refusal: _ }
         | EditError::MeasureMalformed { node, fault: _ }
         | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
+            ..none
+        },
+        // The id the insert drew: the node it would have been.
+        EditError::NodeIdCollides { id } => EditPayload {
+            node: Some(id.id()),
             ..none
         },
         EditError::UnresolvedInput { input } => EditPayload {
-            input: Some(*input),
+            input: Some(input.id()),
             ..none
         },
         EditError::DuplicateInput { node, input }
         | EditError::DeclareInputNotDeclare { node, input } => EditPayload {
-            node: Some(*node),
-            input: Some(*input),
+            node: Some(node.id()),
+            input: Some(input.id()),
             ..none
         },
         // An assertion's `measure` IS the node it reads, so it takes
         // the `input` role rather than a fourth node attribute.
         EditError::AssertionTarget { node, measure } => EditPayload {
-            node: Some(*node),
-            input: Some(*measure),
+            node: Some(node.id()),
+            input: Some(measure.id()),
             ..none
         },
         EditError::AssertionDimension {
@@ -309,14 +322,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             measured,
             bound,
         } => EditPayload {
-            node: Some(*node),
-            input: Some(*measure),
+            node: Some(node.id()),
+            input: Some(measure.id()),
             expected: Some(dim(*measured)),
             found: Some(dim(*bound)),
             ..none
         },
         EditError::RepeatedDesignation { node, first, again } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             first: Some(*first),
             again: Some(*again),
             ..none
@@ -328,24 +341,24 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // reader which of the two designation faults this is, beside
         // the variant word itself.
         EditError::SelectionNotCanonical { node, at } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             first: Some(*at),
             ..none
         },
         // `found` here is a COUNT, not a dimension, so it takes the
         // `count` attribute: one attribute never carries two types.
         EditError::TooFewMembers { node, found } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             count: Some(*found),
             ..none
         },
         EditError::DeleteWouldDangle { id, referenced_by } => EditPayload {
-            node: Some(*id),
-            referenced_by: Some(*referenced_by),
+            node: Some(id.id()),
+            referenced_by: Some(referenced_by.id()),
             ..none
         },
         EditError::UnknownSlot { id, slot } => EditPayload {
-            node: Some(*id),
+            node: Some(id.id()),
             slot: Some(slot_id_tag(slot)),
             ..none
         },
@@ -365,7 +378,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::PayloadUnknownDocParam { name, node } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             param: Some(name),
             ..none
         },
@@ -378,14 +391,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             declared,
             referenced,
         } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             param: Some(name),
             expected: Some(dim(*declared)),
             found: Some(dim(*referenced)),
             ..none
         },
         EditError::SlotUnknownDocParam { name, node, slot } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             param: Some(name),
             slot: Some(slot_id_tag(slot)),
             ..none
@@ -397,7 +410,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             declared,
             referenced,
         } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             param: Some(name),
             slot: Some(slot_id_tag(slot)),
             expected: Some(dim(*declared)),
@@ -443,10 +456,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The expression address decomposes into the two attributes
         // that already name its halves, plus the child indices below
         // the slot.
-        EditError::PathOffTree { path } => EditPayload {
-            node: Some(path.node),
-            slot: Some(slot_id_tag(&path.slot)),
-            path: Some(&path.path),
+        EditError::PathOffTree { node, slot, path } => EditPayload {
+            node: Some(node.id()),
+            slot: Some(slot_id_tag(slot)),
+            path: Some(path),
             ..none
         },
         EditError::Dimension(_) => none,
@@ -466,7 +479,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The step and the counter cross in the message; the name is
         // what the caller wrote and repairs.
         | EditError::NameStepNeverMinted { name, .. } => EditPayload {
-            name: Some(name),
+            name: Some(name.name()),
             ..none
         },
         // A rebind's two ENTITY kinds. `from` is a Python keyword, so
@@ -479,7 +492,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         EditError::RebindAppearanceCollision { name, kind }
         | EditError::AppearanceNotSet { name, kind } => EditPayload {
-            name: Some(name),
+            name: Some(name.name()),
             kind: Some(attr_kind_tag(kind)),
             ..none
         },
@@ -490,7 +503,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             key,
             error: _,
         } => EditPayload {
-            name: Some(name),
+            name: Some(name.name()),
             key: Some(key),
             ..none
         },
@@ -499,7 +512,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // and a `str` where the other is a tuple of child indices, so
         // it is spelled apart rather than folded.
         EditError::MetaNonFinite { name, key, path } => EditPayload {
-            name: Some(name),
+            name: Some(name.name()),
             key: Some(key),
             value_path: Some(path),
             ..none
@@ -516,20 +529,20 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             at,
             determinant,
         } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             determinant: Some(*determinant),
             index: frame_index(*at),
             ..none
         },
         EditError::NonFinitePlacement { node, at }
         | EditError::NonRigidPlacement { node, at, .. } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             index: frame_index(*at),
             ..none
         },
         EditError::PlacementAxis { error: _ } => none,
         EditError::PinUnchanged { node, pin } => EditPayload {
-            node: Some(*node),
+            node: Some(node.id()),
             pin: Some(*pin),
             ..none
         },
@@ -539,19 +552,19 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // under the same node roles every other arm uses.
         EditError::Roots(fault) => match fault {
             RootFault::NotLive { root } | RootFault::Duplicate { root } => EditPayload {
-                node: Some(*root),
+                node: Some(root.id()),
                 ..none
             },
             RootFault::Uncovered { node } => EditPayload {
-                node: Some(*node),
+                node: Some(node.id()),
                 ..none
             },
             RootFault::Ancestor {
                 ancestor,
                 descendant,
             } => EditPayload {
-                node: Some(*ancestor),
-                referenced_by: Some(*descendant),
+                node: Some(ancestor.id()),
+                referenced_by: Some(descendant.id()),
                 ..none
             },
         },

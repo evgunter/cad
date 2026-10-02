@@ -130,7 +130,7 @@ account changes:
   vertex (`WallRoots::Tangent` → `Unsettled` → frontier). No
   declaration in today's vocabulary covers that edge.
 - The planar path does not tolerate the configuration: it ships an
-  illegal operand (`work/zip/a-union-glues-same-sense-cosurface-walls-without-merging-them.md`).
+  illegal operand (`work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them.md`).
 - `Rest` is read two ways: C4 and `contact_verify::rest_pair_verdict`
   read opposed senses only, while the boolean's declaration door, the
   flush detector and the REST lane accept aligned senses too.
@@ -149,3 +149,16 @@ updates `demos/tour/src/twopeg.rs` and the flush helpers to declare
 continuations, which lets ZIP's
 `a-union-glues-same-sense-cosurface-walls-without-merging-them` refuse
 or merge as the rule says.
+
+## A definition question at review (2026-10-01)
+
+The dual review of PR 3657 found aligned one-carrier pairs whose
+interiors OVERLAP being minted and accepted as continuations: a flush
+pocket, overlapping equal-height plates, a sunk stack, a rabbet cut
+flush with a wall, and the die's pip-cutter cap. The results are
+correct. C4 as ratified in PR 3613 says "interiors disjoint, sharing
+only a boundary curve", which defines those pairs out. Before PR 3657,
+they were declared `Rest`. PR 3662 widened the definition to match the
+code, and Ev ruled for it on 2026-10-01 ("sounds good!"): a continuation
+is an aligned one-carrier pair whether its faces abut or overlap, and an
+undeclared one refuses in every op.

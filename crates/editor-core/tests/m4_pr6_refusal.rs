@@ -338,7 +338,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
         },
         expr: len(2.0),
     };
-    let text = save(&doc, &[legal.into()], tol).expect("a replayable log is written");
+    let text = save(&doc, &[legal], tol).expect("a replayable log is written");
 
     // Now the hand edit: the logged replacement becomes an Angle.
     let (header, body_text) = text.split_once('\n').expect("a header line");
@@ -349,7 +349,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
     // INSERT it, and the tamper would then refuse for the stray key
     // rather than reach the dimension checker.
     *edits[0]
-        .pointer_mut("/edit/SetExpression/expr")
+        .pointer_mut("/SetExpression/expr")
         .expect("the logged edit's expression slot") =
         serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
     let tampered = format!(
@@ -422,30 +422,45 @@ fn a_recorded_refusal_does_not_reach_the_next_load() {
 
 #[test]
 fn snapshot_invariant_violations_refuse_typed() {
-    let (_, text) = small();
-    // next_id below the live ids (a replay would re-mint id 2).
-    let clipped = text.replace("\"next_id\": 3", "\"next_id\": 2");
-    assert_ne!(clipped, text);
-    match load(&clipped, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id: 2 })) => {
-            assert_eq!(id, RecipeNodeId(2));
+    let (doc, text) = small();
+    let (header, body) = text.split_once('\n').expect("a header line, then the body");
+    let body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let edited = |edit: &dyn Fn(&mut serde_json::Value)| {
+        let mut v = body.clone();
+        edit(&mut v);
+        format!("{header}\n{v}\n")
+    };
+    // A live node the mint log does not hold (a replay could re-mint
+    // its id): the last insert's entry taken out of the log.
+    let last = *doc.order().last().expect("the fixture inserts");
+    let unlogged = edited(&|v| {
+        let log = v["snapshot"]["mint"]["log"]
+            .as_array_mut()
+            .expect("the file carries its mint log");
+        let before = log.len();
+        log.retain(|entry| entry["node"].as_u64() != Some(last.0));
+        assert_eq!(log.len() + 1, before, "the log held the node once");
+    });
+    match load(&unlogged, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
+            assert_eq!(id.id(), last);
         }
-        other => panic!("expected IdBeyondCounter, got {other:?}"),
+        other => panic!("expected NodeNotMinted, got {other:?}"),
     }
-    // order/nodes disagreement.
-    let unordered = text.replace(
-        "\"order\": [\n      0,\n      1,\n      2\n    ]",
-        "\"order\": [0]",
+    // order/nodes disagreement: the order cut to its first entry.
+    let unordered = edited(&|v| {
+        let order = v["snapshot"]["order"]
+            .as_array_mut()
+            .expect("the file carries its order");
+        order.truncate(1);
+    });
+    assert!(
+        matches!(
+            load(&unordered, Tol::witness()),
+            Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
+        ),
+        "order mismatch must refuse"
     );
-    if unordered != text {
-        assert!(
-            matches!(
-                load(&unordered, Tol::witness()),
-                Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
-            ),
-            "order mismatch must refuse"
-        );
-    }
 }
 
 #[test]
@@ -457,11 +472,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         name: ParamName::from_static("bad"),
         value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
-    match save(
-        &doc,
-        &[editor_core::LoggedEdit::bare(nan_edit)],
-        Tol::witness(),
-    ) {
+    match save(&doc, &[nan_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { index: 0, inner },
         }) => assert!(
@@ -494,11 +505,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         key: "k".into(),
         value: MetaValue::Map(m),
     };
-    match save(
-        &doc,
-        &[editor_core::LoggedEdit::bare(meta_edit)],
-        Tol::witness(),
-    ) {
+    match save(&doc, &[meta_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { inner, .. },
         }) => assert!(matches!(*inner, NonFiniteSite::Metadata { .. })),
@@ -515,9 +522,7 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     let other_eps = ambient * 2.0;
     let text = save(
         &doc,
-        &[editor_core::LoggedEdit::bare(DocEdit::SetTolerance {
-            eps: other_eps,
-        })],
+        &[DocEdit::SetTolerance { eps: other_eps }],
         Tol::witness(),
     )
     .expect("save");
@@ -664,7 +669,7 @@ fn program_structure_doors_refuse_typed_at_load() {
             expected: editor_core::Dimension::Length,
             found: editor_core::Dimension::Angle,
             ..
-        })) => assert_eq!(node, circle),
+        })) => assert_eq!(node.id(), circle),
         other => panic!("wrong-dimension role must refuse typed at load, got {other:?}"),
     }
     // (b) Lattice violation: an unclosed chain (a step list that stops
@@ -700,7 +705,7 @@ fn program_structure_doors_refuse_typed_at_load() {
                     ..
                 },
         }) => {
-            assert_eq!(node, chain);
+            assert_eq!(node.id(), chain);
             assert_eq!(step, n_left, "one past the end: the chain never closed");
         }
         other => panic!("an unclosed chain must refuse typed at load, got {other:?}"),
@@ -738,7 +743,7 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
     match editor_core::apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(unclosed),
+            node: Box::new(Node::Profile(unclosed)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -773,7 +778,7 @@ fn unreplayable_edit_log_refuses_at_save() {
         key: "k".into(),
         value: MetaValue::Map(m),
     };
-    match save(&doc, &[editor_core::LoggedEdit::bare(bad)], Tol::witness()) {
+    match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index: 0, error }) => assert!(
             matches!(error, editor_core::EditError::MetaUnversioned { .. }),
             "expected the apply door's refusal, got {error:?}"
@@ -787,11 +792,7 @@ fn unreplayable_edit_log_refuses_at_save() {
         expr: len(1.0),
     };
     assert!(matches!(
-        save(
-            &doc,
-            &[editor_core::LoggedEdit::bare(orphan)],
-            Tol::witness()
-        ),
+        save(&doc, &[orphan], Tol::witness()),
         Err(PersistError::EditReplay { index: 0, .. })
     ));
 }

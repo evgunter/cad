@@ -269,7 +269,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
         &["bool_contact_vertex"],
     ),
     (
-        // Filed: work/edit/flip-reports-name-no-decision-for-most-predicates.md.
+        // Filed: work/doctail/flip-reports-name-no-decision-for-most-predicates.md.
         "no words yet",
         &[
             "bool_chord_side",
@@ -284,9 +284,6 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "bool_point_in_solid_denom",
             "bool_point_in_solid_infinity",
             "bool_point_in_solid_order",
-            "bool_sector_coplanar",
-            "bool_sector_within",
-            "bool_vertex_face_side",
             "carrier_endpoint_end",
             "carrier_endpoint_start",
             "carrier_matches_mapped_source",

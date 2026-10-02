@@ -88,7 +88,9 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
     };
     let applied = doc
         .apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )

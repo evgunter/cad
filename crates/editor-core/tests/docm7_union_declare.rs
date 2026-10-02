@@ -101,13 +101,7 @@ pub(crate) fn declared_union(
     pairs: Vec<(SitedRef, SitedRef)>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, decl) = insert(doc, Node::declare_rest(pairs));
-    let (doc, union) = insert(
-        doc,
-        Node::Union {
-            members: members.to_vec(),
-            declare: Some(decl),
-        },
-    );
+    let (doc, union) = crate::fixture::union_over(doc, members, Some(decl));
     (doc, union, decl)
 }
 
@@ -605,18 +599,18 @@ fn the_edit_door_refuses_a_union_declare_that_is_not_a_declare() {
     let (doc, far) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let refused = doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Union {
+            node: Box::new(Node::Union {
                 members: vec![a, b],
                 declare: Some(far),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     assert!(
         matches!(
-            refused,
-            Err(EditError::DeclareInputNotDeclare { input, .. }) if input == far
+            &refused,
+            Err(EditError::DeclareInputNotDeclare { input, .. }) if input.id() == far
         ),
         "expected the declare edge's kind refusal, got {refused:?}"
     );
@@ -674,10 +668,10 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     let future = fixture::next_mint(&doc);
     let refused = doc.apply(
         &DocEdit::InsertNode {
-            node: Node::declare_rest(vec![(
+            node: Box::new(Node::declare_rest(vec![(
                 SitedRef::new(a, fname(future, wall(&doc, a, 0))),
                 SitedRef::new(b, fname(b, wall(&doc, b, 0))),
-            )]),
+            )])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -701,13 +695,13 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     ] {
         let refused = doc.apply(
             &DocEdit::InsertNode {
-                node: Node::declare_rest(vec![sides]),
+                node: Box::new(Node::declare_rest(vec![sides])),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         );
         assert!(
-            matches!(refused, Err(EditError::ReadSiteMissingNode { at }) if at == future),
+            matches!(&refused, Err(EditError::ReadSiteMissingNode { at }) if at.id() == future),
             "expected the read-site door's refusal, got {refused:?}"
         );
     }
@@ -761,11 +755,14 @@ fn a_declare_on_the_edge_is_not_a_declare_in_the_member_list() {
     assert!(failure(&ev, miswired).is_some(), "and it refuses typed");
 }
 
-/// **The declare edge recomputes the union and nothing upstream.**
+/// **The declare edge moves nothing upstream of the union.**
 ///
-/// The same members, once without the edge and once with it: every
-/// node the two documents share hits the memo, and the union — which
-/// is the node whose inputs changed — does not.
+/// The same members, once under a bare union and once under a declared
+/// one: every node the two documents share hits the memo, and a
+/// member's key does not move. The declared union and its `Declare` are
+/// other nodes, with other ids, so they recompute by the id alone; the
+/// edge's feed into the union's key is D8 key hygiene, which no row can
+/// reach (the A5 row above says why).
 #[test]
 fn the_declare_edge_recomputes_the_union_alone() {
     let base = ProfileDoc::empty_derived("docm7_memo", Tol::witness());
@@ -797,12 +794,10 @@ fn the_declare_edge_recomputes_the_union_alone() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    // Everything the two documents share is reused: the members and
-    // their whole upstream. What is not is the union and its Declare.
     assert_eq!(
         ev.reused,
         doc.order().len() - 2,
-        "the declare edge recomputed more than the union and its declaration"
+        "a node the two documents share recomputed"
     );
     assert_eq!(
         ev.value(a).expect("the member evaluated").content_key,
@@ -935,7 +930,7 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
 /// pinned the opposite: a `Declare` carrying member-space names was
 /// written BEFORE the union it named, so the saved document held a
 /// payload name pointing FORWARD in `order()`; the file round-tripped
-/// because the load door checks the mint counter rather than the
+/// because the load door checks the mint log rather than the
 /// order, and re-inserting the same nodes in document order refused at
 /// the `Declare`. A sited declaration names only what precedes it, so
 /// the forward reference is gone and the asymmetry with it: the same
@@ -980,7 +975,9 @@ fn a_declared_unions_document_replays_in_document_order() {
         let node = crate::fixture::as_authored(doc.node(*id).expect("a live node"));
         replay = replay
             .apply(
-                &DocEdit::InsertNode { node },
+                &DocEdit::InsertNode {
+                    node: Box::new(node),
+                },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )

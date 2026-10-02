@@ -121,7 +121,7 @@ fn push_preview(
             let Some([dx, dy]) = heading(points, at, polyline.end.closes()) else {
                 continue;
             };
-            let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
+            let world = plane.to_world(pncad::geom_core::Point2::from_array(here));
             let Some(tick) = view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX)) else {
                 continue;
             };
@@ -283,7 +283,7 @@ mod composed {
     /// against, and nothing is lit.
     ///
     /// The seated tools hold NODES, and no mark draws a held node
-    /// (`work/author/a-seated-tools-held-node-is-drawn-nowhere`).
+    /// (`work/authtail/a-seated-tools-held-node-is-drawn-nowhere`).
     pub(crate) fn frame_marks(
         on_screen: Option<&PickIndex>,
         display: &DisplayView,

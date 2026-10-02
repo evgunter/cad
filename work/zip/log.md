@@ -76,6 +76,8 @@ Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/boolean/rest.rs` and `topo/src/merge_faces.rs` (a double claim, TOPO and ZIP). `boolean/rest.rs`'s transient `mfkrh(Inherit)` promotions now mint the parent's bit negated; `merge_faces.rs`'s `OpPlacement` match gains one arm, `SenseContradictsChart`. No row moved. The PR also files `slit-zip-band-run-across-two-loops-is-reached-by-no-row` on this slate: `slit_zip`'s band-run promotion is reached by no row. (TOPO implementer)
 - 2026-09-30 — Seam note from EMIT: PR 3241 (branch `emit/union-face-names`) adds `BooleanNaming::discards` (`crates/topo/src/boolean/discard.rs`, new): every face a boolean discards, in its operand's clone keys, with the kept-side ends of each stretch it bordered a kept face along and the split lineage of its other boundary edges. `finish.rs` records the section path's discards after the selection (`discarded`, reading the null-edge `below_end`/`above_end` copies and the B graft); `rest.rs` records the REST union's contact patches before the glue (`patch_discards`). The paths that keep or drop whole operands split no face and record none. A section vertex with no null-edge copy, or a kept vertex missing from the graft, refuses `JoinDesync`. The naming layer reads the record to name a split face's pieces by the walls between them (N2 `Borders`); nothing in the kernel reads it. The PR also files `a-round-tube-standing-on-a-plate-refuses-seam-orientation` on this slate. (EMIT implementer)
 - 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits `boolean/rest.rs` and `merge_faces.rs` (a double claim). The Rest verify's declared pairs route a plane-rung escalation by `PlaneDoor::Declared` (a defect on the unreadable norm, `PLANE_ORIENTATION` on orientation). `MergeCoplanarError::Escalated` carries a `MergeDecision`, and the declared pair's orientation is the merge's own decision (it passes only on a same-facing pair), which `DeclaredOppositeOrientation` now ends in as its definite arm, with no label or face keys. (TOPO, PR 3506 fix pass)
+- 2026-09-30 — Seam note from TOPO: In PR 3513 (branch `topo/every-escalation-names-its-decision`), the join's matching escalations name `Coincide::Join`, `join::frame_refusal` routes a section pose's escalation to `BooleanDecision::Proximity(Coincide::Section)` (the pose reads parameter sources, no face-pair declaration) and the radius guards to `BooleanDecision::Radius`; `rest.rs`'s `RestZipUnsupported` carries a closed `RestZipFrontier` for its `what`, each ending in the lever that reaches past it or `NOT_YET_ENDING`. The join's matching decisions are filed at `work/topo/boolean-coincidence-route-still-holds-join-and-self-check-decisions.md`. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: In PR 3513's second fix pass (branch `topo/every-escalation-names-its-decision`), `crates/topo/src/boolean/rest.rs`'s REST seam walk states `DeclarationRead::Spent(ContactClass::Rest)`. Filed here: `rest-zip-drops-the-euler-operators-refusal` (the zip's 18 `map_err(|_| …)` discards of `EulerOpError`, predating PR 3513). (TOPO implementer)
 
 ## 2026-10-01 — note from REACH: a row filed on your slate
 
@@ -84,3 +86,29 @@ a union leaves same-sense cosurface wall pairs unmerged, and its own
 next op rejects the result. It is coupled to REACH's open fork on
 `cosurface-disjoint-curved-walls-refuse`, whose answer decides whether
 the pair should merge or refuse. — (REACH orchestrator)
+
+## 2026-10-02 — cut along the layer seam
+
+ZIP measured 75.5 budget points against its 30, about 78 once its
+legacy and unpriced rows were priced. No two-way cut fits the budget,
+so Ev, in chat, chose three tracks by layer: **JOIN** (`work/join/`,
+the join's chord matching, loose-end pairing and role resolution),
+**FUSE** (`work/fuse/`, the merge door and the rebuild), and ZIP keeps
+the declared-REST zip and the seam zip. The rows moved by `git mv` with
+their ids and bodies unchanged. ZIP's `paths` narrow to
+`boolean/rest.rs` and `boolean/zip.rs`.
+
+Priced in the same commit: `a-round-tube-standing-on-a-plate-refuses-seam-orientation`
+P0/H (an ordinary union refusing in kernel-bug words), and
+`rest-zip-drops-the-euler-operators-refusal` P3/M (its repair shape is
+written, across 18 sites).
+
+Signed (JOIN orchestrator, at the cut).
+
+## 2026-10-02 — note from JOIN: a row filed on your slate
+
+`rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
+(P0/H): the dumbbell's REST-lane blocker, measured by JOIN's in-face
+probe (`join/inface-probe`). Its identity half may be answered by
+JOIN's open design fork on how a segment that coincides with an
+existing edge is identified. — (JOIN orchestrator)

@@ -105,33 +105,47 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
 
 /// PROBE 2: ball exactly tangent to BOTH slab faces from inside
 /// (r = 0.5 buried at mid-height): the extent gap is exactly zero —
-/// the scan's tangency arm refuses typed, never answers.
+/// the scan's tangency arm refuses typed, never answers, as the sphere's
+/// question against the plane with the margin it decided.
 #[test]
 fn probe_exact_tangency_from_inside_refuses_typed() {
     let b = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let err = topo::union(&slab(), &b, Tol::witness()).expect_err("tangency must not answer");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+    let BooleanError::Escalated {
+        decision: topo::BooleanDecision::Sphere(topo::SphereQuestion::AgainstPlane),
+        diag,
+    } = err
+    else {
         panic!("expected the scan's tangency arm, got {err:?}");
     };
-    assert!(what.contains("tangent"), "{what}");
+    assert_eq!(diag.predicate, Some("bool_sphere_extent_gap"));
+    assert!(
+        !diag.margin.is_invalid(),
+        "the decided zero carries the margin the funnel decided: {diag:?}"
+    );
 }
 
 /// PROBE 3 (door corrected in adoption): the section circle crosses the
 /// top face's boundary — but the configuration NEVER reaches the scan's
 /// near-boundary arm, because a circle crossing a boundary edge means
 /// that edge passes within `r` of the sphere center (the two conditions
-/// are the same inequality, `cx² + s² < r²`), so the REDUCE-stage
-/// pierce frontier fires first: `CurvedPierceUnsupported`, typed. The
+/// are the same inequality, `cx² + s² < r²`), so the REDUCE stage meets
+/// the edge first: the line × sphere roots pierce it, the pierce
+/// point's sector side certifies, and the op stops at the join, whose
+/// section plane is tilted against the ball's polar axis
+/// (`SplitJoinError::SectionNotPolar`), typed. The
 /// scan's near-boundary arm remains as certified-enclosure
 /// defense-in-depth behind that door (its residual live width is the
-/// box pad; the shadowing is structural — the pierce door runs before
+/// box pad; the shadowing is structural — the reduction runs before
 /// any fallback — so this pin is stable).
 #[test]
-fn probe_edge_escape_refuses_typed_at_the_pierce_frontier() {
+fn probe_edge_escape_refuses_typed_before_the_scan() {
     let b = ball_poled_y(0.5, Vec3::new(0.3, 2.0, 1.2), Tol::witness());
     let err = topo::union(&slab(), &b, Tol::witness()).expect_err("edge escape must not certify");
-    let BooleanError::CurvedPierceUnsupported { .. } = err else {
-        panic!("expected the pierce frontier, got {err:?}");
+    let BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. }) = err else {
+        panic!(
+            "expected the pierce to land and the join to refuse the tilted section, got {err:?}"
+        );
     };
 }
 

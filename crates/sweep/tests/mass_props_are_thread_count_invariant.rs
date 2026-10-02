@@ -320,6 +320,7 @@ fn digest() -> String {
 /// and the verdict are unchanged. The end sample is now the interval's
 /// own end exactly, so 8 end residuals take a form the session proves
 /// zero rather than one it rounds.
+///
 /// **Re-cut at all three ε at the merge that brought rule G and the
 /// decision read** (`geom_core::SymRules::canonical_root`,
 /// `decision_read`) **together with the tier-3 re-cuts above**:
@@ -329,6 +330,27 @@ fn digest() -> String {
 /// re-cuts read `sz=40`, and so did the tree with the re-cuts and
 /// without the rules — so the 8 are the two composing. Decisions,
 /// frozen, shapes and verdicts are unchanged.
+///
+/// **Re-cut at all three ε when profile loops stopped storing a bulge
+/// beside each arc and the lifts began copying the stored carrier**
+/// (PATHS 5a, #3527). Only the `frozen` column of the two
+/// `validate_geometric` rows moves, and down: `sym_arc_loft`
+/// 656 → 654 / 570 → 568 / 641 → 638 and `sym_thin_strip`
+/// 757 → 754 / 722 → 719 / 755 → 752 at ε = 1e-6 / 1e-9 / 1e-12.
+/// Decisions, discharges, shapes and verdicts are unchanged.
+///
+/// **Re-cut at all three ε when the quadrature lane's square roots
+/// became the backend's** (`geom_core::interval::Certification::sqrt`,
+/// #3727) in place of a local root that stepped one ulp outward at
+/// both ends even where the root was exact. Only the two NURBS lofts'
+/// area readings move: `loft_prism`'s `a` rises 149 ulps and its
+/// `apad` falls 0.18961175980001 → 0.18961175979655 at every ε, and
+/// `arc_loft_1e9eps`'s `apad` falls by 4.2e-11 of itself at ε = 1e-6
+/// and 1e-9. Both enclosures still hold the true area: `loft_prism`'s
+/// 25.31243834738 m² (its two flared walls integrated independently)
+/// and the arc loft's `s²·(18 + π(1+√2))`.
+/// Volumes, volume pads, refusals, verdict hashes and the sym-session
+/// counts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

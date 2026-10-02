@@ -85,28 +85,30 @@
 //!   non-star patch adjacency); and boundary-on-boundary
 //!   configurations that are not pure REST contacts (the original
 //!   `Join(UnpairedLooseEnds)` surfaces verbatim).
-//! - **Reflex-corner-vertex tilted crossings** (PR 5.5 review): a
-//!   seam through the VERTEX of a reflex boundary corner under a
-//!   tilted section plane (a 315°-corner pierced by a z-sheared
-//!   brick's cap) can refuse `SeamOrientation`. Root cause: the
-//!   angular strut spike order (`bool_strut_order`) is FORCED only on
-//!   sectors of width W ≤ π (which covers the whole crossing-minted
-//!   corpus class — edge-interior sites are exact half-planes);
-//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in
-//!   the unforced window. Face-interior and convex-corner crossings
-//!   of the same shape succeed exactly.
+//! - **Reflex-corner vertex–vertex sites under a tilted cap**: where a
+//!   vertex of the other operand coincides with a 315° reflex corner
+//!   and the caps meet at a tilt, the op can refuse
+//!   (`SeamOrientation`, `JoinDesync`, `Join(UnpairedLooseEnds)`;
+//!   `work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).
+//!   The cause is unmeasured. The angular strut spike order
+//!   (`bool_strut_order`) is forced only on sectors of width W ≤ π, so
+//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in an
+//!   unforced window, but no refusal has been traced to it. The
+//!   vertex-on-face form of the same corner (the corner piercing a
+//!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::BooleanDecision;
+use super::SphereQuestion;
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::{kept_side, setopfinish};
 use super::join::bool_connect;
-use super::shell_witness::{contact_skip_set, shell_side};
+use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::zip_seam;
@@ -121,6 +123,8 @@ use crate::geometry::SurfaceKey;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{decide, validate, validate_closed};
+use geom_brep::recourse::Refused;
+use geom_core::k_stats::NonzeroSign;
 
 /// How a boolean result body came to be (module docs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -249,6 +253,17 @@ pub struct BooleanNaming {
     /// bordered (`boolean::discard`, which says which paths record
     /// rows and why the others have none to record).
     pub discards: Vec<super::DiscardRow>,
+    /// Each pair `(A face, B face)` of coincident faces where the result
+    /// holds either face's region through the other: their materials lie
+    /// on one side, so the classification keeps one operand's copy of the
+    /// region they share and drops the other's (Eq. 15.3). The pair is
+    /// one fact whichever copy is kept. Clone keys, as
+    /// [`super::DiscardRow::face`]: chase `face_fragments_a`/`face_fragments_b`
+    /// for the operand faces. Read off the classification, so every path
+    /// that classifies records it — the section path, the containment
+    /// fallback and the declared-REST union — sorted and deduplicated;
+    /// a path that never classifies (disjoint boxes) has none.
+    pub covered: Vec<(FaceKey, FaceKey)>,
 }
 
 impl BooleanNaming {
@@ -518,7 +533,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
-    let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
+    let covered = red.covered.clone();
+    let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
     // do not each re-derive the whole body, and `gate` below — tier 1
@@ -585,6 +601,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_b: connected.b_fragments,
         reduction_contacts,
         discards: fin.discards,
+        covered,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -1197,9 +1214,13 @@ fn ball_against_plane<T: Decide>(
     origin: Point3<T>,
     normal: Vec3<T>,
     band: Band,
-) -> Result<(Sign, T), geom_core::Indeterminate> {
+) -> Result<(NonzeroSign, T), geom_core::Indeterminate> {
     let s = (center - origin).dot(normal);
-    let sign = decide("bool_sphere_extent_gap", Margin::of(radius - s.abs()), band)?;
+    let sign = crate::validate::decide_nonzero_reported(
+        "bool_sphere_extent_gap",
+        Margin::of(radius - s.abs()),
+        band,
+    )?;
     Ok((sign, s))
 }
 
@@ -1716,14 +1737,14 @@ pub(super) fn describe_minted_edges<T: Decide>(
         let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (witness, extent) = (draft.witness, draft.extent);
-        match geom_brep::classify_dihedral(surf1, surf2, witness, extent, band) {
-            Ok(geom_brep::DihedralClass::Transverse) => {
+        match seam_class(surf1, surf2, witness, extent, band)? {
+            geom_brep::DihedralClass::Transverse => {
                 body.set_edge_curve(edge, draft.into_spec(s1, s2), tol)
                     .map_err(|_| BooleanError::JoinDesync {
                         what: "minted-edge description failed certification",
                     })?;
             }
-            Ok(geom_brep::DihedralClass::Smooth) => {
+            geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
                 // smooth-adjacency edge whose existing
                 // `Intersection`/`Seam` description no longer cites
@@ -1856,10 +1877,28 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     }
                 }
             }
-            Err(diag) => return Err(BooleanError::coincidence(diag)),
         }
     }
     Ok(())
+}
+
+/// **A seam edge of the result, as its re-description reads it**: the
+/// dihedral of its two surfaces at `witness` over `extent`, whose arm
+/// rung is the seam's own lever and whose reading is the seam's wedge.
+pub(super) fn seam_class<T: Decide>(
+    surf1: &geom::Surface<T>,
+    surf2: &geom::Surface<T>,
+    witness: Point3<T>,
+    extent: T,
+    band: Band,
+) -> Result<geom_brep::DihedralClass, BooleanError> {
+    geom_brep::classify_dihedral(surf1, surf2, witness, extent, band).map_err(|escalation| {
+        BooleanError::of_lever(
+            super::LeverArm::Seam,
+            super::DeclarationRead::Moot,
+            escalation,
+        )
+    })
 }
 
 /// How one operand's keys map into the result body.
@@ -2214,7 +2253,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     b: &Body<T>,
     band: Band,
 ) -> Result<Vec<SphereRecut<T>>, BooleanError> {
-    let esc = BooleanError::coincidence;
+    let esc = |question| {
+        move |diag| BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(question),
+            diag,
+        }
+    };
     // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
     // NURBS face refuses before a vertex is probed — the extent test
     // is unwritable for the kind (variant docs).
@@ -2277,24 +2321,16 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         normal,
                         u_ref,
                     }) => {
+                        // A tangency (a decided zero) is a touching
+                        // configuration the crossing layer cannot
+                        // represent: it refuses with its decided margin,
+                        // as its in-band twin does.
                         let (side, s) = ball_against_plane(center, radius, origin, normal, band)
-                            .map_err(esc)?;
+                            .map_err(esc(SphereQuestion::AgainstPlane))?;
                         match side {
                             // Clear of the whole carrier plane.
-                            Sign::Negative => {}
-                            // Tangency: a touching configuration the
-                            // crossing layer cannot represent — typed
-                            // (its in-band twin escalates above).
-                            Sign::Zero => {
-                                return Err(BooleanError::FallbackExtentUnsupported {
-                                    operand: x_is,
-                                    face,
-                                    what: "the sphere is exactly tangent to a plane face's \
-                                           carrier — a touching configuration, the typed \
-                                           frontier of the supported envelope",
-                                });
-                            }
-                            Sign::Positive => {
+                            NonzeroSign::Negative => {}
+                            NonzeroSign::Positive => {
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
                                 // circle against the FACE. Certified
@@ -2448,45 +2484,48 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         ..
                     }) => {
                         let d = (c2 - center).norm();
-                        match decide(
+                        // A decided zero is band-decided: the spheres
+                        // touch within the tolerance, and a positive gap
+                        // there is one a smaller tolerance decides apart.
+                        // It refuses as the question's in-band arm does,
+                        // with its decided margin.
+                        match crate::validate::decide_nonzero_reported(
                             "bool_sphere_sphere_gap",
                             Margin::of(d - (radius + r2)),
                             band,
                         )
-                        .map_err(esc)?
+                        .map_err(esc(SphereQuestion::Apart))?
                         {
                             // Definitely separated.
-                            Sign::Positive => {}
-                            Sign::Zero | Sign::Negative => {
+                            NonzeroSign::Positive => {}
+                            NonzeroSign::Negative => {
                                 // Nested (one strictly inside the
                                 // other) is boundary-disjoint too;
                                 // anything else is the sphere×sphere
                                 // seam frontier.
                                 let big = radius.max(r2);
                                 let small = radius.min(r2);
-                                match decide(
+                                // Neither separated nor strictly nested:
+                                // the two boundaries meet while the
+                                // crossing layer found no edge crossing a
+                                // face. Whatever the two spheres share
+                                // lies off every edge, the join's
+                                // sphere-pair arm had no chord to run,
+                                // and this scan, which reads the
+                                // SURFACES, cannot certify the shell
+                                // disjoint from the other boundary.
+                                let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
                                     band,
                                 )
-                                .map_err(esc)?
-                                {
-                                    Sign::Positive => {}
-                                    Sign::Zero | Sign::Negative => {
-                                        return Err(BooleanError::FallbackExtentUnsupported {
-                                            operand: x_is,
-                                            face,
-                                            what: "two sphere boundaries meet (neither \
-                                                   separated nor strictly nested) — the \
-                                                   sphere×sphere section is the exact \
-                                                   closed-form Circle and the germ frame \
-                                                   names it, but the JOIN has no arm for a \
-                                                   curved×curved germ pair: its arc-side \
-                                                   rule needs a chart the pair does not \
-                                                   have, and a crossing found here would \
-                                                   pierce a curved face first",
-                                        });
-                                    }
+                                .map_err(esc(SphereQuestion::Nested))?;
+                                if let Some(verdict) = Refused::of(nested, band) {
+                                    return Err(BooleanError::SpheresMeet {
+                                        operand: x_is,
+                                        face,
+                                        verdict,
+                                    });
                                 }
                             }
                         }
@@ -2558,7 +2597,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         Margin::levered(align.cross(n).norm(), radius),
                         band,
                     )
-                    .map_err(esc)?
+                    .map_err(esc(SphereQuestion::EscapeParallel))?
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
@@ -2586,6 +2625,30 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     Ok(out)
+}
+
+/// **Whether a re-cut sphere's polar axis leans off the escape normal**
+/// ([`SphereQuestion::RecutAlign`]): the axes' cross levered at the
+/// radius. Definite by construction on a crossing-free escape (an
+/// aligned axis's seam crosses the escape plane, which the crossing
+/// layer sees first), so an aligned or in-band axis refuses, with its
+/// decided margin where it decided zero.
+pub(super) fn recut_lean<T: Decide>(
+    axis: Vec3<T>,
+    align: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<(), BooleanError> {
+    crate::validate::decide_nonzero_reported(
+        "bool_sphere_recut_align",
+        Margin::levered(axis.cross(align).norm(), radius),
+        band,
+    )
+    .map(|_| ())
+    .map_err(|diag| BooleanError::Escalated {
+        decision: BooleanDecision::Sphere(SphereQuestion::RecutAlign),
+        diag,
+    })
 }
 
 /// Applies the scan's re-cuts: each escaping group's shell is carved
@@ -2624,29 +2687,8 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             cut_shells.push(shell);
             let ball = carve(src, solid, &[shell])
                 .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
-            // Rotation source → target: definite by construction — an
-            // ALIGNED yet crossing-free escape is a graze the crossing
-            // layer must have seen, so it refuses loudly instead.
+            recut_lean(r.axis, r.align, r.radius, band)?;
             let cross = r.axis.cross(r.align);
-            let sin = cross.norm();
-            match decide(
-                "bool_sphere_recut_align",
-                Margin::levered(sin, r.radius),
-                band,
-            )
-            .map_err(BooleanError::coincidence)?
-            {
-                Sign::Positive | Sign::Negative => {}
-                Sign::Zero => {
-                    return Err(BooleanError::FallbackExtentUnsupported {
-                        operand,
-                        face: r.representative,
-                        what: "the sphere chart's polar axis is already aligned with the \
-                               escape normal yet the crossing layer saw no event — a \
-                               grazing/contact configuration",
-                    });
-                }
-            }
             // The alignment rotation, built ALGEBRAICALLY (Rodrigues
             // with the angle eliminated: R = I + K + K²/(1+c) for
             // K = [â×n̂]ₓ, c = â·n̂ — division guarded by the
@@ -2721,19 +2763,12 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 fn classify_shells<T: Decide>(
     body: &Body<T>,
     other: &Body<T>,
-    contacts: &ContactRecords,
     operand: Operand,
     band: Band,
     tol: Tol,
 ) -> Result<Vec<(ShellKey, SideCode)>, BooleanError> {
-    let skip = contact_skip_set(contacts, operand);
     body.shells()
-        .map(|(shell, _)| {
-            Ok((
-                shell,
-                shell_side(body, shell, other, &skip, operand, band, tol)?,
-            ))
-        })
+        .map(|(shell, _)| Ok((shell, shell_side(body, shell, other, operand, band, tol)?)))
         .collect()
 }
 
@@ -2749,8 +2784,15 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let a_sides = classify_shells(&red.a, b_pristine, &red.contacts, Operand::A, band, tol)?;
-    let b_sides = classify_shells(&red.b, a_pristine, &red.contacts, Operand::B, band, tol)?;
+    debug_assert_contacts_undecisive(
+        &red.contacts,
+        (&red.a, b_pristine),
+        (&red.b, a_pristine),
+        band,
+        tol,
+    );
+    let a_sides = classify_shells(&red.a, b_pristine, Operand::A, band, tol)?;
+    let b_sides = classify_shells(&red.b, a_pristine, Operand::B, band, tol)?;
     let keep_a = kept_side(op, Operand::A);
     let keep_b = kept_side(op, Operand::B);
     let a_keep: Vec<ShellKey> = a_sides
@@ -2781,27 +2823,11 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
         }
         (false, true) => {
             let body = carve_kept(&red.a, &a_keep)?;
-            finish_fallback(
-                op,
-                body,
-                &red.contacts,
-                decls,
-                BooleanResultKind::OperandA,
-                band,
-                tol,
-            )
+            finish_fallback(op, body, red, decls, BooleanResultKind::OperandA, band, tol)
         }
         (true, false) => {
             let body = carve_kept(&red.b, &b_keep)?;
-            finish_fallback(
-                op,
-                body,
-                &red.contacts,
-                decls,
-                BooleanResultKind::OperandB,
-                band,
-                tol,
-            )
+            finish_fallback(op, body, red, decls, BooleanResultKind::OperandB, band, tol)
         }
         (false, false) => {
             let mut body = carve_kept(&red.a, &a_keep)?;
@@ -2824,13 +2850,12 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                         .map(|&s| (s, voids::VoidContainment::Probed(SolidContainment::In)))
                         .collect(),
                 };
-                voids::insert_void(&mut body, solid, b_body, &evidence, tol)
+                voids::insert_void(&mut body, solid, b_body, &evidence)
                     .map_err(|e| match e {
                         voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
                         voids::VoidInsertError::Corrupt { what } => {
                             BooleanError::JoinDesync { what }
                         }
-                        voids::VoidInsertError::Recertify(c) => BooleanError::GraftRecertify(c),
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
                         | voids::VoidInsertError::ForeignShell { .. }
@@ -2881,6 +2906,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 merge_groups: merge_rows(&merged),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
+                covered: red.covered.clone(),
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -2899,20 +2925,22 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
 fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
-    contacts: &ContactRecords,
+    red: &BooleanReduction<T>,
     decls: &BooleanDeclarations,
     kind: BooleanResultKind,
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
+    let (contacts, covered) = (&red.contacts, &red.covered);
     let reduction_contacts = contacts.clone();
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
         body = body.revert().map_err(BooleanError::Revert)?;
     }
-    // Cross-operand declared pairs are inapplicable here (one operand
-    // is absent from the result); the surviving operand's CARRIED
-    // records still apply.
+    // No cross-operand pair merges here: one operand is absent from the
+    // result. A declared pair that held the absent operand's region
+    // through the kept one is `covered`; the surviving operand's
+    // CARRIED records still apply.
     let merged = body
         .merge_coplanar_faces(tol)
         .map_err(BooleanError::Merge)?;
@@ -2933,6 +2961,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
             merge_groups: merge_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
+            covered: covered.to_vec(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -2942,6 +2971,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
             merge_groups: merge_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
+            covered: covered.to_vec(),
             ..BooleanNaming::default()
         },
     };

@@ -2,8 +2,13 @@
 id: ssi-trace-escalation-ends-in-the-coincidence-menu
 kind: issue
 title: geom-brep: SsiError's trace escalation ends in the coincidence menu, and two certificate arms carry no ending, where the SSI doors take no declaration
-status: open
+status: closed
 opened: 2026-10-01
+priority: P1
+cost: M
+branch: ssi/march-endings
+closed: 2026-10-01
+pr: 3707
 ---
 
 
@@ -64,3 +69,7 @@ a lookup by predicate name), end the transversality and tangency ones
 by the same table their verdicts use, and end the rest by their own
 levers or, where none exists, the last resort. End `CertificateLimb`
 and `TubeStraddles` through `SsiLimb::check` on their definite arm.
+
+## Closed (2026-10-01, PR 3707)
+
+Every trace escalation carries a closed `TraceDecision` and ends by its decision's table (D4 ¶1 (iv)). `CertificateLimb`/`TubeStraddles` end through `SsiLimb::check`. Limb 3's lever is one sentence true at both doors ("surfaces"). The arms still without an ending are filed as `ssi-refusals-whose-decision-has-no-ending`.

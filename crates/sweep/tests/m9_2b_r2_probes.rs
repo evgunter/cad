@@ -59,7 +59,7 @@ fn probe_cross_instance_conformal_wall_touch_at_three_prime() {
         "boss tier 3"
     );
     let mut body = plate.clone();
-    topo::graft_disjoint(&mut body, &boss, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &boss).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("cross-instance conformal wall touch, undeclared: {verdict:?}");

@@ -33,10 +33,9 @@ Ev's standing instructions for implementation work:
     it, the review carries the correctness claims too.
   - **Dual review**: logic that is especially tricky, or an
     architectural or design decision whose impact is broad or which
-    would be hard to change later, gets two independent Opus reviewers
-    on the same frozen head, with the fix pass off the adjudicated
-    union. The pair is an experiment row ([[experiments]]), so its
-    method is `docs/DUAL-REVIEW-PROTOCOL.md`'s.
+    would be hard to change later. The tier is an experiment
+    ([[experiments]]): how its reviews run is
+    `docs/DUAL-REVIEW-PROTOCOL.md`'s alone, so read it at dispatch.
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;
@@ -146,6 +145,10 @@ Ev's standing instructions for implementation work:
   for more than a few seconds, you may combine the work in flight
   into a single PR. Anything that waits on Ev keeps its own PR, so it cannot
   hold the rest hostage.
+- **Lanes may run in their own cloud sessions (Ev, 2026-10-02)**:
+  when this container's CPU, RAM or disk is the constraint, or to run
+  more lanes in parallel than one container holds, launch a lane as
+  its own Claude Code Remote session rather than as a subagent here.
 - **Friction is a finding (Ev, 2026-09-28)** — say so when something
   slows you down. The bars: CI takes 15 min at most and typically
   under 10, and so does any local development step; binaries are

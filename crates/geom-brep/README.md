@@ -28,7 +28,7 @@ escalated typed refusal, never a raw comparison.
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
 | C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
-| C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`; marks in `crates/topo/src/validate.rs` (`ContactMark`) |
+| C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
@@ -119,12 +119,29 @@ are compile-time decisions per table arm: an implicit pair in ℝ³ (2×3
 SVD; `cylinder_sphere_ssi`) and a parametric pair in ℝ⁴ on
 `G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `plane_nurbs_ssi`), from which the
 3-D curve and both pcurves fall out as projections of one traced object
-on one shared parameter. A branch jump is a certificate refusal.
+on one shared parameter. A branch jump is a certificate refusal. The
+stepper guards the step where it mints it: no step is longer than the
+march domain's diagonal, and a march speed that is not positive and
+finite, a step that is not finite or does not move the state
+(`SsiError::StepUnusable`), or one that collapses into the band
+(`StepCollapsed`) refuses naming the speed. A trace too short for the
+cubic fit refuses by its length and the extent that set its step
+(`BranchUndersampled`).
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure), *accounted* (contained in a found branch's tube), or
 refined to the named floor, where the op refuses
-`SsiError::ExhaustivenessInconclusive`. The receipt and that refusal
+`SsiError::ExhaustivenessInconclusive`. Each floor is minted once over
+the domain it bisects (`SweepFloor`), and a floor that domain cannot
+resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
+one that is not a positive finite width, or one narrower than the
+finest cell bisection can cut at the domain's largest coordinate. On
+the chart lane the refusal names the rate that crossed the floor, so
+the cell budget never answers for a floor no cell can reach (an
+attainable floor can still spend the budget by cell count). Before
+any of it, every SSI door refuses a domain whose centre is not finite
+or whose half-extent, feature extent or floor scale is not positive and
+finite (`SsiError::DomainUnusable`). The receipt and that refusal
 state their lengths in the units their own lane subdivides in and carry
 an `ExhaustLane` saying which — metres on the ℝ³ lane, chart units plus
 the certified `SupSpeed` that crossed them on the chart lane — so metres
@@ -148,22 +165,44 @@ half-edges on one surface with two chart images (`u = α` and
 `u = α + 2π`), so no coarser key works. Its parameter *is* the carrier's
 `he_plus`-forward parameter; traversal sense per face is derived, never
 stored. `PcurveCache::certify` is the only constructor. The certified
-statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement at the shared
-schedule, plus a between-samples envelope whose own statement the
-certificate names (`EnvelopeStatement`, whose variants carry their own
-derivations): closed-form over the whole span
-for `Pcurve::Harmonic` (both sides in `span{1, cos t, sin t, t}`, so a
-corruption hiding between samples is unrepresentable), hull-bounded for
-fitted images on NURBS charts, and only the carrier's incidence with the
-chart surface (`OnLocusHull`) for a fitted image on a periodic analytic
-chart, where `S ∘ P` is transcendental. No UV-space tolerance appears in
+statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole
+edge, bounded by an envelope whose own statement the certificate names
+(`EnvelopeStatement`, whose variants carry their own derivations).
+Where `S ∘ P` has a closed form, the envelope alone is the certified
+statement: it bounds the displacement over the whole span, spelled in
+the carrier's own coefficients so that a minted row's identity is a
+theorem rather than a trig round trip, and a sampled check adds
+nothing it does not already prove. For `Pcurve::Harmonic` (both sides
+in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
+is unrepresentable) that spelling is the carrier's incidence with the
+chart (centre on the axis, radius, orientation, axial line, per chart
+arm) plus the stored image's fidelity to the image `certify` re-derives
+from the carrier, metered through the chart's stretch; the shared
+schedule is then the closed-form tables' cross-check, run where the
+scalar is a point and as a property test of `chart_image_harmonic ∘
+chart_pcurve = carrier_harmonic` over the covered classes, not in a
+certificate over a parameter box. Where no closed form exists, the
+certificate falls back to the displacement at the shared schedule plus
+a between-samples envelope: hull-bounded for fitted images on NURBS
+charts, and only the carrier's incidence with the chart surface
+(`OnLocusHull`) for a fitted image on a periodic analytic chart, where
+`S ∘ P` is transcendental. No UV-space tolerance appears in
 any certified statement; the chart's stretch is the lever arm. Domain
 validity is part of the certificate: one branch pinned at the start (a
 τ jump is unrepresentable in `Harmonic`'s `α + β·t`; the branch per face
 is chosen once by the loop walk in `topo::pcurves` and certified by loop
 continuity) and trim containment against the caller's `ChartWindow`
 (`TrimEscape`). Planar faces store nothing; `chart_pcurve` derives on
-demand. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
+demand. On every other chart the row is mandatory at rest: every
+half-edge of the face stores its certified row, and tier 3 reports a
+missing row as a finding, saying why it is missing by re-deriving the
+face (never minted, or the derivation refuses), and re-certifies every
+stored row, a half-minted face's included. A topology door may drop
+rows mid-surgery; every public producer ends with a full mint, so
+validity is judged on what the producer returns. Every class of carrier
+a chart can hold has a route into a certified row, and a face no route
+covers refuses at the producer rather than reaching rest uncached. The
+lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
 closed from the carrier's own parameter), `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary

@@ -82,3 +82,33 @@ on agreeing with the validator's walk is exactly the caller the hoist
 is FOR, and it took a review to notice that the walk it needed already
 had a home two modules away. The other 32 are not all that caller —
 but `pcurves.rs`'s own four are the place to start.
+
+## Evidence: "a face lists this loop" has no home either (2026-10-01, PR 3669)
+
+PR 3669's review (style Q1) found the converse question, *does this
+face list this loop*, has no home. It is spelled inline as
+`face.outer == l || face.rings.contains(&l)`, or its negation, at:
+
+- `movefac.rs:~174`, the mate hop's converse, which PR 3669 added;
+- `null.rs:~340`, the null-pair record's loop check;
+- `euler.rs:~3424`, inside `Body::require_loop_unlisted`;
+- `validate.rs:~8603`, `StaleNullFaceOwnership`;
+- `review_d18.rs:~1735`, a review row's held-record check.
+
+In `movefac` the downward check (`movefac.rs:~140`,
+`loop_data.face != face_key`) and the converse (`:~174`) are the two
+halves of one relation, `NotOwned`'s "the face and the loop own each
+other both ways". They are written separately in one function.
+
+The review found a second question with several spellings: *a loop's
+whole cycle is its claimants*. It is spelled as:
+
+- `movefac.rs:~150`, `claims.contains_key` for an `Empty` loop;
+- the adjacent `claims.get(..) != Some(&run.len())` (`:~159`), which
+  is the same comparison with walked = 0;
+- `require_run_of(.., RunExtent::Whole)` (`euler.rs:~3249`).
+
+Both are siblings of the outer chain this row counts. A sweep that
+gives the outer walk one home should look next at
+`face.outer ==`/`rings.iter().any`/`rings.contains` for the first
+question. Not swept by PR 3669, whose fence is `movefac`'s two proofs.

@@ -71,7 +71,7 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, norm_sq, norm_sup};
+use geom_core::interval::{div_down, max_bound, norm_sq, norm_sup};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
@@ -117,6 +117,23 @@ impl Box3 {
         }
     }
 
+    /// The componentwise intersection, or `self` where the two share no
+    /// point or either side refused: a reach for what lies in both, which
+    /// an empty meet has nothing of. Not a certified enclosure.
+    pub(crate) fn meet(self, o: Self) -> Self {
+        let side = |a: Interval, b: Interval| {
+            if !(a.is_certified() && b.is_certified()) {
+                return None;
+            }
+            let (lo, hi) = (a.lo().max(b.lo()), a.hi().min(b.hi()));
+            (lo <= hi).then(|| Interval::from_bounds(lo, hi))
+        };
+        match (side(self.x, o.x), side(self.y, o.y), side(self.z, o.z)) {
+            (Some(x), Some(y), Some(z)) => Self { x, y, z },
+            _ => self,
+        }
+    }
+
     /// Grow every side by `r` (the certified tube radius).
     pub(crate) fn pad<T: CertifiedBounds>(self, r: T) -> Self {
         let g = pad_interval(r);
@@ -146,9 +163,13 @@ impl Box3 {
         inside(self.x, o.x) && inside(self.y, o.y) && inside(self.z, o.z)
     }
 
-    /// The largest side length (the cell's size, for the floor test).
+    /// The largest side length (the cell's size, for the floor test);
+    /// `NaN` when any side is refused, so a refused axis fails the floor
+    /// test rather than dropping out of it.
     pub(crate) fn width(self) -> f64 {
-        self.x.width().max(self.y.width()).max(self.z.width())
+        [self.y.width(), self.z.width()]
+            .into_iter()
+            .fold(self.x.width(), max_bound)
     }
 
     /// The center as an f64 point (a marcher seed, never a claim).
@@ -1048,7 +1069,7 @@ mod tests {
         for s in [sphere(), cylinder()] {
             let g = implicit_gradient_enclosure(&s, b);
             let at = implicit_gradient(&s, b.center());
-            for (i, v) in [at.x, at.y, at.z].iter().enumerate() {
+            for (i, v) in at.to_array().iter().enumerate() {
                 assert!(
                     g[i].contains(*v),
                     "{v} not in [{}, {}]",

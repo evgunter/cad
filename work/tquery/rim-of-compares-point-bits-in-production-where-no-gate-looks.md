@@ -2,11 +2,14 @@
 id: rim-of-compares-point-bits-in-production-where-no-gate-looks
 kind: issue
 title: rim_of decides one rim by a production bit compare of points and scalars, which no bit-identity gate can see
-status: open
+status: closed
 opened: 2026-09-24
 refs: [rim-of-refuses-extruded-multi-arc-rims, the-re-basing-gate-refuses-m7-8-where-nothing-moves]
 priority: P2
-cost: D
+cost: M
+branch: tquery/rim-of-structural
+pr: 3773
+closed: 2026-10-02
 ---
 
 
@@ -94,3 +97,60 @@ The related cost row
 (`rim-of-refuses-extruded-multi-arc-rims`, extruded arcs differing by
 ulps) is decided by the same repair, since a recipe read does not see
 ulps.
+
+## The repair the ruling named has nothing to read (2026-10-02)
+
+Measured by `tquery/rim-of-recipe` on main `5ab36cc95`, before any
+build: every curve of a kernel-direct body (`extrude`, `revolve`, the
+boolean, blend, `test_support`) is `GeomOrigin::KernelDirect`, so it
+carries no `GeomSource`. editor-core stamps one source per curve
+description (`stamp_minted_from`), so two arcs of one rim are always
+distinct sources. The fallback (`eq_bits`, allowlisted) keeps the bit
+identity, and with it the refusal of every extruded multi-arc rim.
+
+## The repair: `rim_of` reads structure, not carriers
+
+"These arcs are one rim" is already recorded in the body:
+- **One surface each side.** The producer decides, through its own
+  band, that a run of segments lies on one surface and shares the
+  key. `extrude`'s `cosurface` → `FaceSurface::Shared`; STEP import
+  dedupes by record.
+- **One circle.** Two circle arcs between the same two surface keys
+  that share a vertex lie on one circle, because distinct circles of
+  one surface pair's intersection are disjoint.
+
+So:
+
+- **Membership.** The rim of `seed` is the closed chain, through
+  shared vertex keys, of edges whose two side surface keys are the
+  seed's two. No carrier is compared. `CircleId`, `same_bits`,
+  `same_point_bits` and `same_vec_bits` are deleted, and the door's
+  bound narrows from `T: Bounds` to `T: Real`.
+- **Component.** The answer is the component through the seed. Other
+  rims on the same surface pair are not a refusal: a plane through a
+  torus, or a cylinder through a sphere, has two.
+- **Order.** The walk follows the half-edges on one fixed side of the
+  pair, so `rim_of(b)` is a rotation of `rim_of(a)` from any seed,
+  whatever winding each arc's carrier was stored with.
+- **Refusals.**
+  - `CoSurface` and `NotIntact`: unchanged.
+  - `NotOneRim`: names the vertex key where the chain dangles or
+    branches, in place of a carrier parameter.
+- **What moves.** Rows that pin the bit rule retire. The opposed-axis
+  rows become answered rotations.
+
+**Open:** whether the seed must still be a circle arc (`NotAnArc`), or
+the door names any closed edge chain between two surfaces (an ellipse
+rim from a tilted plane through a cylinder).
+
+## Ruled again (2026-10-02, PR 3767)
+
+Ev: "1. sounds great!" — the structural rim above is the repair.
+On the seed circle gate (`NotAnArc`), after the pros and cons (PR 3767
+comments): keep it for now, "as long as it's explicitly noted in the
+code that we expect to extend this to non-circles, so it doesn't get
+read as a permanent decision". The build is `tquery/rim-of-structural`.
+
+## Closed (2026-10-02, PR 3773)
+
+`rim_of` reads one rim from structure (the seed's two surface keys, chained on shared vertex keys, oriented by the lower-key side) and compares no carrier; see the PR body and the reviewer's 43-body oracle `rim_of_structural_review_probes`.

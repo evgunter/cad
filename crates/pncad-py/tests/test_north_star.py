@@ -1251,8 +1251,8 @@ class TestDiefillet(unittest.TestCase):
         # spellings are authored as the SAME part — which is what the
         # labelled constructor says. The claim under test is about the
         # SELECTION being canonical, not about two parts colliding.
-        forward = Doc(label="canonical-fillet-selection")
-        backward = Doc(label="canonical-fillet-selection")
+        forward = Doc(seed="canonical-fillet-selection")
+        backward = Doc(seed="canonical-fillet-selection")
         for target, order in ((forward, edges), (backward, list(reversed(edges)))):
             sq = target.insert(
                 Node.polygon(
@@ -1369,8 +1369,8 @@ class TestDiechamfer(unittest.TestCase):
     def test_the_selection_is_canonical_whatever_order_it_arrives_in(self):
         doc, cube = self.build()
         edges = evaluate(doc).all_edges(cube)
-        forward = Doc(label="canonical-chamfer-selection")
-        backward = Doc(label="canonical-chamfer-selection")
+        forward = Doc(seed="canonical-chamfer-selection")
+        backward = Doc(seed="canonical-chamfer-selection")
         for target, order in ((forward, edges), (backward, list(reversed(edges)))):
             sq = target.insert(
                 Node.polygon(
@@ -4114,13 +4114,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `transform_by` JOINED it at EDIT-PLACEMENT P1: a transform
         # holds a `Placement` chain, and `transform` is its one-rigid-step
         # sugar. The positive form is `tests/test_placement.py`.
+        #
+        # `gauge` JOINED it at EDIT-PLACEMENT P2: the node a group's
+        # placement lives on (A11 (2)). The positive form is
+        # `tests/test_gauges.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assertion", "boolean", "chamfer", "datum_axis",
                 "datum_axis_in_plane", "datum_face_frame",
                 "datum_frame", "datum_plane", "datum_point", "declare",
-                "extrude", "fillet", "hollow_tube", "instantiate_part",
+                "extrude", "fillet", "gauge", "hollow_tube", "instantiate_part",
                 "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
@@ -4147,8 +4151,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "insert_node", "rebind", "set_doc_param",
                 "set_doc_param_distribution", "set_doc_param_unit",
                 "set_doc_param_value",
-                "set_members", "set_param",
-                "set_placement", "set_program", "set_roots",
+                "set_gauge", "set_label", "set_members", "set_offset",
+                "set_param", "set_program", "set_roots",
                 "set_tolerance", "update_reference",
             ],
         )
@@ -4347,10 +4351,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # to leave — it never existed to be absent — which is why the
         # positive row above names both.
         #
-        # `instantiate_part` and `mate` LEFT this list at LIB-G18b,
-        # and `set_placement` with them — it was never a `Node` at
-        # all, it is `DocEdit.set_placement`, which is where the A11
-        # rule that placement is the GROUP's puts it.
+        # `instantiate_part` and `mate` LEFT this list at LIB-G18b.
+        # Placement was never a `Node`: it lives on a gauge and an
+        # instance's offset (`Node.gauge`, `DocEdit.set_offset`).
         #
         # `shell` LEFT this list at LIB-G17: `Node::Shell` landed and
         # `Node.shell` binds it, with the open faces as ORDERED names

@@ -842,8 +842,8 @@ pub enum EulerOpError {
     /// the kill does not leave lone or another loop's lone vertex
     /// ([`Body::kef`], [`Body::kev`],
     /// [`Body::kemr`]); or an `Empty` loop that [`Body::kvfs`] or
-    /// [`Body::mekr`]'s `Empty` ring sites remove is claimed by a
-    /// half-edge.
+    /// [`Body::mekr`]'s `Empty` ring sites remove, or that
+    /// [`Body::movefac`]'s labelling reaches, is claimed by a half-edge.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -979,8 +979,9 @@ pub enum EulerOpError {
     /// `owner`, or neither. Raised for a face the labelling labels,
     /// whether a seed from the shell's list or a neighbour reached
     /// across an edge, that the shell does not list or whose `shell` is
-    /// another (`owner` is the shell), and for a loop a face lists
-    /// whose `face` is another (`owner` is the face).
+    /// another (`owner` is the shell), for a loop a face lists whose
+    /// `face` is another, and for the loop a mate lies in whose `face`
+    /// does not list it (`owner` is the face).
     NotOwned {
         /// The record the labelling took as `owner`'s.
         child: EntityId,
@@ -1605,7 +1606,11 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
-            error: geom_brep::PcurveCertifyError::UnsupportedCarrier,
+            error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
+                chart: geom_brep::SurfaceKind::Torus,
+                carrier: geom_brep::CurveKind::Circle,
+                class: geom_brep::UncoveredClass::TorusGeneralCircle,
+            },
         },
         EulerOpError::PcurveMint {
             face: fc,
@@ -2003,7 +2008,7 @@ impl<T: Decide> Body<T> {
     /// the other not) is refused [`EulerOpError::RebasedNullEdge`]; one
     /// whose two halves are both in the run moves whole and is carried.
     /// The one-half refusal, and the plane × NURBS class's
-    /// `RebasedCarrier { Unimplemented }`, stand even where `point` is
+    /// `RebasedCarrier { NurbsLaneNotSupplied }`, stand even where `point` is
     /// the old vertex's own: the gate does not ask whether `point` is
     /// that point, and its docs (the crate-internal
     /// `Body::certify_rebased_run`) say why. A fan split that moves
@@ -3688,11 +3693,10 @@ impl<T: Decide> Body<T> {
     /// `T: Real`, there is no door for the exact question: `Point3<T>`
     /// derives no `PartialEq`, `Real` offers no bit accessor, and
     /// `Real::register_equal` is a site-allowlisted identity axiom, not
-    /// an equality. A bit comparison of points does exist in the tree
-    /// one bound up, at `T: Bounds`: `crate::query`'s `same_point_bits`,
-    /// which compares `lo()`/`hi()` bits and which `rim_of`'s circle
-    /// identity uses in production. The absence of a door is therefore
-    /// not what decides; `docs/DESIGN.md`'s standing outcome that
+    /// an equality. A bit comparison of points could be spelled one
+    /// bound up, at `T: Bounds`, by comparing `lo()`/`hi()` bits, so the
+    /// absence of a door is not what decides; `docs/DESIGN.md`'s
+    /// standing outcome that
     /// production bit-identity coincidence checking is RETIRED is, and
     /// whether a kernel gate may ask this question, and through which
     /// door, is on
@@ -3701,7 +3705,7 @@ impl<T: Decide> Body<T> {
     ///
     /// **What that costs.** The plane × NURBS class (M7-8) needs an
     /// injected lane this bound cannot supply, so `recertify` answers
-    /// `Unimplemented` exactly as `split_edge` does on the same class —
+    /// `NurbsLaneNotSupplied` exactly as `split_edge` does on the same class —
     /// an operator makes no claim it cannot derive, and a claim it
     /// cannot derive is not a licence to move the edge. `recertify`
     /// answers that before any endpoint check, so the gate refuses where
@@ -5430,7 +5434,7 @@ mod tests {
     #[test]
     fn a_fan_mev_refuses_the_plane_x_nurbs_class_where_nothing_moves_and_mev_null_splits_it() {
         // The over-refusal the gate's docs state, through the public
-        // door: `recertify` answers `Unimplemented` for the M7-8 class
+        // door: `recertify` answers `NurbsLaneNotSupplied` for the M7-8 class
         // before any endpoint check, so `mev` refuses at the old
         // vertex's own point (the closed spec) as at a moved one (a
         // chord), body untouched. The no-move split is `mev_null`, which
@@ -5449,7 +5453,7 @@ mod tests {
                 body.mev(site, point, spec, tol).map(|_| ()),
                 Err(EulerOpError::RebasedCarrier {
                     edge,
-                    error: geom_brep::CertifyError::Unimplemented,
+                    error: geom_brep::CertifyError::NurbsLaneNotSupplied,
                 }),
                 "the M7-8 edge, mev to {point:?}"
             );

@@ -47,14 +47,8 @@ struct Side<'a, T: Decide> {
 /// cursor would name faces after a stranger instead of refusing.
 /// Guarded by `a_cycling_fragment_map_refuses` below.
 fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, NamingError> {
-    let mut at = f;
-    for _ in 0..=rows.len() {
-        match rows.get(&at) {
-            Some(&p) => at = p,
-            None => return Ok(at),
-        }
-    }
-    Err(NamingError::FragmentLineage { face: f })
+    topo::fragment_root(f, rows.len(), |k| rows.get(&k).copied())
+        .ok_or(NamingError::FragmentLineage { face: f })
 }
 
 /// Chases an edge through `SplitEdge` birth records
@@ -2260,14 +2254,14 @@ mod tests {
     fn segment(p: [f64; 3], q: [f64; 3]) -> (Body<f64>, EdgeKey) {
         let mut body = Body::<f64>::new();
         let born = body
-            .mvfs(Point3::new(p[0], p[1], p[2]), true)
+            .mvfs(Point3::from_array(p), true)
             .expect("mvfs births a lone vertex");
         let edge = body
             .mev_line(
                 topo::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
-                Point3::new(q[0], q[1], q[2]),
+                Point3::from_array(q),
                 Tol::witness(),
             )
             .expect("mev on an empty loop grows it by one edge")
@@ -3002,7 +2996,9 @@ mod split_carries_candidates {
     fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
         let a = crate::apply(
             &doc,
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &RefusingReach,
         )

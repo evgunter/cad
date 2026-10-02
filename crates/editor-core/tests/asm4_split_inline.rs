@@ -75,9 +75,11 @@ fn two_group_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>)
     }
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: editor_core::Frame::translation([5.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::translation([5.0, 0.0, 0.0]),
+            )),
         },
     );
     (store, doc, ids)
@@ -278,9 +280,10 @@ fn row1_split_plain_subtree_preserves_structure() {
         None,
     )
     .expect("legal");
-    assert!(
-        out.remainder.placements().is_empty(),
-        "a plain cut leaves the remainder instance at identity"
+    assert_eq!(
+        fixture::offset_of(&out.remainder, out.instance),
+        Some(editor_core::Placement::IDENTITY),
+        "a plain cut leaves the remainder instance at the empty offset"
     );
 
     let mut store = PartStore::default();
@@ -376,10 +379,10 @@ fn row2_inline_inverts_split_and_undo_restores() {
             "{name:?} re-resolves as {expected:?} after the round trip"
         );
     }
-    // And the restored placement is the original frame, bit for bit.
+    // And the restored offset is the original, bit for bit.
     assert!(
-        inlined.doc.placement(back).bit_eq(&doc.placement(ids[1])),
-        "the round trip restores the group frame exactly"
+        fixture::same_offset(&inlined.doc, back, &doc, ids[1]),
+        "the round trip restores the root's offset exactly"
     );
     let _ = names1;
 }
@@ -498,7 +501,10 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             input,
             consumer_is_cut,
         }) => {
-            assert_eq!((consumer, input), (extrude, profile));
+            assert_eq!(
+                (consumer, input),
+                (doc.spoken(extrude), doc.spoken(profile))
+            );
             assert!(!consumer_is_cut);
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
@@ -516,7 +522,10 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             input,
             consumer_is_cut,
         }) => {
-            assert_eq!((consumer, input), (extrude, profile));
+            assert_eq!(
+                (consumer, input),
+                (doc.spoken(extrude), doc.spoken(profile))
+            );
             assert!(consumer_is_cut);
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
@@ -554,7 +563,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             input,
             consumer_is_cut,
         }) => {
-            assert_eq!((consumer, input), (declared, decl));
+            assert_eq!((consumer, input), (doc.spoken(declared), doc.spoken(decl)));
             assert!(consumer_is_cut);
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
@@ -575,7 +584,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             input,
             consumer_is_cut,
         }) => {
-            assert_eq!((consumer, input), (declared, decl));
+            assert_eq!((consumer, input), (doc.spoken(declared), doc.spoken(decl)));
             assert!(!consumer_is_cut, "the consumer is the one left behind here");
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
@@ -641,8 +650,8 @@ fn row3_uncut_param_reference_refuses() {
             kept_node,
         }) => {
             assert_eq!(param, ParamName::from_static("h"));
-            assert_eq!(cut_node, e1);
-            assert_eq!(kept_node, e2);
+            assert_eq!(cut_node, doc.spoken(e1));
+            assert_eq!(kept_node, doc.spoken(e2));
         }
         other => panic!("expected UncutParamReference, got {other:?}"),
     }
@@ -740,7 +749,7 @@ fn row3_further_typed_refusals() {
     );
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceConsumed { node, by }) => {
-            assert_eq!((node, by), (inst, consumer));
+            assert_eq!((node, by), (host.spoken(inst), host.spoken(consumer)));
         }
         other => panic!("expected InstanceConsumed, got {other:?}"),
     }
@@ -752,9 +761,11 @@ fn row3_further_typed_refusals() {
     let (host2, inst2) = insert(host2, Node::instantiate_part(doc_ref));
     let (host2, _) = step(
         host2,
-        DocEdit::SetPlacement {
-            node: inst2,
-            frame: editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: inst2,
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::translation([3.0, 0.0, 0.0]),
+            )),
         },
     );
     match inline(&host2, inst2, &resolver, Tol::witness()) {
@@ -762,8 +773,8 @@ fn row3_further_typed_refusals() {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
             assert_eq!(
                 root,
-                part_doc.order()[BODY_POSITION],
-                "the plain extrude root is named"
+                part_doc.spoken(part_doc.order()[BODY_POSITION]),
+                "the plain extrude root is named, spoken from the part"
             );
         }
         other => panic!("expected UnplaceableFrame, got {other:?}"),
@@ -777,11 +788,11 @@ fn row3_further_typed_refusals() {
 
 // ---- Row 4: roots and placements, both sides ----
 
-/// Row 4 — the A10/A11 maintenance through the recorded edits
-/// produces the expected root and placement lists on both sides, each
-/// its own assertion.
+/// Row 4 — the A10 maintenance and A4's offset rules, through the
+/// recorded edits, produce the expected roots and offsets on both
+/// sides, each its own assertion.
 #[test]
-fn row4_roots_and_placements_land_as_the_rules_say() {
+fn row4_roots_and_offsets_land_as_the_rules_say() {
     // The hoisted single-group cut.
     let (_, doc, ids) = two_group_assembly("asm4-r4");
     let out = split(
@@ -804,18 +815,17 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         "the part's root is the cut root"
     );
     assert!(
-        out.remainder
-            .placement(out.instance)
-            .bit_eq(&doc.placement(ids[1])),
-        "the hoisted frame is the group's old frame"
+        fixture::same_offset(&out.remainder, out.instance, &doc, ids[1]),
+        "the hoisted offset is the root's old offset"
     );
-    assert!(
-        out.part.placements().is_empty(),
-        "the hoisted group sits at identity in the part"
+    assert_eq!(
+        fixture::offset_of(&out.part, mapped),
+        Some(editor_core::Placement::IDENTITY),
+        "the hoisted root lands at the empty chain in the part"
     );
 
-    // The multi-group cut: both frames MOVE, the remainder instance
-    // sits at identity, and the part keeps the cut roots' LIST order
+    // The multi-group cut: both offsets MOVE, the remainder instance
+    // sits at the empty offset, and the part keeps the cut roots' LIST order
     // even where insertion order disagrees.
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r4b-part", 0.0, 1.0), Tol::witness());
@@ -827,9 +837,11 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         if dx != 0.0 {
             let (next, _) = step(
                 doc2,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: editor_core::Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(
+                        &editor_core::Frame::translation([dx, 0.0, 0.0]),
+                    )),
                 },
             );
             doc2 = next;
@@ -862,21 +874,19 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         &[out2.node_map[&inst[2]], out2.node_map[&inst[0]]],
         "the part keeps the cut roots' A10 list order"
     );
-    assert!(
-        out2.remainder.placement(out2.instance).is_identity_bits(),
-        "a multi-group cut leaves the remainder instance at identity"
+    assert_eq!(
+        fixture::offset_of(&out2.remainder, out2.instance),
+        Some(editor_core::Placement::IDENTITY),
+        "a multi-group cut leaves the remainder instance at the empty offset"
     );
     assert!(
-        out2.part
-            .placement(out2.node_map[&inst[2]])
-            .bit_eq(&doc2.placement(inst[2])),
-        "the moved frame is verbatim"
+        fixture::same_offset(&out2.part, out2.node_map[&inst[2]], &doc2, inst[2]),
+        "the moved offset is verbatim"
     );
-    assert!(
-        out2.part
-            .placement(out2.node_map[&inst[0]])
-            .is_identity_bits(),
-        "an unplaced cut instance stays unplaced"
+    assert_eq!(
+        fixture::offset_of(&out2.part, out2.node_map[&inst[0]]),
+        Some(editor_core::Placement::IDENTITY),
+        "a cut instance at the empty offset stays there"
     );
 }
 
@@ -997,9 +1007,11 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
         let (next, i) = insert(doc, Node::instantiate_part(doc_ref));
         let (next, _) = step(
             next,
-            DocEdit::SetPlacement {
-                node: i,
-                frame: editor_core::Frame::translation([dx, 0.0, 0.0]),
+            DocEdit::SetOffset {
+                instance: i,
+                offset: Some(editor_core::Placement::literal(
+                    &editor_core::Frame::translation([dx, 0.0, 0.0]),
+                )),
             },
         );
         doc = next;
@@ -1086,16 +1098,14 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
             "{name:?} re-resolves as {expected:?} after the round trip"
         );
     }
-    // And the moved frames ride verbatim, both hops.
+    // And the moved offsets ride verbatim, both hops.
     assert!(
-        out.part
-            .placement(out.node_map[&i1])
-            .bit_eq(&doc.placement(i1)),
-        "the moved frame is verbatim in the part"
+        fixture::same_offset(&out.part, out.node_map[&i1], &doc, i1),
+        "the moved offset is verbatim in the part"
     );
     assert!(
-        inlined.doc.placement(back(i2)).bit_eq(&doc.placement(i2)),
-        "the round trip restores the frame bit for bit"
+        fixture::same_offset(&inlined.doc, back(i2), &doc, i2),
+        "the round trip restores the offset bit for bit"
     );
 }
 
@@ -1131,10 +1141,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         None,
     ) {
         Err(SplitError::BodyNameCrossesCut { name }) => {
-            assert_eq!(*name, body_name);
+            assert_eq!(name.name(), &body_name);
             let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
             assert!(
-                msg.contains(&format!("minted by node {:012x}", ids[1].0)),
+                msg.contains(&format!("minted by {}", doc.spoken(ids[1]))),
                 "the message names the name: {msg}"
             );
             assert!(
@@ -1193,7 +1203,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         None,
     ) {
         Err(SplitError::NameStraddlesCut { name, missing }) => {
-            assert_eq!(*name, straddler);
+            assert_eq!(name.name(), &straddler);
             assert_eq!(
                 missing, None,
                 "the straddle classification weighs the whole derivation set, so it singles \
@@ -1253,10 +1263,11 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             name,
             missing,
         }) => {
-            assert_eq!(node, decl);
-            assert_eq!(*name, reaching);
+            assert_eq!(node, doc.spoken(decl));
+            assert_eq!(name.name(), &reaching);
             assert_eq!(
-                missing, kept_e,
+                missing,
+                doc.spoken(kept_e),
                 "and the node outside the cut that it reaches, which the carrier id does not \
                  say"
             );
@@ -1269,7 +1280,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
                 }
             );
             assert!(
-                msg.contains(&format!("node {:012x}", decl.0)) && msg.contains("outside the cut"),
+                msg.contains(&doc.spoken(decl).to_string()) && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
             );
         }
@@ -1414,9 +1425,15 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
+    let host = labelled(host, kept_e, "host plate");
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::ForeignInstanceName { name }) => {
-            assert_eq!(*name, foreign);
+            assert_eq!(name.name(), &foreign);
+            assert_eq!(
+                minter_label(&name),
+                Some("host plate"),
+                "a host name is spoken from the host: {name}"
+            );
             let msg = format!("{}", InlineError::ForeignInstanceName { name });
             assert!(
                 msg.contains("InPart"),
@@ -1442,9 +1459,15 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
+    let host = labelled(host, inst, "left leg");
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceBodyNameReferenced { name }) => {
-            assert_eq!(*name, body_name);
+            assert_eq!(name.name(), &body_name);
+            assert_eq!(
+                minter_label(&name),
+                Some("left leg"),
+                "the instance's body name is the host's, spoken from it: {name}"
+            );
             let msg = format!("{}", InlineError::InstanceBodyNameReferenced { name });
             assert!(
                 msg.contains("output body"),
@@ -1505,6 +1528,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             )]),
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
+        let part_doc = labelled(part_doc, body, "part body");
         let doc_ref = store.insert(part_doc, Tol::witness());
         let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
         let host = ProfileDoc::empty(
@@ -1514,20 +1538,29 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
         match inline(&host, inst, &resolver, Tol::witness()) {
             Err(InlineError::StrandedPartName { name, missing }) => {
-                assert_eq!(*name, stranded);
+                assert_eq!(name.name(), &stranded);
                 assert_eq!(
-                    missing, extra,
-                    "the refusal carries the deleted node, nested={nested}"
+                    missing,
+                    editor_core::SpokenNode::absent(extra),
+                    "the refusal carries the deleted node, which the part no longer holds, \
+                     nested={nested}"
                 );
                 if nested {
+                    assert_eq!(
+                        minter_label(&name),
+                        Some("part body"),
+                        "a carried name is the part's, spoken from it: {name}"
+                    );
                     assert_ne!(
-                        missing, name.node,
+                        missing.id(),
+                        name.name().node,
                         "nested: the node that stranded is inside a path segment, so the name \
                          alone does not name it"
                     );
                 } else {
                     assert_eq!(
-                        missing, name.node,
+                        missing.id(),
+                        name.name().node,
                         "flat: the name IS minted at the stranded node, so the two coincide — \
                          the case that cannot tell the id from the name"
                     );
@@ -1604,6 +1637,24 @@ fn reshaped_component(
 }
 
 /// The ids a profile node holds, flattened in loop then step order.
+/// `doc` with `node` labelled `text`, so a sentence spoken from the
+/// wrong document would read a different label or none.
+fn labelled(doc: ProfileDoc, node: RecipeNodeId, text: &str) -> ProfileDoc {
+    step(
+        doc,
+        DocEdit::SetLabel {
+            node,
+            label: Some(editor_core::Label::new(text).expect("a valid label")),
+        },
+    )
+    .0
+}
+
+/// The label a spoken name's minting node carries, as text.
+fn minter_label(name: &editor_core::SpokenName) -> Option<&str> {
+    name.minter().label().map(editor_core::Label::as_str)
+}
+
 fn flat_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId> {
     match doc.node(profile) {
         Some(Node::Profile(p)) => p.ids.iter().flatten().copied().collect(),
@@ -1638,7 +1689,7 @@ fn a_split_step_map_follows_a_non_contiguous_re_mint() {
     let part_profile = out.node_map[&p2];
     let minted = flat_ids(&out.part, part_profile);
     assert_eq!(
-        out.part.step_mint().log(),
+        out.part.mint().steps().collect::<Vec<_>>(),
         minted
             .iter()
             .copied()
@@ -1664,6 +1715,7 @@ fn a_split_step_map_follows_a_non_contiguous_re_mint() {
 #[test]
 fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     let (doc, [f2, p2, e2], face_frame) = reshaped_component("asm4-dropped", 1, true);
+    let doc = labelled(doc, e2, "walled block");
     let face_frame = face_frame.expect("the stranded frame");
     let dropped = match doc.node(face_frame) {
         Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => face.clone(),
@@ -1685,7 +1737,8 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
         None,
     ) {
         Err(SplitError::NameOnDroppedStep { name, step }) => {
-            assert_eq!((*name, step), (dropped.clone(), dropped_step));
+            assert_eq!((name.name(), step), (&dropped, dropped_step));
+            assert_eq!(minter_label(&name), Some("walled block"), "{name}");
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
@@ -1701,7 +1754,12 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
         Tol::witness(),
     ) {
         Err(InlineError::NameOnDroppedStep { name, step }) => {
-            assert_eq!((*name, step), (dropped, dropped_step));
+            assert_eq!((name.name(), step), (&dropped, dropped_step));
+            assert_eq!(
+                minter_label(&name),
+                Some("walled block"),
+                "a carried name is the part's, spoken from it: {name}"
+            );
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }

@@ -101,8 +101,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
     let up_e = |k: EdgeKey| up(EntityKey::Edge(k));
     let up_v = |k: VertexKey| up(EntityKey::Vertex(k));
 
-    // A band's identity: its closed chain's source names. A rim is a
-    // cycle with no first edge, so only the SET is covariant: the
+    // A band's identity: its chain's source names. A rim is a cycle
+    // with no first edge, so only the SET is covariant: the
     // canonical form sorts and deduplicates it (the N3 `Merged`
     // convention). A band face, its seam crossings and its slit all
     // carry the same set, which is what tells apart the crossings and
@@ -138,6 +138,18 @@ pub(super) fn name_blend<T: geom_core::Real>(
     for (f, e) in &rec.blends {
         let e = up_e(*e)?;
         put(EntityKey::Face(*f), RoleSeg::BlendFace(e.name), e.tied)?;
+    }
+    // An open band spanning several links joined on one support pair
+    // takes the chain's source edges as a set, as a closed rim's band
+    // does: the face is one entity of several edges, and the set is
+    // its birth data whichever link the walk met first.
+    for (f, edges) in &rec.joined_blends {
+        let (names, tied) = band_set(edges)?;
+        put(
+            EntityKey::Face(*f),
+            canonical::minted_segment(RoleSeg::BandFace(names)),
+            tied,
+        )?;
     }
     for (f, v) in &rec.corners {
         let v = up_v(*v)?;

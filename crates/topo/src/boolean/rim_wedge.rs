@@ -11,9 +11,9 @@
 //!   the join's job there is structural.
 //! - **wedge 0 or 2π** — the normals oppose, the material pinches to a
 //!   knife edge or opens to a circular slit. That is the declared-cusp
-//!   family, whose verification needs a certified witness along the
-//!   rim; the witness lane has no torus arm, so the family is DEFINED
-//!   AND UNBUILT and its refusal says exactly that.
+//!   family, DEFINED AND UNBUILT: the pair reaching this routing has no
+//!   tangent-locus arm, and no consumer yet builds the cusp or slit
+//!   edge from a locus of any shape. Its refusal names both.
 //! - **anything the samples cannot settle** — escalates, naming the
 //!   predicate that failed to decide. Never a silent verdict.
 //!
@@ -313,7 +313,9 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     let mut all_smooth = true;
     for i in 0..n {
         let (p, _) = station(i);
-        match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band)? {
+        match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band)
+            .map_err(|escalation| escalation.diag)?
+        {
             geom_brep::DihedralClass::Transverse => all_smooth = false,
             geom_brep::DihedralClass::Smooth => all_transverse = false,
         }
@@ -429,8 +431,8 @@ mod redfirst {
 
     fn circle(center: [f64; 3], axis: [f64; 3], radius: f64) -> Rim<f64> {
         Rim {
-            center: Point3::new(center[0], center[1], center[2]),
-            axis: Vec3::new(axis[0], axis[1], axis[2]),
+            center: Point3::from_array(center),
+            axis: Vec3::from_array(axis),
             radius,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }

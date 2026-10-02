@@ -613,7 +613,7 @@ impl MergeDecision {
             Self::DeclaredPlanes(PlaneRung::Orientation) => {
                 "whether the two declared faces face the same way across the edge they share"
             }
-            Self::DeclaredPlanes(PlaneRung::Parallel) => PlaneRung::Parallel.subject(),
+            Self::DeclaredPlanes(rung @ (PlaneRung::Parallel | PlaneRung::Norm)) => rung.subject(),
             Self::DeclaredOffset => "whether the two declared planes lie apart",
             Self::LoopWinding => "which way a loop of the merged face winds about its normal",
         }
@@ -628,9 +628,9 @@ impl MergeDecision {
                 DECLARED_ORIENTATION.recourse(arm, Reading::Build)
             }
             // The declared rung bridges in-band parallelism, so what
-            // escalates here is a norm the rung could not read, as at the
-            // Boolean's declared door (`BooleanDecision::DeclaredParallel`).
-            Self::DeclaredPlanes(PlaneRung::Parallel) | Self::DeclaredOffset => {
+            // escalates here is a norm the rung could not read, as at every
+            // Boolean door (`SelfCheck::Normals`).
+            Self::DeclaredPlanes(PlaneRung::Parallel | PlaneRung::Norm) | Self::DeclaredOffset => {
                 Unsized::Defect.recourse(arm, Reading::Build)
             }
             Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
@@ -2858,7 +2858,7 @@ mod tests {
                 let p = body
                     .get_point(body.get_vertex(v).expect("live").point)
                     .expect("live");
-                [p.x, p.y, p.z] == at
+                p.to_array() == at
             })
             .expect("a half-edge starts there")
     }

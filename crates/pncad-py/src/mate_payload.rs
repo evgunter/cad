@@ -64,8 +64,8 @@
 //! `FrameError::Band` as well as through `Band` itself.
 
 use pncad::document::{
-    Clash, DocumentId, FaceRefusal, Lever, LeverRefusal, MateFault, MateSide, RecipeNodeId,
-    Subgroup,
+    Clash, DocumentId, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault, MateSide,
+    OffsetCheck, ReachRefusal, RecipeNodeId, Subgroup,
 };
 use pncad::geom_core::{BandError, FrameError, Indeterminate};
 use pncad::prelude::StableName;
@@ -73,7 +73,7 @@ use pncad::prelude::StableName;
 use crate::escalation::escalation;
 use crate::tags::{
     band_error_tag, band_field_tag, face_refusal_tag, frame_error_tag, lever_refusal_tag,
-    node_error_tag,
+    node_error_tag, offset_check_tag,
 };
 
 /// What one [`MateFault`] arm carries, every field present.
@@ -96,9 +96,13 @@ pub struct MateFaultPayload<'a> {
     /// every node failure crosses with
     /// ([`crate::tags::node_error_tag`]).
     pub error: Option<&'static str>,
-    /// The instance a self-mate names twice, or the instance whose
-    /// part a lever or a face frame was asked of.
+    /// The instance a self-mate names twice, the instance whose part
+    /// a lever or a face frame was asked of, or whose checked offset
+    /// faulted.
     pub instance: Option<RecipeNodeId>,
+    /// The root of a faulted checked offset's group: the member whose
+    /// offset places the group the solve placed the instance in.
+    pub root: Option<RecipeNodeId>,
     /// **The face a `FromFace` frame named**, in the part's own
     /// spelling, where the refusal is about one.
     pub face: Option<&'a StableName>,
@@ -183,7 +187,7 @@ impl<'a> MateFaultPayload<'a> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 31] {
+    pub fn presence(&self) -> [(&'static str, bool); 32] {
         let Self {
             mate,
             side,
@@ -191,6 +195,7 @@ impl<'a> MateFaultPayload<'a> {
             placer,
             error,
             instance,
+            root,
             face,
             parent,
             child,
@@ -224,6 +229,7 @@ impl<'a> MateFaultPayload<'a> {
             ("placer", placer.is_some()),
             ("error", error.is_some()),
             ("instance", instance.is_some()),
+            ("root", root.is_some()),
             ("face", face.is_some()),
             ("parent", parent.is_some()),
             ("child", child.is_some()),
@@ -269,6 +275,7 @@ impl<'a> MateFaultPayload<'a> {
         placer: None,
         error: None,
         instance: None,
+        root: None,
         face: None,
         parent: None,
         child: None,
@@ -416,24 +423,31 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             },
             diag,
         ),
-        // No lever could be formed: one mated part's reach is not in
-        // hand. The instance it is about rides beside the refusal's
-        // word; a face that cannot be bounded names its kind in `what`.
+        // No lever could be formed. A part's reach not in hand names
+        // the instance it is about beside the refusal's word, and a
+        // face that cannot be bounded names its kind in `what`; an
+        // out-of-range lever is the pair's, and names no instance.
         MateFault::Unleverable { mate, refusal } => {
-            let (instance, what) = match refusal {
-                LeverRefusal::PartUnresolved { instance, .. }
-                | LeverRefusal::MalformedBody { instance, .. }
-                | LeverRefusal::NoExtent { instance, .. }
-                | LeverRefusal::NoFiniteBound { instance, .. } => (*instance, None),
-                LeverRefusal::FaceUnbounded { instance, kind, .. } => {
-                    (*instance, Some(kind.name()))
-                }
-                LeverRefusal::NotAnInstance { node } => (*node, None),
+            let (instance, what) = match refusal.as_ref() {
+                LeverRefusal::Reach {
+                    instance, refusal, ..
+                } => (
+                    Some(*instance),
+                    match refusal {
+                        ReachRefusal::FaceUnbounded { kind, .. } => Some(kind.name()),
+                        ReachRefusal::PartUnresolved { .. }
+                        | ReachRefusal::MalformedBody { .. }
+                        | ReachRefusal::NoExtent
+                        | ReachRefusal::NoFiniteBound => None,
+                    },
+                ),
+                LeverRefusal::NotAnInstance { node } => (Some(*node), None),
+                LeverRefusal::OutOfRange { .. } => (None, None),
             };
             MateFaultPayload {
                 mate: Some(*mate),
                 inner_variant: Some(lever_refusal_tag(refusal)),
-                instance: Some(instance),
+                instance,
                 what,
                 ..none
             }
@@ -454,14 +468,21 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             refusal,
         } => {
             let (instance, what) = match refusal.as_ref() {
-                FaceRefusal::PartUnresolved { instance, .. }
-                | FaceRefusal::NoSuchName { instance, .. }
-                | FaceRefusal::Ambiguous { instance, .. }
-                | FaceRefusal::Readback { instance, .. }
-                | FaceRefusal::Unpinned { instance, .. } => (*instance, None),
-                FaceRefusal::NotAFace {
-                    instance, found, ..
-                } => (*instance, Some(crate::tags::entity_kind_tag(*found))),
+                FaceRefusal::Reach {
+                    instance, refusal, ..
+                } => (
+                    *instance,
+                    match refusal {
+                        FacePoseRefusal::NotAFace { found } => {
+                            Some(crate::tags::entity_kind_tag(*found))
+                        }
+                        FacePoseRefusal::PartUnresolved { .. }
+                        | FacePoseRefusal::NoSuchName
+                        | FacePoseRefusal::Ambiguous { .. }
+                        | FacePoseRefusal::Readback(_)
+                        | FacePoseRefusal::Unpinned => None,
+                    },
+                ),
                 FaceRefusal::NotAnInstance { node } => (*node, None),
             };
             MateFaultPayload {
@@ -552,5 +573,55 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             instance: Some(*instance),
             ..none
         },
+        // A checked offset (A11 (2)): the instance stating it is the
+        // subject and names no mate. A refuted one carries the
+        // predicate and its measured clash as a contradiction does.
+        MateFault::OffsetDisagrees {
+            instance,
+            root,
+            predicate,
+            clash,
+        } => {
+            let (lever_tilt, lever_residual, lever_arm) = match clash {
+                Clash::Levered(Lever::Roll { radians, arm }) => (Some(*radians), None, Some(*arm)),
+                Clash::Levered(Lever::Residual { value, arm }) => (None, Some(*value), Some(*arm)),
+                Clash::Structural | Clash::Length { .. } => (None, None, None),
+            };
+            MateFaultPayload {
+                instance: Some(*instance),
+                root: Some(*root),
+                predicate: Some(predicate),
+                clash: clash.deviation(),
+                lever_tilt,
+                lever_residual,
+                lever_arm,
+                ..none
+            }
+        }
+        // Why it could not be checked is the inner word; each cause
+        // carries what its own arm elsewhere carries.
+        MateFault::OffsetUnchecked { instance, cause } => {
+            let base = MateFaultPayload {
+                instance: Some(*instance),
+                inner_variant: Some(offset_check_tag(cause)),
+                ..none
+            };
+            match &**cause {
+                // The node whose placement did not evaluate, and the
+                // evaluation's word for why, as a placer's.
+                OffsetCheck::Placement { node, error } => MateFaultPayload {
+                    placer: Some(*node),
+                    error: Some(node_error_tag(error.kind().class())),
+                    ..base
+                },
+                OffsetCheck::Unleverable(_) => base,
+                OffsetCheck::Indeterminate(diag) => with_escalation(base, diag),
+                // The refused mate that strands the member.
+                OffsetCheck::Unreached { mate } => MateFaultPayload {
+                    mate: Some(*mate),
+                    ..base
+                },
+            }
+        }
     }
 }

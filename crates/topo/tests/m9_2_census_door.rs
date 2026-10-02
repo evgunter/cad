@@ -24,11 +24,11 @@
 use crate::common;
 
 use geom::Surface;
+use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::{
-    Body, CensusContact, ContactRecords, TangentLocus, TangentLocusError, ValidationError,
-    VvContact, tangent_locus, validate_pseudomanifold,
+    Body, CensusContact, ContactRecords, ValidationError, VvContact, validate_pseudomanifold,
 };
 
 fn band() -> Band {
@@ -46,7 +46,7 @@ fn cube_at(dx: f64, dy: f64, dz: f64) -> Body<f64> {
 /// Grafts `b`'s solid into `a` (two instances in one arena).
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 

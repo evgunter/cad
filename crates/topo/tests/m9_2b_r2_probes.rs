@@ -7,12 +7,10 @@
 use crate::common;
 
 use geom::Surface;
+use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{
-    Body, ContactRecords, PatchContact, TangentLocus, TangentLocusError, ValidationError,
-    tangent_locus, validate_pseudomanifold,
-};
+use topo::{Body, ContactRecords, PatchContact, ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -27,7 +25,7 @@ fn cube_scaled_at(s: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 

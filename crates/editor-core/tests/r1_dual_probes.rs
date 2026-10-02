@@ -230,7 +230,12 @@ where
                             for (vx, s) in lp.vertices().iter().zip(lp.segments()) {
                                 d.sc(vx.x);
                                 d.sc(vx.y);
-                                d.sc(s.bulge);
+                                if let profile::SegmentKind::Arc { arc, .. } = s.kind {
+                                    d.sc(arc.centre.x);
+                                    d.sc(arc.centre.y);
+                                    d.sc(arc.radius);
+                                    d.sc(arc.sweep);
+                                }
                             }
                         }
                     }
@@ -267,6 +272,7 @@ where
                         d.u64(pairs.len() as u64);
                     }
                     ValuePayload::Mate(_) => d.u64(20),
+                    ValuePayload::Gauge => d.u64(25),
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.

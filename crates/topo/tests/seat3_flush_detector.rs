@@ -234,9 +234,31 @@ fn a_declared_same_oriented_finding_can_still_meet_a_typed_lane_frontier() {
     let err = union_with(&a, &b, &declare_all(&found), Tol::witness())
         .expect_err("the fully declared union meets the zip's frontier");
     assert!(
-        matches!(err, topo::BooleanError::RestZipUnsupported { .. }),
+        matches!(
+            err,
+            topo::BooleanError::RestZipUnsupported {
+                what: topo::RestZipFrontier::ChordBetweenIsolatedPierces
+            }
+        ),
         "a typed lane frontier, NOT a contact contradiction — the declarations are true \
          and the op is what cannot proceed: {err:?}"
+    );
+    // Every finding is declared, so the frontier offers no declaration;
+    // the contact is planar already, so no move of the parts is named:
+    // the frontier's own ending, stated once, with no stage label.
+    let text = err.to_string();
+    assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+    assert!(
+        test_utils::refusal::stage_prefixes(&text, &[]).is_empty()
+            && test_utils::refusal::subjectless_escalations(&text).is_empty()
+            && text.starts_with(
+                "the Boolean cannot yet zip the two solids along their declared resting contact \
+                 (seam chord between two isolated pierce points)"
+            )
+            && text.ends_with(geom_core::NOT_YET_ENDING)
+            && !text.contains("declare the")
+            && !text.contains("tolerance"),
+        "{text}"
     );
 }
 

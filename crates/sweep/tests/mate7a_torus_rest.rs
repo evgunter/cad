@@ -437,6 +437,33 @@ fn the_g1_tube_chain_rim_routes_to_the_smooth_seam() {
     );
 }
 
+/// **The same chain, undeclared or declared `Rest`, never reaches the
+/// rim routing.** Undeclared, an edge of one segment rides the other's
+/// wall and the crossing layer refuses; declared `Rest`, the carrier
+/// ladder contradicts it on the two tori's distinct centres. In both
+/// orders.
+#[test]
+fn the_g1_tube_chain_refuses_before_the_rim_routing_when_not_declared_tangent() {
+    let (a, b) = (segment_a(), segment_b());
+    for (x, y) in [(&a, &b), (&b, &a)] {
+        let err = topo::union(x, y, Tol::witness()).expect_err("undeclared chain refuses");
+        assert!(
+            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            "undeclared: the crossing layer's refusal: {err:?}"
+        );
+        let decls = wall_declarations(x, y, TUBE, ContactClass::Rest);
+        let err = topo::union_with(x, y, &decls, Tol::witness()).expect_err("Rest refuses");
+        let BooleanError::ContactContradicted { margin, .. } = &err else {
+            panic!("declared Rest: contradicted: {err:?}");
+        };
+        assert_eq!(
+            margin.predicate,
+            Some("carrier_torus_center"),
+            "on the tori's centres: {err}"
+        );
+    }
+}
+
 /// **The 0/2π arm.** Two tori touching externally along one circle:
 /// the outward normals oppose across it, the void between them is the
 /// vanishing crescent, and the wedge is 2π — the knife slit. That is
@@ -462,8 +489,11 @@ fn a_kissing_torus_rim_routes_to_the_unbuilt_cusp_family() {
     let text = format!("{err}");
     assert!(
         text.contains("opens to a thin slit")
-            && text.contains("cannot yet verify a Tangent declaration there"),
-        "the refusal must name the slit and say the declaration cannot be checked yet: {text}"
+            && text.contains("cannot yet verify a Tangent declaration there")
+            && text.contains("no tangent locus for these two surfaces")
+            && text.contains("cannot yet build the edge where they touch"),
+        "the refusal must name the slit, say the declaration cannot be checked yet, and \
+         name both missing pieces: {text}"
     );
 }
 

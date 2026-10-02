@@ -122,7 +122,7 @@ by number routes `node_number` (combo entries, the properties heading,
 the delete label, the tree's `see feature N` pointer), whose own doc
 rules `node 3` out of a surface; the tree rows themselves carry no
 number. `node N` survives in typed refusal prose, which is
-`work/author/chrome-calls-one-node-two-names`'s open direction question
+`work/authtail/chrome-calls-one-node-two-names`'s open direction question
 and not this row's — evidence added there.
 
 Pinned by `pane::create::tests::the_mate_panel_says_its_picks_in_the_seated_panels_line`

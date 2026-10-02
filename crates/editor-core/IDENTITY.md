@@ -26,7 +26,8 @@ stable half.
 - **The document is a value and undo is keeping the old value**
   (G1, `crates/viewer/README.md`). `viewer::history` retains every
   `Doc` an action produced and never replays (`history.rs`); undo and
-  redo move a cursor. `Doc::next_id` is part of that value (`doc.rs`).
+  redo move a cursor. `Doc::mint`, the chain node and step ids are
+  minted from, is part of that value (`doc.rs`).
 - **The memo is per node, keyed by content and naming keys**
   (`eval/mod.rs`), and an `InstantiatePart` node's content key
   hashes its `DocRef`, its solved placement and its interface, and
@@ -36,33 +37,37 @@ stable half.
   crosses the seam.
 - **Free-move is display state** (G3): a display frame over an
   instance's placement, no solver, admitted only for an instance no
-  mate names (`display.rs`). `DocEdit::SetPlacement` exists and keys
-  on the cluster gauge (A11).
+  mate names (`display.rs`). `DocEdit::SetOffset` exists and sets the
+  instance's offset in its gauge (A11 (2)).
 
 ## DI1 — A held node id is valid on the branch that minted it
 
-`RecipeNodeId` is a small per-document counter, and because
-`next_id` is part of the `Doc` value, an undo past a node's insert
-followed by a fresh insert re-mints the same id on a sibling branch
-of the history. Layer-3 state that holds an id across turns —
-`Selection::Node`, `FaceSelection::node`, the seats behind the
-revolve and combining tools, `BlendTarget::node`, and every held
-`StableName`, since a name embeds its minting node — then denotes a
-different node with no refusal (`seats.rs`, issue 1384).
+`RecipeNodeId` is minted from the document's mint chain (N1), and
+the chain is part of the `Doc` value, so an undo past a node's insert
+followed by a fresh insert mints on a sibling branch of the history
+from the chain the undone insert minted from. A different insert
+mints a different id there, but the same insert mints the same one,
+so an id alone does not say which branch's node it names. Layer-3
+state that holds an id across turns — `Selection::Node`,
+`FaceSelection::node`, the seats behind the revolve and combining
+tools, `BlendTarget::node`, and every held `StableName`, since a name
+embeds its minting node — then denotes the sibling branch's node with
+no refusal (`seats.rs`, issue 1384).
 
 The rule, one for every holder: **an id denotes the same node iff
 the current history entry descends from the entry that minted it,
 in the same history, and the node is live.** Along any forward path
-from the mint the counter is monotone, so the id cannot be re-minted;
-on any other branch it can. A hold therefore carries the id plus its
-minting entry, which the history computes at pick time by walking up
-until it passes the last entry whose document has minted the id
-(`History::entry`, `Doc::has_minted`), and the per-frame `reconcile` /
-`standing` checks descent before liveness. `has_minted` is the
-counter's one public reading and answers minting alone — a deleted
-id is still minted, and liveness stays `Doc::node`'s question — so
-the monotonicity this walk rests on is argued where the counter
-lives rather than restated at the holder.
+from the mint the mint log only grows, so the id is never minted
+again; on any other branch the same insert can mint it. A hold
+therefore carries the id plus its minting entry, which the history
+computes at pick time by walking up until it passes the last entry
+whose document has minted the id (`History::entry`,
+`Doc::has_minted`), and the per-frame `reconcile` / `standing` checks
+descent before liveness. `has_minted` is the mint log's one reading
+of a node id and answers minting alone — a deleted id is still
+minted, and liveness stays `Doc::node`'s question — so the
+monotonicity this walk rests on is argued where the log lives rather
+than restated at the holder.
 
 - Undoing an unrelated later edit keeps a pick valid; undoing past
   the mint invalidates it; redoing onto the original branch restores
@@ -183,7 +188,7 @@ excluded committing it from v1's scope. **The viewer may record a
 free-moved placement persistently**, and the reading taken is the
 stronger one, under G1's preview-versus-commit rule: the gesture's
 previews stay display frames, and **its release emits one
-`DocEdit::SetPlacement`** on the instance — one undo step, one
+`DocEdit::SetOffset`** on the instance — one undo step, one
 document transition, and the placement survives save and reopen,
 which is what a user expects of a part they placed. Consequences:
 
@@ -192,9 +197,9 @@ which is what a user expects of a part they placed. Consequences:
   `hidden` stays display state.
 - Admission is unchanged: only an instance no mate names may be
   free-moved (`free_move_check`), so the edit's target is a singleton
-  cluster and keys on itself as gauge (A11 rule 3). A later mate that
-  joins clusters re-keys the record through `ClusterMaintenance`
-  as any placement is.
+  group and roots it (A11 (3)). A later mate that places it on another
+  group clears its offset, as the mate door does for any first
+  operand (A11 (2)).
 - G3's sentence "hiding and free-move are display state, never
   persisted" narrows to hiding; `crates/viewer/README.md`, the
   `display.rs` module doc and the round-trip row that pins the

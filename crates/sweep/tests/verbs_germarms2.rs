@@ -47,7 +47,7 @@
 
 use core::f64::consts::PI;
 
-use crate::common::germ_pair::{cyl, repose, seams_off_the_pinch, spin, steinmetz};
+use crate::common::germ_pair::{cyl, repose, same_door, seams_off_the_pinch, spin, steinmetz};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -57,11 +57,13 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")
 }
 
-/// A one-line discriminant of a refusal: the variant plus the keys it
-/// names. Two poses of the same configuration must produce the same
-/// string.
-fn door(e: &BooleanError) -> String {
-    format!("{e:?}")
+/// Asserts that the refusal of the direct pose and of its re-posed twin
+/// are one door ([`same_door`]).
+fn assert_same_door(direct: &BooleanError, reposed: &BooleanError, what: &str) {
+    assert!(
+        same_door(direct, reposed),
+        "{what}: direct {direct:?}, re-posed {reposed:?}"
+    );
 }
 
 /// The single cylinder surface of an operand built by [`cyl`].
@@ -150,10 +152,10 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
 #[test]
 fn the_steinmetz_pair_answers_identically_under_a_rigid_re_pose() {
     let (a, b) = steinmetz(2.0);
-    assert_eq!(
-        door(&union_err(&a, &b)),
-        door(&union_err(&repose(&a), &repose(&b))),
-        "the re-posed Steinmetz pair must answer exactly what the direct-extruded one does"
+    assert_same_door(
+        &union_err(&a, &b),
+        &union_err(&repose(&a), &repose(&b)),
+        "the re-posed Steinmetz pair must answer exactly what the direct-extruded one does",
     );
 }
 
@@ -191,10 +193,10 @@ fn seams_off_the_pinch_reach_the_join_and_name_it() {
     ] {
         assert!(text.contains(want), "the door must say {want:?}: {text}");
     }
-    assert_eq!(
-        door(&err),
-        door(&union_err(&repose(&a), &repose(&b))),
-        "the re-posed pose must reach the same door"
+    assert_same_door(
+        &err,
+        &union_err(&repose(&a), &repose(&b)),
+        "the re-posed pose must reach the same door",
     );
 }
 
@@ -206,93 +208,68 @@ fn seams_off_the_pinch_reach_the_join_and_name_it() {
 /// has no union at this head and none of these rows may quietly grow
 /// one.
 ///
-/// The doors themselves differ by pose and are recorded rather than
-/// forced: with the seams off the pinch and the operands short enough
-/// for the sector-side curvature charge, a pose reaches the join's
-/// pinch door; a taller operand's pierce fragments outrun that charge
-/// and stop one layer earlier, at `CurvedSectorSideUnsupported`, whose
-/// recourse is the second-order sector trilean and not an arm.
+/// Every pose, at every height, reaches the join's pinch door: with
+/// the seams off the pinch the crossings are found and the sector
+/// sides certify, whatever the operand's height.
 #[test]
 fn every_pose_of_the_family_answers_typed_and_pose_independently() {
-    let mut reached_the_join = 0;
     for h in [1.05_f64, 1.2, 1.5, 2.0] {
         for deg in [15.0_f64, 30.0, 45.0, 60.0, 75.0] {
             let (a, b) = seams_off_the_pinch(h, deg.to_radians());
             let err = union_err(&a, &b);
             assert!(
-                matches!(
-                    err,
-                    BooleanError::GermFrameCylinderPinch { .. }
-                        | BooleanError::CurvedSectorSideUnsupported { .. }
-                ),
-                "h = {h}, {deg}°: the family must refuse typed, got {err:?}"
+                matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
+                "h = {h}, {deg}°: the family must refuse at the pinch door, got {err:?}"
             );
-            if matches!(err, BooleanError::GermFrameCylinderPinch { .. }) {
-                reached_the_join += 1;
-            }
-            assert_eq!(
-                door(&err),
-                door(&union_err(&repose(&a), &repose(&b))),
-                "h = {h}, {deg}°: the re-posed twin must answer identically"
+            assert_same_door(
+                &err,
+                &union_err(&repose(&a), &repose(&b)),
+                &format!("h = {h}, {deg}°: the re-posed twin must answer identically"),
             );
         }
     }
-    // The sweep must actually exercise the join door rather than only
-    // the earlier one. HOW MANY poses do is a fixture property that
-    // moves with the tolerance row — the sector-side curvature charge
-    // is what decides it — so the row asserts that the door is reached,
-    // not a count.
-    assert!(
-        reached_the_join >= 1,
-        "no pose of the family reached the join door"
-    );
 }
 
 /// **The differentials the fences promise.** None of the three poses
-/// reaches a JOIN door at all, so none of them can inherit the pinch
-/// door — which is what says the new arm is a statement about
-/// intersecting equal-radius axes and not about cylinder pairs at
-/// large.
+/// reaches the equal-radius ARM, which is what says that arm is a
+/// statement about intersecting equal-radius axes and not about
+/// cylinder pairs at large.
 ///
-/// - Unequal radii: no equal-radius section exists, and the germ pair
-///   the join would need is never minted.
+/// - Unequal radii: the axes still intersect, so the frame dispatch
+///   names the pinch door, but with no radius evidence (`None`): the
+///   door names neither shape behind those axes and the locus, a space
+///   quartic, routes the general rung.
 /// - Skew axes: the locus is a space quartic, canal territory; the
-///   general rung has not retired. The dispatch's own verdict on this
-///   pose is pinned exactly, at both radii, by
+///   general rung has not retired, and the dispatch has no arm
+///   (`GermFrameUnsupported`). Its verdict on this pose is pinned at
+///   both radii by
 ///   `the_non_parallel_cylinder_pair_splits_on_coplanarity_alone`
-///   (`boolean::join`) — this row's job is that the pose never gets
-///   that far.
+///   (`boolean::join`).
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
 ///   a wall, whose parameters are the roots of a degree-2 trigonometric
 ///   polynomial. No root lane for that exists anywhere in this tree, so
-///   this row is untouched by this unit and says so.
-///
-/// **Which crossing-layer door each pose takes is not the assertion.**
-/// A pierce that is never found and a pierce whose sector sides cannot
-/// be certified against the wall's curvature are both the crossing
-/// layer refusing, and which of the two a pose lands on moves with its
-/// lever arms and with the tolerance row. Pinning the exact variant
-/// here would be pinning the fixture, not the fence.
+///   the crossing layer refuses.
 #[test]
 fn the_fenced_poses_keep_their_own_doors() {
-    // Both crossing-layer doors, and neither is a join door.
-    fn short_of_the_join(name: &str, e: &BooleanError) {
-        assert!(
-            matches!(
-                e,
-                BooleanError::CurvedPierceUnsupported { .. }
-                    | BooleanError::CurvedSectorSideUnsupported { .. }
-            ),
-            "{name}: expected a crossing-layer door, got {e:?}"
-        );
-    }
-
     let a = cyl(1.0, 2.0);
 
     let unequal = spin(&cyl(0.6, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
     let e = union_err(&a, &unequal);
-    short_of_the_join("unequal radii", &e);
-    assert_eq!(door(&e), door(&union_err(&repose(&a), &repose(&unequal))));
+    assert!(
+        matches!(
+            e,
+            BooleanError::GermFrameCylinderPinch {
+                evidence: geom_brep::RadiusEvidence::None,
+                ..
+            }
+        ),
+        "unequal radii: the pinch door on the axis relation alone, got {e:?}"
+    );
+    assert_same_door(
+        &e,
+        &union_err(&repose(&a), &repose(&unequal)),
+        "unequal radii",
+    );
 
     // Displaced along the common perpendicular `â₁ × â₂ = x̂`: that is
     // the ONE direction that separates the two axes. Sliding the
@@ -305,8 +282,18 @@ fn the_fenced_poses_keep_their_own_doors() {
     )
     .unwrap();
     let e = union_err(&a, &skew);
-    short_of_the_join("skew axes", &e);
-    assert_eq!(door(&e), door(&union_err(&repose(&a), &repose(&skew))));
+    assert!(
+        matches!(
+            e,
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom_brep::SurfaceKind::Cylinder,
+                b_kind: geom_brep::SurfaceKind::Cylinder,
+                ..
+            }
+        ),
+        "skew axes: no section arm, got {e:?}"
+    );
+    assert_same_door(&e, &union_err(&repose(&a), &repose(&skew)), "skew axes");
 
     // Parallel axes, walls definitely crossing: the rim circle row.
     let tol = Tol::witness();
@@ -320,6 +307,13 @@ fn the_fenced_poses_keep_their_own_doors() {
     .unwrap()
     .body;
     let e = union_err(&a, &parallel);
-    short_of_the_join("parallel-equal-r", &e);
-    assert_eq!(door(&e), door(&union_err(&repose(&a), &repose(&parallel))));
+    assert!(
+        matches!(e, BooleanError::CurvedPierceUnsupported { .. }),
+        "parallel-equal-r: the rim circle has no root lane, got {e:?}"
+    );
+    assert_same_door(
+        &e,
+        &union_err(&repose(&a), &repose(&parallel)),
+        "parallel-equal-r",
+    );
 }

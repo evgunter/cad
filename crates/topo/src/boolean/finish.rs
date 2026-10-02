@@ -33,9 +33,9 @@ use geom_core::{Band, Decide};
 use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
-use super::discard::{DiscardRow, discard_row};
+use super::discard::{DiscardRow, HeldInto, discard_row};
 use super::join::CompletedPolygonPair;
-use super::shell_witness::{contact_skip_set, shell_side};
+use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, SolidKey, VertexKey};
@@ -124,7 +124,6 @@ fn classify_shell<T: Decide>(
     shell: ShellKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
     other: &Body<T>,
-    skip: &SecondaryMap<VertexKey, ()>,
     operand: Operand,
     band: Band,
     tol: Tol,
@@ -148,7 +147,7 @@ fn classify_shell<T: Decide>(
     if let Some(s) = side {
         return Ok(s);
     }
-    shell_side(body, shell, other, skip, operand, band, tol)
+    shell_side(body, shell, other, operand, band, tol)
 }
 
 /// Distributes, classifies, and selects one solid's kept shells;
@@ -159,7 +158,6 @@ fn select_solid<T: Decide>(
     solid: SolidKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
     other: &Body<T>,
-    skip: &SecondaryMap<VertexKey, ()>,
     operand: Operand,
     keep: SideCode,
     band: Band,
@@ -176,7 +174,7 @@ fn select_solid<T: Decide>(
     }
     let mut kept = Vec::new();
     for shell in all {
-        if classify_shell(body, shell, side_of, other, skip, operand, band, tol)? == keep {
+        if classify_shell(body, shell, side_of, other, operand, band, tol)? == keep {
             kept.push(shell);
         }
     }
@@ -190,13 +188,14 @@ fn select_solid<T: Decide>(
 pub(super) fn setopfinish<T: Decide>(
     op: BooleanOp,
     mut red: BooleanReduction<T>,
-    completed: &[CompletedPolygonPair],
+    connected: &super::join::Connected,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     band: Band,
     tol: Tol,
 ) -> Result<FinishOut<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
+    let completed = &connected.completed[..];
 
     // **The phase boundary, asserted.** The join holds a scope on each
     // operand body through the one guardless pair in `boolean`
@@ -223,14 +222,18 @@ pub(super) fn setopfinish<T: Decide>(
         single_solid(&red.a).map_err(|_| desync("operand A is not a single-solid body"))?;
     let b_solid =
         single_solid(&red.b).map_err(|_| desync("operand B is not a single-solid body"))?;
-    let a_skip = contact_skip_set(&red.contacts, Operand::A);
-    let b_skip = contact_skip_set(&red.contacts, Operand::B);
+    debug_assert_contacts_undecisive(
+        &red.contacts,
+        (&red.a, b_pristine),
+        (&red.b, a_pristine),
+        band,
+        tol,
+    );
     let a_kept_shells = select_solid(
         &mut red.a,
         a_solid,
         &a_sides,
         b_pristine,
-        &a_skip,
         Operand::A,
         kept_side(op, Operand::A),
         band,
@@ -241,7 +244,6 @@ pub(super) fn setopfinish<T: Decide>(
         b_solid,
         &b_sides,
         a_pristine,
-        &b_skip,
         Operand::B,
         kept_side(op, Operand::B),
         band,
@@ -342,14 +344,21 @@ pub(super) fn setopfinish<T: Decide>(
     // B's through the graft.
     let a_kept = |v: VertexKey| body.get_vertex(v).is_some().then_some(v);
     let b_kept = |v: VertexKey| graft.vertices.get(v).copied();
-    let mut discards = discarded(&red, a_solid, &a_kept_shells, &a_sides, Operand::A, &a_kept)?;
+    let mut discards = discarded(
+        &red,
+        a_solid,
+        &a_kept_shells,
+        &a_sides,
+        (Operand::A, &a_kept),
+        (&connected.a_fragments, &b_kept),
+    )?;
     discards.extend(discarded(
         &red,
         b_solid,
         &b_kept_shells,
         &b_sides,
-        Operand::B,
-        &b_kept,
+        (Operand::B, &b_kept),
+        (&connected.b_fragments, &a_kept),
     )?);
 
     Ok(FinishOut {
@@ -367,19 +376,25 @@ pub(super) fn setopfinish<T: Decide>(
 /// kept side's copy of each end is the other end of one of that end's
 /// null edges — the one end among them that survived into the result,
 /// which `kept_vertex` reads in result keys, as the seam vertex map
-/// picks its survivor.
+/// picks its survivor. `held` is this operand's chord-split rows and the
+/// other operand's vertices in result keys, for the held stretches
+/// (`DiscardRow::held`).
+#[allow(clippy::type_complexity)]
 fn discarded<T: Decide>(
     red: &BooleanReduction<T>,
     solid: SolidKey,
     kept: &[ShellKey],
     sides: &SecondaryMap<FaceKey, SideCode>,
-    operand: Operand,
-    kept_vertex: &dyn Fn(VertexKey) -> Option<VertexKey>,
+    (operand, kept_vertex): (Operand, &dyn Fn(VertexKey) -> Option<VertexKey>),
+    held: (
+        &[(FaceKey, FaceKey)],
+        &dyn Fn(VertexKey) -> Option<VertexKey>,
+    ),
 ) -> Result<Vec<DiscardRow>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let body = match operand {
-        Operand::A => &red.a,
-        Operand::B => &red.b,
+    let (body, holder_op, holder) = match operand {
+        Operand::A => (&red.a, Operand::B, &red.b),
+        Operand::B => (&red.b, Operand::A, &red.a),
     };
     let mut copy: BTreeMap<VertexKey, BTreeSet<VertexKey>> = BTreeMap::new();
     for r in red.null_edges.iter().filter(|r| r.operand == operand) {
@@ -406,6 +421,14 @@ fn discarded<T: Decide>(
     };
     let kept_ends = |u, w| Ok((kept_end(u)?, kept_end(w)?));
     let kept_across = |f: FaceKey| sides.contains_key(f);
+    let held = HeldInto {
+        entries: &red.held,
+        fragments: held.0,
+        holder_op,
+        holder,
+        to_result: held.1,
+        copies: &copy,
+    };
     let mut out = Vec::new();
     for &shell in body
         .shells_of_solid(solid)
@@ -420,7 +443,14 @@ fn discarded<T: Decide>(
             .faces
         {
             if !sides.contains_key(face) {
-                out.push(discard_row(body, face, operand, &kept_across, &kept_ends)?);
+                out.push(discard_row(
+                    body,
+                    face,
+                    operand,
+                    &kept_across,
+                    &kept_ends,
+                    Some(&held),
+                )?);
             }
         }
     }

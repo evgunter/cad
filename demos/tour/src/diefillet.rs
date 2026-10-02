@@ -46,7 +46,7 @@
 
 use core::f64::consts::PI;
 
-use pncad::document::{BooleanOp, BooleanValue, LoggedEdit, RefusingReach, save};
+use pncad::document::{BooleanOp, BooleanValue, RefusingReach, save};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
     EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
@@ -192,8 +192,15 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }
@@ -507,7 +514,9 @@ pub fn corpus_text(tol: Tol) -> String {
             if let Node::Profile(program) = &mut node {
                 program.ids = Vec::new();
             }
-            DocEdit::InsertNode { node }
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            }
         })
         .collect();
     edits.push(DocEdit::DeleteNode { id: die.blank });
@@ -537,7 +546,7 @@ pub fn corpus_text(tol: Tol) -> String {
         gallery_document(tol),
         "the derived log must reproduce the document this scene publishes"
     );
-    save(&empty, &LoggedEdit::bare_all(&edits), tol).expect("the die document saves")
+    save(&empty, &edits, tol).expect("the die document saves")
 }
 
 /// This scene's recipe, as a document the GUI can open — **the

@@ -71,6 +71,7 @@ pub(crate) mod order;
 pub(crate) mod reassembly;
 pub mod rules;
 mod section;
+mod section_loops;
 
 use geom_core::{BandError, Indeterminate, Point3, Real, Vec3};
 
@@ -85,7 +86,7 @@ pub use crate::chord_join::{ArcWindowCase, SplitJoinError};
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
-pub use section::{Section, SectionPolygon, plane_section};
+pub use section::{Section, SectionError, SectionPolygon, SectionRegion, plane_section};
 
 /// The splitting plane: a point on the plane and its **unit** normal
 /// (conventional, unchecked — same posture as `Surface::Plane`). The
@@ -149,11 +150,12 @@ pub struct NullEdgeRecord {
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
-    /// The F9 side attribute (`below_end` = old vertex, `above_end` =
-    /// the minted copy holding the ABOVE run) — orientation as data.
+    /// The F9 side attribute (`above_end` = the end holding the ABOVE
+    /// run: the minted copy, save for a whole-orbit run, where the old
+    /// vertex keeps it) — orientation as data.
     pub attr: NullEdge,
     /// True for a dangling null edge (a wide same-side sector whose
-    /// bisector crossed — the strut case).
+    /// bisector crossed — the strut case, either way round).
     pub dangling: bool,
 }
 

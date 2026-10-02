@@ -545,8 +545,8 @@ fn the_oval_lens_is_well_above_the_rows_tolerance() {
 /// W4; the side faces cut `(0,1)` and `(1,0)` pairs, W2): the lens arcs
 /// are evidenced, and tracing them is the crossing layer's business.
 /// What keeps the result from being a body is downstream of the guard —
-/// the chord rule and the sagitta charge, where the reduction refuses
-/// today — and that is what this row pins.
+/// the join's germ frame, which has no torus × plane arm and is where
+/// every op refuses today — and that is what this row pins.
 #[test]
 fn the_corner_bar_never_comes_back_a_body() {
     let d = donut();

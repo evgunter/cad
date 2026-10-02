@@ -67,7 +67,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Datum(Datum::Frame {
+                node: Box::new(Node::Datum(Datum::Frame {
                     origin: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
                     u: [
                         fixture::scl(1.0),
@@ -75,7 +75,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
                         fixture::scl(0.0),
                     ],
                     v: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -84,10 +84,10 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
         .doc;
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(
+            node: Box::new(Node::Profile(fixture::desc(
                 frame(&doc),
                 vec![fixture::square(0.0, 0.0, 1.0)],
-            )),
+            ))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -174,9 +174,8 @@ mod over_a_param_box {
             panic!("a profile value");
         };
         let a = pv.validated.plane().placement;
-        let cols = [a.linear.c0, a.linear.c1, a.linear.c2, a.translation];
-        cols.iter()
-            .flat_map(|c| [c.x, c.y, c.z])
+        a.components()
+            .into_iter()
             .map(|v: Interval| (v.lo().to_bits(), v.hi().to_bits()))
             .collect()
     }

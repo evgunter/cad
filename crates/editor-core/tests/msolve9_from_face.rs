@@ -27,17 +27,18 @@
 
 use crate::fixture;
 use crate::wire;
+use test_utils::refusal::tagged;
 
 use std::sync::Arc;
 
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AuthoredFrame, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId,
-    EditError, EntityKind, EvalOptions, Evaluation, Expr, FaceName, FaceRefusal, Frame, LoggedEdit,
-    LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind, PartFault,
-    PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RefusingReach,
-    RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,
-    mate_reach, save,
+    EditError, EntityKind, EvalOptions, Evaluation, Expr, FaceName, FacePoseRefusal, FaceRefusal,
+    Frame, LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind,
+    PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId,
+    RefusingReach, RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind,
+    face_frame, load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -116,9 +117,9 @@ fn mate(
 }
 
 /// **The item's document**: a post and a block in a store, the block
-/// instantiated after the post (so the post is the gauge), and the
-/// block SEATED on the post's cap — the post side names the cap FACE,
-/// the block side is its own origin frame. Returns the assembly, the
+/// instantiated after the post with no offset (so the post is the
+/// root), and the block SEATED on the post's cap — the post side
+/// names the cap FACE, the block side is its own origin frame. Returns the assembly, the
 /// two instances and their parts' bodies, the mate, the store's
 /// options and the post document as stored.
 struct Seat {
@@ -143,15 +144,18 @@ fn seat(label: &str, post_height: f64) -> Seat {
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, post_i) = insert(doc, Node::instantiate_part(post_ref));
-    let (doc, block_i) = insert(doc, Node::instantiate_part(block_ref));
+    // The block carries no offset: the mate door places the FIRST
+    // operand's group on the second's, so with the post first the
+    // block's empty offset keeps the post the root it seats on.
+    let (doc, block_i) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, mate) = step_with(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
                 (post_i, post_body),
                 (block_i, block_body),
                 coincide(from_face(&cap(post_body, CapEnd::End)), identity()),
-            ),
+            )),
         },
         &reach,
     );
@@ -185,9 +189,9 @@ fn cap_pose(post: &ProfileDoc, body: RecipeNodeId, end: CapEnd) -> topo::readbac
 fn resolved(pose: &topo::readback::Pose<f64>) -> Frame {
     let u_ref = pose.u_ref.expect("the carrier fixes a reference");
     let authored = AuthoredFrame {
-        origin: [pose.origin.x, pose.origin.y, pose.origin.z],
-        axis: [pose.axis.x, pose.axis.y, pose.axis.z],
-        reference: [u_ref.x, u_ref.y, u_ref.z],
+        origin: pose.origin.to_array(),
+        axis: pose.axis.to_array(),
+        reference: u_ref.to_array(),
     };
     let fa = authored
         .placement(Tol::witness())
@@ -469,7 +473,7 @@ fn resolve_through_the_solve(
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(part_ref));
-    let (doc, b) = insert(doc, Node::instantiate_part(block_ref));
+    let (doc, b) = insert(doc, fixture::mated_instance(block_ref));
     let node = Node::Mate {
         a: fixture::head(in_part(a, part_body, CapEnd::End)),
         b: fixture::head(in_part(b, block_body, CapEnd::Start)),
@@ -591,7 +595,7 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         "the CHART axis, sense left out"
     );
     let z = |f: &Frame| f.columns[2];
-    assert_eq!(z(&aligned), [pose.axis.x, pose.axis.y, pose.axis.z]);
+    assert_eq!(z(&aligned), pose.axis.to_array());
     let opposed = resolve_through_the_solve(
         "msolve9-a2-sense-opposed",
         part,
@@ -655,8 +659,9 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
     else {
         panic!("expected FaceUnresolved, got {fault:?}");
     };
-    let FaceRefusal::Readback {
-        error: topo::readback::ReadbackError::NoCanonicalFrame { carrier },
+    let FaceRefusal::Reach {
+        refusal:
+            FacePoseRefusal::Readback(topo::readback::ReadbackError::NoCanonicalFrame { carrier }),
         face,
         ..
     } = refusal.as_ref()
@@ -713,7 +718,11 @@ fn a_tied_face_refuses_ambiguous_at_the_door() {
     assert!(
         matches!(
             refusal.as_ref(),
-            FaceRefusal::Ambiguous { face, candidates: 2, .. } if **face == tied
+            FaceRefusal::Reach {
+                face,
+                refusal: FacePoseRefusal::Ambiguous { candidates: 2 },
+                ..
+            } if **face == tied
         ),
         "{refusal:?}"
     );
@@ -755,8 +764,12 @@ fn a_face_frame_under_a_dual_evaluation_refuses_unpinned() {
     assert!(
         matches!(
             refusal.as_ref(),
-            FaceRefusal::Unpinned { instance, face, .. }
-                if *instance == s.post_i && **face == cap(s.post_body, CapEnd::End)
+            FaceRefusal::Reach {
+                instance,
+                face,
+                refusal: FacePoseRefusal::Unpinned,
+                ..
+            } if *instance == s.post_i && **face == cap(s.post_body, CapEnd::End)
         ),
         "{refusal:?}"
     );
@@ -776,7 +789,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let reach = mate_reach::<f64>(&s.opts, Tol::witness());
     let bogus = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(99),
+        node: RecipeNodeId(tagged(99)),
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let (named, fault) = at_the_door(
@@ -797,10 +810,11 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     else {
         panic!("expected FaceUnresolved, got {fault:?}");
     };
-    let FaceRefusal::NoSuchName {
+    let FaceRefusal::Reach {
         instance,
         part,
         face,
+        refusal: FacePoseRefusal::NoSuchName,
     } = refusal.as_ref()
     else {
         panic!("expected NoSuchName, got {refusal:?}");
@@ -823,13 +837,12 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     // post's: the entry carries the rows that door minted, which is
     // what replay re-applies.
     let logged = DocEdit::InsertNode {
-        node: s.doc.node(s.mate).expect("the mate").clone(),
+        node: Box::new(s.doc.node(s.mate).expect("the mate").clone()),
     };
     let (unmated, _) = step_with(s.doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
-    let recorded = unmated
+    unmated
         .apply(&logged, Tol::witness(), &reach)
-        .expect("admitted while the face exists")
-        .cluster_rows();
+        .expect("admitted while the face exists");
 
     // The face vanishes AFTER insert: the post document becomes a
     // revolved round post under the same id — no extrude, so no
@@ -862,7 +875,14 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
         panic!("expected FaceUnresolved, got {fault:?}");
     };
     assert!(
-        matches!(refusal.as_ref(), FaceRefusal::NoSuchName { instance, .. } if *instance == s.post_i),
+        matches!(
+            refusal.as_ref(),
+            FaceRefusal::Reach {
+                instance,
+                refusal: FacePoseRefusal::NoSuchName,
+                ..
+            } if *instance == s.post_i
+        ),
         "{fault:?}"
     );
     assert!(
@@ -872,13 +892,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
 
     // The load: the logged insert replays with no store and the
     // document loads; what it then evaluates to is the solve's.
-    let log = vec![LoggedEdit {
-        edit: logged,
-        maintenance: recorded,
-    }];
-    // Deleting the mate splits the cluster, and the block's new gauge
-    // needs the prior solved frame — through the store's reach, since
-    // a `FromFace` side is resolved from the part.
+    let log = vec![logged];
     let (snapshot, _) = step_with(doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a FromFace insert replays with no store");
@@ -894,7 +908,10 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
         matches!(
             &replayed_fault,
             MateFault::FaceUnresolved { refusal, .. }
-                if matches!(refusal.as_ref(), FaceRefusal::NoSuchName { .. })
+                if matches!(
+                    refusal.as_ref(),
+                    FaceRefusal::Reach { refusal: FacePoseRefusal::NoSuchName, .. }
+                )
         ),
         "the next solve decides the declined face: {replayed_fault:?}"
     );
@@ -930,11 +947,11 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
             MateFault::FaceUnresolved { side: MateSide::A, refusal, .. }
                 if matches!(
                     refusal.as_ref(),
-                    FaceRefusal::PartUnresolved {
+                    FaceRefusal::Reach {
                         instance,
                         part,
                         face,
-                        fault: PartFault::NoResolver,
+                        refusal: FacePoseRefusal::PartUnresolved { fault: PartFault::NoResolver },
                     } if instance_named.is_none_or(|named| *instance == named)
                         && *part == post_ref
                         && **face == cap(s.post_body, CapEnd::End)
@@ -954,8 +971,12 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
     let text = refusal.to_string();
     assert!(
         text.contains(&cap(s.post_body, CapEnd::End).to_string())
-            && text.contains(&post_ref.to_string()),
-        "the message names the face and the part: {text}"
+            && text.contains(&format!("instance {}'s part", s.post_i)),
+        "the message names the face and the instance whose part it is: {text}"
+    );
+    assert!(
+        !text.contains(&post_ref.id.to_string()),
+        "the part's id rides the payload, not the sentence: {text}"
     );
 }
 
@@ -1016,7 +1037,11 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
     edit_the_post(
         &mut s,
         DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, 5.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, 5.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
         },
     );
     let cap_after = cap_pose(&s.post, s.post_body, CapEnd::End);
@@ -1292,11 +1317,11 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
         .doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
                     (s.post_i, s.post_body),
                     (s.block_i, s.block_body),
                     coincide(from_face(&cap(s.post_body, CapEnd::End)), poisoned),
-                ),
+                )),
             },
             Tol::witness(),
             &RefusingReach,

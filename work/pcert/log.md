@@ -248,3 +248,105 @@ PR 3611's). Annotated on the PR before merging; REACH keeps the debt.
 `D36` resumes now that its gate (3614) has landed.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — D36's review adjudicated
+
+PR 3664 (`D36`) was implemented and reviewed in their own cloud
+sessions so this one stayed responsive. The reviewer posted its report
+as a PR comment, which did not wake this session (a comment from the
+same account reads as this session's own); the check-in caught it.
+
+Verdict mergeable with fixes. One MAJOR, by execution: the sphere polar
+arm's centring gate reads an amplified quantity (`h·sin θ` after an
+axial gate on `ρ·sin θ`), so a near-pole small circle exactly on the
+sphere reads `CarrierOffChart` and the mint refuses a valid body; it
+goes through the incidence test like the meridian arm. Also adjudicated
+in: two uncovered classes missing from the residual row; typed
+chart/carrier/class payloads instead of hand-written strings (the fix
+re-minting the defect it closes); per-class recourses; rows asserting
+the site, not just the variant. The reviewer's instrumented full
+workspace (10494 rows, slow set included) found no committed producer
+leaning on the old swallow for an off-chart carrier.
+
+Filed `site-rows-leaves-an-off-chart-edge-silent` (P0): the Euler
+site mint clears an off-chart edge's face, so the op and tier 3 stay
+silent where the mint refuses. Its fix depends on PR 3617's ruling.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — Ev's first ruling on PR 3617
+
+Ev, on PR 3617: *"i do think that wiring those up, rather than
+explicitly permitting them to be missing, makes sense"* — answering the
+orchestrator's choice between a coverage-status channel for uncovered
+faces and wiring their routes. Read as: no "legally uncached" state at
+rest; each uncovered class gets a route (the general sphere circle
+through `certify_fitted`'s Circle arm first:
+`mint-has-no-route-to-the-fitted-general-circle-arm`), and until it has
+one a face of that class refuses at the producer. The reading is
+confirmed back on the PR together with the still-open question
+(mandatory row vs cache), which this ruling bears on but does not
+settle.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — D36 merged
+
+PR 3664 merged (`97a207f`) after a full review and a delta review, both
+in their own cloud sessions, and two fix passes. One live wrong answer
+closed (an edge not on its face no longer passes the mint), and two
+were found and closed in review that the split itself would have
+introduced (on-chart circles near a sphere's pole and on a wide cone
+called off-chart). Filed by the lane on other slates: chart's
+`plane-chart-polygon-erases-the-chart-pcurve-refusal` and
+`chart-region-arm-unbounded-names-its-chart-by-string`, export's
+`step-export-carrier-kind-duplicates-curve-kind`, and in `work/issues/`
+`chart-image-unavailable-folds-uncovered-and-off-chart` and
+`uncovered-chart-classes-have-no-incidence-test`.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — Ev's second ruling on PR 3617
+
+Ev, on PR 3617: *"i don't see the benefit to them not being mandatory
+after everything wires them up? how would an object that's missing them
+come to exist?"* The orchestrator agreed: once every class is wired,
+only a producer's omission (`extrude`) or an un-minted assembly of
+Euler operations leaves a body rowless, and a tier-3 finding is the
+right answer to both; the cache answer's one payoff (simpler Euler
+doors) is had under "doors may drop, producers mint". C4 on PR 3617
+now states mandatory rows; that PR merges on Ev's confirmation of the
+text. Neither designer's first recommendation (both leaned cache).
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — the general-circle route dispatched
+
+`mint-has-no-route-to-the-fitted-general-circle-arm` dispatched on Ev's
+first ruling on PR 3617 (wire the uncovered classes rather than permit
+them uncached), which does not wait on the C4 wording: route
+`SphereGeneralCircle` into `certify_fitted`'s Circle arm and retire that
+class's mint exemption in the same PR. Run in its own cloud session.
+Review tier: single FULL — a new certified route through branch
+pinning, believed by building, not reading.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — PR 3617 merged; the at-rest unit dispatched
+
+Ev confirmed C4 by a 👍 on the orchestrator's "what I'll write, unless
+you object" comment (reactions wake nothing, so it sat unseen until Ev
+pointed it out). PR 3617 merged (`a4ab8d4`) with the fork-log row's
+second half: Ev's decision, matching neither first recommendation.
+
+Dispatched as ONE unit under `S331` (branch `pcert/at-rest-rows-mandatory`):
+`S331`, `validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`,
+`validate-pcurves-never-recertifies-a-face-it-finds-incomplete`,
+`site-rows-leaves-an-off-chart-edge-silent`, and
+`extrude-mints-no-pcurve-rows`, claimed from CARVE by `git mv` because
+mandatory rows make a non-minting producer a tier-3 red: the unit
+cannot land without it. Review tier: DUAL — the change redefines what
+tier 3 accepts for every curved body in the kernel, broad and hard to
+reverse.
+
+Signed (PCERT orchestrator).

@@ -217,6 +217,7 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
     match verdict(&body, rim) {
         Err(BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: sweep::blend::BlendDecision::SupportCoaxiality,
             source,
         }) => {
             assert_eq!(source.predicate, Some("fillet3_support_coaxiality"));
@@ -257,19 +258,22 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
 /// N-arc rims carve at their closed forms in `closed_chain_junctions`.
 #[test]
 fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
-    // `topo::query::rim_of` refuses the re-keyed body (`NotOneRim`:
-    // the arcs' descriptions name the old cap key), so the arcs are
-    // gathered by their carriers.
+    // The raised rim, named by its first arc and handed back whole by
+    // the rim door.
     let raised_arcs = |body: &Body<f64>| -> Vec<EdgeKey> {
-        body.edges()
-            .filter_map(|(k, e)| {
-                let c = body.get_curve_geom(e.curve)?.certified()?;
-                match c.carrier() {
-                    geom::Curve3::Circle { center, .. } if center.z > 0.5 => Some(k),
-                    _ => None,
-                }
+        let seed = body
+            .edges()
+            .find(|(_, e)| {
+                matches!(
+                    body.get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .map(|c| c.carrier()),
+                    Some(geom::Curve3::Circle { center, .. }) if center.z > 0.5
+                )
             })
-            .collect()
+            .expect("a raised arc")
+            .0;
+        topo::query::rim_of(body, seed).unwrap_or_else(|e| panic!("the raised rim, got {e}"))
     };
     let whole = |body: &Body<f64>, arcs: Vec<EdgeKey>| -> Result<(), BlendError> {
         run_battery(
@@ -464,7 +468,7 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
     whole(0.0).expect("the exactly coaxial rim resolves");
     let escalated = whole(in_band()).unwrap_err();
     assert!(
-        matches!(&escalated, BlendError::Escalated { site: BlendSite::Chain, source }
+        matches!(&escalated, BlendError::Escalated { site: BlendSite::Chain, decision: sweep::blend::BlendDecision::SupportCoaxiality, source }
             if source.predicate == Some("fillet3_support_coaxiality")),
         "{escalated:?}"
     );

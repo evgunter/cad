@@ -14,7 +14,7 @@ use geom_core::Tol;
 // v4: `Doc<P>` requires `P: ProfilePayload` (defaults = the retired
 // opaque behavior), which a foreign `&str` cannot implement here — a
 // transparent local newtype carries the same test payloads.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 struct Fake(&'static str);
 impl editor_core::ProfilePayload for Fake {}
 type Doc = editor_core::Doc<Fake>;
@@ -23,9 +23,9 @@ type Edit = DocEdit<Fake>;
 /// Insert a datum point whose x-component is `x` (bit-exact carrier).
 fn point_edit(x: Expr) -> Edit {
     DocEdit::InsertNode {
-        node: editor_core::Node::Datum(editor_core::Datum::Point {
+        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [x, len(0.0), len(0.0)],
-        }),
+        })),
     }
 }
 
@@ -109,12 +109,7 @@ fn r1_replay_bit_identity_adversarial() {
         .unwrap()
         .doc;
     log.push(e);
-    let replayed = Doc::replay(
-        doc.id(),
-        &editor_core::LoggedEdit::bare_all(&log),
-        Tol::witness(),
-    )
-    .unwrap();
+    let replayed = Doc::replay(doc.id(), &log.to_vec(), Tol::witness()).unwrap();
     assert_bit_identical(&replayed, &doc);
     // The crate's own bit-semantic comparator agrees (fix pass).
     assert!(replayed.bit_eq(&doc), "Doc::bit_eq on replay");
@@ -132,9 +127,15 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[point_edit(len(0.0))],
     );
+    // The signed zero written by a value edit, so the point keeps its
+    // id (an insert of -0.0 mints another id: the mint reads bits).
     let (neg, _) = apply_all(
-        Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[point_edit(len(-0.0))],
+        pos.clone(),
+        &[DocEdit::SetParam {
+            node: pos.order()[0],
+            slot: SlotId::Origin(editor_core::Axis3::X),
+            expr: len(-0.0),
+        }],
     );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
@@ -328,9 +329,9 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
     // Slot: x = 1.0 + 2.0; path [1] refers to the literal 2.0.
     let e0 = Expr::add(len(1.0), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
-        node: editor_core::Node::Datum(editor_core::Datum::Point {
+        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
-        }),
+        })),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&ins, Tol::witness(), &editor_core::RefusingReach)
@@ -392,9 +393,9 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
     let marker = f64::from_bits(0x3FF00000000000AB); // recognizable bits
     let e0 = Expr::add(len(marker), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
-        node: editor_core::Node::Datum(editor_core::Datum::Point {
+        node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
-        }),
+        })),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&ins, Tol::witness(), &editor_core::RefusingReach)
@@ -464,7 +465,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     );
     let target = ids[0];
     let declare = |node| Edit::InsertNode {
-        node: Node::declare_rest(vec![(
+        node: Box::new(Node::declare_rest(vec![(
             SitedRef::at_mint(StableName {
                 kind: EntityKind::Face,
                 node,
@@ -475,7 +476,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
                 node,
                 path: vec![],
             }),
-        )]),
+        )])),
     };
     let a = doc
         .apply(
@@ -510,17 +511,17 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     );
     match res {
         Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.node, phantom, "refusal names the typo'd id");
+            assert_eq!(name.name().node, phantom, "refusal names the typo'd id");
         }
         other => panic!("phantom StableName.node must be refused, got {other:?}"),
     }
     // Contrast: a DAG-edge ref to the same phantom is refused.
     let res2 = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
         &Edit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: phantom,
                 distance: len(1.0),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -540,16 +541,16 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     let (doc, ids) = apply_all(
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[Edit::InsertNode {
-            node: Node::Profile(Fake("p")),
+            node: Box::new(Node::Profile(Fake("p"))),
         }],
     );
     let a = doc
         .apply(
             &Edit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: ids[0],
                     distance: len(1.0),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -572,12 +573,12 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         .unwrap();
     let res = doc.apply(
         &Edit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: editor_core::BooleanOp::Union,
                 a: extrude,
                 b: next_would_be,
                 declare: None,
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -855,14 +856,14 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .doc;
     let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
     let pattern = |count: Expr| Edit::InsertNode {
-        node: Node::Pattern {
+        node: Box::new(Node::Pattern {
             input: ids[0],
             count,
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(0.005),
             },
-        },
+        }),
     };
     // Count slot referencing the Count doc param: accepted.
     let a = doc
@@ -923,7 +924,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .doc
         .apply(
             &Edit::InsertNode {
-                node: Node::declare_rest(vec![]),
+                node: Box::new(Node::declare_rest(vec![])),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

@@ -45,7 +45,10 @@ use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
 use super::build::fan_at;
-use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
+use super::{
+    BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
+};
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
 /// same question as "which [`MarginDiag`] arm does its classifier
@@ -139,13 +142,13 @@ pub(crate) fn measured<T: Bounds>(value: T) -> MarginDiag {
 /// poison instead of deciding it), and a payload that cannot be
 /// printed is worse than one that prints an impossibility.
 pub(crate) fn classified<T: Bounds>(
-    predicate: &'static str,
+    decision: BlendDecision,
     margin: T,
     band: Band,
     sign: Sign,
 ) -> ClassifiedMargin {
     ClassifiedMargin {
-        predicate,
+        predicate: decision.predicate(),
         reading: measured(margin),
         band,
         sign,
@@ -432,10 +435,22 @@ pub struct BatteryVerdict<T: Real> {
     pub transverse_caps: Vec<VertexKey>,
 }
 
-/// Escalate at a site (the shared shape, so the two-tolerance text
-/// can never drift between predicates).
-fn esc(site: BlendSite, source: Indeterminate) -> BlendError {
-    BlendError::Escalated { site, source }
+/// A junction arm `fillet3_chain_arm` decided non-positive: an angle at
+/// so short an arm is not a question, so it refuses at `site` as that
+/// decision, carrying the arm it read — the band-decided sibling of an
+/// in-band arm, with the same ending (D4 ¶1 (iv)).
+fn short_arm<T: Bounds>(site: BlendSite, arm: T, band: Band) -> BlendError {
+    let decision = BlendDecision::ChainArm;
+    BlendError::Escalated {
+        site,
+        decision,
+        source: Indeterminate {
+            margin: measured(arm),
+            band,
+            predicate: Some(decision.predicate()),
+            terminal_sliver: false,
+        },
+    }
 }
 
 /// A face's outward normal at `p`: the implicit gradient folded
@@ -553,13 +568,16 @@ pub fn radius_headroom<T: Decide + Bounds>(
     // `(1 − r/arm)·r`, written so a plane's unbounded arm saturates
     // at `r` rather than dividing by an infinity.
     let margin = radius - radius.powi(2) / arm;
-    match decide("fillet3_radius_headroom", Margin::of(margin), band)
-        .map_err(|e| esc(BlendSite::Chain, e))?
-    {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::RadiusHeadroom,
+        Margin::of(margin),
+        band,
+    )? {
         Sign::Positive => Ok(()),
         sign => Err(BlendError::RadiusHeadroom {
             face,
-            margin: classified("fillet3_radius_headroom", margin, band, sign),
+            margin: classified(BlendDecision::RadiusHeadroom, margin, band, sign),
             radius: radius.lo(),
         }),
     }
@@ -596,12 +614,15 @@ pub fn spine_regularity<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let margin = radius - radius.powi(2) * spine_curvature;
-    match decide("fillet3_spine_regularity", Margin::of(margin), band)
-        .map_err(|e| esc(BlendSite::Chain, e))?
-    {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::SpineRegularity,
+        Margin::of(margin),
+        band,
+    )? {
         Sign::Positive => Ok(()),
         sign => Err(BlendError::SpineIrregular {
-            margin: classified("fillet3_spine_regularity", margin, band, sign),
+            margin: classified(BlendDecision::SpineRegularity, margin, band, sign),
             radius: radius.lo(),
         }),
     }
@@ -630,9 +651,10 @@ pub fn spine_regularity<T: Decide + Bounds>(
 /// on a flip rather than blending each run silently.
 ///
 /// The fold is gated by `fillet3_chain_arm` exactly as the chain-G1
-/// margin is: an angle at a collapsed arm is not a question, so a
-/// non-positive arm escalates `Invalid` rather than classifying —
-/// the same predicate at the LINK site instead of the joint.
+/// margin is: an angle at an arm not definitely positive is not a
+/// question, so such an arm refuses as that gate, carrying the arm it
+/// read (`short_arm`), rather than classifying — the same predicate at
+/// the LINK site instead of the joint.
 ///
 /// # Errors
 ///
@@ -647,23 +669,15 @@ pub fn convexity_at<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(Convexity, ClassifiedMargin), BlendError> {
     let site = BlendSite::Link { edge };
-    match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
+    match classify(site, BlendDecision::ChainArm, Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(esc(
-                site,
-                Indeterminate {
-                    margin: MarginDiag::INVALID,
-                    band,
-                    predicate: Some("fillet3_chain_arm"),
-                    terminal_sliver: false,
-                },
-            ));
+            return Err(short_arm(site, arm, band));
         }
     }
     let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
-    let sign = decide("fillet3_convexity_sign", margin, band).map_err(|e| esc(site, e))?;
-    let reading = |s| classified("fillet3_convexity_sign", margin.value(), band, s);
+    let sign = classify(site, BlendDecision::ConvexitySign, margin, band)?;
+    let reading = |s| classified(BlendDecision::ConvexitySign, margin.value(), band, s);
     match sign {
         Sign::Positive => Ok((Convexity::Convex, reading(Sign::Positive))),
         Sign::Negative => Ok((Convexity::Concave, reading(Sign::Negative))),
@@ -693,9 +707,9 @@ pub fn convexity_at<T: Decide + Bounds>(
 /// classifier uses one dimension up, with `θ` the angle between the
 /// two carriers' unit tangents at the junction and `arm` the smaller
 /// of the two links' extents. It is gated by `fillet3_chain_arm`
-/// exactly as the dihedral is: an angle at a collapsed arm is not a
-/// question, so a non-positive arm escalates `Invalid` rather than
-/// classifying.
+/// exactly as the dihedral is: an angle at an arm not definitely
+/// positive is not a question, so such an arm refuses as that gate,
+/// carrying the arm it read (`short_arm`), rather than classifying.
 ///
 /// A closed chain must be G1 at EVERY junction (including the
 /// wrap-around) for a constant-radius spine to exist through it;
@@ -712,23 +726,15 @@ pub fn chain_g1<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let site = BlendSite::Joint { vertex };
-    match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
+    match classify(site, BlendDecision::ChainArm, Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(esc(
-                site,
-                Indeterminate {
-                    margin: MarginDiag::INVALID,
-                    band,
-                    predicate: Some("fillet3_chain_arm"),
-                    terminal_sliver: false,
-                },
-            ));
+            return Err(short_arm(site, arm, band));
         }
     }
     let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
     let margin = Margin::levered(sin_theta, arm);
-    match decide("fillet3_chain_g1", margin, band).map_err(|e| esc(site, e))? {
+    match classify(site, BlendDecision::ChainG1, margin, band)? {
         // A POSITIVE margin is the failure here (a corner), and a
         // ZERO one the success (tangent continuity) — the inverted
         // polarity of a coincidence predicate, stated so no reader
@@ -736,7 +742,7 @@ pub fn chain_g1<T: Decide + Bounds>(
         Sign::Zero => Ok(()),
         sign => Err(BlendError::ChainNotG1 {
             vertex,
-            margin: classified("fillet3_chain_g1", margin.value(), band, sign),
+            margin: classified(BlendDecision::ChainG1, margin.value(), band, sign),
             arm: measured(arm),
         }),
     }
@@ -803,10 +809,14 @@ pub fn corner_config<T: Decide + Bounds>(
     }
     let det = normals[0].dot(normals[1].cross(normals[2]));
     let margin = Margin::levered(det.abs(), radius);
-    match decide("fillet3_corner_independence", margin, band) {
-        Ok(Sign::Positive) => Ok(()),
-        Ok(_) => Err(refuse(CornerConfig::DependentNormals)),
-        Err(source) => Err(esc(BlendSite::Joint { vertex }, source)),
+    match classify(
+        BlendSite::Joint { vertex },
+        BlendDecision::CornerIndependence,
+        margin,
+        band,
+    )? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(refuse(CornerConfig::DependentNormals)),
     }
 }
 
@@ -874,13 +884,16 @@ pub fn face_clearance<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let margin = gap - setback_here - setback_there;
-    match decide("fillet3_face_clearance", Margin::of(margin), band)
-        .map_err(|e| esc(BlendSite::Chain, e))?
-    {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::FaceClearance,
+        Margin::of(margin),
+        band,
+    )? {
         Sign::Positive => Ok(()),
         sign => Err(BlendError::FaceClearanceUncertified {
             face,
-            margin: classified("fillet3_face_clearance", margin, band, sign),
+            margin: classified(BlendDecision::FaceClearance, margin, band, sign),
             gap: measured(gap),
             cross_chain,
         }),
@@ -1008,9 +1021,12 @@ fn support_coaxiality<T: Decide + Bounds>(
     band: Band,
     supports: &'static str,
 ) -> Result<(), BlendError> {
-    match decide("fillet3_support_coaxiality", Margin::of(departure), band)
-        .map_err(|e| esc(BlendSite::Chain, e))?
-    {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::SupportCoaxiality,
+        Margin::of(departure),
+        band,
+    )? {
         Sign::Zero => Ok(()),
         _ => Err(BlendError::SpineUnsupported { edge, supports }),
     }
@@ -1742,9 +1758,12 @@ pub fn cap_transverse<T: Decide + Bounds>(
         cap_normal.normalize().cross(ruling.normalize()).norm(),
         lever,
     );
-    match decide("fillet3_cap_transverse", margin, band)
-        .map_err(|e| esc(BlendSite::Joint { vertex }, e))?
-    {
+    match classify(
+        BlendSite::Joint { vertex },
+        BlendDecision::CapTransverse,
+        margin,
+        band,
+    )? {
         Sign::Zero => Ok(()),
         _ => Err(super::surgery::unbuilt_run_out(
             EntityId::Vertex(vertex),
@@ -1835,7 +1854,16 @@ fn corner_at<T: Decide + Bounds>(
     // In key order, so the supports below are gathered — and their
     // normals reach the independence determinant — in an order that
     // does not depend on where the vertex's orbit starts.
-    let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(indeterminate)?;
+    // An unresolved key at the corner is a body that does not hold
+    // together there, not a configuration: every such arm below
+    // refuses as `BodyNotIntact`.
+    let not_intact = |at: EntityId, detail: &'static str| BlendError::BodyNotIntact { at, detail };
+    let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(|| {
+        not_intact(
+            EntityId::Vertex(vertex),
+            "a chain end's edge fan, for its corner configuration",
+        )
+    })?;
     edges.sort_unstable();
     let valence = edges.len();
     // A chart seam crossing a smooth rim is NOT a corner, so it is
@@ -1853,9 +1881,14 @@ fn corner_at<T: Decide + Bounds>(
     // any neighbour is resolved as a link — the cap's rim edges are
     // not blended and need no arm.
     if link.arm.is_ruled() && valence == 3 {
+        // `None` only at a non-manifold vertex or a stale key
+        // (`cap_incidence`).
         let Some((_, _, cap)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
         else {
-            return Err(indeterminate());
+            return Err(not_intact(
+                EntityId::Vertex(vertex),
+                "a ruled link's end, whose three faces do not meet as a cap",
+            ));
         };
         let Some(Surface::Plane { normal, .. }) =
             body.get_face(cap).and_then(|f| body.get_surface(f.surface))
@@ -1930,23 +1963,84 @@ fn corner_at<T: Decide + Bounds>(
         .get_vertex(vertex)
         .and_then(|v| body.get_point(v.point))
     else {
-        return Err(indeterminate());
+        return Err(not_intact(
+            EntityId::Vertex(vertex),
+            "a chain end's vertex point, for its support normals",
+        ));
     };
     if faces.len() != 3 {
         return corner_config(vertex, faces.len(), convex, normals, radius, band).map(|()| None);
     }
     for (i, f) in faces.iter().enumerate() {
-        // A support whose outward normal does not resolve leaves a
-        // ZERO normal, which drives the independence determinant to
-        // zero and lands on `DependentNormals` — a refusal, never a
-        // pass. Documented rather than silent (fix pass F6).
-        normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
+        normals[i] = outward(body, *f, *p).ok_or_else(|| {
+            not_intact(
+                EntityId::Face(*f),
+                "a corner's support face or its stored surface, for its outward normal",
+            )
+        })?;
     }
     corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)
 }
 
+/// **What a junction of an open chain is**, read once for every reader:
+/// the open-chain door (`admit::Joint::admit`) refuses each non-joint
+/// arm by name, and predicate 2 groups exactly the [`JointVerdict::Joint`]
+/// junctions into one feature — so the two cannot disagree on which
+/// junctions are joints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum JointVerdict {
+    /// Both links plane–plane, on the same two support faces, at a
+    /// valence-2 vertex: one band the vertex only splits.
+    Joint,
+    /// A link's supports are not two planes.
+    NotPlanar,
+    /// The links lie on different support faces.
+    OtherFaces,
+    /// The vertex carries edges other than the two links.
+    Valence(usize),
+    /// The vertex's edge orbit does not walk.
+    OrbitBroken,
+}
+
+/// Judge the junction at `vertex` between `arriving` and `leaving`.
+pub(super) fn joint_verdict<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    arriving: &Link<T>,
+    leaving: &Link<T>,
+) -> JointVerdict {
+    if !(arriving.arm.is_plane_plane() && leaving.arm.is_plane_plane()) {
+        return JointVerdict::NotPlanar;
+    }
+    let mut pa = [arriving.face_a, arriving.face_b];
+    let mut pb = [leaving.face_a, leaving.face_b];
+    pa.sort_unstable();
+    pb.sort_unstable();
+    if pa != pb {
+        return JointVerdict::OtherFaces;
+    }
+    // Two edges between the same two faces close a manifold vertex's
+    // fan, so the valence is two; checked, not inherited.
+    match fan_at(body.edges_of_vertex(vertex)) {
+        None => JointVerdict::OrbitBroken,
+        Some(es) if es.len() != 2 => JointVerdict::Valence(es.len()),
+        Some(_) => JointVerdict::Joint,
+    }
+}
+
 /// Predicate 2's sweep: for each support face, every pair of its
 /// boundary edges, with the blended ones carrying their setbacks.
+///
+/// **A joined run is one feature.** Consecutive links of one chain on
+/// the same two support faces (a joint, `admit::Joint`) are one band
+/// whose setback on each support is ONE trimline, so two links of one
+/// run are never a pair, and the run's adjacency is the run's: an edge
+/// touching either end of the run is its neighbour, as a plain edge's
+/// neighbours are. What a joint itself needs is metered instead: its
+/// foot on each support must lie beyond the trimline of the edge that
+/// meets the run at each end — the corner's own foot is on that
+/// trimline, so a joint short of it would put the band's foot inside
+/// the corner patch.
 fn consumption_sweep<T: Decide + Bounds>(
     body: &Body<T>,
     chains: &[Chain<T>],
@@ -1980,6 +2074,52 @@ fn consumption_sweep<T: Decide + Bounds>(
     let chain_ix = |e: EdgeKey| -> Option<usize> {
         chain_of.iter().find(|(ee, _)| *ee == e).map(|(_, ci)| *ci)
     };
+    // The joined runs: each requested edge's run id, a junction of an
+    // open chain whose two links share both support faces joining the
+    // leaving link's run to the arriving one's.
+    let mut run_of: Vec<(EdgeKey, usize)> = Vec::new();
+    // Per joint: (vertex, the arriving link) — what its feet are read
+    // off.
+    let mut joints: Vec<(VertexKey, &Link<T>)> = Vec::new();
+    for chain in chains {
+        let ring: Vec<&Link<T>> = chain.links().collect();
+        let mut ids: Vec<usize> = (0..ring.len()).map(|i| run_of.len() + i).collect();
+        // Joints are an OPEN chain's: a closed rim is carved by the rim
+        // phases, whose arcs this screen meters edge by edge.
+        let open = matches!(chain.closure, ChainClosure::Open { .. });
+        for j in chain.junctions.iter().filter(|_| open) {
+            let (a, b) = (ring[j.arriving], ring[j.leaving]);
+            if joint_verdict(body, j.vertex, a, b) == JointVerdict::Joint {
+                let (from, to) = (ids[j.leaving], ids[j.arriving]);
+                for id in &mut ids {
+                    if *id == from {
+                        *id = to;
+                    }
+                }
+                joints.push((j.vertex, a));
+            }
+        }
+        for (i, l) in ring.iter().enumerate() {
+            run_of.push((l.edge, ids[i]));
+        }
+    }
+    let run =
+        |e: EdgeKey| -> Option<usize> { run_of.iter().find(|(ee, _)| *ee == e).map(|(_, r)| *r) };
+    let members = |e: EdgeKey| -> Vec<EdgeKey> {
+        match run(e) {
+            Some(r) => run_of
+                .iter()
+                .filter(|(_, rr)| *rr == r)
+                .map(|(ee, _)| *ee)
+                .collect(),
+            None => vec![e],
+        }
+    };
+    let touches = |a: EdgeKey, b: EdgeKey| -> bool {
+        let (ma, mb) = (members(a), members(b));
+        ma.iter()
+            .any(|x| mb.iter().any(|y| shares_vertex(body, *x, *y)))
+    };
     for face in faces {
         let Some(fa) = body.get_face(face) else {
             continue;
@@ -2012,11 +2152,15 @@ fn consumption_sweep<T: Decide + Bounds>(
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].1);
                 let (ej, pj) = (&boundary[j].0, &boundary[j].1);
-                // Adjacent boundary edges TOUCH (gap 0 at the shared
+                // Adjacent boundary features TOUCH (gap 0 at the shared
                 // vertex) — their setbacks are judged by the corner
                 // and G1 predicates, not by this one, so the pair is
-                // skipped exactly when the edges share a vertex.
-                if shares_vertex(body, *ei, *ej) {
+                // skipped exactly when the features share a vertex. Two
+                // links of one joined run are one feature, and skipped.
+                if run(*ei).is_some() && run(*ei) == run(*ej) {
+                    continue;
+                }
+                if touches(*ei, *ej) {
                     continue;
                 }
                 // The closest approach of the two sampled boundaries.
@@ -2049,6 +2193,57 @@ fn consumption_sweep<T: Decide + Bounds>(
                     cross_chain,
                     band,
                 )?;
+            }
+        }
+        // Each joint on this face: its foot against the trimline of
+        // every boundary edge that meets its run at an end.
+        for (v, link) in &joints {
+            let trim = if link.face_a == face {
+                &link.blend.trim_a.0
+            } else if link.face_b == face {
+                &link.blend.trim_b.0
+            } else {
+                continue;
+            };
+            // A joint is plane–plane by its verdict, and
+            // `arms::plane_plane_blend` mints its trimlines as lines.
+            let Curve3::Line { origin, dir } = trim else {
+                return Err(BlendError::SurgeryInvariant {
+                    at: EntityId::Edge(link.edge),
+                    detail: "a plane–plane joint's trimline is not a line",
+                });
+            };
+            let p = body
+                .get_vertex(*v)
+                .and_then(|x| body.get_point(x.point))
+                .ok_or_else(|| not_intact(EntityId::Vertex(*v), "a joint's stored point"))?;
+            let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
+            let run_edges = members(link.edge);
+            for (e, _) in &boundary {
+                if run_edges.contains(e) || !run_edges.iter().any(|m| shares_vertex(body, *m, *e)) {
+                    continue;
+                }
+                // The run ends at a corner on this PLANE support, so the
+                // end edge is straight unless the corner's third support
+                // is curved — which no corner carves, and which refuses
+                // here as that rather than being sampled.
+                let (o, d) = match carrier_of(body, *e) {
+                    Some((Curve3::Line { origin, dir }, _, _)) => (origin, dir),
+                    Some(_) => {
+                        return Err(unbuilt_geometry(
+                            EntityId::Edge(*e),
+                            CORNER_SUPPORT_NOT_PLANAR,
+                        ));
+                    }
+                    None => {
+                        return Err(not_intact(
+                            EntityId::Edge(*e),
+                            "a joined run's end edge carrier",
+                        ));
+                    }
+                };
+                let gap = (foot - o).cross(d).norm() / d.norm();
+                face_clearance(face, gap, T::zero(), look(*e, face), false, band)?;
             }
         }
     }

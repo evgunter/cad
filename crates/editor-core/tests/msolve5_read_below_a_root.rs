@@ -227,7 +227,12 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
 
 /// Insert `mate` and answer its id.
 fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(doc, DocEdit::InsertNode { node: mate });
+    let (doc, id) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(mate),
+        },
+    );
     (doc, id.expect("the mate mints"))
 }
 
@@ -522,10 +527,14 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     assert!(
         matches!(
             &fault,
-            MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved { instance, .. },
-                ..
-            } if *instance == top
+            MateFault::Unleverable { refusal, .. } if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    instance,
+                    refusal: editor_core::ReachRefusal::PartUnresolved { .. },
+                    ..
+                } if *instance == top
+            )
         ),
         "{fault:?}"
     );
