@@ -358,3 +358,75 @@ side verdict that changes which curved refusals become bodies.
 The dual-review row (DR-35) rides this PR's last commit.
 — (REACH orchestrator)
 - 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+
+## 2026-10-02 — the extent scan reads faces (PR 3801)
+
+The first unit of REACH's second wave, built by a cloud implementer
+session, dual-reviewed by two local reviewers, then delta-reviewed by a
+cloud reviewer. A ball inside or holding a two-sphere body, a ball inside
+a cylinder and a lens beside a slab build. The extent scan now asks the
+section certificate whether the FACES meet, where it asked whether the
+carriers did.
+
+- **No MAJOR.** One reviewer found the plane arm's permissive direction
+  unguarded: a mutant there shipped wrong bodies and survived every
+  suite. It is now pinned.
+- **Class finding.** A no-crossings verdict decided on the carriers where
+  the faces decide. The sweep found two tangency siblings, filed as one
+  item.
+
+The dual-review row (DR-40) rides this PR's last commit.
+— (REACH orchestrator)
+
+## 2026-10-02 — a shaft in a full-turn bore unions (PR 3814)
+
+Second-wave unit, built by a cloud implementer. It went through a dual
+review by two cloud reviewers (DR-42), then one delta review. The
+orchestrator checked the last fix pass itself.
+
+- **The pair's one MAJOR.** No row observed the new crossing layer:
+  forcing it `Clear` kept every row green. The other reviewer raised the
+  same gap as a MINOR, so it is not a tally candidate. The fix pass
+  pinned the layer with rows red under each mutant.
+- **The causal story was corrected.** What unblocks the fixtures is the
+  declared lane's empty-boundary certificate, and the measured sentence
+  is now at the claim site.
+- **The operand-order dependence is gone.** `shaft ∪ collar` refused
+  `LoopDiscontinuity` until twins were minted on the other solid's
+  carrier.
+- **Fail-loud.** A twin whose carrier the lane cannot mint now refuses
+  typed instead of keeping the straight chord.
+
+Merging main met TANG's #3823 in `rest.rs`, where seam segments now
+carry their matched arcs. The resolution keeps both: a segment's
+matched arc first, then the fan walk, then a chord minted on the other
+solid's edge.
+
+The dual-review row (DR-42) rides this PR's last commit.
+— (REACH orchestrator)
+
+## 2026-10-02 — the aligned half-rod stack's rows (PR 3845)
+
+A wave-three cloud implementer patched the REST zip in place: an
+arc-measured pass for the germs the chord pass leaves, and an
+incidence choice between parallel seam edges. That builds the aligned
+stack and the dumbbell's cylinder control. Its sequencing question
+(interim ahead of JOIN-2, or park on it) was answered "interim". JOIN
+was given a note on PR 3790 and did not object.
+
+TANG's PR 3823 landed during the dual review (DR-43). Its arc-first
+REST matching builds the same poses, and its state sync closed the
+item. So the PR was cut to what still stands:
+- the item's rows (union at four seam turns, a third rod, undeclared
+  refusals, and the ∩/∖ refusals shared with the rounded stack);
+- the join ranking item;
+- evidence on the rounded-stack item.
+
+The pair's one MAJOR (a germ's sense read in another germ's frame,
+giving a false `JoinDesync`) dedups with the other reviewer's MINOR on
+the same missing same-locus check, so it is not a candidate. It lay in
+the code TANG's change superseded.
+
+The dual-review row (DR-43) rides this PR's last commit.
+— (REACH orchestrator)
+
