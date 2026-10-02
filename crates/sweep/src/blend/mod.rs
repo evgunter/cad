@@ -653,8 +653,10 @@ pub enum CornerConfig {
     DependentNormals,
     /// A vertex where a CHART SEAM crosses an otherwise smooth rim: the
     /// two edges continuing the rim carry the same support pair, and the
-    /// other two are co-surface seam meridians (one surface on both
-    /// sides, so the dihedral there is zero by construction).
+    /// other one or two are co-surface seam meridians of those supports
+    /// (one surface on both sides, so the dihedral there is zero by
+    /// construction) — one where the other support is a whole face
+    /// carrying both arcs, as a full revolve's plane wall is.
     ///
     /// **Not a corner**, and that is the whole content of the tag. The
     /// surface is smooth through the point — the seam is where a chart
@@ -916,9 +918,14 @@ pub const FILLET3_CORNER_INDEPENDENCE_RECOURSE: &str = "tilt the faces meeting a
 /// **A recourse must be true at every site its tag can fire.** This
 /// tag's firing rule ([`battery::is_seam_vertex`](battery)) is purely
 /// INCIDENCE — two rim arcs carrying one support pair, plus two
-/// co-surface seam meridians — and never reads convexity, so it fires
-/// at a concave rim's seam vertex exactly as readily as at a convex
-/// one. The sentence conditions on nothing because the door it names
+/// co-surface seam meridians, or ONE where the other support is a whole
+/// face carrying the rim (a full revolve's plane disc or annulus) and
+/// `rim_of` lists the rim through the vertex, so the recourse's door is
+/// there wherever the tag fires (`run_walls_built`'s
+/// `seam_vertex_fires_only_where_rim_of_lists_the_rim` holds that over
+/// bodies of cocircular arcs and full revolves) — and never reads
+/// convexity, so it fires at a concave rim's seam vertex exactly as
+/// readily as at a convex one. The sentence conditions on nothing because the door it names
 /// serves both sides. Held to it by
 /// `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
 /// which asserts the sentence and the whole-rim CARVE together, convex

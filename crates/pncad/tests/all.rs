@@ -1215,11 +1215,13 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
             "partial"
         }
         RevolvedKind::Full {
+            wire,
             meridians,
             pi_walls,
             pi_meridians,
             pi_rims,
         } => {
+            named::<bool>(*wire);
             named::<&Vec<Vec<Option<EdgeKey>>>>(meridians);
             named::<&Vec<Option<FaceKey>>>(pi_walls);
             named::<&Vec<Option<EdgeKey>>>(pi_meridians);

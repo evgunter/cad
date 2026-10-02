@@ -119,7 +119,7 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
     let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
     match run_checks(doc, &evaluation, &ChecksConfig::default(), tol) {
-        Err(error) => format!(" — the check registry refused: {error}"),
+        Err(error) => format!(" — the check registry refused: {}", error.spoken(doc)),
         Ok(report) if report.findings.is_empty() => String::new(),
         Ok(report) => {
             let separation = report
@@ -247,7 +247,13 @@ mod tests {
                 shape.why
             );
             let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol)
-                .unwrap_or_else(|error| panic!("{}: the registry refused: {error}", shape.name));
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{}: the registry refused: {}",
+                        shape.name,
+                        error.spoken(&shape.doc)
+                    )
+                });
             let separation = report
                 .findings
                 .iter()

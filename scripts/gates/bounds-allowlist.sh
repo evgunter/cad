@@ -568,12 +568,20 @@ BOUNDS_ALLOWLIST=(
   'crates/sweep/src/blend/open/planar.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
-  'crates/geom-brep/src/pcurve_cache.rs 7 M6-2, the SSI rung-3 certificate'
+  # 7 -> 8: the fitted door gained a fourth body,
+  # `sphere_circle_image_lane` (`Decide + Bounds + CertifiedEnclosure`,
+  # the bound its three siblings carry): a sphere chart's general
+  # circle's image, whose f64 structure (C6) it reads off the data's
+  # bracket midpoints — the reading `rational_arc_chain` did for the
+  # same circles' certificate, which left this file when the Circle
+  # arm's check 4 became closed-form arithmetic at `T`. Same seam,
+  # reached only through `FittedLane::certified`.
+  'crates/geom-brep/src/pcurve_cache.rs 8 M6-2, the SSI rung-3 certificate'
   # The fitted lane's door value, beside the bodies it holds:
   # `FittedLane::certified`'s block (`Decide + CertifiedBounds`) is the
   # certification RIGHT the value stands for, so the type cannot be
   # written at a scalar without it, and no bracket is read here — the
-  # door holds three `pcurve_cache` function pointers and hands its
+  # door holds four `pcurve_cache` function pointers and hands its
   # arguments on. The second is `wiring_rows::
   # holds_the_certified_fitted_lane`, which forms that constructor at
   # each certifying scalar and so restates its bound and nothing wider,

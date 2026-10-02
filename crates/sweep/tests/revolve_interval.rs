@@ -78,7 +78,8 @@ fn interval_cone_builds_tier_valid() {
     )
     .unwrap();
     assert_tiers(&t.body);
-    assert_eq!(t.body.faces().count(), 4);
+    // The cone's two bands and one whole base disc.
+    assert_eq!(t.body.faces().count(), 3);
 }
 
 #[test]

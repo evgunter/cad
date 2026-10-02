@@ -54,3 +54,28 @@ class is a dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## The census on 2026-10-01 (REACH, plane × cone split fix pass)
+
+Re-swept for the string shape `"…nappe…"` passed to `decide`/`classify`
+outside tests. The plane × cone split added two and its fix pass took
+one back out (`props_cone_face_nappe`, folded into `props_cone_nappe`
+when the cone face's flux and area got one home,
+`geom_brep::props::cone_face_closed_form`):
+
+- `geom-brep/src/pcurve_cache.rs` — `pcurve_cone_chart_nappe` (three
+  sites, per point);
+- `geom-brep/src/props/curved.rs` — `props_cone_nappe` (per edge
+  endpoint, in `cone_face_closed_form`);
+- `topo/src/boolean/solid_contain.rs` — `bool_cone_trim_nappe`,
+  `bool_ray_cone_nappe` (and `bool_cone_trim_side`);
+- `topo/src/chord_join.rs` — `split_cone_chord_nappe` (per point, the
+  chord start's side for the arc-side frame) and `bool_cone_apex_nappe`
+  (per vertex, in `cone_apex_closure`);
+- `topo/src/offset_nappe.rs` — `offset_nappe` (per face, the offset
+  lane's home);
+- `topo/src/replace_face.rs` — `offset_apex_nappe`.
+
+Blind spot: a nappe read through a sign of `(p − apex)·axis` that is
+not passed to a named predicate (a bare comparison, or a `copysign`)
+is not matched by this sweep.
