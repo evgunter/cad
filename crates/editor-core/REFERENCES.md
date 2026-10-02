@@ -361,6 +361,13 @@ a hand-written snapshot never passes an edit door. Refusal:
 `EditError::DuplicateInput { node, input }` at the edit doors, the
 validator's own `SnapshotError` arm at load.
 
+Distinctness is over node ids, and only node ids. Two distinct nodes
+that evaluate to one body — two `Part`s selecting one half of a split,
+or `Part(Instance(0))` beside its master — meet DM5, and the boolean
+answers them as it answers any operands whose shells coincide by
+structure or by declaration: `A ∪ A` and `A ∩ A` are `A`, and `A − A`
+is the typed empty result.
+
 *Record: built by DOCM-3 (PR 1803) with DM4.*
 
 ## DM6 — Splice is not added
