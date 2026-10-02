@@ -2,7 +2,8 @@
 id: boolean-door-passes-a-geometrically-open-result-the-backstop-cannot-see
 kind: issue
 title: A boolean result missing a face passes the door: the gate runs tiers 1-2 only, and no volume inequality bounds a short intersection from below
-status: review
+status: closed
+closed: 2026-10-02
 opened: 2026-10-01
 priority: P1
 cost: M
@@ -88,3 +89,17 @@ The backstop half ships:
 
 The 4 short positive ∩ bodies stay out of reach of any inequality over
 the three volumes. They are the tier-3 residue item's.
+
+## Closed (2026-10-02, PR 3844)
+
+The backstop now bounds what the operands can bound:
+- `vol(A ∪ B) ≤ vol(A) + vol(B)`;
+- `vol(A ∖ B) ≥ vol(A) − vol(B)`;
+- the result's +V sign, read through tier 3's own `plus_v_read` against
+  the band with DESIGN's exemption.
+
+The 4 short positive ∩ bodies stay invisible to any volume inequality.
+The remaining half, gating tier 3 at the door, is a design question,
+moved to `boolean-door-tier-3-waits-on-the-description-gap`. Its
+designers found the "description gap" closed long ago; what remains is
+the door contract, which is put to Ev.

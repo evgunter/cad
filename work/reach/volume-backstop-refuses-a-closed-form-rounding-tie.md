@@ -2,7 +2,8 @@
 id: volume-backstop-refuses-a-closed-form-rounding-tie
 kind: issue
 title: The volume backstop refuses ResultVolumeImplausible on a two-ulp tie between closed-form volumes, calling a correct body a kernel defect
-status: review
+status: closed
+closed: 2026-10-02
 opened: 2026-10-01
 priority: P2
 cost: M
@@ -85,3 +86,21 @@ band over the glued face. That source still refuses (the safe
 direction). It is filed with its measurements as
 `a-settled-declared-coincidence-crosses-a-tight-volume-bound`, after a
 volume allowance for it was shown unsound in PR 3844's dual review.
+
+## Closed (2026-10-02, PR 3844)
+
+When the walk's f64 sums call a bound violated, the backstop now
+re-derives both sides in interval arithmetic. Each closed-form face is
+lifted at the interval scalar over its own stored geometry, quadrature
+faces use their returned enclosure, and the fold is done in interval
+arithmetic. A violation the interval margin does not certify goes to
+the open arm. The flush-top 2-ulp tie builds. A non-dyadic prism tie
+and a curved rod tie are pinned, and both go red when the
+re-derivation is skipped or the per-face lift is collapsed.
+
+The declared-pair allowance the PR first added was removed on the dual
+review (DR-46, MAJOR from both reviewers). It was a volume, so it
+forgave a defect of that size anywhere in the body. The
+settled-coincidence residue it was meant for refuses again. That is
+pinned per ε and filed as
+`a-settled-declared-coincidence-crosses-a-tight-volume-bound`.
