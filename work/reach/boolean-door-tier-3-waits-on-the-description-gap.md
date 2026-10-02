@@ -1,12 +1,14 @@
 ---
 id: boolean-door-tier-3-waits-on-the-description-gap
 kind: issue
-title: The boolean door gates tiers 1-2 only: 55 of 687 topo-corpus results it ships fail tier 3, so gating tier 3 there needs the description-gap decision
+title: "The boolean door gates tiers 1-2 only, citing a description gap closed since M3 PR 6a: what a door owes for what it ships and consumes (the finished-body contract)"
 status: open
 opened: 2026-10-02
 priority: P1
 cost: H
 design: true
+needs_ev: true
+branch: reach/ev-door-finished-body
 ---
 
 
@@ -65,3 +67,23 @@ Decide the description gap (designers first,
 or gate the part of it that sees an off-carrier edge (check 3's
 planar vertex residuals and check 5's planar boundary containment).
 With the decision taken, measure again what the corpus ships.
+
+## Designers (2026-10-02)
+
+Two designers weighed this (`docs/DESIGN-FORK-LOG.md`, row 46). Both
+found the description gap closed: M3 PR 6a mints honest seam
+descriptions, and the gate's doc is stale. The open question is the
+door contract.
+
+After two reconciliation rounds, the first of which crossed, they
+recommend one final state:
+- the finished body is a type (`AtRestBody`);
+- every verb door takes it and returns it (tier 3, or tier 3′ with
+  contacts), so each body is gated once, at the door that built it;
+- Euler operators hand back construction state;
+- D1's tier-2 sentence is changed;
+- check 7 takes the backstop's interval re-derivation before or with
+  the gate, and the positivity arm retires after.
+
+Put to Ev on the `[ev]` PR from `reach/ev-door-finished-body`.
+
