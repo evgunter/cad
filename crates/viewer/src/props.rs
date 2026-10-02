@@ -1356,11 +1356,11 @@ impl SlotUnitFault {
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         match self {
             Self::NoExpression { node, slot } => Self::NoExpression {
-                node: doc.spoken(node.id()),
+                node: node.respoken(doc),
                 slot,
             },
             Self::NotALiteral { node, slot } => Self::NotALiteral {
-                node: doc.spoken(node.id()),
+                node: node.respoken(doc),
                 slot,
             },
             unspoken @ Self::Dimension { .. } => unspoken,
