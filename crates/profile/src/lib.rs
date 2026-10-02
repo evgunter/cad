@@ -269,10 +269,10 @@ pub(crate) fn lower_chain<T: Real>(chain: &[(Point2<T>, T)]) -> Vec<(Point2<T>, 
         .collect()
 }
 
-/// **The arc lowering from a chord**: the carrier [`seg::arc_carrier`]
-/// puts on the chord `start → end` for `bulge`, and the sweep
-/// Δθ = 4·atan(b). Pure arithmetic over its inputs, so it is the same
-/// expression at every scalar. A bulge of exactly zero has no carrier
+/// **The arc lowering from a chord**: [`Arc2::from_chord`], the carrier
+/// on the chord `start → end` for `bulge` and the sweep Δθ = 4·atan(b).
+/// Pure arithmetic over its inputs, so it is the same expression at
+/// every scalar. A bulge of exactly zero has no carrier
 /// (its centre is at infinity), and the lowering rule sends it to a
 /// line before it reaches here.
 ///
@@ -289,12 +289,7 @@ pub(crate) fn lower_chain<T: Real>(chain: &[(Point2<T>, T)]) -> Vec<(Point2<T>, 
 /// (crate docs), and `4·atan(b)` is that θ for every finite `b`
 /// (|θ| < 2π).
 pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> Arc2<T> {
-    let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
-    Arc2 {
-        centre: carrier.center,
-        radius: carrier.radius,
-        sweep: T::from_f64(4.0) * bulge.atan(),
-    }
+    Arc2::from_chord(start, end, bulge)
 }
 
 /// What a construction proved about the arc it built, beyond the arc

@@ -33,6 +33,32 @@ pub struct Arc2<T: Real> {
 }
 
 impl<T: Real> Arc2<T> {
+    /// **The arc on the chord `a → b` whose quarter-tangent is `x`**
+    /// (x = tan(Δθ/4), the bulge): the centre at apothem
+    /// `L·(1 − x²)/(4x)` along the chord's unit left normal from its
+    /// midpoint, the radius `|L·(1 + x²)/(4x)|`, and Δθ = `4·atan(x)`.
+    /// The one spelling of the chord lowering, shared by the sketch
+    /// layers; pure arithmetic in a fixed order (D9), so it is the same
+    /// expression at every scalar. Total: `x = 0` puts the centre at
+    /// infinity and a zero chord poisons the normal, for the caller's
+    /// own rule to have kept out.
+    #[must_use]
+    pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T) -> Self {
+        let len = a.distance(b);
+        let unit = (b - a) / len;
+        let mid = a.lerp(b, T::from_f64(0.5));
+        let normal = Vec2::new(-unit.y, unit.x);
+        let x2 = x.powi(2);
+        let four_x = T::from_f64(4.0) * x;
+        let apothem = len * (T::one() - x2) / four_x;
+        let signed_radius = len * (T::one() + x2) / four_x;
+        Self {
+            centre: mid + normal * apothem,
+            radius: signed_radius.abs(),
+            sweep: T::from_f64(4.0) * x.atan(),
+        }
+    }
+
     /// The same arc read at another scalar: `f` applied to the centre's
     /// coordinates, then the radius, then the sweep. A structural map —
     /// no arithmetic, so it is exact whenever `f` is.

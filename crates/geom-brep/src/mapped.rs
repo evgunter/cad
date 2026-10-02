@@ -57,26 +57,27 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Real, Vec3};
 ///
 /// An arc's fields are redundant by design — the endpoints lie on the
 /// carrier, and the sweep turns `a` into `b` about the centre — and
-/// **nothing checks that redundancy at this type's door**. What reads
-/// each field:
+/// nothing re-decides that redundancy at this type's door: every
+/// reader of the locus reads the same fields, so no reader can see a
+/// different circle from the one certification meters.
 ///
 /// - [`SketchSegment::eval`] (and so certification, which meters the
 ///   description against its carrier through it) reads `a`, the centre
-///   and the sweep only, through [`Arc2::point_from`]. It reads neither
-///   `b` nor the radius: the locus it describes is `a` turned about the
-///   centre.
+///   and the sweep only, through [`Arc2::point_from`]: the locus is `a`
+///   turned about the centre.
 /// - [`SketchSegment::restrict`] reads what `eval` reads and carries
 ///   the radius through.
 /// - `sweep::skin::segment_curve`, public through `sweep` and `pncad`,
-///   builds its NURBS from `a`, `b` and every field of the arc, and
-///   trusts the radius. A segment whose radius disagrees with
-///   `|a − centre|` converts to a different circle from the one `eval`
-///   describes, and nothing refuses it.
+///   converts that same locus: its on-arc control points are `eval`'s
+///   own points and its others the spoke `a − centre` turned about the
+///   centre. It reads neither `b` nor the radius.
 ///
-/// A segment the sweep mints from a validated profile carries the
-/// profile's carrier, whose consistency validation owns (the
-/// endpoint-on-carrier check `store-constructed-carriers` adds). A
-/// segment built by hand is only as consistent as its author made it.
+/// The radius is read by the carrier a sweep builds beside the
+/// description, and certification meters the one against the other. A
+/// segment the sweep mints from a validated profile carries the
+/// profile's arc, whose consistency validation holds (checked for a
+/// table, by construction for a constructed loop:
+/// `crates/profile/README.md`, "Where an arc's consistency is decided").
 #[derive(Clone, Copy, Debug)]
 pub enum SketchSegment<T: Real> {
     /// The straight chord from `a` to `b`; `s` sweeps it affinely.
