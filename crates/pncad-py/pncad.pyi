@@ -3659,11 +3659,10 @@ class Doc:
     @property
     def last_maintenance(self) -> list[Maintenance]:
         """The maintenance the LAST accepted edit performed: the offset
-        a mate insert cleared (`offset_cleared`), the names its delete
-        or reshaping stranded, and the declarations its delete left
-        with no consumer — read `variant`, never a position.
-        Empty after an edit that joined no groups, stranded no
-        name and orphaned no declaration, and on a document that has
+        a mate insert cleared (`offset_cleared`) and the names its delete
+        or reshaping stranded — read `variant`, never a position.
+        Empty after an edit that joined no groups and stranded no
+        name, and on a document that has
         applied none; a REFUSED edit leaves it untouched, as it
         leaves the document untouched.
 
