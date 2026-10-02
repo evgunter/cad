@@ -81,7 +81,7 @@ Class findings with no home of their own, recorded here:
   correct the doc in the next SHOW unit that touches `main.rs`.
 - `strut/seed-finder-home-reads-only-the-y-station` cites
   `no-public-rim-arc-selector`, which has no file in `work/`. Pre-existing and
-  STRUT's; it will be noted on STRUT's log when this log next rides a PR.
+  STRUT's; noted on STRUT's log.
 - "Exclude co-surface seams" has three spellings: snowman `waist`, `bodies.rs`
   `bud_rim`, and `rim_select.rs` `Seeds::TwoSided`. The TQUERY issue owns the
   sweep.
