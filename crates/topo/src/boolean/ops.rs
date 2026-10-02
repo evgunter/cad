@@ -2792,10 +2792,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                             what: "extent scan: contfp met corrupt topology",
                                         }
                                     }
-                                    ContainError::ArcLoopUnsupported { r#loop } => {
+                                    ContainError::Uncrossable(cause) => {
                                         BooleanError::ArcLoopContainmentUnsupported {
                                             operand: x_is,
-                                            r#loop,
+                                            cause,
                                         }
                                     }
                                 })? {
