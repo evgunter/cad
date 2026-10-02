@@ -572,17 +572,18 @@ fn torax_the_klein_elbow_hollows_to_the_props_door() {
 }
 
 /// **A two-arc lune's equator seam re-authors, certifies, and the
-/// hollow reaches the plain lune's props door.** The half-disc's arc
+/// hollow measures as the plain lune's does.** The half-disc's arc
 /// is split at the equator, so its vertex revolves into a
 /// `RevolvedPoint`-declared chart seam between two sphere faces, and
 /// the moved meridian caps turn both of its ends off their old sketch
 /// planes about the axis. The rims here are circles (a plane cuts a
 /// sphere in one), so nothing ahead of the seam refuses at the attach
 /// layer: reaching tier 3 is the seam's re-authored declaration
-/// certifying against its moved latitude circle. It stops where the
-/// one-arc lune does (`torax_the_sphere_lune_next_door_is_the_props_inventory`).
+/// certifying against its moved latitude circle. The hollow then
+/// meets the one-arc lune's closed form
+/// (`torax_the_sphere_lune_hollows_to_its_closed_form`).
 #[test]
-fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_reaches_the_props_door() {
+fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows() {
     let r = 0.3_f64;
     let quarter_arc = -(core::f64::consts::PI / 8.0).tan();
     let profile = Profile::new(
@@ -607,26 +608,7 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_reaches_the_props_door()
     .expect("the two-arc lune revolves")
     .body;
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("the cavity's lens face has no volume");
-    println!("[torax] the two-arc lune's next door: {e:?}");
-    let ShellError::NotValid { errors } = e else {
-        panic!("the hollow must reach tier 3, got {e:?}");
-    };
-    assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle {
-                        what: "props_meridian_great"
-                    },
-                    ..
-                },
-                ..
-            }]
-        ),
-        "the cavity's lens face refuses at the meridian-great fit: {errors:?}"
-    );
+    assert_hollow_lune("the two-arc lune", &body, r, 0.05);
 }
 
 /// **The sphere lune's rim SOLVES through the axial door, in closed
@@ -661,21 +643,13 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_reaches_the_props_door()
 /// below is asserted against those closed forms on dyadic-input
 /// arithmetic.
 ///
-/// **Why this row is the DIRECT door and not `shell`.** The whole
-/// hollow pipeline now runs — corners, carriers, parameters, pcurves,
-/// the void door's containment — and `shell`'s LAST act, tier 3's +V
-/// invariant, refuses: the CAVITY's sphere face is bounded by the two
-/// moved caps' plane∩sphere sections, small circles centred off the
-/// sphere centre, which the sphere flux closed form's boundary parse
-/// classifies as meridian carriers and then refuses as not great
-/// (`props_meridian_great`) — the inventory has no lens. (The
-/// OPERAND's own wall, two meridians on two great circles, measures by
-/// the meridian pair.) That standing wall is pinned with its payload by
-/// `torax_the_sphere_lune_next_door_is_the_props_inventory` below; this
-/// row pins what this unit built.
+/// **Why this row is the DIRECT door and not `shell`.** It pins what
+/// the rim construction answers, corner by corner; the hollow's whole
+/// pipeline, through tier 3's +V invariant on the cavity's lens face,
+/// is `torax_the_sphere_lune_hollows_to_its_closed_form` below.
 ///
-/// **The cavity's closed-form volume, derived here for the day the
-/// props inventory reaches it.** The cavity is the ball of radius
+/// **The cavity's closed-form volume** (`lune_cavity_volume`). The
+/// cavity is the ball of radius
 /// `R = r − t` cut by two perpendicular planes each `a = t` from its
 /// centre, on the inner side of both (the wedge's `two_chord_area`
 /// story, one dimension up). Integrating the two-chord disc sections
@@ -816,8 +790,7 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
     assert!(pool.is_empty(), "the match is not a bijection");
 }
 
-/// **What still stands between the lune and `shell`, named with its
-/// payload — and it is the props inventory's, not this rim's.**
+/// **The lune hollows to its closed form.**
 ///
 /// The OPERAND measures: its wall is a rim-free band between two
 /// meridians on two great circles, which the sphere flux arm reads by
@@ -825,18 +798,13 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
 /// quarter-turn lune's tier 3 passes at the ball wedge's closed form
 /// `πr³/3`. `shell` then walks the WHOLE hollow — corners, carriers,
 /// pcurves, containment — and its last act, tier 3's +V invariant,
-/// refuses on the CAVITY: the inner sphere face is bounded by the two
+/// measures the CAVITY: the inner sphere face is bounded by the two
 /// moved caps' plane∩sphere sections, small circles centred `t` off
-/// the sphere centre along each cap normal; the boundary parse
-/// classifies each as a meridian carrier (its axis is perpendicular
-/// to the sphere axis) and refuses it as not a great circle
-/// (`props_meridian_great`). A lens between two small circles is
-/// outside the closed-form inventory (D2 addendum row 2: valid input,
-/// lane not built), so the hollow's closed-form wall volume stays
-/// parked in `torax_the_sphere_lune_rim_solves_in_closed_form`'s docs
-/// for the lane that reaches it; this row pins the door it stops at.
+/// the sphere centre along each cap normal, tilted against the chart
+/// and measured by Gauss–Bonnet over their arcs. The wall meets the
+/// quarter ball less [`lune_cavity_volume`].
 #[test]
-fn torax_the_sphere_lune_next_door_is_the_props_inventory() {
+fn torax_the_sphere_lune_hollows_to_its_closed_form() {
     let r = 0.3;
     let body = lune(r, core::f64::consts::FRAC_PI_2);
 
@@ -852,27 +820,38 @@ fn torax_the_sphere_lune_next_door_is_the_props_inventory() {
     );
 
     // And shell walks the WHOLE hollow — corners, carriers, pcurves,
-    // containment — before the cavity's lens refuses its closing gate.
-    let e = topo::shell(&body, 0.05, tol())
-        .expect_err("shell's +V invariant needs a volume the cavity's lens face cannot give");
-    println!("[torax] the lune's next door: {e}");
-    let ShellError::NotValid { errors } = e else {
-        panic!("the hollow must reach tier 3 and stop at the props inventory, got {e:?}");
-    };
+    // containment — and its closing gate measures the cavity's lens.
+    assert_hollow_lune("the one-arc lune", &body, r, 0.05);
+}
+
+/// The cavity a hollow of thickness `t` leaves in the quarter-turn
+/// lune of radius `r`: the ball of radius `R = r − t` on the inner side
+/// of two perpendicular planes each `a = t` from its centre, from the
+/// two-chord disc sections integrated along the axis
+/// (`torax_the_sphere_lune_rim_solves_in_closed_form`'s docs derive it).
+fn lune_cavity_volume(r: f64, t: f64) -> f64 {
+    let (big_r, a) = (r - t, t);
+    let q = (big_r * big_r - 2.0 * a * a).sqrt();
+    2.0 / 3.0
+        * (big_r.powi(3) * (big_r * q / (a * a)).atan()
+            - a * (3.0 * big_r * big_r - a * a) * (q / a).atan()
+            + a * a * q)
+}
+
+/// `shell` hollows the quarter-turn lune `body` to a tier-3 body whose
+/// wall is the quarter ball less [`lune_cavity_volume`].
+fn assert_hollow_lune(label: &str, body: &Body<f64>, r: f64, t: f64) {
+    let hollow = topo::shell(body, t, tol())
+        .unwrap_or_else(|e| panic!("{label}: the hollow builds, got {e:?}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()), "{label}");
+    let volume = topo::mass_properties(&hollow, tol())
+        .expect("the cavity's lens measures")
+        .volume;
+    let exact = core::f64::consts::PI * r * r * r / 3.0 - lune_cavity_volume(r, t);
     assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle {
-                        what: "props_meridian_great"
-                    },
-                    ..
-                },
-                ..
-            }]
-        ),
-        "the cavity's lens face refuses at the meridian-great fit: {errors:?}"
+        (volume - exact).abs() / exact < 1e-9,
+        "{label}: hollow wall {volume:.15e} != {exact:.15e}"
     );
 }
 
@@ -931,8 +910,7 @@ fn torax_the_narrow_lune_refuses_where_the_cap_line_misses_the_circle() {
 }
 
 /// **The cavity-volume derivation asserted, pure arithmetic** — the
-/// closed form parked in
-/// `torax_the_sphere_lune_rim_solves_in_closed_form`'s doc against
+/// closed form `lune_cavity_volume` against
 /// direct quadrature of the two-chord disc sections, no B-rep in
 /// sight. The section at station `h` is the disc of radius
 /// `s = √(R² − h²)` cut to `{u ≥ a, v ≥ a}`, whose area is
@@ -953,10 +931,7 @@ fn torax_the_lune_cavity_volume_closed_form_matches_quadrature() {
     let (r, t) = (0.3_f64, 0.05_f64);
     let (big_r, a) = (r - t, t);
     let q = (big_r * big_r - 2.0 * a * a).sqrt();
-    let v_closed = 2.0 / 3.0
-        * (big_r.powi(3) * (big_r * q / (a * a)).atan()
-            - a * (3.0 * big_r * big_r - a * a) * (q / a).atan()
-            + a * a * q);
+    let v_closed = lune_cavity_volume(r, t);
     assert!(
         (v_closed - 7.909058628579758e-3).abs() <= 1e-17,
         "the closed form re-derives the doc's own quoted volume, got {v_closed}"

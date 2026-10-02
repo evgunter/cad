@@ -476,7 +476,12 @@ BOUNDS_ALLOWLIST=(
   # sphere pair. 15 + 4 = 19. `section_cert.rs` itself, the classifier
   # and the per-pair rule, reads no box and carries no compound bound.
   'crates/topo/src/boolean/ops.rs 19 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
+  # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
+  # `sweep_and_settle`, is the one driver every boolean sweeps through,
+  # and rides the same seam: it forwards to `sweep_direction` twice and
+  # reads no bracket of its own (`Decide` alone does not compile there).
+  'crates/topo/src/boolean/reduce.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,
@@ -555,7 +560,15 @@ BOUNDS_ALLOWLIST=(
   # the same ruling; `props.rs` keeps the assemblers, `QuadLane`,
   # `ShellDoor` and the wiring rows.
   'crates/topo/src/props.rs 9 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/props/quad_lane.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
+  # face's flux at the interval scalar, lifting the face's geometry
+  # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
+  # the volume backstop's sign arm decides a refusal on the bracket it
+  # returns. That is a certification act, which is this seam's right:
+  # the function is reached only through `QuadLane::certified`'s second
+  # field, the same door `cut_face_rounds` is, so it is never formed at
+  # a dual.
+  'crates/topo/src/props/quad_lane.rs 15 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'

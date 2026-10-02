@@ -216,11 +216,18 @@ face, and an endpoint off the carrier is eventless only on that side.
 It is never read from values: a root
 verdict of "tangent" is a band decision, so a graze within the band
 refuses, and an exact tangency is reached only through structure or a
-declaration. An edge decided to lie identically on the other operand's
-carrier, when every surface of a face it bounds is decided distinct
-from that carrier by the carrier ladder, is an ON event under the
-reduction's trilean (exactly-on ⇒ ON, in-band ⇒ escalate), as an edge
-lying in a partner's plane is; where the ladder does not decide a
+declaration. A covered LINE touching a cylinder or a sphere inside
+the edge is read again on the edge's fragments once both sweep
+directions have run: where the other operand has a vertex at the touch,
+whether it builds does not depend on which operand is A, and with no
+vertex there it refuses in both orders. A covered arc, and a covered
+line against a torus, keep the refusal where the touch is inside the
+edge: their residual is not convex, so a fragment's ends need not see
+every touch. An edge decided to lie identically on the other
+operand's carrier, when every surface of a face it bounds is decided
+distinct from that carrier by the carrier ladder, is an ON event under
+the reduction's trilean (exactly-on ⇒ ON, in-band ⇒ escalate), as an
+edge lying in a partner's plane is; where the ladder does not decide a
 parent distinct, the cosurface question keeps its door.
 
 **C5 — The signed gap.** For a declared pair on same-kind carriers with a

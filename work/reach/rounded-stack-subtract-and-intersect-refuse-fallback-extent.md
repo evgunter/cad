@@ -49,6 +49,28 @@ and so does the stacked pose's subtract and intersect (the repro above,
 re-measured on the same merge). Pinned by
 `declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`.
 
+## Operand order (`reach/door-backstop`)
+
+`declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`
+now runs both operand orders, with the declarations keyed for each
+order (`findings(&b, &a)` for (B, A)). For the three in-wall poses
+(sunk, flush top, flush bottom), at ε = 1e-9, 1e-6 and 1e-12:
+
+- `A ∪ B` refuses `FallbackExtentUnsupported` (no crossing event,
+  near-tangent carriers).
+- `B ∪ A` BUILDS the thick plate at its oracle, `24 − (4 − π)/4 =
+  23.785398163397448`. The measured volumes are 23.785398163397442,
+  …463 and …456; tier 3 and 3′ are clean. The result keeps its walls
+  split where the thin plate's lay: 18 faces sunk, 14 flush, against
+  the plate's 10.
+- `B ∖ A` (empty in truth) refuses `FallbackExtentUnsupported` as
+  `A ∪ B` does.
+
+So the extent pass refuses in one operand order and not the other.
+Whatever closes this item should build `A ∪ B` as `B ∪ A` does. The
+split walls of `B ∪ A` are a separate question: a result that is not
+maximal.
+
 ## The two-half rod stack refuses the same way
 
 Measured on `origin/main` after PR 3823 (the repro of

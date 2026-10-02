@@ -2,7 +2,8 @@
 id: sphere-flux-arm-refuses-partial-bands
 kind: issue
 title: the sphere flux arm's coplanar premise leaves lune-family bodies outside tier 3
-status: open
+status: closed
+closed: 2026-10-02
 opened: 2026-09-03
 refs: [1674]
 priority: P0
@@ -76,3 +77,17 @@ through `props_band_opposite`. What stays open here is the rest of the
 lune family the measurements above name (the operand lune's wall and
 the lune cavity's wall as they are authored — re-measure each against
 the head that carries BOOL-5 and strike the ones that now certify).
+
+## Closed (2026-10-02, `reach/tilted-sphere-pair`)
+
+Re-measured: the operand lune's wall measures by the wedge arm
+(BOOL-5), and the lune CAVITY's wall — two plane∩sphere sections
+tilted against the chart — now measures by
+`props::curved::sphere_circle_loop`, the Gauss–Bonnet closed form over
+circle arcs this row named as one answer. `shell` hollows the
+quarter-turn lune, one-arc and two-arc, to tier 3 at the wall volume
+`πr³/3 − V` with `V` the parked closed form, to 1e-9
+(`torax_axial`'s `torax_the_sphere_lune_hollows_to_its_closed_form` and
+`torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows`). Which
+of the sphere arm's two closed forms should stay is
+`sphere-flux-arm-carries-two-closed-forms-for-one-face-kind`.

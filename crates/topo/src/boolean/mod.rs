@@ -19,7 +19,9 @@
 //! 1. **Gates**: per-arm since M5 PR 9 (C12.1 —
 //!    [`BooleanError::CurvedBooleanUnsupported`] retires per C5 table
 //!    arm; Plane/Cylinder/Sphere/Nurbs faces pass, Cone/Torus refuse);
-//!    no scaffolding operands; **maximal faces (F7)** via the
+//!    each operand a closed solid by tier 2's own verdict
+//!    ([`crate::validate_closed`]; no scaffolding operands); **maximal
+//!    faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
 //!    bit-equal oriented planes ([`plane_eq`]) refuse as
 //!    [`BooleanError::NonMaximalFaces`]; *numeric* coplanarity never
@@ -78,6 +80,8 @@ pub(crate) mod combine;
 pub mod contact_verify;
 mod contain;
 mod discard;
+#[cfg(feature = "door-tier3-meter")]
+mod door_meter;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
@@ -1292,6 +1296,21 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
+/// Where a [`BooleanError::CorruptOperand`] found its operand broken.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Corruption {
+    /// Tier 1 ([`crate::validate()`]) refused the operand at the gate.
+    Structure {
+        /// The validator's tier-1 findings, each naming its entity.
+        errors: Vec<ValidationError>,
+    },
+    /// The neighbourhood of this vertex could not be walked.
+    Vertex {
+        /// The vertex.
+        vertex: VertexKey,
+    },
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -1437,12 +1456,16 @@ pub enum BooleanError {
         /// The loop no walk expresses at the point.
         r#loop: crate::entity::LoopKey,
     },
-    /// An operand already carries null scaffolding (mid-surgery body).
+    /// An operand is well-formed but not a closed solid at rest: tier 2
+    /// ([`crate::validate_closed`]) refuses it for construction
+    /// scaffolding an edit left behind — a strut's valence-1 vertex, an
+    /// empty loop, a null edge, a shell in pieces. The Boolean serves
+    /// finished solids only.
     ScaffoldingOperand {
-        /// The offending operand and edge.
+        /// The offending operand.
         operand: Operand,
-        /// The edge.
-        edge: EdgeKey,
+        /// The validator's tier-2 findings, each naming its entity.
+        errors: Vec<ValidationError>,
     },
     /// F7: two adjacent faces of one operand are structurally or
     /// declaredly coplanar — the operand is not maximal-faced; run
@@ -1653,13 +1676,14 @@ pub enum BooleanError {
         /// Human-oriented description of the violated invariant.
         what: &'static str,
     },
-    /// A traversal failed: an operand is not a well-formed closed
-    /// solid at this site.
+    /// An operand is not a well-formed closed solid: tier 1 refuses it
+    /// at the operand gate, or a traversal failed at one of its
+    /// vertices.
     CorruptOperand {
         /// The operand.
         operand: Operand,
-        /// The vertex whose neighborhood could not be walked.
-        vertex: VertexKey,
+        /// Where the breakage was found.
+        corruption: Corruption,
     },
     /// `split_edge` refused while inserting a crossing (site attached,
     /// inner error whole).
@@ -2212,6 +2236,14 @@ fn backstop_subject(operand: Option<Operand>) -> &'static str {
 }
 
 impl BooleanError {
+    /// A traversal of `operand` failed at `vertex`.
+    pub(crate) const fn corrupt_at(operand: Operand, vertex: VertexKey) -> Self {
+        Self::CorruptOperand {
+            operand,
+            corruption: Corruption::Vertex { vertex },
+        }
+    }
+
     /// An escalation of the coincidence `which` between parts of the two
     /// solids, at a site whose door read the pair's declaration as
     /// `read` ahead of it ([`BooleanDecision::Coincidence`]): the refusal
@@ -2415,6 +2447,22 @@ fn meeting_recourse(kind: &str) -> String {
     )
 }
 
+impl core::fmt::Display for Corruption {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Structure { errors } => write!(
+                f,
+                "it fails {} of the kernel's structural checks, so the Boolean refuses it",
+                errors.len()
+            ),
+            Self::Vertex { vertex } => write!(
+                f,
+                "the neighbourhood of vertex {vertex:?} could not be walked"
+            ),
+        }
+    }
+}
+
 impl core::fmt::Display for BooleanError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2495,9 +2543,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
-                "the {} operand is a body left in the middle of an edit (it still \
-                 carries unfinished edges), so the Boolean refuses it. This is a bug in \
-                 whatever produced that body; please report it",
+                "the {} operand is not a finished solid: it still carries what an edit \
+                 left behind, such as a strut or an empty loop, so the Boolean refuses \
+                 it. Recourse: finish that edit first",
                 operand_word(*operand),
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
@@ -2731,10 +2779,12 @@ impl core::fmt::Display for BooleanError {
             Self::ClassificationInvariant { what } => {
                 write!(f, "classification invariant violated: {what}")
             }
-            Self::CorruptOperand { operand, vertex } => write!(
+            Self::CorruptOperand {
+                operand,
+                corruption,
+            } => write!(
                 f,
-                "the neighbourhood of vertex {vertex:?} in the {} operand could not be \
-                 walked (a broken body)",
+                "the {} operand is a broken body: {corruption}",
                 operand_word(*operand)
             ),
             Self::CrossingInsertion {
@@ -2945,13 +2995,25 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
     plant: Option<PlantedDegradation>,
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
+    sweep_traces_with_pad(
+        a_operand,
+        b_operand,
+        &BooleanDeclarations::none(),
+        strategy,
+        plant,
+        None,
+        tol,
+    )
 }
 
 /// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
 /// proves a too-small pad (e.g. `Some(0.0)`) LOSES accepted pairs and
 /// the superset comparator catches it. A deliberately breakable knob —
 /// `sweep-testing` only, never production surface.
+///
+/// `decls` are verified as the boolean verifies them, so a covered pair
+/// reaches the settle stage and its accepted pairs reach the traces;
+/// [`sweep_traces`] passes none, the undeclared posture.
 ///
 /// # Errors
 ///
@@ -2960,16 +3022,16 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
 pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
+    decls: &BooleanDeclarations,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear(tol)?;
-    // The suite's door takes no declarations: the traced sweep runs
-    // the undeclared posture, where the frontier doors are verbatim —
-    // and so, therefore, is the operand gate's covered-pair rung.
-    let declared = DeclaredPairs::default();
+    validate_declarations(a_operand, b_operand, decls)?;
+    let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
@@ -2989,28 +3051,15 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
         plant: None,
         pad_override,
     };
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &ab_knobs,
-        Some(&mut ab),
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &ba_knobs,
-        Some(&mut ba),
+        [&ab_knobs, &ba_knobs],
+        [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
     Ok((ab, ba))
@@ -3045,28 +3094,15 @@ pub fn sweep_records(
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let sizes = [
@@ -3154,31 +3190,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut a = carved_a.begin_surgery();
     let mut b = carved_b.begin_surgery();
 
-    // Reduction sweep, both directions (A's edges first — D9 order).
+    // Reduction sweep, both directions (A's edges first — D9 order),
+    // then the touches deferred for both directions' splits.
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let contacts = acc.finish();
@@ -4517,7 +4541,9 @@ mod tests {
             },
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
-                edge,
+                errors: vec![ValidationError::ScaffoldingStrutVertex {
+                    vertex: VertexKey::default(),
+                }],
             },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,
@@ -4579,9 +4605,14 @@ mod tests {
             BooleanError::ClassificationInvariant {
                 what: "an invariant",
             },
+            BooleanError::corrupt_at(Operand::A, VertexKey::default()),
             BooleanError::CorruptOperand {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
+                operand: Operand::B,
+                corruption: Corruption::Structure {
+                    errors: vec![ValidationError::MissingProvenance {
+                        entity: crate::entity::EntityId::Vertex(VertexKey::default()),
+                    }],
+                },
             },
             BooleanError::CurvedPairUnsupported {
                 op: None,

@@ -222,6 +222,7 @@ RUN_FLOOR=(
   plain:sweep:review_ring_clearance_r1_probes:7
   plain:sweep:sym11_far_placement_rows:3
   plain:sweep:thread_count_probe_populations:2
+  plain:sweep:tilted_sphere_pair_k_rows:1
   plain:topo:lane0_r2_probes:6
   plain:topo:probe_census:1
   plain:topo:probe_s5_sectors:1

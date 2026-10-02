@@ -405,6 +405,31 @@ solid's edge.
 The dual-review row (DR-42) rides this PR's last commit.
 — (REACH orchestrator)
 
+## 2026-10-02 — a tilted sphere pair builds (PR 3817)
+
+A second-wave unit, built by a cloud implementer. Dual review (DR-45,
+no MAJOR), then a fix pass, a k-lint pass and a delta review. The
+orchestrator checked the final fix pass itself.
+
+The probe-scalar carve of lily wall 7 surfaced two k-lint flags.
+- **The clearance flag.** The clearance pre-filter's own charge on an
+  arc ending on the carrier. The decision was removed: such an arc
+  goes straight to the endpoint arms, with behaviour preserved.
+- **The fitted envelope's quarter-band target.** Ruled by a new k-lint
+  rule (5), `CONSTRUCTION_COUPLED`. It judges that name against its
+  construction's ε/4 target and is keyed on the construction where the
+  name is minted.
+
+The delta review found that no ratified page governs k-lint's rule
+text. `tools/README.md` CC1–CC5 governs the reading boundary, not
+judgements over admitted readings. So the rule landed with the unit.
+
+The delta review also confirmed that main's dev-probe leg was red on
+three suites. One of them, `bool_plane_orient`'s linearity, was turned
+red by REACH's own #3657. A REACH lane (`reach/dev-probe-red`) is
+fixing all three.
+
+The dual-review row (DR-45) rides this PR's last commit.
 ## 2026-10-02 — the aligned half-rod stack's rows (PR 3845)
 
 A wave-three cloud implementer patched the REST zip in place: an
@@ -430,6 +455,23 @@ the code TANG's change superseded.
 The dual-review row (DR-43) rides this PR's last commit.
 — (REACH orchestrator)
 
+## 2026-10-02 — split refuses per face, not per body (PR 3843)
+
+A wave-three cloud implementer built this, and it had a dual review
+(DR-44, no MAJOR). `topo::split` used to refuse a whole body for one
+sphere, torus or spline face. It now refuses only where the plane may
+meet that face's padded reach box. The gate is load-bearing: without
+it, a flank cut silently returns the whole ball on one side.
+
+Both reviewers found the gate sound (189 admitted planes, 0 wrong),
+but several of its fences had no row that could fail. The fix pass
+gave each one a row red under its mutant. It also guards the sphere
+zone against a face whose side of its boundary is not certified, the
+complement face one reviewer reached by STEP import.
+
+The dual-review row (DR-44) rides this PR's last commit.
+— (REACH orchestrator)
+
 
 ## Note from CLEAVE (2026-10-02)
 
@@ -441,3 +483,74 @@ curved-operand refusals) better than CLEAVE's, and the row itself
 invited a re-home. The design question in it (a root lane per face
 kind, or re-entry through the germ-chord lanes) has not been weighed
 yet. — (CLEAVE orchestrator)
+
+## 2026-10-02 — the boolean door's volume backstop (PR 3844)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR-46), with
+the MAJOR raised by both reviewers; then a fix pass and a delta review.
+The orchestrator checked the last fix pass itself.
+
+- **The rounding tie.** A closed-form tie two ulps past a bound now
+  builds. Interval re-derivation only certifies a violation the
+  rounding cannot move.
+- **New bounds.** The backstop also bounds `∪ ≤ A + B`, `∖ ≥ A − B` and
+  the result's +V sign, read on tier 3's own rule.
+- **The allowance, ruled out.** The first head also widened every
+  margin by an allowance for declared pairs. Both reviewers showed that
+  it let MAJ-1's own wrong component through. Ruling: remove it, not
+  tighten it. A volume allowance forgives a defect of its size anywhere
+  in the body. The settled-coincidence residue it was meant for refuses
+  again and is filed (P2, design).
+- **The stopped half.** Gating tier 3 at the door went to designers.
+  Both found the "description gap" in the gate's doc closed since M3
+  PR 6a. After two reconciliation rounds (a crossover first) they
+  converged: the finished body becomes a type (`AtRestBody`), and verb
+  doors take and return it. That goes to Ev as an `[ev]` PR.
+
+The dual-review row (DR-46) rides this PR's last commit.
+— (REACH orchestrator)
+
+
+## 2026-10-02 — the near-tangent snowman at ε 1e-12 (PR 3847)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR row on this
+commit), both APPROVE-WITH-FIXES with no MAJOR; then one fix pass, which
+the orchestrator checked itself.
+
+- **Built.** δ 1e-5 and 1e-6 at ε 1e-12, every op. At ε 1e-9 the ×1e3
+  and non-unit-radius pairs now build too: 56 ops more than main at each
+  of 1e-12 and 1e-9, and none fewer.
+- **The meter.** Factored extremes with running rounding bounds; the
+  frame's defect charged; the root measured from the near extreme.
+  `geom_core::running` hosts the running-error scalar, and
+  `UNIT_ROUNDOFF` is the one spelling of `u`.
+- **The fix pass.** Pin rows for the near/far selection and for each
+  slack term, each red under its mutant. The bound is checked against an
+  exact dyadic evaluation. The bits that moved are disclosed in the PR
+  body.
+- **Residue.** The f64 floor (δ 1e-7 at ε 1e-12) needs an error-free
+  transform the scalar contract lacks, so it goes to design (P3). Two
+  sibling meters are filed.
+— (REACH orchestrator)
+
+## 2026-10-02 — a mid-edge tangency in either operand order (PR 3846)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR row on this
+commit), both APPROVE-WITH-FIXES with no MAJOR; then one fix pass, which
+the orchestrator checked itself.
+
+- **Built.** Sharp-over-rounded stacks, a concave L and mismatched-radius
+  stacks now build in both operand orders, under every op. Before this,
+  one order refused `CurvedPierceUnsupported`.
+- **How.** A covered line touching a wall or a sphere inside an edge is
+  deferred. It is settled on the edge's fragments once both directions
+  have split it (`settle_deferred`, through one `sweep_and_settle`
+  driver), and the accepted pair is written to the trace.
+- **The fix pass.** Both reviewers showed `settle_held` had no row that
+  could fail. Rows now red under each mutant, including a comb pose
+  whose touch lies in a middle fragment (checked again by the
+  orchestrator on the merged head). The arms no fixture reached were
+  removed, and the README promises only what the code does.
+- **Residue.** Two items filed: a non-convex touch read at a fragment's
+  ends only, and an offset stack that refuses `Join(UnpairedLooseEnds)`.
+— (REACH orchestrator)

@@ -430,18 +430,6 @@ pub fn held_program(
         .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
 }
 
-/// **Every step of `program` kept where it is** — the `ids` of a
-/// `DocEdit::SetProgram` (and a `SessionOp::EditProfile`) that moves
-/// numbers and nothing else.
-#[must_use]
-pub fn kept_in_place(program: &ProfileProgram) -> Vec<Vec<Option<StepId>>> {
-    program
-        .ids
-        .iter()
-        .map(|ids| ids.iter().copied().map(Some).collect())
-        .collect()
-}
-
 /// **Whether `loops` under `ids` is `base` itself** — every step kept
 /// in place and the program bit-equal to `base`, blind to notation: a
 /// `DocEdit::SetProgram` of them would write nothing.
@@ -451,7 +439,7 @@ pub fn is_committed(
     loops: &[LoopProgram],
     ids: &[Vec<Option<StepId>>],
 ) -> bool {
-    ids == kept_in_place(base).as_slice()
+    ids == base.kept_in_place().as_slice()
         && *base
             == ProfileProgram {
                 plane: base.plane,
