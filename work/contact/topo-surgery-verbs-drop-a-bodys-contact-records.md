@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-refs: [transform-and-pattern-drop-a-values-contact-records, split-halves-have-no-contact-records-so-no-pseudomanifold-self-check]
+refs: [transform-and-pattern-drop-a-values-contact-records, 3856]
 ---
 
 
