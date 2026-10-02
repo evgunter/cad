@@ -472,6 +472,12 @@ impl CheckEvidence {
 /// A finding is a REPORT about geometry, not a verdict on the program:
 /// reaching one changes nothing, and whether it stops anything is the
 /// caller's `Severity` and the caller's `enforce_checks` call.
+///
+/// `str()` renders it the way the library renders a finding, recourse
+/// included, each root spoken (kind, label and tag) from the document
+/// the checks ran over, the one the evaluation is of; `repr()` keeps
+/// the full id. Two findings are equal when they are the same finding
+/// over the same document; labels are not compared.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CheckFinding {
@@ -515,8 +521,10 @@ impl CheckFinding {
         d::Said(&self.finding, d::Speaker::of(&*self.doc)).to_string()
     }
 
+    /// The same finding over the same document; labels are not
+    /// compared.
     fn __eq__(&self, other: &Self) -> bool {
-        self.finding == other.finding
+        self.finding == other.finding && self.doc.id() == other.doc.id()
     }
 
     fn __repr__(&self) -> String {
@@ -535,6 +543,12 @@ impl CheckFinding {
 /// `skipped` is why this is a report and not a list: "checked and
 /// fine" and "not checked" are different answers, and a caller reading
 /// an empty `findings` without reading `skipped` has confused them.
+///
+/// `str()` speaks each root from the document the checks ran over, the
+/// one the evaluation is of, so a label set after `evaluate` shows on
+/// the next evaluation's report. Two reports are equal when they hold
+/// the same findings and skips over the same document; labels are not
+/// compared.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct ChecksReport {
@@ -585,6 +599,8 @@ impl ChecksReport {
         self.report.spoken(&*self.doc)
     }
 
+    /// The same findings and skips over the same document (the
+    /// report's own `document`); labels are not compared.
     fn __eq__(&self, other: &Self) -> bool {
         self.report == other.report
     }

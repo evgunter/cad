@@ -2245,9 +2245,11 @@ pub struct CheckRow {
 ///
 /// The report is the landed run's: its roots' ids are spelled in the
 /// document that run was over, which the committed one passes while a
-/// run is outstanding. `landed` is that run's document
-/// (`DocSession::landed_pair`), and the report refuses any other
-/// ([`ChecksReport::speaker`]).
+/// run is outstanding. `landed` must be that run's document
+/// (`DocSession::landed_pair`). [`ChecksReport::speaker`] refuses
+/// another document, but not another version of this one, since a
+/// document's id survives every edit: the landed-against-committed
+/// choice is the caller's, and `ViewerApp::checks_window` makes it.
 pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<CheckRow> {
     let by = report.speaker(landed);
     report
@@ -2255,7 +2257,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
         .iter()
         .map(|finding| CheckRow {
             root: finding.root,
-            button: landed.spoken(finding.root).to_string(),
+            button: by.node(finding.root).to_string(),
             sentence: Said(finding, by).to_string(),
         })
         .collect()

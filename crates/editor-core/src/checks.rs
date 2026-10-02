@@ -743,10 +743,14 @@ impl fmt::Display for ChecksReport {
 }
 
 impl ChecksReport {
-    /// **The speaker for this report's roots**: each as `doc`, the
-    /// document the checks were run over, holds it now. A frame that
-    /// draws the findings one at a time says each through it
-    /// ([`crate::spoken::Said`]).
+    /// **The speaker for this report's roots**: each as `doc` holds it
+    /// now. A frame that draws the findings one at a time says each
+    /// through it ([`crate::spoken::Said`]).
+    ///
+    /// The guard is the [`crate::DocumentId`], which survives every
+    /// edit: it refuses another document, and cannot tell one version
+    /// of the checked document from another. Which version — the one
+    /// the checks ran over — is the caller's to hand in.
     ///
     /// # Panics
     ///
@@ -917,8 +921,19 @@ impl CheckRefusal {
     /// When `doc` is not the document the refused report was run over.
     #[must_use]
     pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::Said(self, self.speaker(doc)).to_string()
+    }
+
+    /// **The speaker for this refusal's roots**: each as `doc` holds it
+    /// now, under the guard [`ChecksReport::speaker`] states.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the refused report was run over.
+    #[must_use]
+    pub fn speaker<'a, P>(&self, doc: &'a Doc<P>) -> crate::spoken::Speaker<'a> {
         crate::spoken::assert_taken_of("this check refusal", self.document, doc);
-        crate::spoken::spoken_by(self, doc)
+        crate::spoken::Speaker::of(doc)
     }
 }
 

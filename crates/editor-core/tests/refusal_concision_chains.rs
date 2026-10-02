@@ -90,9 +90,10 @@ const KERNEL_KEYED: &[&str] = &[
 /// has — each on the row namespace whose surface writes it. A label
 /// here is English the person reads, not a pipeline stage.
 pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
-    // The checks window's finding labels (`check separation: root 4
-    // output 0: …`): the check the person ran, named as the menu names
-    // it, and the root it ran on.
+    // A check finding's labels as its own `Display` says them, with no
+    // document at hand (`check separation: root 000000000004 output 0:
+    // …`): the check the person ran, named as the menu names it, and
+    // the root it ran on, by its tag.
     ("Check/", "check separation"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),

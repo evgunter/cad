@@ -6592,7 +6592,9 @@ class CheckFinding:
     the body it names; `str()` renders it the way the library renders
     a finding, recourse included, each root spoken (kind, label and
     tag) from the document the checks ran over — the one the
-    evaluation is of. `repr()` keeps the full id."""
+    evaluation is of. `repr()` keeps the full id. Two findings are
+    equal when they are the same finding over the same document;
+    labels are not compared."""
 
     @property
     def check(self) -> CheckId: ...
@@ -6612,7 +6614,9 @@ class ChecksReport:
     `findings` read without `skipped` confuses them. `len(report)`
     counts findings. `str()` speaks each root from the document the
     checks ran over, the one the evaluation is of: a label set after
-    `evaluate` shows on the next evaluation's report, not this one's."""
+    `evaluate` shows on the next evaluation's report, not this one's.
+    Two reports are equal when they hold the same findings and skips
+    over the same document; labels are not compared."""
 
     @property
     def findings(self) -> list[CheckFinding]:

@@ -1024,7 +1024,7 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
         "the separation finding speaks both roots from the document: {spoken}"
     );
     assert!(
-        !spoken.contains("root "),
+        !spoken.contains(&format!("root {b}")) && !spoken.contains(&format!("root {o}")),
         "no root is left at its bare tag: {spoken}"
     );
     let bare = report.to_string();
@@ -1058,10 +1058,14 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
     use editor_core::{ChecksConfig, run_checks};
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-checks-taken-of", tol);
-    let (doc, _) = block(doc, 0.0);
+    let (doc, [_, _, base]) = block(doc, 0.0);
     let (doc, _) = block(doc, 0.5);
     let other = ProfileDoc::empty_derived("node-labels-checks-another", tol);
-    let (other, _) = block(other, 0.0);
+    let (other, [_, _, same]) = block(other, 0.0);
+    assert_eq!(
+        base, same,
+        "the two documents hold one id as two nodes: the hazard this guards"
+    );
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -1071,8 +1075,8 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
     );
     let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
     assert!(
-        !report.findings.is_empty(),
-        "a finding names a root: {report}"
+        report.findings.iter().any(|finding| finding.root == base),
+        "a finding names the root the other document also holds: {report}"
     );
     let _ = report.spoken(&other);
 }

@@ -903,8 +903,11 @@ run every frame, so `pane::properties::standing_verdict` says its
 `ResolveError`, and its `ResolveIndeterminate` through
 `app::indeterminate_wording`, from that run's document.
 So is the Checks window: its report is the landed run's, and
-`frame::check_rows` says each finding's root, on its button and in its
-sentence, from that run's document.
+`ViewerApp::checks_window` hands `frame::check_rows` that run's
+document, from which each finding's root is said on its button and in
+its sentence. The report refuses another document, but a document's id
+survives every edit, so handing it the committed version is the
+call site's mistake to avoid, and the window's test holds it.
 
 The landed document lags the committed one by a run. A sentence spoken
 from it says the label the landed run was read under, so a rename that
