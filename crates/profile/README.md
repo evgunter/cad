@@ -228,11 +228,12 @@ applies is a fact of the loop's provenance, carried by its type.
   construction: `ConstructedProfile`'s validate doors, `pncad::validated`
   and the loft's constructed sections do not decide the three again. A
   `Center` arc's landing is the path door's own predicate
-  (`path_arc_center_equidistant`), decided inline at every scalar; a
-  lowered arc's facts are the identities `lower_arc` registers, which an
-  exact scalar's witness checks and a point scalar takes on the
-  lowering's proof. Re-deciding them could only confirm Zero or escalate
-  on dependency width, never catch an inconsistency.
+  (`path_arc_center_equidistant`), decided inline at every scalar;
+  every other construction's facts are the identities it registers on
+  the values it built (`BuiltArc`, `Facts::Registered`), which an exact
+  scalar's witness checks and a point scalar takes on the construction's
+  proof. Re-deciding them could only confirm Zero or escalate on
+  dependency width, never catch an inconsistency.
 - Giving up the provenance (`ConstructedLoop::into_loop`) makes the loop
   a table again, and it is checked.
 
