@@ -39,3 +39,15 @@ unpaired has not been measured.
 The row pinning the refusal is
 `a_declared_continuation_across_a_rabbet_step_refuses_its_union` in that
 file; it moves to the build when this is fixed.
+
+## A second shape, from a fold order (FUSE designer probe, 2026-10-02)
+
+Measured at the kernel level (`test_support::brick`, `flush_declarations`
+at every step) by a FUSE designer lane weighing
+`work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`:
+`a` = x∈(0,1), `c` = x∈(0.5,1.5), y∈(−1,0), `b` = x∈(0.5,1.5),
+y∈(0,1), all z∈(0,1). Folded `[a, c, b]` or `[c, a, b]`, the step
+`(a ∪ c) ∪ b` refuses `Join(UnpairedLooseEnds { count: 6 })`: `a ∪ c`
+is an L-shaped block and `b` sits flush against both of its arms, the
+same reflex-step shape as the rabbet. The other four orders fuse. Not
+pinned by a test; the probe was scratch and was removed.

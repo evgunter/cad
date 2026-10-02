@@ -74,3 +74,7 @@ take `Option<FittedLane<T>>` as a parameter (H5 ruling 3's shape), with
 `Some` handed in by a caller that holds `AtRestPolicy`. Or `split_edge`
 re-spells `Decide` → `AtRestPolicy`, the ripple priced above, with one
 policy trait in place of the deleted lane trait.
+
+## Re-homed at TQUERY's close (2026-10-02)
+
+Moved from `work/tquery/` by `git mv`, id and body unchanged, when TQUERY closed (`docs/doc-ledger/tquery-leaves-the-tracker.md`). It waits on PCERT's own PR 3759, which rewrites `pcurves.rs`'s carry, so PCERT is its owner.

@@ -25,6 +25,9 @@ The PLACE orchestrator holds the track (`status: active`). Order, per the plan:
 
 `a-part-resting-on-a-gauge-cannot-follow-a-part-edit` is priced `H` with `design: true`: every candidate fix touches A11 (2), so it goes to a designer pair and then an `[ev]` PR, after P2-split's spec is out.
 
+## 2026-10-02 — split and inline refusals state their recourse (PR 3872)
+
+Review tier: orchestrator's read (mechanical message rewrites; CI green on `3555e6594`). Every split and inline arm now carries one recourse; `FILED_NO_RECOURSE` and its plumbing are gone. `Split/Pin` ends on `KERNEL_DEFECT_ENDING` (the part has replayed clean, so a pin refusal is this module's defect). `InlineError::Unresolved` renders as the evaluation door's `PartFault::Unresolved` does, through one shared `part::EPSILON_SEAM_RECOURSE`. The row's `StepMapDiverged` exists in neither enum.
 ## 2026-10-02 — P2-split spec'd, and cut in three
 
 The survey lane wrote `## P2-split` in `docs/EDIT-PLACEMENT-SPEC.md` and found, beyond the row:
@@ -35,3 +38,12 @@ The survey lane wrote `## P2-split` in `docs/EDIT-PLACEMENT-SPEC.md` and found, 
 Rulings (orchestrator): D2 follows A4 (an unplaced group votes its gauge; two anchors refuse); D3, a stand-in node takes the label of the node it stands in for. D1 (round trip against the hoist and the sugar) and the `FromFace` frame rule are both A4 sentences, so they go to a designer pair and one `[ev]` PR (`a-from-face-mate-side-cannot-cross-the-split-or-inline-seam`).
 
 The cut: P2-carry first (single full review), P2-split (dual, H) with `MateFaceFrameCrosses` still refusing and D1's two shapes pinned evaluation-equal, then P2-face after Ev rules. Alternative considered: hold all of P2-split for Ev; rejected, since everything but the face frame is A4 as written.
+
+## 2026-10-02 — document order read from the document (PR 3882)
+
+Review tier: single review (a sweep that fixed sites). The reviewer's verdict was APPROVE-WITH-FIXES. Its one MAJOR was executed: `product::unplaced_groups`, a twin of the `parts.rs` expression the sweep fixed, still listed unplaced groups in id order into `ProductError::Unplaced` and the gate's own-space loop. The fix pass:
+- gave "unplaced groups in document order" one home, `Evaluation::unplaced_in_order` / `unplaced_groups`, read by product, parts and export;
+- pinned the deleted-node branch and `pairs_in_order` (now `pncad_py::node_map::in_document_order`, which fails loud on an unmapped target) with rows;
+- swept "root order"/"node order" doc phrases.
+
+Filed elsewhere: `work/chrome/display-prune-withdrawals-list-instances-in-id-order.md`, `work/vgeom/pick-ambiguity-lists-groups-in-id-order.md`, `work/wire/union-pairwise-refusal-names-its-pair-in-digest-id-order.md`. The orchestrator adjudicated the fix pass on its own read.
