@@ -440,4 +440,7 @@ join (`work/tang/cylinder-pair-germ-has-no-join-arm.md`); the bar
 through a ball reaches the run-side rule's reflex run end
 (`SectionArcSide { ReflexRunEnd }`); the boss's
 two plate-last orders stop at `point_in_solid`'s ringed-wall outline
-(`work/contact/point-in-solid-refuses-a-ringed-cylinder-wall.md`).
+(`work/contact/point-in-solid-refuses-a-ringed-cylinder-wall.md`). A TILTED sphere section's ring (the
+evidence section above) still refuses `NoCertifiedRun`: the run-side
+rule reads the run a chord closes, and a cross-loop chord closes none
+(`work/tang/a-tilted-sphere-sections-pierce-ring-has-no-run-side-arm.md`).
