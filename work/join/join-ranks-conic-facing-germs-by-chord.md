@@ -43,3 +43,10 @@ locus identity replaces the face-pair filter this rests on, so the
 ranking belongs with JOIN-1/JOIN-3, measured on the U-plate fixture
 above. That fixture currently stops earlier, at the wall's pierce ring
 (`SectionArcWindow`, `work/tang/pierce-ring-has-no-join-arm.md`).
+
+## The `is_up` filter (PR 3845's dual review)
+
+Both reviewers of PR 3845 noted that this item reads `find_match`'s
+candidate set without its `is_up` filter (`join.rs:700`), which may
+already exclude some back-to-back pairs; `loose_partners` has no such
+filter. A fix measures which of the two the hazard reaches first.
