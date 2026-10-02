@@ -2,7 +2,7 @@
 id: a-chain-of-two-or-more-joints-poisons-its-transversality-margin
 kind: issue
 title: the wedge's transversality margin POISONS at two joints and at three, and it is what bounds the chain's certifiable box: just above the wall it is the first refusal at every link count
-status: open
+status: dispatched
 opened: 2026-09-22
 priority: P1
 cost: D

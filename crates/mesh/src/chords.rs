@@ -569,7 +569,7 @@ fn nurbs_tighten(
             Pcurve::Fitted(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
-                    note: "NURBS-face half-edge carries a FITTED (rung-3) pcurve — no \
+                    note: "NURBS-face half-edge carries a FITTED pcurve — no \
                            certified UV speed bound is wired for a fitted image's \
                            chord schedule; its first tessellation consumer is the \
                            edge×NURBS-face boolean layer (the cut-loft unit)",

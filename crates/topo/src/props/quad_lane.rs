@@ -180,22 +180,18 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         // The certified quadrature lane reads a chart image
-        // CHANNEL BY CHANNEL out of its closed form; a fitted
-        // (rung-3) image has no such form on an ANALYTIC chart's
-        // Green reduction. Typed refusal — the TRUE remaining
-        // blocker (M6-3 stale-claims sweep): no at-rest body mints
-        // a fitted pcurve on a cylinder chart today (the marched
-        // join windows and the edge×NURBS-face boolean layer are
-        // both banked past M6), and the fitted-boundary Green lane
-        // (`quad::bspline_green_integral`'s remaining consumer)
-        // lands WITH whichever of those first produces one.
+        // CHANNEL BY CHANNEL out of its closed form; a fitted image
+        // has no such form on an ANALYTIC chart's Green reduction.
+        // Typed refusal: the fitted-boundary Green lane
+        // (`quad::bspline_green_integral`'s remaining consumer) is not
+        // wired. A sphere's general circle mints one at rest (an
+        // oblique fillet corner's octant); the props door refuses that
+        // face's spherical triangle before this lane is asked.
         let Pcurve::Harmonic { p0, pa, pb, pl } = *cache.pcurve() else {
             return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries a FITTED (rung-3) pcurve on an \
-                       analytic chart — its Green-form boundary integral \
-                       (bspline_green_integral) wires up with the construction that \
-                       first mints one at rest (the banked join-window/edge×NURBS-face \
-                       boolean layers); nothing does today",
+                what: "curved-cut face half-edge carries a FITTED pcurve on an analytic \
+                       chart — its Green-form boundary integral (bspline_green_integral) \
+                       is not wired",
             });
         };
         let (t0, t1) = cache.params();
@@ -530,7 +526,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             }
             Pcurve::Fitted(_) => {
                 return Err(PropsError::QuadratureUnsupported {
-                    what: "a NURBS-face half-edge carries a FITTED (rung-3) pcurve — \
+                    what: "a NURBS-face half-edge carries a FITTED pcurve — \
                            the trimmed lane certifies the General class, whose \
                            agreement with its carrier is a measurement; nothing \
                            ships that mints a Fitted image on a spline chart",

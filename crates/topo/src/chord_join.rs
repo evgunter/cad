@@ -77,7 +77,7 @@
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
-    Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3,
+    Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
 use slotmap::SecondaryMap;
 
@@ -87,7 +87,6 @@ use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
-use crate::splitting::SplitPlane;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_carrier_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
@@ -653,8 +652,12 @@ impl ChordJoiner {
 /// sweep's rule). The boolean builds one per wall-side join of a
 /// plane×curved germ pair, from the germ plane.
 pub(crate) struct SectionCtx<T: Real> {
-    /// The split plane.
-    pub(crate) plane: SplitPlane<T>,
+    /// A point on the section plane.
+    pub(crate) origin: Point3<T>,
+    /// The section plane's normal. Its sense is the caller's: the
+    /// split's Above side, or a boolean germ plane's chart normal,
+    /// which names no material side.
+    pub(crate) normal: UnitVec3<T>,
     /// The minted auxiliary plane surface, once needed.
     pub(crate) plane_key: Option<SurfaceKey>,
 }
@@ -680,11 +683,13 @@ pub(crate) struct SectionCtx<T: Real> {
 ///   the one contained in that window — the same S9 statement, asked
 ///   of the mate's chart.
 pub(crate) enum JoinLane<'a, T: Real> {
-    /// Straight chords only; `plane` is the partner germ face's plane,
-    /// the section the chords lie in.
+    /// Straight chords only, in the partner germ face's plane.
     Planar {
-        /// The section plane (the partner germ face's plane).
-        plane: SplitPlane<T>,
+        /// A point on the partner germ face's plane.
+        origin: Point3<T>,
+        /// That plane's chart normal: unoriented, naming no material
+        /// side.
+        normal: UnitVec3<T>,
     },
     /// The split lane / boolean wall-side conic lane.
     Split(&'a mut SectionCtx<T>),
@@ -703,7 +708,10 @@ impl<T: Real> JoinLane<'_, T> {
     /// A reborrowing view (the join mints up to two chords per call).
     fn reborrow(&mut self) -> JoinLane<'_, T> {
         match self {
-            JoinLane::Planar { plane } => JoinLane::Planar { plane: *plane },
+            JoinLane::Planar { origin, normal } => JoinLane::Planar {
+                origin: *origin,
+                normal: *normal,
+            },
             JoinLane::Split(ctx) => JoinLane::Split(ctx),
             JoinLane::BoolPlanar {
                 wall,
@@ -1392,9 +1400,9 @@ fn chord_spec<T: Decide>(
     // the table (u_ref is a placement convention the classification
     // never consumes; the STORED aux plane below gets an honest one).
     let plane_s = geom::Surface::Plane {
-        origin: ctx.plane.origin,
-        normal: ctx.plane.normal,
-        u_ref: ctx.plane.normal,
+        origin: ctx.origin,
+        normal: ctx.normal.get(),
+        u_ref: ctx.normal.get(),
     };
     let extent = face_extent(body, u1, face).map_err(|_| corrupt_face(face))?;
     let conic = match section_case(face, band, &plane_s, &cyl_s, extent)? {
@@ -1444,8 +1452,8 @@ fn chord_spec<T: Decide>(
                 Some(k) => k,
                 None => {
                     let k = body.add_surface(geom::Surface::Plane {
-                        origin: ctx.plane.origin,
-                        normal: ctx.plane.normal,
+                        origin: ctx.origin,
+                        normal: ctx.normal.get(),
                         // Honest u_ref: the ruling direction lies in
                         // the plane by the tangency classification.
                         u_ref: dir / len,
@@ -1500,8 +1508,8 @@ fn chord_spec<T: Decide>(
         Some(k) => k,
         None => {
             let k = body.add_surface(geom::Surface::Plane {
-                origin: ctx.plane.origin,
-                normal: ctx.plane.normal,
+                origin: ctx.origin,
+                normal: ctx.normal.get(),
                 u_ref: conic.major,
             });
             ctx.plane_key = Some(k);
@@ -1827,8 +1835,9 @@ fn between_edge_is_section<T: Decide>(
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let mid = curve.mid_point();
             match lane {
-                JoinLane::Planar { plane } | JoinLane::Split(SectionCtx { plane, .. }) => {
-                    let margin = Margin::of((mid - plane.origin).dot(plane.normal));
+                JoinLane::Planar { origin, normal }
+                | JoinLane::Split(SectionCtx { origin, normal, .. }) => {
+                    let margin = Margin::of((mid - *origin).dot(normal.get()));
                     match decide("split_conic_inplane_mid", margin, band) {
                         Ok(Sign::Zero) => Ok(Some(true)),
                         Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
@@ -2356,7 +2365,7 @@ fn run_azimuth_images<T: Decide>(
         let (lo, hi) =
             chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::SectionInvariant {
                 face,
-                what: "a run edge's chart image is FITTED (rung-3) — this window rule reads \
+                what: "a run edge's chart image is FITTED — this window rule reads \
                        a closed-form azimuth, and the fitted-chord join lane is not \
                        written",
             })?;
@@ -2795,11 +2804,12 @@ mod tests {
         SectionCtx<f64>,
     ) {
         let phi = 0.5f64;
-        let normal = Vec3::new(phi.sin(), 0.0, phi.cos());
-        let plane = super::SplitPlane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal,
-        };
+        let plane = crate::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            Tol::witness(),
+        );
+        let normal = plane.normal.get();
         // The section ellipse of (plane × unit cylinder about z):
         // center at the axis piercing (origin), minor dir ŵ =
         // normalize(ẑ×n̂) = ŷ… compute points directly from the
@@ -2838,7 +2848,8 @@ mod tests {
             )
             .unwrap();
         let ctx = SectionCtx {
-            plane,
+            origin: plane.origin,
+            normal: plane.normal,
             plane_key: None,
         };
         (body, seed.face, seed.vertex, mev.vertex, ctx)
@@ -3011,13 +3022,13 @@ mod tests {
         let mut body = crate::Body::<f64>::new();
         let rim = rim_run(&mut body, 0.0, core::f64::consts::PI);
         let verdict = |normal: Vec3<f64>| {
-            let plane = SplitPlane {
-                origin: Point3::origin(),
-                normal,
-            };
-            let planar = between_edge_is_section(&body, &JoinLane::Planar { plane }, rim, band);
+            let plane = crate::test_support::split_plane(Point3::origin(), normal, Tol::witness());
+            let (origin, normal) = (plane.origin, plane.normal);
+            let planar =
+                between_edge_is_section(&body, &JoinLane::Planar { origin, normal }, rim, band);
             let mut ctx = SectionCtx {
-                plane,
+                origin,
+                normal,
                 plane_key: None,
             };
             let split = between_edge_is_section(&body, &JoinLane::Split(&mut ctx), rim, band);
@@ -3155,11 +3166,14 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (mut body, face, u1, u2, _) = cyl_fixture();
         let run = vec![rim_run(&mut body, -0.2, core::f64::consts::FRAC_PI_2 + 0.2)];
+        let plane = crate::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Tol::witness(),
+        );
         let lane = JoinLane::Planar {
-            plane: SplitPlane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-            },
+            origin: plane.origin,
+            normal: plane.normal,
         };
         let err = chord_spec(&mut body, band, lane, face, &run, u1, u2).unwrap_err();
         assert!(
