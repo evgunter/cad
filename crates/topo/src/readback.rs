@@ -2,10 +2,16 @@
 //!
 //! A construction answers questions its author asked implicitly —
 //! where a cap plane landed, what frame a wall's carrier sits in,
-//! where a corner vertex ended up. Without these doors the only way to
-//! ask is to hand-scan the body's arenas (or to transcribe the answer
-//! as a literal and hope it stayed true). These doors ask the model
-//! instead.
+//! where a corner vertex ended up, which faces an edge lies between.
+//! Without these doors the only way to ask is to hand-scan the body's
+//! arenas (or to transcribe the answer as a literal and hope it stayed
+//! true). These doors ask the model instead.
+//!
+//! Most of them read geometry: a carrier's frame or kind tag, a
+//! vertex's point. [`edge_sides`] reads topology alone — the
+//! adjacency an edge's two half-edges record — and keeps the same
+//! rules: keys copied out, nothing compared, a dangling reference
+//! named rather than skipped.
 //!
 //! # The three rules these doors keep
 //!
@@ -40,7 +46,7 @@
 //! # Layering
 //!
 //! These are KERNEL doors, and their home is what they read: a
-//! [`Body`], its geometry arenas, and nothing else. No operation crate
+//! [`Body`], its topology and geometry arenas, and nothing else. No operation crate
 //! is involved on either side — reading a face's plane costs a caller
 //! a dependency on the topology crate, not on whichever op happened to
 //! build the face. The document-layer twins that take a `StableName`
@@ -629,10 +635,12 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
     }
 }
 
-/// One side of an edge: the face a half-edge's loop bounds, and the
-/// surface key that face's record names.
+/// One side of an edge: the half-edge on that side, the face its loop
+/// bounds, and the surface key that face's record names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EdgeSide {
+    /// The edge's half-edge on this side.
+    pub half_edge: HalfEdgeKey,
     /// The face on this side.
     pub face: FaceKey,
     /// The surface key `face` names, as stored.
@@ -647,6 +655,20 @@ pub struct EdgeSides {
     pub plus: EdgeSide,
     /// The side of the edge's `he_minus`.
     pub minus: EdgeSide,
+}
+
+impl EdgeSides {
+    /// The two faces, `plus`'s first.
+    #[must_use]
+    pub fn faces(&self) -> (FaceKey, FaceKey) {
+        (self.plus.face, self.minus.face)
+    }
+
+    /// The two surface keys, `plus`'s first.
+    #[must_use]
+    pub fn surfaces(&self) -> (SurfaceKey, SurfaceKey) {
+        (self.plus.surface, self.minus.surface)
+    }
 }
 
 /// **An edge's two sides** — for each half-edge, the face its loop
@@ -666,8 +688,12 @@ pub struct EdgeSides {
 /// one there, as [`face_carrier_kind`] reports it.
 ///
 /// The refusal is the unresolved reference itself, as
-/// [`vertex_point_ref`]'s is; it converts to
-/// [`ReadbackError::Dangling`] through `From`.
+/// [`vertex_point_ref`]'s is, under the plain name: the `_ref` suffix
+/// marks the narrowed twin of a door that also answers
+/// [`ReadbackError`], and this door has no second form to tell apart —
+/// a dangling key is its only refusal, and it converts to
+/// [`ReadbackError::Dangling`] through `From`, so a `ReadbackError`
+/// caller writes `?`.
 ///
 /// # Errors
 ///
@@ -718,6 +744,7 @@ fn side_of<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeSide, Danglin
         .get_face(l.face)
         .ok_or(DanglingRef::Entity(EntityId::Face(l.face)))?;
     Ok(EdgeSide {
+        half_edge: he,
         face: l.face,
         surface: f.surface,
     })
@@ -1137,23 +1164,27 @@ mod tests {
         );
     }
 
-    /// The two sides come back in half-edge order, each the face its
-    /// loop bounds with that face's own surface key; and each lookup on
-    /// the walk refuses by its own key, `he_plus`'s side first.
+    /// The two sides come back in half-edge order, each its half-edge,
+    /// the face its loop bounds and that face's own surface key; and
+    /// each of the seven lookups refuses by its own key, in the
+    /// documented order — the edge, then `he_plus`'s half-edge, loop and
+    /// face, then `he_minus`'s.
     #[test]
-    fn edge_sides_reads_both_sides_in_half_edge_order_and_names_the_miss() {
-        use crate::entity::{EntityId, LoopKey};
-        use crate::fixtures::pillow;
-        let mut t = pillow(Tol::witness());
+    fn edge_sides_reads_both_sides_in_half_edge_order_and_names_each_miss() {
+        use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
+        use crate::fixtures::{NgonPillow, pillow};
+        let fresh = || pillow(Tol::witness());
+        let t = fresh();
         let e = t.edges[0];
         let sides = edge_sides(&t.body, e).expect("a live edge");
         assert_eq!(
-            (sides.plus.face, sides.minus.face),
-            (t.face_a, t.face_b),
-            "he_plus's side first"
+            (sides.plus.half_edge, sides.minus.half_edge),
+            (t.hes_a[0], t.hes_b[0]),
+            "each side carries its own half-edge, he_plus's first"
         );
+        assert_eq!(sides.faces(), (t.face_a, t.face_b), "he_plus's face first");
         assert_eq!(
-            (sides.plus.surface, sides.minus.surface),
+            sides.surfaces(),
             (t.surface_a, t.surface_b),
             "each side carries its own face's surface key"
         );
@@ -1162,28 +1193,67 @@ mod tests {
             "the fixture tells the sides apart"
         );
 
+        let miss = |t: &NgonPillow| edge_sides(&t.body, e).expect_err("a torn walk refuses");
+        let stale_he = HalfEdgeKey::default();
+        let stale_loop = LoopKey::default();
+        let stale_face = FaceKey::default();
+
+        // 1. The edge.
         let stale = crate::entity::EdgeKey::default();
         assert_eq!(
             edge_sides(&t.body, stale),
-            Err(DanglingRef::Entity(EntityId::Edge(stale)))
+            Err(DanglingRef::Entity(EntityId::Edge(stale))),
+            "a stale edge"
+        );
+        // 2-4. The plus side: half-edge, loop, face — each torn while
+        // the minus side is torn too, so the plus miss is the one named.
+        let mut t2 = fresh();
+        t2.body.get_half_edge_mut(t2.hes_b[0]).unwrap().parent_loop = stale_loop;
+        t2.body.get_edge_mut(e).unwrap().he_plus = stale_he;
+        assert_eq!(
+            miss(&t2),
+            DanglingRef::Entity(EntityId::HalfEdge(stale_he)),
+            "plus half-edge"
+        );
+        let mut t3 = fresh();
+        t3.body.get_half_edge_mut(t3.hes_b[0]).unwrap().parent_loop = stale_loop;
+        t3.body.get_half_edge_mut(t3.hes_a[0]).unwrap().parent_loop = stale_loop;
+        assert_eq!(
+            miss(&t3),
+            DanglingRef::Entity(EntityId::Loop(stale_loop)),
+            "plus loop"
+        );
+        let mut t4 = fresh();
+        t4.body.get_edge_mut(e).unwrap().he_minus = stale_he;
+        t4.body.get_loop_mut(t4.loop_a).unwrap().face = stale_face;
+        assert_eq!(
+            miss(&t4),
+            DanglingRef::Entity(EntityId::Face(stale_face)),
+            "plus face"
+        );
+        // 5-7. The minus side, with the plus side intact.
+        let mut t5 = fresh();
+        t5.body.get_edge_mut(e).unwrap().he_minus = stale_he;
+        assert_eq!(
+            miss(&t5),
+            DanglingRef::Entity(EntityId::HalfEdge(stale_he)),
+            "minus half-edge"
+        );
+        let mut t6 = fresh();
+        t6.body.get_half_edge_mut(t6.hes_b[0]).unwrap().parent_loop = stale_loop;
+        assert_eq!(
+            miss(&t6),
+            DanglingRef::Entity(EntityId::Loop(stale_loop)),
+            "minus loop"
+        );
+        let mut t7 = fresh();
+        t7.body.get_loop_mut(t7.loop_b).unwrap().face = stale_face;
+        assert_eq!(
+            miss(&t7),
+            DanglingRef::Entity(EntityId::Face(stale_face)),
+            "minus face"
         );
 
-        // Break the minus side's loop back-pointer: the plus side still
-        // reads, and the refusal names the minus side's loop.
-        t.body.get_half_edge_mut(t.hes_b[0]).unwrap().parent_loop = LoopKey::default();
-        assert_eq!(
-            edge_sides(&t.body, e),
-            Err(DanglingRef::Entity(EntityId::Loop(LoopKey::default())))
-        );
-        // Break the plus side's loop's face key too: the plus side is
-        // read first, so its miss is the one named.
-        t.body.get_loop_mut(t.loop_a).unwrap().face = crate::entity::FaceKey::default();
-        assert_eq!(
-            edge_sides(&t.body, e),
-            Err(DanglingRef::Entity(EntityId::Face(
-                crate::entity::FaceKey::default()
-            )))
-        );
         assert_eq!(
             ReadbackError::from(DanglingRef::Entity(EntityId::Edge(stale))),
             ReadbackError::Dangling {

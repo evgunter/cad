@@ -905,9 +905,9 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     kind: BlendKind,
 ) -> Result<Link<T>, BlendError> {
     let broken = || BlendError::ChainNotConnected { edge };
-    let he_plus = body.get_edge(edge).ok_or_else(broken)?.he_plus;
     let sides = topo::readback::edge_sides(body, edge).map_err(|_| broken())?;
-    let (face_a, face_b) = (sides.plus.face, sides.minus.face);
+    let he_plus = sides.plus.half_edge;
+    let (face_a, face_b) = sides.faces();
     let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
@@ -1631,8 +1631,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
 /// stored arena keys, so a co-surface seam is recognized by identity
 /// rather than by comparing two placed surfaces for equality.
 fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey, SurfaceKey)> {
-    let sides = topo::readback::edge_sides(body, edge).ok()?;
-    let (a, b) = (sides.plus.surface, sides.minus.surface);
+    let (a, b) = topo::readback::edge_sides(body, edge).ok()?.surfaces();
     Some(if a <= b { (a, b) } else { (b, a) })
 }
 
@@ -1823,14 +1822,10 @@ pub(super) fn cap_incidence<T: Decide>(
     let [_, _, _] = incident[..] else {
         return None;
     };
-    let faces_of = |e: EdgeKey| -> Option<(FaceKey, FaceKey)> {
-        let sides = topo::readback::edge_sides(body, e).ok()?;
-        Some((sides.plus.face, sides.minus.face))
-    };
     let mut rim_a: Option<(EdgeKey, FaceKey)> = None;
     let mut rim_b: Option<(EdgeKey, FaceKey)> = None;
     for e in incident.into_iter().filter(|e| *e != crease) {
-        let (f1, f2) = faces_of(e)?;
+        let (f1, f2) = topo::readback::edge_sides(body, e).ok()?.faces();
         let on = |f: FaceKey| f == face_a || f == face_b;
         let (support, third) = match (on(f1), on(f2)) {
             (true, false) => (f1, f2),

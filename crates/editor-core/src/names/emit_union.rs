@@ -544,7 +544,12 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 continue;
             };
             let EntityKey::Edge(r) = e.key else { continue };
-            for f in edge_faces(m.body, r)? {
+            let (plus, minus) = topo::readback::edge_sides(m.body, r)
+                .map_err(|_| NamingError::Emission {
+                    what: "a member edge without two faces",
+                })?
+                .faces();
+            for f in [plus, minus] {
                 sides.extend(unique_name(m.table, EntityKey::Face(f)).map(|f| (*n, f)));
             }
         }
@@ -673,17 +678,6 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
 /// both ends and both faces).
 fn straight<T: geom_core::Decide>(body: &topo::Body<T>, e: topo::EdgeKey) -> bool {
     topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
-}
-
-/// The two faces edge `e` of `body` lies between.
-fn edge_faces<T: geom_core::Decide>(
-    body: &topo::Body<T>,
-    e: topo::EdgeKey,
-) -> Result<[topo::FaceKey; 2], NamingError> {
-    let sides = topo::readback::edge_sides(body, e).map_err(|_| NamingError::Emission {
-        what: "a member edge without two faces",
-    })?;
-    Ok([sides.plus.face, sides.minus.face])
 }
 
 /// The face a member's table names `name`, when it names one face.

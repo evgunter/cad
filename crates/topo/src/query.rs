@@ -581,13 +581,15 @@ fn torn(id: EntityId) -> RimError {
     RimError::NotIntact(DanglingRef::Entity(id))
 }
 
-/// An edge's two side surfaces, `he_plus` first.
+/// An edge's two side surfaces, `he_plus` first, a dangling key
+/// renamed as the rim door's refusal.
 fn side_surfaces<T: Real>(
     body: &Body<T>,
     e: EdgeKey,
 ) -> Result<(SurfaceKey, SurfaceKey), RimError> {
-    let sides = crate::readback::edge_sides(body, e).map_err(RimError::NotIntact)?;
-    Ok((sides.plus.surface, sides.minus.surface))
+    Ok(crate::readback::edge_sides(body, e)
+        .map_err(RimError::NotIntact)?
+        .surfaces())
 }
 
 /// A half-edge's start and end vertices.
@@ -688,22 +690,19 @@ fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError
 /// branches, [`RimError::NotIntact`] on a dangling reference.
 pub fn rim_of<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
     seed_is_an_arc(body, edge)?;
-    let sides = side_surfaces(body, edge)?;
-    if sides.0 == sides.1 {
+    let sides = crate::readback::edge_sides(body, edge).map_err(RimError::NotIntact)?;
+    let (plus, minus) = sides.surfaces();
+    if plus == minus {
         return Err(RimError::CoSurface {
             edge,
-            surface: sides.0,
+            surface: plus,
         });
     }
-    let pair = (sides.0.min(sides.1), sides.0.max(sides.1));
-
-    let seed = body
-        .get_edge(edge)
-        .ok_or_else(|| torn(EntityId::Edge(edge)))?;
-    let lower_side = if sides.0 == pair.0 {
-        seed.he_plus
+    let pair = (plus.min(minus), plus.max(minus));
+    let lower_side = if plus == pair.0 {
+        sides.plus.half_edge
     } else {
-        seed.he_minus
+        sides.minus.half_edge
     };
     let (start, mut frontier) = half_edge_ends(body, lower_side).map_err(torn)?;
     let mut walked = vec![edge];

@@ -1907,7 +1907,8 @@ pub(super) fn crossed_edge_orientation<T: geom_core::Real>(
         _ => bug("a crossed seam edge's half-edge lies on no face"),
     })?;
     let mut names = Vec::with_capacity(2);
-    for face in [sides.plus.face, sides.minus.face] {
+    let (plus, minus) = sides.faces();
+    for face in [plus, minus] {
         names.push(
             table
                 .name_of(&ent(0, EntityKey::Face(face)))

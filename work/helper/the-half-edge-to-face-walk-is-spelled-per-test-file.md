@@ -113,3 +113,9 @@ left these test-file pair-walks for this row:
 - `step-export/tests/common/mod.rs`.
 - In-crate test modules: `topo/src/attach.rs`, `census.rs` (the
   `face_of` pair in its tests), `tier3_tests.rs`.
+
+`topo::test_support_fixtures::face_surface_of_he`, named above as the
+composition that serves the `.surface` hop, is retired: its four callers
+all read an edge's two sides, and read them through `edge_sides` now
+(`.surfaces()`). A test-file site that wants one side's surface reads
+`edge_sides(..)?.plus.surface`; one that wants both reads `.surfaces()`.

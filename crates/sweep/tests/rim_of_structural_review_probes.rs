@@ -47,18 +47,17 @@ fn boolean(name: &str, op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64>
 }
 
 fn pair(body: &Body<f64>, k: EdgeKey) -> (SurfaceKey, SurfaceKey) {
-    let sides = edge_sides(body, k).unwrap();
-    let (a, b) = (sides.plus.surface, sides.minus.surface);
+    let (a, b) = edge_sides(body, k).unwrap().surfaces();
     (a.min(b), a.max(b))
 }
 
 /// The half-edge of `k` on its pair's lower surface key.
 fn lower_he(body: &Body<f64>, k: EdgeKey) -> HalfEdgeKey {
-    let e = body.get_edge(k).unwrap();
-    if edge_sides(body, k).unwrap().plus.surface == pair(body, k).0 {
-        e.he_plus
+    let sides = edge_sides(body, k).unwrap();
+    if sides.plus.surface == pair(body, k).0 {
+        sides.plus.half_edge
     } else {
-        e.he_minus
+        sides.minus.half_edge
     }
 }
 

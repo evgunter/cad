@@ -1688,7 +1688,9 @@ fn plan_edge<T: Decide>(
         // the edge — which is a body-wide offset, not a
         // face-replacement, and this door says so rather than
         // storing a row the neighbour's own lane will reject.
-        let (fa, fb) = edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let (fa, fb) = crate::readback::edge_sides(body, edge)
+            .map_err(|_| ReplaceFaceError::Corrupt)?
+            .faces();
         let other = if group.contains(&fa) { fb } else { fa };
         if !group.contains(&other)
             && matches!(
@@ -2442,14 +2444,6 @@ fn move_mapped_endpoint<T: Real>(
         },
         place,
     })
-}
-
-/// The two faces an edge separates, `he_plus`'s first (they coincide
-/// on a seam): [`crate::readback::edge_sides`]'s faces, its refusal
-/// dropped for callers that answer a missing face as corruption.
-pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(FaceKey, FaceKey)> {
-    let sides = crate::readback::edge_sides(body, edge).ok()?;
-    Some((sides.plus.face, sides.minus.face))
 }
 
 /// **The offset mint's fit door, as the pass takes it** — the rows that

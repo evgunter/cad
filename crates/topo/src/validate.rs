@@ -5543,7 +5543,7 @@ pub(crate) fn tier3_local_checks_marked<
         let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
-        let (fs_plus, fs_minus) = (sides.plus.surface, sides.minus.surface);
+        let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
         // scaffolding door is for edges whose surfaces do not exist
         // yet. This edge has two faces — the lookup above answered —

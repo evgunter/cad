@@ -130,13 +130,13 @@ fn a_three_arc_rim_is_ordered_along_the_lower_surfaces_half_edges_from_every_see
     let (body, [a, b, c]) = three_arc_rim();
 
     let lower_runs = |k: EdgeKey| {
-        let e = body.get_edge(k).unwrap();
         let sides = topo::readback::edge_sides(&body, k).unwrap();
-        let he = if sides.plus.surface < sides.minus.surface {
-            e.he_plus
+        let lower = if sides.plus.surface < sides.minus.surface {
+            sides.plus
         } else {
-            e.he_minus
+            sides.minus
         };
+        let he = lower.half_edge;
         (
             body.get_half_edge(he).unwrap().start,
             body.half_edge_end(he).unwrap(),

@@ -103,10 +103,7 @@ fn the_repaired_pole_bodys_rim_is_two_arcs_on_one_plane_face() {
         .expect("the pole-split caps repair");
     let arcs = arcs_at(&source, 1.0, 0.0);
     assert_eq!(arcs.len(), 2, "the neck rim is still two arcs");
-    let faces = |k: EdgeKey| {
-        let sides = topo::readback::edge_sides(&source, k).unwrap();
-        (sides.plus.face, sides.minus.face)
-    };
+    let faces = |k: EdgeKey| topo::readback::edge_sides(&source, k).unwrap().faces();
     let (a0, b0) = faces(arcs[0]);
     let (a1, b1) = faces(arcs[1]);
     assert!(
@@ -228,8 +225,7 @@ fn the_doors_answer_feeds_fillet_edges_and_carves_on_either_side() {
 fn the_drilled_beads_two_rims_on_one_surface_pair_answer_separately() {
     let body = bead(SketchPlane::xy(), 1.0, 0.5, Revolution::Full);
     let sides = |k: EdgeKey| {
-        let sides = topo::readback::edge_sides(&body, k).unwrap();
-        let (a, b) = (sides.plus.surface, sides.minus.surface);
+        let (a, b) = topo::readback::edge_sides(&body, k).unwrap().surfaces();
         (a.min(b), a.max(b))
     };
     let rim_edges: Vec<EdgeKey> = body
