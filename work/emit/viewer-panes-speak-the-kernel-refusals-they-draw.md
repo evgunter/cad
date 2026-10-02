@@ -2,9 +2,10 @@
 id: viewer-panes-speak-the-kernel-refusals-they-draw
 kind: unit
 title: The viewer's panes and frame speak the kernel refusals they draw (Standing's verdict, the indeterminate line, the sweep of the rest)
-status: review
+status: closed
 pr: 3827
 opened: 2026-10-02
+closed: 2026-10-02
 priority: P2
 cost: M
 parent: node-labels-are-document-data
