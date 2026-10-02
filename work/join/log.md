@@ -164,6 +164,17 @@ the zip's and the ring lane's sources of truth; architectural).
 
 Signed (JOIN orchestrator).
 
+## 2026-10-02 — PR 3887 lands: the pole strut binding
+
+`locus-matching-moves-frontier-refusals-to-join-desync` closed. JOIN-1's
+`insert::strut_facing` had already fixed the ball's pole strut. This
+PR re-measured JOIN-1's batteries (no pose leaves sound, none becomes a
+wrong body), pins the pole pose's typed frontier in all six op and order
+combinations, and files two reflex rows:
+`reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop`
+and `a-reflex-vertex-and-its-partner-read-the-same-b-sense-along-an-edge-through-the-corner`
+(P1/H each). Review tier: the orchestrator's read. It is a test row and
+tracker records only, with no kernel code.
 ## 2026-10-02 — PR 3790 lands: JOIN-1, a section germ names its cell
 
 JOIN-1, `an-edge-lying-in-a-cutter-face-…` and `dumbbell-joint-union-…`

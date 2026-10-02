@@ -371,6 +371,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the Boolean's decision sites, code view
     },
     Entry {
+        path: "crates/topo/src/boolean/ops.rs",
+        disposition: Shared, // the smooth seam arm's route through the rule, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/wall_section_rows.rs",
         disposition: Shared, // the window-construction site list, code view
     },

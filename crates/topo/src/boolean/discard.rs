@@ -74,19 +74,26 @@ pub struct HeldEdge {
     pub at: VertexKey,
 }
 
-/// The operand face that clone face `face` is a fragment of: the
-/// `(new, divided-from)` rows of a boolean's chord splits
-/// (`BooleanNaming::face_fragments_a`/`_b`), followed back to a face no
-/// row divided. `None` when the rows cycle.
-pub fn fragment_root(
+/// The end of the face lineage that starts at `face` and steps through
+/// `up`, the boolean's one bounded lineage walk: `up` names the next
+/// face of a row, `None` where none does, and `rows` counts the rows
+/// it reads. Its readers: fragment rows back to the face they were
+/// divided from (`BooleanNaming::face_fragments_a`/`_b`,
+/// `SplitNaming::face_fragments`), and a merge's absorption rows
+/// forward to the surviving face.
+///
+/// `None` when the rows cycle: a walk that outlasts `rows` steps has
+/// revisited a face, so the record is corrupt, and a reader refuses it
+/// rather than treating the face it stopped on as the end.
+pub fn lineage_root(
     face: FaceKey,
     rows: usize,
-    divided_from: impl Fn(FaceKey) -> Option<FaceKey>,
+    up: impl Fn(FaceKey) -> Option<FaceKey>,
 ) -> Option<FaceKey> {
     let mut at = face;
     for _ in 0..=rows {
-        match divided_from(at) {
-            Some(up) => at = up,
+        match up(at) {
+            Some(next) => at = next,
             None => return Some(at),
         }
     }
@@ -123,7 +130,7 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
     ) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
         let root = |f| {
-            fragment_root(f, self.fragments.len(), |k| {
+            lineage_root(f, self.fragments.len(), |k| {
                 self.fragments
                     .iter()
                     .find(|(new, _)| *new == k)
