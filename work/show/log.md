@@ -291,3 +291,19 @@ PR 3792's fix pass is in, at head `a93a0db7a`, green. It does six things:
 Teapot's and torusvessel's in-bin wall tests share the stale "the walk never runs under cargo test" premise. They go in the next SHOW unit that touches those files.
 
 `lily-lanceolate-blade-sections` is dispatched.
+
+## 2026-10-02 — teapot lid reviewed (MERGE WITH FIXES)
+
+PR 3824: the closed forms re-derive independently, and planted wrong lids go red.
+
+The split latitude itself is ratified design. Ev, 2026-09-25: curved walls stay π-halves for pole valence. The scene's two-name request is therefore the right authored spelling.
+
+The finding is in the GUI. One visible circle is two names. A one-click pick gets half the rim and refuses, and the recourse it offers is kernel-only. That gets a row on the viewer's owner.
+
+Fix pass:
+- a solid-lid document-vs-kernel equivalence row;
+- a per-band census check;
+- the literal `x{SPOUT_STATIONS}` narration bug;
+- whether the eps walk runs every scene's stops in CI.
+
+Tess census merge plan: the deltas from 3792, 3816 and 3824 add by scene. Re-run tess-lint on each merge commit rather than trusting arithmetic.
