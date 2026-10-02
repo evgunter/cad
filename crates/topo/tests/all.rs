@@ -285,6 +285,8 @@ mod split_gate_per_face;
 mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
+#[path = "union_flush_onto_edge_contact.rs"]
+mod union_flush_onto_edge_contact;
 #[path = "void_door.rs"]
 mod void_door;
 

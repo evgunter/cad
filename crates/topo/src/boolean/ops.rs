@@ -2393,18 +2393,45 @@ pub(super) fn remap_contacts<T: Real>(
     let face =
         |view: &KeyView<'_>, f: FaceKey| view.face(f).map_or(Ok(None), |k| desc.live_face(body, k));
     let mut out = ContactRecords::default();
-    for c in &contacts.vv {
-        // Two records whose ends fused into one pair are one record.
-        if let (Some(a), Some(b)) = (
+    // Rows sharing an end sit at one point, and every two of their
+    // ends that are distinct live vertices are a contact the census
+    // asks after: a vertex coincident with two of the other operand's
+    // (that operand's own contact) fuses into one and keeps touching
+    // the other, whose row names the end that fused away.
+    let mut group: Vec<usize> = (0..contacts.vv.len()).collect();
+    for i in 0..group.len() {
+        for j in 0..i {
+            let (ci, cj) = (contacts.vv[i], contacts.vv[j]);
+            let (gi, gj) = (group[i], group[j]);
+            if (ci.a == cj.a || ci.b == cj.b) && gi != gj {
+                group.iter_mut().filter(|g| **g == gi).for_each(|g| *g = gj);
+            }
+        }
+    }
+    let mut live: Vec<(usize, VertexKey)> = Vec::new();
+    for (c, &g) in contacts.vv.iter().zip(&group) {
+        for v in [
             vert((Operand::A, &a_view), c.a)?,
             vert((Operand::B, &b_view), c.b)?,
-        ) && a != b
-            && !out
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !live.contains(&(g, v)) {
+                live.push((g, v));
+            }
+        }
+    }
+    for (i, &(g, a)) in live.iter().enumerate() {
+        for &(_, b) in live[i + 1..].iter().filter(|(h, _)| *h == g) {
+            // Two rows whose ends fused into one pair are one record.
+            if !out
                 .vv
                 .iter()
                 .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
-        {
-            out.vv.push(VvContact { a, b });
+            {
+                out.vv.push(VvContact { a, b });
+            }
         }
     }
     for c in &contacts.a_on_b {

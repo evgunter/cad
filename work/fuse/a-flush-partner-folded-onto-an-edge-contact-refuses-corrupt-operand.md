@@ -4,7 +4,7 @@ kind: issue
 title: A union whose accumulator already holds a non-manifold edge contact refuses CorruptOperand { operand: B } when a flush partner folds onto it
 status: open
 opened: 2026-10-02
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -34,3 +34,41 @@ Same probe: some orders of these documents already fail tier 3′ today
 (`ERR(VV, EEOverlap)` in `c,b,a` of the x∈(0.5,1.5) variant, and in
 `a,c,b` and `c,a,b` of the x∈(0.25,0.75) one). Those were not examined
 either; reproduce them in the same step.
+
+
+## Reproduced through the public door, and fixed (branch `fuse/corrupt-operand-edge-contact`, 2026-10-02, main at e00d2442b)
+
+**P0**: it reproduces through `Node::Union` and chained
+`Node::Boolean(Union)`, with each step's flush pairs declared and no
+records carried. Before the fix, `Node::Union` refused
+`Boolean(CorruptOperand { operand: B, corruption: Vertex })`, naming
+the member folded last:
+- `b,c,a` in all three spans;
+- `a,c,b` for x∈(0.5,1.5).
+
+The kernel refuses the same orders with no `carried_a` at all, so the
+probe's carriage was not the cause.
+
+**Cause.** The accumulator holds two vertices at each end of `c`'s
+edge contact. The next member's vertex there pairs with both
+(`contacts.vv`). The reduction classified and inserted pair by pair, so
+the crossing pair's null edges moved that vertex's orbit before the
+touching pair's `build_sectors` walked it. That walk met a
+`NullScaffold` curve and refused through `sectors::corrupt`. **Fix:**
+every v-v pair is read before the first insertion. A touching pair
+inserts nothing, so its reading stays good. Two crossing pairs at one
+vertex refuse typed, as `SharedVertexCrossings`
+(`work/fuse/a-vertex-crossing-both-sides-of-a-pinch-refuses-shared-vertex-crossings.md`).
+
+**Tier 3′.** The orders that failed 3′ in the probe fail with the
+records carried, and in more orders without them:
+- Not carried: that is
+  `work/wire/a-boolean-drops-its-operands-own-contact-records.md`.
+- Carried: `remap_contacts` dropped a step's own v-v row whose end had
+  fused into its partner. The other vertex at that point was left
+  unrecorded, and 3′ refused it, plus the edge overlaps either side.
+  Rows sharing an end are now remapped as one group. Carried, every
+  order of every span passes 3′.
+
+Pinned in `crates/topo/tests/union_flush_onto_edge_contact.rs` and
+`crates/editor-core/tests/union_flush_onto_edge_contact.rs`.
