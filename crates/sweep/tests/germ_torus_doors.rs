@@ -36,10 +36,9 @@
 //! this fixture never reaches it (no line edge of one half meets a
 //! torus face of the other), so its rows run on a donut and a bar. The
 //! donut's pierces go on to the pierce lane's outward normal, which
-//! has a torus arm too, and then to the curved-sector sagitta charge,
-//! which refuses a pierce vertex's near-tangent in-face bisectors on a
-//! torus exactly as it does on a cylinder; the sweep traces, which stop
-//! before that classification, are what those rows read.
+//! has a torus arm too, and then to the join's germ frame, which has no
+//! torus × plane arm; the sweep traces, which stop before that, are
+//! what those rows read.
 //!
 //! Past every torus door the union stops at the chord join, exactly
 //! where the same dumbbell with a CYLINDER handle stops — the control
@@ -533,8 +532,8 @@ fn a_segment_through_the_tube_is_pierced_at_both_quartic_roots() {
 /// event there. Nothing lands on the outer face — a chord recorded
 /// against it would be an incidence that does not exist.
 ///
-/// What the union meets next is the curved-sector sagitta charge, the
-/// door every line×torus pierce stops at.
+/// What the union meets next is the join's germ-frame dispatch, which
+/// has no torus × plane section arm.
 #[test]
 fn a_chord_across_the_hole_is_pierced_not_passed() {
     let d = donut();
@@ -572,11 +571,18 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
         inner.iter().copied().collect(),
         "every event lands on the inner face; the chords record nothing on the outer one"
     );
-    let err = topo::union(&d, &b, Tol::witness())
-        .expect_err("the pierce vertices meet the sagitta charge");
+    let err =
+        topo::union(&d, &b, Tol::witness()).expect_err("the germ frame has no torus × plane arm");
     assert!(
-        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
-        "past the chord, the union stops at the sagitta charge: {err:?}"
+        matches!(
+            err,
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom_brep::SurfaceKind::Torus,
+                b_kind: geom_brep::SurfaceKind::Plane,
+                ..
+            }
+        ),
+        "past the chord, the union stops at the germ frame: {err:?}"
     );
 }
 
@@ -682,9 +688,12 @@ fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
 /// **The relaxation opens no cylinder body.** The same rod through the
 /// three-face wall, under every op: the chord is no event on the third
 /// face now, and what each op meets next is a typed door, never a body.
-/// Measured: every op stops at the curved-sector sagitta charge, where
-/// the rod's pierce vertices sit on a wall — the door the torus pierces
-/// stop at too.
+/// Measured: every op stops at the join, where the rod's pierces mint
+/// rings in the wall and a ring has no join arm yet
+/// (`work/tang/pierce-ring-has-no-join-arm`). The rod is asymmetric
+/// about the axis, and the arc-window door it lands on is
+/// `NeitherContained`, the sub-case that unit holds the pairing
+/// question for.
 #[test]
 fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
     let cyl = three_face_cylinder();
@@ -702,7 +711,13 @@ fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
     ] {
         let err = r.expect_err(what);
         assert!(
-            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                    case: topo::ArcWindowCase::NeitherContained,
+                    ..
+                })
+            ),
             "{what}: {err:?}"
         );
     }
@@ -1157,9 +1172,9 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// reaches the same doors as their unions:
 ///
 /// - a bar through the tube (near-perpendicular, belly, chord across
-///   the hole) stops at the curved-sector sagitta charge, or at the
-///   crossing layer's pierce door where the run's band puts the
-///   near-perpendicular root there;
+///   the hole) stops at the join's germ frame, which has no torus ×
+///   plane arm, or at the crossing layer's pierce door where the run's
+///   band puts the near-perpendicular root there;
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and two tori meeting in an oval, or a cylinder grazing
 ///   the outer equator, have no section classification (R-reach);
@@ -1200,7 +1215,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             assert!(
                 matches!(
                     err,
-                    BooleanError::CurvedSectorSideUnsupported { .. }
+                    BooleanError::GermFrameUnsupported { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "{name}, {op}: {err:?}"

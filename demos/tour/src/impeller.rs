@@ -30,12 +30,16 @@
 //! # Why the hub is a prism
 //!
 //! A real impeller's hub is round, and this one is a 24-gon. That is
-//! not a stylistic choice: `cylinder ∪ box` refuses
-//! `CurvedPierceUnsupported` at the boolean's curved-pierce door, so a
-//! round hub cannot have a blade unioned into it at all. The frontier
-//! is filed (`work/curved/boolean-refuses-on-arc-carrier-not-arc`) and
-//! this scene is one of the parts that meets it; the faceted hub is
-//! the modelling the kernel currently permits, said out loud rather
+//! not a stylistic choice: a box leaving a cylinder through its wall
+//! refuses to union, so a round hub cannot have a blade unioned into
+//! it at all. The kernel's own row for that pose
+//! (`sweep/tests/verbs_germarms.rs`,
+//! `a_bar_leaving_through_one_side_of_a_wall_reaches_the_join`) gets
+//! past the pierce door now and refuses at the join,
+//! `SectionArcWindow { NoChartedRun }`: the frontier is
+//! `work/tang/pierce-ring-has-no-join-arm`, beside
+//! `work/tang/boolean-refuses-on-arc-carrier-not-arc`. The faceted hub
+//! is the modelling the kernel currently permits, said out loud rather
 //! than passed off as the part.
 //!
 //! # The overlap, and why it is here
@@ -405,8 +409,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         and the blades still close the circle. A comb's count and \
                         spacing are genuinely independent; a wheel's are not, and the \
                         recipe layer can say which it is. The hub is a PRISM because \
-                        `cylinder u box` refuses at the boolean's curved-pierce door, \
-                        so a round hub cannot have a blade unioned into it at all",
+                        a box leaving a cylinder through its wall refuses to union \
+                        (at the join, `SectionArcWindow`), so a round hub cannot have a \
+                        blade unioned into it at all",
                 ops: "Datum::Frame x2 -> Profile(24-gon) -> Extrude; Profile(blade) -> \
                       Extrude; Datum::Axis -> Node::placed_union(blade, count = \
                       blades, Circular { axis, step = 360 deg / scalar(blades) }) -> \

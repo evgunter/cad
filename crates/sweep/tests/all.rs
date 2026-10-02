@@ -192,6 +192,8 @@ mod blend4_r1_probes;
 mod blend6_verb_vocab;
 #[path = "blend_ball_side_bits.rs"]
 mod blend_ball_side_bits;
+#[path = "blend_dual_tangent.rs"]
+mod blend_dual_tangent;
 #[path = "blend_margin_payload_interval.rs"]
 mod blend_margin_payload_interval;
 #[path = "blend_seam_split_rim.rs"]
@@ -226,6 +228,8 @@ mod extrude_acceptance;
 mod extrude_interval;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
+#[path = "join_whole_orbit_cylinder.rs"]
+mod join_whole_orbit_cylinder;
 #[path = "k_report.rs"]
 mod k_report;
 #[path = "ladder_split_key.rs"]
@@ -320,8 +324,12 @@ mod must_carry_rule;
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]
 mod r2_sense_fold_probes;
+#[path = "ray_wall_margin_twins.rs"]
+mod ray_wall_margin_twins;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
+#[path = "reach_wall_chord_rows.rs"]
+mod reach_wall_chord_rows;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "recourse_roster.rs"]
@@ -657,23 +665,17 @@ mod rim_of_rows_interval;
 #[path = "rim_of_r1_probes.rs"]
 mod rim_of_r1_probes;
 
-#[path = "rim_of_r1_probes_interval.rs"]
-mod rim_of_r1_probes_interval;
+#[path = "rim_of_structural_review_probes.rs"]
+mod rim_of_structural_review_probes;
 
-#[path = "r2_rim_interval_probes.rs"]
-mod r2_rim_interval_probes;
-
+#[path = "fillet_h6_cap_rim.rs"]
+mod fillet_h6_cap_rim;
 #[path = "n3r1_d31.rs"]
 mod n3r1_d31;
 #[path = "n3r1_prune.rs"]
 mod n3r1_prune;
 #[path = "n3r2_d31_bitid.rs"]
 mod n3r2_d31_bitid;
-#[path = "r2_rim_corpus_probes.rs"]
-mod r2_rim_corpus_probes;
-
-#[path = "fillet_h6_cap_rim.rs"]
-mod fillet_h6_cap_rim;
 
 #[path = "review_blend_e2_r1_probes.rs"]
 mod review_blend_e2_r1_probes;
