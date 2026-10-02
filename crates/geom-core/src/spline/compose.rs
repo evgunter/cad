@@ -20,12 +20,14 @@
 //!    the weight channel `W_i = w_i`.
 //! 2. Bézier-decompose each channel: knot insertion to full interior
 //!    multiplicity, **structure** (positions, counts) read from the
-//!    `f64` knot vector, **coefficients** combined in certification arithmetic in the
-//!    convex form `c_{i−1}·β + c_i·α`, with BOTH barycentric ratios
-//!    formed as ring quotients of knot enclosures (an `f64`-rounded
-//!    ratio would silently drop its rounding error, and the lerp form
-//!    `c_{i−1} + (c_i − c_{i−1})·α` would read `c_{i−1}` twice and
-//!    multiply its dust up once per insertion).
+//!    `f64` knot vector, **coefficients** combined in certification
+//!    arithmetic as the meet of the convex form `c_{i−1}·β + c_i·α` and
+//!    the lerp form `c_{i−1} + (c_i − c_{i−1})·α`, with BOTH barycentric
+//!    ratios formed as ring quotients of knot enclosures (an
+//!    `f64`-rounded ratio would silently drop its rounding error). The
+//!    convex form alone bulges past near-equal points; the lerp form
+//!    alone reads `c_{i−1}` twice and multiplies its dust up once per
+//!    insertion.
 //! 3. Per span, exact Bernstein products: degree `da × db → da + db`
 //!    with the binomial weights `C(da,i)·C(db,j)/C(da+db,k)` computed
 //!    as ring quotients (several are not `f64`-representable).
@@ -274,7 +276,9 @@ impl BernsteinSpans {
 
 /// One Boehm insertion of `u` into the raw knot list `knots` (degree
 /// `p`, current multiplicity `s` of `u`), coefficients combined in the
-/// ring in the **convex form** `Q_i = c_{i−1}·β_i + c_i·α_i`, with
+/// ring as the meet of the **convex form** `Q_i = c_{i−1}·β_i + c_i·α_i`
+/// and the lerp form `c_{i−1} + (c_i − c_{i−1})·α_i`
+/// ([`super::algebra::insertion_combo`]), with
 /// `Δ_i = U_{i+p} − U_i` and both barycentric coefficients formed as
 /// **ring quotients** of knot enclosures from the knots they are made
 /// of (module docs step 2):
@@ -288,8 +292,7 @@ impl BernsteinSpans {
 /// **The argument for this form — why `β` comes from the knots and not
 /// from `1 − α`, why the combination still encloses the true refined
 /// coefficient, why reading each coefficient once is the whole width
-/// saving, and why the result nevertheless reaches a little past the
-/// hull of its two sources — has one home in this crate and it is
+/// saving, and why it is met with the lerp form — has one home in this crate and it is
 /// [`super::algebra::CurvePlan::apply_certified`]'s docs.** That method
 /// combines identically; restating its reasoning here is the very
 /// duplication this form exists to remove. What belongs here is only
@@ -302,8 +305,7 @@ impl BernsteinSpans {
 ///   rational arithmetic, is
 ///   this module's `the_ring_fold_encloses_the_exact_refined_net`; the
 ///   width the fold accumulates is
-///   `the_convex_form_does_not_inflate_the_fold`, which also witnesses
-///   the bulge at this function rather than at `apply_certified`.
+///   `the_convex_form_does_not_inflate_the_fold`.
 ///   (Both are `#[cfg(test)]`, so these are names and not links —
 ///   rustdoc does not document a test module.)
 /// - [`to_bezier_spans_extra`] inserts each interior knot to full
@@ -316,7 +318,8 @@ impl BernsteinSpans {
 /// there, so this is a name and not a link), and so is the coefficient
 /// arithmetic.** Both derive the span through the same search
 /// ([`super::knots::find_span_in`] here, `find_span` there), both
-/// insert one knot at `k + 1`, and both combine in the convex form.
+/// insert one knot at `k + 1`, and both combine through
+/// `insertion_combo`.
 /// What separates them is the SHAPE of the schedule: this one folds
 /// interval coefficients in place over a RAW knot list, to full
 /// interior multiplicity, deliberately never rebuilding a
@@ -351,13 +354,17 @@ fn insert_once_ring(
             // Window k−p+1 ..= k−s: interval arithmetic combination.
             // `Δ > 0` because U_i < u (i ≤ k − s, below the copy run)
             // and U_{i+p} ≥ U_{k+1} > u (span k is nonempty), so
-            // neither quotient refuses. Fixed association (D9):
-            // `β·c_{i−1} + α·c_i`.
+            // neither quotient refuses.
             let (lo, hi) = (Interval::point(knots[i]), Interval::point(knots[i + p]));
             let span = hi - lo;
             let alpha = (up - lo) / span;
             let beta = (hi - up) / span;
-            out.push(coeffs[i - 1] * beta + coeffs[i] * alpha);
+            out.push(super::algebra::insertion_combo(
+                coeffs[i - 1],
+                coeffs[i],
+                alpha,
+                beta,
+            ));
         } else {
             // Q_i = c_{i−1} (carry above the window; i ≥ 1 here because
             // k ≥ s for an interior u with multiplicity s).
@@ -1755,13 +1762,10 @@ mod tests {
                 assert!(r.is_certified(), "p={p}: refused slot in the fold");
                 a.max(r.hi() - r.lo())
             });
-            // The bulge, witnessed AT THIS FUNCTION rather than at
-            // `apply_certified`: the inputs are points, so in ℝ every
-            // refined coefficient is a convex combination of points and
-            // the answer would be a point too. `α` and `β` round
-            // outward independently, so it is a bracket. A fold that
-            // held the points exactly would be reporting a tighter
-            // enclosure than its own rounding licenses.
+            // The knots `j/(m+1)` are not dyadic, so most refined
+            // coefficients are not `f64` values: a fold that held every
+            // slot as a point would be claiming an exactness the ratios
+            // cannot carry.
             assert!(
                 worst > 0.0,
                 "p={p}: every slot of a {insertions}-insertion fold held its point exactly, \
@@ -1793,6 +1797,41 @@ mod tests {
              the width is no longer the two ratios rounding outward once per step — a form \
              that reads a coefficient twice multiplies its dust up instead of adding to it"
         );
+    }
+
+    /// **A near-equal point net keeps its points through the fold.** A
+    /// constant column's refined coefficients equal it in ℝ. The convex
+    /// form alone brackets each one by several ulps of the coefficient
+    /// (`α` and `β` round outward independently); the lerp form computes
+    /// `c + 0·α = c` exactly, so the meet holds the point. This is the
+    /// shape that widened a plane × NURBS envelope by 10x in slack while
+    /// the convex form stood alone.
+    #[test]
+    fn a_constant_column_keeps_its_points_through_the_fold() {
+        for (p, c) in [(2usize, 1.0), (3, 7.25), (6, -0.3)] {
+            let mut knot_list = vec![0.0; p + 1];
+            for j in 1..=16u32 {
+                knot_list.push(f64::from(j) / 17.0);
+            }
+            knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let mut knots = kv.knots().to_vec();
+            let mut ring = vec![Interval::point(c); kv.control_count()];
+            for (v, s) in kv.interior_knot_runs().collect::<Vec<_>>() {
+                for step in s..p {
+                    insert_once_ring(&mut knots, p, step, &mut ring, v);
+                }
+            }
+            for (i, r) in ring.iter().enumerate() {
+                assert_eq!(
+                    (r.lo(), r.hi()),
+                    (c, c),
+                    "p={p} c={c}: slot {i} of the full-multiplicity fold is not the point, so \
+                     the convex form's bracket reached the result and the meet with the lerp \
+                     form did not hold"
+                );
+            }
+        }
     }
 
     fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {

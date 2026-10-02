@@ -288,23 +288,23 @@ impl CurvePlan {
     /// WIDTH.** `x + (y − x)·α` reads `x` TWICE, so an interval `x`
     /// enters the width with coefficient `1 + α` and a fold of
     /// insertions multiplies its dust up step by step. Read once each,
-    /// the width grows only by the ratios' own rounding — measured at 16
-    /// ulps of the coefficient scale over 30 insertions against 355 for
-    /// the lerp form on this applier, and at 4.7 against 473.7 over 80
-    /// insertions on `insert_once_ring`'s fold
-    /// (`compose`'s `the_convex_form_does_not_inflate_the_fold`).
+    /// the width grows only by the ratios' own rounding. With the meet
+    /// below, this module's ring-refinement row reads 11.9 ulps of the
+    /// coefficient scale at its widest, where the lerp form alone reaches
+    /// 355 at `p = 2` over 30 insertions; `insert_once_ring`'s fold reads
+    /// 3.8 against the lerp form's 473.7 over 80 insertions (`compose`'s
+    /// `the_convex_form_does_not_inflate_the_fold`).
     ///
-    /// It does NOT make the step stay inside the hull of its two
-    /// sources. `α` and `β` round outward INDEPENDENTLY, so
-    /// `α_hi + β_hi > 1` and the combination reaches a little past both:
-    /// a constant column, whose source hull is a point, comes out as a
-    /// bracket around it. That is outward and therefore sound; what it
-    /// is not is variation-diminishing in the exact sense the reals
-    /// give. The excursion's SIZE is pinned here by
-    /// this module's `the_convex_form_bulges_by_the_ratios_own_rounding`,
-    /// and its existence at `insert_once_ring` by that function's own
-    /// width row. (Both are `#[cfg(test)]`, so these are names and not
-    /// links.)
+    /// **It is not the whole combination: the meet with the lerp form
+    /// is** (`insertion_combo`, private to this module). `α` and `β`
+    /// round outward INDEPENDENTLY, so `α_hi + β_hi > 1` and the convex
+    /// form alone reaches a little past both sources, by several ulps of
+    /// the coefficients themselves: a constant column comes out as a bracket
+    /// around its point. On near-equal point nets that loses to the lerp
+    /// form, whose ratio rounding is multiplied only by `y − x`, so each
+    /// step keeps the intersection of the two. The constant column is
+    /// then held exactly (this module's
+    /// `a_constant_column_refines_to_itself`, a `#[cfg(test)]` name).
     ///
     /// **Two width allowances, one claim.** This module's
     /// `the_ring_applier_stays_in_step_and_near_the_described_hull`
@@ -352,16 +352,15 @@ impl CurvePlan {
                                 // BOTH barycentric coefficients, each from
                                 // its own knots: `β = (U_{j+p} − u)/Δ` and
                                 // `α = (u − U_j)/Δ` with `Δ = U_{j+p} − U_j`.
-                                // Fixed association (D9): `β·x + α·y`. The
-                                // argument for this form, and for `β` coming
-                                // from the knots rather than from `1 − α`,
-                                // is this method's own docs.
+                                // The argument for the combination, and for
+                                // `β` coming from the knots rather than from
+                                // `1 − α`, is this method's own docs.
                                 let (lo, hi) = (Interval::point(r.lo), Interval::point(r.hi));
                                 let u = Interval::point(r.inserted);
                                 let span = hi - lo;
                                 let alpha = (u - lo) / span;
                                 let beta = (hi - u) / span;
-                                Some(cx * beta + cy * alpha)
+                                Some(insertion_combo(cx, cy, alpha, beta))
                             }
                             _ => None,
                         };
@@ -373,6 +372,45 @@ impl CurvePlan {
             .map(|slot| slot.unwrap_or_else(Interval::refused))
             .collect()
     }
+}
+
+/// One Boehm combination of the enclosures `x = c_{j−1}` and
+/// `y = c_j`, with `α ∋ λ` and `β ∋ 1 − λ` the outward-rounded ratios
+/// [`CurvePlan::apply_certified`]'s docs derive: the MEET of the convex
+/// form `β·x + α·y` and the lerp form `x + (y − x)·α`.
+///
+/// Both forms contain `(1 − λ)·x₀ + λ·y₀` for every `x₀ ∈ x`,
+/// `y₀ ∈ y` (inclusion monotonicity, over the same exact `λ`), so their
+/// intersection does too, and it is no wider than either. Neither form
+/// dominates: the convex form reads each coefficient once, so it wins
+/// on wide inputs; the lerp form multiplies the ratio's rounding by
+/// `y − x` rather than by `x` and `y`, so it wins on near-equal points.
+///
+/// Fixed association (D9): each form is evaluated exactly as spelled
+/// above.
+///
+/// An EMPTY meet means one of the two forms failed to enclose, which is
+/// a kernel defect. It yields NaI, the poison every downstream refusal
+/// reads, and never a widened bracket.
+pub(crate) fn insertion_combo(
+    x: Interval,
+    y: Interval,
+    alpha: Interval,
+    beta: Interval,
+) -> Interval {
+    let convex = x * beta + y * alpha;
+    let lerp = x + (y - x) * alpha;
+    if !convex.is_certified() || !lerp.is_certified() {
+        return Interval::refused();
+    }
+    let (lo, hi) = (crate::real::Bounds::lo(lerp), crate::real::Bounds::hi(lerp));
+    let meet = convex.clamped_to(lo, hi);
+    debug_assert!(
+        meet.is_certified(),
+        "the convex form {convex:?} and the lerp form {lerp:?} of one Boehm step are \
+         disjoint, so one of them does not enclose the true coefficient"
+    );
+    meet
 }
 
 /// Validates weights against a knot vector: count, positivity,
@@ -459,8 +497,8 @@ pub fn insert_knot_plan(
 /// outward-rounding quotient and has no weights to form `λ` from" —
 /// which is a description of [`CurvePlan::apply_certified`], so the argument
 /// no longer separates them, and neither does the coefficient
-/// arithmetic any more: both combine in the convex form with `α` and
-/// `β` re-derived from their knots, and
+/// arithmetic any more: both combine through [`insertion_combo`], with
+/// `α` and `β` re-derived from their knots, and
 /// [`CurvePlan::apply_certified`]'s docs are the one home of that
 /// argument. What still separates them is the SHAPE of the schedule
 /// each needs: that one inserts to full interior multiplicity over a
@@ -1293,14 +1331,12 @@ mod tests {
     /// 3. **No slot leaves the described hull by more than the ratios'
     ///    own rounding.** In ℝ a refined coefficient is a convex
     ///    combination of the described ones, so it lies in their hull;
-    ///    in certification arithmetic the two ratios round outward independently and
-    ///    `α_hi + β_hi` exceeds 1, so a slot reaches a little past that
-    ///    hull. The excursion is bounded by the same width claim 4
+    ///    in certification arithmetic the two ratios round outward
+    ///    independently and `α_hi + β_hi` exceeds 1, so a slot may reach
+    ///    a little past that hull. The excursion is bounded by the same width claim 4
     ///    bounds, and it is that allowance — not a fresh tolerance —
-    ///    that this claim is stated against. Its SIZE is pinned
-    ///    separately by
-    ///    [`the_convex_form_bulges_by_the_ratios_own_rounding`]; a sign
-    ///    error in a ratio puts a slot far outside and reds here.
+    ///    that this claim is stated against. A sign error in a ratio
+    ///    puts a slot far outside and reds here.
     /// 4. **The fold does not inflate.** With point inputs, the widths
     ///    the whole chain accumulates come only from the ratios' own
     ///    rounding, so they stay at the scale of the coefficients times
@@ -1393,27 +1429,20 @@ mod tests {
         println!("ring refinement: widest coefficient {worst_width_ulps:.2} ulps of scale");
     }
 
-    /// **The bulge, measured.** A refined coefficient is a convex
-    /// combination of two described ones, so in ℝ it lies between them
-    /// — and with EQUAL adjacent coefficients it equals them. Interval arithmetic
-    /// applier cannot say that: `α` and `β` are outward-rounded
-    /// independently, so `α_hi + β_hi` exceeds 1 and `β·c + α·c`
-    /// comes out as a bracket straddling `c` rather than the point `c`.
+    /// **A constant column refines to itself.** In ℝ every refined
+    /// coefficient of a constant sequence equals it. The convex form
+    /// alone cannot say so: `α` and `β` round outward independently, so
+    /// `β·c + α·c` is a bracket straddling `c`. The lerp form computes
+    /// `c + 0·α`, which is `c` exactly, and [`insertion_combo`] keeps
+    /// the meet of the two. A constant column is the sharpest
+    /// near-equal point net, so a combination that lost its lerp arm
+    /// fails here first.
     ///
-    /// A constant coefficient sequence is the sharpest possible witness,
-    /// because its hull is a single point and any width at all is an
-    /// excursion. This row pins how big that excursion gets rather than
-    /// asserting it away: the enclosure is still OUTWARD, so nothing is
-    /// unsound, and the size is what a consumer reading an exact sign
-    /// off a refined net has to know.
-    ///
-    /// Both shapes are here for a reason. The degree-1, 15-insertion
-    /// column is the deep fold, where a per-step growth factor would
-    /// show; the degree-2, 2-insertion one is the shallow fold at three
-    /// coefficient magnitudes, including a negative, where a sign error
-    /// in either ratio would show instead.
+    /// The degree-1, 15-insertion column is the deep fold; the degree-2,
+    /// 2-insertion one is the shallow fold at three coefficient
+    /// magnitudes, including a negative.
     #[test]
-    fn the_convex_form_bulges_by_the_ratios_own_rounding() {
+    fn a_constant_column_refines_to_itself() {
         // (degree, interior knots, splits, coefficient)
         let cases: &[(usize, &[f64], usize, f64)] = &[
             (1, &[], 16, 0.5),
@@ -1422,7 +1451,6 @@ mod tests {
             (2, &[], 3, -3.0),
             (3, &[0.5], 4, 7.25),
         ];
-        let mut worst_ulps = 0.0f64;
         for &(p, interior, splits, c) in cases {
             let mut knots = vec![0.0; p + 1];
             knots.extend_from_slice(interior);
@@ -1433,45 +1461,18 @@ mod tests {
             for plan in &plans {
                 out = plan.apply_certified(&out);
             }
-            let mut outside = 0usize;
-            let mut worst = 0.0f64;
-            for r in &out {
-                assert!(r.is_certified(), "p={p} c={c}: refused slot");
-                let excursion = (r.hi() - c).max(c - r.lo());
-                if excursion > 0.0 {
-                    outside += 1;
-                    worst = worst.max(excursion);
-                }
+            for (i, r) in out.iter().enumerate() {
+                assert!(r.is_certified(), "p={p} c={c}: refused slot {i}");
+                assert_eq!(
+                    (r.lo(), r.hi()),
+                    (c, c),
+                    "p={p} c={c}: slot {i} of a {}-insertion fold is not the point {c}, so the \
+                     convex form's bulge reached the result and the meet with the lerp form \
+                     did not hold",
+                    plans.len()
+                );
             }
-            let ulps = worst / (c.abs() * f64::EPSILON);
-            worst_ulps = worst_ulps.max(ulps);
-            println!(
-                "constant {c} at p={p}, {} insertions: {outside} of {} slots outside the \
-                 degenerate hull, worst excursion {worst:.3e} ({ulps:.2} ulps of the \
-                 coefficient)",
-                plans.len(),
-                out.len()
-            );
-            // The finding, asserted in the direction it is true in. An
-            // implementation that DID hold the point exactly would be
-            // reporting a tighter enclosure than its own rounding
-            // licenses, which is the interesting failure here.
-            assert!(
-                outside > 0,
-                "p={p} c={c}: every slot held the constant exactly, so either the \
-                 ratios stopped rounding outward or something clamped the result"
-            );
         }
-        // The excursion is the ratios' rounding, so it is ulps of the
-        // coefficient and single digits of them — not a figure that grows
-        // with the fold's depth the way a per-step inflation would.
-        assert!(
-            worst_ulps < 64.0,
-            "the bulge is {worst_ulps:.1} ulps of the coefficient, far above the \
-             ratios' own rounding: the excursion is no longer explained by α and β \
-             rounding outward once each"
-        );
-        println!("worst bulge over every case: {worst_ulps:.2} ulps of the coefficient");
     }
 
     #[test]

@@ -1855,21 +1855,15 @@ enum Refine {
 /// the Bézier decomposition's insertion width grows with the grid.
 /// `offset_fit`'s suite reaches the face on a bilinear saddle wall at
 /// `theta = 0.6` (`the_second_non_improving_round_is_the_stalls_face`):
-/// at `d = ±5.6234132519034906e-11` and target `1e-14` it stalls on
+/// at `d = ±5.011872336272735e-11` and target `1e-14` it stalls on
 /// round 5, and at `d = 1.333521432163324e-10` on the budget's last
 /// round ([`OFFSET_FIT_BUDGET`]), where taking the verdict before the
 /// budget test is what gives the round the stall's face.
 ///
-/// **Those stalls ride on that width, and the fixture has already moved
-/// once because of it.** `geom_core::spline::compose`'s insertion took
-/// the convex form `c_{i−1}·β + c_i·α`, which stopped the
-/// decomposition's width compounding per insertion; the `theta = 0.3`
-/// requests the row used to carry (`d = ±5e-10`, round 4, and
-/// `d = 1e-6`) all certify under it — the `5e-10` one on round 3 at
-/// 7.9933e-15. The row's own docs carry the hunt that found the
-/// replacements, and the same thing will happen again to any fixture
-/// pinned here: a narrowing of the assembly moves it, and the answer is
-/// to re-find a stalling request, never to widen the arm.
+/// **Those stalls ride on that width**, so any fixture pinned here
+/// moves when the insertion arithmetic in `geom_core::spline::compose`
+/// narrows: the answer is to re-find a stalling request (the row's own
+/// docs carry the hunt), never to widen the arm.
 ///
 /// **`+∞` is not a failure to improve**, which is the other half of why
 /// the arm is reachable at all: the first guard below exempts a
