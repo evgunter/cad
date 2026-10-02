@@ -53,7 +53,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeDescription, MustCarryVerdict, must_carry_over_edge};
+use geom_brep::{
+    EdgeDescription, LeverEscalation, LeverRung, MustCarryEscalation, MustCarryVerdict,
+    must_carry_over_edge,
+};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -561,11 +564,21 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
     let (a, b) = both_orders(&flat, &tilted, &axis_line, extent, extent);
     for (order, verdict) in [("flat first", a), ("tilted first", b)] {
         match verdict {
-            MustCarryVerdict::InBand(source) => assert_eq!(
-                source.predicate,
-                Some("dihedral_wedge"),
-                "{order}: the sliver is the first-order wedge's escalation"
-            ),
+            MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(LeverEscalation {
+                rung,
+                diag,
+            })) => {
+                assert_eq!(
+                    rung,
+                    LeverRung::Reading,
+                    "{order}: the sliver is the wedge's rung, not the arm's"
+                );
+                assert_eq!(
+                    diag.predicate,
+                    Some("dihedral_wedge"),
+                    "{order}: the sliver is the first-order wedge's escalation"
+                );
+            }
             other => panic!("{order}: a sliver crossing must escalate in band, not {other:?}"),
         }
     }
@@ -606,9 +619,14 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
     for extent in [in_band_margin(), definite_zero_margin()] {
         let (a, b) = both_orders(&plane, &cylinder, &ruling, extent, extent);
         for (order, verdict) in [("plane first", a), ("cylinder first", b)] {
-            let MustCarryVerdict::InBand(source) = verdict else {
+            let MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(LeverEscalation {
+                rung: LeverRung::Arm,
+                diag: source,
+            })) = verdict
+            else {
                 panic!(
-                    "{order}, extent {extent:e}: a collapsed arm must escalate, not {verdict:?}"
+                    "{order}, extent {extent:e}: a collapsed arm must escalate at the arm rung, \
+                     not {verdict:?}"
                 );
             };
             assert_eq!(

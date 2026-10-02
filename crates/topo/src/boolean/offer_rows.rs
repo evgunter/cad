@@ -432,6 +432,7 @@ cases! {
         seam(1e-9, 7e-9, Vec3::new(0.3, 1.0, 0.2));
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
+    seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
@@ -1088,6 +1089,28 @@ fn seam(angle: f64, extent: f64, axis: Vec3<f64>) -> Result<(), BooleanError> {
     let n2 = n1 * angle.cos() + k.cross(n1) * angle.sin();
     let (s1, s2) = (plane_through(o, k, n1), plane_through(o, k, n2));
     super::super::ops::seam_class(&s1, &s2, o, extent, band()).map(|_| ())
+}
+
+/// A unit cylinder resting on the floor `z = 0` along the `y` axis,
+/// read as a smooth seam of the result along that ruling over the
+/// extent whose sagitta under the cylinder's bend is `sagitta`: the
+/// must-carry rule's second-order reading at every station.
+fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let floor = plane_through(o, y, Vec3::new(0.0, 0.0, 1.0));
+    let extent = (2.0 * sagitta).sqrt();
+    let ruling = geom::Curve3::Line { origin: o, dir: y };
+    super::super::ops::seam_must_carry(
+        &floor,
+        &resting_cylinder(1.0),
+        &ruling,
+        0.0,
+        extent,
+        extent,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// A re-cut sphere of radius 1 whose polar axis leans off the escape
@@ -2258,6 +2281,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_class", "LeverArm::Seam", 1),
+    ("ops.rs", "seam_must_carry", "BooleanDecision::SeamJet", 1),
+    ("ops.rs", "seam_must_carry", "LeverArm::Seam", 1),
     (
         "ops.rs",
         "sphere_extent_scan",
