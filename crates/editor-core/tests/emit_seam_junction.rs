@@ -16,12 +16,14 @@
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, member_face, run};
+use crate::docm7_union_declare::{
+    block, declared_union_classed, failure, flush_pairs, member_face, run,
+};
 use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};
 
 use editor_core::{
-    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    SitedRef, StableName,
+    BooleanCoincidence, CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, StableName,
 };
 use geom_core::Tol;
 
@@ -89,15 +91,22 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
     Fixture { doc, a, b, g, h }
 }
 
-/// The fixture's declarations: `a` and `b` flush, and, with `h`, `h`'s
-/// x = 1.0 wall resting on `a`'s x = 1 wall. `b` covers that contact,
-/// and it is a contact of the pair all the same (DM4).
-fn declared(f: &Fixture) -> Vec<(SitedRef, SitedRef)> {
-    let mut pairs = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b));
+/// The fixture's declarations: `a` and `b` flush (continuations), and,
+/// with `h`, `h`'s x = 1.0 wall resting on `a`'s x = 1 wall (a `Rest`).
+/// `b` covers that contact, and it is a contact of the pair all the
+/// same (DM4).
+fn declared(f: &Fixture) -> Vec<((SitedRef, SitedRef), BooleanCoincidence)> {
+    let mut pairs: Vec<_> = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b))
+        .into_iter()
+        .map(|p| (p, BooleanCoincidence::Continuation))
+        .collect();
     pairs.extend(f.h.map(|h| {
         (
-            SitedRef::new(f.a, fname(f.a, wall(&f.doc, f.a, 1))),
-            SitedRef::new(h, fname(h, wall(&f.doc, h, 3))),
+            (
+                SitedRef::new(f.a, fname(f.a, wall(&f.doc, f.a, 1))),
+                SitedRef::new(h, fname(h, wall(&f.doc, h, 3))),
+            ),
+            BooleanCoincidence::REST,
         )
     }));
     pairs
@@ -162,7 +171,7 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     let pairs = declared(&f);
     let Fixture { doc, a, b, g, h } = f;
     let h = h.unwrap();
-    let (docx, union, _) = declared_union(doc, &[b, g, a, h], pairs);
+    let (docx, union, _) = declared_union_classed(doc, &[b, g, a, h], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let v = volume(body_of(&ev, union));
@@ -225,7 +234,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                 .collect()
         };
         for order in permutations(&members) {
-            let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+            let (docx, union, _) = declared_union_classed(doc.clone(), &order, pairs.clone());
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {

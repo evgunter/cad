@@ -108,10 +108,11 @@ use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::{kept_side, setopfinish};
 use super::join::bool_connect;
+use super::section_cert::Refusal as SectionRefusal;
 use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
-use super::zip::zip_seam;
+use super::zip::{SeamCorrespondence, survivor, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
     ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact, SideCode,
@@ -214,8 +215,14 @@ pub struct BooleanNaming {
     pub graft_faces: Vec<(FaceKey, FaceKey)>,
     /// Seam edges surviving the zips, in zip/cycle order, result keys.
     pub seam_edges: Vec<EdgeKey>,
-    /// Zip vertex fusions `(dead, kept)` in zip order, result keys.
+    /// Vertex fusions `(dead, kept)` in mint order, result keys: the
+    /// A-side pinch welds' first, then the zips'.
     pub vertex_merges: Vec<(VertexKey, VertexKey)>,
+    /// The B-side pinch welds' vertex fusions `(dead, kept)` in mint
+    /// order, in B-CLONE keys: they ran before the graft, so a dead key
+    /// has no result key (translate the kept column through
+    /// `graft_vertices`).
+    pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
@@ -267,34 +274,18 @@ pub struct BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// Each vertex the zip fused away → the live vertex it finally
-    /// fused into, following `vertex_merges` through every hop: the one
-    /// reading of "where did this pre-zip vertex go" (a discard's
-    /// `bordered` ends are read through it). `None` when the fusions
-    /// form a cycle, which no zip writes.
+    /// Each result vertex an A-side weld or a zip fused away → the
+    /// vertex it finally fused into, following `vertex_merges` through
+    /// every hop (a discard's `bordered` ends are read through it). B-side
+    /// welds are not here: they killed B-clone keys before the graft, so
+    /// no result key names them (`weld_merges_b`).
     #[must_use]
-    pub fn fused_into(&self) -> Option<BTreeMap<VertexKey, VertexKey>> {
-        let step: BTreeMap<VertexKey, VertexKey> = self
-            .vertex_merges
+    pub fn fused_into(&self) -> BTreeMap<VertexKey, VertexKey> {
+        self.vertex_merges
             .iter()
-            .copied()
             .filter(|(dead, kept)| dead != kept)
-            .collect();
-        let mut out = BTreeMap::new();
-        for &dead in step.keys() {
-            let mut at = dead;
-            for _ in 0..=step.len() {
-                match step.get(&at) {
-                    Some(&next) => at = next,
-                    None => break,
-                }
-            }
-            if step.contains_key(&at) {
-                return None;
-            }
-            out.insert(dead, at);
-        }
-        Some(out)
+            .map(|&(dead, _)| (dead, survivor(&self.vertex_merges, dead)))
+            .collect()
     }
 }
 
@@ -544,13 +535,17 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
-    let mut vertex_merges = Vec::new();
-    let mut desc = Descendants::default();
+    let mut vertex_merges = fin.weld_merges_a.clone();
+    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b);
+    // A pinch is one vertex on two seams: the first zip fuses it, so
+    // each later zip reads the correspondence through the fusions made.
+    let mut vertex_map = fin.vertex_map.clone();
     for &(a_face, b_face) in &fin.seams {
-        let rep = zip_seam(&mut body, a_face, b_face, &fin.vertex_map, tol)?;
+        let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
+        vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
@@ -595,10 +590,11 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_faces,
         seam_edges,
         vertex_merges,
+        weld_merges_b: fin.weld_merges_b,
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
-        face_fragments_a: connected.a_fragments,
-        face_fragments_b: connected.b_fragments,
+        face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
+        face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
         reduction_contacts,
         discards: fin.discards,
         covered,
@@ -609,6 +605,21 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         contacts,
         naming,
     }))
+}
+
+/// `map` with each vertex on either side read as the vertex a zip's
+/// fusions `(dead, kept)` left in its place.
+fn fused_through(
+    map: &SeamCorrespondence,
+    merges: &[(VertexKey, VertexKey)],
+) -> SeamCorrespondence {
+    let mut out = SeamCorrespondence::new();
+    for (&a, bs) in map {
+        out.entry(survivor(merges, a))
+            .or_default()
+            .extend(bs.iter().map(|&b| survivor(merges, b)));
+    }
+    out
 }
 
 /// What the pipeline reaches through its join ([`through_the_join`]).
@@ -679,10 +690,9 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   finds the section circles and the (Plane, Sphere) germ arm
         //   joins them exactly.
         // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
-        //   cylinder-near-sphere, sphere×sphere overlap, tangency,
-        //   boundary-grazing circles, one group escaping through
-        //   NON-PARALLEL faces): typed refusal — the S12 silence
-        //   never re-opens.
+        //   sphere faces meeting, tangency, boundary-grazing circles,
+        //   one group escaping through NON-PARALLEL faces): typed
+        //   refusal — the S12 silence never re-opens.
         let recuts = sphere_extent_scan(a, b, band)?;
         if !recuts.is_empty() {
             if !recut {
@@ -896,11 +906,11 @@ pub(crate) enum SectionPath {
     /// The crossings path: every pair with a face that is not a plane.
     Crossings,
     /// The no-crossings fallback: every pair with a face that is not a
-    /// plane, except a sphere against a plane, a sphere, a cylinder or a
-    /// spline — those are the extent scan's ([`sphere_extent_scan`]),
-    /// which runs first and keeps its re-cut. A sphere against a torus
-    /// or a cone is certified here: neither is ever an escape face, so
-    /// the scan's only question of the pair is disjointness, and with no
+    /// plane, except a sphere against a plane, a sphere or a spline —
+    /// those are the extent scan's ([`sphere_extent_scan`]), which runs
+    /// first and keeps its re-cut. A sphere against a cylinder, a torus
+    /// or a cone is certified here: none is ever an escape face, so the
+    /// scan's only question of the pair is disjointness, and with no
     /// event anywhere "every component cleared" is disjointness.
     Fallback,
 }
@@ -910,14 +920,27 @@ impl SectionPath {
         use geom::Surface as S;
         let curved = |s: &geom::Surface<T>| !matches!(s, S::Plane { .. });
         let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
-        let passed = |s: &geom::Surface<T>| matches!(s, S::Torus { .. } | S::Cone { .. });
-        let scanned = (sphere(x) && !passed(y)) || (sphere(y) && !passed(x));
+        let scanned =
+            (sphere(x) && !section_pass_takes(y)) || (sphere(y) && !section_pass_takes(x));
         (curved(x) || curved(y)) && !(self == Self::Fallback && scanned)
     }
 
     /// Is `s` a face this path's refusal names?
     fn names<T: Real>(self, s: &geom::Surface<T>) -> bool {
         self.scope(s, s)
+    }
+}
+
+/// **The kinds whose pairs with a sphere the section pass certifies on
+/// the no-crossings path**, rather than the extent scan
+/// ([`sphere_extent_scan`]): none is ever an escape face, so the scan's
+/// only question of the pair is disjointness, which the pass answers per
+/// face pair.
+fn section_pass_takes<T: Real>(s: &geom::Surface<T>) -> bool {
+    use geom::Surface as S;
+    match s {
+        S::Cylinder { .. } | S::Torus { .. } | S::Cone { .. } => true,
+        S::Plane { .. } | S::Sphere { .. } | S::Nurbs(_) | S::Approx(_) => false,
     }
 }
 
@@ -1007,16 +1030,155 @@ pub(crate) fn place_witness<T: Decide>(
     }
 }
 
+/// One face as the section certificate reads it: its key, its surface's
+/// key and description, and its certified box.
+pub(crate) struct FaceRow<T: Real> {
+    face: FaceKey,
+    key: SurfaceKey,
+    surface: geom::Surface<T>,
+    bbox: bvh::Aabb,
+}
+
+/// Every face of `body` as a [`FaceRow`], in face-arena order.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a face whose surface
+/// does not resolve, and the box builder's own errors.
+pub(crate) fn face_rows<T: Decide + Bounds>(
+    body: &Body<T>,
+    band: Band,
+) -> Result<Vec<FaceRow<T>>, BooleanError> {
+    let pad = boxes::sweep_pad(band);
+    body.faces()
+        .map(|(face, fd)| {
+            let surface = body
+                .get_surface(fd.surface)
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "section certificate: a face surface is lost",
+                })?
+                .clone();
+            Ok(FaceRow {
+                face,
+                key: fd.surface,
+                surface,
+                bbox: boxes::face_box(body, face, pad, band)?,
+            })
+        })
+        .collect()
+}
+
+/// **The section certificate's per-pair rule** for A's face `fa` (the
+/// section's `F`) against B's face `fb` (its `G`), whose boxes overlap:
+/// the pair's classified section and every component's witness, or the
+/// pair's refusal. The reach — the ball about the two boxes' overlap,
+/// which pivots and levers the angular margins — is built here
+/// ([`super::section_cert`]'s module docs).
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a face whose loops do
+/// not resolve.
+fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    (a, fa): (&Body<T>, &FaceRow<T>),
+    (b, fb): (&Body<T>, &FaceRow<T>),
+    band: Band,
+    evented: bool,
+    charts: &mut ChartCache,
+) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError> {
+    use super::section_cert::{Refusal, Side, certify, classify};
+    if has_lone_vertex(a, fa.face)? || has_lone_vertex(b, fb.face)? {
+        return Ok(Err(Refusal::LoneVertex));
+    }
+    let (box_a, box_b) = (&fa.bbox, &fb.bbox);
+    let (lo, hi) = (
+        Vec3::new(
+            box_a.min_x.max(box_b.min_x),
+            box_a.min_y.max(box_b.min_y),
+            box_a.min_z.max(box_b.min_z),
+        ),
+        Vec3::new(
+            box_a.max_x.min(box_b.max_x),
+            box_a.max_y.min(box_b.max_y),
+            box_a.max_z.min(box_b.max_z),
+        ),
+    );
+    let reach = super::section_cert::Reach {
+        centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_f64),
+        radius: T::from_f64((hi - lo).norm() * 0.5),
+    };
+    let section = classify(&fa.surface, &fb.surface, reach, band);
+    Ok(certify(
+        &section,
+        evented,
+        |side| {
+            let (operand, body, row) = match side {
+                Side::F => (Operand::A, a, fa),
+                Side::G => (Operand::B, b, fb),
+            };
+            charts.describes(operand, body, row.face, &row.surface, band)
+        },
+        |p| {
+            [
+                place_witness(a, fa.face, &fa.surface, p, band),
+                place_witness(b, fb.face, &fb.surface, p, band),
+            ]
+        },
+    ))
+}
+
+/// **The section certificate over pairs of rows**: every `(A row, B
+/// row)` pair whose certified boxes overlap and which `admit` takes, in
+/// the rows' order, each [`pair_verdict`]'s. `evented` says whether
+/// the reduction recorded an event on the pair `(A face, B face)`;
+/// `named` says whether A's face is the one a refusal names. With
+/// `stop` the walk returns at the first refusing pair.
+///
+/// # Errors
+///
+/// [`pair_verdict`]'s.
+#[allow(clippy::too_many_arguments)]
+fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
+    (a, a_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
+    (b, b_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
+    band: Band,
+    charts: &mut ChartCache,
+    admit: impl Fn(&FaceRow<T>, &FaceRow<T>) -> bool,
+    evented: impl Fn(FaceKey, FaceKey) -> bool,
+    named: impl Fn(&geom::Surface<T>) -> bool,
+    stop: bool,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
+    let mut out = Vec::new();
+    for fa in a_rows {
+        for &fb in &b_rows {
+            if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
+                continue;
+            }
+            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts)?;
+            let refused = verdict.is_err();
+            out.push(PairVerdict {
+                a_face: fa.face,
+                a_kind: fa.surface.kind(),
+                b_face: fb.face,
+                b_kind: fb.surface.kind(),
+                a_named: named(&fa.surface),
+                verdict,
+            });
+            if stop && refused {
+                return Ok(out);
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// **The section certificate over every in-scope pair** of `a` × `b`
 /// whose certified boxes overlap and which `skip` does not exempt, in
-/// arena order. `evented` says whether the reduction recorded an event
-/// on the pair `(A face, B face)`. With `stop` the scan returns at the
-/// first refusing pair.
-///
-/// `chart_boundary` is asked once per face and cached; the pair's
-/// reach — the ball about the two boxes' overlap, which pivots and
-/// levers the angular margins — is built here
-/// ([`super::section_cert`]'s module docs).
+/// arena order ([`walk_pairs`]). `evented` says whether the reduction
+/// recorded an event on the pair `(A face, B face)`. With `stop` the
+/// scan returns at the first refusing pair. `chart_boundary` is asked
+/// once per face and cached.
 ///
 /// # Errors
 ///
@@ -1031,81 +1193,17 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: impl Fn(FaceKey, FaceKey) -> bool,
     stop: bool,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
-    use super::section_cert::{Refusal, Side, certify, classify};
-    let lost = || BooleanError::ClassificationInvariant {
-        what: "section certificate: a face surface is lost",
-    };
-    let pad = boxes::sweep_pad(band);
-    let faces =
-        |body: &Body<T>| -> Result<Vec<(FaceKey, geom::Surface<T>, bvh::Aabb)>, BooleanError> {
-            body.faces()
-                .map(|(k, fd)| {
-                    let s = body.get_surface(fd.surface).ok_or_else(lost)?.clone();
-                    Ok((k, s, boxes::face_box(body, k, pad, band)?))
-                })
-                .collect()
-        };
-    let (a_faces, b_faces) = (faces(a)?, faces(b)?);
-    let mut charts = ChartCache::default();
-    let mut out = Vec::new();
-    for (fa, sa, box_a) in &a_faces {
-        for (fb, sb, box_b) in &b_faces {
-            if !path.scope(sa, sb) || !box_a.overlaps(box_b) || skip(*fa, *fb) {
-                continue;
-            }
-            let verdict = if has_lone_vertex(a, *fa)? || has_lone_vertex(b, *fb)? {
-                Err(Refusal::LoneVertex)
-            } else {
-                let (lo, hi) = (
-                    Vec3::new(
-                        box_a.min_x.max(box_b.min_x),
-                        box_a.min_y.max(box_b.min_y),
-                        box_a.min_z.max(box_b.min_z),
-                    ),
-                    Vec3::new(
-                        box_a.max_x.min(box_b.max_x),
-                        box_a.max_y.min(box_b.max_y),
-                        box_a.max_z.min(box_b.max_z),
-                    ),
-                );
-                let reach = super::section_cert::Reach {
-                    centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_f64),
-                    radius: T::from_f64((hi - lo).norm() * 0.5),
-                };
-                let section = classify(sa, sb, reach, band);
-                certify(
-                    &section,
-                    evented(*fa, *fb),
-                    |side| {
-                        let (operand, body, face, surface) = match side {
-                            Side::F => (Operand::A, a, *fa, sa),
-                            Side::G => (Operand::B, b, *fb, sb),
-                        };
-                        charts.describes(operand, body, face, surface, band)
-                    },
-                    |p| {
-                        [
-                            place_witness(a, *fa, sa, p, band),
-                            place_witness(b, *fb, sb, p, band),
-                        ]
-                    },
-                )
-            };
-            let refused = verdict.is_err();
-            out.push(PairVerdict {
-                a_face: *fa,
-                a_kind: sa.kind(),
-                b_face: *fb,
-                b_kind: sb.kind(),
-                a_named: path.names(sa),
-                verdict,
-            });
-            if stop && refused {
-                return Ok(out);
-            }
-        }
-    }
-    Ok(out)
+    let (a_rows, b_rows) = (face_rows(a, band)?, face_rows(b, band)?);
+    walk_pairs(
+        (a, &a_rows),
+        (b, &b_rows),
+        band,
+        &mut ChartCache::default(),
+        |fa, fb| path.scope(&fa.surface, &fb.surface) && !skip(fa.face, fb.face),
+        evented,
+        |s| path.names(s),
+        stop,
+    )
 }
 
 /// **The no-crossings path's section pass.** With no event anywhere,
@@ -1753,7 +1851,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 {
                     geom_brep::EdgeDescription::Intersection { s1: d1, s2: d2, .. }
                     | geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } => {
-                        !((*d1 == s1 && *d2 == s2) || (*d1 == s2 && *d2 == s1))
+                        !Body::<T>::cites_pair((*d1, *d2), s1, s2)
                     }
                     // A chart image cites ONE adjacent surface (its
                     // residual chart); stale iff neither side is it
@@ -1930,7 +2028,7 @@ impl KeyView<'_> {
 }
 
 /// The D5 descendant map (M3 PR 6a, PR 5 review R5): result-stage
-/// entity replacement — seam-zip vertex fusions and
+/// entity replacement — pinch-weld and seam-zip vertex fusions and
 /// `merge_coplanar_faces` face absorption — as old key → surviving
 /// key rows, extending the graft's key lineage so a contact record
 /// drops ONLY when its coincidence is consumed (entity gone, not
@@ -1938,7 +2036,15 @@ impl KeyView<'_> {
 /// scan-to-bless (F1); the descendants ARE the mint-time knowledge.
 #[derive(Default)]
 pub(super) struct Descendants {
-    vertices: std::collections::BTreeMap<VertexKey, VertexKey>,
+    /// Each operand's pinch-weld fusions, in its clone keys: read
+    /// before its key view. A weld fuses ring vertices minted after the
+    /// contacts were recorded, so no record cites a weld's keys: no rest
+    /// is consumed by a weld (`fused` holds only the zips'), and these
+    /// rows chase only a record a producer mints in clone keys.
+    a_welds: Vec<(VertexKey, VertexKey)>,
+    b_welds: Vec<(VertexKey, VertexKey)>,
+    /// The zips' fusions in mint order, result keys.
+    vertices: Vec<(VertexKey, VertexKey)>,
     faces: std::collections::BTreeMap<FaceKey, FaceKey>,
     /// Every vertex that participated in a zip fusion (dead OR kept):
     /// its point rests were consumed into seam structure.
@@ -1946,9 +2052,18 @@ pub(super) struct Descendants {
 }
 
 impl Descendants {
+    /// The map that starts from each operand's pinch welds.
+    pub(super) fn welded(a: &[(VertexKey, VertexKey)], b: &[(VertexKey, VertexKey)]) -> Self {
+        Self {
+            a_welds: a.to_vec(),
+            b_welds: b.to_vec(),
+            ..Self::default()
+        }
+    }
+
     pub(super) fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
         for &(dead, kept) in &rep.vertex_merges {
-            self.vertices.insert(dead, kept);
+            self.vertices.push((dead, kept));
             self.fused.insert(dead);
             self.fused.insert(kept);
         }
@@ -1962,18 +2077,20 @@ impl Descendants {
         }
     }
 
-    /// Chases a vertex key through the fusion rows until it resolves
-    /// live (bounded by the map size — rows never cycle: a dead key
-    /// maps to its survivor).
-    fn live_vertex<T: Real>(&self, body: &Body<T>, v: VertexKey) -> Option<VertexKey> {
-        let mut k = v;
-        for _ in 0..=self.vertices.len() {
-            if body.get_vertex(k).is_some() {
-                return Some(k);
-            }
-            k = *self.vertices.get(&k)?;
-        }
-        None
+    /// Operand `side`'s vertex `v`, through its pinch welds, the key
+    /// `view`, and the zips' fusions, if it is live.
+    fn live_vertex<T: Real>(
+        &self,
+        body: &Body<T>,
+        (side, view): (Operand, &KeyView<'_>),
+        v: VertexKey,
+    ) -> Option<VertexKey> {
+        let welds = match side {
+            Operand::A => &self.a_welds,
+            Operand::B => &self.b_welds,
+        };
+        let k = survivor(&self.vertices, view.vertex(survivor(welds, v))?);
+        body.get_vertex(k).map(|_| k)
     }
 
     /// Chases a face key through the absorption rows until live.
@@ -2002,7 +2119,7 @@ pub(super) fn remap_contacts<T: Real>(
     // v-v pairs chase through zip fusions (a fused vertex's partner
     // may still coincide with the survivor); a pair fused into ONE
     // vertex is consumed (structural now) and drops.
-    let vert = |view: &KeyView<'_>, v: VertexKey| desc.live_vertex(body, view.vertex(v)?);
+    let vert = |side: (Operand, &KeyView<'_>), v: VertexKey| desc.live_vertex(body, side, v);
     // v-on-f VERTICES deliberately do NOT chase, and any vertex that
     // took part in a zip fusion (either side of a kev) drops its
     // rests: a fused vertex IS a seam vertex — the point rest was
@@ -2021,8 +2138,15 @@ pub(super) fn remap_contacts<T: Real>(
     let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
     let mut out = ContactRecords::default();
     for c in &contacts.vv {
-        if let (Some(a), Some(b)) = (vert(&a_view, c.a), vert(&b_view, c.b))
-            && a != b
+        // Two records whose ends fused into one pair are one record.
+        if let (Some(a), Some(b)) = (
+            vert((Operand::A, &a_view), c.a),
+            vert((Operand::B, &b_view), c.b),
+        ) && a != b
+            && !out
+                .vv
+                .iter()
+                .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
         {
             out.vv.push(VvContact { a, b });
         }
@@ -2108,10 +2232,11 @@ pub(super) fn declared_surface_pairs<T: Real>(
                  b: fb,
                  class,
              }| {
-                // Only the CONFORMAL class declares a merge-stage
-                // coincidence; a `Tangent` pair's carriers are DISTINCT
-                // by its own verification and never merge.
-                if class != crate::contact::ContactClass::Rest {
+                // A one-carrier declaration (`Rest` or a continuation)
+                // licenses a merge-stage coincidence; a `Tangent` pair's
+                // carriers are DISTINCT by its own verification and never
+                // merge.
+                if !class.is_one_carrier() {
                     return None;
                 }
                 // A-clone surface keys ARE result keys (carve/clone
@@ -2140,7 +2265,7 @@ pub(super) fn remap_carried<T: Real>(
     b_view: &KeyView<'_>,
     desc: &Descendants,
 ) {
-    let vert = |view: &KeyView<'_>, v: VertexKey| desc.live_vertex(body, view.vertex(v)?);
+    let vert = |side: (Operand, &KeyView<'_>), v: VertexKey| desc.live_vertex(body, side, v);
     let vert_strict = |view: &KeyView<'_>, v: VertexKey| {
         let k = view.vertex(v)?;
         if desc.fused.contains(&k) {
@@ -2149,9 +2274,9 @@ pub(super) fn remap_carried<T: Real>(
         body.get_vertex(k).map(|_| k)
     };
     let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
-    let push_vv = |out: &mut ContactRecords, carried: &CarriedContacts, view: &KeyView<'_>| {
+    let push_vv = |out: &mut ContactRecords, carried: &CarriedContacts, side| {
         for c in &carried.vv {
-            if let (Some(a), Some(b)) = (vert(view, c.pair.a), vert(view, c.pair.b))
+            if let (Some(a), Some(b)) = (vert(side, c.pair.a), vert(side, c.pair.b))
                 && a != b
                 && !out
                     .vv
@@ -2162,8 +2287,8 @@ pub(super) fn remap_carried<T: Real>(
             }
         }
     };
-    push_vv(out, &decls.carried_a, a_view);
-    push_vv(out, &decls.carried_b, b_view);
+    push_vv(out, &decls.carried_a, (Operand::A, a_view));
+    push_vv(out, &decls.carried_b, (Operand::B, b_view));
     let dup_vf = |out: &ContactRecords, v: VertexKey, f: FaceKey| {
         out.a_on_b
             .iter()
@@ -2230,16 +2355,18 @@ struct SphereRecut<T: Real> {
 ///
 /// - **Sphere**: a closed group's true extent is `center ± r`, so the
 ///   pairs it can meet are enumerable exactly, and an escape through a
-///   plane face is repairable by a re-chart.
+///   plane face is repairable by a re-chart. Two spheres whose carriers
+///   cross are asked whether their FACES meet ([`sphere_faces_apart`]).
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
 ///   ([`section_extent_pass`]), which runs after this scan. A sphere's
-///   pairs with a torus or cone face are the pass's too: neither is an
-///   escape face, so disjointness is all the scan would ask of them.
+///   pairs with a cylinder, torus or cone face are the pass's too: none
+///   is an escape face, so disjointness is all the scan would ask of
+///   them.
 ///
 /// Determinism (D9): face-arena order throughout; the first escape's
 /// normal is the alignment target.
-fn sphere_extent_scan<T: Decide + Bounds>(
+fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     band: Band,
@@ -2261,8 +2388,13 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     let pad = boxes::sweep_pad(band);
+    let mut section_charts = ChartCache::default();
+    let rows = [face_rows(a, band)?, face_rows(b, band)?];
     let mut out: Vec<SphereRecut<T>> = Vec::new();
-    for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
+    for (x_is, x, x_rows, y, y_rows) in [
+        (Operand::A, a, &rows[0], b, &rows[1]),
+        (Operand::B, b, &rows[1], a, &rows[0]),
+    ] {
         // The scope is the whole operand: what the escape arm re-charts
         // is the sphere itself, which every wearer shares.
         let charts = crate::chart_groups::ChartGroups::of_body(x);
@@ -2305,13 +2437,18 @@ fn sphere_extent_scan<T: Decide + Bounds>(
             }
             .padded(pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
-            for (yf, yfd) in y.faces() {
-                match y.get_surface(yfd.surface) {
-                    Some(&geom::Surface::Plane {
+            for (y_row, (yf, yfd)) in y_rows.iter().zip(y.faces()) {
+                if y_row.face != yf {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "extent scan: face rows out of arena order",
+                    });
+                }
+                match &y_row.surface {
+                    &geom::Surface::Plane {
                         origin,
                         normal,
                         u_ref,
-                    }) => {
+                    } => {
                         // A tangency (a decided zero) is a touching
                         // configuration the crossing layer cannot
                         // represent: it refuses with its decided margin,
@@ -2321,6 +2458,20 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         match side {
                             // Clear of the whole carrier plane.
                             NonzeroSign::Negative => {}
+                            // A TRIMMED group's faces may never reach
+                            // the circle the carrier cuts: certified
+                            // apart from this face, they pose no escape
+                            // through it.
+                            NonzeroSign::Positive
+                                if group.is_none()
+                                    && sphere_faces_apart(
+                                        (x_is, x, x_rows),
+                                        fd.surface,
+                                        (y, y_row),
+                                        band,
+                                        &mut section_charts,
+                                    )?
+                                    .is_none() => {}
                             NonzeroSign::Positive => {
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
@@ -2444,36 +2595,11 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             }
                         }
                     }
-                    Some(geom::Surface::Cylinder { .. }) => {
-                        // No exact sphere-vs-cylinder-face certificate
-                        // is wired: the cyl×sphere lane is PR 9c
-                        // deviation 1, and since M6-2 its blocker is
-                        // the unwired JOIN lane alone — the generic
-                        // lift and Pcurve::Fitted both landed there.
-                        // The exact DECLARED-coaxial classification
-                        // does not retire this and the message is
-                        // re-verified rather than moved: this scan asks
-                        // about NEARNESS between two arbitrary trimmed
-                        // faces, which no coaxial section answers, and
-                        // it has no declaration channel to reach one
-                        // through in any case. Certified boxes prove
-                        // separation, anything closer refuses typed.
-                        if boxes::face_box(y, yf, pad, band)?.overlaps(&ball_box) {
-                            return Err(BooleanError::FallbackExtentUnsupported {
-                                operand: x_is,
-                                face,
-                                what: "the sphere's certified extent meets a cylinder \
-                                       face's box — the cyl×sphere seam lane is not \
-                                       wired (its fitted-chord window has no azimuth \
-                                       analog), so nearness cannot be classified",
-                            });
-                        }
-                    }
-                    Some(&geom::Surface::Sphere {
+                    &geom::Surface::Sphere {
                         center: c2,
                         radius: r2,
                         ..
-                    }) => {
+                    } => {
                         let d = (c2 - center).norm();
                         // A decided zero is band-decided: the spheres
                         // touch within the tolerance, and a positive gap
@@ -2497,45 +2623,77 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 let big = radius.max(r2);
                                 let small = radius.min(r2);
                                 // Neither separated nor strictly nested:
-                                // the two boundaries meet while the
+                                // the CARRIERS cross in a circle while the
                                 // crossing layer found no edge crossing a
-                                // face. Whatever the two spheres share
-                                // lies off every edge, the join's
-                                // sphere-pair arm had no chord to run,
-                                // and this scan, which reads the
-                                // SURFACES, cannot certify the shell
-                                // disjoint from the other boundary.
+                                // face. Whether the FACES meet is the
+                                // section certificate's question, asked
+                                // of every face on this sphere against
+                                // `yf`: with no event anywhere, a circle
+                                // certified out of one face of each pair
+                                // leaves the two boundaries disjoint. A
+                                // circle certified inside both faces is
+                                // spheres that meet off every edge; any
+                                // other refusal of the certificate is
+                                // its own reason, raised as the pass
+                                // raises it. A touch (a decided zero)
+                                // refuses on the carriers.
                                 let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
                                     band,
                                 )
                                 .map_err(esc(SphereQuestion::Nested))?;
-                                if let Some(verdict) = Refused::of(nested, band) {
-                                    return Err(BooleanError::SpheresMeet {
-                                        operand: x_is,
-                                        face,
-                                        verdict,
-                                    });
+                                match Refused::of(nested, band) {
+                                    None => {}
+                                    Some(verdict @ Refused::Zero(_)) => {
+                                        return Err(BooleanError::SpheresMeet {
+                                            operand: x_is,
+                                            face,
+                                            verdict,
+                                        });
+                                    }
+                                    Some(verdict @ Refused::Negative { .. }) => {
+                                        match sphere_faces_apart(
+                                            (x_is, x, x_rows),
+                                            fd.surface,
+                                            (y, y_row),
+                                            band,
+                                            &mut section_charts,
+                                        )? {
+                                            None => {}
+                                            Some(SectionRefusal::Loop) => {
+                                                return Err(BooleanError::SpheresMeet {
+                                                    operand: x_is,
+                                                    face,
+                                                    verdict,
+                                                });
+                                            }
+                                            Some(refusal) => {
+                                                return Err(
+                                                    BooleanError::FallbackExtentUnsupported {
+                                                        operand: x_is,
+                                                        face,
+                                                        what: refusal.what(),
+                                                    },
+                                                );
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                    Some(geom::Surface::Nurbs(_)) => {
+                    geom::Surface::Nurbs(_) => {
                         // Unreachable: the re-gate above runs first.
                         return Err(BooleanError::NurbsExtentUnsupported {
                             operand: x_is.other(),
                             face: yf,
                         });
                     }
-                    // A cone or torus face is never an escape plane, so
-                    // the pair's one question is disjointness, which the
-                    // section pass certifies (`SectionPath::Fallback`).
-                    Some(geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {}
                     // `Approx` joins the no-wired-arm refusal, not the
                     // NURBS lane: the pair-scoped operand gate refuses
                     // it by kind before this scan runs.
-                    Some(geom::Surface::Approx(_)) => {
+                    geom::Surface::Approx(_) => {
                         // REACH FIRST, kind second. This arm asks
                         // whether the ball can escape past THIS face;
                         // a face whose box cannot meet the ball's
@@ -2544,24 +2702,25 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // relevant here than it is at the operand
                         // gate. Only a face the ball may actually
                         // reach costs the operation its answer.
-                        if !boxes::face_box(y, yf, pad, band)?.overlaps(&ball_box) {
+                        if !y_row.bbox.overlaps(&ball_box) {
                             continue;
                         }
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,
-                            kind: y
-                                .get_surface(yfd.surface)
-                                .ok_or(BooleanError::ClassificationInvariant {
-                                    what: "extent scan: face surface lost",
-                                })?
-                                .kind(),
+                            kind: y_row.surface.kind(),
                         });
                     }
-                    None => {
-                        return Err(BooleanError::ClassificationInvariant {
-                            what: "extent scan: face surface lost",
-                        });
+                    // Every other kind's pairs with a sphere are the
+                    // section pass's ([`section_pass_takes`]): never an
+                    // escape face, so the one question is disjointness.
+                    other => {
+                        if !section_pass_takes(other) {
+                            return Err(BooleanError::ClassificationInvariant {
+                                what: "extent scan: a surface kind neither the scan nor the \
+                                       section pass takes",
+                            });
+                        }
                     }
                 }
             }
@@ -2617,6 +2776,48 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     Ok(out)
+}
+
+/// **Whether every face on `x`'s sphere `surface` is certified apart
+/// from `y`'s face `y_row`**, whose carrier the sphere crosses: the
+/// section certificate's walk ([`walk_pairs`]) over those pairs on the
+/// no-event path. `None` when every pair clears, else the first
+/// pair's refusal, which is the cause.
+///
+/// # Errors
+///
+/// [`walk_pairs`]'.
+fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    (x_is, x, x_rows): (Operand, &Body<T>, &[FaceRow<T>]),
+    surface: SurfaceKey,
+    (y, y_row): (&Body<T>, &FaceRow<T>),
+    band: Band,
+    charts: &mut ChartCache,
+) -> Result<Option<SectionRefusal>, BooleanError> {
+    let on_sphere = x_rows.iter().filter(|r| r.key == surface);
+    let pairs = match x_is {
+        Operand::A => walk_pairs(
+            (x, on_sphere),
+            (y, [y_row]),
+            band,
+            charts,
+            |_, _| true,
+            |_, _| false,
+            |_| true,
+            true,
+        )?,
+        Operand::B => walk_pairs(
+            (y, [y_row]),
+            (x, on_sphere),
+            band,
+            charts,
+            |_, _| true,
+            |_, _| false,
+            |_| true,
+            true,
+        )?,
+    };
+    Ok(pairs.into_iter().find_map(|p| p.verdict.err()))
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**
@@ -3278,9 +3479,80 @@ mod tests {
             ..ContactRecords::default()
         };
         let mut desc = Descendants::default();
-        desc.vertices.insert(dead_vertex, live_vertex);
+        desc.vertices.push((dead_vertex, live_vertex));
         let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
+    }
+
+    /// **A v-v record follows a vertex either operand's pinch weld
+    /// fused away.** B's weld runs in B-clone keys before the graft, so
+    /// its dead key has no graft row: the chase reads the weld first,
+    /// then the graft. A's weld rows are result keys. Without the weld
+    /// rows both records drop.
+    ///
+    /// Only this row reaches the weld rows, by building `Descendants`
+    /// by hand: no boolean can hand them such a record. A weld fuses
+    /// pierce ring vertices `vtxfac` mints after the reduction's
+    /// contacts are recorded, and carried records cite operand keys, so
+    /// no record cites a weld's dead key.
+    #[test]
+    fn a_vv_record_follows_a_pinch_weld_on_either_side() {
+        use super::{Descendants, KeyView, remap_contacts};
+        use crate::boolean::combine::GraftMap;
+        use crate::boolean::{ContactRecords, VvContact};
+
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let mut body = quad_prism(&square, 1.0, Tol::witness());
+        let keys: Vec<crate::entity::VertexKey> = body.vertices().map(|(k, _)| k).collect();
+        let (a_live, a_kept, a_dead, b_dead, b_kept) =
+            (keys[0], keys[1], keys[2], keys[3], keys[4]);
+        body.vertices.remove(a_dead);
+        // B-clone keys: `b_dead` stands for the welded-away pierce (no
+        // graft row), `b_kept` for its partner, grafted to `keys[5]`.
+        let mut graft = GraftMap::default();
+        graft.vertices.insert(b_kept, keys[5]);
+        let contacts = ContactRecords {
+            vv: vec![
+                VvContact {
+                    a: a_live,
+                    b: b_dead,
+                },
+                VvContact {
+                    a: a_dead,
+                    b: b_kept,
+                },
+            ],
+            ..ContactRecords::default()
+        };
+        let remap = |desc: &Descendants| {
+            remap_contacts(
+                &body,
+                &contacts,
+                KeyView::Direct,
+                KeyView::Graft(&graft),
+                desc,
+            )
+            .vv
+        };
+        assert!(
+            remap(&Descendants::default()).is_empty(),
+            "without the weld rows neither record resolves"
+        );
+        let welded = Descendants::welded(&[(a_dead, a_kept)], &[(b_dead, b_kept)]);
+        assert_eq!(
+            remap(&welded),
+            vec![
+                VvContact {
+                    a: a_live,
+                    b: keys[5]
+                },
+                VvContact {
+                    a: a_kept,
+                    b: keys[5]
+                },
+            ],
+            "each record follows its side's weld"
+        );
     }
 
     /// **A record citing a vertex the merge pruned drops, through the
@@ -3308,7 +3580,7 @@ mod tests {
     /// survivor would carry the records and turn this red.
     #[test]
     fn a_record_citing_a_pruned_free_end_drops() {
-        use super::{Descendants, KeyView, remap_contacts};
+        use super::{Descendants, KeyView, Operand, remap_contacts};
         use crate::boolean::{ContactRecords, VfContact, VvContact};
         use crate::entity::VertexKey;
         use crate::{MefSite, MevSite};
@@ -3376,10 +3648,10 @@ mod tests {
         let fused_in = VertexKey::default();
         let survivor = body.vertices().map(|(k, _)| k).next().unwrap();
         let face = body.faces().map(|(k, _)| k).next().unwrap();
-        desc.vertices.insert(fused_in, bend);
+        desc.vertices.push((fused_in, bend));
         desc.fused.insert(bend);
         assert_eq!(
-            desc.live_vertex(&body, bend),
+            desc.live_vertex(&body, (Operand::A, &KeyView::Direct), bend),
             None,
             "no survivor for {bend:?}"
         );
@@ -3393,7 +3665,7 @@ mod tests {
         let remap =
             |c: &ContactRecords| remap_contacts(&body, c, KeyView::Direct, KeyView::Direct, &desc);
         assert_eq!(
-            desc.live_vertex(&body, fused_in),
+            desc.live_vertex(&body, (Operand::A, &KeyView::Direct), fused_in),
             None,
             "the chase ends dead"
         );
