@@ -1,6 +1,7 @@
 //! **A placed STEP instance**
 //! whose NURBS wall meets planes (the M7-8 class the importer adopts
-//! through the lane) moves through `transform_rigid` at import.
+//! through the lane) moves through `transform_rigid` at import, and
+//! re-mints through the plain edge doors and the cap offset after it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point3, Tol};
@@ -66,7 +67,7 @@ fn m7_8_cube() -> topo::Body<f64> {
                 geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
             ))
         };
-        body.set_edge_curve_nurbs_lane(
+        body.set_edge_curve(
             edge_key,
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
@@ -120,6 +121,114 @@ fn a_placed_m7_8_instance_imports() {
             "{p:?}"
         );
     }
+    re_mints_the_class(placed.clone(), m7_8);
+    offsets_beside_the_wall(&placed, m7_8);
+}
+
+/// How many M7-8 edges `body` holds.
+fn class_count(body: &topo::Body<f64>) -> usize {
+    body.curves()
+        .filter(|(_, c)| {
+            matches!(c, topo::CurveGeom::Certified(c)
+                if matches!(c.description(), geom_brep::EdgeDescription::Intersection { .. })
+                    && matches!(c.carrier(), geom::Curve3::Nurbs(_)))
+        })
+        .count()
+}
+
+/// The planar faces that meet the wall along an M7-8 edge (the two caps
+/// the wall's rims lie in), offset through `replace_face_offset`, whose
+/// re-chart re-certifies the rim on the moved cap through the lane.
+/// Inward the cap plane still crosses the wall's patch, so the offset
+/// succeeds and the class survives; outward by `0.25` the plane misses
+/// the patch, which ends at the cap, by exactly that distance, and the
+/// lane refuses the moved rim with the measured gap (`OnLocus`).
+fn offsets_beside_the_wall(body: &topo::Body<f64>, count: usize) {
+    let tol = Tol::witness();
+    let wall = body
+        .faces()
+        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .map(|(k, _)| k)
+        .unwrap();
+    let caps: Vec<_> = body
+        .edges()
+        .filter(|(_, e)| {
+            matches!(body.get_curve_geom(e.curve), Some(topo::CurveGeom::Certified(c))
+                if matches!(c.carrier(), geom::Curve3::Nurbs(_)))
+        })
+        .filter_map(|(_, e)| {
+            [e.he_plus, e.he_minus]
+                .into_iter()
+                .map(|h| body.face_of_half_edge(h).unwrap())
+                .find(|&f| f != wall)
+        })
+        .collect();
+    assert_eq!(caps.len(), count, "one cap beside each M7-8 edge");
+    for cap in caps {
+        let mut inward = body.clone();
+        topo::replace_face_offset(&mut inward, cap, -0.25, tol)
+            .unwrap_or_else(|e| panic!("cap {cap:?} offsets inward: {e:?}"));
+        assert_eq!(class_count(&inward), count, "the class survives the offset");
+        let mut outward = body.clone();
+        match topo::replace_face_offset(&mut outward, cap, 0.25, tol) {
+            Err(topo::ReplaceFaceError::Op {
+                error:
+                    topo::EulerOpError::RechartFalsifies {
+                        error:
+                            geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                                limb: geom_brep::SsiLimb::OnLocus,
+                                value,
+                            }),
+                        ..
+                    },
+                ..
+            }) => assert!((value - 0.25).abs() < 1e-9, "the gap: {value}"),
+            other => panic!("cap {cap:?} outward: {:?}", other.map(|_| ())),
+        }
+    }
+}
+
+/// The imported class re-mints through the plain edge doors at `f64`:
+/// each M7-8 edge re-describes with its own restated spec through
+/// `set_edge_curve`, then one splits through `split_edge` into two of
+/// the class. Both doors read the lane off `f64`'s policy.
+fn re_mints_the_class(mut body: topo::Body<f64>, count: usize) {
+    let class: Vec<_> = body
+        .edges()
+        .filter_map(|(k, e)| match body.get_curve_geom(e.curve) {
+            Some(topo::CurveGeom::Certified(c))
+                if matches!(
+                    c.description(),
+                    geom_brep::EdgeDescription::Intersection { .. }
+                ) && matches!(c.carrier(), geom::Curve3::Nurbs(_)) =>
+            {
+                Some((k, c.restated_spec()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(class.len(), count);
+    for (edge, spec) in &class {
+        body.set_edge_curve(*edge, spec.clone(), Tol::witness())
+            .unwrap_or_else(|e| panic!("imported edge {edge:?} re-describes: {e:?}"));
+    }
+    let (edge, spec) = &class[0];
+    let mid = (spec.param_start + spec.param_end) * 0.5;
+    body.split_edge(*edge, mid, Tol::witness())
+        .unwrap_or_else(|e| panic!("imported edge {edge:?} splits: {e:?}"));
+    let after = body
+        .curves()
+        .filter(|(_, c)| {
+            matches!(c, topo::CurveGeom::Certified(c)
+                if matches!(c.description(), geom_brep::EdgeDescription::Intersection { .. })
+                    && matches!(c.carrier(), geom::Curve3::Nurbs(_)))
+        })
+        .count();
+    assert_eq!(
+        after,
+        count + 1,
+        "both children of the split are of the class"
+    );
 }
 
 /// Places the exported representation into a fresh root

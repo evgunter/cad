@@ -81,8 +81,10 @@
 //! - **The circle lies ON the torus** (a rim, meridian or Villarceau
 //!   circle, none of them parallel-axes except the rims, which are
 //!   coaxial): `F ≡ 0`, so the pole is on the torus at every anchor and
-//!   the answer is `Uncertain` — which is what keeps an undeclared
-//!   on-carrier circle away from every recording arm.
+//!   the answer is `Uncertain`, which keeps a meridian or Villarceau
+//!   circle from every recording arm. A coaxial rim is answered on the
+//!   coaxial arm instead (`OnSurface`), and the reduction records it only
+//!   under `reduce::lying_on`'s certificates.
 //! - **A tangency** — the carrier grazing the tube, a double root — is a
 //!   contour-reach margin in band on the parallel arm, and on the ladder
 //!   is whatever the ladder reads it as (module docs of
@@ -815,8 +817,9 @@ mod tests {
     }
 
     /// A carrier ON the torus but not coaxial (a meridian circle of the
-    /// tube): `F ≡ 0`, so no pole is definite and the door refuses —
-    /// what keeps an on-carrier circle from any recording arm.
+    /// tube): `F ≡ 0`, so no pole is definite and the door refuses,
+    /// which keeps a non-coaxial on-carrier circle from any recording
+    /// arm.
     #[test]
     fn a_circle_lying_on_the_torus_is_uncertain() {
         let pose = Pose {

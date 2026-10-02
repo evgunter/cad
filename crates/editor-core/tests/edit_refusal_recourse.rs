@@ -261,6 +261,13 @@ const WORDLESS: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        // Tier 3's +V reading (check 7), which the boolean door's
+        // volume backstop runs on its result: the kernel checking its
+        // own result through tier 3's rule, so no model question either.
+        "tier 3's +V read, at the boolean door",
+        &["positive_volume", "positive_volume_enclosure"],
+    ),
+    (
         // Raised under two decisions — the Boolean contact sweep's
         // vertex-to-vertex coincidence and containment's boundary
         // pre-pass — so no one decision's words are true of it

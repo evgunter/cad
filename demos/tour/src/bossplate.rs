@@ -159,20 +159,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             azim: -55.0,
             up: 'z',
         },
-        // A TRANSVERSE curved boolean declares no contacts, and the 3′
-        // census is exact-on-planar by ruling (C12.4/OQ5: a TOUCHING
-        // curved result refuses there — pinned in
-        // `sweep/tests/m5_pr9_boss_union.rs`); a contact-free body
-        // takes plain tier 3, which this one passes in full.
-        bodies: vec![{
-            let contact_free = bb.contacts.vv.is_empty()
-                && bb.contacts.a_on_b.is_empty()
-                && bb.contacts.b_on_a.is_empty();
-            if contact_free {
-                SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body)
-            } else {
-                SceneBody::seamed("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
-            }
+        // Routed by `crate::declares_no_contacts`; this transverse
+        // union declares none and passes plain tier 3 in full.
+        bodies: vec![if crate::declares_no_contacts(&bb.contacts) {
+            SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body)
+        } else {
+            SceneBody::seamed("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
         }],
     }]
 }

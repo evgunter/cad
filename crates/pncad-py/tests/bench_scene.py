@@ -26,6 +26,14 @@ a named gap in the bindings (`pncad.pyi`'s module docstring), so the
 prisms here are drawn from literal quantities and declare no
 parameters. The bodies are the same; the recipes are not.
 
+A second difference is a job rather than a choice: the tour stands
+its stand on a TURNTABLE gauge whose swing is a document parameter,
+mates through `regauge_then_mate`, and sets a crate on the shelf
+through a gauge nested on the turntable. `stand` here stands the
+stand on the world, which is where the turntable puts it at the
+tour's authored swing of zero, and authors no crate
+(`work/lib/the-turntable-bench-has-no-python-row.md`).
+
 The layout's placed family is NOT such a difference: `layout` spells
 the posts with `Node.pattern`, the tour's own node, whose value is the
 plural family. `posts=` switches that one call site to

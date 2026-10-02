@@ -1175,9 +1175,9 @@ impl<T: Decide> EdgeCurve<T> {
 
     /// The shared certification body, with the plane × NURBS lane
     /// ([`NurbsLane`]) as its argument: `None` mints exactly what
-    /// [`EdgeCurve::certify`] does and `Some` exactly what
-    /// [`EdgeCurve::certify_nurbs_lane`] does. A pass generic over its
-    /// scalar fills the argument from that scalar's policy
+    /// [`EdgeCurve::certify`] does and `Some` also certifies the plane ×
+    /// NURBS class through the lane. A pass generic over its scalar
+    /// fills the argument from that scalar's policy
     /// (`topo::AtRestPolicy::nurbs_lane`).
     ///
     /// # Errors
@@ -1374,35 +1374,27 @@ impl<T: Real> NurbsLane<T> {
     }
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
-    /// [`EdgeCurve::certify`] **with the plane × NURBS lane wired in**
-    /// ([`NurbsLane::certified`]): the door for callers whose scalar can
-    /// derive the declare-and-check certificate of an `Intersection`
-    /// between a PLANE and a described NURBS wall (M7-8).
-    ///
-    /// Every other check is identical, in the same order. No `Dual`
-    /// implements [`geom_core::CertifiedEnclosure`], so no `Dual`
-    /// reaches this door at all.
-    ///
-    /// # Errors
-    ///
-    /// As [`EdgeCurve::certify`], plus [`CertifyError::PlaneNurbs`]
-    /// carrying the lane's measured bound.
-    pub fn certify_nurbs_lane(
-        spec: EdgeCurveSpec<T>,
-        start: Point3<T>,
-        end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        band: Band,
-    ) -> Result<Self, CertifyError> {
-        Self::certify_via(
-            spec,
-            start,
-            end,
-            surfaces,
-            band,
-            Some(NurbsLane::certified()),
-        )
+impl<T: Decide> EdgeCurve<T> {
+    /// The carrier's derivative where a walk along the edge leaves and
+    /// where it arrives, each in the direction of travel: `he_plus`
+    /// walks `t₀ → t₁`, the other half `t₁ → t₀` with both negated.
+    /// Neither is normalized.
+    pub fn walk_tangents(&self, he_plus: bool) -> (geom_core::Vec3<T>, geom_core::Vec3<T>) {
+        let (t0, t1) = self.params();
+        if he_plus {
+            (self.carrier.deriv(t0), self.carrier.deriv(t1))
+        } else {
+            (-self.carrier.deriv(t1), -self.carrier.deriv(t0))
+        }
+    }
+
+    /// The carrier's second derivative where a walk along the edge
+    /// leaves ([`Self::walk_tangents`]' walk). Reversing the walk flips
+    /// the first derivative only: position along it is `c(t₁ − τ)`, so
+    /// `d²/dτ² = c″(t₁)`.
+    pub fn walk_departure_deriv2(&self, he_plus: bool) -> geom_core::Vec3<T> {
+        let (t0, t1) = self.params();
+        self.carrier.deriv2(if he_plus { t0 } else { t1 })
     }
 }
 
