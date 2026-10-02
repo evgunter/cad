@@ -1367,7 +1367,7 @@ fn wire_datum<T: Decide>(
             // comparison of tags, not a predicate.
             let carrier = topo::readback::face_carrier_kind(&body, key)
                 .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
-            if carrier != geom_brep::SurfaceKind::Plane {
+            if carrier != geom::SurfaceKind::Plane {
                 return Err(NodeErrorKind::FaceFrameNotPlanar { carrier });
             }
             let pose = topo::readback::face_pose(&body, key)
