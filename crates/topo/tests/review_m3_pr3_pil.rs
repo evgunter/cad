@@ -15,14 +15,6 @@ fn n_z() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)
 }
 
-/// The margin an escalation refused on, for the sign-blindness row.
-fn escalated_margin(r: &Result<LoopContainment, PointInLoopError>) -> geom_core::MarginDiag {
-    match r {
-        Err(PointInLoopError::Escalated { diag, .. }) => diag.margin,
-        other => panic!("expected an escalation, got {other:?}"),
-    }
-}
-
 /// Concave (L-shaped) loop: points in the notch are Out even though
 /// they sit inside the convex hull; points in both arms are In.
 #[test]
@@ -268,14 +260,13 @@ fn the_verdict_is_blind_to_the_normals_sign() {
         "every probe above must decide, or the row compares two refusals and pins nothing"
     );
 
-    // **The escalation arm, which is why `shape` exists.** A probe
-    // whose ordinate against the first schedule member lands strictly
-    // inside the ambiguity band — the geometric mean of the band's two
-    // thresholds, so the row survives every eps in the matrix — and
-    // sits ~1 unit from every edge, so the boundary pre-pass does not
-    // absorb it first. Both signs must refuse the SAME way; their
-    // margins are meant to be opposite in sign, and comparing the
-    // whole `Debug` here would red on that alone.
+    // **A ray in band of a far vertex.** A probe whose ordinate against
+    // the first schedule member lands strictly inside the ambiguity
+    // band — the geometric mean of the band's two thresholds, so the
+    // row survives every eps in the matrix — of the vertex (3, 1), 2 m
+    // ahead, and ~1 unit from every edge, so the boundary pre-pass does
+    // not absorb it. The reading is about that ray, so the ray is
+    // abandoned and the next member decides: `In`, on both signs.
     let delta = (band.zero() * band.escalate()).sqrt();
     assert!(delta > band.zero() && delta < band.escalate());
     let fx = prism::<f64>(
@@ -287,21 +278,9 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     let q = Point3::new(1.0, 1.0 + delta, 1.0);
     let up = point_in_loop(&fx.body, top.outer, n_z(), q, band);
     let down = point_in_loop(&fx.body, top.outer, flipped, q, band);
-    let geom_core::ErrorTextReading::Value(m_up) =
-        escalated_margin(&up).diagnostic_f64_for_error_text()
-    else {
-        panic!("expected an f64 escalation, got {up:?}");
-    };
-    let geom_core::ErrorTextReading::Value(m_down) =
-        escalated_margin(&down).diagnostic_f64_for_error_text()
-    else {
-        panic!("expected an f64 escalation, got {down:?}");
-    };
-    assert_eq!(m_up, -m_down, "the two margins must be exact negations");
-    assert_ne!(
-        format!("{up:?}"),
-        format!("{down:?}"),
-        "if the renderings ever agree here, this row has stopped exercising `shape`"
+    assert!(
+        matches!(up, Ok(LoopContainment::In)),
+        "a ray in band of a vertex 2 m ahead is retried, not refused: got {up:?}"
     );
     assert_eq!(shape(&up), shape(&down));
 

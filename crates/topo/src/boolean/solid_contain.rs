@@ -43,17 +43,27 @@
 //! (`d·n` in band), a tie between two crossings' advances, or an
 //! in-band advance sign all abandon the ray and retry with the next
 //! schedule member. So does a ray that may meet an untrimmable cone
-//! face (`FaceGeo::PartialCone`) ahead of `q`. Exhaustion is the typed
-//! [`PointInSolidError::RayExhausted`], or
-//! [`PointInSolidError::PartialConeFace`] when such a face set aside any
-//! ray. A boundary pre-pass reports
-//! `q` ON the solid's boundary as [`SolidContainment::OnBoundary`]
-//! before any ray is cast.
+//! face (`FaceGeo::PartialCone`) ahead of `q`. A boundary pre-pass
+//! reports `q` ON the solid's boundary as
+//! [`SolidContainment::OnBoundary`] before any ray is cast, and refuses
+//! where `q` is in band of a face; past it, `q` is off every face by
+//! more than the band. So on the plane arm, and at every crossing's
+//! advance and order, an in-band margin is about the ray — where it
+//! meets a plane, how it runs against it, a hit near a face's loop
+//! however far from `q` — and abandons it as a graze does. A verdict
+//! is read only off a ray whose every decision is definite, so this
+//! can turn a refusal into an answer, never into a wrong one. When no
+//! ray decides, the refusal is the first such in-band reading, else
+//! [`PointInSolidError::PartialConeFace`] when such a face set aside a
+//! ray, else [`PointInSolidError::RayExhausted`].
 //!
 //! # Predicates (all K-tagged through the Q1 funnel, meters)
 //!
 //! - **`bool_point_in_solid_plane`**: signed elevation of `q` off a
-//!   face plane (boundary pre-pass; Zero ⇒ in-plane ⇒ loop test).
+//!   face's carrier (boundary pre-pass; Zero ⇒ on the carrier ⇒ trim
+//!   test). On a plane, an in-band elevation refuses only where `q`'s
+//!   foot on the plane is not definitely outside the face: a point in
+//!   band of a carrier far from its face is off that face.
 //! - **`bool_point_in_solid_denom`**: the parallel-ray gate, a length:
 //!   `d·n` per planar face, and a wall's `|d⊥|`, each levered by how far
 //!   from `q` the selection reaches (`selection_reach`), so the margin is
@@ -363,6 +373,24 @@ pub enum PointInSolidError {
 }
 
 impl PointInSolidError {
+    /// Is this a reading too near a boundary to say, about the one
+    /// point asked, so that another point can still decide: `Escalated`
+    /// (a margin in the band's sliver), `RayExhausted` (every schedule
+    /// ray grazed), and the in-plane loop walk's own two. Every other
+    /// refusal is about a body — a face kind or edge carrier with no
+    /// arm, a corrupt face, a zero or uncertified volume — and answers
+    /// the same at any point.
+    pub(crate) fn in_band(&self) -> bool {
+        matches!(
+            self,
+            Self::Escalated { .. }
+                | Self::RayExhausted
+                | Self::Loop(
+                    PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. }
+                )
+        )
+    }
+
     /// The refusal in one clause — the short form of the sentence
     /// `Display` renders with its recourse, and the one vocabulary a
     /// consumer that carries a `&'static str` reads (the census's
@@ -3638,14 +3666,27 @@ fn point_in_faces<T: Decide>(
                 // answers the same whichever way the normal points,
                 // and `point_in_face` below is ray parity (ditto).
                 let elev = (q - origin).dot(normal);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
-                    == Sign::Zero
-                {
+                match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
                     // In-plane: ON the boundary iff within the face
                     // region (a loop-boundary graze is also ON).
-                    match point_in_face(body, face, normal, q, band)? {
+                    Ok(Sign::Zero) => match point_in_face(body, face, normal, q, band)? {
                         Some(true) | None => return Ok(SolidContainment::OnBoundary),
                         Some(false) => {}
+                    },
+                    Ok(_) => {}
+                    // In band of the carrier, which is a question about
+                    // this face only where q's foot on the plane is in
+                    // the face or on its boundary. A foot definitely
+                    // outside the face puts q off it whatever its
+                    // elevation; otherwise the elevation is the answer.
+                    Err(diag) => {
+                        let foot = q - normal * elev;
+                        if !matches!(
+                            point_in_face(body, face, normal, foot, band),
+                            Ok(Some(false))
+                        ) {
+                            return Err(escalate(diag));
+                        }
                     }
                 }
             }
@@ -3837,22 +3878,48 @@ fn point_in_faces<T: Decide>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     // A ray that may meet a partial cone face is set aside like a
     // graze; the query refuses naming that face only if no ray clears.
+    // A ray abandoned on an in-band reading of its own is set aside
+    // the same way, and the first such reading is the refusal if no ray
+    // decides.
     let reach = selection_reach(body, faces, q)?;
     let mut partial = None;
+    let mut in_band = None;
     for r in &SCHEDULE {
         let d = r.map(T::from_f64).normalize();
         match cast_ray(body, sel, q, d, reach, band, tol) {
             Ok(Some(verdict)) => return Ok(verdict),
             Ok(None) => {} // graze: next schedule member
-            Err(PointInSolidError::PartialConeFace { face }) => {
+            Err(RayFault::InBand(e)) => {
+                in_band.get_or_insert(e);
+            }
+            Err(RayFault::Fatal(PointInSolidError::PartialConeFace { face })) => {
                 partial = partial.or(Some(face));
             }
-            Err(e) => return Err(e),
+            Err(RayFault::Fatal(e)) => return Err(e),
         }
     }
-    Err(partial.map_or(PointInSolidError::RayExhausted, |face| {
-        PointInSolidError::PartialConeFace { face }
-    }))
+    Err(
+        in_band.unwrap_or(partial.map_or(PointInSolidError::RayExhausted, |face| {
+            PointInSolidError::PartialConeFace { face }
+        })),
+    )
+}
+
+/// Why one ray of the sweep gave no verdict, other than a graze.
+enum RayFault {
+    /// An in-band reading about this ray: where it meets a plane face,
+    /// which way it runs against the plane, where its crossings fall.
+    /// The pre-pass placed `q` off every face, so the reading is about
+    /// the ray rather than `q`, and the ray is abandoned like a graze.
+    InBand(PointInSolidError),
+    /// Anything else, which the query refuses on.
+    Fatal(PointInSolidError),
+}
+
+impl From<PointInSolidError> for RayFault {
+    fn from(e: PointInSolidError) -> Self {
+        Self::Fatal(e)
+    }
 }
 
 /// **How far from `q` any loop of the selection reaches**: the radius of
@@ -4640,7 +4707,7 @@ fn cast_ray<T: Decide>(
     reach: T,
     band: Band,
     tol: Tol,
-) -> Result<Option<SolidContainment>, PointInSolidError> {
+) -> Result<Option<SolidContainment>, RayFault> {
     let faces = sel.faces();
     let mut best: Option<(T, Sign)> = None; // (advance, sign of d·n)
     // A candidate crossing (advance, outward sign), or a graze.
@@ -4648,8 +4715,8 @@ fn cast_ray<T: Decide>(
                 face: FaceKey,
                 t: T,
                 outward: Sign|
-     -> Result<Option<()>, PointInSolidError> {
-        let escalate = |diag| PointInSolidError::Escalated { face, diag };
+     -> Result<Option<()>, RayFault> {
+        let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
         match decide("bool_point_in_solid_advance", Margin::of(t), band).map_err(escalate)? {
             Sign::Positive => {}
             Sign::Negative => return Ok(Some(())),
@@ -4689,7 +4756,7 @@ fn cast_ray<T: Decide>(
                     Margin::levered(denom, reach),
                     band,
                 )
-                .map_err(escalate)?;
+                .map_err(|diag| RayFault::InBand(escalate(diag)))?;
                 if denom_sign == Sign::Zero {
                     // Parallel ray: q is definitely off this plane (the
                     // pre-pass returned), and the ray rises less than
@@ -4704,7 +4771,14 @@ fn cast_ray<T: Decide>(
                 // corner-aligned query) must be skipped, not grazed,
                 // when the face itself is elsewhere.
                 let p = q + d * t;
-                match point_in_face(body, face, normal, p, band)? {
+                let in_face = point_in_face(body, face, normal, p, band).map_err(|e| {
+                    if e.in_band() {
+                        RayFault::InBand(e)
+                    } else {
+                        RayFault::Fatal(e)
+                    }
+                })?;
+                match in_face {
                     Some(false) => continue,
                     None => return Ok(None), // edge/vertex hit: graze
                     Some(true) => {}
@@ -4931,14 +5005,14 @@ fn cast_ray<T: Decide>(
                     .map_err(escalate)?
                     == Sign::Zero
                 {
-                    return Err(partial);
+                    return Err(partial.into());
                 }
                 let disc = b2.powi(2) - a2 * c2;
                 match decide("bool_ray_cone_disc", Margin::over_lever(disc, reach), band)
                     .map_err(escalate)?
                 {
                     Sign::Negative => continue,
-                    Sign::Zero => return Err(partial),
+                    Sign::Zero => return Err(partial.into()),
                     Sign::Positive => {}
                 }
                 for t in quadratic_roots(a2, b2, c2, disc) {
@@ -4954,7 +5028,7 @@ fn cast_ray<T: Decide>(
                     .map_err(escalate)?
                         == Sign::Positive;
                     if !behind && !beyond {
-                        return Err(partial);
+                        return Err(partial.into());
                     }
                 }
             }
@@ -5078,7 +5152,8 @@ fn cast_ray<T: Decide>(
                         return Err(escalate(crate::invalid_margin::invalid(
                             band,
                             "bool_ray_torus_count",
-                        )));
+                        ))
+                        .into());
                     }
                 };
                 for &t in &ts[..count] {

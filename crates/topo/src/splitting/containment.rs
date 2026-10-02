@@ -46,10 +46,15 @@
 //!   in-plane fraction levered by the loop's reach from `q` (skip
 //!   gate, see above) — the loop's own extent is half of it.
 //! - **`point_in_loop_side`**: signed offset of an edge endpoint from
-//!   the ray line — Zero ⇒ grazing ⇒ next ray.
+//!   the ray line — anything but definitely off it ⇒ grazing ⇒ next ray.
 //! - **`point_in_loop_advance`**: the crossing's advance along the
-//!   ray — Zero would mean a crossing at `q` itself (contradicting the
-//!   boundary pre-pass) ⇒ next ray, escalating if persistent.
+//!   ray — anything but definitely positive or negative would put a
+//!   crossing at `q` itself (contradicting the boundary pre-pass) ⇒
+//!   next ray.
+//!
+//! Both are facts about one ray, never about `q`: an in-band reading on
+//! either abandons the ray, and is the walk's refusal only if no ray
+//! decides.
 //!
 //! The arc-aware walk ([`point_in_carrier_loop`]) and the one boundary
 //! reading of an edge on its carrier ([`LoopEdge::contact`]) carry their
@@ -263,16 +268,17 @@ fn loop_points<T: Decide>(
 /// way**, and a refusal is identical in variant, predicate and band.
 ///
 /// One thing is NOT identical, and saying so is what keeps the
-/// sentence above true: an escalation carries the **signed** margin it
-/// refused on, so the two signs refuse with `MarginKind::Value(−m)`
-/// against `Value(m)`. That is diagnostic payload —
+/// sentence above true: a refusal on a ray's in-band ordinate (the
+/// first ray's, when no ray decides) carries the **signed** margin, so
+/// the two signs refuse with `MarginKind::Value(−m)` against
+/// `Value(m)`. That is diagnostic payload —
 /// [`geom_core::Indeterminate`]'s own docs call its fields *"honest
 /// diagnostic data … for actionable error messages and later margin
 /// telemetry"*, and nothing in this walk reads a margin back — but a
 /// differential test comparing whole `Debug` renderings would see
 /// it.
 /// `topo/tests/review_m3_pr3_pil.rs`'s
-/// `the_verdict_is_blind_to_the_normals_sign` pins all of this, and
+/// `the_verdict_is_blind_to_the_normals_sign` pins the verdicts, and
 /// compares variant, predicate and band rather than the rendering.
 ///
 /// # Errors
@@ -304,7 +310,6 @@ fn polygon_walk<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
     // The loop's own reach from q (evaluation-lane fold): the lever
     // arm for the probe-direction gate below. A degenerate loop
     // collapsed onto q gives a zero arm, every schedule member skips,
@@ -314,17 +319,31 @@ fn polygon_walk<T: Decide>(
         extent = extent.max((*p - q).norm());
     }
 
-    walk_schedule(
+    // A ray-level margin in band abandons the ray, as a graze does
+    // ([`carrier_walk`] states why that is sound past the boundary
+    // pass); the first is the refusal if no ray decides.
+    let mut in_band = None;
+    let walked = walk_schedule(
         r#loop,
         normal,
         extent,
         "point_in_loop_arm",
         ArmBand::Escalate,
         band,
-        |d, side_axis| {
-            ray_parity::ray_verdict(points, q, d, side_axis, &ROWS, band).map_err(escalate)
+        |d, side_axis| match ray_parity::ray_verdict(points, q, d, side_axis, &ROWS, band) {
+            Ok(verdict) => Ok(verdict),
+            Err(diag) => {
+                in_band.get_or_insert(diag);
+                Ok(None)
+            }
         },
-    )
+    );
+    match (walked, in_band) {
+        (Err(PointInLoopError::RayExhausted { .. }), Some(diag)) => {
+            Err(PointInLoopError::Escalated { r#loop, diag })
+        }
+        (walked, _) => walked,
+    }
 }
 
 /// **Ray parity over the fixed schedule, in a loop's plane** — the

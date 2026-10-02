@@ -36,7 +36,7 @@
 //!    [`point_in_face`] certifies strictly inside the face.
 //!
 //! A witness is **inconclusive** when it reads `OnBoundary`, or when
-//! its reading is in-band ([`inconclusive`]): the point is on the other
+//! its reading is in-band ([`PointInSolidError::in_band`]): the point is on the other
 //! boundary or too near it to say, and the next witness is read. Any
 //! other refusal is about the other operand rather than the point, and
 //! propagates.
@@ -69,7 +69,6 @@ use super::solid_contain::{
 use super::{BooleanError, ContactRecords, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
-use crate::splitting::PointInLoopError;
 
 /// What the ladder read off a complex (module docs).
 #[derive(Debug)]
@@ -85,7 +84,7 @@ pub(super) enum Reading {
 pub(super) struct Tally {
     /// Witnesses that read `OnBoundary`.
     pub(super) on_boundary: usize,
-    /// Witnesses that read in-band ([`inconclusive`]).
+    /// Witnesses that read in-band ([`PointInSolidError::in_band`]).
     pub(super) in_band: usize,
     /// The first in-band reading, as evidence.
     pub(super) first_in_band: Option<PointInSolidError>,
@@ -115,7 +114,7 @@ pub(super) fn complex_side<T: Decide>(
                 tally.on_boundary += 1;
                 None
             }
-            Err(e) if inconclusive(&e) => {
+            Err(e) if e.in_band() => {
                 tally.in_band += 1;
                 tally.first_in_band.get_or_insert(e);
                 None
@@ -179,30 +178,6 @@ pub(super) fn complex_side<T: Decide>(
     }
 
     Ok(Reading::Undecided(tally))
-}
-
-/// Is `e` a reading too near a boundary to say, about the one point
-/// asked — the ladder's inconclusive refusal (module docs), and the
-/// certificate's ([`certified_in_face`])? Another point of the same
-/// complex can still decide.
-///
-/// - **In**: `Escalated` (a margin in the band's sliver),
-///   `RayExhausted` (every schedule ray grazed), and the in-plane loop
-///   walk's own two (`Loop(Escalated)`, `Loop(RayExhausted)`).
-/// - **Out**: every refusal about a body rather than a point — a face
-///   kind or edge carrier the door has no arm for, a corrupt face, a
-///   zero or uncertified volume, a sphere chart it cannot read. Each
-///   would answer the same at any point, so passing over it would only
-///   defer it.
-fn inconclusive(e: &PointInSolidError) -> bool {
-    matches!(
-        e,
-        PointInSolidError::Escalated { .. }
-            | PointInSolidError::RayExhausted
-            | PointInSolidError::Loop(
-                PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. },
-            )
-    )
 }
 
 /// The side of `other` the uncut `shell` of `body` lies on: the
@@ -332,7 +307,7 @@ fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?
 /// `false` discards the candidate unprobed: outside, on a loop, an
-/// [`inconclusive`] reading, or an edge of `face` whose carrier the
+/// [`PointInSolidError::in_band`] reading, or an edge of `face` whose carrier the
 /// walk cannot cross — that face then offers no candidate, as a curved
 /// face offers none. Any other refusal is an error.
 pub(super) fn certified_in_face<T: Decide>(
@@ -344,7 +319,7 @@ pub(super) fn certified_in_face<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match point_in_face(body, face, normal, p, band) {
         Ok(verdict) => Ok(verdict == Some(true)),
-        Err(e) if inconclusive(&e) => Ok(false),
+        Err(e) if e.in_band() => Ok(false),
         Err(PointInSolidError::EdgeCarrierUnsupported { .. }) => Ok(false),
         Err(e) => Err(BooleanError::Containment(e)),
     }
