@@ -318,5 +318,7 @@ mod replace_face_band_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
+#[path = "review_3812_r1_twin.rs"]
+mod review_3812_r1_twin;
 #[path = "split_tangent_spur.rs"]
 mod split_tangent_spur;
