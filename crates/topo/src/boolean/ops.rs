@@ -98,6 +98,7 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
+use slotmap::SecondaryMap;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::BooleanDecision;
@@ -105,7 +106,7 @@ use super::SphereQuestion;
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
-use super::finish::{kept_side, setopfinish};
+use super::finish::{kept_side, on_seam, setopfinish};
 use super::join::bool_connect;
 use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::solid_contain::{SolidContainment, closed_sphere_group};
@@ -543,13 +544,18 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
-    let mut vertex_merges = Vec::new();
+    let mut vertex_merges = fin.weld_merges_a.clone();
     let mut desc = Descendants::default();
+    // A pinch is one vertex on two seams: the first zip fuses it, so
+    // each later zip reads the correspondence through the fusions made.
+    let mut vertex_map = fin.vertex_map.clone();
     for &(a_face, b_face) in &fin.seams {
-        let rep = zip_seam(&mut body, a_face, b_face, &fin.vertex_map, tol)?;
+        let seam_map = on_seam(&body, b_face, &vertex_map, &fin.pinches)?;
+        let rep = zip_seam(&mut body, a_face, b_face, &seam_map, tol)?;
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
+        vertex_map = fused_through(&vertex_map, &rep.vertex_merges)?;
     }
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
@@ -596,8 +602,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         vertex_merges,
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
-        face_fragments_a: connected.a_fragments,
-        face_fragments_b: connected.b_fragments,
+        face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
+        face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
         reduction_contacts,
         discards: fin.discards,
         covered,
@@ -611,6 +617,32 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// What the pipeline reaches through its join ([`through_the_join`]).
+/// `map` with each vertex on either side read as the vertex a zip's
+/// fusion `(dead, kept)` left in its place.
+fn fused_through(
+    map: &SecondaryMap<VertexKey, VertexKey>,
+    merges: &[(VertexKey, VertexKey)],
+) -> Result<SecondaryMap<VertexKey, VertexKey>, BooleanError> {
+    let kept = |v: VertexKey| {
+        merges
+            .iter()
+            .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
+    };
+    let mut out = SecondaryMap::new();
+    for (a, &b) in map {
+        let (a, b) = (kept(a), kept(b));
+        match out.insert(a, b) {
+            Some(prev) if prev != b => {
+                return Err(BooleanError::ZipCorrespondence {
+                    what: "a fused seam vertex has two correspondents",
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(out)
+}
+
 pub(super) enum Joined<T: Real> {
     /// The pipeline's answer, reached without a join to finish: the
     /// no-crossings path (the re-cut or the containment fallback), or

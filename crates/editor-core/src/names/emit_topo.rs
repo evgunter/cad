@@ -1516,8 +1516,17 @@ fn name_boolean_vertices<T: Decide>(
             // where k ≥ 2 seam LINES meet. Its name is the path of the
             // lines' Seam segments, in the canonical form's order —
             // deterministic, and unique per line set (straight lines
-            // meet once).
-            ([], [], _, _) if seam_lines.len() >= 2 => {
+            // meet once). A pinch is one too: several edges of one
+            // operand pierce a face of the other at one vertex, so no
+            // single edge is its parent.
+            (aes, bes, _, _)
+                if seam_lines.len() >= 2
+                    && match (aes.len(), bes.len()) {
+                        (0, 0) => true,
+                        (n, 0) | (0, n) => n >= 2,
+                        _ => false,
+                    } =>
+            {
                 let name = canonical::minted(StableName {
                     kind: EntityKind::Vertex,
                     node,
