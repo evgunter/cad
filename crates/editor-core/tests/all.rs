@@ -703,3 +703,5 @@ mod emit_union_flush_names;
 mod emit_union_rim_piece_ranks;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "join1_delta2_seat8_probe.rs"]
+mod join1_delta2_seat8_probe;
