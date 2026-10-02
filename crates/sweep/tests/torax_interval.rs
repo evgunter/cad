@@ -292,7 +292,16 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     let band = geom_core::Band::linear(tol).expect("band");
     match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
         Ok(()) => {}
-        Err(topo::ReplaceFaceError::Escalated { source }) if tol.eps() < DEFAULT_EPS => {
+        // The closing mint walks the lens face's general-circle rims
+        // too, and at a tight band its loop-continuity joint escalates
+        // the same way — an enclosure as wide as the offset's widened
+        // data, straddling the band.
+        Err(
+            source @ (topo::ReplaceFaceError::Escalated { .. }
+            | topo::ReplaceFaceError::Pcurve {
+                source: topo::pcurves::PcurveMintError::Escalated { .. },
+            }),
+        ) if tol.eps() < DEFAULT_EPS => {
             stood_down(
                 &format!("the sphere lune's interval rim, eps = {:e}", tol.eps()),
                 &format!(

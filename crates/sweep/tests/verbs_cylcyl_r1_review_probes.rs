@@ -229,10 +229,11 @@ fn a_steeply_tilted_cut_wall_still_answers_none() {
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 2.0, 0.0, 6.0);
     let phi = 0.9_f64;
-    let plane = topo::splitting::SplitPlane {
-        origin: Point3::new(0.0, 0.0, 3.0),
-        normal: Vec3::new(-phi.sin(), 0.0, phi.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 3.0),
+        Vec3::new(-phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = topo::splitting::split(&post, &plane, tol).unwrap();
     let topo::splitting::SplitPart::Body(below) = &result.below else {
         panic!("material below the tilted cut");
