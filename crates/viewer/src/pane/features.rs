@@ -32,7 +32,8 @@ pub(crate) fn indent(depth: usize) -> f32 {
 }
 
 /// **The indent a line UNDER a row draws at** — a failure's own
-/// words, the pointer at the row that has them, a standing note.
+/// words, the pointer at the row that has them, why a measure has no
+/// value, what a mate did in the solve, a standing note.
 ///
 /// One step past the row's own [`indent`], so the line reads as the
 /// row's — for as long as that leaves the line the width
@@ -1007,13 +1008,18 @@ mod tests {
         );
     }
 
-    /// **A row's standing note is drawn under it, quietly** — here a
-    /// mate whose class has no at-rest record, in the kernel's words.
+    /// **A mate's row paints what it did in the solve under it, in the
+    /// kernel's sentence**, then its standing note — here a mate whose
+    /// class has no at-rest record, in the kernel's words — both
+    /// quietly and with no badge.
     ///
-    /// Red if `lines_under` drops the note, or draws it loud.
+    /// Red if `lines_under` drops `Readout::Role` or the note,
+    /// re-spells the kernel's sentence, draws either loud or off its
+    /// place under the row, or if `row_result` draws the role beside
+    /// the row as well.
     #[test]
-    fn a_mate_rows_standing_note_paints_under_it() {
-        use pncad::document::{ClassAdmission, class_admission};
+    fn a_mate_rows_role_and_standing_note_paint_under_it() {
+        use pncad::document::{ClassAdmission, MateRole, class_admission};
         use pncad::select::ContactClass;
 
         let admission = class_admission(ContactClass::Tangent);
@@ -1022,48 +1028,30 @@ mod tests {
             "the premise: a Tangent mate has no at-rest record: {admission:?}"
         );
         let note = admission.no_record_reason();
-        let row = TreeRow {
-            status: RowStatus::Ok,
-            note: Some(note.to_owned()),
-            ..placer_refused_row(None)
-        };
-        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            feature_row_drawn(ui, &row, theme)
-        });
-        let line = find(&painted, note);
-        assert_under(find(&painted, "Mate 000000000007"), line);
-        assert_eq!(line.ink, Some(voices.weak), "said quietly");
-    }
-
-    /// **A mate's row paints what it did in the solve under it, in the
-    /// kernel's sentence**, quietly and with no badge: whether it
-    /// placed its child or only declares, then its standing note.
-    ///
-    /// Red if `lines_under` drops `Readout::Role`, re-spells the
-    /// kernel's sentence, draws it loud or off its place under the row,
-    /// or if `row_result` draws it beside the row as well.
-    #[test]
-    fn a_mate_rows_role_paints_the_kernels_sentence_under_it() {
-        use pncad::document::MateRole;
-
-        const NOTE: &str = "the standing note";
         for role in [MateRole::Determining, MateRole::Declaring] {
             let sentence = role.to_string();
             let row = TreeRow {
                 status: RowStatus::Ok,
-                note: Some(NOTE.to_owned()),
+                note: Some(note.to_owned()),
                 readout: Some(Readout::Role(role)),
                 ..placer_refused_row(None)
             };
             let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
                 feature_row_drawn(ui, &row, theme)
             });
-            let line = find(&painted, &sentence);
-            assert_under(find(&painted, "Mate 000000000007"), line);
-            assert_eq!(line.ink, Some(voices.weak), "{role:?}: said quietly");
+            let kind = find(&painted, "Mate 000000000007");
+            for said in [sentence.as_str(), note] {
+                let line = find(&painted, said);
+                assert_under(kind, line);
+                assert_eq!(
+                    line.ink,
+                    Some(voices.weak),
+                    "{role:?}: {said:?} said quietly"
+                );
+            }
             assert_eq!(
                 texts(&painted),
-                vec!["Mate 000000000007", sentence.as_str(), NOTE],
+                vec!["Mate 000000000007", sentence.as_str(), note],
                 "{role:?}: the row, its role, its note, and no badge"
             );
         }
