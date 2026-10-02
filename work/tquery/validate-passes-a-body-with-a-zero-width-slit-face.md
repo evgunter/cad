@@ -2,10 +2,12 @@
 id: validate-passes-a-body-with-a-zero-width-slit-face
 kind: issue
 title: split runs no validation tier on its own outputs, so a spurred half left the op unchallenged
-status: open
+status: review
 opened: 2026-09-24
 priority: P3
 cost: D
+pr: 3797
+branch: tquery/split-self-validate
 ---
 
 
