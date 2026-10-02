@@ -36,8 +36,8 @@
       "cone": 1
     },
     "die": {
-      "about": "M3 exact-oracle die: 21 declared pip subtracts (84 nodes)",
-      "nodes": 84,
+      "about": "M3 exact-oracle die: 21 declared pip subtracts (63 nodes)",
+      "nodes": 63,
       "cone": 3
     },
     "die_composed": {
