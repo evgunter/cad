@@ -129,7 +129,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
-pub(crate) use contain::{LoopShape, loop_shape};
+pub(crate) use contain::loop_circle;
 pub use discard::{DiscardRow, HeldEdge, fragment_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -1095,10 +1095,13 @@ pub enum BooleanError {
     ///
     /// Wedge 0 or 2π: the material pinches to a knife edge or opens to
     /// a circular slit. This is the declared-cusp family, and it is the
-    /// arm the ruling deliberately left unbuilt — its verification
-    /// consumes a certified witness along the rim that the witness lane
-    /// does not yet mint. The A11-rider shape: the design is settled and
-    /// the refusal points at the ruling that settles it.
+    /// arm the ruling deliberately left unbuilt. Two pieces are missing
+    /// for every pair that reaches it: a tangent-locus arm for the
+    /// pair's surface kinds (it is raised only where
+    /// [`geom_brep::tangent_locus`] answers `Unsupported`), and the
+    /// consumer that builds the cusp or slit edge from a locus, which is
+    /// unbuilt for every locus shape. The A11-rider shape: the design is
+    /// settled and the refusal points at the ruling that settles it.
     RimCuspArmUnbuilt {
         /// The declaration whose face pair carries the rim.
         declaration: crate::contact::DeclaredContact,
@@ -2166,8 +2169,10 @@ impl core::fmt::Display for BooleanError {
             Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
                 f,
                 "the declared faces meet along a rim circle where the material {}, and \
-                 the Boolean cannot yet verify a {} declaration there. The declaration \
-                 is the right one; there is no way through this in the kernel yet",
+                 the Boolean cannot yet verify a {} declaration there: it has no tangent \
+                 locus for these two surfaces, and cannot yet build the edge where they \
+                 touch. The declaration is the right one; there is no way through this \
+                 in the kernel yet",
                 match wedge {
                     geom_brep::MaterialWedge::Cusp => "pinches to a knife edge",
                     geom_brep::MaterialWedge::Slit => "opens to a thin slit",

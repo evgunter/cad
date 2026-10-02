@@ -255,14 +255,13 @@ pub enum SplitJoinError {
     /// the joining invariant (heads join heads, tails join tails)
     /// failed (kernel bug, loudly).
     ///
-    /// **A reachable source that was not a join bug**: a box driven
-    /// through a cylinder CAP arrived here while `point_in_solid`'s
-    /// planar arm read an arc-bounded cap as the polygon through its
-    /// vertices — the join's role probe then saw the cap as transparent
-    /// and the section loop came back mixed. That arm now crosses arcs
-    /// on their circles and the cap pierce joins. `work/tang/`'s
-    /// pierce-ring row records the other measured arrival (an engraving
-    /// pose) and that its cause is unmeasured against this one.
+    /// The join's role probe reads each copy's side through
+    /// `point_in_solid`, so a misread there arrives here too: a planar
+    /// arm that took an arc-bounded cap for the polygon through its
+    /// vertices would see the cap as transparent and return a mixed
+    /// loop. A box driven through a cylinder cap and a pocket engraved
+    /// in one (`editor-core/tests/pierce_ring_engraving.rs`) are the
+    /// poses that pin that arm's arc crossing.
     SectionLoopMixed {
         /// The offending null face.
         face: FaceKey,
