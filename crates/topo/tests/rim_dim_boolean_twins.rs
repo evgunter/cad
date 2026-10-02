@@ -77,7 +77,8 @@ use topo::{BooleanResult, subtract};
 /// else must scale linearly. EMPTY: F3 and F4 were on this list until
 /// their unit (the module docs record what retired them), and F2's
 /// ray-caster denominators until they were levered by the selection's
-/// reach.
+/// reach. These bricks have no curved wall, so the wall arm's two rungs
+/// are pinned by `sweep`'s `ray_wall_margin_twins`, on a pipe.
 const KNOWN_NONLINEAR: &[&str] = &[];
 
 /// Predicates whose DECISION COUNT may differ between the twins.
