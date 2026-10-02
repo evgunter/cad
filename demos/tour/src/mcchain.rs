@@ -160,8 +160,8 @@ const CERTIFIED_MIN_PX: f64 = 5.0;
 /// the compiled default ε, and the box MOVES with ε (`1.083e-1` at
 /// `1e-6` against `1.110e-1` at the default, measured) — so at another
 /// ε it is a different box, and `chaintol` says so (`demo-tour certified`).
-/// Why it moves is not established: the wall's refusal is a poisoned
-/// margin, which is not a quantity a band classifies. The sheet
+/// It moves because the wall is where the wedge margin's lower end
+/// drops under `K·ε` (`chaintol`'s header has the mechanism). The sheet
 /// has to agree with it: at one ε they are one statement, and a legend
 /// claiming `0.111` certifies while the cell reports a declared
 /// frontier at the same ε is the picture contradicting the report.

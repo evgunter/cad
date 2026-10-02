@@ -32,12 +32,17 @@ sample 1 escalated: predicate 'dihedral_arm' indeterminate: enclosure
 **What this is, and what it is NOT.** It is the FIRST refusal over the
 WHOLE study at three and four links — which is a fact about evaluation
 order, not about which predicate the certifiable box runs into.
-MEASURED just above the wall (`1.02×` and `1.10×` of each link count's
-certifiable fraction, default ε and `1e-6`), the first refusal is a
-different predicate: `dihedral_wedge` with a POISONED margin, at two,
-three and four links alike. **That** is what bounds
-`chain::CERTIFIABLE_FRACTION`, and it is filed at
-`a-chain-of-two-or-more-joints-poisons-its-transversality-margin`.
+Just above the wall the first refusal is a different predicate,
+`dihedral_wedge` on `EdgeKey(1v1)` at sample 4, at two, three and four
+links alike. **That** is what bounds `chain::CERTIFIABLE_FRACTION`.
+The wall's margin is the same quantity at every ε; what it reads as
+just past the wall depends on ε. At `1.02×` and `1.10×` of the DEFAULT
+ε's fractions it is POISONED (at the default ε and at `1e-6` alike,
+since those boxes are past the poison point, which does not move with
+ε). At `1.02×` of `1e-6`'s and `1e-5`'s OWN fractions it STRADDLES
+`K·ε`. Measured in `a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
+"What Phase 1 found (SYM-15)"; the poison alone is
+`geom_brep`'s `a_cylinder_gradient_reaching_zero_poisons_the_wedge`.
 This row said the opposite for one review cycle; it was a causal story
 nobody had executed.
 

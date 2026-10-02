@@ -195,8 +195,8 @@ is local to the minting operation. A refusal that names the cause
 the shared escalation taxonomy (`LeverRung`, `CertCheck`), since the
 margin it renders is the wedge's. Per this row's Home, it re-homes.
 
-Text these findings make wrong, not edited here (the stop rule leaves
-the pins to whichever unit lands the answer). Grepped for `not
+Text these findings made wrong, corrected in SYM-15's PR (#3804).
+Pins: none moved. Grepped for `not
 established`, `unestablished`, `is a hypothesis`, `1.083e-1`, `POISONED`
 and `poisoned margin` over `demos/`, `crates/`, `work/` and `docs/`; the
 chain's hits:
@@ -212,9 +212,11 @@ chain's hits:
     zero, and a sub-box's enclosure is inside the box's.
   - the fractions row's doc, "What makes them move is not established".
   - `the_wall_is_the_wedge_not_the_arm` asserts "margin is invalid" at
-    1.02× of the DEFAULT fractions at every ε. That stays true, but only
-    because those boxes are past the poison point at `1e-6` too.
-- `demos/tour/src/mcchain.rs` (the box note and the sheet's caption) and
+    1.02× of the DEFAULT fractions at every ε. That stays true, because
+    those boxes are past the poison point at `1e-6` too; its doc now
+    says it is scoped that way. What it asserts is unchanged.
+- `demos/tour/src/mcchain.rs` (the box note; the sheet's caption says only
+  that the box moves, which stays true, and is left as written) and
   `demos/README.md` (the chain's paragraph): "why it moves is not
   established".
 - `work/sym/a-chain-of-three-joints-straddles-dihedral-arm.md`,

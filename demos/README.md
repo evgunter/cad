@@ -857,9 +857,11 @@ the draws moved.
   legend.
 * **The teal is drawn only at the ε it was measured at.** `0.111` is a
   default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
-  measured); why it moves is not established — the wall's refusal is
-  a poisoned margin, not a quantity a band classifies — so at another
-  ε it is a different box, and `chaintol` (`demo-tour certified`)
+  measured). It moves because the wall is the wedge's margin on the
+  tip pin's cap circle, whose lower end falls toward zero as the box
+  grows (the pin's point and axis are enclosed apart), and the box
+  stops certifying where that lower end drops under `K·ε`. So at
+  another ε it is a different box, and `chaintol` (`demo-tour certified`)
   declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
   the frontier where the legend would have gone and draws no band. A
   run at another ε where the box happens to certify anyway is

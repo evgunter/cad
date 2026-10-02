@@ -72,11 +72,17 @@ the two lanes on this document.
 
 That column is the first refusal at the WHOLE study. What bounds the
 certifiable BOX is a different question and a different predicate:
-measured at `1.02×` and `1.10×` of each link count's fraction, at the
-default ε and at `1e-6`, the first refusal is `dihedral_wedge` with a
-POISONED margin — `EdgeKey(1v1)`, sample 4 — at two, three and four
-links alike. The arm's straddle is first only over the whole study, by
-evaluation order.
+just above the wall the first refusal is `dihedral_wedge` —
+`EdgeKey(1v1)`, sample 4 — at two, three and four links alike. The
+arm's straddle is first only over the whole study, by evaluation order.
+The wall's margin is the same quantity at every ε; what it reads as
+just past the wall depends on ε. At `1.02×` and `1.10×` of the DEFAULT
+ε's fractions it is POISONED (at the default ε and at `1e-6` alike,
+since those boxes are past the poison point, which does not move with
+ε). At `1.02×` of `1e-6`'s and `1e-5`'s OWN fractions it STRADDLES
+`K·ε`. Measured in `a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
+"What Phase 1 found (SYM-15)"; the poison alone is
+`geom_brep`'s `a_cylinder_gradient_reaching_zero_poisons_the_wedge`.
 
 The widest box that certifies whole, per link count, is `1.000`,
 `0.370`, `0.185` and `0.111` of the study — one number in four
