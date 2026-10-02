@@ -307,3 +307,13 @@ Fix pass:
 - whether the eps walk runs every scene's stops in CI.
 
 Tess census merge plan: the deltas from 3792, 3816 and 3824 add by scene. Re-run tess-lint on each merge commit rather than trusting arithmetic.
+
+## 2026-10-02 — teapot lid fixed; bench dispatched
+
+PR 3824's fix pass is in, at head `1913437ac`, green.
+- **Half-rim pick gap:** filed as `vseam/a-picked-half-rim-blends-half-and-refuses` (P2/M).
+- **Equivalence row:** now on the solid lid, pinning the face order.
+- **Per-rim census:** asserted.
+- **CI coverage:** CI walks every scene's stops at three ε (`eps_regression` spawns the binary), so there is no class finding.
+
+`bench-on-a-gauge` is dispatched. Review tier: FULL (claims plus style), because it is new API surface on PLACE/MSOLVE ground.
