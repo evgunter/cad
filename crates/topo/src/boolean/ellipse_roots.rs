@@ -170,3 +170,246 @@ pub(super) fn ellipse_roots<T: Decide>(
         band,
     )
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    //! Each pose is checked against the geometry, not the door's own
+    //! algebra: a certified root must put the carrier ON the surface, and
+    //! its count must be the count of sign changes of the true distance
+    //! along the carrier, each bisected to the bit.
+
+    use core::f64::consts::{PI, TAU};
+
+    use super::*;
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The ellipse `c + a·û cos θ + b·v̂ sin θ` on the unit normal `n`.
+    fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> geom::Curve3<f64> {
+        let n = Vec3::from_array(n).normalize();
+        let u = Vec3::from_array(u);
+        geom::Curve3::Ellipse {
+            center: Point3::from_array(c),
+            axis: n,
+            major: a,
+            minor: b,
+            u_ref: (u - n * u.dot(n)).normalize(),
+        }
+    }
+
+    fn sphere(c: [f64; 3], r: f64) -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center: Point3::from_array(c),
+            radius: r,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn wall(o: [f64; 3], axis: [f64; 3], r: f64) -> geom::Surface<f64> {
+        let axis = Vec3::from_array(axis).normalize();
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        geom::Surface::Cylinder {
+            origin: Point3::from_array(o),
+            axis,
+            radius: r,
+            u_ref: (x - axis * x.dot(axis)).normalize(),
+        }
+    }
+
+    /// The true signed distance of `p` from the surface.
+    fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
+        match *s {
+            geom::Surface::Sphere { center, radius, .. } => (p - center).norm() - radius,
+            geom::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => {
+                let w = p - origin;
+                (w - axis * w.dot(axis)).norm() - radius
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// The sign changes of the true distance on `[t0, t1]`.
+    fn oracle(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> Vec<f64> {
+        let f = |t: f64| distance(s, e.eval(t));
+        let steps = 20_000;
+        let mut out = Vec::new();
+        for k in 0..steps {
+            let at = |k: u32| t0 + (t1 - t0) * f64::from(k) / f64::from(steps);
+            let (mut a, mut b) = (at(k), at(k + 1));
+            if f(a).signum() == f(b).signum() {
+                continue;
+            }
+            for _ in 0..80 {
+                let m = (a + b) / 2.0;
+                if f(m).signum() == f(a).signum() {
+                    a = m;
+                } else {
+                    b = m;
+                }
+            }
+            out.push((a + b) / 2.0);
+        }
+        out
+    }
+
+    fn door(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> CircleRoots<f64> {
+        ellipse_roots(e, t0, t1, s, band()).unwrap()
+    }
+
+    /// Certified roots matching the oracle in number and place, every
+    /// one on the surface and within `π` of the arc's midpoint.
+    fn assert_matches_oracle(
+        label: &str,
+        e: &geom::Curve3<f64>,
+        s: &geom::Surface<f64>,
+        t0: f64,
+        want: usize,
+    ) {
+        let t1 = t0 + 1.0;
+        let CircleRoots::Certified { count, thetas } = door(e, s, t0, t1) else {
+            panic!("{label}: certified roots, got {:?}", door(e, s, t0, t1));
+        };
+        assert_eq!(count, want, "{label}: the certified count");
+        let mid = (t0 + t1) / 2.0;
+        let mut got = thetas[..count].to_vec();
+        for &t in &got {
+            assert!((t - mid).abs() <= PI, "{label}: {t} within π of {mid}");
+            let off = distance(s, e.eval(t)).abs();
+            assert!(off < 1e-12, "{label}: root {t} lies {off} off the surface");
+        }
+        got.sort_by(f64::total_cmp);
+        let truth = oracle(e, s, mid - PI, mid + PI);
+        assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
+        for (a, b) in got.iter().zip(&truth) {
+            assert!((a - b).abs() < 1e-9, "{label}: root {a} vs the oracle's {b}");
+        }
+    }
+
+    /// Crossings of a sphere and of a wall, two and four per turn, at
+    /// several arcs (the roots are reported about each arc's midpoint).
+    #[test]
+    fn crossings_match_the_true_distance() {
+        let thin = ellipse([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, 0.3);
+        let tilted = ellipse([0.1, 0.2, 0.0], [0.3, -0.2, 1.0], [1.0, 1.0, 0.0], 0.8, 0.5);
+        for t0 in [0.0, 1.7, -2.9] {
+            // A sphere through both ends of the major axis' span: the
+            // ellipse leaves it near each vertex and comes back.
+            assert_matches_oracle("thin × sphere", &thin, &sphere([0.0, 0.0, 0.1], 0.6), t0, 4);
+            assert_matches_oracle(
+                "thin × off-centre sphere",
+                &thin,
+                &sphere([0.9, 0.0, 0.0], 0.4),
+                t0,
+                2,
+            );
+            assert_matches_oracle(
+                "tilted × sphere",
+                &tilted,
+                &sphere([0.0, 0.0, 0.3], 0.7),
+                t0,
+                2,
+            );
+            assert_matches_oracle(
+                "thin × upright wall",
+                &thin,
+                &wall([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.6),
+                t0,
+                4,
+            );
+            assert_matches_oracle(
+                "tilted × leaning wall",
+                &tilted,
+                &wall([0.5, 0.0, 0.0], [0.2, 1.0, 0.4], 0.3),
+                t0,
+                2,
+            );
+        }
+    }
+
+    #[test]
+    fn a_clear_carrier_is_a_miss() {
+        let thin = ellipse([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, 0.3);
+        for (label, s) in [
+            ("inside a sphere", sphere([0.0, 0.0, 0.0], 1.4)),
+            ("beside a sphere", sphere([0.0, 2.0, 0.0], 0.5)),
+            ("inside a wall", wall([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.2)),
+        ] {
+            assert!(
+                matches!(door(&thin, &s, 0.0, TAU), CircleRoots::Miss),
+                "{label}: got {:?}",
+                door(&thin, &s, 0.0, TAU)
+            );
+            assert!(oracle(&thin, &s, 0.0, TAU).is_empty(), "{label}: the oracle agrees");
+        }
+    }
+
+    /// **The tilted section of a wall lies on it.** The plane through the
+    /// wall's axis point at tilt `φ` cuts the wall of radius `r` in the
+    /// ellipse of semi-axes `r/cos φ` and `r`, whose residual against
+    /// that wall is identically zero: the first-harmonic arm reads it
+    /// `OnSurface` (the ladder could not read a constant). Against a
+    /// coaxial wall of another radius the residual is a definite constant,
+    /// a `Miss`.
+    #[test]
+    fn a_wall_s_own_tilted_section_is_on_it() {
+        let phi = 0.3_f64;
+        let section = ellipse(
+            [0.0, 0.0, 0.5],
+            [phi.sin(), 0.0, phi.cos()],
+            [1.0, 0.0, 0.0],
+            0.5 / phi.cos(),
+            0.5,
+        );
+        let on = wall([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5);
+        assert!(
+            matches!(door(&section, &on, 0.0, PI), CircleRoots::OnSurface),
+            "its own wall: got {:?}",
+            door(&section, &on, 0.0, PI)
+        );
+        let wider = wall([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.7);
+        assert!(
+            matches!(door(&section, &wider, 0.0, PI), CircleRoots::Miss),
+            "a coaxial wider wall: got {:?}",
+            door(&section, &wider, 0.0, PI)
+        );
+    }
+
+    /// A carrier that is not an ellipse, or a surface the door has no
+    /// harmonics for, is a dispatch desync.
+    #[test]
+    fn a_wrong_kind_is_a_desync() {
+        let circle = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let s = sphere([0.0, 0.0, 0.0], 0.5);
+        assert!(matches!(
+            ellipse_roots(&circle, 0.0, 1.0, &s, band()),
+            Err(BooleanError::ClassificationInvariant { .. })
+        ));
+        let e = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, 0.5);
+        let torus = geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.0,
+            minor_radius: 0.2,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert!(matches!(
+            ellipse_roots(&e, 0.0, 1.0, &torus, band()),
+            Err(BooleanError::ClassificationInvariant { .. })
+        ));
+    }
+}
