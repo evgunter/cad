@@ -12,7 +12,7 @@ Lane `reach-dual3847-r2`. Wall clock 15:52 to END UTC, 2026-10-02. **Verdict: AP
    - Err arm passed: reds the gap row only. Meter removed: reds both.
    - **Phase term dropped, angle term dropped, near/far inverted, old acos: red NO row** (MINOR-1).
 6. **Design stop (likely honest).** At δ 1e-7 the slack is 2.2e-12. The bound is ≤1.7× pessimistic, so a sharper f64 first-order bound still lands above 1e-12. The three filed siblings exist and say what the PR says; `work.py lint` is clean.
-7. **Suites (`--profile ci`, topo + geom-brep + sweep).** 1e-9: 4703/4703. 1e-6: 4703/4703. 1e-12: SUITE12. **k-lint:** KLINT.
+7. **Suites (`--profile ci`, topo + geom-brep + sweep).** 1e-9: 4703/4703. 1e-6: 4703/4703. 1e-12: 4703/4703 (the main-known `rigid_map_near_eps_plane_nurbs` row is outside the ci profile). **k-lint:** KLINT.
 
 ## Findings
 - **MINOR-1 (sure, executed).** The PR's rows cannot fail on the near/far selection or on the old acos half-chord, which `circle_roots.rs:568` exists to replace. The phase term and the angle term at `:557-558` are unpinned too. The fuzz shows that losing the selection certifies roots up to 45ε off. The phase and angle terms were not observably needed on any corpus (they are ≲ the at-root term), so dropping them is either a sound simplification or an unpinned invariant.
