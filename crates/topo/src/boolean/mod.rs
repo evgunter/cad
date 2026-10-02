@@ -129,7 +129,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
-pub(crate) use contain::{LoopShape, loop_shape};
+pub(crate) use contain::loop_circle;
 pub use discard::{DiscardRow, HeldEdge, fragment_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -855,18 +855,21 @@ pub enum BooleanError {
         verdict: geom_brep::recourse::Refused,
     },
     /// A pierce sector's FIRST-ORDER material verdict could not be
-    /// certified against the pierced face's curvature: the sagitta
-    /// bound at the sector's own lever arm is not definitely below the
-    /// first-order displacement, so the tangent-plane verdict may have
-    /// the material side backwards (`boolean::sectors::side_code`
-    /// carries the argument and the witness). The **definite** half of
-    /// a two-tolerance pair on `bool_pierce_sector_side_curved`; an
+    /// resolved against the pierced face's curvature: the bound leaves
+    /// the face within about `2·sqrt(band/R)` radians of tangent (`R`
+    /// the face's smallest radius of curvature), or its reach is too
+    /// short to witness its slope, so the largest separation from the
+    /// face the first-order term certifies past the sagitta does not
+    /// clear the band (`boolean::sectors::side_code` carries the
+    /// argument and the witness). The **definite** half of a
+    /// two-tolerance pair on `bool_pierce_sector_side_curved`; an
     /// in-band charge escalates as [`BooleanError::Escalated`] on the
     /// same predicate instead.
     ///
-    /// A refusal, never a guess: a first-order answer here would be a
-    /// wrong TOPOLOGY rather than a conservative one. The kernel's own
-    /// way through is the second-order sector trilean
+    /// A refusal, never a guess: the slope's sign is one the band
+    /// cannot resolve, and a side read from it would be a guess at the
+    /// topology. The side of a near-tangent bound is second order, so
+    /// the kernel's own way through is the second-order sector trilean
     /// (`geom_brep::enters_material_order2`), which the declared-
     /// `Tangent` lump already consumes and which no lane wires into
     /// this verdict yet; the user's is the decision's lever
@@ -1093,10 +1096,13 @@ pub enum BooleanError {
     ///
     /// Wedge 0 or 2π: the material pinches to a knife edge or opens to
     /// a circular slit. This is the declared-cusp family, and it is the
-    /// arm the ruling deliberately left unbuilt — its verification
-    /// consumes a certified witness along the rim that the witness lane
-    /// does not yet mint. The A11-rider shape: the design is settled and
-    /// the refusal points at the ruling that settles it.
+    /// arm the ruling deliberately left unbuilt. Two pieces are missing
+    /// for every pair that reaches it: a tangent-locus arm for the
+    /// pair's surface kinds (it is raised only where
+    /// [`geom_brep::tangent_locus`] answers `Unsupported`), and the
+    /// consumer that builds the cusp or slit edge from a locus, which is
+    /// unbuilt for every locus shape. The A11-rider shape: the design is
+    /// settled and the refusal points at the ruling that settles it.
     RimCuspArmUnbuilt {
         /// The declaration whose face pair carries the rim.
         declaration: crate::contact::DeclaredContact,
@@ -1929,8 +1935,8 @@ impl core::fmt::Display for BooleanError {
                  side of the face the material is on: {}. {}",
                 match verdict {
                     geom_brep::recourse::Refused::Zero(_) => {
-                        "the edge leaves the face, at this tolerance, no more steeply than \
-                         the face bends away over the same length"
+                        "a direction leaving the pierce point runs too close to tangent to \
+                         the face, or along too short an edge, for this tolerance to tell"
                     }
                     geom_brep::recourse::Refused::Negative { .. } => {
                         "the face bends away over the edge's length by more than the edge \
@@ -2164,8 +2170,10 @@ impl core::fmt::Display for BooleanError {
             Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
                 f,
                 "the declared faces meet along a rim circle where the material {}, and \
-                 the Boolean cannot yet verify a {} declaration there. The declaration \
-                 is the right one; there is no way through this in the kernel yet",
+                 the Boolean cannot yet verify a {} declaration there: it has no tangent \
+                 locus for these two surfaces, and cannot yet build the edge where they \
+                 touch. The declaration is the right one; there is no way through this \
+                 in the kernel yet",
                 match wedge {
                     geom_brep::MaterialWedge::Cusp => "pinches to a knife edge",
                     geom_brep::MaterialWedge::Slit => "opens to a thin slit",

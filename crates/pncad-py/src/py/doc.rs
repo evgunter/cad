@@ -132,9 +132,10 @@ fn edit_fields(
         ),
         (
             "fault",
-            opt(payload
-                .fault
-                .map(|f| Py::new(py, super::mate::MateFault(f.clone())).map(Py::into_any))),
+            opt(payload.fault.map(|(fault, held)| {
+                let voice = super::mate::Voice::Held(held.clone());
+                Py::new(py, super::mate::MateFault(fault.clone(), voice)).map(Py::into_any)
+            })),
         ),
     ]
 }
