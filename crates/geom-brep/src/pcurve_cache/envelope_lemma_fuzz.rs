@@ -421,13 +421,23 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
     }
 }
 
-/// The chart with its frame moved off the convention by up to `delta`:
-/// the axis lengthened and `u_ref` tilted toward it. What `Frame` meters.
+/// The chart with its frame moved off the convention by up to `delta`,
+/// one respect at a time or all three: the axis lengthened, `u_ref`
+/// lengthened, `u_ref` tilted toward the axis. What `Frame` meters.
 fn frame_moved(s: &mut fuzz::Rng, surface: &Surface<f64>, delta: f64) -> Surface<f64> {
+    let which = s.below(4);
     let off = |s: &mut fuzz::Rng, axis: Vec3<f64>, u_ref: Vec3<f64>| {
+        let mut nudge = |field: usize| {
+            if which == 0 || which == field {
+                delta * s.range(-1.0, 1.0)
+            } else {
+                0.0
+            }
+        };
+        let (long_axis, long_u, tilt) = (nudge(1), nudge(2), nudge(3));
         (
-            axis * (1.0 + delta * s.range(-1.0, 1.0)),
-            u_ref + axis * (delta * s.range(-1.0, 1.0)),
+            axis * (1.0 + long_axis),
+            u_ref * (1.0 + long_u) + axis * tilt,
         )
     };
     match *surface {

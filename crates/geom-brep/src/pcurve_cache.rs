@@ -3975,7 +3975,7 @@ fn periodic_envelope<T: Decide>(
         unreachable!("periodic_envelope: check 4's periodic arm reads a harmonic image")
     };
     let v_reach = harmonic_span_box(p0, pa, pb, pl, span.0, span.1).v_reach();
-    terms.add(EnvelopeTerm::Frame, frame_defect(surface, &ideal, v_reach));
+    terms.add(EnvelopeTerm::Frame, frame_defect(surface, v_reach));
     incidence(carrier_form, &ideal, derivation, reach, &mut terms);
     fidelity(pcurve, &derived, &ideal, span, reach, band, &mut terms)?;
     Ok(terms)
@@ -4069,73 +4069,71 @@ fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
 /// what multiplies it in the chart's own map: the radius, or the
 /// slant `v` on a cylinder's axis and a cone's two channels — the
 /// actual axial reach, not the radius.
-fn frame_defect<T: Real>(surface: &Surface<T>, ideal: &Surface<T>, v_reach: T) -> T {
-    let defect = |axis: Vec3<T>, u_ref: Vec3<T>, n: Vec3<T>, e1: Vec3<T>| {
-        (
-            (axis - n).norm(),
-            (u_ref - e1).norm() + (axis.cross(u_ref) - n.cross(e1)).norm(),
-        )
+///
+/// The distances are bounded in the frame's own invariants, never by
+/// differencing the normalised vectors (whose enclosures widen by the
+/// radius times a few ulps at the interval scalar — the wide-arc
+/// widening check 4 was restated to remove). With `A = axis·axis`,
+/// `U = u_ref·u_ref` and `θ = |axis·u_ref|/√A = |n̂·u_ref|`, and since
+/// `|x − 1| ≤ |x² − 1|` for `x ≥ 0`:
+///
+/// - `‖axis − n̂‖ = |√A − 1| ≤ |A − 1|`;
+/// - `‖u_ref − ê₁‖ ≤ ‖u_ref − u⊥‖ + ‖u⊥ − ê₁‖ ≤ θ + |U − θ² − 1| ≤
+///   θ + |U − 1| + θ²`, `u⊥ = u_ref − n̂·θ` its part normal to `n̂`;
+/// - `‖axis × u_ref − n̂ × ê₁‖ ≤ ‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
+///
+/// On a literal unit frame every one is the zero form.
+fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
+    let defect = |axis: Vec3<T>, u_ref: Vec3<T>| {
+        let (a2, u2) = (axis.dot(axis), u_ref.dot(u_ref));
+        let one = T::one();
+        let d_axis = (a2 - one).abs();
+        let tilt = axis.dot(u_ref).abs() / a2.sqrt();
+        let d_u = tilt + (u2 - one).abs() + tilt.powi(2);
+        (d_axis, d_u + d_u + d_axis * u2.sqrt())
     };
-    match (surface, ideal) {
-        (
-            &Surface::Cylinder {
-                axis,
-                radius,
-                u_ref,
-                ..
-            },
-            &Surface::Cylinder {
-                axis: n, u_ref: e1, ..
-            },
-        ) => {
-            let (d_axis, d_radial) = defect(axis, u_ref, n, e1);
+    match *surface {
+        Surface::Cylinder {
+            axis,
+            radius,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
             d_radial * radius + d_axis * v_reach
         }
-        (
-            &Surface::Cone {
-                axis,
-                half_angle,
-                u_ref,
-                ..
-            },
-            &Surface::Cone {
-                axis: n, u_ref: e1, ..
-            },
-        ) => {
+        Surface::Cone {
+            axis,
+            half_angle,
+            u_ref,
+            ..
+        } => {
             let (s_a, c_a) = half_angle.sin_cos();
-            let (d_axis, d_radial) = defect(axis, u_ref, n, e1);
+            let (d_axis, d_radial) = defect(axis, u_ref);
             (d_axis * c_a.abs() + d_radial * s_a.abs()) * v_reach
         }
-        (
-            &Surface::Sphere {
-                radius,
-                axis,
-                u_ref,
-                ..
-            },
-            &Surface::Sphere {
-                axis: n, u_ref: e1, ..
-            },
-        ) => {
-            let (d_axis, d_radial) = defect(axis, u_ref, n, e1);
+        Surface::Sphere {
+            radius,
+            axis,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
             (d_radial + d_axis) * radius
         }
-        (
-            &Surface::Torus {
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-                ..
-            },
-            &Surface::Torus {
-                axis: n, u_ref: e1, ..
-            },
-        ) => {
-            let (d_axis, d_radial) = defect(axis, u_ref, n, e1);
+        Surface::Torus {
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+            ..
+        } => {
+            let (d_axis, d_radial) = defect(axis, u_ref);
             d_radial * (major_radius + minor_radius) + d_axis * minor_radius
         }
-        _ => unreachable!("frame_defect: a chart and its orthonormal twin are one class"),
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("frame_defect: check 4's periodic arm reads an analytic periodic chart")
+        }
     }
 }
 
