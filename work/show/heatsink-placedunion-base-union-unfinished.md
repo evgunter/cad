@@ -2,7 +2,7 @@
 id: heatsink-placedunion-base-union-unfinished
 kind: unit
 title: the heat sink's fins sit flush on the base with declared contacts instead of sunk 1/16 into it, and its joined rims fillet
-status: open
+status: dispatched
 opened: 2026-08-31
 github: 1344
 refs: [571]

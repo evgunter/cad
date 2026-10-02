@@ -39,3 +39,15 @@ Orchestrator calls, logged:
 - **Stale demo prose fixed in the opening PR** (Ev: "fix the out of
   date stuff"): the citations the audit found rotted in `impeller.rs`,
   `lily.rs`, `teapot.rs` and `demos/README.md`.
+
+## 2026-10-02 — wave 1 dispatched
+
+Three Opus implementer lanes, each in its own worktree, from the
+opening branch (work/show/ is not on main yet): `snowman-cell`
+(`show/snowman-cell`), `klein-scene-should-adopt-the-one-body-loop-sweep`
+with its rider (`show/klein-one-body-loop`),
+`heatsink-placedunion-base-union-unfinished` (`show/heatsink-flush-fins`).
+Common brief at a lane-private path; it points at
+`docs/prompts/implementer-discipline.md` by path. Review tier for all
+three: single Opus review, style lane plus the unit's claims (each
+moves an oracle and a frame; none is architectural).
