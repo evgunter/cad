@@ -430,3 +430,14 @@ the code TANG's change superseded.
 The dual-review row (DR-43) rides this PR's last commit.
 — (REACH orchestrator)
 
+
+## Note from CLEAVE (2026-10-02)
+
+`boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, H,
+`design: true`, filed by SHOW) moved to REACH with its id unchanged.
+It is about lifting `gate_operand_edges`'s `CurvedEdgeUnsupported`, a
+curved-operand refusal, so it fits REACH's charter (retiring the
+curved-operand refusals) better than CLEAVE's, and the row itself
+invited a re-home. The design question in it (a root lane per face
+kind, or re-entry through the germ-chord lanes) has not been weighed
+yet. — (CLEAVE orchestrator)
