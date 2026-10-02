@@ -467,13 +467,13 @@ the table.
   the contact arms take.
 
   **What the nesting half does NOT match, in the same shape**: any face
-  on a non-planar surface, and, on a plane, a ring the walk placed at
-  no vertex because the outer loop carries a `Spiric` or NURBS edge,
-  which has no crossing row — the walk answers such a loop only along a
-  ray that definitely misses a ball holding each such edge, and is
-  silent where every scheduled ray could meet one, because this arm REFUSES a body on an `Out` and answering
-  from a region that is not the loop's would refuse valid ones. And
-  inside the gate: the nesting arm places a whole ring from one vertex
+  on a non-planar surface. On a plane, an outer loop carrying a
+  `Spiric` or NURBS edge, which has no crossing row, is read only along
+  a ray that definitely misses a ball holding each such edge; a ring no
+  vertex of which such a ray reaches is reported
+  `RingNestingUndecided`, never `RingOutsideOuter`, since answering
+  `Out` from a region that is not the loop's would refuse valid
+  bodies. And inside the gate: the nesting arm places a whole ring from one vertex
   on the premise that the two loops do not cross, which the contact
   half checks wherever both loops carry only `Line` and `Circle` edges
   — a ring arc bowing past the outer loop between inside vertices is a
