@@ -194,7 +194,7 @@ fn inline_refusals() -> Vec<InlineError> {
             instance: s(4, "InstantiatePart"),
             root: s(2, "InstantiatePart"),
             mates: vec![s(7, "Mate")],
-            part_root: Some(s(1, "InstantiatePart")),
+            part_root: Some(Box::new(s(1, "InstantiatePart"))),
         },
         InlineError::Unplaced {
             instance: s(4, "InstantiatePart"),

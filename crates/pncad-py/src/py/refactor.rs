@@ -660,7 +660,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
             none(),
-            part_root.as_ref().map_or_else(none, id),
+            part_root.as_deref().map_or_else(none, id),
             none(),
             none(),
         ),

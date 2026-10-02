@@ -1005,7 +1005,7 @@ pub enum InlineError {
         /// The part's root, spoken from the referenced document, when
         /// its offset off the empty chain is all that keeps the part
         /// from being one such group.
-        part_root: Option<SpokenNode>,
+        part_root: Option<Box<SpokenNode>>,
     },
     /// **The instance is unplaced** (A11 (2)): nothing places its
     /// group, so there is no frame to splice its part in.
@@ -3082,7 +3082,7 @@ pub fn inline(
             instance: doc.spoken(instance),
             root: doc.spoken(host_root),
             mates: mates.into_iter().map(|m| doc.spoken(m)).collect(),
-            part_root: off_the_empty_chain.map(|r| part.spoken(r)),
+            part_root: off_the_empty_chain.map(|r| Box::new(part.spoken(r))),
         });
     };
     // Plain recipe geometry sits on no gauge, so it splices in place
