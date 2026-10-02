@@ -249,15 +249,12 @@ fn collinear_edge_overlap() {
     }
 }
 
-/// F5 gate: a curved operand refuses typed.
+/// The operand gate: an operand carrying a null edge (`mev_null`, a
+/// body left mid-surgery) refuses typed, by tier 2's finding.
 #[test]
-fn curved_operand_refuses() {
+fn null_edge_operand_refuses() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let cube = common::geometric_cube::<f64>(Tol::witness());
-    // A genuinely curved body is not in the prismatic corpus; instead
-    // gate on scaffolding: a mid-surgery operand refuses.
-    let _ = cube;
     let he = b.vertices().next().and_then(|(_, v)| v.emanating).unwrap();
     b.mev_null(
         topo::MevSite::Fan { he1: he, he2: he },
@@ -266,8 +263,12 @@ fn curved_operand_refuses() {
     .unwrap();
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     assert!(
-        matches!(err, BooleanError::ScaffoldingOperand { .. }),
-        "{err:?}"
+        matches!(
+            &err,
+            BooleanError::ScaffoldingOperand { operand: topo::Operand::B, errors }
+                if errors.iter().any(|e| matches!(e, topo::ValidationError::NullEdgeAtRest { .. }))
+        ),
+        "the null edge refuses on B, by tier 2's finding: {err:?}"
     );
 }
 

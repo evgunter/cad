@@ -117,16 +117,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .get_point(
             piercing_body
                 .get_vertex(vertex)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: piercing,
-                    vertex,
-                })?
+                .ok_or(BooleanError::corrupt_at(piercing, vertex))?
                 .point,
         )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: piercing,
-            vertex,
-        })?;
+        .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
     // The pierced face's oriented datum at `p`, from the one door.
     // `n_pierced` carries the material side, typed so the sense flip
     // cannot be dropped on the way; on a PLANE it is bit-identically
@@ -583,16 +577,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             (Some(first), Some(last)) => {
                 let mate = piercing_body
                     .mate(last.he)
-                    .ok_or(BooleanError::CorruptOperand {
-                        operand: piercing,
-                        vertex,
-                    })?;
+                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?;
                 let he2 = piercing_body
                     .get_half_edge(mate)
-                    .ok_or(BooleanError::CorruptOperand {
-                        operand: piercing,
-                        vertex,
-                    })?
+                    .ok_or(BooleanError::corrupt_at(piercing, vertex))?
                     .next;
                 // A run holding every real edge of the orbit leaves the
                 // In side strictly inside one physical sector, the one
@@ -635,10 +623,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 what: "a pierce run's site is not a fan",
             });
         };
-        let corrupt = || BooleanError::CorruptOperand {
-            operand: piercing,
-            vertex,
-        };
+        let corrupt = || BooleanError::corrupt_at(piercing, vertex);
         let corner_half = piercing_body.get_half_edge(corner).ok_or_else(corrupt)?;
         let departure = corner_half.edge;
         let arrival = piercing_body
@@ -725,16 +710,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .get_point(
             pierced_body
                 .get_vertex(u)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: pierced,
-                    vertex: u,
-                })?
+                .ok_or(BooleanError::corrupt_at(pierced, u))?
                 .point,
         )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: pierced,
-            vertex: u,
-        })?;
+        .ok_or(BooleanError::corrupt_at(pierced, u))?;
     // (1) chord strut u → pierce point (certified line, transient).
     let chord = pierced_body.mev(
         MevSite::Fan {
