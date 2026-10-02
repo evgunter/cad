@@ -121,6 +121,11 @@ fn union_honest(
         Ok(()),
         "{label}: tier 3′"
     );
+    // delta-2 review: operand check.
+    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
+    let op = topo::union(&bb.body, &far, Tol::witness());
+    println!("[d2 mergedoor] {label}: operand {:?}", op.as_ref().map(|_| ()).map_err(|e| e.kind()));
+    op.unwrap_or_else(|e| panic!("{label}: not a legal operand: {e:?}"));
     bb
 }
 

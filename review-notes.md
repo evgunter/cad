@@ -31,3 +31,8 @@ Running notes; restart-safe. Delta under review: 21b7f289..be0732270 net of main
 - the_peg_collar_unions_are_operands: GREEN with --ignored on head (proud+flush OK SOUND). Still #[ignore] in tree, contrary to PR body.
 - R1 all ignored batteries (reflex/tube/seam/declared/capsule/battery) main->head: 91938 poses; no SOUND->refusal; 4 BAD->FanStartMismatch; head BAD 2 (pre-existing); with operand column patched into join1_r1_probes outcome on review branch: 50470 builds, 0 operand refusals.
 - head sweep `all` release: 1913/1913 green at default eps and at CAD_TOLERANCE_EPS=1e-6.
+- seat8 probe: every body node of cut_cylinder/part_select/kitchen_sink identical main vs head (faces, edges, volume, tiers, cert, operand). Digest move is naming/ids only. part_select #8 union: 6 faces 16 edges on BOTH (split vertical edges; pre-existing). cut_cylinder split halves refuse far-brick union `Containment` on both (pre-existing, off-target).
+- tour demos head: 86/86 green (release). editor-core head: 2233 pass, 2 fail = msolve8_levered_clash c4_band (process-per-test tolerance commit; fails on main too under cargo-test harness).
+- mate7a peg eps ladder (head): builds sound+additive+operand for eps 1e-12..2e-7; JoinDesync "neither section loop's regions..." for 3e-7..2e-6. JoinDesync Display = "A/B lockstep invariant violated ... (kernel bug or corrupt reduction)" on a legal declared input. Filed issue says only 1e-6, no threshold.
+- curved_mergedoor C/D: union_honest asserts no operand; patched on review branch -> all Ok at 1e-9 and 1e-6. PR body says each such row asserts operand: false for curved_mergedoor.
+- the_peg_collar_unions_are_operands: green --ignored at 1e-12/1e-9/1e-6, 0.02s; still #[ignore] with stale reason.
