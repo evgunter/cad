@@ -360,11 +360,12 @@ where
         Node::Mate { .. } => match env.poses.fault(id) {
             Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
             None => Ok(OpOut::plain(
-                ValuePayload::Mate(
-                    env.poses
-                        .role(id)
-                        .unwrap_or(crate::mate::MateRole::Declaring),
-                ),
+                ValuePayload::Mate(env.poses.role(id).unwrap_or_else(|| {
+                    unreachable!(
+                        "the solve of this document records a role for every mate in its \
+                         order, or faults it, yet mate {id:?} has neither"
+                    )
+                })),
                 names::empty(),
             )),
         },

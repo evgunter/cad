@@ -123,13 +123,11 @@
 //!    teapot's answer as well as the kernel's. What is measured HERE is
 //!    the positive half: the bored lid's knob rim is a closed edge and
 //!    it rolls, with the band's census and its two tangency lines
-//!    checked below. The negative half is measured ELSEWHERE and cited
-//!    rather than re-asserted — `verbs_arms1_r1_probes::the_unbored_
-//!    hemisphere_equator_refuses_typed` is the axis-touching profile's
-//!    own pin, and the register's ARMS-1 row states the bound. The
-//!    scene is where a PART met it while trying to be a part: the pot
-//!    touches the axis at both ends, so nothing on it is a candidate
-//!    and the lid had to be bored to have one.
+//!    checked below. The bound the vent was bored around is gone:
+//!    `verbs_arms1_r1_probes::the_unbored_hemisphere_equator_carves_as_one_band`
+//!    is the axis-touching profile's own row and it now builds, so the
+//!    vent is a choice this scene has not yet revisited
+//!    (`work/show/teapot-lid-unbored.md`).
 //! 4. **The teapot is four solids because both joins refuse — at TWO
 //!    DIFFERENT DOORS, each of which has moved.**
 //!

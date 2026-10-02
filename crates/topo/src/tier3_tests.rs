@@ -2412,7 +2412,7 @@ fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
 /// One solid, three shells: the outer cube, a cavity wall inside it,
 /// and an island inside that cavity — the hollow-operand subtraction's
 /// shape
-/// (`work/zip/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
+/// (`work/fuse/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
 /// Two of those shells enclose definitely-positive volume.
 ///
 /// Four doors produce this state on purpose — `graft onto`, the

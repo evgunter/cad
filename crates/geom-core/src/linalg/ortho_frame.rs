@@ -53,6 +53,26 @@
 //!   because their axes are the exact basis vectors: unit is the
 //!   literal bits, and the cross products are exact at every scalar
 //!   that represents 0 and 1.
+//! - `OrthoFrame::turned_between` and `OrthoFrame::translated` —
+//!   a rigid motion of a frame already held: the minimal rotation
+//!   carrying one unit tangent onto another (the Rodrigues form
+//!   `I + [k]× + [k]×²/(1 + a·b)`, `k = a × b`, no normalized axis),
+//!   and a translation. A rotation exact in the reals only rounds, as
+//!   the cross product does, so it cannot unmake orthonormality; its
+//!   one decision is `1 + a·b > 0`, the anti-parallel edge, under the
+//!   caller's funnel name.
+//!
+//! # Crossing scalars
+//!
+//! A frame crosses scalars through two exact, closure-free doors, and
+//! no other: `OrthoFrame::embed` (`f64` to any scalar, every
+//! component through `Real::from_f64`, whose contract is exactness)
+//! and `OrthoFrame::pin` (a lane scalar back to `f64`, refusing on
+//! the analysis scalars). An embedded frame witnesses at its scalar
+//! the `f64` decision, carried — not one made at that scalar: at
+//! `Interval` its axes are point intervals of the `f64` columns. A
+//! frame the lane needs decided at its own scalar is minted there,
+//! from the frame's lane-evaluated inputs.
 //!
 //! There is deliberately **no** mint from two or three vectors a
 //! caller believes are orthonormal, for the reason [`UnitVec3`]'s docs

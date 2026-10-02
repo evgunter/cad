@@ -606,7 +606,7 @@ fn at_departure<T: Decide>(
 /// zero and the margin is the departure's own normal curvature (the
 /// trilean's documented planar reading, reached bit-identically).
 /// The transverse direction comes from the DEV-1 closed-form locus
-/// ([`super::rest::tangent_locus`], the same rows the door's witness
+/// ([`geom_brep::tangent_locus`], the same rows the door's witness
 /// derivation runs): the descent exists exactly where the witness
 /// lane reaches, and nowhere else.
 ///
@@ -630,7 +630,7 @@ pub(super) fn tangent_lump<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
+    use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
     let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
         Ok(TangentLocus::Line { dir, .. }) => dir,
         Err(TangentLocusError::Escalated(diag)) => {
