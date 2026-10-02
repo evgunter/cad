@@ -41,12 +41,27 @@ a spiric. `crates/sweep/tests/pis_arc_capped_poses.rs`,
 shelled vessel's cavity and pins `EdgeCarrierUnsupported` at the spiric's
 midpoint. Nobody has measured whether a public boolean reaches the
 refusal, which needs a containment probe that lands inside the spiric's
-ball. Check 9 does reach it on built bodies: `sweep`'s
-`shell7_dump_corpus` and `shell7_r1_diff_corpus` validate shelled bodies
-on which four ring-vertex queries refuse this way (measured 2026-10-02).
-`shell7_dump`'s tier-3 lines carry no `RingNestingUndecided` once check 9
-reports the refusal, so another vertex of each such ring places it, and
-no verdict there rests on the refusal yet.
+ball.
+
+**Shell output is a consumer, through check 9.** `topo::shell` on the
+torus elbow fixtures (`sweep`'s `shell7_dump_corpus`, "klein elbow by
+hand"; `shell7_r1_diff_corpus`, "elbow hollow") assembles a thin solid
+whose two planar end faces each carry a ring inside an outer loop with a
+spiric edge, and every vertex of both rings is within that spiric's
+ball. Measured 2026-10-02 (`{e:?}` on the shell's refusal):
+
+- before PR 3865: `NotValid [VolumeUncomputable { face 7v1, Unimplemented }]`;
+  check 9 had skipped every vertex and read both rings as nested;
+- after PR 3865: `NotValid [RingNestingUndecided { face 7v1, ring 11v1,
+  Uncrossable { loop 9v1, edge 19v1, Spiric } }, RingNestingUndecided {
+  face 8v1, ring 12v1, Uncrossable { loop 10v1, edge 13v1, Spiric } }]`.
+
+The volume check runs only once tier 3's local checks report nothing,
+so at head it is not reached. Both refuse and discard the shell's output,
+so no public outcome changes today. When spiric-face volume lands, the
+volume refusal no longer stands behind these two, and they are the
+tier-3 refusals of the shell's own output, which only this row's
+crossing row can answer. That is this row's reachability.
 
 **What a fix needs**: a crossing row for each carrier, folded into
 `carrier_walk` beside the conic row: a certified ray × spiric root count

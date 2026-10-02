@@ -2856,29 +2856,28 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
 /// The refusal does not carry which of the walk's decisions it is.
 const OFF_BOUNDARY: &str = "Recourse: move the geometry clear of the boundary";
 
-fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
+fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
     match e {
         ContainError::Escalated(diag) => (
-            "a point of it lies too close to a boundary to place at this tolerance",
+            "a point of it lies too close to a boundary to place at this tolerance".into(),
             own_close(&diag.margin, OFF_BOUNDARY),
         ),
         ContainError::RayExhausted => (
-            "a point of it lies too close to a boundary to place at this tolerance",
+            "a point of it lies too close to a boundary to place at this tolerance".into(),
             OFF_BOUNDARY,
         ),
-        ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
+        ContainError::Corrupt => ("its boundary could not be walked".into(), DEFECT),
+        // The edge is whatever the body's producer made — a shell's or a
+        // revolve's section of a torus as readily as a drawn spline — so
+        // the cause is the check's, and no redrawing is prescribed.
         ContainError::Uncrossable(u) => (
-            match u.carrier {
-                crate::splitting::UncrossableCarrier::Spiric => {
-                    "its boundary has a torus-section edge near a point the check asked \
-                     about, which the check cannot yet read across"
-                }
-                crate::splitting::UncrossableCarrier::Spline => {
-                    "its boundary has a spline edge near a point the check asked about, \
-                     which the check cannot yet read across"
-                }
-            },
-            "Recourse: model the boundary with lines, circles or ellipses",
+            format!(
+                "every test ray from a point the check asked about could meet a {} edge \
+                 of the boundary, which the check cannot yet cross",
+                u.carrier.word()
+            )
+            .into(),
+            NOT_YET,
         ),
     }
 }
@@ -2961,13 +2960,19 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     }
 }
 
-fn classify_census_cause(cause: &CensusUnsupportedCause) -> (&'static str, &'static str) {
+fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, &'static str) {
     match cause {
-        CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
-        CensusUnsupportedCause::ContactLane(e) => classify_contact_lane(e),
+        CensusUnsupportedCause::ChartRegion(e) => {
+            let (why, recourse) = classify_chart_region(e);
+            (why.into(), recourse)
+        }
+        CensusUnsupportedCause::ContactLane(e) => {
+            let (why, recourse) = classify_contact_lane(e);
+            (why.into(), recourse)
+        }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
-            "a face has no corner to bound it by (an empty or broken outer loop)",
+            "a face has no corner to bound it by (an empty or broken outer loop)".into(),
             DEFECT,
         ),
     }
@@ -11447,7 +11452,7 @@ mod tests {
     /// **A ring the walk cannot place is reported, not nested.** A
     /// planar cap bounded by a spiric arc and its chord (the plane
     /// `x = ½` through a torus, R = 2, r = 1), and a lone-vertex ring
-    /// planted at three points: just inside the spiric's midpoint, where
+    /// planted at two points: just inside the spiric's midpoint, where
     /// every scheduled ray could meet the ball the walk holds that arc
     /// in, so check 9 names the spiric edge it could not cross; and far
     /// outside, where a ray clears the ball and the walk answers. Before

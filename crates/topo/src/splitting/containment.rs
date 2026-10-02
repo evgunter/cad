@@ -531,8 +531,10 @@ pub(crate) struct ConicArc<T: geom_core::Real> {
     /// The arc's two ends and its apex (the window's mid direction),
     /// on the unit circle — the trim [`arc_trim`] decides by distance.
     trim: [(T, T); 3],
-    /// The window is not definitely short of a whole turn.
-    whole_turn: bool,
+    /// The span row's decision on `τ − w`: `Positive` is an arc
+    /// definitely short of a whole turn, `Zero` a whole turn (`Negative`
+    /// never builds a `ConicArc`), and `Err` a span in the band.
+    span_turn: Result<Sign, Indeterminate>,
 }
 
 /// Why a conic carrier gives no [`ConicArc`].
@@ -649,7 +651,7 @@ impl<T: Decide> ConicArc<T> {
             lever,
             span: (t0, t1),
             trim: [(c0, s0), (c1, s1), (cm, sm)],
-            whole_turn: !matches!(low, Ok(Sign::Positive)),
+            span_turn: low,
         }))
     }
 
@@ -1105,8 +1107,9 @@ fn step_ball<T: Decide>(
 /// # Errors
 ///
 /// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
-/// conic wound past a period, or a whole-turn SCAFFOLD circle;
-/// [`PointInLoopError::Escalated`] for a conic span in the band.
+/// conic wound past a period, or a whole-turn SCAFFOLD conic;
+/// [`PointInLoopError::Escalated`] for an ellipse's span the band cannot
+/// place, or a scaffold conic's span in the band.
 pub(crate) fn carrier_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -1137,12 +1140,16 @@ pub(crate) fn carrier_loop<T: Decide>(
             // a deliberately arbitrary unit circle, which the conic row
             // would cross as a real one. Nothing in the edge tells that
             // placeholder from an honest whole-turn scaffold, so the loop
-            // is not read.
+            // is not read; and a scaffold whose span is in the band is
+            // not known to be either, so it escalates on that span.
             Ok(Some(k))
-                if k.whole_turn
-                    && matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) =>
+                if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) =>
             {
-                return Err(corrupt());
+                match k.span_turn {
+                    Ok(Sign::Positive) => edges.push(LoopEdge::Conic(k)),
+                    Ok(_) => return Err(corrupt()),
+                    Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
+                }
             }
             Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
             Ok(None) => edges.push(match (curve.carrier(), ball) {
@@ -1995,12 +2002,38 @@ mod tests {
             )
             .unwrap();
         let centre = Point3::new(1.0, 0.0, 0.0);
+        let up = Vec3::new(0.0, 0.0, 1.0);
         for lp in [seed.r#loop, circ.r#loop] {
-            let got = point_in_carrier_loop(&body, lp, Vec3::new(0.0, 0.0, 1.0), centre, band);
+            let got = point_in_carrier_loop(&body, lp, up, centre, band);
             assert!(
                 matches!(got, Err(PointInLoopError::CorruptLoop { r#loop }) if r#loop == lp),
                 "the placeholder's centre is refused on {lp:?}, got {got:?}"
             );
         }
+        // The same placeholder wound 5ε past a period: its span is in the
+        // band, so whether it is a whole turn is not known, and the walk
+        // escalates on the span row rather than calling the loop corrupt.
+        let mut spec = geom_brep::EdgeCurveSpec::self_loop_circle_at(Point3::new(0.0, 0.0, 0.0));
+        let over = spec.param_end + 5.0 * band.zero();
+        spec.param_end = over;
+        if let geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
+            ref mut angle,
+            ..
+        }) = spec.description
+        {
+            *angle = over;
+        }
+        body.set_edge_curve(circ.edge, spec, tol)
+            .expect("an overlap in the band certifies");
+        let got = point_in_carrier_loop(&body, circ.r#loop, up, centre, band);
+        assert!(
+            matches!(
+                &got,
+                Err(PointInLoopError::Escalated { r#loop, diag })
+                    if *r#loop == circ.r#loop
+                        && diag.predicate == Some("point_in_arc_loop_conic_span")
+            ),
+            "an in-band scaffold span escalates on its span row, got {got:?}"
+        );
     }
 }
