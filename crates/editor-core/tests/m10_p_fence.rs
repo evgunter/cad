@@ -413,6 +413,13 @@
 //! change, differs in those four documents' arena order and nowhere
 //! else. The `interval` row moved for the same reason and was read off
 //! the hosted `interval` lane.
+//!
+//! RE-BLESSED, ALL THREE ROWS, WHEN AN OP'S COPIES OF ONE VERTEX CAME
+//! TO SHARE ITS POINT (D1 tier 3′). `mev_null` no longer mints a point
+//! for the copy, so later points land in other arena slots and the
+//! ARENA-order stream moved. The POINT SETS did not: a scratch dump of
+//! every corpus body's sorted vertex positions and its vertex, edge,
+//! face and point counts is identical before and after the change.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -706,7 +713,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x0349_3ed7_07ff_655c, 0x337c_581f_043b_92d8),
+        (0x5445_1df3_5b4b_aac4, 0x47af_0d73_5deb_24f0),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -732,7 +739,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xe239_4cfb_6b6e_51da, 0x4fe5_80d8_df7b_23ae),
+        (0x9442_789e_7349_ddc6, 0xb8fa_fa3f_0c9a_4dca),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -756,7 +763,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x0349_3ed7_07ff_655c, 0x337c_581f_043b_92d8),
+        (0x5445_1df3_5b4b_aac4, 0x47af_0d73_5deb_24f0),
         "the corpus's Probe evaluation moved"
     );
 }

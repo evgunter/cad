@@ -12,30 +12,45 @@
 //!
 //! A residual `R(θ) = c₀ + A₁ cos(θ − φ)` — a circle against a sphere,
 //! or against a cylinder wall it is square to — has the EXACT range
-//! `[c₀ − A₁, c₀ + A₁]`, and its roots are `θ = φ ± acos(−c₀/A₁)`.
-//! [`first_harmonic_roots`] decides on that range, all in residual
-//! metres, under the caller's rows:
+//! `[lo, hi] = [c₀ − A₁, c₀ + A₁]`, and its roots are
+//! `θ = φ ± acos(−c₀/A₁)`. A door hands [`first_harmonic_roots`] the
+//! extremes themselves, each with a bound on its error, and the phase's
+//! components with theirs; `c₀` and `A₁` are read off the extremes. It
+//! decides on that range, all in residual metres, under the caller's
+//! rows:
 //!
-//! - **noise** — the harmonics' evaluation error ([`NOISE_ULPS`]
-//!   half-ulps of the terms' magnitudes, in residual metres) definitely
-//!   past the escalation threshold, or not readable at all, refuses: the
-//!   representation cannot resolve what the band asks of it. A rounding
-//!   estimate on `f64`, run on every scalar: the `Interval` lane carries
-//!   its own enclosure and needs no meter to be sound, but the meter
-//!   still reads there and can refuse a pose the enclosures alone would
+//! - **noise** — the larger of the extremes' error bounds definitely
+//!   past the escalation threshold, or not readable at all, refuses:
+//!   every decision below reads the extremes, and the representation
+//!   cannot resolve what the band asks of them. A rounding estimate on
+//!   `f64`, run on every scalar: the `Interval` lane carries its own
+//!   enclosure and needs no meter to be sound, but the meter still
+//!   reads there and can refuse a pose the enclosures alone would
 //!   answer.
 //! - **coaxial** — the swing `A₁` in the zero band: the residual is
-//!   constant to within `A₁` plus the harmonics' `noise`, and
+//!   constant to within `A₁` plus that error, and
 //!   [`constant_residual_roots`] decides it.
-//! - **extreme**, on `c₀ − A₁` and `c₀ + A₁` — definitely one-signed is a
-//!   miss, definitely straddling is two roots, and either extreme in the
-//!   zero band is a tangency, which is not a crossing at any order this
-//!   lane sees and answers [`CircleRoots::Uncertain`].
-//! - **root slack** — each root moves by `noise / |R′(θ)|` radians under
-//!   the harmonics' error, `|R′| = √(A₁² − c₀²)` at both roots; that arc
-//!   length must be definitely inside the band, or the span and trim
-//!   decisions the caller makes on the point are made on the wrong
-//!   point. An unreadable reading refuses here too.
+//! - **extreme**, on `lo` and `hi` — definitely one-signed is a miss,
+//!   definitely straddling is two roots, and either extreme in the zero
+//!   band is a tangency, which is not a crossing at any order this lane
+//!   sees and answers [`CircleRoots::Uncertain`].
+//! - **root slack** — at either root the extremes' errors move the
+//!   residual by `δR = (hi·δlo − lo·δhi)/(hi − lo)` — the NEAR extreme's
+//!   error, plus only a share `|near|/(hi − lo)` of the far one's — so
+//!   the root moves by `δR / |R′|`, `|R′| = √(−lo·hi)` at both roots;
+//!   the phase's error moves it by itself, and the angle arithmetic
+//!   rounds by [`NOISE_ULPS`] half-ulps of a turn. That arc length must
+//!   be definitely inside the band, or the span and trim decisions the
+//!   caller makes on the point are made on the wrong point. An
+//!   unreadable reading refuses here too. A door whose only account is
+//!   one uniform `noise` charges it to both extremes and nothing to the
+//!   phase, and the slack is then `noise / |R′|` plus the angle charge.
+//!
+//! The half-chord is measured from the extreme nearer zero,
+//! `2·asin(√(|near|/(hi − lo)))` past it, which reads the near extreme
+//! to its own relative precision: `acos(−c₀/A₁)`, or the same `asin`
+//! read from the far extreme, near a tangency amplifies its argument's
+//! rounding by `1/√(1 − (c₀/A₁)²)`.
 //!
 //! Two DISTINCT certified roots therefore certify that the carrier does
 //! not lie on the surface — the fact the reduction's `(Zero, Zero)`
@@ -242,14 +257,16 @@ pub(super) struct HalfAngleFrame<T> {
 /// count with room. It is a ROUNDING estimate, the `f64` lane's
 /// contract, not an enclosure: the `Interval` lane carries the
 /// enclosure itself through every coefficient and the ladder decides on
-/// it, so it needs no meter to be sound. The first-harmonic door charges the same count: its
-/// chains are shorter, so the count holds there with more room.
+/// it, so it needs no meter to be sound. The circle × cylinder square
+/// arm charges its first harmonic the same count, its chains being
+/// shorter; the circle × sphere door charges its extremes their own
+/// running bounds instead (`geom_brep::CircleSphereHarmonic`).
 pub(super) const NOISE_ULPS: f64 = 16.0;
 
 /// The rounding charged against a term bound `terms`: [`NOISE_ULPS`]
 /// half-ulps of it — the meters' one spelling of the charge.
 pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
-    T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms
+    T::from_f64(NOISE_ULPS * geom_core::UNIT_ROUNDOFF) * terms
 }
 
 /// The conditioning floor `κ` (module docs): the pole's `|F|` must be at
@@ -436,15 +453,27 @@ pub(super) fn constant_residual_roots<T: Decide>(
 }
 
 /// A residual `c₀ + A₁ cos(θ − φ)` along a circle, `φ = atan2(sin_part, cos_part)`,
-/// in metres of residual, with `noise` the metres its harmonics may be
-/// off by (their rounding, and any term the caller dropped to reach
-/// this form).
+/// in metres of residual, given by its extremes `lo = c₀ − A₁` and
+/// `hi = c₀ + A₁` — the one spelling of the range the door decides on,
+/// `c₀` and `A₁` read off it — and the phase's two components.
+///
+/// Each comes with a bound on its error as the door evaluated it:
+/// `lo_noise` and `hi_noise` in metres of residual (their rounding, and
+/// any term the caller dropped to reach this form, which must bound the
+/// residual's error at every `θ` where it is not specific to one
+/// extreme), and `phase_noise` in the units of `(cos_part, sin_part)`.
+/// A door whose only account is one uniform `noise` passes it as both
+/// extremes' and no phase charge: a residual error bounded at every `θ`
+/// already moves the roots by no more than that over `|R′|`, the
+/// phase's share included.
 pub(super) struct FirstHarmonic<T> {
-    pub(super) c0: T,
-    pub(super) a1: T,
+    pub(super) lo: T,
+    pub(super) hi: T,
     pub(super) cos_part: T,
     pub(super) sin_part: T,
-    pub(super) noise: T,
+    pub(super) lo_noise: T,
+    pub(super) hi_noise: T,
+    pub(super) phase_noise: T,
 }
 
 /// The predicate rows one caller of [`first_harmonic_roots`] meters
@@ -487,16 +516,23 @@ pub(super) fn first_harmonic_roots<T: Decide>(
         })
     };
     let FirstHarmonic {
-        c0,
-        a1,
+        lo: lo_value,
+        hi: hi_value,
         cos_part,
         sin_part,
-        noise,
+        lo_noise,
+        hi_noise,
+        phase_noise,
     } = *h;
+    let two = T::from_f64(2.0);
+    // The extremes are what every decision below reads, so their error
+    // is what the representation must resolve.
+    let noise = lo_noise.max(hi_noise);
     match decide(rows.noise, Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
     }
+    let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
         return constant_residual_roots(c0, a1 + noise, rows.extreme, band).map_err(|diag| {
             BooleanError::Escalated {
@@ -505,30 +541,35 @@ pub(super) fn first_harmonic_roots<T: Decide>(
             }
         });
     }
-    let lo = decide(rows.extreme, Margin::of(c0 - a1), band)?;
+    let lo = decide(rows.extreme, Margin::of(lo_value), band)?;
     if lo == Sign::Positive {
         return Ok(CircleRoots::Miss);
     }
-    let hi = decide(rows.extreme, Margin::of(c0 + a1), band)?;
+    let hi = decide(rows.extreme, Margin::of(hi_value), band)?;
     if hi == Sign::Negative {
         return Ok(CircleRoots::Miss);
     }
     if (lo, hi) != (Sign::Negative, Sign::Positive) {
         return Ok(CircleRoots::Uncertain);
     }
-    // |R′| at either root: A₁·|sin(θ − φ)| = √(A₁² − c₀²), factored so
-    // that both factors are the definite extremes just decided.
-    let slope = ((a1 - c0) * (a1 + c0)).max(T::zero()).sqrt();
-    match decide(rows.root_slack, Margin::of(radius * noise / slope), band) {
+    // At either root `R = lo·(1 − cos ψ)/2 + hi·(1 + cos ψ)/2` with
+    // `(1 + cos ψ)/2 = −lo/(hi − lo)`, so the extremes' errors move the
+    // residual there by `(hi·δlo − lo·δhi)/(hi − lo)`, and the phase's
+    // moves the root itself; `|R′| = √(−lo·hi)` at both roots.
+    let swing = hi_value - lo_value;
+    let slope = ((T::zero() - lo_value) * hi_value).max(T::zero()).sqrt();
+    let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
+    let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
+    let slack = radius * (at_root / slope + phase + rounding_charge(T::tau()));
+    match decide(rows.root_slack, Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
     }
-    let two = T::from_f64(2.0);
     let phi = sin_part.atan2(cos_part);
-    let half_chord = (T::zero() - c0 / a1)
-        .max(T::zero() - T::one())
-        .min(T::one())
-        .acos();
+    // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
+    // zero (module docs).
+    let past = |near: T| two * (near.abs() / swing).sqrt().asin();
+    let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
     let mid = (t0 + t1) / two;
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
     Ok(CircleRoots::Certified {
