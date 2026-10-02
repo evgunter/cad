@@ -438,3 +438,24 @@ fn an_image_shorter_than_its_edge() {
         );
     }
 }
+
+/// Round 2: the domain check is exact at f64 — an image one ulp (and
+/// 1e-12) short of the edge at either end refuses.
+#[test]
+fn round2_a_domain_short_by_an_ulp_refuses() {
+    let pi = core::f64::consts::PI;
+    let (c, t0, t1) = (section(0.6, 0.3), 0.3_f64, 0.3 + pi / 2.0);
+    for (a, b) in [
+        (f64::from_bits(t0.to_bits() + 1), t1),
+        (t0, f64::from_bits(t1.to_bits() - 1)),
+        (t0 + 1e-12, t1),
+        (t0 - 1e-12, t1),
+    ] {
+        let img = FittedLane::<f64>::certified()
+            .sphere_circle_image(&c, a, b, &sphere(), band())
+            .unwrap();
+        let r = certify(&img, &c, t0, t1);
+        println!("image [{a:.17}, {b:.17}] edge [{t0}, {t1}]: {r:?}");
+        assert!(r.is_err(), "a domain other than the edge's certified");
+    }
+}
