@@ -3881,15 +3881,31 @@ mod verbs_gate_r1_probes {
         let built = |label: &str, r: Result<pncad::topo::BooleanResult<f64>, BooleanError>| {
             let r = r.unwrap_or_else(|e| panic!("{label}: the carve builds, got {e:?}"));
             let body = r.body().expect("a body").body.clone();
-            assert_eq!(pncad::topo::validate_geometric(&body, tol), Ok(()), "{label}");
+            assert_eq!(
+                pncad::topo::validate_geometric(&body, tol),
+                Ok(()),
+                "{label}"
+            );
             body
         };
         let carved = built("A ∖ B", pncad::topo::subtract(lant, &ball_body, tol));
         for (label, body, want) in [
             ("A ∖ B", carved.clone(), va - lens),
-            ("A ∪ B", built("A ∪ B", pncad::topo::union(lant, &ball_body, tol)), va + vb - lens),
-            ("A ∩ B", built("A ∩ B", pncad::topo::intersect(lant, &ball_body, tol)), lens),
-            ("B ∖ A", built("B ∖ A", pncad::topo::subtract(&ball_body, lant, tol)), vb - lens),
+            (
+                "A ∪ B",
+                built("A ∪ B", pncad::topo::union(lant, &ball_body, tol)),
+                va + vb - lens,
+            ),
+            (
+                "A ∩ B",
+                built("A ∩ B", pncad::topo::intersect(lant, &ball_body, tol)),
+                lens,
+            ),
+            (
+                "B ∖ A",
+                built("B ∖ A", pncad::topo::subtract(&ball_body, lant, tol)),
+                vb - lens,
+            ),
         ] {
             let got = volume(&body);
             println!("wall-7 probe: {label} volume {got}, lens oracle {want}");
