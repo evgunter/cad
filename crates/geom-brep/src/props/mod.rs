@@ -45,16 +45,21 @@
 //! which the interior-left rule already ties to the *outward* normal;
 //! `revert` reverses loops and flips `sense` in the same step, so
 //! feeding the bit into a winding-derived term would negate the volume
-//! twice. The bit enters at exactly one site — the **rimless** sphere
-//! band, whose boundary has no rim to read `s_f` off and which
-//! previously hardcoded `+1`. Everything else here is sense-invariant
+//! twice. The bit enters only on the sphere: the **rimless** band,
+//! whose boundary has no rim to read `s_f` off and which previously
+//! hardcoded `+1`, and the face bounded by a tilted circle, whose
+//! Gauss–Bonnet area reads its arcs' curvature against the outward
+//! normal (`curved::sphere_circle_loop`). Everything else here is sense-invariant
 //! by derivation, and the *agreement* of the two encodings is a tier-3
 //! obligation (the validator's loop-role winding check), not this
 //! module's.
 //!
 //! Areas of curved faces come from the chart Jacobians over the face's
 //! iso-parameter rectangle `[u0,u1]×[v0,v1]` — on a cylinder, over its
-//! chart region `−∮ v du`, every loop included; planar face area is
+//! chart region `−∮ v du`, every loop included; save a sphere face with
+//! a circle tilted against its chart on the boundary, which has no
+//! rectangle and whose area is Gauss–Bonnet's over its circle arcs
+//! (`curved::sphere_circle_loop`); planar face area is
 //! `‖A⃗_f‖` (rings subtract automatically via their stored opposite
 //! orientation).
 //!
@@ -422,6 +427,21 @@ pub enum PropsError {
     /// A cone face's `v` range definitely spans both nappes — not a
     /// face any M2 construction produces.
     NappeSpanning,
+    /// A sphere face bounded by circles tilted against its chart
+    /// (`curved::sphere_circle_loop`) fails a premise of its
+    /// Gauss–Bonnet closed form: an edge not a circle on the sphere,
+    /// a loop that does not close, a cusp, or a degenerate area.
+    /// Name-only, as [`Self::NotIsoRectangle`]: `what` is the deciding
+    /// predicate's name.
+    SphereLoop {
+        /// Which premise failed (the predicate's name).
+        what: &'static str,
+    },
+    /// The face's sense bit contradicts the side its boundary encodes
+    /// (`curved::sphere_circle_loop_side`): the face is inside-out, and
+    /// its radial flux term — read off the bit — would measure the
+    /// complement of the face.
+    SenseContradicted,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
     /// stored parameter span contains a chart singularity in its
@@ -563,6 +583,17 @@ impl core::fmt::Display for PropsError {
                  iso-parameter rectangle (a wall merged across iso lines splits back into \
                  rectangular sub-faces), while a nonzero consistency residual or an \
                  out-of-bounds stored span is stored data to repair"
+            ),
+            Self::SphereLoop { what } => write!(
+                f,
+                "integral properties: a sphere face bounded by circles tilted against its \
+                 chart does not bound a region of its sphere ({what}) — its edges must be \
+                 circles on the sphere meeting end to end with no cusp, around an area short \
+                 of the whole sphere; this is stored data to repair"
+            ),
+            Self::SenseContradicted => f.write_str(
+                "integral properties: a sphere face's orientation sense contradicts the side \
+                 its boundary encodes — the face is inside-out; this is stored data to repair",
             ),
             Self::NappeSpanning => f.write_str(
                 "integral properties: cone face spans both nappes — no construction here \

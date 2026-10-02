@@ -268,6 +268,40 @@ fn a_notched_wall_measures_in_closed_form() {
     );
 }
 
+/// **A curved closed-form tie passes on the faces' own enclosures.** One
+/// rod (`r = 0.7`, height 0.9, about `(0.1, 0.2)`) built from three arcs
+/// started at 45° and at 60°: the same solid, whose `f64` sums round
+/// 8.9e-16 m³ apart (1.38544236023309786 against …875). The backstop
+/// re-derives each curved face's closed form at the interval scalar,
+/// and only the faces' own enclosures, not their midpoints with the
+/// fold rounded outward, hold the tie: collapsed to its midpoint, each
+/// face's interval no longer covers the other start's sum and the
+/// intersect refuses.
+#[test]
+fn a_curved_closed_form_tie_passes_on_the_faces_own_enclosures() {
+    use crate::common::operands::three_arc_cylinder;
+    let rod = |first: f64| three_arc_cylinder(Point2::new(0.1, 0.2), 0.7, 0.0, 0.9, first);
+    let (low, high) = (rod(45.0), rod(60.0));
+    let volume = |b: &Body<f64>| topo::mass_properties(b, tol()).unwrap().volume;
+    assert!(
+        volume(&low) < volume(&high),
+        "the two starts' sums round apart: {} vs {}",
+        volume(&low),
+        volume(&high)
+    );
+    for (op, operand, result) in [
+        (BooleanOp::Intersect, &low, &high),
+        (BooleanOp::Subtract, &low, &high),
+        (BooleanOp::Union, &high, &low),
+    ] {
+        assert_eq!(
+            planted(op, operand, operand, result),
+            Ok(AtRestOutcome::Validated),
+            "{op:?}"
+        );
+    }
+}
+
 /// The backstop's verdict on a planted result.
 fn planted(
     op: BooleanOp,

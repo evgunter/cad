@@ -450,7 +450,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // planar side against the wall face's own window, so both
         // solids select the SAME geometric arc); plane×sphere (M5
         // S13) rides the same two lanes with the exact C5 Circle and
-        // the sphere chart's azimuth window; a sphere pair rides the
+        // the sphere chart's azimuth window (a section tilted against
+        // that chart refuses on the planar side); a sphere pair rides the
         // wall-side lane on both sides against its radical plane; any
         // other pair refuses typed citing its C5 routing (per-arm,
         // C12.1).
@@ -518,10 +519,9 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             // plane is computed from the pair's own C5 Circle, once per
             // germ, so the two sides' chords are sections of one datum;
             // each body's aux copy of it is keyed by the two spheres it
-            // depends on ([`AuxDatum::Radical`]). The arc-side rule's
-            // polar premise is the plane×sphere arm's own gate in
-            // `chord_join::section_case`: a radical plane tilted against
-            // either chart's polar axis refuses there, typed.
+            // depends on ([`AuxDatum::Radical`]). A radical plane tilted
+            // against a chart's polar axis takes the run-side arc rule on
+            // that side (`chord_join::select_arc_by_run_side`).
             (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
                 let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
                     Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
@@ -1003,18 +1003,13 @@ pub(super) fn pair_section_frame<T: Decide>(
         // THE table — same escalation plumbing as the plane×sphere arm
         // above.
         //
-        // **No polar gate lives here, deliberately.** The frame this
-        // dispatch names is the LOCUS's — the centre and axis the
-        // rotational-sense facing test turns about — and a sphere pair's
-        // locus is that circle whatever either chart's polar axis does.
-        // The polar premise belongs to the ARC-SIDE rule, which is a
-        // different consumer with a different question; putting it here
-        // would refuse a frame the facing test can use.
-        //
-        // The polar premise is live at that consumer: the join hands
-        // each side the pair's radical plane, so the chord reaches
-        // `chord_join::section_case` as a plane×sphere pair and its
-        // polar gate decides there, per operand chart.
+        // The frame this dispatch names is the LOCUS's — the centre and
+        // axis the rotational-sense facing test turns about — and a
+        // sphere pair's locus is that circle whatever either chart's
+        // polar axis does. Whether the section is polar for a chart is
+        // the ARC-SIDE rule's question, asked per operand in
+        // `chord_join::section_case` once the join hands each side the
+        // pair's radical plane.
         (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
             return match geom_brep::sphere_sphere_section(sa, sb, band) {
                 Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
