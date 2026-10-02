@@ -46,16 +46,20 @@
 //! face (`FaceGeo::PartialCone`) ahead of `q`. A boundary pre-pass
 //! reports `q` ON the solid's boundary as
 //! [`SolidContainment::OnBoundary`] before any ray is cast, and refuses
-//! where `q` is in band of a face; past it, `q` is off every face by
-//! more than the band. So on the plane arm, and at every crossing's
-//! advance and order, an in-band margin is about the ray — where it
-//! meets a plane, how it runs against it, a hit near a face's loop
-//! however far from `q` — and abandons it as a graze does. A verdict
-//! is read only off a ray whose every decision is definite, so this
-//! can turn a refusal into an answer, never into a wrong one. When no
-//! ray decides, the refusal is the first such in-band reading, else
+//! where `q` is in band of a face. Past it, `q` is off every FACE by
+//! more than the band's zero — but it may still be in band of a face's
+//! CARRIER, where its foot lies outside the face. On the plane arm, and
+//! at every crossing's advance and order, an in-band margin is about
+//! the ray — how it runs against a carrier, where it meets one, a hit
+//! near a face's loop however far from `q` — and abandons it
+//! ([`crate::ray_parity::Abandoned`] holds the argument). A ray parallel
+//! to a carrier within the band skips that face only where `q` is
+//! definitely off the carrier; otherwise it is abandoned too. When no
+//! ray decides, the refusal is the first abandoned reading, else
 //! [`PointInSolidError::PartialConeFace`] when such a face set aside a
-//! ray, else [`PointInSolidError::RayExhausted`].
+//! ray, else [`PointInSolidError::RayExhausted`]. A `?` inside a ray is
+//! a refusal of the query unless the arm marks it as the ray's own
+//! (`RayFault`).
 //!
 //! # Predicates (all K-tagged through the Q1 funnel, meters)
 //!
@@ -69,8 +73,10 @@
 //!   from `q` the selection reaches (`selection_reach`), so the margin is
 //!   how far the ray rises off the plane, or drifts off its distance
 //!   from the axis, over every length at which it could meet the face.
-//!   Zero with `q` off the face ⇒ the ray misses it — skipped, not
-//!   grazed. The wall arm's outward sign at a root is read off the
+//!   Zero with `q` definitely off the carrier (`bool_point_in_solid_plane`
+//!   asked again, past its escalate threshold) ⇒ the ray misses the
+//!   face — skipped; Zero with `q` in band of the carrier ⇒ graze. The
+//!   wall arm's outward sign at a root is read off the
 //!   decided discriminant, never re-decided.
 //! - **`bool_point_in_solid_advance`**: the crossing's advance `t`
 //!   along the ray (Zero ⇒ crossing at `q` — graze, retry).
@@ -373,14 +379,14 @@ pub enum PointInSolidError {
 }
 
 impl PointInSolidError {
-    /// Is this a reading too near a boundary to say, about the one
-    /// point asked, so that another point can still decide: `Escalated`
-    /// (a margin in the band's sliver), `RayExhausted` (every schedule
-    /// ray grazed), and the in-plane loop walk's own two. Every other
-    /// refusal is about a body — a face kind or edge carrier with no
-    /// arm, a corrupt face, a zero or uncertified volume — and answers
-    /// the same at any point.
-    pub(crate) fn in_band(&self) -> bool {
+    /// Is this refusal **inconclusive about the one point asked**, so
+    /// that another point can still decide: an in-band reading
+    /// (`Escalated`, `Loop(Escalated)`) or an exhausted schedule
+    /// (`RayExhausted`, `Loop(RayExhausted)`). Every other refusal is
+    /// about a body — a face kind or edge carrier with no arm, a corrupt
+    /// face, a zero or uncertified volume — and answers the same at any
+    /// point.
+    pub(crate) fn inconclusive(&self) -> bool {
         matches!(
             self,
             Self::Escalated { .. }
@@ -3679,15 +3685,12 @@ fn point_in_faces<T: Decide>(
                     // the face or on its boundary. A foot definitely
                     // outside the face puts q off it whatever its
                     // elevation; otherwise the elevation is the answer.
-                    Err(diag) => {
-                        let foot = q - normal * elev;
-                        if !matches!(
-                            point_in_face(body, face, normal, foot, band),
-                            Ok(Some(false))
-                        ) {
-                            return Err(escalate(diag));
-                        }
-                    }
+                    Err(diag) => match point_in_face(body, face, normal, q - normal * elev, band) {
+                        Ok(Some(false)) => {}
+                        Ok(Some(true) | None) => return Err(escalate(diag)),
+                        Err(e) if e.inconclusive() => return Err(escalate(diag)),
+                        Err(e) => return Err(e),
+                    },
                 }
             }
             FaceGeo::Cylinder {
@@ -3879,41 +3882,59 @@ fn point_in_faces<T: Decide>(
     // A ray that may meet a partial cone face is set aside like a
     // graze; the query refuses naming that face only if no ray clears.
     // A ray abandoned on an in-band reading of its own is set aside
-    // the same way, and the first such reading is the refusal if no ray
-    // decides.
+    // the same way ([`crate::ray_parity::Abandoned`]), and that reading
+    // comes first.
     let reach = selection_reach(body, faces, q)?;
     let mut partial = None;
-    let mut in_band = None;
+    let mut abandoned = crate::ray_parity::Abandoned::new();
     for r in &SCHEDULE {
         let d = r.map(T::from_f64).normalize();
         match cast_ray(body, sel, q, d, reach, band, tol) {
             Ok(Some(verdict)) => return Ok(verdict),
             Ok(None) => {} // graze: next schedule member
-            Err(RayFault::InBand(e)) => {
-                in_band.get_or_insert(e);
-            }
+            Err(RayFault::Abandon(e)) => abandoned.abandon(e),
             Err(RayFault::Fatal(PointInSolidError::PartialConeFace { face })) => {
                 partial = partial.or(Some(face));
             }
             Err(RayFault::Fatal(e)) => return Err(e),
         }
     }
-    Err(
-        in_band.unwrap_or(partial.map_or(PointInSolidError::RayExhausted, |face| {
+    Err(abandoned.refusal(|| {
+        partial.map_or(PointInSolidError::RayExhausted, |face| {
             PointInSolidError::PartialConeFace { face }
-        })),
-    )
+        })
+    }))
 }
 
 /// Why one ray of the sweep gave no verdict, other than a graze.
+///
+/// A bare `?` on a [`PointInSolidError`] inside [`cast_ray`] is
+/// `Fatal` (the `From` impl): a ray-level reading is abandoned only
+/// where the arm says so by writing `Abandon`.
 enum RayFault {
-    /// An in-band reading about this ray: where it meets a plane face,
-    /// which way it runs against the plane, where its crossings fall.
-    /// The pre-pass placed `q` off every face, so the reading is about
-    /// the ray rather than `q`, and the ray is abandoned like a graze.
-    InBand(PointInSolidError),
+    /// A reading about this ray, in band: which way it runs against a
+    /// plane's carrier, where it meets the carrier, whether its hit is
+    /// in the face, where its crossings fall. The ray is abandoned
+    /// ([`crate::ray_parity::Abandoned`]).
+    Abandon(PointInSolidError),
     /// Anything else, which the query refuses on.
     Fatal(PointInSolidError),
+}
+
+impl RayFault {
+    /// A refusal from the trim test at a ray's hit point: in band of the
+    /// face's loop there, or its in-plane walk exhausted, is about where
+    /// this ray lands, and another ray lands elsewhere. A face or carrier
+    /// the walk cannot read is about the body.
+    fn at_hit(e: PointInSolidError) -> Self {
+        match e {
+            PointInSolidError::Escalated { .. }
+            | PointInSolidError::Loop(
+                PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. },
+            ) => Self::Abandon(e),
+            e => Self::Fatal(e),
+        }
+    }
 }
 
 impl From<PointInSolidError> for RayFault {
@@ -3927,9 +3948,10 @@ impl From<PointInSolidError> for RayFault {
 /// `faces` ([`loop_extent_from`]). It asks no decision. It is the lever
 /// the ray's two skip questions are metered over (the plane arm's
 /// `d·n̂`, the wall arm's axis-parallel rung): a ray that drifts off a
-/// face's plane, or off a wall's axis, by no more than the band over
-/// this whole length meets no point of the face, so skipping it is
-/// sound. A planar face lies in its outer loop's hull, and a wall face
+/// face's plane, or off a wall's axis, by no more than the band's zero
+/// over this whole length meets no point of the face when `q` starts
+/// definitely further off the carrier than that ([`clear_of_carrier`]),
+/// so skipping it there is sound. A planar face lies in its outer loop's hull, and a wall face
 /// in the hull of its loops (each of its points is on a ruling segment
 /// between two boundary points), so each lies in this ball.
 fn selection_reach<T: Decide>(
@@ -4698,6 +4720,23 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
     Ok(TorusRoots::Certified { count, ts })
 }
 
+/// Is `q`, at elevation `elev` off `face`'s carrier, definitely further
+/// from it than the band — so a ray running along the carrier within the
+/// band's zero cannot reach it? `false` where the elevation is in the
+/// zero band; an in-band elevation abandons the ray. An interval
+/// enclosure that straddles a band edge decides nothing, and abandons it
+/// too.
+fn clear_of_carrier<T: Decide>(elev: T, face: FaceKey, band: Band) -> Result<bool, RayFault> {
+    match decide("bool_point_in_solid_plane", Margin::of(elev), band) {
+        Ok(Sign::Zero) => Ok(false),
+        Ok(_) => Ok(true),
+        Err(diag) => Err(RayFault::Abandon(PointInSolidError::Escalated {
+            face,
+            diag,
+        })),
+    }
+}
+
 /// One ray of the sweep: `Some(verdict)` or `None` for a graze.
 fn cast_ray<T: Decide>(
     body: &Body<T>,
@@ -4716,7 +4755,7 @@ fn cast_ray<T: Decide>(
                 t: T,
                 outward: Sign|
      -> Result<Option<()>, RayFault> {
-        let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
+        let escalate = |diag| RayFault::Abandon(PointInSolidError::Escalated { face, diag });
         match decide("bool_point_in_solid_advance", Margin::of(t), band).map_err(escalate)? {
             Sign::Positive => {}
             Sign::Negative => return Ok(Some(())),
@@ -4756,13 +4795,19 @@ fn cast_ray<T: Decide>(
                     Margin::levered(denom, reach),
                     band,
                 )
-                .map_err(|diag| RayFault::InBand(escalate(diag)))?;
+                .map_err(|diag| RayFault::Abandon(escalate(diag)))?;
                 if denom_sign == Sign::Zero {
-                    // Parallel ray: q is definitely off this plane (the
-                    // pre-pass returned), and the ray rises less than
-                    // the band over the reach, so no point of the face
-                    // is on it.
-                    continue;
+                    // A ray parallel to the plane within the band rises
+                    // off it by at most the band's zero over the reach.
+                    // It misses the face only where q is definitely off
+                    // the plane (`|elev|` past the band's escalate
+                    // threshold); the pre-pass passes q in band of the
+                    // carrier wherever its foot is outside the face, so
+                    // that is asked here, not assumed.
+                    if clear_of_carrier((q - origin).dot(normal), face, band)? {
+                        continue;
+                    }
+                    return Ok(None);
                 }
                 let t = (origin - q).dot(normal) / denom;
                 // In-face test FIRST: a plane hit outside the face
@@ -4771,13 +4816,8 @@ fn cast_ray<T: Decide>(
                 // corner-aligned query) must be skipped, not grazed,
                 // when the face itself is elsewhere.
                 let p = q + d * t;
-                let in_face = point_in_face(body, face, normal, p, band).map_err(|e| {
-                    if e.in_band() {
-                        RayFault::InBand(e)
-                    } else {
-                        RayFault::Fatal(e)
-                    }
-                })?;
+                let in_face =
+                    point_in_face(body, face, normal, p, band).map_err(RayFault::at_hit)?;
                 match in_face {
                     Some(false) => continue,
                     None => return Ok(None), // edge/vertex hit: graze
@@ -4811,11 +4851,25 @@ fn cast_ray<T: Decide>(
                 let roots = line_wall_roots(q, d, origin, axis, radius, reach, band)
                     .map_err(|fault| escalate(fault.diag))?;
                 let ts = match roots {
-                    // Axis-parallel ray: it drifts off its distance from
-                    // the axis by less than the band over every length
-                    // at which it could meet the face, and the pre-pass
-                    // said q is off the wall, so it misses it.
-                    WallRoots::AxisParallel | WallRoots::Miss => continue,
+                    WallRoots::Miss => continue,
+                    // Axis-parallel ray: its distance from the axis moves
+                    // by at most the band's zero over the reach. It misses
+                    // the wall only where q's residual is definitely past
+                    // the escalate threshold, asked here (the pre-pass
+                    // passes q in band of the carrier outside the face's
+                    // trim). Outside the wall that residual `(ρ² − r²)/2r`
+                    // overstates `ρ − r`; it still exceeds the zero for a
+                    // wall whose radius is at least the band's zero.
+                    WallRoots::AxisParallel => {
+                        let w = q - origin;
+                        let radial = w - axis * w.dot(axis);
+                        let elev =
+                            (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
+                        if clear_of_carrier(elev, face, band)? {
+                            continue;
+                        }
+                        return Ok(None);
+                    }
                     WallRoots::Tangent => return Ok(None), // tangent ray: graze
                     WallRoots::Two(ts) => ts,
                 };

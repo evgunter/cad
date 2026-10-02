@@ -319,10 +319,9 @@ fn polygon_walk<T: Decide>(
         extent = extent.max((*p - q).norm());
     }
 
-    // A ray-level margin in band abandons the ray, as a graze does
-    // ([`carrier_walk`] states why that is sound past the boundary
-    // pass); the first is the refusal if no ray decides.
-    let mut in_band = None;
+    // A ray-level margin in band abandons the ray
+    // ([`ray_parity::Abandoned`]).
+    let mut abandoned = ray_parity::Abandoned::new();
     let walked = walk_schedule(
         r#loop,
         normal,
@@ -333,16 +332,16 @@ fn polygon_walk<T: Decide>(
         |d, side_axis| match ray_parity::ray_verdict(points, q, d, side_axis, &ROWS, band) {
             Ok(verdict) => Ok(verdict),
             Err(diag) => {
-                in_band.get_or_insert(diag);
+                abandoned.abandon(PointInLoopError::Escalated { r#loop, diag });
                 Ok(None)
             }
         },
     );
-    match (walked, in_band) {
-        (Err(PointInLoopError::RayExhausted { .. }), Some(diag)) => {
-            Err(PointInLoopError::Escalated { r#loop, diag })
+    match walked {
+        Err(exhausted @ PointInLoopError::RayExhausted { .. }) => {
+            Err(abandoned.refusal(|| exhausted))
         }
-        (walked, _) => walked,
+        walked => walked,
     }
 }
 
@@ -1393,19 +1392,14 @@ fn carrier_walk<T: Decide>(
         }
     }
     // ---- The rays. ----
-    // WHY A RAY-LEVEL MARGIN RETRIES (the one home of this argument).
-    // Past the boundary pass, every row is a fact about ONE RAY — which
-    // schedule member, where it meets a vertex's line, a conic, an arc's
-    // end, an uncrossable edge's ball — and not about `q`: the boundary
-    // pass (this walk's own, or its caller's) has decided `q` off every
-    // edge and arc by more than the band, which bounds any crossing's
-    // advance `t` away from zero, so no in-band margin on a ray can be the
-    // question "is `q` on the boundary". And a ray's parity is used only
-    // when EVERY row on it is decisive, so abandoning one — exactly as a
-    // graze is abandoned — can only turn an escalation into an answer or
-    // into `RayExhausted`, never into a wrong verdict. Only the boundary
-    // pass's rows, which ask where `q` itself stands, escalate.
+    // A ray-level margin abandons the ray ([`ray_parity::Abandoned`]):
+    // the boundary pass (this walk's own, or its caller's) has decided
+    // `q` off every edge and arc by more than the band. A conic's own
+    // crossing reading carries no diagnostic, and abandons the ray
+    // without one; a ray that could meet an uncrossable edge's ball is
+    // `blocked`, which is the caller's refusal instead.
     let mut blocked = false;
+    let mut abandoned = ray_parity::Abandoned::new();
     let walked = walk_schedule(
         r#loop,
         normal,
@@ -1434,12 +1428,17 @@ fn carrier_walk<T: Decide>(
                     return Ok(None);
                 }
             }
-            let Ok(Some(mut crossings)) =
+            let crossings =
                 ray_parity::ray_crossings(verts, q, d, side_axis, &ARC_LOOP_ROWS, band, |i| {
                     matches!(edges[i], LoopEdge::Chord)
-                })
-            else {
-                return Ok(None);
+                });
+            let mut crossings = match crossings {
+                Ok(Some(c)) => c,
+                Ok(None) => return Ok(None),
+                Err(diag) => {
+                    abandoned.abandon(PointInLoopError::Escalated { r#loop, diag });
+                    return Ok(None);
+                }
             };
             for (i, edge) in edges.iter().enumerate() {
                 let LoopEdge::Conic(k) = *edge else {
@@ -1460,6 +1459,9 @@ fn carrier_walk<T: Decide>(
         // could not be read there, which is the caller's refusal rather
         // than an exhausted schedule.
         Err(PointInLoopError::RayExhausted { .. }) if blocked => Ok(None),
+        Err(exhausted @ PointInLoopError::RayExhausted { .. }) => {
+            Err(abandoned.refusal(|| exhausted))
+        }
         Err(e) => Err(e),
     }
 }

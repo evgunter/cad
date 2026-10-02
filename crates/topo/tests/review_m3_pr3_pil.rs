@@ -15,6 +15,36 @@ fn n_z() -> Vec3<f64> {
     Vec3::new(0.0, 0.0, 1.0)
 }
 
+/// The margin an escalation refused on, for the sign-blindness row.
+fn escalated_margin(r: &Result<LoopContainment, PointInLoopError>) -> geom_core::MarginDiag {
+    match r {
+        Err(PointInLoopError::Escalated { diag, .. }) => diag.margin,
+        other => panic!("expected an escalation, got {other:?}"),
+    }
+}
+
+/// The ray schedule's members in the `z = const` plane (their `x, y`),
+/// in schedule order: `point_in_loop`'s `SCHEDULE` projected onto a
+/// `+z` face.
+const SCHEDULE_XY: [(f64, f64); 16] = [
+    (1.0, 0.0),
+    (0.0, 1.0),
+    (0.0, 0.0),
+    (0.5, 0.25),
+    (1.0, 0.5),
+    (0.25, 1.0),
+    (-0.5, 1.0),
+    (0.125, -0.5),
+    (1.0, 0.125),
+    (0.75, -1.0),
+    (0.375, 0.75),
+    (-1.0, 0.375),
+    (0.625, 0.9375),
+    (0.3125, -0.625),
+    (0.9375, 0.3125),
+    (-0.75, -0.25),
+];
+
 /// Concave (L-shaped) loop: points in the notch are Out even though
 /// they sit inside the convex hull; points in both arms are In.
 #[test]
@@ -281,6 +311,56 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     assert!(
         matches!(up, Ok(LoopContainment::In)),
         "a ray in band of a vertex 2 m ahead is retried, not refused: got {up:?}"
+    );
+    assert_eq!(shape(&up), shape(&down));
+
+    // **The signed refusal, which is why `shape` exists.** A loop with
+    // one vertex on each schedule member's in-plane direction from q, at
+    // 1 m, lifted `delta` off that ray's line: every ray passes a vertex
+    // in band, every ray is abandoned, and the walk refuses on the first
+    // one's ordinate. Both signs refuse the same way, on margins that
+    // are exact negations; comparing whole `Debug` renderings would red
+    // on that alone.
+    let mut dirs: Vec<(f64, f64)> = Vec::new();
+    for r in SCHEDULE_XY {
+        let len = r.0.hypot(r.1);
+        if len == 0.0 {
+            continue; // projects to nothing: the arm skips it
+        }
+        let u = (r.0 / len, r.1 / len);
+        if dirs
+            .iter()
+            .all(|v| (v.0 - u.0).abs() + (v.1 - u.1).abs() > 1e-9)
+        {
+            dirs.push(u);
+        }
+    }
+    dirs.sort_by(|a, b| a.1.atan2(a.0).total_cmp(&b.1.atan2(b.0)));
+    let (cx, cy) = (5.0, 5.0);
+    let star: Vec<(f64, f64)> = dirs
+        .iter()
+        .map(|u| (cx + u.0 - delta * u.1, cy + u.1 + delta * u.0))
+        .collect();
+    let fx = prism::<f64>(&star, 1.0, Tol::witness());
+    let top = fx.body.get_face(fx.top_face).unwrap();
+    let q = Point3::new(cx, cy, 1.0);
+    let up = point_in_loop(&fx.body, top.outer, n_z(), q, band);
+    let down = point_in_loop(&fx.body, top.outer, flipped, q, band);
+    let geom_core::ErrorTextReading::Value(m_up) =
+        escalated_margin(&up).diagnostic_f64_for_error_text()
+    else {
+        panic!("expected an f64 escalation, got {up:?}");
+    };
+    let geom_core::ErrorTextReading::Value(m_down) =
+        escalated_margin(&down).diagnostic_f64_for_error_text()
+    else {
+        panic!("expected an f64 escalation, got {down:?}");
+    };
+    assert_eq!(m_up, -m_down, "the two margins must be exact negations");
+    assert_ne!(
+        format!("{up:?}"),
+        format!("{down:?}"),
+        "if the renderings ever agree here, this row has stopped exercising `shape`"
     );
     assert_eq!(shape(&up), shape(&down));
 

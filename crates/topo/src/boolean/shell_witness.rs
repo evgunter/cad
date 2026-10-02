@@ -36,7 +36,7 @@
 //!    [`point_in_face`] certifies strictly inside the face.
 //!
 //! A witness is **inconclusive** when it reads `OnBoundary`, or when
-//! its reading is in-band ([`PointInSolidError::in_band`]): the point is on the other
+//! its refusal is about that one point ([`PointInSolidError::inconclusive`]): the point is on the other
 //! boundary or too near it to say, and the next witness is read. Any
 //! other refusal is about the other operand rather than the point, and
 //! propagates.
@@ -84,9 +84,10 @@ pub(super) enum Reading {
 pub(super) struct Tally {
     /// Witnesses that read `OnBoundary`.
     pub(super) on_boundary: usize,
-    /// Witnesses that read in-band ([`PointInSolidError::in_band`]).
+    /// Witnesses that read in-band ([`PointInSolidError::inconclusive`]).
     pub(super) in_band: usize,
-    /// The first in-band reading, as evidence.
+    /// The first in-band reading, as evidence: over points, what
+    /// [`crate::ray_parity::Abandoned`] keeps over one point's rays.
     pub(super) first_in_band: Option<PointInSolidError>,
 }
 
@@ -114,7 +115,7 @@ pub(super) fn complex_side<T: Decide>(
                 tally.on_boundary += 1;
                 None
             }
-            Err(e) if e.in_band() => {
+            Err(e) if e.inconclusive() => {
                 tally.in_band += 1;
                 tally.first_in_band.get_or_insert(e);
                 None
@@ -307,7 +308,7 @@ fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?
 /// `false` discards the candidate unprobed: outside, on a loop, an
-/// [`PointInSolidError::in_band`] reading, or an edge of `face` whose carrier the
+/// [`PointInSolidError::inconclusive`] reading, or an edge of `face` whose carrier the
 /// walk cannot cross — that face then offers no candidate, as a curved
 /// face offers none. Any other refusal is an error.
 pub(super) fn certified_in_face<T: Decide>(
@@ -319,7 +320,7 @@ pub(super) fn certified_in_face<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match point_in_face(body, face, normal, p, band) {
         Ok(verdict) => Ok(verdict == Some(true)),
-        Err(e) if e.in_band() => Ok(false),
+        Err(e) if e.inconclusive() => Ok(false),
         Err(PointInSolidError::EdgeCarrierUnsupported { .. }) => Ok(false),
         Err(e) => Err(BooleanError::Containment(e)),
     }

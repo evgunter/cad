@@ -23,8 +23,7 @@
 //! `A ∖ B` (13.5 m³ bodies, whose sums round coarser) refuse down to
 //! 1e-9 and build within the gap at 1e-12.
 //!
-//! Sunk at `2ε` the intersect and subtract refuse in the join instead
-//! (`work/join/a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync.md`).
+//! Sunk at `±2ε` every op reads as it does at `±1.2ε`.
 //!
 //! Oracle: box arithmetic — the block `3 × 4.5 × 1`, the parallelepiped
 //! `sin φ · h` (its base parallelogram's area, whatever the tilt, times
@@ -71,13 +70,11 @@ enum Want {
     /// the bound; below it the crossing is under the interval's own
     /// rounding and builds within the gap at this volume.
     Crosses(&'static str, f64, f64),
-    /// The join refuses.
-    Join,
 }
 
 #[test]
 fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
-    use Want::{Builds, Crosses, Join};
+    use Want::{Builds, Crosses};
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness band");
     let phi = 5.0_f64.to_radians();
@@ -148,7 +145,24 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             2.0,
             sunk,
             cont,
-            [Builds(block_volume), Join, Join, Builds(0.0)],
+            [
+                Builds(block_volume),
+                Builds(wedge(0.5)),
+                Builds(block_volume - wedge(0.5)),
+                Builds(0.0),
+            ],
+        ),
+        (
+            "sunk",
+            -2.0,
+            sunk,
+            cont,
+            [
+                Builds(block_volume),
+                Crosses(cap, wedge(0.5), 1e-12),
+                Crosses(floor, block_volume - wedge(0.5), 1e-9),
+                Builds(0.0),
+            ],
         ),
     ];
     for (pose, over_eps, (height, depth, facing), class, wants) in rows {
@@ -199,10 +213,6 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
                     "{label}: refuses {bound}: {out:?}"
                 ),
                 (Crosses(_, want, _), out) => builds(out, want),
-                (Join, out) => assert!(
-                    matches!(out, Err(BooleanError::JoinDesync { .. })),
-                    "{label}: the join refuses: {out:?}"
-                ),
             }
         }
     }

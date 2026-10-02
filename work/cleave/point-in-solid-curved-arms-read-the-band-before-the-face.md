@@ -18,9 +18,13 @@ That fix changed `point_in_solid`'s plane arm in two places
   `bool_point_in_solid_plane` elevation now refuses only where `q`'s
   foot on the plane is not definitely outside the face.
 - **Ray sweep (`cast_ray`).** In-band readings on the plane arm, and
-  at every crossing's advance and order, are `RayFault::InBand`. Each
-  abandons its ray, and the query refuses on the first of them only if
-  no ray decides.
+  at every crossing's advance and order, are `RayFault::Abandon`. Each
+  abandons its ray (`ray_parity::Abandoned`), and the query refuses on
+  the first of them only if no ray decides.
+- **Parallel skips.** A ray parallel to a plane's carrier within the
+  band, or to a wall's axis, skips the face only where `q` is
+  definitely off the carrier (`clear_of_carrier`). Otherwise the ray is
+  abandoned. That part covers the wall too.
 
 The curved arms keep the old order on both counts.
 
