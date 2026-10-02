@@ -59,3 +59,33 @@ Dispatched, each as its own lane:
 Designer pairs (`docs/prompts/designer.md`), on the two `design: true`
 rows: `two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted`
 and `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made`.
+
+## 2026-10-02 — the two forks go to Ev; the agreed half dispatched
+
+`a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made`:
+the designer pair crossed twice, then measured the lineage together
+(row 46). The drawn-vertex rule and maximal edges are both order-free
+once the zip's mint-time vertex-to-vertex rows are read; both designers
+lean maximal edges, narrowly, and the value question went to Ev on PR
+3881. A measurement lane is running the two probes that could tip it:
+a contact corner under maximal edges through tier 3′, and an audit of
+whether every zip discard path writes its record.
+
+`two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted`: the pair
+crossed twice on where to refuse the slip; a further designer proposed
+no slip check, and both moved there (row 47). The agreed half, a
+whole-shell `On` verdict with the keep table and a `CoincidentShell`
+refusal, holds under every position, changes no ratified text, and is
+dispatched as `fuse/on-verdict` (cloud session). Review tier: single
+FULL — a new classification verdict changes what booleans return, and
+the coverage reading from the reduction's pairs needs checking, not
+reading. Only the slip (answer, editor refusal, or advisory) and DM5's
+one sentence wait on Ev, on PR 3883.
+
+The row's measurements are stale: the refusal is `ShellWitnessExhausted`
+since PR 3655, and three routes reach it with no shared `Arc`. The unit
+re-baselines them.
+
+A designer probe found an L-block refusing `Join(UnpairedLooseEnds {
+count: 6 })` in two fold orders; added as evidence to ZIP's
+`a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`.
