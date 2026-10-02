@@ -570,11 +570,10 @@ pub enum SessionOp {
     /// fact about any node's inputs, not about booleans, so it is
     /// stated once where every node kind reaches it.
     ///
-    /// **A contact is declared in the same action or not at all.** No
-    /// edit attaches a declaration to a live node, so an empty
-    /// `declare` authors the node's `declare` as `None` and a non-empty
-    /// one commits a `Node::Declare` of exactly those findings and then
-    /// the boolean naming it — one action, one undo. The door evaluates
+    /// **The findings become the boolean's own declared pairs**: an
+    /// empty `declare` authors an undeclared boolean, and a non-empty
+    /// one a boolean carrying exactly those findings' pairs — one
+    /// insert, one undo. The door evaluates
     /// the boolean before recording it, and one that refuses an
     /// undeclared contact of its own is not committed:
     /// [`Refusal::Contact`] carries the kernel's finding back, and its

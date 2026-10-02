@@ -2797,8 +2797,8 @@ mod declared_union {
     /// status line says anything but the kernel's own sentence; if the
     /// offer is not the kernel's pair at the two picks, `Rest` as found;
     /// if the panel paints anything else; if Declare queues anything but
-    /// the offer; if accepting lands other than one `Declare` and one
-    /// union naming it in one history step; if the union is not block
+    /// the offer; if accepting lands other than one union carrying the
+    /// pair in one history step; if the union is not block
     /// plus boss; or if one undo does not return the document the union
     /// was refused on.
     #[test]
@@ -2874,19 +2874,16 @@ mod declared_union {
         let [accept] = <[SessionOp; 1]>::try_from(ops).expect("Declare queues one op");
         let outcome = session.perform(accept);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let [declare, union] = outcome.minted[..] else {
-            panic!("a Declare and a union: {:?}", outcome.minted);
+        let [union] = outcome.minted[..] else {
+            panic!("one union: {:?}", outcome.minted);
         };
         assert_eq!(session.history().len(), steps + 1, "one action, one step");
         let doc = session.committed_doc();
         assert!(matches!(
-            doc.node(declare),
-            Some(Node::Declare { pairs }) if pairs[..] == [(finding.pair.clone(), BooleanCoincidence::REST)]
-        ));
-        assert!(matches!(
             doc.node(union),
-            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare: d })
-                if (*a, *b, *d) == (block, boss, declare)
+            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare })
+                if (*a, *b) == (block, boss)
+                    && declare[..] == [(finding.pair.clone(), BooleanCoincidence::REST)]
         ));
         session.pump();
         let got = evaluated_volume(session.evaluation().expect("landed"), union, tol);
@@ -2900,7 +2897,7 @@ mod declared_union {
         assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
         assert!(
             session.committed_doc().bit_eq(&before),
-            "one undo takes the Declare and the union together"
+            "one undo takes the declared union"
         );
     }
 

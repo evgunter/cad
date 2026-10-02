@@ -101,8 +101,9 @@ pub use editor_core::cascade_delete_order;
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, InputFault, ListFault, MeasureNodeFault, Node, PartSelect,
-    PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, DeclaredPair, InputFault, ListFault, MeasureNodeFault, Node,
+    PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow,
+    VectorSlot, declare_continuation, declare_rest,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
