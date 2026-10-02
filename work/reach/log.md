@@ -405,3 +405,30 @@ solid's edge.
 The dual-review row (DR-42) rides this PR's last commit.
 — (REACH orchestrator)
 
+## 2026-10-02 — a tilted sphere pair builds (PR 3817)
+
+A second-wave unit, built by a cloud implementer. Dual review (DR-44,
+no MAJOR), then a fix pass, a k-lint pass and a delta review. The
+orchestrator checked the final fix pass itself.
+
+The probe-scalar carve of lily wall 7 surfaced two k-lint flags.
+- **The clearance flag.** The clearance pre-filter's own charge on an
+  arc ending on the carrier. The decision was removed: such an arc
+  goes straight to the endpoint arms, with behaviour preserved.
+- **The fitted envelope's quarter-band target.** Ruled by a new k-lint
+  rule (5), `CONSTRUCTION_COUPLED`. It judges that name against its
+  construction's ε/4 target and is keyed on the construction where the
+  name is minted.
+
+The delta review found that no ratified page governs k-lint's rule
+text. `tools/README.md` CC1–CC5 governs the reading boundary, not
+judgements over admitted readings. So the rule landed with the unit.
+
+The delta review also confirmed that main's dev-probe leg was red on
+three suites. One of them, `bool_plane_orient`'s linearity, was turned
+red by REACH's own #3657. A REACH lane (`reach/dev-probe-red`) is
+fixing all three.
+
+The dual-review row (DR-44) rides this PR's last commit.
+— (REACH orchestrator)
+
