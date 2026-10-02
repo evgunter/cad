@@ -52,8 +52,10 @@ performs, rather than choosing one shape for the whole class:
 - Where the composed material is SMOOTH across the shared rim
   (wedge π — the stem-corm weld's actual geometry, the tube-chain
   precedent), the join reconciles the rim as the **(b)** smooth
-  seam: no declaration needed, no witness lane, the table's π row
-  is the acceptance.
+  seam. Between two operands the seam is declared (`Seam`,
+  `crates/topo/README.md` C4) or structural (a G1 joint inside one
+  profile), never inferred; the wedge is derived, and the table's π
+  row is the acceptance.
 - Where material genuinely wedges to 0/2π at the rim (a kissing
   torus pair), the contact is the **(a)** declared-`Tangent` cusp
   family: the declaration is REQUIRED (never inferred — the C7
