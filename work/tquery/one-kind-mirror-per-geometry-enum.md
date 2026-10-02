@@ -2,12 +2,13 @@
 id: one-kind-mirror-per-geometry-enum
 kind: unit
 title: One fieldless kind mirror per geometry enum, in geom: CurveKind and SurfaceKind beside Curve3 and Surface, every copy deleted
-status: dispatched
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [curve-kind-placement-disagrees-with-the-ratified-seat-clause, 3763, 3664]
 branch: tquery/one-kind-mirror
+pr: 3777
 ---
 
 
