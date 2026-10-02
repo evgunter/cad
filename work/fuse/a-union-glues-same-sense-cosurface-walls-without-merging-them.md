@@ -42,3 +42,23 @@ the kernel derives) is the open question on
 `cosurface-disjoint-curved-walls-refuse`. Its answer decides whether
 this output should merge or refuse. Either way, the op should not hand
 back a body that its own next op rejects.
+
+## The declared-REST zip leaves flush end faces unmerged (TANG, 2026-10-02)
+
+Measured on branch `tang/abutting-rim` (PR 3823), whose diff does not
+touch the REST lane's merge. A 4×4×1 block with a 1×1 square bore,
+unioned with the 1×1×1 peg that fills it, the four wall pairs declared
+`Rest`: the body is `(8, 20, 16)` faces, edges, vertices, one shell,
+where the box it is has `(6, 12, 8)`. At each end the peg's square stays
+apart from the block's annulus: one plane, same sense, one face per
+operand, undeclared. The REST lane merges through
+`merge_coplanar_faces_declared` with the declared surface pairs only
+(`rest.rs`, `try_rest_union`), so an undeclared same-sense coplanar pair
+across the operands is never offered.
+
+The torus peg seated in its socket (`crates/sweep/tests/mate7a_torus_rest.rs`,
+`a_declared_torus_rest_pair_passes_the_declaration_door`) builds the
+same way on that branch: `(6, 10, 8)`, V − E + F = 4, its end discs
+inside the socket's end annuli. Main refuses that union
+`Join(UnpairedLooseEnds)`, so there it is not reached. The row pins the
+census and cites this file.

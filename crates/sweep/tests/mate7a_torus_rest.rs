@@ -226,6 +226,19 @@ fn a_declared_torus_rest_pair_passes_the_declaration_door() {
         other => panic!("the admitted torus Rest pair's union builds: {other:?}"),
     };
     assert_eq!(topo::validate_geometric(&body, tol), Ok(()), "tier 3");
+    // The two torus walls, and at each end the peg's disc inside the
+    // socket's annulus, unmerged: undeclared same-sense coplanar pairs
+    // (`work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them.md`).
+    assert_eq!(
+        (
+            body.faces().count(),
+            body.edges().count(),
+            body.vertices().count(),
+            body.shells().count()
+        ),
+        (6, 10, 8, 1),
+        "F, E, V, shells"
+    );
     let volume = |b: &Body<f64>| topo::mass_properties(b, tol).unwrap().volume;
     let want = volume(&s) + volume(&p);
     assert!(

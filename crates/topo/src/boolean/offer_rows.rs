@@ -2277,6 +2277,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     (
         "reduce.rs",
+        "arc_chain_reaches",
+        "Coincide::EdgeOnCurvedFace",
+        1,
+    ),
+    (
+        "reduce.rs",
         "curved_face_arm",
         "Coincide::ArcOnCoveredFace",
         1,
@@ -2318,7 +2324,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::WallRoots",
         1,
     ),
-    ("reduce.rs", "lying_on", "Coincide::EdgeOnCurvedFace", 1),
     (
         "reduce.rs",
         "split_other_at_point",

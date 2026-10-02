@@ -286,10 +286,12 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds_with_its_discs_decla
         (Point2::new(0.0, 0.0), 0.0),
     ]);
     let want = tube_and_dome_volume();
-    for (label, tube, cap) in [
-        ("dome", &tube, &dome),
-        ("dome turned", &tube, &turned),
-        ("revolved tube", &revolved, &dome),
+    // Each rim's two semicircles are one seam each; turned, each runs
+    // along two of the other's arcs, splitting at their seam vertices.
+    for (label, tube, cap, want_census) in [
+        ("dome", &tube, &dome, (5, 8, 5, 1)),
+        ("dome turned", &tube, &turned, (5, 10, 7, 1)),
+        ("revolved tube", &revolved, &dome, (5, 8, 5, 1)),
     ] {
         for (order, r) in unions_with_discs_rest(tube, cap).into_iter().enumerate() {
             let b = match r {
@@ -302,6 +304,11 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds_with_its_discs_decla
             assert!(
                 (v - want).abs() <= 1e-12 * want,
                 "{label}, order {order}: the tube and the cap: {v} vs {want}"
+            );
+            assert_eq!(
+                census(&b),
+                want_census,
+                "{label}, order {order}: F, E, V, shells"
             );
             assert!(
                 planes_at_z(&b, H).is_empty(),
@@ -321,6 +328,7 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds_with_its_discs_decla
 
 /// **A lens**: the dome on an inverted dome of the same rim, discs
 /// declared `Rest`. Both rims lie on the other's sphere, at a 90° corner.
+/// It builds with the two domes' seams aligned; turned, it refuses.
 #[test]
 fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
     let tol = Tol::witness();
@@ -347,6 +355,7 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
         };
         topo::validate_geometric(&b, tol)
             .unwrap_or_else(|e| panic!("order {order}: tier 3: {e:?}"));
+        assert_eq!(census(&b), (4, 6, 4, 1), "order {order}: F, E, V, shells");
         assert!(
             (volume(&b) - want).abs() <= 1e-12 * want,
             "order {order}: the two domes: {} vs {want}",
@@ -356,6 +365,24 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
             planes_at_z(&b, H).is_empty(),
             "order {order}: the discs are consumed"
         );
+    }
+    // Turned on the bowl, each dome rim semicircle runs along parts of
+    // two bowl arcs, and the chain certificate needs both of its ends
+    // paired: it keeps the door
+    // (`work/tang/a-turned-lens-keeps-the-door.md`).
+    for angle in [PI / 7.0, PI / 2.0] {
+        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
+        let turned = topo::transform_rigid(&dome, &turn, tol).unwrap();
+        for (order, r) in unions_with_discs_rest(&bowl, &turned)
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                "turned {angle}, order {order}: the crossing layer: {:?}",
+                r.err()
+            );
+        }
     }
 }
 

@@ -45,7 +45,8 @@ one site to the other, leaving along the germ (`arcs_along`), and the
 `Segment` carries those two arcs, which `realize_seam` uses in place of
 `fan_edge_between`. The arc pass is not limited to arcs the straight
 test cannot pair: it also pairs the straight-seam peg fixtures' circle
-seams, with unchanged outcomes (ignoring `bool_arc_ahead` turns 19 rows
-red). The straight-chord test matches every pair no arc does. JOIN-2's plan (the zip reads the join's
+seams (the two-peg plates, the threaded collar, the merge-door scenes),
+with unchanged outcomes. Ignoring `bool_arc_ahead` turns 15 rows red at
+the PR's fix-pass head, those among them. The straight-chord test matches every pair no arc does. JOIN-2's plan (the zip reads the join's
 segments) would replace both; whether this row closes on that branch or
 on JOIN-2 is the owner's call.

@@ -95,7 +95,13 @@ the rim's semicircles as arcs (`rest::arcs_along`).
 
 - The dome builds with its discs `Rest`: both orders, seams aligned or
   turned, on an extruded or a revolved tube, at tier 3 and the
-  closed-form volume. A lens of two domes builds too.
+  closed-form volume. A lens of two domes builds with its seams aligned;
+  turned, it keeps the door (`a-turned-lens-keeps-the-door`).
+- Undeclared, a dome sunk into the tube builds, and so does every op of a
+  tube poking through the dome's base: the rim lies inside the tube's
+  wall face (certificate (a)). Turned so the rim crosses the wall's seam
+  ruling, it keeps the door
+  (`a-rim-lying-on-a-wall-across-its-seam-ruling-keeps-the-door`).
 - Undeclared, the dome refuses on its value-coincident discs
   (`UndeclaredCoincidence`), which is correct.
 - A rim in band of the partner's wall escalates.
@@ -103,11 +109,19 @@ the rim's semicircles as arcs (`rest::arcs_along`).
   `pi-seam-between-two-operands-has-no-declaration`).
 - The stacked cylinder still refuses, on its own rim, whose parent shares
   the partner's carrier. `BooleanCoincidence::Continuation` is not in the
-  code, so it could not be measured declared so. Declared aligned `Rest`,
-  it builds (evidence on REACH's `cosurface-disjoint-curved-walls-refuse`).
+  code, so it could not be measured declared so. Its walls declared
+  `Rest` are contradicted at the declaration door, which now enforces
+  C4's sense bit for curved carriers (evidence on REACH's
+  `cosurface-disjoint-curved-walls-refuse`).
 - The cone stops at the operand gate.
-- Side effects: the torus dumbbell, its cylinder control and the torus
-  peg-in-socket build, and their rows are re-pinned.
+- Side effects: the torus peg-in-socket builds, its end faces unmerged
+  (evidence on FUSE's
+  `a-union-glues-same-sense-cosurface-walls-without-merging-them`). The
+  dumbbell, torus and cylinder handles, built while the door accepted
+  `Rest` on its aligned walls; it is contradicted now, and returns with
+  `Continuation`.
+- A dome rim offset half the zero band off the tube builds in one member
+  order only (`a-rim-offset-half-the-zero-band-builds-in-one-member-order-only`).
 - A tube ending on a ball, or on a torus latitude, now passes the
   crossing layer and stops in the join. Filed as JOIN's
   `a-tube-ending-on-a-ball-refuses-section-loop-mixed`, with evidence on

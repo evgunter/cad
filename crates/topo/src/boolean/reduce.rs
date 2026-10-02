@@ -2015,38 +2015,60 @@ fn lying_on<T: Decide>(
     let [(_, Some(wu)), (_, Some(wv))] = placed else {
         return Ok(None);
     };
-    let (mut dir, _) = curve.walk_tangents(
+    let (dir, _) = curve.walk_tangents(
         x.get_half_edge(e.he_plus)
             .ok_or_else(|| lost("an arc on a carrier: its half is lost"))?
             .start
             == ends[0].0,
     );
+    Ok(
+        arc_chain_reaches(y, wu, wv, dir, (center, axis, radius), band)?
+            .then_some(CurvedEvent::Recorded),
+    )
+}
+
+/// Whether `y` has a chain of circle arcs from `from` to `to`, the
+/// first leaving `from` along `dir` and each next one along the last
+/// one's arrival tangent ([`super::arcs::arcs_along`]), every vertex it
+/// passes on the way decided on the circle (`center`, unit `axis`,
+/// `radius`). `to` itself is not decided: the caller paired it with an
+/// end of an arc on that circle.
+fn arc_chain_reaches<T: Decide>(
+    y: &Body<T>,
+    from: VertexKey,
+    to: VertexKey,
+    mut dir: geom_core::Vec3<T>,
+    (center, axis, radius): (Point3<T>, geom_core::Vec3<T>, T),
+    band: Band,
+) -> Result<bool, BooleanError> {
     let escalated =
         |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
     // A chain visits each edge of `y` at most once.
-    let mut at = wu;
+    let mut at = from;
     for _ in 0..y.edges().count() {
         let steps = super::arcs::arcs_along(y, at, dir, band)?.map_err(escalated)?;
         let [step] = steps[..] else {
-            return Ok(None);
+            return Ok(false);
         };
-        if step.to == wv {
-            return Ok(Some(CurvedEvent::Recorded));
+        if step.to == to {
+            return Ok(true);
         }
         let p = y
             .get_vertex(step.to)
             .and_then(|vd| y.get_point(vd.point))
             .copied()
-            .ok_or_else(|| lost("an arc on a carrier: a chain vertex has no point"))?;
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "an arc on a carrier: a chain vertex has no point",
+            })?;
         let miss = super::arcs::circle_miss(p, center, axis, radius);
         match decide("bool_arc_chain_on_circle", Margin::of(miss), band).map_err(escalated)? {
             Sign::Zero => {}
-            Sign::Positive | Sign::Negative => return Ok(None),
+            Sign::Positive | Sign::Negative => return Ok(false),
         }
         at = step.to;
         dir = step.arrival;
     }
-    Ok(None)
+    Ok(false)
 }
 
 /// Where a boundary vertex sits against the arc's plane, as
@@ -3909,5 +3931,239 @@ mod no_pierce_tests {
                 "crossed_elsewhere {crossed}, at_end {at_end}: {got:?}"
             );
         }
+    }
+}
+
+/// **The two certificates of [`lying_on`], held on their predicates.**
+/// Each row poses one boundary shape the end-to-end fixtures never
+/// reach: a body that would reach it builds no differently whichever
+/// way the certificate answers, or no public door mints it. The faces
+/// are a unit cylinder sheet (arcs at its ends, rulings at its sides)
+/// and the `y = 0` side of a unit prism (four lines); the predicate
+/// reads only the face's boundary, never its carrier.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod lying_on_rows {
+    use super::{arc_chain_reaches, boundary_meets_circle_only_at, split_other_at_point};
+    use crate::body::Body;
+    use crate::boolean::Operand;
+    use crate::entity::{EdgeKey, FaceKey, VertexKey};
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
+    use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band")
+    }
+
+    /// A unit-radius sheet about `+z` over azimuth `[0, u1]`, `z ∈ [0, 1]`.
+    fn sheet(u1: f64) -> (Body<f64>, FaceKey) {
+        let mut y = Body::new();
+        let face = cyl_wall_sheet(
+            &mut y,
+            CylFrame::canonical(1.0),
+            None,
+            (0.0, u1),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        (y, face)
+    }
+
+    /// The unit prism's `y = 0` side face, and its vertices `(0,0,0)`,
+    /// `(1,0,0)`, `(1,0,1)`, `(0,0,1)`.
+    fn side() -> (Body<f64>, FaceKey, [VertexKey; 4]) {
+        let p = prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let v = [p.bottom[0], p.bottom[1], p.top[1], p.top[0]];
+        (p.body, p.side_faces[0], v)
+    }
+
+    fn vertex_at(y: &Body<f64>, p: Point3<f64>) -> VertexKey {
+        y.vertices()
+            .find(|(_, v)| {
+                y.get_point(v.point)
+                    .is_some_and(|q| (*q - p).norm() < 1e-12)
+            })
+            .map(|(k, _)| k)
+            .unwrap_or_else(|| panic!("a vertex at {p:?}"))
+    }
+
+    fn edge_between(y: &Body<f64>, a: VertexKey, b: VertexKey) -> EdgeKey {
+        y.edges()
+            .find(|(_, e)| {
+                let ends = [e.he_plus, e.he_minus].map(|h| y.get_half_edge(h).unwrap().start);
+                ends == [a, b] || ends == [b, a]
+            })
+            .map(|(k, _)| k)
+            .expect("an edge between the two vertices")
+    }
+
+    fn meets(
+        y: &Body<f64>,
+        face: FaceKey,
+        (center, axis, radius): (Point3<f64>, Vec3<f64>, f64),
+        at: &[VertexKey],
+    ) -> bool {
+        boundary_meets_circle_only_at(y, face, (center, axis, radius), at, band())
+            .expect("a walkable boundary")
+    }
+
+    /// A conic edge crossing the circle's plane ON the circle meets it
+    /// there; the same crossing off the circle does not. The half sheet's
+    /// arcs cross `x = 0` at `(0, 1, 0)` and `(0, 1, 1)`, both on the
+    /// circle of radius `1/2` about `(0, 1, 1/2)`.
+    #[test]
+    fn a_conic_crossing_on_the_circle_is_a_meeting() {
+        let (y, face) = sheet(PI);
+        let on = (Point3::new(0.0, 1.0, 0.5), Vec3::unit_x(), 0.5);
+        let off = (Point3::new(0.0, 1.0, 0.5), Vec3::unit_x(), 0.25);
+        assert!(
+            !meets(&y, face, on, &[]),
+            "the arcs cross the plane on the circle"
+        );
+        assert!(
+            meets(&y, face, off, &[]),
+            "and the same crossings off it are clear"
+        );
+    }
+
+    /// A conic lying in the circle's plane does not certify, even ON
+    /// the circle between two of `at`: the sheet's bottom arc is the
+    /// circle itself.
+    #[test]
+    fn a_conic_in_the_plane_does_not_certify() {
+        let (y, face) = sheet(FRAC_PI_2);
+        let at = [
+            vertex_at(&y, Point3::new(1.0, 0.0, 0.0)),
+            vertex_at(&y, Point3::new(0.0, 1.0, 0.0)),
+        ];
+        let circle = (Point3::origin(), Vec3::unit_z(), 1.0);
+        assert!(
+            !meets(&y, face, circle, &at),
+            "the bottom arc lies on the circle"
+        );
+        let lifted = (Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), 2.0);
+        assert!(
+            meets(&y, face, lifted, &[]),
+            "a parallel plane between the arcs, its circle off the rulings, is clear"
+        );
+    }
+
+    /// A line lying in the circle's plane certifies only as a chord
+    /// between two of `at` whose midpoint is decided off the circle. The
+    /// prism side's edge `x = 1` lies in the plane `x = 1`; the circles
+    /// are in that plane.
+    #[test]
+    fn a_line_in_the_plane_certifies_only_as_a_chord_decided_off_the_circle() {
+        let (y, face, v) = side();
+        let crossed = (Point3::new(1.0, 0.0, 0.5), Vec3::unit_x(), 0.2);
+        assert!(
+            !meets(&y, face, crossed, &[]),
+            "the edge crosses the circle twice"
+        );
+        let grazed = (Point3::new(1.0, 0.3, 0.5), Vec3::unit_x(), 0.3);
+        assert!(
+            !meets(&y, face, grazed, &[v[1], v[2]]),
+            "between two of `at`, but touching the circle at its midpoint"
+        );
+        let chord = (Point3::new(1.0, 0.0, 0.5), Vec3::unit_x(), 0.5);
+        assert!(
+            meets(&y, face, chord, &[v[1], v[2]]),
+            "a chord of the circle is clear"
+        );
+    }
+
+    /// A vertex whose side of the plane escalates is placed nowhere,
+    /// even when the line to it leaves the plane at once: its real
+    /// crossing can lie `|h| / sin θ` away. The plane is tilted through
+    /// `(1, 0, 0)` and offset from it in band.
+    #[test]
+    fn a_vertex_in_band_of_the_plane_does_not_certify() {
+        let (y, face, _) = side();
+        let b = band();
+        let n = Vec3::new(1.0, 0.0, 0.1).normalize();
+        let h = (b.zero() + b.escalate()) / 2.0;
+        let near = (Point3::new(1.0, 0.0, 0.0) + n * h, n, 5.0);
+        assert!(!meets(&y, face, near, &[]), "the corner's side escalates");
+        let clear = (Point3::new(1.0, 0.0, 0.0) + n * 0.25, n, 5.0);
+        assert!(
+            meets(&y, face, clear, &[]),
+            "the same plane off the corner is clear"
+        );
+    }
+
+    /// An edge the certificate cannot place does not certify: the prism
+    /// side's top edge re-described as a degree-1 NURBS line.
+    #[test]
+    fn a_nurbs_boundary_edge_does_not_certify() {
+        let (mut y, face, v) = side();
+        let plane = (Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), 5.0);
+        assert!(
+            meets(&y, face, plane, &[]),
+            "the line-bounded face is clear"
+        );
+        let top = edge_between(&y, v[2], v[3]);
+        let (p0, p1) = (Point3::new(1.0, 0.0, 1.0), Point3::new(0.0, 0.0, 1.0));
+        let plus_start = y
+            .get_half_edge(y.get_edge(top).unwrap().he_plus)
+            .unwrap()
+            .start;
+        let (p0, p1) = if plus_start == v[2] {
+            (p0, p1)
+        } else {
+            (p1, p0)
+        };
+        let (s1, s2) = crate::readback::edge_sides(&y, top).unwrap().surfaces();
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+        ));
+        let spec = geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: p0.lerp(p1, 0.5),
+            },
+            carrier,
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        y.set_edge_curve(top, spec, Tol::witness())
+            .expect("the NURBS line attaches");
+        assert!(!meets(&y, face, plane, &[]), "a NURBS edge is not placed");
+    }
+
+    /// A chain of circle arcs leaving along the tangent reaches its end
+    /// only through vertices decided on the circle. The quarter sheet's
+    /// bottom arc, split at 45°, leaves `(1, 0, 0)` along `+y`, as the
+    /// circle of radius 2 about `(−1, 0, 0)` does; its middle vertex is
+    /// off that circle, and on the sheet's own.
+    #[test]
+    fn a_chain_vertex_off_the_circle_breaks_the_chain() {
+        let (mut y, _) = sheet(FRAC_PI_2);
+        let (from, to) = (
+            vertex_at(&y, Point3::new(1.0, 0.0, 0.0)),
+            vertex_at(&y, Point3::new(0.0, 1.0, 0.0)),
+        );
+        let bottom = edge_between(&y, from, to);
+        let mid = Point3::new(FRAC_PI_4.cos(), FRAC_PI_4.sin(), 0.0);
+        split_other_at_point(&mut y, Operand::B, bottom, mid, band(), Tol::witness())
+            .expect("the arc splits");
+        let reach = |circle| {
+            arc_chain_reaches(&y, from, to, Vec3::unit_y(), circle, band()).expect("no escalation")
+        };
+        assert!(
+            !reach((Point3::new(-1.0, 0.0, 0.0), Vec3::unit_z(), 2.0)),
+            "the middle vertex is off the tangent circle"
+        );
+        assert!(
+            reach((Point3::origin(), Vec3::unit_z(), 1.0)),
+            "and on the sheet's own circle the chain runs through"
+        );
     }
 }
