@@ -187,7 +187,7 @@ fn probe_scale(
                 .and_then(|row| Some((row.value.ok()?, row.dimension, row.unit)));
             let Some((value, dimension, unit)) = found else {
                 return Err(Refusal::NoSuchSlot {
-                    node: *node,
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             };
