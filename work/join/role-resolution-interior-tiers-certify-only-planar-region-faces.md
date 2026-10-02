@@ -2,10 +2,12 @@
 id: role-resolution-interior-tiers-certify-only-planar-region-faces
 kind: issue
 title: Role resolution probes a curved edge at its chord midpoint, which is on neither flanking region and reads both loops alike (SectionLoopMixed); its region-interior tiers read a curved region through the planar-only face_plane
-status: open
+status: closed
 opened: 2026-09-25
 priority: P0
 cost: H
+closed: 2026-10-02
+refs: [the-uncut-shell-witness-reads-no-curved-face-interior]
 ---
 
 
@@ -89,3 +91,14 @@ rather than refused. The chord-midpoint tier is gone.
   remains is that a curved region's interior is not read, which
   `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`
   now carries for both callers of the ladder.
+
+## Closed 2026-10-02 — at JOIN's opening, on what main already carries
+
+§1 is fixed on main: role resolution runs `shell_witness::complex_side`
+and the chord-midpoint tier is gone (`boolean/join.rs`), and the
+reproducer flipped to
+`axis_lap.rs` `a_rim_semicircle_decides_role_resolution_at_its_own_midpoint`.
+§2's remainder, that the ladder reads no curved face's interior, is
+`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`,
+which carries it for both callers of the ladder. Nothing is left on
+this row.

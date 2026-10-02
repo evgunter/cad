@@ -71,7 +71,7 @@
 //! These names are functions of the finished body, so they are
 //! order-free as far as the boolean's output is: where different member
 //! orders leave different vertices (a declared merge can,
-//! `work/zip/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`),
+//! `work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`),
 //! the names differ with them.
 //!
 //! A refusal raised mid-fold, and the declaration door's view of an

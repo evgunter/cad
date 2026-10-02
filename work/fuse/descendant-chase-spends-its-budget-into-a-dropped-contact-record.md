@@ -61,7 +61,7 @@ PROBE_B a_on_b after a DEAD END: 0 record(s)
 
 The two are **indistinguishable at the call site**, which is the
 finding. The probe is committed beside this row at
-`work/zip/probe-descendant-cycle.patch` — apply it to
+`work/fuse/probe-descendant-cycle.patch` — apply it to
 `crates/topo/src/boolean/ops.rs` to re-take the measurement. Authorship
 is the review lane's (2026-09-13); it is a probe, not a merge
 candidate, and it asserts the two counts EQUAL so that separating them

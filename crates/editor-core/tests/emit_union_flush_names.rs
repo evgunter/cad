@@ -230,7 +230,7 @@ const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
 const NEAR: Bx = ((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0));
 
 /// The ZIP row's shape
-/// (`work/zip/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
+/// (`work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
 /// `a`, `b` declared flush and a slab over `b`'s end.
 fn near_slab() -> Case {
     Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2], vec![(0, 1)])
