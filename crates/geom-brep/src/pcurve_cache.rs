@@ -59,8 +59,11 @@
 //!   stored one ([`EnvelopeStatement::MapResidualClosedForm`]), so a minted row's
 //!   identity is a theorem rather than a trig round trip. The shared
 //!   [`crate::CERT_SAMPLES`] schedule is the closed-form tables'
-//!   cross-check: it runs where the scalar is a point, and as the
-//!   property test `envelope_lemma_fuzz`, and not over a parameter box.
+//!   cross-check: it runs on the witness lane (a scalar whose
+//!   [`geom_core::Witness`] is `Inexact`: `f64`, `Sym<f64>`, the
+//!   driver's point witness) and as the property test
+//!   `envelope_lemma_fuzz`, and not at a certifying scalar (`Interval`,
+//!   `Sym<Interval>`), over a box or at a point alike.
 //! - **Where no closed form exists**, the certificate falls back to the
 //!   displacement at the shared schedule plus a between-samples
 //!   envelope. For a fitted image on a NURBS chart that envelope bounds
@@ -2107,7 +2110,7 @@ pub enum EnvelopeStatement {
     /// **On a harmonic row this envelope is the whole certified
     /// statement** (C4): the lemma above is proven once and pinned by
     /// that sweep, and the schedule that used to re-check it on every
-    /// body runs only where the scalar is a point, as a cross-check
+    /// body runs only on the witness lane (`Witness::Inexact`), as a cross-check
     /// whose verdicts are not part of the certificate
     /// ([`PcurveCache::certify`] step 3).
     MapResidualClosedForm,
@@ -2237,8 +2240,11 @@ pub enum EnvelopeStatement {
 #[derive(Clone, Copy, Debug)]
 pub struct PcurveCertificate<T: Real> {
     /// The sample count of the schedule that ran ([`CERT_SAMPLES`]), or
-    /// `0` where none ran: a [`Pcurve::Harmonic`] row over a parameter
-    /// box, whose envelope is its whole certified statement.
+    /// `0` where none ran: a [`Pcurve::Harmonic`] row certified at a
+    /// scalar whose [`geom_core::Witness`] is `Exact` (`Interval`,
+    /// `Sym<Interval>`), at a point or over a box alike. Its envelope
+    /// is its whole certified statement; the schedule cross-checks it on
+    /// the witness lane only.
     pub samples: u32,
     /// The maximum `|S(P(tᵢ)) − C(tᵢ)|` over the schedule (metres), `0`
     /// where none ran — **the sampled max only**. The between-samples statement is
@@ -2840,8 +2846,10 @@ impl<T: Decide> PcurveCache<T> {
     ///    form step 4 states is *verified* at the samples, never
     ///    trusted. On a [`Pcurve::Harmonic`] image step 4 is the whole
     ///    certified statement and this step is its cross-check: it runs
-    ///    where the scalar is a point ([`geom_core::Witness::Inexact`]),
-    ///    records no verdict, and is not run over a parameter box.
+    ///    on the witness lane ([`geom_core::Witness::Inexact`]: `f64`,
+    ///    `Sym<f64>`), records no verdict, and is not run at an
+    ///    exact-witness scalar (`Interval`, `Sym<Interval>`), at a point
+    ///    or over a box.
     /// 4. **Envelope**: the between-samples sup bound over the whole
     ///    span ≤ ε, by the lane the variant selects.
     ///    - [`Pcurve::Harmonic`]: the closed-form bound
@@ -3626,6 +3634,18 @@ fn param_rate_gate<T: Decide>(
     Ok(rate)
 }
 
+/// How a residual's decision is recorded: as a verdict of the
+/// certified statement ([`decide`]), or as check 4's cross-check on a
+/// harmonic row, which refuses as a verdict would and records none
+/// (`k_stats::check_unlogged`, audit row F20: a point build would
+/// otherwise log rows a box build cannot, and the driver compares the
+/// two row for row).
+#[derive(Clone, Copy)]
+enum Record {
+    Verdict,
+    CrossCheck,
+}
+
 /// Folds a residual into the running max and classifies it against the
 /// band (the `certify::check_residual` idiom, one module over).
 fn check_residual<T: Decide>(
@@ -3636,8 +3656,35 @@ fn check_residual<T: Decide>(
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), PcurveCertifyError> {
+    check_residual_as(
+        Record::Verdict,
+        name,
+        check,
+        sample,
+        residual,
+        band,
+        max_residual,
+    )
+}
+
+/// [`check_residual`], recorded as `record` says.
+fn check_residual_as<T: Decide>(
+    record: Record,
+    name: &'static str,
+    check: PcurveCheck,
+    sample: u32,
+    residual: Margin<T>,
+    band: Band,
+    max_residual: &mut T,
+) -> Result<(), PcurveCertifyError> {
     *max_residual = max_residual.max(residual.value().abs());
-    match decide(name, residual, band) {
+    let decided = match record {
+        Record::Verdict => decide(name, residual, band),
+        Record::CrossCheck => {
+            geom_core::k_stats::check_unlogged(name, residual.value(), band, "F20")
+        }
+    };
+    match decided {
         Ok(Sign::Zero) => Ok(()),
         Ok(Sign::Positive | Sign::Negative) => {
             Err(PcurveCertifyError::ResidualExceeded { check, sample })
@@ -3741,11 +3788,20 @@ fn run_harmonic_checks<T: Decide>(
 
     // ---- Check 3: the schedule, the closed form's cross-check. ----
     // Check 4's envelope is the whole certified statement of a harmonic
-    // row (C4); the schedule cross-checks its tables where the scalar is
-    // a point, and is not run over a parameter box.
+    // row (C4); the schedule cross-checks its tables on the witness lane
+    // (`Witness::Inexact`), and is not run at an exact-witness scalar.
     let samples = match T::WITNESS {
         geom_core::Witness::Inexact => {
-            schedule_cross_check(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+            schedule_residuals(
+                Record::CrossCheck,
+                pcurve,
+                t0,
+                t1,
+                carrier,
+                surface,
+                band,
+                &mut max_residual,
+            )?;
             CERT_SAMPLES
         }
         geom_core::Witness::Exact => 0,
@@ -4671,7 +4727,16 @@ fn run_cone_section_checks<T: Decide>(
     }
 
     // ---- Check 3: the schedule, in metres through the map. ----
-    schedule_residuals(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the closed-form between-samples envelope. ----
     let (sin_a, cos_a) = half_angle.sin_cos();
@@ -5000,7 +5065,16 @@ fn run_spiric_checks<T: Decide>(
     }
 
     // ---- Check 3: the schedule, in metres through the map. ----
-    schedule_residuals(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the between-samples statement, one per image. ----
     //
@@ -5619,9 +5693,13 @@ fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
     T::from_f64((hi / lo).powi(2))
 }
 
-/// Check 3 for either lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
-/// schedule, in metres through the map.
+/// Check 3 for every lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
+/// schedule, in metres through the map, recorded as `record` says: a
+/// verdict on every lane whose statement it is part of, and the
+/// cross-check of check 4's closed form on a harmonic row.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
 fn schedule_residuals<T: Decide>(
+    record: Record,
     pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
@@ -5635,7 +5713,8 @@ fn schedule_residuals<T: Decide>(
         let chart_point = pcurve.eval(t);
         let mapped = surface.eval(chart_point.x, chart_point.y);
         let on_carrier = carrier.eval(t);
-        check_residual(
+        check_residual_as(
+            record,
             "pcurve_map_residual",
             PcurveCheck::MapResidual,
             i,
@@ -5643,50 +5722,6 @@ fn schedule_residuals<T: Decide>(
             band,
             max_residual,
         )?;
-    }
-    Ok(())
-}
-
-/// Check 3 on a harmonic row: [`schedule_residuals`]'s samples, decided
-/// as a cross-check of check 4's closed form rather than as part of the
-/// certified statement ([`geom_core::k_stats::decide_cross_check`]), so
-/// they refuse as before and record no verdict.
-fn schedule_cross_check<T: Decide>(
-    pcurve: &Pcurve<T>,
-    t0: T,
-    t1: T,
-    carrier: &Curve3<T>,
-    surface: &Surface<T>,
-    band: Band,
-    max_residual: &mut T,
-) -> Result<(), PcurveCertifyError> {
-    for i in 0..CERT_SAMPLES {
-        let t = sample_param(t0, t1, i);
-        let chart_point = pcurve.eval(t);
-        let residual = surface
-            .eval(chart_point.x, chart_point.y)
-            .distance(carrier.eval(t));
-        *max_residual = max_residual.max(residual.abs());
-        match geom_core::k_stats::decide_cross_check(
-            "pcurve_map_residual",
-            Margin::of(residual),
-            band,
-        ) {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => {
-                return Err(PcurveCertifyError::ResidualExceeded {
-                    check: PcurveCheck::MapResidual,
-                    sample: i,
-                });
-            }
-            Err(cause) => {
-                return Err(PcurveCertifyError::Escalated {
-                    check: PcurveCheck::MapResidual,
-                    sample: i,
-                    cause,
-                });
-            }
-        }
     }
     Ok(())
 }
@@ -5832,7 +5867,16 @@ fn run_fitted_checks<T: Decide>(
 
     // ---- Check 3: the schedule, in metres through the map. ----
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the envelope, RE-DERIVED. ----
     let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
@@ -5971,7 +6015,16 @@ fn run_iso_arc_checks<T: Decide>(
         breaks: breaks.clone(),
     };
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the rational control-difference hull. ----
     let esc = |cause| PcurveCertifyError::Escalated {
@@ -6328,7 +6381,16 @@ fn run_iso_checks<T: Decide>(
     // ---- Check 3: the schedule, in metres through the map. ----
     let pcurve = Pcurve::IsoLine { p0, pl };
     let mut max_residual = T::zero();
-    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+    schedule_residuals(
+        Record::Verdict,
+        &pcurve,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
 
     // ---- Check 4: the control-difference hull envelope, by class. ----
     let esc = |cause| PcurveCertifyError::Escalated {

@@ -444,11 +444,13 @@ fn classify_gated<T: Decide, R>(
     })
 }
 
-/// **An EVALUATOR check, named for the recorder and NOT logged as a
-/// verdict** — the door for a ruled decision that is not a
-/// certification predicate: the evaluator's finiteness check on every
+/// **A check named for the recorder and NOT logged as a verdict** —
+/// the door for a ruled decision that is not part of what a
+/// certificate states: the evaluator's finiteness check on every
 /// expression it produces (`editor_core::expr::refuse_non_finite`,
-/// ledger row F18). It classifies through the one body, so its K
+/// ledger row F18), and `geom_brep`'s pcurve schedule on a `Harmonic`
+/// row, which cross-checks check 4's closed form where the scalar is
+/// a point and is not run over a parameter box (C4; ledger row F20). It classifies through the one body, so its K
 /// samples carry its name (they were charged to whichever predicate
 /// classified last until M10-8 scoped the name — 1,054 corpus rows at
 /// ε = 1e-6), and it stays OUT of the verdict log on purpose: the log is
@@ -459,8 +461,12 @@ fn classify_gated<T: Decide, R>(
 /// on a verdict-vector mismatch, the certification key moved, and no
 /// geometry had changed). Its refusal already reaches the consumer as
 /// `EvalError::NonFiniteResult`, so no verdict is lost by not logging
-/// one. `ledger_row` is the obligation [`decide_flagged`] carries: the
-/// audit row that argues why no `Margin` door fits the comparand.
+/// one. The pcurve cross-check is the same shape: it runs at the
+/// driver's point witness and not at the box leaf, so logged it would
+/// put rows in one vector the other cannot have, and a refusal still
+/// refuses the witness build. `ledger_row` is the obligation
+/// [`decide_flagged`] carries: the audit row that argues why the
+/// decision is taken outside the logged `Margin` doors.
 pub fn check_unlogged<T: Decide>(
     name: &'static str,
     margin: T,
@@ -469,28 +475,6 @@ pub fn check_unlogged<T: Decide>(
 ) -> Result<Sign, Indeterminate> {
     let _ = ledger_row;
     classify_in(name, margin, band, false).map(|d| d.sign)
-}
-
-/// **A CROSS-CHECK at a point scalar, named for the recorder and NOT
-/// logged as a verdict** — [`decide`] for a decision that verifies a
-/// closed form the certificate states elsewhere rather than being part
-/// of what it certifies: `geom_brep`'s pcurve schedule on a `Harmonic`
-/// row, which checks the closed-form tables where the scalar is a point
-/// and is not run over a parameter box (C4). A refusal still refuses;
-/// what it leaves out is the verdict log, because the certified
-/// statement is decided at every scalar and this one is not, so a point
-/// build's verdict vector would otherwise carry rows a box build's
-/// cannot, and the driver compares the two row for row.
-///
-/// # Errors
-///
-/// As [`decide`].
-pub fn decide_cross_check<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    classify_in(name, margin.value(), band, false).map(|d| d.sign)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
