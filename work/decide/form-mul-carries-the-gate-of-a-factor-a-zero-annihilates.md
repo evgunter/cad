@@ -39,3 +39,14 @@ The fix has the same shape as `combine`'s: a product with a zero factor
 takes the AND of its zero factors' gates. It also moves `Form::digest`
 for such a product, so a row should show that no atom key a measured
 document mints moves.
+
+**The class, whole.** DECIDE-9's review names these sites. Each builds
+a product's gate as the OR of its factors' gates:
+- `Form::mul` (`sym/form.rs`);
+- `powi_form` (`sym.rs`), which multiplies through `Form::mul`;
+- `algebra::apply` (`sym/algebra.rs`, the `gated: out.gated || f.gated`
+  of a substitution step).
+
+The rule they would take is `zero_factors_gate` in `sym.rs`: a product
+is gated exactly when every zero factor is gated. That helper is the one
+home of the rule, and these sites should call it rather than restate it.
