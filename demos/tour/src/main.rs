@@ -70,6 +70,7 @@ mod lily;
 mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
+mod oracles;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;
