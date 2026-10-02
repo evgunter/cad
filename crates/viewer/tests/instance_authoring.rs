@@ -608,10 +608,7 @@ fn failed_badge(path: &Path, node: RecipeNodeId, tol: Tol) -> String {
     assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
     session.pump();
     let rows = session.tree_rows();
-    let row = rows
-        .iter()
-        .find(|row| row.id == node)
-        .expect("the instance has a row");
+    let row = common::row_of(&rows, node);
     let message = match &row.status {
         RowStatus::Failed { message, .. } => message.clone(),
         other => panic!("expected the instance to fail, got {other:?}"),
@@ -685,7 +682,7 @@ fn an_authored_instance_whose_part_records_another_epsilon_badges_the_seam() {
 #[test]
 fn every_unresolved_part_badge_meets_the_refusal_standard() {
     use test_utils::refusal::{Admission, problems_admitting};
-    const HEX: &str = "work/edit/part-refusals-name-documents-by-hex-id.md";
+    const HEX: &str = "work/doctail/part-refusals-name-documents-by-hex-id.md";
     let tol = Tol::witness();
     let mut rows: Vec<(&str, String, Vec<String>)> = Vec::new();
 
@@ -802,11 +799,7 @@ fn bench_with_the_post_moved(tag: &str, tol: Tol) -> (asm::Bench, DocSession) {
 
 /// The row `node` draws on.
 fn row_of(session: &DocSession, node: RecipeNodeId) -> tree::TreeRow {
-    session
-        .tree_rows()
-        .into_iter()
-        .find(|row| row.id == node)
-        .unwrap_or_else(|| panic!("node {} has a row", node.0))
+    common::row_of(&session.tree_rows(), node).clone()
 }
 
 /// **Offer → accept → one undo**, on the real session over the bench's

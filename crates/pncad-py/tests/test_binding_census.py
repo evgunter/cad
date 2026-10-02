@@ -2250,8 +2250,17 @@ NOT_BOUND = {
     # (`FullId`); and its kind word is `Doc.node_kind`, the snake_case
     # vocabulary `src/node_kind.rs` keeps apart from the chrome's noun.
     # A spoken name is the same: its sentence rides inside the error,
-    # and its machine spelling is the opaque name text.
+    # and its machine spelling is the opaque name text. The speaker a
+    # refusal holding bare ids is said by is the binding's own business:
+    # each door's message is spoken from the evaluated document, and a
+    # `MateFault` an edit door refused carries the nodes it kept.
     "FullId": SHAPE,
+    "HeldNodes": SHAPE,
+    "held_by": SHAPE,
+    "Said": SHAPE,
+    "Say": SHAPE,
+    "Speaker": SHAPE,
+    "spoken_by": SHAPE,
     "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     "node_kind_noun": SHAPE,

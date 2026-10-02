@@ -307,7 +307,7 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
     // door (CurvedPierceUnsupported), never a wrong body.
     let boss_over = n_arc_boss(Point2::new(0.0, 1.5), 3, 0.3, 1.0);
     match topo::union(&plate(), &boss_over, Tol::witness()) {
-        // This fixture reaches `CurvedSectorSideUnsupported` today, so
+        // This fixture reaches the pierce ring's join door today, so
         // no text is asserted here; the pierce refusal's sentence is
         // pinned where it executes, by
         // `verbs_germarms_r1_probes::r1_the_grazing_red_refuses_on_a_line_carrier`.

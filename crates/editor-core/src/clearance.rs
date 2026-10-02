@@ -646,18 +646,28 @@ pub enum ClearanceRefusal {
 impl ClearanceRefusal {
     /// The refusal's own payload, rendered for the goldening form — the
     /// half `name` drops, so two runs that refuse for the same CLASS on
-    /// different evidence do not serialize alike.
+    /// different evidence do not serialize alike. A machine channel: a
+    /// node id prints in full ([`SelectionRefusal::payload`]).
     pub fn payload(&self) -> String {
         match self {
             Self::Sliver { predicate } => (*predicate).to_owned(),
             Self::Budget(k) => format!("{k:?}"),
             Self::Unsupported { carrier, face } => format!("{carrier} {face:?}"),
-            Self::Selection(r) => format!("{r}"),
+            Self::Selection(r) => r.payload(),
             Self::WitnessUnverified { what } => what.clone(),
             Self::PoisonEnclosure { a, b } => format!("{a:?}/{b:?}"),
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
             Self::EmptyScope | Self::ToleranceHasNoBand | Self::NoAdmittedPair => String::new(),
+        }
+    }
+
+    /// The payload a sentence quotes: [`Self::payload`], but a
+    /// selection's refusal in words, its nodes said by `by`.
+    pub(crate) fn said_payload(&self, by: crate::spoken::Speaker<'_>) -> String {
+        match self {
+            Self::Selection(r) => crate::spoken::Said(r, by).to_string(),
+            _ => self.payload(),
         }
     }
 
@@ -740,16 +750,27 @@ pub enum SelectionRefusal {
     },
 }
 
-impl core::fmt::Display for SelectionRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// Memoized inside `NodeErrorKind::MeasureClearanceRefused`, so it holds
+// ids, said by the speaker of the frame that hands it out.
+impl crate::spoken::Say for SelectionRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::NodeDidNotBuild(standing) => write!(
                 f,
                 "the selection has no faces to measure a clearance between in this leaf's \
-                 replay: {standing}"
+                 replay: {}",
+                crate::spoken::Said(standing, by)
             ),
             Self::NoSuchBody { node, index } => {
-                write!(f, "node {}'s value carries no body at index {index}", node)
+                write!(
+                    f,
+                    "{}'s value carries no body at index {index}",
+                    by.node(*node)
+                )
             }
             Self::Unresolved { name } => write!(
                 f,
@@ -761,11 +782,55 @@ impl core::fmt::Display for SelectionRefusal {
             Self::AcrossSpaces { group, cause } => write!(
                 f,
                 "the two selections live in different spaces — one is in the own space of the \
-                 group rooted at node {}, unplaced because {cause}, and nothing outside an \
+                 group rooted at {}, unplaced because {cause}, and nothing outside an \
                  unplaced group is compared with it. {}",
-                group,
+                by.node(*group),
                 crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
+        }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for SelectionRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl SelectionRefusal {
+    /// **The refusal for the goldening form**: its class word and its
+    /// fields, each node id in full ([`RecipeNodeId::full`]) — a machine
+    /// channel, where two ids must never print alike.
+    pub fn payload(&self) -> String {
+        match self {
+            Self::NodeDidNotBuild(standing) => {
+                let (word, node, through) = match *standing {
+                    NodeStanding::NotEvaluated { node } => ("not_evaluated", node, None),
+                    NodeStanding::NotInDocument { node } => ("not_in_document", node, None),
+                    NodeStanding::Failed { node } => ("failed", node, None),
+                    NodeStanding::Poisoned { node, through } => ("poisoned", node, Some(through)),
+                };
+                let mut out = format!("node_did_not_build {word} node={}", node.full());
+                if let Some(through) = through {
+                    out.push_str(&format!(" through={}", through.full()));
+                }
+                out
+            }
+            Self::NoSuchBody { node, index } => {
+                format!("no_such_body node={} index={index}", node.full())
+            }
+            Self::Unresolved { name } => format!("unresolved {name}"),
+            Self::NotAFace { name } => format!("not_a_face {name}"),
+            Self::AcrossSpaces { group, cause } => {
+                let cause = match cause {
+                    crate::mate::Unplaced::NoOffset => cause.word().to_owned(),
+                    crate::mate::Unplaced::DeadGauge { gauge } => {
+                        format!("{}={}", cause.word(), gauge.full())
+                    }
+                };
+                format!("across_spaces group={} {cause}", group.full())
+            }
         }
     }
 }
@@ -1075,7 +1140,12 @@ impl ClearanceReport {
                 }
             }
             ClearanceVerdict::Refused(r) => {
-                let _ = writeln!(s, "REFUSED ({}): {}", r.name(), r.payload());
+                let _ = writeln!(
+                    s,
+                    "REFUSED ({}): {}",
+                    r.name(),
+                    r.said_payload(crate::spoken::Speaker::TAG)
+                );
             }
         }
         let r = self.receipt;

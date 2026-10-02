@@ -978,3 +978,243 @@ fn a_report_rendered_from_another_document_fails_loud() {
     };
     let _ = render_sensitivity(&entry, &other);
 }
+
+/// **A selection door's refusal holds ids and is spoken by the frame**
+/// that holds the evaluated document. The pick, select and resolve
+/// doors read an evaluation alone, so their refusals keep the bare id
+/// (their own `Display` says the tag), and `spoken` says each node as
+/// the document holds it when the sentence is made: a rename after the
+/// raise is heard, and a node the document no longer holds is `node
+/// <tag>`.
+#[test]
+fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
+    use editor_core::{
+        ChecksError, Cmp, Diagnosis, EntityKind, HitTestError, InterrogateError, NamePat, NodePick,
+        NodePickError, NodeStanding, Resolution, ResolveError, RunCtx, SelectRefusal, Selector,
+        SlotId, resolve, select, select_where,
+    };
+
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-select", tol);
+    let (doc, [frame, _, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, frame, Some("sketch plane"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let eval = |doc: &ProfileDoc| {
+        evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
+    };
+    let ev = eval(&doc);
+    let (f, e) = (tag(frame.0), tag(extrude.0));
+
+    let pick = NodePick::build(&ev, frame, 0, 0.1, tol).expect_err("a frame draws no body");
+    assert_eq!(pick, NodePickError::NotABody { node: frame });
+    assert!(
+        pick.to_string()
+            .starts_with(&format!("pick: node {f}'s value is not body-denoting")),
+        "{pick}"
+    );
+    assert!(
+        pick.spoken(&doc).starts_with(&format!(
+            "pick: Datum frame \"sketch plane\" ({f})'s value is not body-denoting"
+        )),
+        "{}",
+        pick.spoken(&doc)
+    );
+    let renamed = set_label(doc.clone(), frame, Some("top plane"));
+    assert!(
+        pick.spoken(&renamed)
+            .starts_with(&format!("pick: Datum frame \"top plane\" ({f})'s")),
+        "a refusal raised before a rename speaks the label as it stands: {}",
+        pick.spoken(&renamed)
+    );
+
+    let from_extrude = [editor_core::GeomPred::DatumDistance {
+        datum: extrude,
+        cmp: Cmp::Approx,
+        value: fixture::len(0.0),
+    }];
+    let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
+    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.param_env(), tol)
+        .expect_err("an extrude is not a datum");
+    assert!(matches!(refusal, SelectRefusal::NotADatum { datum, .. } if datum == extrude));
+    assert!(
+        refusal.spoken(&doc).starts_with(&format!(
+            "select: the query measures from Extrude \"base plate\" ({e}), which produced"
+        )),
+        "{}",
+        refusal.spoken(&doc)
+    );
+
+    let poisoned = NodeStanding::Poisoned {
+        node: extrude,
+        through: frame,
+    };
+    assert_eq!(
+        poisoned.spoken(&doc),
+        format!(
+            "Extrude \"base plate\" ({e}) is poisoned by the failure at Datum frame \"sketch \
+             plane\" ({f}), so it has no value — the repair is upstream, at Datum frame \
+             \"sketch plane\" ({f})"
+        )
+    );
+    assert!(
+        poisoned
+            .to_string()
+            .starts_with(&format!("node {e} is poisoned by the failure at node {f}")),
+        "{poisoned}"
+    );
+
+    let wall = select(&ev, extrude, &faces)
+        .into_iter()
+        .next()
+        .expect("the extrude names its faces");
+    let plate = format!("Extrude \"base plate\" ({e})");
+
+    // Each held node is said as the document holds it, through every
+    // refusal that forwards a standing or a name.
+    let failed = NodeStanding::Failed { node: extrude };
+    assert_eq!(
+        HitTestError::Standing(failed).spoken(&doc),
+        format!("hit test: {plate} failed, so it has no value — fix the node's own failure")
+    );
+    assert_eq!(
+        InterrogateError::Standing(failed).spoken(&doc),
+        format!("{plate} failed, so it has no value — fix the node's own failure")
+    );
+    assert_eq!(
+        ChecksError::Root(failed).spoken(&doc),
+        format!("checks: root {plate} failed, so it has no value — fix the node's own failure")
+    );
+    let changed = Diagnosis::StructuralParam {
+        node: extrude,
+        param: SlotId::Count,
+    };
+    assert_eq!(
+        changed.spoken(&doc),
+        format!(
+            "a structural parameter changed on the derivation path: slot {} of {plate}",
+            SlotId::Count.label()
+        )
+    );
+    let vanished = ResolveError::Vanished {
+        name: wall.clone(),
+        diagnosis: changed,
+        last_good: None,
+    };
+    assert!(
+        vanished.spoken(&doc).starts_with(&format!(
+            "the face name minted by {plate} no longer resolves in this evaluation: a \
+             structural parameter changed on the derivation path: slot {} of {plate}",
+            SlotId::Count.label()
+        )),
+        "{}",
+        vanished.spoken(&doc)
+    );
+    assert!(
+        vanished.to_string().starts_with(&format!(
+            "the face name minted by node {e} no longer resolves"
+        )),
+        "{vanished}"
+    );
+
+    let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: extrude });
+    let Resolution::Failed(failure) = resolve(
+        RunCtx {
+            doc: &gone,
+            eval: &eval(&gone),
+        },
+        &wall,
+    ) else {
+        panic!("a name whose minting node was deleted does not resolve");
+    };
+    assert_eq!(
+        failure.error.spoken(&gone),
+        format!(
+            "the face name minted by node {e} is stranded: its minting node was deleted — the \
+             repair is an explicit rebind"
+        ),
+        "a node the document no longer holds is said by its tag"
+    );
+}
+
+/// **A memoized refusal's inner nodes are spoken by the frame, and the
+/// node a line is about is named once.** Each value is built as the
+/// evaluation would hold it, over a document that holds its node under
+/// a label: the words a frame speaks say the label, the tag form says
+/// the tag, and a node the line already names reads `this …`.
+#[test]
+fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
+    use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
+    use editor_core::{
+        MateFault, MateSide, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, Unplaced, spoken_by,
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive("speak-inner"), Tol::witness());
+    let (doc, [_, _, body]) = block(doc, 0.0);
+    let doc = set_label(doc, body, Some("base plate"));
+    let t = tag(body.0);
+    let spoken = format!("Extrude \"base plate\" ({t})");
+
+    // A clearance refusal inside a measure's failure speaks its node
+    // through the frame (`said_payload`).
+    let measured = NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Selection(
+        SelectionRefusal::NoSuchBody {
+            node: body,
+            index: 3,
+        },
+    ));
+    assert_eq!(
+        spoken_by(&measured, &doc),
+        format!(
+            "the clearance engine refused `selection` ({spoken}'s value carries no body at \
+             index 3)"
+        )
+    );
+    assert!(
+        measured
+            .to_string()
+            .contains(&format!("(node {t}'s value carries no body at index 3)")),
+        "{measured}"
+    );
+
+    // A placement refusal's own kind is about the placement's node.
+    let placement = PoseRefusal::Placement {
+        node: body,
+        error: NodeRefusal::from(NodeErrorKind::Unplaced {
+            group: body,
+            cause: Unplaced::NoOffset,
+        }),
+    };
+    let said = placement.spoken(&doc);
+    assert!(
+        said.starts_with(&format!(
+            "the placement at {spoken} does not evaluate: this reads the group rooted at this \
+             node,"
+        )),
+        "{said}"
+    );
+    assert_eq!(said.matches(&t).count(), 1, "{said}");
+
+    // A mate fault recorded against an instance names the instance once,
+    // by its noun where it has one and as `this node` where it has none.
+    let self_mate = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::SelfMate {
+        mate: RecipeNodeId(7),
+        instance: body,
+    })));
+    let line = self_mate.line_at(body, Speaker::of(&doc));
+    assert!(
+        line.starts_with(&format!("{spoken} failed: the mate solve refused: mate "))
+            && line.contains("(it stands on this instance)"),
+        "{line}"
+    );
+    let dangling = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::DanglingHead {
+        mate: RecipeNodeId(7),
+        side: MateSide::A,
+        head: body,
+    })));
+    let line = dangling.line_at(body, Speaker::TAG);
+    assert!(
+        line.starts_with(&format!("node {t} failed:"))
+            && line.contains("reference resolves through this node, which")
+            && line.matches(&t).count() == 1,
+        "{line}"
+    );
+}

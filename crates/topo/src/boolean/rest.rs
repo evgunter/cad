@@ -254,6 +254,14 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // ---- 6. Graft B whole (disjoint interiors: nothing discarded),
     // then glue every patch pair in BFS order. ----
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
+    // A REST union's patches are opposed contact faces, whose lump keeps
+    // neither copy, so it holds no region through a coincident copy and
+    // its rows have no held stretches (`DiscardRow::held`).
+    if !red.held.is_empty() {
+        return Err(BooleanError::JoinDesync {
+            what: "a declared-REST union holds a region through a coincident copy",
+        });
+    }
     // The contact patches are the faces this union discards; A's keys
     // are the result's, so its rows are taken here, before the zip.
     let mut discards = patch_discards(&red.a, &a_patch, Operand::A, &|u, w| Ok((u, w)))?;
@@ -300,38 +308,20 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
 
     let mut vertex_merges: Vec<(VertexKey, VertexKey)> = Vec::new();
-    let mut interior: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
+    let mut seam_edges: Vec<EdgeKey> = a_seam.per_segment.clone();
     let mut desc = Descendants::default();
     for &fa in &glue_order {
         let fb = fb_of(fa)?;
         let rep = glue_pair(&mut body, fa, fb, &vmap, tol)?;
+        settle_glue(&body, &mut seam_edges, &rep.interior_edges)?;
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
-        for &e in &rep.interior_edges {
-            interior.insert(e, ());
-        }
-    }
-
-    // The surviving seam: the A-side per-segment edges (the A arena IS
-    // the result arena). A segment INTERIOR to the contact region —
-    // an already-fused run a later glue consumed, e.g. the meridian
-    // seams of a closed cosurface band — legitimately dies with R's
-    // interior and is dropped here; a segment that died any other way
-    // is a lane desync.
-    let mut seam_edges: Vec<EdgeKey> = Vec::new();
-    for &e in &a_seam.per_segment {
-        if body.get_edge(e).is_none() {
-            if interior.contains_key(e) {
-                continue;
-            }
-            return Err(desync("REST lane: a seam segment edge did not survive"));
-        }
-        seam_edges.push(e);
     }
 
     // ---- Output stages (shared with every seamed boolean). ----
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts;
+    let covered = red.covered;
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
@@ -373,6 +363,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_b: b_fragments,
         reduction_contacts,
         discards,
+        covered,
     };
     Ok(Some(BooleanResult::Body(BooleanBody {
         body,
@@ -380,6 +371,34 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         contacts,
         naming,
     })))
+}
+
+/// Settles one glue's deaths against the seam. The surviving seam is
+/// the A-side per-segment edges (the A arena IS the result arena); a
+/// segment INTERIOR to the contact region — an already-fused run the
+/// glue consumed — dies with R's interior, and the glue reports it so. Every edge the
+/// glue reports interior is dead after it, and every seam edge that
+/// died in it is one it reports: anything else is a lane desync. `seam`
+/// holds the seam edges alive before the glue and keeps those alive
+/// after it, in segment order.
+fn settle_glue<T: Decide>(
+    body: &Body<T>,
+    seam: &mut Vec<EdgeKey>,
+    interior: &[EdgeKey],
+) -> Result<(), BooleanError> {
+    if interior.iter().any(|&e| body.get_edge(e).is_some()) {
+        return Err(desync(
+            "REST lane: an edge the glue reported interior survived it",
+        ));
+    }
+    if seam
+        .iter()
+        .any(|&e| body.get_edge(e).is_none() && !interior.contains(&e))
+    {
+        return Err(desync("REST lane: a seam segment edge did not survive"));
+    }
+    seam.retain(|&e| body.get_edge(e).is_some());
+    Ok(())
 }
 
 /// One operand's discarded faces (`boolean::discard`): its contact
@@ -395,7 +414,7 @@ fn patch_discards<T: Decide>(
     let kept_across = |f: FaceKey| !patch.contains(&f);
     patch
         .iter()
-        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends))
+        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends, None))
         .collect()
 }
 
@@ -543,10 +562,11 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
 /// senses too — REST contact is precisely the `SameOpposite`
 /// verdict), and the verdict through [`super::oriented_plane_eq`] at
-/// the verification arm, which lives HERE and nowhere else: **1 m** —
-/// the declared rung contradicts only on DEFINITE margins, so the arm
-/// only meters the angular sliver band (exact fixtures decide
-/// definitely either way).
+/// the verification arm, **1 m** — a `T::one()` literal, spelled here,
+/// in [`carrier_pair_verdict`] and in [`geom_brep::tangent_locus`],
+/// which must agree. The declared rung contradicts only on DEFINITE
+/// margins, so the arm only meters the angular sliver band (exact
+/// fixtures decide definitely either way).
 ///
 /// **This door has NO in-tree consumer.** Verify-at-use stopped
 /// calling it at M9-1 and the flush detector followed when its scope
@@ -643,7 +663,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// carrier kind the `Rest` table names.
 ///
 /// Same descriptions-plus-identity construction, same verification
-/// arm (**1 m**, living here and nowhere else), same shared-by-
+/// arm (**1 m**, the literal [`flush_pair_relation`] spells), same shared-by-
 /// construction contract between the verify-at-use site and the
 /// detector's candidate-generation mode — only the carrier kind
 /// widens. The planar case reaches exactly the same numbers it
@@ -690,285 +710,6 @@ pub fn carrier_pair_verdict<T: Decide>(
         T::one(),
         band,
     ))
-}
-
-/// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
-/// ruling): the closed-form contact line of a tangent carrier pair,
-/// for exactly the configurations whose locus IS closed-form — a
-/// plane and a cylinder tangent along a ruling, and two PARALLEL
-/// cylinders tangent along the line between closest generators.
-///
-/// This is GEOMETRY, and it lives beside [`carrier_pair_relation`]
-/// because its consumers are that door's: the LIB flush detector's
-/// `Tangent` arm (its named follow-up — a tangency finding without a
-/// locus is one the verifier cannot check, so the detector waits on
-/// THIS helper) and any at-rest verification that must mint the
-/// witness a `Tangent` declaration is verified along.
-#[derive(Clone, Copy, Debug)]
-pub enum TangentLocus<T: geom_core::Real> {
-    /// The tangent line: `origin + t·dir`, `dir` unit (both certified
-    /// carriers are ruled along it).
-    Line {
-        /// A point on the locus.
-        origin: geom_core::Point3<T>,
-        /// The locus direction (the shared ruling / axis direction).
-        dir: geom_core::Vec3<T>,
-    },
-}
-
-/// Typed refusal of [`tangent_locus`] (closed enum, D3 style).
-#[derive(Debug)]
-pub enum TangentLocusError {
-    /// A margin landed in the sliver band.
-    Escalated(geom_core::Indeterminate),
-    /// The pair is definitely NOT tangent: `apart` distinguishes the
-    /// definite-clearance side from the definite-crossing side.
-    NotTangent {
-        /// `true`: definite clearance; `false`: definite crossing.
-        apart: bool,
-    },
-    /// The configuration is outside the closed-form lane (kinds other
-    /// than plane×cylinder / parallel cylinders, or a non-parallel
-    /// axis relation): the demanded set IS the certifiable set — no
-    /// sampled locus, ever.
-    Unsupported {
-        /// Why the configuration has no closed-form locus.
-        what: &'static str,
-    },
-}
-
-/// The closed-form tangent locus of two carriers (see
-/// [`TangentLocus`]). Kind dispatch is structural; every numeric
-/// decision is a named three-outcome row:
-///
-/// - `tangent_locus_axis_parallel` — the axis/plane (or axis/axis)
-///   angular deviation `|d × n̂|` (a sine of unit vectors) levered by
-///   the **1 m verification arm** ([`carrier_pair_relation`]'s own,
-///   living here and nowhere else): tangency along an unbounded
-///   ruling is a carrier-level claim, metered at the same arm the
-///   carrier ladder meters its parallelism rungs.
-/// - `tangent_locus_gap` — the metre gap at the tangency: for
-///   plane×cylinder the axis-to-plane distance minus the radius; for
-///   parallel cylinders the axis-to-axis distance minus `r1 + r2`
-///   (external) falling back to `|r1 − r2|` (internal). Zero ⇒
-///   tangent (the locus mints); Positive ⇒ definitely apart;
-///   Negative ⇒ definitely crossing.
-///
-/// **CONTRACT — the separation invariant** (consumed by the reduce
-/// sweep's declared-cover rung): every configuration this lane mints
-/// a locus for has each carrier wholly in ONE closed residual
-/// half-space of the other — a plane tangent to a cylinder has the
-/// whole cylinder on one side; each of two externally (or
-/// internally) tangent parallel cylinders is one-signed against the
-/// other — so an on-carrier edge under a verified declaration never
-/// crosses the partner surface. A new arm may NOT land here without
-/// restating its own residual-sign story.
-///
-/// **The coaxial cylinder×sphere circle arm's story is MEASURED and it
-/// PASSES — and that is not what still blocks the arm** (issue #974;
-/// the blocker's stated cause is superseded here rather than left
-/// standing). At the only coaxial tangency, `R = r`, the sphere lies
-/// wholly in the cylinder's non-positive residual half-space and the
-/// cylinder wholly in the sphere's non-negative one. The orientations
-/// are OPPOSITE per direction, which this contract never forbade: the
-/// internally tangent parallel cylinder pair the `|r1 − r2|` fallback
-/// already admits has exactly that structure. Both halves are pinned
-/// by `crates/topo/tests/verbs_cylsph_tangent_residuals.rs`. What
-/// blocks the arm is downstream of the story: [`TangentLocus`] carries
-/// a LINE and nothing else, its consumers all read a locus DIRECTION
-/// and none has a circle story, and the arm would need a
-/// declared-coaxiality channel this lane cannot reach. #974 stays open
-/// for that work.
-///
-/// # Errors
-///
-/// [`TangentLocusError`] — escalation, definite non-tangency, or a
-/// configuration outside the closed-form lane.
-pub fn tangent_locus<T: Decide>(
-    a: &geom::Surface<T>,
-    b: &geom::Surface<T>,
-    band: Band,
-) -> Result<TangentLocus<T>, TangentLocusError> {
-    use geom::Surface;
-    let arm = T::one();
-    let escalate = TangentLocusError::Escalated;
-    match (a, b) {
-        (
-            Surface::Plane { origin, normal, .. },
-            Surface::Cylinder {
-                origin: co,
-                axis,
-                radius,
-                ..
-            },
-        )
-        | (
-            Surface::Cylinder {
-                origin: co,
-                axis,
-                radius,
-                ..
-            },
-            Surface::Plane { origin, normal, .. },
-        ) => {
-            // Ruling tangency needs the axis IN the plane's direction
-            // space: |axis · n̂| is the sine of the axis' elevation.
-            match decide(
-                "tangent_locus_axis_parallel",
-                Margin::levered(axis.dot(*normal).abs(), arm),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Zero => {}
-                _ => {
-                    return Err(TangentLocusError::Unsupported {
-                        what: "plane×cylinder tangency is closed-form only along a ruling — \
-                               the axis must lie in the plane's direction space",
-                    });
-                }
-            }
-            // Signed axis-to-plane height; its SIGN picks the tangent
-            // generator, its magnitude minus r is the tangency gap.
-            let h = (*co - *origin).dot(*normal);
-            let side = match decide("tangent_locus_side", Margin::of(h), band).map_err(escalate)? {
-                Sign::Positive => T::one(),
-                Sign::Negative => T::zero() - T::one(),
-                Sign::Zero => {
-                    // Axis ON the plane: the cylinder definitely
-                    // crosses (both sides pierce).
-                    return Err(TangentLocusError::NotTangent { apart: false });
-                }
-            };
-            match decide("tangent_locus_gap", Margin::of(h.abs() - *radius), band)
-                .map_err(escalate)?
-            {
-                Sign::Zero => Ok(TangentLocus::Line {
-                    origin: *co - *normal * (side * *radius),
-                    dir: *axis,
-                }),
-                Sign::Positive => Err(TangentLocusError::NotTangent { apart: true }),
-                Sign::Negative => Err(TangentLocusError::NotTangent { apart: false }),
-            }
-        }
-        (
-            Surface::Cylinder {
-                origin: o1,
-                axis: a1,
-                radius: r1,
-                ..
-            },
-            Surface::Cylinder {
-                origin: o2,
-                axis: a2,
-                radius: r2,
-                ..
-            },
-        ) => {
-            match decide(
-                "tangent_locus_axis_parallel",
-                Margin::levered(a1.cross(*a2).norm(), arm),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Zero => {}
-                _ => {
-                    return Err(TangentLocusError::Unsupported {
-                        what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
-                               axes (the generator line); skew/crossing axes are outside \
-                               the lane",
-                    });
-                }
-            }
-            // Perpendicular axis-to-axis offset (the axis LINE datum,
-            // the carrier ladder's own construction).
-            let delta = *o2 - *o1;
-            let w = delta - *a1 * delta.dot(*a1);
-            let dist = w.norm();
-            // External tangency first (|w| = r1 + r2): the common case
-            // and the flush detector's; internal (|w| = |r1 − r2|)
-            // second. Fixed probe order (D9).
-            match decide("tangent_locus_gap", Margin::of(dist - (*r1 + *r2)), band)
-                .map_err(escalate)?
-            {
-                Sign::Zero => {
-                    let w_hat = w.normalize();
-                    return Ok(TangentLocus::Line {
-                        origin: *o1 + w_hat * *r1,
-                        dir: *a1,
-                    });
-                }
-                Sign::Positive => return Err(TangentLocusError::NotTangent { apart: true }),
-                Sign::Negative => {}
-            }
-            match decide(
-                "tangent_locus_gap",
-                Margin::of((*r1 - *r2).abs() - dist),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Zero => {
-                    // Internal tangency: the smaller cylinder rests
-                    // inside the larger; the generator sits on the
-                    // offset direction at the LARGER radius from the
-                    // larger axis. With coaxial axes (dist in the
-                    // zero band AND radii in the zero band) the locus
-                    // direction is ill-posed — refuse typed.
-                    match decide("tangent_locus_side", Margin::of(dist), band).map_err(escalate)? {
-                        Sign::Positive => {}
-                        _ => {
-                            return Err(TangentLocusError::Unsupported {
-                                what: "coaxial equal-radius cylinders have no isolated \
-                                       tangent generator (conformal contact is Rest, \
-                                       not Tangent)",
-                            });
-                        }
-                    }
-                    // Which cylinder contains which decides the
-                    // generator's side (derived: with ŵ = o1→o2 and
-                    // |w| = |r1 − r2|, the touch point is
-                    // P = o1 + ŵ·r1 when r1 > r2 — c2 inside c1 —
-                    // and P = o1 − ŵ·r1 when r1 < r2, both from
-                    // collinearity of P, o1, o2 with |P−o1| = r1,
-                    // |P−o2| = r2). The side is DECIDED, never an
-                    // evaluation-lane comparison.
-                    let w_hat = w.normalize();
-                    let sign = match decide("tangent_locus_side", Margin::of(*r1 - *r2), band)
-                        .map_err(escalate)?
-                    {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
-                        Sign::Zero => {
-                            return Err(TangentLocusError::Unsupported {
-                                what: "equal-radius internal tangency contradicts the \
-                                       definite axis offset — no closed-form generator",
-                            });
-                        }
-                    };
-                    Ok(TangentLocus::Line {
-                        origin: *o1 + w_hat * (sign * *r1),
-                        dir: *a1,
-                    })
-                }
-                // dist < |r1 − r2|: one cylinder NESTED strictly
-                // inside the other — the surfaces definitely do NOT
-                // meet (their minimum distance is |r1 − r2| − dist,
-                // definitely positive here): APART, not crossing
-                // (union fix F3 — the pre-fix arm labeled this
-                // definite clearance a crossing).
-                Sign::Positive => Err(TangentLocusError::NotTangent { apart: true }),
-                // |r1 − r2| < dist < r1 + r2 (the external row already
-                // refused the ≥ side): the surfaces definitely cross.
-                Sign::Negative => Err(TangentLocusError::NotTangent { apart: false }),
-            }
-        }
-        _ => Err(TangentLocusError::Unsupported {
-            what: "the closed-form tangent-locus lane holds plane×cylinder and parallel \
-                   cylinder pairs only (the DEV-1 certified set)",
-        }),
-    }
 }
 
 /// Verifies every declared face pair through the declared rung and
@@ -1600,6 +1341,23 @@ fn shared_run<T: Decide>(
 /// the promoted pairs then glue the same way — the same-shell
 /// `kfmrh` inside those glues is where the mate's genus bookkeeping
 /// lives (a filled through-peg's handle).
+///
+/// Rings pair one for one, so differing counts are holes that do not
+/// match, refused as a ring with no congruent partner is.
+///
+/// On a PLANE a ring vertex always has a seam correspondent: the patch
+/// flood stops only at seam edges, so a ring is bounded by seam edges,
+/// whose ends are segment ends, or encloses another patch face whose
+/// outer cycle the patch pairing has already mapped (the ring is that
+/// face's outer boundary, by Jordan). Neither half holds on a periodic
+/// carrier: a cylinder band's two boundary circles are outer and ring by
+/// designation only, so a ring can border a neighbouring patch face's
+/// RING, whose vertices the pairing never reads (two stacked bands mated
+/// against a band split at another height). The unmatched-vertex
+/// refusal answers that configuration; no row builds it yet. A ring
+/// that is an isolated vertex (a pierce ring no segment reached) is
+/// outside both arguments: the flood passes over it, and its promotion
+/// or its cycle read below refuses as a lane desync.
 fn glue_pair<T: Decide>(
     body: &mut Body<T>,
     fa: FaceKey,
@@ -1631,7 +1389,7 @@ fn glue_pair<T: Decide>(
         );
     }
     if ga.len() != gb.len() {
-        return Err(unsupported(RestZipFrontier::HoleCountsDiffer));
+        return Err(unsupported(RestZipFrontier::HoleCyclesIncongruent));
     }
     let shared = shared_run(body, fa, fb)?;
     let mut report = if shared.is_empty() {
@@ -2074,4 +1832,52 @@ fn zip_folded<T: Decide>(
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// **A glue's deaths settle against the seam, one glue at a time.**
+    /// A seam edge that died and was reported interior leaves the seam;
+    /// one that died unreported is the lane's desync; and an edge
+    /// reported interior that is still alive is one too. The prism is a
+    /// key scaffold: only edge liveness is read, so the death is an
+    /// arena removal rather than a glue's surgery.
+    ///
+    /// This is the only coverage the unreported-death arm can have: a
+    /// glue that reports every run edge it kills (as `slit_zip` does,
+    /// pushing each before the kill) never feeds it one, so only a
+    /// broken glue reaches it end to end. No suite row has a real glue
+    /// kill a seam segment edge at all.
+    #[test]
+    fn a_glue_settles_each_seam_death_it_reports_and_no_other() {
+        let prism = crate::fixtures::raw_prism(3, Tol::witness());
+        let mut body = prism.body;
+        let [kept, killed, other] = [prism.et[0], prism.et[1], prism.et[2]];
+        body.edges.remove(killed);
+        let what = |r: Result<(), BooleanError>| match r {
+            Err(BooleanError::JoinDesync { what }) => what,
+            other => panic!("expected a lane desync, got {other:?}"),
+        };
+
+        let mut seam = vec![kept, killed];
+        settle_glue(&body, &mut seam, &[killed]).expect("a reported death settles");
+        assert_eq!(seam, vec![kept], "the reported dead edge leaves the seam");
+
+        let mut seam = vec![kept, killed];
+        assert_eq!(
+            what(settle_glue(&body, &mut seam, &[])),
+            "REST lane: a seam segment edge did not survive",
+            "an unreported seam death is a desync"
+        );
+
+        let mut seam = vec![kept, killed];
+        assert_eq!(
+            what(settle_glue(&body, &mut seam, &[killed, other])),
+            "REST lane: an edge the glue reported interior survived it",
+            "an interior report on a live edge is a desync"
+        );
+    }
 }

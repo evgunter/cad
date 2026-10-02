@@ -67,6 +67,6 @@ the wording reddens it there.
 One consequence stated rather than hidden: the row a poisoned row
 points at carries the KERNEL's `NodeError` text, which says `node N
 failed`, so the pointer and its target now use two words in one pane.
-That is `work/author/chrome-calls-one-node-two-names`'s subject (the
+That is `work/authtail/chrome-calls-one-node-two-names`'s subject (the
 feature-vs-node direction is a decision held open there); the
 adjacency is recorded on that row as evidence.

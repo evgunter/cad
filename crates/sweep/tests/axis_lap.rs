@@ -16,13 +16,14 @@
 //!   off it, and from either side;
 //! - a LAP (the cutter from `z = 3` past the far cap, so one end wall
 //!   sits inside the rod) off the axis, or through the axis across the
-//!   rulings (`x = 0`), refuses `CurvedSectorSideUnsupported` — the
-//!   first-order sector-side frontier;
+//!   rulings (`x = 0`), refuses at the join where the cutter's edges
+//!   pierce the wall: a pierce ring has no join arm yet
+//!   (`work/tang/pierce-ring-has-no-join-arm`);
 //! - a lap in the plane `y = 0`, which holds both ruling edges, refuses
 //!   `Join(UnpairedLooseEnds)` — and so does the all-planar diamond
 //!   prism whose side edges sit in that same plane, which is what says
 //!   the refusal is the edge-in-face class
-//!   (`work/zip/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`),
+//!   (`work/join/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`),
 //!   not anything conic;
 //! - OBLIQUE caps (ellipse rims, from the plane split) flatted the same
 //!   way take the same arm with an ellipse arc, mint their chords, and
@@ -31,11 +32,11 @@
 //! - a flat cutter with a thin half-rod on the axis leaves role
 //!   resolution only the rim's CHORD midpoint to probe, which is on
 //!   neither flanking region, and the join refuses `SectionLoopMixed`
-//!   (`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`);
+//!   (`work/join/role-resolution-interior-tiers-certify-only-planar-region-faces`);
 //! - a blind D pocket in a block builds from the bottom face (its floor's
 //!   chord has the D's arc between its ends) and refuses `JoinDesync`
 //!   from the top
-//!   (`work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`).
+//!   (`work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -137,12 +138,14 @@ fn axis_lap_refuses_where_its_planar_twin_does() {
     }
 }
 
-/// Laps off the rulings: the cutter's end wall crosses the rod's wall
-/// inside a face, and that crossing's sector side is the frontier — the
-/// plane through the axis at `x = 0` included, so the axis alone is not
-/// what the lap above refuses on.
+/// Laps off the rulings: the cutter's end-wall edges pierce the rod's
+/// wall inside a face, the plane through the axis at `x = 0` included,
+/// so the axis alone is not what the lap above refuses on. Each pierce
+/// mints a ring in the wall, and a ring has no join arm yet
+/// (`work/tang/pierce-ring-has-no-join-arm`): the run that divides the
+/// wall carries only null scaffolding, so it has no azimuth window.
 #[test]
-fn laps_off_the_rulings_refuse_sector_side() {
+fn laps_off_the_rulings_stop_at_the_wall_pierce_ring() {
     for (x, y) in [
         (ACROSS, (0.2, 1.0)),
         (ACROSS, (0.35, 1.0)),
@@ -151,7 +154,13 @@ fn laps_off_the_rulings_refuse_sector_side() {
     ] {
         let err = cut(&rod(), x, y, LAP).expect_err("the lap refuses");
         assert!(
-            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::Join(SplitJoinError::SectionArcWindow {
+                    case: topo::ArcWindowCase::NoChartedRun,
+                    ..
+                })
+            ),
             "lap at x ∈ {x:?}, y ∈ {y:?}: {err:?}"
         );
     }
@@ -286,7 +295,7 @@ fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
 /// over the pocket's depth `0.5`. Entering through the TOP face it
 /// refuses `JoinDesync` in the join's internal words (the ring-run
 /// winding decides `Zero`), which
-/// `work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`
+/// `work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`
 /// carries.
 #[test]
 fn a_blind_d_pocket_builds_from_below_and_refuses_from_above() {
