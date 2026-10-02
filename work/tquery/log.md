@@ -69,3 +69,4 @@ way under these rows since they were filed):
   editor-core-only. Sent to the designer pair
   (`analysis/design-fork/tquery-rim-identity`); the dangling-key and
   prose riders wait for the answer (same arms of `RimError`).
+- 2026-10-02 — PR 3768 (split-cyl-feature): both variants were one cause, a non-unit `SplitPlane.normal` (the cutaway's raw 1.264-long direction) read as unit by the tilted plane×cylinder section; fixed by typing it `UnitVec3` (the ratified unit-vector ruling), which also takes the `SplitPlane` half of `split-plane-normal-…`. Full review dispatched. Both 3768 and 3773 wait on REACH's #3755 for the 1e-6 open-sign row (red on main); not ported, as it is another program's in-flight 18-file change. A CLASS note: a precondition held as prose ('unit, unchecked') was the live cause of a P0 — the witness ruling's remaining prose sites are worth the sweep it asks for.
