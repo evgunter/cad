@@ -1941,7 +1941,7 @@ pub(crate) fn sphere_circle_image_lane<
     } = surface
     else {
         return Err(PcurveCertifyError::UnsupportedChart {
-            chart: crate::SurfaceKind::of(surface),
+            chart: surface.kind(),
         });
     };
     let &Curve3::Circle {
