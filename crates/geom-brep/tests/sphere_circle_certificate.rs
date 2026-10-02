@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{FittedLane, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
-use geom_core::{Band, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Real, Vec3};
 
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
@@ -38,8 +38,12 @@ fn section<T: Real>(tilt: f64, h: f64, grow: f64) -> Curve3<T> {
 
 const ARC: (f64, f64) = (0.3, 0.3 + core::f64::consts::FRAC_PI_2);
 
+/// The band every row here runs at, explicitly rather than the run's:
+/// the rows say which CHECK refuses an image, and at a tighter band the
+/// schedule residual (check 3) can refuse first. At this band they read
+/// the same on every ε row of the suite.
 fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
+    Band::new(1e-9, 1e-8).unwrap()
 }
 
 fn lane_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> NurbsCurve2<f64> {
