@@ -491,8 +491,9 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///   (D4 ¶3). An in-band verdict is never silently either side, so no
 ///   caller may fold it into "conventional".
 /// - **[`MustCarryVerdict::Transverse`]** — a station's tangent planes
-///   are definitely distinct: the join is a corner there, not a smooth
-///   join, and the rule has no description to choose for it.
+///   are definitely distinct, and no station is in band: the join is a
+///   corner there, not a smooth join, and the rule has no description
+///   to choose for it.
 ///
 /// **Each station is gated first-order before it is metered
 /// second-order.** [`tangent_second_order`]'s transverse direction
@@ -539,22 +540,22 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// then the coincidence levers) names no lever that reaches it.
 ///
 /// **The stations are the certification schedule's interior**
-/// (`1..`[`crate::CERT_SAMPLES`]`-1`, through [`crate::sample_param`]), read in
-/// order, the first station that is not `Smooth` first-order or not
-/// `Positive` second-order deciding. The stations are the tier-3
-/// must-carry arm's, which re-asks this question of the stored
+/// (`1..`[`crate::CERT_SAMPLES`]`-1`, through [`crate::sample_param`]),
+/// read in two passes, in tier 3's order. Every station is classified
+/// first-order before any is metered second-order: an in-band station
+/// anywhere answers `InBand`, else a transverse one anywhere answers
+/// `Transverse`; only an edge smooth at every station descends, where
+/// the first station not `Positive` decides. The stations are the
+/// tier-3 must-carry arm's, which re-asks this question of the stored
 /// description, and that is what keeps the demanded set and the stored
 /// set ONE set: a constructor reading a coarser schedule can store a
 /// description tier 3 then refuses, and one reading a finer schedule
-/// can refuse what tier 3 would have accepted. An out-of-lane pair
-/// reads the first-order stations alone. The ORDER differs:
-/// tier 3 classifies every station first-order before it descends,
-/// while this walk interleaves the two readings per station. The two
-/// agree on an edge whose stations all read one first-order class; on
-/// a mixed edge this walk answers from whichever reading decides
-/// first, where tier 3 escalates at any first-order in-band station
-/// and attaches no must-carry to an edge that is not smooth
-/// throughout.
+/// can refuse what tier 3 would have accepted. The order is part of
+/// that: tier 3 escalates at any first-order in-band station, so a
+/// walk that answered `Transverse` from an earlier station would leave
+/// a caller that keeps a mixed edge conventional (the boolean's seams)
+/// storing an edge tier 3 then refuses. An out-of-lane pair reads the
+/// first-order pass alone.
 ///
 /// **Why the extra stations never disagree on the joins this kernel
 /// mints**, stated because it is an argument and not a licence to read
@@ -584,20 +585,26 @@ pub fn must_carry_over_edge<T: Decide>(
     extent: T,
     band: Band,
 ) -> MustCarryVerdict {
-    let in_lane = crate::tangent::tangent_certificate_lane(carrier, s1, s2);
-    for i in 1..crate::CERT_SAMPLES - 1 {
-        let t = crate::sample_param(t0, t1, i);
-        let (p, tau) = carrier.ders1(t);
+    let stations =
+        || (1..crate::CERT_SAMPLES - 1).map(|i| carrier.ders1(crate::sample_param(t0, t1, i)));
+    let mut transverse = false;
+    for (p, _) in stations() {
         match classify_dihedral(s1, s2, p, extent, band) {
             Ok(DihedralClass::Smooth) => {}
-            Ok(DihedralClass::Transverse) => return MustCarryVerdict::Transverse,
+            Ok(DihedralClass::Transverse) => transverse = true,
             Err(escalation) => {
                 return MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation));
             }
         }
-        if !in_lane {
-            continue;
-        }
+    }
+    if transverse {
+        return MustCarryVerdict::Transverse;
+    }
+    let in_lane = crate::tangent::tangent_certificate_lane(carrier, s1, s2);
+    if !in_lane {
+        return MustCarryVerdict::UnderDetermined;
+    }
+    for (p, tau) in stations() {
         let reading = tangent_second_order(s1, s2, p, tau, extent, band);
         match reading.verdict.map(|d| d.sign) {
             Ok(Sign::Positive) => {}
@@ -607,11 +614,7 @@ pub fn must_carry_over_edge<T: Decide>(
             }
         }
     }
-    if in_lane {
-        MustCarryVerdict::JetDeterminate
-    } else {
-        MustCarryVerdict::UnderDetermined
-    }
+    MustCarryVerdict::JetDeterminate
 }
 
 /// What a join entered as definitely smooth stores, by the must-carry
@@ -696,7 +699,8 @@ pub enum MustCarryVerdict {
     /// refuse typed, tagged with the reading that raised it.
     InBand(MustCarryEscalation),
     /// A station's tangent planes are definitely distinct
-    /// ([`DihedralClass::Transverse`]): the join is not first-order
+    /// ([`DihedralClass::Transverse`]) and no station is in band
+    /// first-order: the join is not first-order
     /// smooth, so the second-order question was never posed there and
     /// the rule has no description to choose. The edge is a corner at
     /// that station, and a caller whose premise was a smooth join has

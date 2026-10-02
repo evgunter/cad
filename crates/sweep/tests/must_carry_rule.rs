@@ -712,8 +712,9 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
 /// where the first station decides (the walk exits there) — and an
 /// out-of-lane one spends none: the lane gates the second-order
 /// reading. Its first-order reading is metered like any pair's, one
-/// `dihedral_arm` and one `dihedral_wedge` per station read — every
-/// interior station for a smooth pair, the first alone for a crossing.
+/// `dihedral_arm` and one `dihedral_wedge` per interior station, a
+/// crossing's included: every station is classified first-order before
+/// the walk decides.
 #[cfg(feature = "probe")]
 #[test]
 fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second_order() {
@@ -789,9 +790,9 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second
         "the first station decides an under-determined join, and the walk stops there"
     );
 
-    // Out of lane: no second-order sample, and the first-order walk
-    // metered as in lane — to the end for the smooth pair, one station
-    // for the crossing.
+    // Out of lane: no second-order sample, and the first-order pass
+    // metered as in lane, every station for the smooth pair and the
+    // crossing alike.
     let first_order = |samples: &[geom_core::k_stats::MarginSample]| {
         ["dihedral_arm", "dihedral_wedge"]
             .map(|name| samples.iter().filter(|s| s.predicate == name).count())
@@ -807,7 +808,7 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second
             "the out-of-lane crossing",
             out_of_lane_crossing(),
             MustCarryVerdict::Transverse,
-            1,
+            interior,
         ),
     ] {
         let (s1, s2, carrier) = (

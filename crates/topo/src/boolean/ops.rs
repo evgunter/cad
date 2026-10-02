@@ -2023,12 +2023,12 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                 // seam descends one order through the must-carry rule
                 // over the edge, at the stations tier 3's must-carry arm
                 // re-reads (`seam_must_carry`).
-                let jet_determinate = {
+                let mint_intrinsic = {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     seam_must_carry(surf1, surf2, c.carrier(), t0, t1, extent, band)?
                 };
-                if jet_determinate {
+                if mint_intrinsic {
                     // Mint the intrinsic tangency on the existing
                     // carrier (U2: today's taxonomy, 1:1 onto
                     // (surface, exact-lane pcurve)) — this also
@@ -4139,19 +4139,11 @@ mod tests {
         }
     }
 
-    /// **A seam smooth at its witness and a corner at a station keeps
-    /// the conventional posture, in both orders.** A torus (`R = 2`,
-    /// `r = 1`) cut by its bitangent plane along a Villarceau circle:
-    /// the plane touches the torus at one point of the arc, where the
-    /// witness sits, and crosses it everywhere else. Each station's jet
-    /// read off a smooth join measures a transverse direction tangent to
-    /// the first surface alone, so the per-station sagitta reads
-    /// definitely positive in both orders here, at values that differ
-    /// with the order; the rule reads the corner first-order instead,
-    /// and tier 3 holds an edge that is not smooth throughout to neither
-    /// description, so no intrinsic tangency is demanded of it.
-    #[test]
-    fn a_seam_smooth_at_its_witness_and_a_corner_at_a_station_stays_conventional() {
+    /// A torus (`R = 2`, `r = 1`) about `z`, its bitangent plane, and the
+    /// Villarceau circle they share through the plane's point of
+    /// tangency, which is the circle's `θ = 0`: the plane touches the
+    /// torus there and crosses it everywhere else on the circle.
+    fn villarceau() -> (geom::Surface<f64>, geom::Surface<f64>, geom::Curve3<f64>) {
         let (big, r) = (2.0_f64, 1.0_f64);
         let (sin, cos) = (r / big, (1.0 - (r / big).powi(2)).sqrt());
         let torus = geom::Surface::Torus {
@@ -4167,40 +4159,53 @@ mod tests {
             normal,
             u_ref: Vec3::new(0.0, 1.0, 0.0),
         };
-        // The Villarceau circle through the tangency point, which is
-        // its `θ = 0`.
         let center = Point3::new(0.0, r, 0.0);
         let touch = Point3::new(big - r * sin, 0.0, r * cos);
-        let villarceau = geom::Curve3::Circle {
+        let circle = geom::Curve3::Circle {
             center,
             axis: normal,
             radius: big,
             u_ref: (touch - center) / big,
         };
-        let span = (-1.0, 1.0);
         for i in 0..geom_brep::CERT_SAMPLES {
-            let p = villarceau.eval(geom_brep::sample_param(span.0, span.1, i));
+            let p = circle.eval(geom_brep::sample_param(-1.0, 1.0, i));
             let on = |s: &geom::Surface<f64>| geom_brep::implicit_residual(s, p).abs() < 1e-12;
             assert!(
                 on(&torus) && on(&bitangent),
-                "the arc lies on both surfaces at {p:?}"
+                "the circle lies on both surfaces at {p:?}"
             );
         }
+        (torus, bitangent, circle)
+    }
+
+    /// **A seam smooth at its witness and a corner at a station keeps
+    /// the conventional posture, in both orders**, on [`villarceau`]'s
+    /// arc a radian either side of the tangency. Each station's jet read
+    /// off a smooth join measures a transverse direction tangent to the
+    /// first surface alone, so the per-station sagitta reads definitely
+    /// positive in both orders here, at values that differ with the
+    /// order; the rule reads the corner first-order instead, and tier 3
+    /// holds an edge that is not smooth throughout to neither
+    /// description, so no intrinsic tangency is demanded of it.
+    #[test]
+    fn a_seam_smooth_at_its_witness_and_a_corner_at_a_station_stays_conventional() {
+        let (torus, bitangent, arc) = villarceau();
+        let span = (-1.0, 1.0);
         assert!(
             matches!(
-                seam_class(&torus, &bitangent, villarceau.eval(span.0), 1.0, band()),
+                seam_class(&torus, &bitangent, arc.eval(span.0), 1.0, band()),
                 Ok(geom_brep::DihedralClass::Transverse)
             ),
             "the arc's end is a corner"
         );
         for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
             assert_eq!(
-                geom_brep::must_carry_over_edge(a, b, &villarceau, span.0, span.1, 1.0, band()),
+                geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, 1.0, band()),
                 geom_brep::MustCarryVerdict::Transverse,
                 "a station reads the seam a corner"
             );
         }
-        for (order, got) in both_orders(&torus, &bitangent, &villarceau, span, 1.0)
+        for (order, got) in both_orders(&torus, &bitangent, &arc, span, 1.0)
             .into_iter()
             .enumerate()
         {
@@ -4208,6 +4213,112 @@ mod tests {
                 matches!(got, Ok(false)),
                 "order {order}: a seam that is a corner somewhere keeps the conventional \
                  description, got {got:?}"
+            );
+        }
+    }
+
+    /// **A station whose wedge is in band refuses as `SeamWedge`, even
+    /// behind a station that reads a corner.** [`villarceau`]'s arc over
+    /// a span short enough that the stations beside the tangency open a
+    /// wedge in band while those further out read definitely
+    /// transverse: the stations read corner, corner, in band, smooth,
+    /// in band, corner, corner. Tier 3 classifies every station and
+    /// refuses an in-band one `SliverDihedral` wherever it sits, so the
+    /// seam is never stored as either description; a walk that answered
+    /// from the first station would keep it conventional.
+    #[test]
+    fn an_in_band_wedge_behind_a_corner_refuses_as_the_seam_wedge() {
+        let (torus, bitangent, arc) = villarceau();
+        let extent = 1.0;
+        // The wedge's margin, `sin θ` levered over the folded arm, at
+        // the arc's `t`: linear in `t` beside the tangency.
+        let wedge = |t: f64| {
+            let p = arc.eval(t);
+            let n = |s: &geom::Surface<f64>| geom_brep::implicit_gradient(s, p).normalize();
+            n(&torus).cross(n(&bitangent)).norm()
+                * geom_brep::folded_lever_arm(&torus, &bitangent, p, extent)
+        };
+        let slope = wedge(1e-4) / 1e-4;
+        // The stations sit a quarter of the half-span apart: the inner
+        // two read 0.7 of the band's escalation edge, the next 1.4.
+        let half = 4.0 * 0.7 * band().escalate() / slope;
+        let span = (-half, half);
+        let classes: Vec<_> = (1..geom_brep::CERT_SAMPLES - 1)
+            .map(|i| {
+                let p = arc.eval(geom_brep::sample_param(span.0, span.1, i));
+                match geom_brep::classify_dihedral(&torus, &bitangent, p, extent, band()) {
+                    Ok(geom_brep::DihedralClass::Transverse) => 'T',
+                    Ok(geom_brep::DihedralClass::Smooth) => 'S',
+                    Err(_) => 'E',
+                }
+            })
+            .collect();
+        assert_eq!(
+            classes.iter().collect::<String>(),
+            "TTESETT",
+            "the fixture's stations (half-span {half:e})"
+        );
+        for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
+            let verdict =
+                geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, extent, band());
+            assert!(
+                matches!(
+                    verdict,
+                    geom_brep::MustCarryVerdict::InBand(
+                        geom_brep::MustCarryEscalation::FirstOrder(geom_brep::LeverEscalation {
+                            rung: geom_brep::LeverRung::Reading,
+                            ..
+                        })
+                    )
+                ),
+                "an in-band wedge anywhere escalates, got {verdict:?}"
+            );
+        }
+        for (order, got) in both_orders(&torus, &bitangent, &arc, span, extent)
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Escalated {
+                        decision: BooleanDecision::SeamWedge,
+                        ..
+                    })
+                ),
+                "order {order}: the in-band wedge refuses as the seam's wedge, got {got:?}"
+            );
+        }
+    }
+
+    /// **The rebuild's smooth arm decides through [`seam_must_carry`]
+    /// and spells no second-order reading of its own**, so the rows
+    /// above, which call the helper, speak for the boolean's seams: a
+    /// loop inlined back into `describe_minted_edges` reds here.
+    #[test]
+    fn the_smooth_seam_arm_routes_through_the_must_carry_rule() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/boolean/ops.rs");
+        let source = test_utils::source::code_only(&std::fs::read_to_string(path).unwrap());
+        let start = source
+            .find("fn describe_minted_edges")
+            .expect("the rebuild's description pass");
+        let body = &source[start..start + source[start..].find("\n}\n").expect("its end")];
+        assert_eq!(
+            body.matches("seam_must_carry(").count(),
+            1,
+            "the smooth arm asks the rule once"
+        );
+        for spelling in [
+            "tangent_jet",
+            "tangent_second_order",
+            "must_carry_over_edge",
+            "Margin::sagitta",
+            "lever_arm(",
+            "decide(",
+        ] {
+            assert!(
+                !body.contains(spelling),
+                "describe_minted_edges spells `{spelling}` beside the rule"
             );
         }
     }

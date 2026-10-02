@@ -95,17 +95,9 @@ refusal (`UnsupportedDeclarationClass`), so no refusal quotes the
 dropped rung today; a caller that comes to end the escalation itself
 owes it the arm's own decision.
 
-## Since (FUSE's seam re-description routed through the rule)
+## Since (FUSE, PR 3889)
 
-`must_carry_over_edge` keeps the rung now: `MustCarryVerdict::InBand`
-carries a `geom_brep::MustCarryEscalation`, `FirstOrder(LeverEscalation)`
-or `SecondOrder(Indeterminate)`, and the boolean rebuild's smooth seams
-(`topo::boolean::ops::seam_must_carry`) end each as its own decision
-(`LeverArm(Seam)`/`SeamWedge` by rung, `SeamJet` for the sagitta). The
-three sweep readers still call `.diag()` and drop it:
-`sweep::extrude` (the strut and the cap rim), `sweep::revolve::upgrade`
-and `sweep::blend::surgery`'s contact edge. The blend one also misnames
-it: every in-band verdict there ends as
-`BlendDecision::ContactSecondOrder` ("whether the faces curve apart"),
-so a station whose first-order dihedral is in band is reported as a
-second-order question.
+`must_carry_over_edge` keeps the rung now (`MustCarryVerdict::InBand`
+carries a `geom_brep::MustCarryEscalation`); what remains of it for the
+sweep callers is recorded in
+`work/encl/must-carry-in-band-verdict-does-not-say-which-decision-escalated.md`.
