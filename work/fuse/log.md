@@ -73,6 +73,14 @@ Designer pairs (`docs/prompts/designer.md`), on the two `design: true`
 rows: `two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted`
 and `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made`.
 
+## 2026-10-02 — the rebuild's second-order fold lands (PR 3889)
+
+`boolean-rebuild-folds-an-in-band-second-order-into-conventional`
+closed. The review's in-scope finding, that the rule's walk order let a
+later in-band station hide behind a transverse one, was fixed in the
+rule itself. That changes which refusal the sweep callers report on a
+mixed edge, not whether they refuse. Class logged earlier: the
+duplicated resting-cylinder fixture and the `in_band()` helper.
 ## 2026-10-02 — the descendant chase lands (PR 3874)
 
 `descendant-chase-spends-its-budget-into-a-dropped-contact-record`

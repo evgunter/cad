@@ -1939,8 +1939,10 @@ fn bound_holds<'t, 'b, T: Decide>(
 /// body. Each worklist edge that still resolves is described from its
 /// two faces' surfaces (structural adjacency): definitely transverse ⇒
 /// `Intersection` with the chord-midpoint witness; definitely smooth ⇒
-/// the existing conventional description stays (D2's split — the
-/// surfaces under-determine the locus); escalation refuses typed.
+/// the must-carry rule over the edge ([`seam_must_carry`]) — the
+/// intrinsic `TangentIntersection` where the surfaces determine the
+/// locus, else the conventional description (D2's split); escalation
+/// refuses typed.
 pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     seam_edges: &[crate::entity::EdgeKey],
@@ -2067,46 +2069,15 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
                     ),
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth
-                // seam descends one order, exactly as the tier-3
-                // contact mark does — the jet's second-order margin at
-                // the same interior schedule (rows
-                // `tangent_second_order`, reused). Determinate at
-                // every sample ⇒ the surfaces DETERMINE the locus and
-                // the intrinsic `TangentIntersection` is minted (the
-                // must-carry's own regime) — a G1 rim's line ruling
-                // included; a zero-side or in-band sample keeps the
-                // CONVENTIONAL posture (tier 3's ratified
-                // `SmoothUnderdetermined` stance — coplanar planes'
-                // exact-zero jet lands here, so every planar split
-                // keeps its chord description bit-identically; the
-                // weaker description is never a lie, and ε-tightening
-                // never flips a valid body through this choice).
-                let jet_determinate = {
+                // seam descends one order through the must-carry rule
+                // over the edge, at the stations tier 3's must-carry arm
+                // re-reads (`seam_must_carry`).
+                let mint_intrinsic = {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
-                    let mut det = true;
-                    for i in 1..(geom_brep::CERT_SAMPLES - 1) {
-                        let t = geom_brep::sample_param(t0, t1, i);
-                        let (p, tau) = c.carrier().ders1(t);
-                        let jet = geom_brep::tangent_jet(surf1, surf2, p, tau);
-                        let arm = geom_brep::curvature_lever_arm(surf1, p)
-                            .min(geom_brep::curvature_lever_arm(surf2, p))
-                            .min(extent);
-                        match decide(
-                            "tangent_second_order",
-                            Margin::sagitta(jet.kappa_rel.abs(), arm),
-                            band,
-                        ) {
-                            Ok(Sign::Positive) => {}
-                            _ => {
-                                det = false;
-                                break;
-                            }
-                        }
-                    }
-                    det
+                    seam_must_carry(surf1, surf2, c.carrier(), t0, t1, extent, band)?
                 };
-                if jet_determinate {
+                if mint_intrinsic {
                     // Mint the intrinsic tangency on the existing
                     // carrier (U2: today's taxonomy, 1:1 onto
                     // (surface, exact-lane pcurve)) — this also
@@ -2190,6 +2161,53 @@ pub(super) fn seam_class<T: Decide>(
             escalation,
         )
     })
+}
+
+/// **A smooth seam edge of the result, one order down**: whether its
+/// two surfaces determine the locus along it, by the must-carry rule
+/// over the edge ([`geom_brep::must_carry_over_edge`]), at the
+/// stations tier 3's must-carry arm reads.
+///
+/// - jet-determinate ⇒ `true`: the intrinsic `TangentIntersection` is
+///   demanded;
+/// - under-determined ⇒ `false`: the conventional description is the
+///   honest one (coplanar planes' exact-zero jet lands here, so a planar
+///   split keeps its chord description);
+/// - a station that reads the seam a corner ⇒ `false`: the seam is
+///   smooth at its witness and transverse elsewhere, an edge tier 3
+///   holds to neither description, so it keeps the conventional one;
+/// - in band at a station ⇒ the typed escalation of the reading that
+///   raised it: the seam's first-order arm or wedge, by rung, as
+///   [`seam_class`] ends it, or its second-order bend
+///   ([`BooleanDecision::SeamJet`]). Certifiable as neither, so never
+///   folded into either description (D4 ¶3).
+pub(super) fn seam_must_carry<T: Decide>(
+    surf1: &geom::Surface<T>,
+    surf2: &geom::Surface<T>,
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    extent: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    use geom_brep::{MustCarryEscalation, MustCarryVerdict};
+    match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
+        MustCarryVerdict::JetDeterminate => Ok(true),
+        MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
+        MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
+            Err(BooleanError::of_lever(
+                super::LeverArm::Seam,
+                super::DeclarationRead::Moot,
+                escalation,
+            ))
+        }
+        MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag)) => {
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::SeamJet,
+                diag,
+            })
+        }
+    }
 }
 
 /// How one operand's keys map into the result body.
@@ -3423,10 +3441,10 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use geom_core::{Band, Tol};
+    use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::volume_backstop;
-    use crate::boolean::{BooleanError, BooleanOp};
+    use super::{seam_class, seam_must_carry, volume_backstop};
+    use crate::boolean::{BooleanDecision, BooleanError, BooleanOp, LeverArm};
     use crate::props::QuadLane;
     use crate::splitting::reassembly::quad_prism;
 
@@ -4244,5 +4262,326 @@ mod tests {
                 face
             }]
         );
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A margin inside the band at every ε row: its two edges'
+    /// geometric mean.
+    fn in_band() -> f64 {
+        (band().zero() * band().escalate()).sqrt()
+    }
+
+    /// The floor `z = 0` and a unit cylinder resting on it along the
+    /// `y` axis, which is their tangency ruling: `κ_rel = 1` across it.
+    fn resting() -> (geom::Surface<f64>, geom::Surface<f64>, geom::Curve3<f64>) {
+        let floor = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cylinder = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let ruling = geom::Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        };
+        (floor, cylinder, ruling)
+    }
+
+    /// The seam's answer over `[0, extent]` of `carrier`, in both
+    /// argument orders, with its witness read smooth first (the arm the
+    /// rule is asked from).
+    fn both_orders(
+        s1: &geom::Surface<f64>,
+        s2: &geom::Surface<f64>,
+        carrier: &geom::Curve3<f64>,
+        (t0, t1): (f64, f64),
+        extent: f64,
+    ) -> [Result<bool, BooleanError>; 2] {
+        let witness = carrier.eval((t0 + t1) / 2.0);
+        [(s1, s2), (s2, s1)].map(|(a, b)| {
+            assert!(
+                matches!(
+                    seam_class(a, b, witness, extent, band()),
+                    Ok(geom_brep::DihedralClass::Smooth)
+                ),
+                "the row's seam reads smooth at its witness"
+            );
+            seam_must_carry(a, b, carrier, t0, t1, extent, band())
+        })
+    }
+
+    /// **A smooth seam whose bend is in band refuses as `SeamJet`, in
+    /// both orders**: its stations' second-order sagitta is certifiable
+    /// as neither the intrinsic tangency nor the conventional posture,
+    /// so it is never stored as either (tier 3 refuses such an edge
+    /// `SliverDihedral`).
+    #[test]
+    fn a_seam_bending_apart_in_band_refuses_as_its_second_order_decision() {
+        let (floor, cylinder, ruling) = resting();
+        // `κ_rel · extent² / 2` with `κ_rel = 1` and the arm the extent.
+        let extent = (2.0 * in_band()).sqrt();
+        for (order, got) in both_orders(&floor, &cylinder, &ruling, (0.0, extent), extent)
+            .into_iter()
+            .enumerate()
+        {
+            match got {
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::SeamJet,
+                    diag,
+                }) => assert_eq!(
+                    diag.predicate,
+                    Some("tangent_second_order"),
+                    "order {order}: the escalation is the station's sagitta"
+                ),
+                other => panic!("order {order}: an in-band bend must refuse typed, got {other:?}"),
+            }
+        }
+    }
+
+    /// **A station whose first-order dihedral is in band refuses as the
+    /// seam's own lever**, the rung `seam_class` gives the same reading
+    /// at the witness: over an extent in band the arm cannot measure the
+    /// angle.
+    #[test]
+    fn a_seam_whose_station_arm_is_in_band_refuses_as_the_seam_lever() {
+        let (floor, cylinder, ruling) = resting();
+        let extent = in_band();
+        for (a, b) in [(&floor, &cylinder), (&cylinder, &floor)] {
+            let got = seam_must_carry(a, b, &ruling, 0.0, 1.0, extent, band());
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Escalated {
+                        decision: BooleanDecision::LeverArm(LeverArm::Seam),
+                        ..
+                    })
+                ),
+                "an in-band arm is the seam lever's refusal, got {got:?}"
+            );
+        }
+    }
+
+    /// **A determinate seam is intrinsic, a flush one conventional**:
+    /// the resting cylinder over a unit extent bends apart definitely,
+    /// and two coplanar planes split along a line bend apart not at
+    /// all — exactly zero, so the conventional chord stays.
+    #[test]
+    fn a_determinate_seam_is_intrinsic_and_a_flush_one_conventional() {
+        let (floor, cylinder, ruling) = resting();
+        for (order, got) in both_orders(&floor, &cylinder, &ruling, (0.0, 1.0), 1.0)
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(got, Ok(true)),
+                "order {order}: a definite bend demands the intrinsic tangency, got {got:?}"
+            );
+        }
+        let split = geom::Surface::Plane {
+            origin: Point3::new(0.0, 5.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        for (order, got) in both_orders(&floor, &split, &ruling, (0.0, 1.0), 1.0)
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(got, Ok(false)),
+                "order {order}: coplanar planes keep the conventional chord, got {got:?}"
+            );
+        }
+    }
+
+    /// A torus (`R = 2`, `r = 1`) about `z`, its bitangent plane, and the
+    /// Villarceau circle they share through the plane's point of
+    /// tangency, which is the circle's `θ = 0`: the plane touches the
+    /// torus there and crosses it everywhere else on the circle.
+    fn villarceau() -> (geom::Surface<f64>, geom::Surface<f64>, geom::Curve3<f64>) {
+        let (big, r) = (2.0_f64, 1.0_f64);
+        let (sin, cos) = (r / big, (1.0 - (r / big).powi(2)).sqrt());
+        let torus = geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: big,
+            minor_radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let normal = Vec3::new(sin, 0.0, -cos);
+        let bitangent = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let center = Point3::new(0.0, r, 0.0);
+        let touch = Point3::new(big - r * sin, 0.0, r * cos);
+        let circle = geom::Curve3::Circle {
+            center,
+            axis: normal,
+            radius: big,
+            u_ref: (touch - center) / big,
+        };
+        for i in 0..geom_brep::CERT_SAMPLES {
+            let p = circle.eval(geom_brep::sample_param(-1.0, 1.0, i));
+            let on = |s: &geom::Surface<f64>| geom_brep::implicit_residual(s, p).abs() < 1e-12;
+            assert!(
+                on(&torus) && on(&bitangent),
+                "the circle lies on both surfaces at {p:?}"
+            );
+        }
+        (torus, bitangent, circle)
+    }
+
+    /// **A seam smooth at its witness and a corner at a station keeps
+    /// the conventional posture, in both orders**, on [`villarceau`]'s
+    /// arc a radian either side of the tangency. Each station's jet read
+    /// off a smooth join measures a transverse direction tangent to the
+    /// first surface alone, so the per-station sagitta reads definitely
+    /// positive in both orders here, at values that differ with the
+    /// order; the rule reads the corner first-order instead, and tier 3
+    /// holds an edge that is not smooth throughout to neither
+    /// description, so no intrinsic tangency is demanded of it.
+    #[test]
+    fn a_seam_smooth_at_its_witness_and_a_corner_at_a_station_stays_conventional() {
+        let (torus, bitangent, arc) = villarceau();
+        let span = (-1.0, 1.0);
+        assert!(
+            matches!(
+                seam_class(&torus, &bitangent, arc.eval(span.0), 1.0, band()),
+                Ok(geom_brep::DihedralClass::Transverse)
+            ),
+            "the arc's end is a corner"
+        );
+        for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
+            assert_eq!(
+                geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, 1.0, band()),
+                geom_brep::MustCarryVerdict::Transverse,
+                "a station reads the seam a corner"
+            );
+        }
+        for (order, got) in both_orders(&torus, &bitangent, &arc, span, 1.0)
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(got, Ok(false)),
+                "order {order}: a seam that is a corner somewhere keeps the conventional \
+                 description, got {got:?}"
+            );
+        }
+    }
+
+    /// **A station whose wedge is in band refuses as `SeamWedge`, even
+    /// behind a station that reads a corner.** [`villarceau`]'s arc over
+    /// a span short enough that the stations beside the tangency open a
+    /// wedge in band while those further out read definitely
+    /// transverse: the stations read corner, corner, in band, smooth,
+    /// in band, corner, corner. Tier 3 classifies every station and
+    /// refuses an in-band one `SliverDihedral` wherever it sits, so the
+    /// seam is never stored as either description; a walk that answered
+    /// from the first station would keep it conventional.
+    #[test]
+    fn an_in_band_wedge_behind_a_corner_refuses_as_the_seam_wedge() {
+        let (torus, bitangent, arc) = villarceau();
+        let extent = 1.0;
+        // The wedge's margin, `sin θ` levered over the folded arm, at
+        // the arc's `t`: linear in `t` beside the tangency.
+        let wedge = |t: f64| {
+            let p = arc.eval(t);
+            let n = |s: &geom::Surface<f64>| geom_brep::implicit_gradient(s, p).normalize();
+            n(&torus).cross(n(&bitangent)).norm()
+                * geom_brep::folded_lever_arm(&torus, &bitangent, p, extent)
+        };
+        let slope = wedge(1e-4) / 1e-4;
+        // The stations sit a quarter of the half-span apart: the inner
+        // two read 0.7 of the band's escalation edge, the next 1.4.
+        let half = 4.0 * 0.7 * band().escalate() / slope;
+        let span = (-half, half);
+        let classes: Vec<_> = (1..geom_brep::CERT_SAMPLES - 1)
+            .map(|i| {
+                let p = arc.eval(geom_brep::sample_param(span.0, span.1, i));
+                match geom_brep::classify_dihedral(&torus, &bitangent, p, extent, band()) {
+                    Ok(geom_brep::DihedralClass::Transverse) => 'T',
+                    Ok(geom_brep::DihedralClass::Smooth) => 'S',
+                    Err(_) => 'E',
+                }
+            })
+            .collect();
+        assert_eq!(
+            classes.iter().collect::<String>(),
+            "TTESETT",
+            "the fixture's stations (half-span {half:e})"
+        );
+        for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
+            let verdict =
+                geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, extent, band());
+            assert!(
+                matches!(
+                    verdict,
+                    geom_brep::MustCarryVerdict::InBand(
+                        geom_brep::MustCarryEscalation::FirstOrder(geom_brep::LeverEscalation {
+                            rung: geom_brep::LeverRung::Reading,
+                            ..
+                        })
+                    )
+                ),
+                "an in-band wedge anywhere escalates, got {verdict:?}"
+            );
+        }
+        for (order, got) in both_orders(&torus, &bitangent, &arc, span, extent)
+            .into_iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::Escalated {
+                        decision: BooleanDecision::SeamWedge,
+                        ..
+                    })
+                ),
+                "order {order}: the in-band wedge refuses as the seam's wedge, got {got:?}"
+            );
+        }
+    }
+
+    /// **The rebuild's smooth arm decides through [`seam_must_carry`]
+    /// and spells no second-order reading of its own**, so the rows
+    /// above, which call the helper, speak for the boolean's seams: a
+    /// loop inlined back into `describe_minted_edges` reds here.
+    #[test]
+    fn the_smooth_seam_arm_routes_through_the_must_carry_rule() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/boolean/ops.rs");
+        let source = test_utils::source::code_only(&std::fs::read_to_string(path).unwrap());
+        let start = source
+            .find("fn describe_minted_edges")
+            .expect("the rebuild's description pass");
+        let body = &source[start..start + source[start..].find("\n}\n").expect("its end")];
+        assert_eq!(
+            body.matches("seam_must_carry(").count(),
+            1,
+            "the smooth arm asks the rule once"
+        );
+        for spelling in [
+            "tangent_jet",
+            "tangent_second_order",
+            "must_carry_over_edge",
+            "Margin::sagitta",
+            "lever_arm(",
+            "decide(",
+        ] {
+            assert!(
+                !body.contains(spelling),
+                "describe_minted_edges spells `{spelling}` beside the rule"
+            );
+        }
     }
 }
