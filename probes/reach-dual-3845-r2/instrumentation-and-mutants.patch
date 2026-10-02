@@ -1,0 +1,122 @@
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index 7595044c..6a197fff 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -328,6 +328,8 @@ mod r1_probes_issue1362_donut;
+ mod r2_sense_fold_probes;
+ #[path = "ray_wall_margin_twins.rs"]
+ mod ray_wall_margin_twins;
++#[path = "probe_r2.rs"]
++mod probe_r2;
+ #[path = "reach_aligned_half_rods.rs"]
+ mod reach_aligned_half_rods;
+ #[path = "reach_cone_split.rs"]
+diff --git a/crates/topo/src/boolean/join.rs b/crates/topo/src/boolean/join.rs
+index 41a986d3..b750c8bf 100644
+--- a/crates/topo/src/boolean/join.rs
++++ b/crates/topo/src/boolean/join.rs
+@@ -683,6 +683,7 @@ fn find_match<T: Decide>(
+         (0..2).filter(|&g| !side[g].1).collect()
+     }
+     let mut best: Option<(T, Match)> = None;
++    let mut r2_fm: Vec<(T, T, usize, usize)> = Vec::new();
+     for (cand, rec) in open.iter().enumerate() {
+         for (entry, e) in open.iter().enumerate() {
+             if entry == cand {
+@@ -743,6 +744,7 @@ fn find_match<T: Decide>(
+                         entry_slot: es,
+                         cand_slot: cs,
+                     };
++                    if let Some(fr) = frame { let arc = germ_separation(fr, &rga, p_c, p_e); r2_fm.push((dist, arc, cand, cs)); }
+                     best = match best {
+                         None => Some((dist, m)),
+                         Some((bd, bm)) => {
+@@ -758,6 +760,21 @@ fn find_match<T: Decide>(
+             }
+         }
+     }
++    if let Ok(path) = std::env::var("R2LOG") {
++        let f = |t: &T| format!("{t:?}").parse::<f64>().unwrap_or(f64::NAN);
++        let mut keys: Vec<(usize, usize)> = r2_fm.iter().map(|x| (x.2, x.3)).collect();
++        keys.sort(); keys.dedup();
++        for k in keys {
++            let rows: Vec<(f64, f64)> = r2_fm.iter().filter(|x| (x.2, x.3) == k).map(|x| (f(&x.0), f(&x.1))).collect();
++            if rows.len() < 2 { continue; }
++            let ac = rows.iter().enumerate().min_by(|a, b| a.1.0.total_cmp(&b.1.0)).unwrap().0;
++            let aa = rows.iter().enumerate().min_by(|a, b| a.1.1.total_cmp(&b.1.1)).unwrap().0;
++            use std::io::Write;
++            if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
++                let _ = writeln!(fh, "{} FM {} n={} {:?}", std::thread::current().name().unwrap_or("?"), if ac == aa {"same"} else {"DIFFER"}, rows.len(), rows);
++            }
++        }
++    }
+     Ok(best.map(|(_, m)| m))
+ }
+ 
+@@ -1340,7 +1357,7 @@ pub(super) fn germ_separation<T: Decide>(
+     let sense = axis.dot(u.cross(g1.dir));
+     let sin = sense * axis.dot(u.cross(w));
+     let cos = sense.abs() * u.dot(w);
+-    let swept = T::pi() + (-sin).atan2(-cos);
++    let swept = if std::env::var("R2MUT").map(|v| v=="halfopen").unwrap_or(false) { T::pi() - sin.atan2(-cos) } else { T::pi() + (-sin).atan2(-cos) };
+     u.norm() * swept
+ }
+ 
+diff --git a/crates/topo/src/boolean/rest.rs b/crates/topo/src/boolean/rest.rs
+index b2200db3..8224f2c0 100644
+--- a/crates/topo/src/boolean/rest.rs
++++ b/crates/topo/src/boolean/rest.rs
+@@ -556,7 +556,7 @@ fn enumerate_segments<T: Decide>(
+                         )? {
+                             continue;
+                         }
+-                        super::join::germ_separation(frame, &gi.germ, gi.point, gj.point)
++                        if std::env::var("R2MUT").map(|v| v=="chordnear").unwrap_or(false) { dist } else { super::join::germ_separation(frame, &gi.germ, gi.point, gj.point) }
+                     }
+                 };
+                 best = match best {
+@@ -573,7 +573,8 @@ fn enumerate_segments<T: Decide>(
+             }
+         }
+         let Some((_, i, j)) = best else {
+-            if frames.is_none() && germs.iter().any(|g| !g.used) {
++            if frames.is_none() && germs.iter().any(|g| !g.used) && !std::env::var("R2MUT").map(|v| v=="noarc").unwrap_or(false) {
++if let Ok(path) = std::env::var("R2LOG") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) { let _ = writeln!(f, "{} {}", std::thread::current().name().unwrap_or("?"), "ARC"); } }
+                 frames = Some(conic_frames(
+                     red,
+                     germs.iter().map(|g| (&g.germ, g.used)),
+@@ -583,6 +584,7 @@ fn enumerate_segments<T: Decide>(
+             }
+             break;
+         };
++        if std::env::var("R2DBG").is_ok() { eprintln!("R2 seg pass={} i={} j={} pi={} pj={} pti={:?} ptj={:?} dir_i={:?} dir_j={:?}", if frames.is_some(){"arc"}else{"chord"}, i,j,germs[i].pair,germs[j].pair,germs[i].point,germs[j].point,germs[i].germ.dir,germs[j].germ.dir); }
+         germs[i].used = true;
+         germs[j].used = true;
+         let (au, bu) = sites[germs[i].pair];
+@@ -597,6 +599,8 @@ fn enumerate_segments<T: Decide>(
+             b_faces: [gi.b_face, gj.b_face],
+         });
+     }
++    if std::env::var("R2DBG").is_ok() { for (k,g) in germs.iter().enumerate() { eprintln!("R2 germ {k} pair={} used={} pt={:?} dir={:?} frame={:?}", g.pair, g.used, g.point, g.germ.dir, frames.as_ref().map(|f| f[k])); } }
++    if germs.iter().any(|g| !g.used) { if let Ok(path) = std::env::var("R2LOG") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) { let _ = writeln!(f, "{} {}", std::thread::current().name().unwrap_or("?"), "DECLINE"); } } } else if frames.is_some() { if let Ok(path) = std::env::var("R2LOG") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) { let _ = writeln!(f, "{} {}", std::thread::current().name().unwrap_or("?"), "ARCDONE"); } } }
+     if germs.iter().any(|g| !g.used) {
+         return Ok(None); // leftover germs: not a pure REST seam
+     }
+@@ -1007,6 +1011,9 @@ fn fan_edge_between<T: Decide>(
+             }
+         }
+     }
++    if found.len() > 1 { if let Ok(path) = std::env::var("R2LOG") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) { let _ = writeln!(f, "{} {}", std::thread::current().name().unwrap_or("?"), "FAN"); } } }
++    if found.len() > 1 && std::env::var("R2MUT").map(|v| v=="nofilter").unwrap_or(false) { found.truncate(1); }
++    if found.len() > 1 && std::env::var("R2MUT").map(|v| v=="nofilterlast").unwrap_or(false) { found.remove(0); found.truncate(1); }
+     if found.len() > 1 {
+         let face_of = |he: HalfEdgeKey| -> Result<FaceKey, BooleanError> {
+             let l = body
+@@ -1032,6 +1039,7 @@ fn fan_edge_between<T: Decide>(
+             }
+         }
+         found = held;
++        if std::env::var("R2DBG").is_ok() { eprintln!("R2 fan u={u:?} v={v:?} faces={faces:?} held={}", found.len()); }
+         if found.len() != 1 {
+             return Err(unsupported(RestZipFrontier::ParallelSeamEdges));
+         }

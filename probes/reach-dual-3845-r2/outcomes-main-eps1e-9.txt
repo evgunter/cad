@@ -1,0 +1,189 @@
+3-arc long δ=0.0000001 +3rd: BUILT faces
+3-arc long δ=0.0000001 +4th: BUILT faces
+3-arc long δ=0.0000001 A∪B: BUILT faces
+3-arc long δ=0.0000001 B∪A: BUILT faces
+3-arc long δ=0.001 +3rd: BUILT faces
+3-arc long δ=0.001 +4th: BUILT faces
+3-arc long δ=0.001 A∪B: BUILT faces
+3-arc long δ=0.001 B∪A: BUILT faces
+3-arc long δ=0.3 +3rd: BUILT faces
+3-arc long δ=0.3 +4th: BUILT faces
+3-arc long δ=0.3 A∪B: BUILT faces
+3-arc long δ=0.3 B∪A: BUILT faces
+3-arc long δ=1 A∪B: REFUSED Join(UnpairedLooseEnds
+3-arc long δ=1 B∪A: REFUSED Join(UnpairedLooseEnds
+3-arc split vs 2 δ=0.0000001 +3rd: BUILT faces
+3-arc split vs 2 δ=0.0000001 +4th: BUILT faces
+3-arc split vs 2 δ=0.0000001 A∪B: BUILT faces
+3-arc split vs 2 δ=0.0000001 B∪A: BUILT faces
+3-arc split vs 2 δ=0.001 +3rd: BUILT faces
+3-arc split vs 2 δ=0.001 +4th: BUILT faces
+3-arc split vs 2 δ=0.001 A∪B: BUILT faces
+3-arc split vs 2 δ=0.001 B∪A: BUILT faces
+3-arc split vs 2 δ=0.3 +3rd: BUILT faces
+3-arc split vs 2 δ=0.3 +4th: BUILT faces
+3-arc split vs 2 δ=0.3 A∪B: BUILT faces
+3-arc split vs 2 δ=0.3 B∪A: BUILT faces
+3-arc split vs 2 δ=1 A∪B: REFUSED Join(UnpairedLooseEnds
+3-arc split vs 2 δ=1 B∪A: REFUSED Join(UnpairedLooseEnds
+half tube -1 A∪B: REFUSED Join(UnpairedLooseEnds
+half tube -1 B∪A: REFUSED Join(UnpairedLooseEnds
+half tube 1 A∪B: REFUSED Join(UnpairedLooseEnds
+half tube 1 B∪A: REFUSED Join(UnpairedLooseEnds
+radii 1.5/1 A∪B: BUILT faces
+radii 1/1.0000001 A∪B: BUILT faces
+radii 1/1.5 A∪B: BUILT faces
+rod tilted s=1 n=2 θ=0 A∪B: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=0 B∪A: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=0.0000001 A∪B: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=0.0000001 B∪A: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=0.7 A∪B: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=0.7 B∪A: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=1.5707963267948966 A∪B: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=1.5707963267948966 B∪A: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=3.1415925535897933 A∪B: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=3.1415925535897933 B∪A: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=3.141592653589793 A∪B: REFUSED CurvedPierceUnsupported
+rod tilted s=1 n=2 θ=3.141592653589793 B∪A: REFUSED CurvedPierceUnsupported
+rod world s=0.001 n=2 θ=0 A∪B: REFUSED Join(UnpairedLooseEnds
+rod world s=0.001 n=2 θ=0 B∪A: REFUSED Join(UnpairedLooseEnds
+rod world s=0.001 n=2 θ=0.0000001 A∪B: REFUSED Join(UnpairedLooseEnds
+rod world s=0.001 n=2 θ=0.0000001 B∪A: REFUSED Join(UnpairedLooseEnds
+rod world s=0.001 n=2 θ=0.7 +3rd: BUILT faces
+rod world s=0.001 n=2 θ=0.7 +4th: BUILT faces
+rod world s=0.001 n=2 θ=0.7 A∪B: BUILT faces
+rod world s=0.001 n=2 θ=0.7 B∪A: BUILT faces
+rod world s=0.001 n=2 θ=1.5707963267948966 +3rd: BUILT faces
+rod world s=0.001 n=2 θ=1.5707963267948966 +4th: BUILT faces
+rod world s=0.001 n=2 θ=1.5707963267948966 A∪B: BUILT faces
+rod world s=0.001 n=2 θ=1.5707963267948966 B∪A: BUILT faces
+rod world s=0.001 n=2 θ=3.1415925535897933 A∪B: REFUSED Join(UnpairedLooseEnds
+rod world s=0.001 n=2 θ=3.1415925535897933 B∪A: REFUSED Join(UnpairedLooseEnds
+rod world s=0.001 n=2 θ=3.141592653589793 A∪B: REFUSED Join(UnpairedLooseEnds
+rod world s=0.001 n=2 θ=3.141592653589793 B∪A: REFUSED Join(UnpairedLooseEnds
+rod world s=1 n=2 θ=0 A∪B: REFUSED Join(UnpairedLooseEnds
+rod world s=1 n=2 θ=0 B∪A: REFUSED Join(UnpairedLooseEnds
+rod world s=1 n=2 θ=0.0000001 +3rd: BUILT faces
+rod world s=1 n=2 θ=0.0000001 +4th: BUILT faces
+rod world s=1 n=2 θ=0.0000001 A∪B: BUILT faces
+rod world s=1 n=2 θ=0.0000001 B∪A: BUILT faces
+rod world s=1 n=2 θ=0.7 +3rd: BUILT faces
+rod world s=1 n=2 θ=0.7 +4th: BUILT faces
+rod world s=1 n=2 θ=0.7 A∪B: BUILT faces
+rod world s=1 n=2 θ=0.7 B∪A: BUILT faces
+rod world s=1 n=2 θ=1.5707963267948966 +3rd: BUILT faces
+rod world s=1 n=2 θ=1.5707963267948966 +4th: BUILT faces
+rod world s=1 n=2 θ=1.5707963267948966 A∪B: BUILT faces
+rod world s=1 n=2 θ=1.5707963267948966 B∪A: BUILT faces
+rod world s=1 n=2 θ=3.1415925535897933 +3rd: BUILT faces
+rod world s=1 n=2 θ=3.1415925535897933 +4th: BUILT faces
+rod world s=1 n=2 θ=3.1415925535897933 A∪B: BUILT faces
+rod world s=1 n=2 θ=3.1415925535897933 B∪A: BUILT faces
+rod world s=1 n=2 θ=3.141592653589793 A∪B: REFUSED Join(UnpairedLooseEnds
+rod world s=1 n=2 θ=3.141592653589793 B∪A: REFUSED Join(UnpairedLooseEnds
+rod world s=1 n=3 θ=0 +3rd: BUILT faces
+rod world s=1 n=3 θ=0 +4th: BUILT faces
+rod world s=1 n=3 θ=0 A∪B: BUILT faces
+rod world s=1 n=3 θ=0 B∪A: BUILT faces
+rod world s=1 n=3 θ=0.0000001 +3rd: BUILT faces
+rod world s=1 n=3 θ=0.0000001 +4th: BUILT faces
+rod world s=1 n=3 θ=0.0000001 A∪B: BUILT faces
+rod world s=1 n=3 θ=0.0000001 B∪A: BUILT faces
+rod world s=1 n=3 θ=0.7 +3rd: BUILT faces
+rod world s=1 n=3 θ=0.7 +4th: BUILT faces
+rod world s=1 n=3 θ=0.7 A∪B: BUILT faces
+rod world s=1 n=3 θ=0.7 B∪A: BUILT faces
+rod world s=1 n=3 θ=1.5707963267948966 +3rd: BUILT faces
+rod world s=1 n=3 θ=1.5707963267948966 +4th: BUILT faces
+rod world s=1 n=3 θ=1.5707963267948966 A∪B: BUILT faces
+rod world s=1 n=3 θ=1.5707963267948966 B∪A: BUILT faces
+rod world s=1 n=3 θ=3.1415925535897933 +3rd: BUILT faces
+rod world s=1 n=3 θ=3.1415925535897933 +4th: BUILT faces
+rod world s=1 n=3 θ=3.1415925535897933 A∪B: BUILT faces
+rod world s=1 n=3 θ=3.1415925535897933 B∪A: BUILT faces
+rod world s=1 n=3 θ=3.141592653589793 +3rd: BUILT faces
+rod world s=1 n=3 θ=3.141592653589793 +4th: BUILT faces
+rod world s=1 n=3 θ=3.141592653589793 A∪B: BUILT faces
+rod world s=1 n=3 θ=3.141592653589793 B∪A: BUILT faces
+rod world s=1 n=4 θ=0 +3rd: BUILT faces
+rod world s=1 n=4 θ=0 +4th: BUILT faces
+rod world s=1 n=4 θ=0 A∪B: BUILT faces
+rod world s=1 n=4 θ=0 B∪A: BUILT faces
+rod world s=1 n=4 θ=0.0000001 +3rd: BUILT faces
+rod world s=1 n=4 θ=0.0000001 +4th: BUILT faces
+rod world s=1 n=4 θ=0.0000001 A∪B: BUILT faces
+rod world s=1 n=4 θ=0.0000001 B∪A: BUILT faces
+rod world s=1 n=4 θ=0.7 +3rd: BUILT faces
+rod world s=1 n=4 θ=0.7 +4th: BUILT faces
+rod world s=1 n=4 θ=0.7 A∪B: BUILT faces
+rod world s=1 n=4 θ=0.7 B∪A: BUILT faces
+rod world s=1 n=4 θ=1.5707963267948966 +3rd: BUILT faces
+rod world s=1 n=4 θ=1.5707963267948966 +4th: BUILT faces
+rod world s=1 n=4 θ=1.5707963267948966 A∪B: BUILT faces
+rod world s=1 n=4 θ=1.5707963267948966 B∪A: BUILT faces
+rod world s=1 n=4 θ=3.1415925535897933 +3rd: BUILT faces
+rod world s=1 n=4 θ=3.1415925535897933 +4th: BUILT faces
+rod world s=1 n=4 θ=3.1415925535897933 A∪B: BUILT faces
+rod world s=1 n=4 θ=3.1415925535897933 B∪A: BUILT faces
+rod world s=1 n=4 θ=3.141592653589793 +3rd: BUILT faces
+rod world s=1 n=4 θ=3.141592653589793 +4th: BUILT faces
+rod world s=1 n=4 θ=3.141592653589793 A∪B: BUILT faces
+rod world s=1 n=4 θ=3.141592653589793 B∪A: BUILT faces
+rod world s=1000 n=2 θ=0 A∪B: REFUSED Join(UnpairedLooseEnds
+rod world s=1000 n=2 θ=0 B∪A: REFUSED Join(UnpairedLooseEnds
+rod world s=1000 n=2 θ=0.0000001 +3rd: BUILT faces
+rod world s=1000 n=2 θ=0.0000001 +4th: BUILT faces
+rod world s=1000 n=2 θ=0.0000001 A∪B: BUILT faces
+rod world s=1000 n=2 θ=0.0000001 B∪A: BUILT faces
+rod world s=1000 n=2 θ=0.7 +3rd: BUILT faces
+rod world s=1000 n=2 θ=0.7 +4th: BUILT faces
+rod world s=1000 n=2 θ=0.7 A∪B: BUILT faces
+rod world s=1000 n=2 θ=0.7 B∪A: BUILT faces
+rod world s=1000 n=2 θ=1.5707963267948966 +3rd: BUILT faces
+rod world s=1000 n=2 θ=1.5707963267948966 +4th: BUILT faces
+rod world s=1000 n=2 θ=1.5707963267948966 A∪B: BUILT faces
+rod world s=1000 n=2 θ=1.5707963267948966 B∪A: BUILT faces
+rod world s=1000 n=2 θ=3.1415925535897933 +3rd: BUILT faces
+rod world s=1000 n=2 θ=3.1415925535897933 +4th: BUILT faces
+rod world s=1000 n=2 θ=3.1415925535897933 A∪B: BUILT faces
+rod world s=1000 n=2 θ=3.1415925535897933 B∪A: BUILT faces
+rod world s=1000 n=2 θ=3.141592653589793 A∪B: REFUSED Join(UnpairedLooseEnds
+rod world s=1000 n=2 θ=3.141592653589793 B∪A: REFUSED Join(UnpairedLooseEnds
+tube θ=(0,0) A∪B: REFUSED Join(UnpairedLooseEnds
+tube θ=(0,0) B∪A: REFUSED Join(UnpairedLooseEnds
+tube θ=(0,0.7) A∪B: BUILT faces
+tube θ=(0,0.7) B∪A: BUILT faces
+tube θ=(0,3.141592653589793) A∪B: REFUSED Join(UnpairedLooseEnds
+tube θ=(0,3.141592653589793) B∪A: REFUSED Join(UnpairedLooseEnds
+tube θ=(0.3,0.3) A∪B: REFUSED Join(UnpairedLooseEnds
+tube θ=(0.3,0.3) B∪A: REFUSED Join(UnpairedLooseEnds
+two circles θ=0 A∪B: REFUSED Join(UnpairedLooseEnds
+two circles θ=0 B∪A: REFUSED Join(UnpairedLooseEnds
+two circles θ=0.7 A∪B: BUILT faces
+two circles θ=0.7 B∪A: BUILT faces
+two circles θ=3.141592653589793 A∪B: REFUSED Join(UnpairedLooseEnds
+two circles θ=3.141592653589793 B∪A: REFUSED Join(UnpairedLooseEnds
+unequal δ=0.0000001 aligned A∪B: REFUSED Join(UnpairedLooseEnds
+unequal δ=0.0000001 aligned B∪A: REFUSED Join(UnpairedLooseEnds
+unequal δ=0.0000001 mirrored +3rd: BUILT faces
+unequal δ=0.0000001 mirrored +4th: BUILT faces
+unequal δ=0.0000001 mirrored A∪B: BUILT faces
+unequal δ=0.0000001 mirrored B∪A: BUILT faces
+unequal δ=0.001 aligned A∪B: REFUSED Join(UnpairedLooseEnds
+unequal δ=0.001 aligned B∪A: REFUSED Join(UnpairedLooseEnds
+unequal δ=0.001 mirrored +3rd: BUILT faces
+unequal δ=0.001 mirrored +4th: BUILT faces
+unequal δ=0.001 mirrored A∪B: BUILT faces
+unequal δ=0.001 mirrored B∪A: BUILT faces
+unequal δ=0.3 aligned A∪B: REFUSED Join(UnpairedLooseEnds
+unequal δ=0.3 aligned B∪A: REFUSED Join(UnpairedLooseEnds
+unequal δ=0.3 mirrored +3rd: BUILT faces
+unequal δ=0.3 mirrored +4th: BUILT faces
+unequal δ=0.3 mirrored A∪B: BUILT faces
+unequal δ=0.3 mirrored B∪A: BUILT faces
+unequal δ=1 aligned A∪B: REFUSED Join(UnpairedLooseEnds
+unequal δ=1 aligned B∪A: REFUSED Join(UnpairedLooseEnds
+unequal δ=1 mirrored +3rd: BUILT faces
+unequal δ=1 mirrored +4th: BUILT faces
+unequal δ=1 mirrored A∪B: BUILT faces
+unequal δ=1 mirrored B∪A: BUILT faces
