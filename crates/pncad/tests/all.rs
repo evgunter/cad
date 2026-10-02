@@ -6531,7 +6531,9 @@ mod the_hollowed_box_through_the_facade {
 /// a sub-assembly holding an unplaced instance refuses `Unplaced` on its
 /// own, and the outer document instancing it refuses `UnplacedBelow`
 /// naming the group, the route it arrived by and its cause — rather
-/// than write the sub-assembly's world without it.
+/// than write the sub-assembly's world without it. Spoken from the outer
+/// document, the route's first instance is said as that document holds
+/// it, and the group, a node of the sub-assembly, by its tag.
 #[test]
 fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     use pncad::document::DocEdit;
@@ -6564,6 +6566,17 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
         "the sub-assembly alone refuses: {sub_err:?}"
     );
     let (outer, outer_ids) = asm2a_assembly("r2-step-sub-outer", sub_ref, 1);
+    let outer = pncad::document::apply(
+        &outer,
+        &DocEdit::SetLabel {
+            node: outer_ids[0],
+            label: Some(pncad::document::Label::new("left bracket").expect("a label")),
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("a label is set")
+    .doc;
     let ev = asm2a_eval(&outer, &ws);
     let expected = pncad::document::CarriedUnplaced {
         route: pncad::document::Route {
@@ -6577,13 +6590,25 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     match pncad::export::export_document_step(&ev, &outer, &opts, Tol::witness()) {
         Err(e @ pncad::export::ExportError::UnplacedBelow { .. }) => {
             let said = e.to_string();
+            let spoken = e.spoken(&outer);
             let pncad::export::ExportError::UnplacedBelow { groups } = e else {
                 unreachable!()
             };
             assert_eq!(groups, vec![expected]);
+            let by_tag = format!("through instance {}", outer_ids[0]);
             assert!(
-                said.contains("Recourse:") && said.contains("through instance"),
-                "{said}"
+                said.contains("Recourse:") && said.contains(&by_tag),
+                "with no document at hand the instance is said by its tag: {said}"
+            );
+            let instance = format!(
+                "through InstantiatePart \"left bracket\" ({})",
+                outer_ids[0]
+            );
+            let group = format!("rooted at node {}", ids[1]);
+            assert!(
+                spoken.contains(&instance) && spoken.contains(&group),
+                "the outer document says its instance and the sub-assembly's group by tag: \
+                 {spoken}"
             );
         }
         other => panic!("the outer document refuses naming the group below: {other:?}"),

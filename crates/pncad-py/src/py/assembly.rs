@@ -49,7 +49,8 @@ use super::mate::MateSide;
 use super::value::{Body, Evaluation};
 
 /// **The document a row's `__str__` speaks its nodes from**: the
-/// evaluated document for this document's own rows, and none for a row
+/// evaluated document for this document's own rows and for the first
+/// instance of a carried row's route, and none for the rest of a row
 /// carried up from a document below, whose ids are that document's and
 /// are said by tag.
 #[derive(Clone, Default)]
@@ -545,7 +546,7 @@ impl MintRefusal {
 /// file to open and `via` the instances in between, nearest first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct CarriedRefusal(d::CarriedRefusal);
+pub(crate) struct CarriedRefusal(d::CarriedRefusal, SpokenFrom);
 
 #[pymethods]
 impl CarriedRefusal {
@@ -574,10 +575,10 @@ impl CarriedRefusal {
         route_fields(py, &self.0.route).1
     }
 
-    /// The row in the library's own words: which document, what it
-    /// could not mint, and the repair.
+    /// The row in the library's own words: which document, and what
+    /// it could not mint.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        self.1.say(&self.0)
     }
 
     fn __repr__(&self) -> String {
@@ -711,7 +712,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
         E::CarriedMintRefusal { refusals } => (
             obj(refusals
                 .iter()
-                .map(|r| CarriedRefusal(r.clone()))
+                .map(|r| CarriedRefusal(r.clone(), from.clone()))
                 .collect::<Vec<_>>()
                 .into_pyobject(py)
                 .map(|v| v.unbind().into_any())),

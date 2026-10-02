@@ -143,15 +143,32 @@ impl Route {
     }
 }
 
-// The route as an author reads it: the instance in this document, then
-// each instance below it.
-impl core::fmt::Display for Route {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "document {} through instance {}", self.of, self.through)?;
+// The route as an author reads it: the instance in this document, said
+// by the speaker, then each instance below it. Those are spelled in the
+// ids of the documents below, so they keep their tags.
+impl crate::spoken::Say for Route {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        write!(
+            f,
+            "document {} through {}",
+            self.of,
+            by.node_as(self.through, "instance")
+        )?;
         for node in &self.via {
             write!(f, " → instance {}", node)?;
         }
         Ok(())
+    }
+}
+
+/// The route where no document is at hand: each instance by its tag.
+impl core::fmt::Display for Route {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -196,13 +213,28 @@ pub struct CarriedRefusal {
 // answers `""`: the repair is the same sentence for every row of the
 // list — open those documents — so it belongs once, in the header the
 // arm writes, and not once per mate.
-impl core::fmt::Display for CarriedRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+//
+// The speaker says the route's first instance, which is this document's;
+// the refusal is spelled in `route.of`'s ids, so it keeps its tags.
+impl crate::spoken::Say for CarriedRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
             "{} did not mint one of its own mates: {}",
-            self.route, self.refusal
+            crate::spoken::Said(&self.route, by),
+            self.refusal
         )
+    }
+}
+
+/// The row where no document is at hand: each node by its tag.
+impl core::fmt::Display for CarriedRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -241,14 +273,28 @@ pub struct CarriedUnplaced {
 // A carried group as an author reads it: which document holds it, and
 // why it is unplaced. No recourse, for [`CarriedRefusal`]'s reason: the
 // repair is the same for every row, so the header that lists them
-// states it once.
-impl core::fmt::Display for CarriedUnplaced {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// states it once. The speaker says the route's first instance; the group
+// is spelled in `route.of`'s ids, so it keeps its tag.
+impl crate::spoken::Say for CarriedUnplaced {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
             "{}: the group rooted at node {} is unplaced, because {}",
-            self.route, self.group, self.cause
+            crate::spoken::Said(&self.route, by),
+            self.group,
+            self.cause
         )
+    }
+}
+
+/// The row where no document is at hand: each node by its tag.
+impl core::fmt::Display for CarriedUnplaced {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -474,14 +520,15 @@ impl crate::spoken::Say for Attribution {
             // The mate an author can act on is a mate of ANOTHER file
             // here, so the route rides with it: which file, and how
             // this document reached it. Its id is that file's, so it
-            // is said by its tag.
+            // is said by its tag; the route's first instance is this
+            // document's, so the speaker says it.
             Self::Carried {
                 route,
                 declaration,
                 relation,
             } => {
                 subject(f, declaration, *relation, crate::spoken::Speaker::TAG)?;
-                write!(f, " (carried from {route})")
+                write!(f, " (carried from {})", crate::spoken::Said(route, by))
             }
             Self::Unattributed => f.write_str("no mate declared this"),
         }
@@ -539,7 +586,8 @@ impl core::fmt::Display for AtRestFinding {
 impl AtRestFinding {
     /// **The finding as the frame holding the assembled document says
     /// it**: this document's mate as `doc` holds it now; a carried
-    /// declaration's mate is a part's id, so it keeps its tag.
+    /// declaration's mate is a part's id, so it keeps its tag, and the
+    /// first instance of its route is this document's.
     #[must_use]
     pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
@@ -845,7 +893,8 @@ impl crate::spoken::Say for AssemblyError {
                 crate::finding::render_lines(f, refusals.iter().map(|r| crate::spoken::Said(r, by)))
             }
             // Each row is spelled in the ids of the document below
-            // that refused it, so it is said by its tags.
+            // that refused it, so it is said by its tags, but for its
+            // route's first instance, which is this document's.
             Self::CarriedMintRefusal { refusals } => {
                 write!(
                     f,
@@ -854,7 +903,7 @@ impl crate::spoken::Say for AssemblyError {
                      those documents and repair the mates there",
                     refusals.len()
                 )?;
-                crate::finding::render_lines(f, refusals)
+                crate::finding::render_lines(f, refusals.iter().map(|r| crate::spoken::Said(r, by)))
             }
             Self::AtRest { findings } => {
                 write!(f, "{} finding(s) against this assembly:", findings.len())?;
@@ -890,7 +939,8 @@ impl AssemblyError {
     /// **The refusal as the frame holding the assembled document says it**:
     /// this document's nodes as `doc` holds them now
     /// ([`crate::Doc::spoken`]). A row carried up from a document below is
-    /// spelled in that document's ids, so it keeps its tags.
+    /// spelled in that document's ids, so it keeps its tags, but for the
+    /// first instance of its route, which is this document's.
     #[must_use]
     pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
