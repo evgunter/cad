@@ -680,8 +680,8 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // Review A2 (adapted from the reviewer's transform-duplicate
     // probe): a tied name passed through a Transform appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
-    // row, `at` = the first carrying node in evaluation order (the
-    // defining one), the rest derivable by table lookup.
+    // row, `at` = the first carrying node in evaluation order, the rest
+    // derivable by table lookup.
     let (doc, sub) = tie_fixture();
     let (doc, _moved) = insert(
         doc,

@@ -1326,7 +1326,7 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     assert!(
         text.contains(&format!(
             "severs the a-side reference of {} from {}, the node it is read at. The mate is kept \
-             and that node is cut;",
+             and that node is cut. Recourse:",
             doc.spoken(mate),
             doc.spoken(xf)
         )),

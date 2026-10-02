@@ -1185,7 +1185,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverJoin {
                         loop_index,
                         vertex_index: segs[j].chord.canonical_vertex,
-                        source,
+                        source: source.diag(),
                     },
                     geom_brep::MustCarryRefusal::Refuted => {
                         ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
@@ -1500,7 +1500,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                 geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverRim {
                     loop_index,
                     segment_index,
-                    source,
+                    source: source.diag(),
                 },
                 geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
             };

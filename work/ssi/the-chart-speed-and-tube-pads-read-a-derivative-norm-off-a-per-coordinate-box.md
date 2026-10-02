@@ -55,3 +55,14 @@ Give the three sites a derivative-norm bound read from vector
 coefficients. Lower bounds stay box-assembled: a minimum of a convex
 function is not at a coefficient, so a mignitude floor cannot be read
 from coefficient norms.
+
+**The translation half is closed** (row
+`rational-chart-sup-speed-grows-with-translation`): `deriv_box` now
+reads every control point as a difference with another, so a
+translation moves these readings by their rounding width. A rotation
+still moves them by the box-to-norm factor this row names. A cheap
+candidate measured on that row's 1.8 / 0.7 wall: per cell,
+`(max_i ‖ΔA_i − c·Δw_i‖ + max_j ‖P_j − c‖·max_i |Δw_i|) / w_min` with
+`c` the cell's control centroid, read 5.91 against the box norm's
+5.86 (true 2.04) and is rotation-invariant; the coefficient form above
+would be tighter.

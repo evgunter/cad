@@ -14,10 +14,17 @@
 //!   membership rule subsuming the angular sort and the Table I tie
 //!   rules — see `resolve_edge_edge`).
 //!
-//! Germ attribution (deterministic, symmetric): a crossing along an
-//! on-edge is recorded on the flanking sector holding the on-bound as
-//! its START (in both solids for edge-edge), with the On code rewritten
-//! to the transition partner of the sector's other bound.
+//! Germ attribution: a crossing along an on-edge is recorded on the
+//! flanking sector the one fold rule
+//! ([`super::sectors::fold_on_bound`], placed by
+//! [`super::sectors::crossing_flank`]) makes the transition — the
+//! on-bound joins the In run, so the germ goes on the flanker whose
+//! other bound reads Out — with the On code rewritten to the transition
+//! partner of that other bound. At an edge-edge site each solid applies
+//! the rule to its OWN flankers' membership keys, apart: the germ's
+//! record is the pair of the two solids' transition flankers, minted
+//! when `pair_search` met no such pair (two coplanar flankers touching
+//! along the edge never make a record of their own).
 //!
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
@@ -26,7 +33,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
-use super::sectors::{BoolSector, PairRecord, side_code};
+use super::sectors::{BoolSector, Flank, PairRecord, crossing_flank, side_code};
 use super::tables::{eq15_3_lump, kept_copy, resolve_verdict, table_ii};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
@@ -191,10 +198,14 @@ fn cancel_uniform(r: &mut PairRecord) {
 /// Each coincident pair whose lump keeps one copy of the region is
 /// pushed onto `covered` as `(A face, B face)`
 /// (`BooleanReduction::covered`), and each edge of the kept copy's face
-/// that runs into the dropped copy's onto `held`.
+/// that runs into the dropped copy's onto `held`. `first_read` holds the codes
+/// as first read, parallel to `records`, which the germ loci are derived
+/// from ([`super::sectors::germ_locus`]); a declared-`Tangent` record's
+/// is overwritten with its second-order reading.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_sectors<T: Decide>(
     records: &mut [PairRecord],
+    first_read: &mut [PairRecord],
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
@@ -303,6 +314,11 @@ pub(super) fn recl_sectors<T: Decide>(
             rec.sa = ca;
             rec.sb = cb;
             cancel_uniform(rec);
+            // The first-order reading of a tangent pair is all On; its
+            // second-order one is the first that decides anything, and
+            // the germ loci are read from it.
+            first_read[i].sa = ca;
+            first_read[i].sb = cb;
             continue;
         }
         let rel = require_same(
@@ -494,7 +510,8 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 /// was itself germ-marked by an earlier event).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_edges<T: Decide>(
-    records: &mut [PairRecord],
+    records: &mut Vec<PairRecord>,
+    first_read: &mut Vec<PairRecord>,
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
@@ -593,7 +610,12 @@ pub(super) fn recl_edges<T: Decide>(
                 band,
                 am.start_holder,
                 bm.start_holder,
-            )?,
+            )?
+            .map(|germ| match germ {
+                EdgeGerm::Held(g) => Ok(g),
+                EdgeGerm::Folded(germ) => place_germ(records, first_read, &marked, germ),
+            })
+            .transpose()?,
             (Some(am), bm) if am.real => resolve_edge_sector(
                 records,
                 a_sectors,
@@ -674,6 +696,52 @@ pub(super) fn recl_edges<T: Decide>(
     Ok(())
 }
 
+/// Where an edge-edge event's germ goes.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum EdgeGerm {
+    /// On this flanking record as it stands (a declared-`Tangent`
+    /// flank, whose records carry the second-order sides).
+    Held(usize),
+    /// On the record of this sector pair with these codes as read: each
+    /// solid's own fold flanker, the edge On at its bound.
+    Folded(PairRecord),
+}
+
+/// Puts an edge-edge germ on the record of its sector pair, minting the
+/// record when `pair_search` met no such pair, with its codes as read
+/// (the edge On at its bound) in both arrays; `mark_germ` folds them.
+/// Returns the record's index.
+///
+/// An existing record of the pair is overwritten only when no earlier
+/// event marked it its germ: a record that crosses along one ray of
+/// the pair's two planes crosses along no other, so its codes then are
+/// this event's On codes (cancelled below whatever they read) or a
+/// lump with nothing to cross. A record an earlier event already holds
+/// as its germ would lose that germ, which is refused, never
+/// overwritten.
+fn place_germ(
+    records: &mut Vec<PairRecord>,
+    first_read: &mut Vec<PairRecord>,
+    marked: &[usize],
+    germ: PairRecord,
+) -> Result<usize, BooleanError> {
+    match records.iter().position(|r| r.a == germ.a && r.b == germ.b) {
+        Some(g) if marked.contains(&g) => Err(BooleanError::ClassificationInvariant {
+            what: "an edge-edge germ's sector pair already holds another event's germ",
+        }),
+        Some(g) => {
+            records[g] = germ;
+            first_read[g] = germ;
+            Ok(g)
+        }
+        None => {
+            records.push(germ);
+            first_read.push(germ);
+            Ok(records.len() - 1)
+        }
+    }
+}
+
 /// A flanker's representative direction and the reach behind it.
 type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
 
@@ -707,7 +775,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     band: Band,
     fa_s: usize,
     fb_s: usize,
-) -> Result<Option<usize>, BooleanError> {
+) -> Result<Option<EdgeGerm>, BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     let fa_e = (fa_s + 1) % n_a;
     let fb_e = (fb_s + 1) % n_b;
@@ -898,7 +966,9 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 b_sectors[ib].face,
             )
         });
-    if !tangent_flank {
+    let keys = if tangent_flank {
+        None
+    } else {
         let a_in = [
             membership(true, a_fl[0].0, a_fl[0].1, &b_fl)?,
             membership(true, a_fl[1].0, a_fl[1].1, &b_fl)?,
@@ -917,14 +987,54 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         if !germ_a {
             return Ok(None);
         }
+        Some((a_in, b_in))
+    };
+    let code = |inside: bool| if inside { SideCode::In } else { SideCode::Out };
+    if let Some((a_in, b_in)) = keys {
+        // The one fold rule per solid, on that solid's own membership
+        // keys: the common edge joins the run `fold_on_bound` names, so
+        // the crossing is recorded on the flanker `crossing_flank`
+        // picks, with the edge read On at its bound — `mark_germ` then
+        // folds it. The two solids decide apart, so the record is the
+        // pair of their two flankers whether or not `pair_search` met
+        // that pair (two coplanar flankers touching along the edge are
+        // never a record of their own).
+        let pick = |fl: &[(usize, Rep<T>); 2], inside: [bool; 2]| {
+            let (before, after) = (code(inside[0]), code(inside[1]));
+            match crossing_flank(before, after) {
+                Some(Flank::Before) => Ok((fl[0].0, (SideCode::On, before))),
+                Some(Flank::After) => Ok((fl[1].0, (after, SideCode::On))),
+                None => Err(BooleanError::ClassificationInvariant {
+                    what: "an edge-edge germ whose flankers read one side",
+                }),
+            }
+        };
+        let (a, sa) = pick(&a_fl, a_in)?;
+        let (b, sb) = pick(&b_fl, b_in)?;
+        return Ok(Some(EdgeGerm::Folded(PairRecord {
+            a,
+            b,
+            sa,
+            sb,
+            intersect: true,
+        })));
     }
-    let combos = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)];
-    combos
-        .iter()
-        .find_map(|&(a, b)| find_on_record(records, a, b))
-        .map(Some)
+    // A declared-`Tangent` flank has no membership keys; its records
+    // carry the second-order sides. The crossing goes on the flanking
+    // record whose other bound reads Out on both solids, which is where
+    // the fold rule puts it when the other flanker reads In.
+    let other_out = |c: (SideCode, SideCode)| match c {
+        (SideCode::On, k) | (k, SideCode::On) => k == SideCode::Out,
+        _ => false,
+    };
+    [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)]
+        .into_iter()
+        .filter_map(|(a, b)| find_on_record(records, a, b))
+        .find(|&g| other_out(records[g].sa) && other_out(records[g].sb))
+        .map(|g| Some(EdgeGerm::Held(g)))
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "edge-edge germ record missing among the flanking combos",
+            what: "a declared-Tangent edge-edge germ with no flanking record that folds the \
+                   edge In on both solids",
         })
 }
 
@@ -999,8 +1109,22 @@ fn resolve_edge_sector<T: Decide>(
             band,
         )?;
     }
+    // A `Yes` cell is Table II's mixed row, which names the flanker keyed
+    // In. The one fold rule decides which flanker the crossing is
+    // recorded on ([`super::sectors::crossing_flank`]): the on-bound
+    // joins the In run, so the transition is across the flanker keyed
+    // Out.
+    let germ_flank = |flank: usize, verdict| match verdict {
+        super::tables::TableIiVerdict::Yes => match super::sectors::crossing_flank(k1, k2) {
+            Some(super::sectors::Flank::Before) => f_s,
+            Some(super::sectors::Flank::After) => f_e,
+            None => flank,
+        },
+        _ => flank,
+    };
     for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
         if resolve_verdict(verdict, op, comparison, relation) {
+            let flank = germ_flank(flank, verdict);
             let (ra, rb) = if a_side {
                 (flank, ref_idx)
             } else {
@@ -1446,12 +1570,14 @@ mod tests {
             arm,
         };
         let corner = [sector(z, x), sector(x, z)];
-        let mut records = [rec(0, 0, (On, Out), (On, Out))];
+        let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
+        let mut first_read = records.clone();
         let declared =
             DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
         let body = crate::body::Body::<f64>::new();
         let err = recl_edges(
             &mut records,
+            &mut first_read,
             &corner,
             &corner,
             &body,

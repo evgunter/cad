@@ -118,6 +118,16 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// chamfer mint two ids and their names differ in `node` alone.
 /// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
 /// where the two nodes differ and the names must be disjoint.
+///
+/// **`part_select` moved at JOIN-1's fix pass** (PR 3790), alone. Its
+/// union of the two split halves now builds through the chord join: the
+/// halves' side faces meet along edges of both solids, coplanar on the
+/// far side, which the join used to refuse and the declared-REST zip
+/// then built. The table is the box's — one body, six faces (the four
+/// sides each a `Merged` of the two halves' fragments), sixteen edges
+/// and twelve vertices, every name a `FromA`/`FromB` lineage — and
+/// the persisted text did not move (`perf2_name_keying_differential`'s
+/// second column).
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xdc9b_8f31_6844_831f),
     ("corner_table", 0x99b9_9cea_1d55_7d6b),
@@ -141,7 +151,7 @@ const PINNED: &[(&str, u64)] = &[
     // projection mints nothing, so every name in the document is the
     // split's, the pattern's, or the union's over them, and the row's
     // arrival moved no other row.
-    ("part_select", 0x0020_c610_e95b_464e),
+    ("part_select", 0x9490_f132_993d_bc58),
     ("loft_prism", 0x74db_6889_4c07_172b),
     ("die_composed", 0xce99_5734_cf12_d283),
     ("die_composed_tour", 0x527b_0baa_7db2_e7f0),

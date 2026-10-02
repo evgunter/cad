@@ -37,7 +37,7 @@ bottom half of it.
 
 | If you want to… | read |
 |---|---|
-| author a profile with the PATHS algebra | `bodies.rs` (bracket), `paths.rs` |
+| author a profile with the PATHS algebra | `bracket.rs`, `paths.rs` |
 | see the whole fillet-corner taxonomy | `rocker.rs` |
 | do booleans on planar parts | `bool_bodies.rs` |
 | chain booleans on a real part, then section it | `projectbox.rs`, `cutaway.rs` |
@@ -66,10 +66,11 @@ the PATHS lattice and so classifies every corner at authoring; raw
 
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
-| `bracket`, `plate`, `vase`, `sheave`, `chute` | `bodies.rs` | The four body ops on public API: polyline+fillet extrude, a genus-2 holed plate, full and partial revolves, plane+cylinder+cone+torus on one part | The bracket's inner corner is *constructive* (`fillet`), not a hand-rounded via point — the pre-#100 decimal sat inside the ε escalation band |
+| `bracket` | `bracket.rs` | A PATHS outline (polyline + constructive `fillet`) lifted into a recipe document by `LoopProgram::from_recorded` and extruded; `Node::Split` across both legs, its section chords named by their ends | The closed-form volume; the halves partition the body; chamfering the split half's chords by name refuses `UnsupportedRunOut` (a live wall) |
+| `plate`, `vase`, `sheave`, `chute` | `bodies.rs` | The body ops on public API: a genus-2 holed plate, full and partial revolves, plane+cylinder+cone+torus on one part | — |
 | `rocker` | `rocker.rs` | The complete fillet-corner taxonomy: arc×line, line×line, line×arc, arc×arc, through the PATHS fused fillet verbs (`fillet_arc`, `arc_fillet`, `arc_fillet_arc`, plus the plain line×line seam); and a keyhole's convex creases rounded after the extrude by `fillet_edges` | Not a corner typed by hand — every one is DERIVED from its two carriers; each declaration verified, `TangencyContradicted` on a lie. Branch choice read back with `ValidatedLoop::blend_arcs`. The 3-D creases are selected by description (`query` kind predicates on the keyhole's struts), the volume checked against the closed form |
 | `diefillet`, `diepips`, `diecomposed` | `diefillet.rs` | Rolling-ball `fillet_edges`; a 21-ball closed-group cut; M6 in-place composition surgery | Sequential pip cuts would present a trimmed sphere as an operand — refused typed. A tilted ball pole makes plane×sphere non-polar — refused typed |
-| `lily` (15 bodies) | `lily.rs` | `tube_along_arc` turtle chains, revolved sphere-zone lanterns, swept kite-section leaves | `wall_probes()` is a live record of kernel refusals (coincident-planar glue). Findings 9 and 13 named in place |
+| `lily` (15 bodies) | `lily.rs` | `tube_along_arc` turtle chains, revolved sphere-zone lanterns, swept lanceolate (two-arc lens) leaves and lofted kite-section blades | `wall_probes()` is a live record of kernel refusals (coincident-planar glue). Findings 9 and 13 named in place |
 | `tiltedcut` | `curvedcut.rs` | An exact `Curve3::Ellipse` section produced by `topo::split` | Three retire-on-closure frontier panics fired and were retired |
 | `bossplate` | `bossplate.rs` | The first transverse curved boolean; seam of 3 exact `Circle` arcs | Shared chord ids asserted across the seam; a merely *touching* curved result refuses at tier 3′ |
 | `loft_prism`, `nonuniform_loft`, `s_duct`, `twisted_duct` (+2 shadows) | `skinned.rs` | NURBS loft and sweep; the scene *asks* the kernel for its chosen parameters via `loft_parameters` | #207 (weight channel an ulp off 1.0); #210/#218; chord-length vs z-proportional parameterization is a 19% volume difference — DERIVED rather than measured, so nothing re-takes it because there is nothing to re-take: both volumes are `8 + 0.25/(t(1−t))` at the two `t` values (9.7219 vs 11.604 m³), and the scene pins the chord-length branch against the parameter the kernel itself reports |

@@ -11,7 +11,9 @@
 
 use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{MustCarryVerdict, must_carry_over_edge, tangent_certificate_lane};
+use geom_brep::{
+    MustCarryEscalation, MustCarryVerdict, must_carry_over_edge, tangent_certificate_lane,
+};
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -344,8 +346,12 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
     // caller reporting it as the cause would report a margin that
     // passed: {kappas:?} is the spread that makes that concrete.
     if let MustCarryVerdict::InBand(source) = answer {
+        assert!(
+            matches!(source, MustCarryEscalation::SecondOrder(_)),
+            "the deciding station's escalation is the second-order reading's: {source:?}"
+        );
         assert_eq!(
-            source.predicate,
+            source.diag().predicate,
             Some("tangent_second_order"),
             "the payload names the deciding station's predicate"
         );

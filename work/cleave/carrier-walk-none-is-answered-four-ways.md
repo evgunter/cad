@@ -2,11 +2,13 @@
 id: carrier-walk-none-is-answered-four-ways
 kind: issue
 title: point_in_carrier_loop's None (no ray past an uncrossable edge) is answered four ways under three names, one of them silent
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
 branch: cleave/carrier-walk
+pr: 3865
+closed: 2026-10-02
 ---
 
 

@@ -47,7 +47,7 @@ struct Side<'a, T: Decide> {
 /// cursor would name faces after a stranger instead of refusing.
 /// Guarded by `a_cycling_fragment_map_refuses` below.
 fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, NamingError> {
-    topo::fragment_root(f, rows.len(), |k| rows.get(&k).copied())
+    topo::lineage_root(f, rows.len(), |k| rows.get(&k).copied())
         .ok_or(NamingError::FragmentLineage { face: f })
 }
 
