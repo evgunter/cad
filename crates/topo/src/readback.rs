@@ -717,10 +717,12 @@ impl EdgeSides {
 ///     .expect("a straight strut off the seed vertex");
 ///
 /// // A strut's two half-edges run round one loop, so both sides are
-/// // the seed face — reported twice, not refused.
+/// // the seed face — reported twice, not refused — each with its own
+/// // half-edge.
 /// let sides = edge_sides(&body, strut.edge).expect("a live edge");
-/// assert_eq!(sides.plus.face, seed.face);
-/// assert_eq!(sides.plus, sides.minus);
+/// assert_eq!(sides.faces(), (seed.face, seed.face));
+/// assert_eq!(sides.surfaces().0, sides.surfaces().1);
+/// assert_ne!(sides.plus.half_edge, sides.minus.half_edge);
 /// ```
 pub fn edge_sides<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeSides, DanglingRef> {
     let e = body
