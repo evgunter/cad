@@ -224,6 +224,8 @@ mod extrude_acceptance;
 mod extrude_interval;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
+#[path = "join_whole_orbit_cylinder.rs"]
+mod join_whole_orbit_cylinder;
 #[path = "k_report.rs"]
 mod k_report;
 #[path = "ladder_split_key.rs"]

@@ -123,6 +123,8 @@ mod issue86_double_subtract;
 mod issue93_nested_islands;
 #[path = "join_star_fixture.rs"]
 mod join_star_fixture;
+#[path = "join_whole_orbit_rows.rs"]
+mod join_whole_orbit_rows;
 #[path = "loop_reparenting_pcurve_rows.rs"]
 mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]

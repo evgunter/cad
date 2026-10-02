@@ -31,14 +31,27 @@ after `join/star-desync`.
 
 ## Reachability
 
-Unmeasured. For a split, the run needs a Below bisector between Above
-real bounds, which takes a reflex sector whose bisector dips below
-the plane, or On edges that resolve Above around a flat sector. No
-fixture has been built for either.
+Reachable, measured in the PR 3770 review (2026-10-02). The run needs
+a Below bisector between Above real bounds. A reflex sector supplies
+one: the 315° prism of `review_m3_pr55::a_reflex_315_corner_tilted_cap`
+(`prism_z` over `(0,0) (2,2) (-2,2) (-2,-2) (2,-2) (2,0)`, z∈[0,1]),
+split by a plane through its reflex top corner `(0, 0, 1)` with normal
+along `(1, 0.2, -1)`, `(1, 0.5, -0.5)` or `(1, 0, -1)`. All three edges
+of the corner read Above and the top cap's reflex bisector Below, so
+the run holds the whole orbit. Each split refuses
+`Join(UnpairedLooseEnds { count: 2 })`. That is typed, not silent. The
+mirrored normal `(-1, -0.2, 1)` puts the run on the other side and
+splits cleanly (6 + 8).
+
+With the strut recorded the other way round as a throwaway patch
+(`mev_null(site, Below)`, `below_end: copy`, `above_end: vertex`),
+all three splits succeed. Their parts pass tiers 2 and 3 and their
+volumes sum to 14: 8 + 6, 7 + 7, and 8 + 6. The `(1, 0, -1)` below
+part, 6, is checked by hand: ∫₀¹ 4(z + 1) dz. The rest of the topo
+suite stays green under that patch, and no existing row reaches this
+arm.
 
 ## The shape to give
 
-Measure first: build a split whose vertex has a reflex or flat sector
-of that kind. If the case is reachable, either refuse it typed as the
-VV boolean path does, or record the strut with the side attribute
-swapped (the strut tip is the Below copy).
+Record the strut with the side attribute swapped (the strut tip is the
+Below copy), and pin the three splits above as rows.
