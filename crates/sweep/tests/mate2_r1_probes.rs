@@ -27,10 +27,10 @@ use topo::{BooleanDeclarations, BooleanResult};
 /// bore rim arc now CROSSES a peg wall face's seam in its interior
 /// rather than meeting it at an endpoint: for the pair (bore rim arc
 /// at z = 2 spanning [0,120], peg wall face spanning [60,180]) one
-/// endpoint is `In` (recorded) and the other is a certified `Out`, so
-/// the widened rung returns `Recorded` — while the crossing at
-/// theta = 60, z = 2, where the rim arc meets the peg's meridian seam
-/// edge, is recorded by NOBODY.
+/// endpoint is `In` and the other is a certified `Out`, and the
+/// crossing at theta = 60, z = 2, where the rim arc meets the peg's
+/// meridian seam edge, is interior to both edges: only an on-carrier
+/// crossing step sees it.
 ///
 /// This test does not assert an outcome. It reports one, so the two
 /// trees can be compared.
