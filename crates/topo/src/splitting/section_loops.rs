@@ -52,7 +52,8 @@ pub(super) enum SenseFault {
     /// [`Torn`].
     Torn,
     /// The winding has no sign: in the band (`Some`), zero, or (`None`)
-    /// a loop with an edge that states no certified curve.
+    /// a loop with a NURBS or spiric edge, which the kernel does not
+    /// wind.
     Undecided(Option<Indeterminate>),
 }
 

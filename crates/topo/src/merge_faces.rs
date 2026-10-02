@@ -574,9 +574,9 @@ pub enum OutlineVerdict {
         loops: Vec<LoopKey>,
     },
     /// No loop winds positively or zero, and this one rides a carrier
-    /// the kernel does not wind (a NURBS or spiric edge, or a null-edge
-    /// scaffold): it may be the outline, and which loop is cannot be
-    /// read until that winding is built.
+    /// the kernel does not wind (a NURBS or spiric edge): it may be the
+    /// outline, and which loop is cannot be read until that winding is
+    /// built.
     UnsupportedWinding {
         /// The first such loop, outline slot first.
         r#loop: LoopKey,
@@ -767,9 +767,9 @@ impl core::fmt::Display for MergeCoplanarError {
                 OutlineVerdict::UnsupportedWinding { r#loop } => write!(
                     f,
                     "no loop of the merged face {face:?} winds counterclockwise about its \
-                     outward normal, and loop {loop:?} rides a NURBS or spiric edge or a \
-                     null-edge scaffold, whose winding the kernel does not read, so which loop \
-                     is the outline is not known. Recourse: bound the merged faces with line, \
+                     outward normal, and loop {loop:?} rides a NURBS or spiric edge, whose \
+                     winding the kernel does not read, so which loop is the outline is not \
+                     known. Recourse: bound the merged faces with line, \
                      circle or ellipse edges, whose winding the kernel reads"
                 ),
                 OutlineVerdict::AllNegative => write!(
@@ -5163,5 +5163,90 @@ mod winding_arm_tests {
                 "tearing {what}"
             );
         }
+    }
+
+    /// **A run is the loop's sum with its closing chord added**, and
+    /// nothing else (`crate::loop_winding`, the boolean join's ring
+    /// lane): the open run `a → b → d` closed by the chord `d → a` is
+    /// the triangle, and is decided on the loop's margin bit for bit;
+    /// a null-edge strut on the run winds as its zero-length chord, on
+    /// the loop and the run alike; and the run reads the loop's carrier
+    /// set and claim, so a NURBS edge on it is not wound and a half its
+    /// edge does not claim is refused rather than read as a minus half.
+    #[test]
+    fn a_run_is_the_loop_sum_with_its_closing_chord() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let fresh = || {
+            tri(
+                Point3::new(2.0, 0.0, 0.0),
+                Point3::new(0.0, 2.0, 0.0),
+                Point3::new(-1.0, -1.0, 0.0),
+                tol,
+            )
+        };
+        // The run from `a → b` to `b → d`: the loop's first two halves.
+        let run_of = |t: &Tri| {
+            let he_ab = t.body.get_edge(t.ab).unwrap().he_plus;
+            (he_ab, t.body.get_half_edge(he_ab).unwrap().next)
+        };
+        let loop_margin = |t: &Tri| match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
+            Ok(LoopWinding::Wound(Ok(d))) => d,
+            other => panic!("the triangle winds: {other:?}"),
+        };
+        let run_margin = |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided(h1, h2, n, b) {
+            Ok(Some(Ok(d))) => d,
+            other => panic!("the run winds: {other:?}"),
+        };
+
+        let t = fresh();
+        let whole = loop_margin(&t);
+        assert_eq!(whole.sign, Sign::Positive, "a → b → d is counterclockwise");
+        assert_eq!(run_margin(&t, run_of(&t)), whole, "the run is the loop");
+
+        let mut t = fresh();
+        let (h1, _) = run_of(&t);
+        t.body
+            .mev_null(
+                MevSite::Fan { he1: h1, he2: h1 },
+                crate::null::NewVertexSide::Above,
+            )
+            .unwrap();
+        assert_eq!(
+            loop_margin(&t),
+            whole,
+            "a strut on the loop is wound as nothing"
+        );
+        let first = t.body.get_half_edge(h1).unwrap().prev;
+        let first = t.body.get_half_edge(first).unwrap().prev;
+        assert_eq!(
+            run_margin(&t, (first, t.body.get_half_edge(h1).unwrap().next)),
+            whole,
+            "a run opening on the strut is the same region"
+        );
+
+        let mut t = fresh();
+        let run = run_of(&t);
+        fit_a_nurbs_quarter(&mut t, tol);
+        assert_eq!(
+            t.body.planar_run_winding_decided(run.0, run.1, n, b),
+            Ok(None),
+            "a NURBS edge on the run is not wound by its chord"
+        );
+
+        let mut t = fresh();
+        let (h1, h2) = run_of(&t);
+        let own = t.body.get_half_edge(h2).unwrap().edge;
+        let other = t.body.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
+        t.body.half_edges.get_mut(h2).unwrap().edge = other;
+        assert_eq!(
+            t.body.planar_run_winding_decided(h1, h2, n, b),
+            Err(TornLoop::Unclaimed {
+                he: h2,
+                edge: other
+            }),
+            "a half its edge does not claim is not read as a minus half"
+        );
     }
 }
