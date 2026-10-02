@@ -37,3 +37,22 @@ the `split_arc_window` and `bool_between_arc_window` rungs and the
 rule where its premise holds and say what it buys. The planar side's
 cue is the same question one lane over. The run-side rule's
 own open premise is `run-side-arc-rule-reads-only-the-run-at-each-end`.
+
+## A third reading, on the split lane (CLEAVE, PR 3718)
+
+CLEAVE's conic pairing (`splitting::join`'s `conic_pairs`) walks a
+curved face's section conic in the direction `n_plane × n_out` and
+pairs each entering crossing with the next one. The arc from an entry
+to its exit in walk order is the arc inside the face. So on the split
+lane the pairing already knows which arc each chord should take, and
+`chord_spec` then derives it a second time, by azimuth window or by
+run side. The three readings agree wherever each one reads: each names
+the arc that leaves its ends into the face, and the run-side rule
+refuses rather than choose at a corner where it cannot see that.
+
+Today they never meet on one face. The split lane refuses sphere faces
+at its reduce, and only tilted sphere sections take the run-side rule
+(pinned by `crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_tilted_split_of_a_sphere_body_refuses_before_either_arc_rule`).
+When the split lane admits sphere faces, the unification this item asks
+for could hand the walk's arc to `chord_spec` instead of re-deriving it.

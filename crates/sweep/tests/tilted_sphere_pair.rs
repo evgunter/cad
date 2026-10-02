@@ -26,7 +26,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, BooleanOp};
@@ -338,5 +338,53 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             flipped += 1;
         }
         assert!(flipped > 0, "{label}: a tilted face to flip");
+    }
+}
+
+/// **The two arc rules never meet on one face today, and this row says
+/// so where it can fail.** CLEAVE's conic pairing
+/// (`topo::splitting::join`'s `conic_pairs`, `SectionCrossings`) decides
+/// WHICH crossings of a curved face a split chord joins. The run-side
+/// rule (`chord_join::select_arc_by_run_side`, `SectionArcSide`) decides
+/// WHICH ARC of the section conic that chord takes, and only on a
+/// sphere section tilted against its chart. The pairing runs only in the
+/// split lane, and the split lane refuses a sphere face at its reduce,
+/// so a tilted sphere section reaches the run-side rule only through the
+/// boolean lane, which pairs by its own walk. A ball, the tilted pair's
+/// union and its lens, each split by planes tilted against their charts,
+/// all refuse there, before either rule. When the split lane admits
+/// sphere faces this goes red: compose the two then (the pairing first,
+/// then the arc; both name the arc inside the face).
+#[test]
+fn a_tilted_split_of_a_sphere_body_refuses_before_either_arc_rule() {
+    let tol = Tol::witness();
+    let a = ball(1.0, BASE);
+    let b = ball(1.0, BASE + Vec3::new(1.4, 0.0, 0.0));
+    let body_of = |out: Result<topo::BooleanResult<f64>, topo::BooleanError>| match out {
+        Ok(topo::BooleanResult::Body(bb)) => bb.body,
+        other => panic!("the tilted pair builds: {other:?}"),
+    };
+    let union = body_of(topo::boolean::union(&a, &b, tol));
+    let lens = body_of(topo::boolean::intersect(&a, &b, tol));
+    for (name, body) in [("ball", &a), ("union", &union), ("lens", &lens)] {
+        for (origin, normal) in [
+            (Point3::new(2.0, 2.0, 0.5), Vec3::new(0.3, 1.0, 0.4)),
+            (Point3::new(2.7, 2.3, 0.5), Vec3::new(0.2, 1.0, 0.7)),
+            (Point3::new(2.7, 2.0, 0.5), Vec3::new(1.0, 0.3, 0.2)),
+        ] {
+            let plane = topo::test_support::split_plane(origin, normal, tol);
+            match topo::split(body, &plane, tol) {
+                Err(topo::SplitError::Reduce(
+                    topo::SplitReduceError::CurvedBooleanUnsupported {
+                        kind: geom::SurfaceKind::Sphere,
+                        ..
+                    },
+                )) => {}
+                other => panic!(
+                    "{name} split through {origin:?} along {normal:?}: expected the split's \
+                     reduce to refuse the sphere face, got {other:?}"
+                ),
+            }
+        }
     }
 }
