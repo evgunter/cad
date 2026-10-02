@@ -911,7 +911,7 @@ mod tests {
                 found,
             }),
             C::FaceFrameNotPlanar => K::FaceFrameNotPlanar {
-                carrier: geom_brep::SurfaceKind::Cylinder,
+                carrier: geom::SurfaceKind::Cylinder,
             },
             C::FaceFrameReadback => K::FaceFrameReadback {
                 error: topo::readback::ReadbackError::NoCarrier,
@@ -961,8 +961,7 @@ mod tests {
                 part(crate::PartFault::RootFailureUnrecorded { node: n(7) })
             }
             C::PartProduct => part(crate::PartFault::PartProduct {
-                kind: crate::ProductErrorKind::NoBodyRoots,
-                message: "the document declares no body root".to_owned(),
+                refusal: crate::ProductError::NoBodyRoots.into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {
                 cycle: vec![doc_ref(), doc_ref()],

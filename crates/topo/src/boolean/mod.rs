@@ -68,6 +68,8 @@
 
 pub(crate) mod boxes;
 pub mod carrier_eq;
+mod circle_cylinder;
+mod circle_roots;
 mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;
@@ -185,7 +187,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-        crate::query::DATUM_UNIT_NORM => geom_core::DIRECTION_LENGTH_SUBJECT,
+        crate::query::DATUM_UNIT_NORM | join::BOOL_GERM_PLANE_NORMAL => {
+            geom_core::DIRECTION_LENGTH_SUBJECT
+        }
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
@@ -236,6 +240,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_cone_trim_side"
         | "bool_ray_cone_apex"
         | "bool_ray_cone_nappe"
+        | "bool_cone_partial_reach"
         | "point_in_loop_segment"
         | "point_in_loop_boundary"
         | "point_in_loop_side"
@@ -836,7 +841,7 @@ pub enum BooleanError {
         /// The face.
         face: FaceKey,
         /// Its surface kind — the C5 table row the refusal cites.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// A pierced face's torus is definitely outside the ring convention
     /// (D3: a horn or spindle torus, or one with no tube), a shape the
@@ -881,17 +886,17 @@ pub enum BooleanError {
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
     /// edge cannot be cleared against a curved face, and the curved
-    /// PIERCE door cannot take it. **That door now exists for one
-    /// family** — a LINE carrier definitely crossing a CYLINDER wall,
-    /// whose crossing parameters come from the certified line × wall
-    /// quadratic and whose landing point the chart trim places — so
-    /// what this variant reports is the REST of the family: a tangency
-    /// (not a crossing at any order the lane sees), a CIRCLE carrier
-    /// against a wall (a degree-2 trigonometric residual with no root
-    /// lane in this tree), a SPHERE face, an undeclared on-carrier
-    /// edge, or a trim the chart door declines to express (the M5
-    /// envelope's frontier; the C5 table routes the SECTIONS, this is
-    /// the crossing layer). The
+    /// PIERCE door cannot take it. That door takes a LINE or a CIRCLE
+    /// carrier definitely crossing a cylinder wall, a sphere or a torus,
+    /// whose crossing parameters come from the certified root lanes
+    /// (the line quadratics and quartic, `boolean::circle_roots`' doors)
+    /// and whose landing point the chart trim places. What this variant
+    /// reports is the rest: a tangency (not a crossing at any order the
+    /// lanes see), a cone face or a circle against one, an undeclared
+    /// on-carrier edge or circle, a root the band cannot place, or a
+    /// trim the chart door declines to express (the M5 envelope's
+    /// frontier; the C5 table routes the SECTIONS, this is the crossing
+    /// layer). The
     /// **definite** half of a two-tolerance pair: the very same
     /// clearance margin one band-width away escalates as
     /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
@@ -1266,11 +1271,11 @@ pub enum BooleanError {
         /// That face — the first such in face-arena order.
         face: FaceKey,
         /// Its kind: the half of the germ pair with no arm.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
         /// The other operand's face whose box it may meet.
         other_face: FaceKey,
         /// That face's kind: the other half of the germ pair.
-        other_kind: geom_brep::SurfaceKind,
+        other_kind: geom::SurfaceKind,
     },
     /// The containment fallback's curved-EXTENT scan (M5 S13) met a
     /// NURBS face. The extent test is UNWRITABLE for the kind with
@@ -1344,11 +1349,11 @@ pub enum BooleanError {
         /// The A-side germ face.
         a_face: FaceKey,
         /// Its kind — the A half of the germ pair.
-        a_kind: geom_brep::SurfaceKind,
+        a_kind: geom::SurfaceKind,
         /// The B-side germ face.
         b_face: FaceKey,
         /// Its kind — the B half of the germ pair.
-        b_kind: geom_brep::SurfaceKind,
+        b_kind: geom::SurfaceKind,
     },
     /// **A germ pair of two cylinder walls whose axes definitely
     /// INTERSECT** — the frame dispatch's named sub-case of "no
@@ -1866,10 +1871,10 @@ fn op_noun(op: BooleanOp) -> &'static str {
 /// A surface kind as the person holding the mouse reads it. The
 /// spline kinds get one spelling everywhere a Boolean refusal names
 /// them; every other kind is its own name.
-fn kind_word(kind: geom_brep::SurfaceKind) -> &'static str {
+fn kind_word(kind: geom::SurfaceKind) -> &'static str {
     match kind {
-        geom_brep::SurfaceKind::Nurbs => "spline (NURBS)",
-        geom_brep::SurfaceKind::Approx => "approximated spline",
+        geom::SurfaceKind::Nurbs => "spline (NURBS)",
+        geom::SurfaceKind::Approx => "approximated spline",
         other => other.name(),
     }
 }
@@ -2480,6 +2485,68 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         tol,
     )?;
     Ok((ab, ba))
+}
+
+/// **The sweep's contact records and the split operands' sizes** under
+/// `strategy`: what both sweep directions recorded, and the
+/// `[A vertices, A edges, B vertices, B edges]` they leave. The pruning
+/// suites compare these across strategies — box pruning is sound when
+/// the realized and idealized sweeps record the same contacts and make
+/// the same splits, which a trace of examined pairs alone cannot show
+/// (a face-free record is attributed to every face on its carrier). Runs
+/// the undeclared posture, as [`sweep_traces`] does, at the recording
+/// scalar only: the comparison is of keys and counts, not of brackets.
+///
+/// # Errors
+///
+/// [`BooleanError`] as [`sweep_traces`].
+#[cfg(feature = "sweep-testing")]
+pub fn sweep_records(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<(ContactRecords, [usize; 4]), BooleanError> {
+    let band = Band::linear(tol)?;
+    let declared = DeclaredPairs::default();
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
+    reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
+    let mut a = a_operand.clone();
+    let mut b = b_operand.clone();
+    let mut acc = reduce::ContactAcc::default();
+    let knobs = reduce::SweepKnobs::default();
+    reduce::sweep_direction(
+        &mut a,
+        &mut b,
+        Operand::A,
+        &declared,
+        &mut acc,
+        band,
+        strategy,
+        &knobs,
+        None,
+        tol,
+    )?;
+    reduce::sweep_direction(
+        &mut b,
+        &mut a,
+        Operand::B,
+        &declared,
+        &mut acc,
+        band,
+        strategy,
+        &knobs,
+        None,
+        tol,
+    )?;
+    let sizes = [
+        a.vertices().count(),
+        a.edges().count(),
+        b.vertices().count(),
+        b.edges().count(),
+    ];
+    Ok((acc.finish(), sizes))
 }
 
 /// **The boolean pipeline through its join**, undeclared and realized:
@@ -3507,7 +3574,7 @@ mod tests {
             BooleanError::CurvedBooleanUnsupported {
                 operand: Operand::A,
                 face,
-                kind: geom_brep::SurfaceKind::Cone,
+                kind: geom::SurfaceKind::Cone,
             },
             BooleanError::CurvedSectorSideUnsupported {
                 verdict: geom_brep::recourse::Refused::Negative {
@@ -3593,18 +3660,18 @@ mod tests {
                 site: PairRefusalSite::OperandGate,
                 operand: Operand::A,
                 face,
-                kind: geom_brep::SurfaceKind::Cone,
+                kind: geom::SurfaceKind::Cone,
                 other_face: face,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                other_kind: geom::SurfaceKind::Plane,
             },
             BooleanError::CurvedPairUnsupported {
                 op: Some(BooleanOp::Union),
                 site: PairRefusalSite::InteriorLoopGuard,
                 operand: Operand::A,
                 face,
-                kind: geom_brep::SurfaceKind::Torus,
+                kind: geom::SurfaceKind::Torus,
                 other_face: face,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                other_kind: geom::SurfaceKind::Plane,
             },
             BooleanError::NurbsExtentUnsupported {
                 operand: Operand::A,
@@ -3624,9 +3691,9 @@ mod tests {
             },
             BooleanError::GermFrameUnsupported {
                 a_face: face,
-                a_kind: geom_brep::SurfaceKind::Cone,
+                a_kind: geom::SurfaceKind::Cone,
                 b_face: face,
-                b_kind: geom_brep::SurfaceKind::Torus,
+                b_kind: geom::SurfaceKind::Torus,
             },
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,

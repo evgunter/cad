@@ -1386,6 +1386,86 @@ fn a_carried_level_is_never_spoken_from_another_version_of_the_part() {
     let _ = level.line_in_part(&relabelled, Tol::witness());
 }
 
+// ---- A part's product refusal is spoken from the part only where the part is held ----
+
+/// A block placed under two roots (two transforms of its extrude), the
+/// extrude labelled `label`, in a document named `id`. Every document's
+/// mint starts at the zero chain, so two such documents hold the
+/// extrude under one id.
+fn placed_twice(id: &str, label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, block) = cube_part(id);
+    let (doc, _) = insert(
+        doc,
+        fixture::xform(block, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, _) = insert(
+        doc,
+        fixture::xform(block, [4.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetLabel {
+            node: block,
+            label: Some(editor_core::Label::new(label).expect("a valid label")),
+        },
+    );
+    (doc, block)
+}
+
+/// **A part's product refusal keeps the part's tags in a frame holding
+/// only the outer document**, which holds the same id as its own
+/// labelled extrude, and reads as the part's own gather says it in a
+/// frame holding the part.
+#[test]
+fn a_parts_product_refusal_keeps_its_tags_where_the_outer_document_holds_the_id() {
+    let mut store = PartStore::default();
+    let (inner, block) = placed_twice("speak-p-inner", "inner block");
+    let inner_ref = store.insert(inner.clone(), Tol::witness());
+    let (outer, outer_block) = placed_twice("speak-p-outer", "outer block");
+    assert_eq!(
+        outer_block, block,
+        "both documents mint from the zero chain"
+    );
+    let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
+    let opts = with_resolver(store);
+    let t = test_utils::refusal::tag(block.0);
+
+    let ev = run(&outer, &opts);
+    let error = ev.node_error(instance).expect("the part has no product");
+    let (fault, doc_ref) = part_fault(error);
+    let editor_core::PartFault::PartProduct { refusal } = fault else {
+        panic!("the part's gather refuses: {fault:?}");
+    };
+    assert_eq!(
+        refusal.kind(),
+        editor_core::ProductErrorKind::PlacedUnderTwoRoots
+    );
+    let in_outer = error.spoken(&outer);
+    assert!(
+        in_outer.contains(&format!("node {t}'s body is placed under two roots"))
+            && !in_outer.contains("block\""),
+        "a part's refusal is never spoken from the outer document, which holds its ids as \
+         other nodes: {in_outer}"
+    );
+    let in_part = fault.spoken(doc_ref, &inner, Tol::witness());
+    assert!(
+        in_part.contains(&format!(
+            "Extrude \"inner block\" ({t})'s body is placed under two roots"
+        )),
+        "a frame holding the part speaks it from the part: {in_part}"
+    );
+    let own = product_recorded(&inner, &run(&inner, &opts), Tol::witness())
+        .expect_err("the part's own gather refuses")
+        .spoken(&inner);
+    assert!(
+        in_part.contains(
+            own.strip_prefix("product: ")
+                .expect("the gather's stage word")
+        ),
+        "as the part's own gather says it: {in_part} / {own}"
+    );
+}
+
 /// **A mate the edit door refuses speaks the nodes its fault names** as
 /// the document it would stand in holds them, and names itself once.
 #[test]

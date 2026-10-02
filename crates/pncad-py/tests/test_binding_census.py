@@ -1603,8 +1603,8 @@ FAMILIES: dict[str, str] = {
 #:   which holds names and never keys.
 #: - *Selector plumbing the audit already ruled on.* `TagPat` and
 #:   `Side` are Rust constructor plumbing covered by `SegPat.tag` /
-#:   `SegPat.group` / `SegPat.side`, and `CurveKindSet` /
-#:   `SurfaceKindSet` / `ALL_SURFACE_KINDS` cross as
+#:   `SegPat.group` / `SegPat.side`, and `CurveKindSet` and
+#:   `SurfaceKindSet` cross as
 #:   `kind | list[kind]` arguments to `GeomPred.curve_kind` and
 #:   `GeomPred.surface_kind`. That is the "deliberately NOT bound,
 #:   stated" clause of the audit's G13 row, restated here so the
@@ -2221,7 +2221,6 @@ FAMILIES: dict[str, str] = {
 #: to transliterate the parser's literal rule by hand.
 NOT_BOUND = {
     # --- different-shape ------------------------------------------
-    "ALL_SURFACE_KINDS": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,
@@ -2724,6 +2723,15 @@ NOT_BOUND = {
     # the fault's own `str()`. Nothing in Python hands one out and no
     # bound door takes one.
     "NodeRefusal": INTERIOR,
+    # The wrapper `PartFault::PartProduct` and `ChecksError::Product`
+    # carry a gather refusal in, so those `Clone` types can hold one
+    # whole. Python never holds it: the part fault crosses as its node
+    # failure's tag word and prose, the checks refusal as
+    # `product_unavailable` and the refusal's prose.
+    "ProductRefusal": INTERIOR,
+    # The one generic both wrappers above are spellings of; Python holds
+    # neither, so it holds no instance of this either.
+    "Refusal": INTERIOR,
     # The kernel's reading of the refusals a failure carries, level by
     # level, with the document each level's node is in. Python reads the
     # same chain in its own shape: each level is an `EvaluationError`

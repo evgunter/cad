@@ -299,7 +299,7 @@ fn distributed_plate() -> ProfileDoc {
                 editor_core::EntityKind::Face,
             )),
             &[editor_core::GeomPred::SurfaceKind(
-                editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+                editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
             &r.doc.param_env::<f64>(),
             Tol::witness(),

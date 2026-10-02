@@ -23,10 +23,11 @@ use topo::{
 /// The plane y + z = 2, normal (0, s·h, s·h).
 fn tangent_plane(s: f64) -> SplitPlane<f64> {
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    SplitPlane {
-        origin: Point3::new(0.0, 1.0, 1.0),
-        normal: Vec3::new(0.0, s * h, s * h),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 1.0),
+        Vec3::new(0.0, s * h, s * h),
+        geom_core::Tol::witness(),
+    )
 }
 
 fn unite(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
