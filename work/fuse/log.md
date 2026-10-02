@@ -73,6 +73,14 @@ Designer pairs (`docs/prompts/designer.md`), on the two `design: true`
 rows: `two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted`
 and `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made`.
 
+## 2026-10-02 — the rebuild's second-order fold lands (PR 3889)
+
+`boolean-rebuild-folds-an-in-band-second-order-into-conventional`
+closed. The review's in-scope finding, that the rule's walk order let a
+later in-band station hide behind a transverse one, was fixed in the
+rule itself. That changes which refusal the sweep callers report on a
+mixed edge, not whether they refuse. Class logged earlier: the
+duplicated resting-cylinder fixture and the `in_band()` helper.
 ## 2026-10-02 — the descendant chase lands (PR 3874)
 
 `descendant-chase-spends-its-budget-into-a-dropped-contact-record`
@@ -158,3 +166,34 @@ whether a product is refused as an operand in the editor or admitted.
 PR 3891 stays held. Under the recommendation it is reworked into the
 shared sort, reusing check 10's witness loop, together with its
 review's m1–m3. If Ev chooses otherwise, it is closed.
+
+## 2026-10-02 — the whole-shell On verdict lands (PR 3897)
+
+The agreed half of PR 3883. A shell lying wholly on the other operand's
+boundary, by same-source or declared coincidence, is now kept or dropped
+by Eq. 15.3, or refuses `CoincidentShell`. Every measured shape that
+refused `ShellWitnessExhausted` now answers: the two slips, the
+disjoint-lump and inside-lump diamonds, and the declared twin. The
+undeclared twins still refuse `UndeclaredCoincidence`. Review tier:
+single FULL, with one fix pass (the keep rule now calls the ratified
+table, one selection home, the coverage filter pinned, an honest
+`Unpaired` recourse). The unit row stays open: whether a slip is
+answered or refused waits on Ev at PR 3883. The PR presumes "answered",
+and the `node.rs` doc and the slip rows reverse if Ev rules otherwise.
+
+## 2026-10-02 — the whole-shell On verdict lands (PR 3897)
+
+The agreed half of PR 3883. A shell lying wholly on the other operand's
+boundary, by same-source or declared coincidence, is now kept or dropped
+by Eq. 15.3, or refuses `CoincidentShell`. Every measured shape that
+refused `ShellWitnessExhausted` now answers: the two slips, the
+disjoint-lump and inside-lump diamonds, and the declared twin. The
+undeclared twins still refuse `UndeclaredCoincidence`. Review tier:
+single FULL, with one fix pass (the keep rule now calls the ratified
+table, one selection home, the coverage filter pinned, an honest
+`Unpaired` recourse). The unit row stays open: whether a slip is
+answered or refused waits on Ev at PR 3883. The PR presumes "answered",
+and the `node.rs` doc and the slip rows reverse if Ev rules otherwise.
+The merge of main conflicted in `topo/src/lib.rs` re-exports
+(`ShellOrientation` beside PR 3874's `lineage_root` rename); the
+orchestrator resolved it and checked that it compiles.

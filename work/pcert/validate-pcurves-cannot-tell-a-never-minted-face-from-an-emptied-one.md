@@ -2,13 +2,15 @@
 id: validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one
 kind: issue
 title: validate_pcurves reads a face a door emptied exactly as it reads one never minted, so a drop that re-charters a whole loop is indistinguishable from a body the pass has not run on
-status: dispatched
+status: closed
 opened: 2026-09-14
 refs: [validate-pcurves-never-recertifies-a-face-it-finds-incomplete, S331, loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart]
 priority: P0
 cost: M
 parent: S331
 branch: pcert/at-rest-rows-mandatory
+closed: 2026-10-02
+pr: 3759
 ---
 
 Found by both reviewers of PR 2549
@@ -165,3 +167,7 @@ left as found, and still reads as never minted. What moved:
   in that run moved a loop whose rows stand onto an emptied face (0
   such moves), so no emptied face came back half-minted.
 - A spline destination keeps the drop and stays half-minted, loud.
+
+## Closed
+
+Closed by PR 3759 (`pcert/at-rest-rows-mandatory`, merged 82b52c36c): on every curved chart a face's pcurve rows are mandatory at rest (C4). Tier 3 dry-mints a rowless face and reports `Unminted` or the derivation's refusal, re-certifies and continuity-checks a half-minted face's stored rows like a complete one's (with `RowInterval`), reads an excused face whole before excusing it, and `sweep::extrude` closes with `topo::mint_pcurves`. Residue has its own rows: the four uncovered-class `mint-has-no-route-*` rows and `at-rest-trim-containment-checks-against-the-stored-hull`.
