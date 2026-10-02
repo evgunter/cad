@@ -74,15 +74,7 @@ pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 /// the enum is cheap to clone (one refcount) but no longer `Copy`. The
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
-#[derive(Clone, Debug, strum::EnumDiscriminants)]
-#[strum_discriminants(
-    name(CurveKind),
-    derive(PartialOrd, Ord, Hash, strum::VariantArray),
-    doc = "Which [`Curve3`] variant a carrier is: the workspace's one fieldless",
-    doc = "mirror of the curve enum ([`Curve3::kind`]), derived from it, so a",
-    doc = "variant added to [`Curve3`] is a kind by construction. Each variant",
-    doc = "carries its curve variant's docs."
-)]
+#[derive(Clone, Debug)]
 pub enum Curve3<T: Real> {
     /// The infinite straight line `P(t) = origin + dir·t`.
     ///
@@ -243,11 +235,42 @@ pub enum Curve3<T: Real> {
     Nurbs(Arc<NurbsCurve3<T>>),
 }
 
+/// Which [`Curve3`] variant a carrier is: the workspace's one fieldless
+/// mirror of the curve enum ([`Curve3::kind`]).
+///
+/// Hand-written rather than derived so each variant's doc speaks of the
+/// tag, not of a payload it does not have. A variant added to
+/// [`Curve3`] reds [`Curve3::kind`]'s wildcard-free match until it has
+/// a kind here; [`Self::ALL`] is derived from this enum, so there is no
+/// roster to forget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, strum::VariantArray)]
+pub enum CurveKind {
+    /// A [`Curve3::Line`].
+    Line,
+    /// A [`Curve3::Circle`].
+    Circle,
+    /// A [`Curve3::Ellipse`].
+    Ellipse,
+    /// A [`Curve3::Spiric`].
+    Spiric,
+    /// A [`Curve3::Nurbs`], described or the placeholder.
+    Nurbs,
+}
+
 impl<T: Real> Curve3<T> {
     /// Which variant this carrier is.
+    ///
+    /// **No wildcard arm**: a new [`Curve3`] variant is a compile error
+    /// here until [`CurveKind`] names it.
     #[must_use]
     pub fn kind(&self) -> CurveKind {
-        CurveKind::from(self)
+        match self {
+            Self::Line { .. } => CurveKind::Line,
+            Self::Circle { .. } => CurveKind::Circle,
+            Self::Ellipse { .. } => CurveKind::Ellipse,
+            Self::Spiric { .. } => CurveKind::Spiric,
+            Self::Nurbs(_) => CurveKind::Nurbs,
+        }
     }
 }
 
@@ -261,6 +284,11 @@ impl CurveKind {
 
     /// The kind's name: one lower-case word, the spelling refusals and
     /// tables print.
+    ///
+    /// **Also a persisted key.** `tools/tess-meter` writes it into its
+    /// CSV's `chart` column and `tools/tess-lint` joins committed
+    /// baselines on that column, so rewording a name re-keys every
+    /// baseline row that carries it.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {

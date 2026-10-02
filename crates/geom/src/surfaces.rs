@@ -90,15 +90,7 @@ pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 /// the enum is cheap to clone (one refcount) but no longer `Copy`. The
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
-#[derive(Clone, Debug, strum::EnumDiscriminants)]
-#[strum_discriminants(
-    name(SurfaceKind),
-    derive(PartialOrd, Ord, Hash, strum::VariantArray),
-    doc = "Which [`Surface`] variant a surface is: the workspace's one fieldless",
-    doc = "mirror of the surface enum ([`Surface::kind`]), derived from it, so",
-    doc = "a variant added to [`Surface`] is a kind by construction. Each",
-    doc = "variant carries its surface variant's docs."
-)]
+#[derive(Clone, Debug)]
 pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
     /// `v_ref = normal × u_ref`.
@@ -292,11 +284,50 @@ pub enum Surface<T: Real> {
     Approx(Arc<ApproxSurface<T>>),
 }
 
+/// Which [`Surface`] variant a surface is: the workspace's one
+/// fieldless mirror of the surface enum ([`Surface::kind`]).
+///
+/// Hand-written rather than derived so each variant's doc speaks of the
+/// tag, not of a payload it does not have. A variant added to
+/// [`Surface`] reds [`Surface::kind`]'s wildcard-free match until it
+/// has a kind here; [`Self::ALL`] is derived from this enum, so there
+/// is no roster to forget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, strum::VariantArray)]
+pub enum SurfaceKind {
+    /// A [`Surface::Plane`].
+    Plane,
+    /// A [`Surface::Cylinder`].
+    Cylinder,
+    /// A [`Surface::Cone`].
+    Cone,
+    /// A [`Surface::Sphere`].
+    Sphere,
+    /// A [`Surface::Torus`].
+    Torus,
+    /// A [`Surface::Nurbs`], described or the placeholder.
+    Nurbs,
+    /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`] — a
+    /// claim about an approximating surface is a claim about the fit,
+    /// not about the surface asked for.
+    Approx,
+}
+
 impl<T: Real> Surface<T> {
     /// Which variant this surface is.
+    ///
+    /// **No wildcard arm**: a new [`Surface`] variant is a compile error
+    /// here until [`SurfaceKind`] names it.
     #[must_use]
     pub fn kind(&self) -> SurfaceKind {
-        SurfaceKind::from(self)
+        match self {
+            Self::Plane { .. } => SurfaceKind::Plane,
+            Self::Cylinder { .. } => SurfaceKind::Cylinder,
+            Self::Cone { .. } => SurfaceKind::Cone,
+            Self::Sphere { .. } => SurfaceKind::Sphere,
+            Self::Torus { .. } => SurfaceKind::Torus,
+            Self::Nurbs(_) => SurfaceKind::Nurbs,
+            Self::Approx(_) => SurfaceKind::Approx,
+        }
     }
 }
 
@@ -310,6 +341,11 @@ impl SurfaceKind {
 
     /// The kind's name: one lower-case word, the spelling refusals and
     /// tables print.
+    ///
+    /// **Also a persisted key.** `tools/tess-meter` writes it into its
+    /// CSV's `chart` column and `tools/tess-lint` joins committed
+    /// baselines on that column, so rewording a name re-keys every
+    /// baseline row that carries it.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {

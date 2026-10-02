@@ -2357,8 +2357,9 @@ fn datum_words(field: &'static str) -> Cow<'static, str> {
 }
 
 /// `words` with its indefinite article, read off its first letter
-/// (every word these tables render is pronounced as spelled).
-fn with_article(words: &str) -> String {
+/// (every word these tables render is pronounced as spelled). Shared
+/// with `query`'s rim refusal, which renders a curve kind's adjective.
+pub(crate) fn with_article(words: &str) -> String {
     let article = match words.chars().next() {
         Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
         _ => "a",

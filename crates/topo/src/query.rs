@@ -92,7 +92,6 @@
 //! the point.
 
 use geom::Curve3;
-use geom::SurfaceKind;
 use geom_brep::SurfaceKey;
 use geom_core::k_stats::decide;
 use geom_core::{
@@ -105,14 +104,14 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::readback::{CarrierAbsence, DanglingRef};
 
-/// The edge-side kind, re-exported where its set and predicates live.
+/// The kinds, re-exported where their sets and predicates live.
 ///
 /// [`CurveKind`] and [`SurfaceKind`] are `geom`'s, beside the enums
 /// they mirror ([`Curve3::kind`], [`geom::Surface::kind`]), and every
 /// crate above reuses them. What this seat owns is the SETS over them
 /// — [`CurveKindSet`], [`SurfaceKindSet`] and their bit numbering — and
 /// the EXACT predicates that read them.
-pub use geom::CurveKind;
+pub use geom::{CurveKind, SurfaceKind};
 
 /// A SET of [`CurveKind`]s — the predicate's comparand, so "a line or
 /// an arc" is one predicate rather than a union of two selections.
@@ -545,13 +544,7 @@ impl core::fmt::Display for RimError {
                 let carries = match kind {
                     None => "no certified carrier".to_owned(),
                     Some(kind) => {
-                        let words = kind.adjective();
-                        let article = if words.starts_with(['a', 'e', 'i', 'o', 'u']) {
-                            "an"
-                        } else {
-                            "a"
-                        };
-                        format!("{article} {words} curve")
+                        crate::validate::with_article(&format!("{} curve", kind.adjective()))
                     }
                 };
                 write!(
@@ -1037,6 +1030,35 @@ mod tests {
                 edge: e,
                 kind: None
             })
+        );
+    }
+
+    /// [`RimError::NotAnArc`]'s text, both payloads: the kind reads in
+    /// the adjective register with its article (`an elliptical` is the
+    /// vowel case), and a missing carrier says so.
+    #[test]
+    fn not_an_arc_names_the_curve_in_words() {
+        let edge = all_edges(&mixed())[0];
+        let text = |kind| RimError::NotAnArc { edge, kind }.to_string();
+        assert_eq!(
+            text(Some(CurveKind::Line)),
+            format!(
+                "edge {edge:?} carries a straight curve, and a rim is named by an arc of a circle"
+            )
+        );
+        assert_eq!(
+            text(Some(CurveKind::Ellipse)),
+            format!(
+                "edge {edge:?} carries an elliptical curve, and a rim is named by an arc of a \
+                 circle"
+            )
+        );
+        assert_eq!(
+            text(None),
+            format!(
+                "edge {edge:?} carries no certified carrier, and a rim is named by an arc of a \
+                 circle"
+            )
         );
     }
 

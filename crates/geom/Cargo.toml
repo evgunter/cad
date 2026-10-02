@@ -10,13 +10,12 @@ workspace = true
 
 [features]
 # The variant rosters behind `topo`'s sample-coverage row
-# (`topo::test_support_samples`): with this on, the enums a
-# `topo::ValidationError` renders through derive a companion
-# discriminant enum (`strum::EnumDiscriminants`), so a variant added
-# here is a gap in that row by construction, not by a hand-kept list.
-# `geom::test_support` reads `SurfaceKind` and `CurveKind` to build one
-# fixture of every analytic kind. Test-only: enabled through
-# dev-dependency edges alone.
+# (`topo::test_support_samples`): with this on, the fieldless enums a
+# `topo::ValidationError` renders through derive `strum::EnumIter`, so a
+# variant added here is a gap in that row by construction, not by a
+# hand-kept list. `geom::test_support` reads `SurfaceKind::ALL` and
+# `CurveKind::ALL` to build one fixture of every analytic kind.
+# Test-only: enabled through dev-dependency edges alone.
 test-support = ["geom-core/test-support"]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
@@ -26,9 +25,9 @@ test-support = ["geom-core/test-support"]
 probe = ["geom-core/probe"]
 
 [dependencies]
-# `CurveKind` and `SurfaceKind`, the fieldless mirrors of `Curve3` and
-# `Surface`, are derived (`strum::EnumDiscriminants`); `test-support`
-# above derives its rosters with it too.
+# `CurveKind::ALL` and `SurfaceKind::ALL` are read off
+# `strum::VariantArray` on the hand-written kind enums, so neither has a
+# roster to keep; `test-support` above derives its rosters with it too.
 strum = { version = "0.28", features = ["derive"] }
 # Certified-conservative box constructors (the two `boxes` modules):
 # the bvh crate sits BELOW the geometry crate by design (its docs).
