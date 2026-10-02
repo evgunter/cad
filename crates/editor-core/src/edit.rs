@@ -1367,6 +1367,9 @@ pub enum EditError {
         node: SpokenNode,
         /// The solve's own fault, unaltered.
         fault: Box<crate::mate::MateFault>,
+        /// The nodes the fault names, as the document the mate stands
+        /// in held them at the refusal ([`crate::spoken::held_by`]).
+        held: crate::spoken::HeldNodes,
     },
     /// A pin update aimed at a node that does not instantiate a part
     /// (A13; ASM-UPD D-1: only a cross-document reference HAS a
@@ -2300,9 +2303,13 @@ impl EditError {
                     format_args!("give every alignment coordinate a finite value"),
                 )
             }
-            Self::MateRefused { node, fault } => write!(
+            Self::MateRefused { node, fault, held } => write!(
                 f,
-                "{node} is refused by the solve on its own datum: {fault}"
+                "{node} is refused by the solve on its own datum: {}",
+                crate::spoken::Said(
+                    &**fault,
+                    crate::spoken::Speaker::held(held).about(node.id())
+                )
             ),
             Self::UpdateOnNonInstance { node } => {
                 write!(
@@ -3658,6 +3665,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 crate::mate::solve::admit_mate(&new, id, &node, &env, reach, tol).map_err(
                     |fault| EditError::MateRefused {
                         node: SpokenNode::entering(id, &node),
+                        held: crate::spoken::held_by(&*fault, &new),
                         fault,
                     },
                 )?;

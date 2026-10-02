@@ -489,17 +489,16 @@ const GATE_SITE: Door = Door::Site(
 /// behind it `reach`, at arm 1.
 fn sector_side(dir: Vec3<f64>, reach: Reach<f64>) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-    side_code(dir, reach, n, 1.0, NO_CURVATURE(), band()).map(|_| ())
+    side_code(dir, reach, n, NO_CURVATURE(), band()).map(|_| ())
 }
 
-/// A bisector at arm ½ leaving a face of bend radius 1 by `margin` more
-/// than the face bends away under it: at departure cosine `c` the charge
-/// is `½c − ¼(1 − c²)`, which is `margin` at `c = 2√(½ + margin) − 1`.
+/// A bisector of reach ½ leaving a face of bend radius 1 at the slope
+/// `s` whose peak separation from the face, `s²·R/4`, is `margin`.
 fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-    let c = 2.0 * (0.5 + margin).sqrt() - 1.0;
+    let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
-    side_code(dir, Reach::Bisector(0.5), n, 0.5, 1.0, band()).map(|_| ())
+    side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
 /// A unit cylinder along `y` resting on a floor from the side `side`

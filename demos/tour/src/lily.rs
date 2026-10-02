@@ -148,8 +148,8 @@
 
 use core::f64::consts::PI;
 
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
