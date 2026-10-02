@@ -128,9 +128,9 @@ The binding text is C3 in `crates/geom-brep/README.md`, as this row's
 - **Test rows.** The two `TraceUnresolved` rows in `m5_pr7_ssi.rs` flip
   to `Ok` with contacts, and the open-end escalation row retires.
 
-**Precondition.** The march collapses on curved walls (designer A
-measured 7–10 nm steps at κ ≈ 3/m). A separate row is being filed for
-it, and it must land before any curved-wall row of this build.
+**Precondition.** A plane does not yet certify against a curved wall: no fixture certifies above about 1/m of curvature. The causes are filed as
+`plane-nurbs-ssi-does-not-certify-a-curved-dome`: a seed refined off the chart, the fit budget, the step
+rungs' mixed units, and a HullSup underestimate. That row must land before any curved-wall row of this build.
 
 **For the future join.** SSI's corner margin and the boolean's vertex
 margin can differ by up to ε. So the join must accept a `Corner` region
