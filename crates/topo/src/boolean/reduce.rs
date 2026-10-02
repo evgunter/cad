@@ -1919,12 +1919,13 @@ fn on_declared_rest_carrier<T: Decide>(
 /// `face`'s boundary nowhere. Two certificates do that, and anything
 /// else keeps the door (`None`):
 ///
-/// - **clear of the boundary**: every boundary vertex of the face is
-///   decided strictly on one side of the arc's own plane, and no boundary
-///   edge meets that plane inside its span ([`boundary_off_plane`]), so
-///   the arc lies wholly inside the face or wholly outside it, and its
-///   ends must agree — both placed outside is no event, both recorded is
-///   the endpoint posture;
+/// - **off the boundary but at its ends**: the face's boundary meets the
+///   arc's own circle nowhere but at the vertices of `y` the arc's ends
+///   were paired with ([`boundary_meets_circle_only_at`]), so the arc's
+///   interior meets the boundary nowhere and lies wholly inside the face
+///   or wholly outside it. With no end on the
+///   boundary the ends must agree: both placed outside is no event, both
+///   recorded is the endpoint posture; with an end on it, its record is.
 /// - **along edges of the partner**: both ends were paired with
 ///   vertices of `y`, and `y` has a chain of circle arcs between them,
 ///   each leaving along this arc's tangent where it starts
@@ -1963,19 +1964,24 @@ fn lying_on<T: Decide>(
     else {
         return Ok(None);
     };
-    let clear = boundary_off_plane(y, face, center, axis, band)?;
     let mut placed = [(Placement::Undecided, None); 2];
     for (slot, (w, pw)) in placed.iter_mut().zip(ends) {
         *slot = vertex_on_curved_face_at(x_is, y, w, pw, face, contacts, band, tol)?;
     }
-    let all = |p: Placement| placed.iter().all(|(q, _)| *q == p);
-    if clear {
-        return Ok(if all(Placement::Recorded) {
-            Some(CurvedEvent::Recorded)
-        } else if all(Placement::Elsewhere) {
+    if placed.iter().any(|(p, _)| *p == Placement::Undecided) {
+        return Ok(None);
+    }
+    let at_ends: Vec<VertexKey> = placed.iter().filter_map(|(_, w)| *w).collect();
+    if boundary_meets_circle_only_at(y, face, (center, axis, radius), &at_ends, band)? {
+        let all = |p: Placement| placed.iter().all(|(q, _)| *q == p);
+        return Ok(if all(Placement::Elsewhere) {
             Some(CurvedEvent::None)
-        } else {
+        } else if at_ends.is_empty() && !all(Placement::Recorded) {
+            // Clear of the boundary, one end in and one out: the two
+            // certified answers contradict, and that keeps the door.
             None
+        } else {
+            Some(CurvedEvent::Recorded)
         });
     }
     let [(_, Some(wu)), (_, Some(wv))] = placed else {
@@ -2018,78 +2024,117 @@ fn lying_on<T: Decide>(
     Ok(None)
 }
 
-/// Whether `face`'s whole boundary lies strictly on one side of the plane
-/// through `origin` with normal `normal`: every boundary vertex decided
-/// on one common side, and no conic boundary edge meeting the plane
-/// strictly inside its span (the splitting lane's certified roots,
-/// [`crate::splitting::conic_plane_crossing_roots`]); a line edge
-/// between two vertices on one side cannot meet it. Anything undecided,
-/// and any carrier but a line or a conic, answers `false`.
-fn boundary_off_plane<T: Decide>(
+/// Whether `face`'s boundary meets the circle (`center`, unit `axis`,
+/// `radius`) nowhere but at the vertices `at`. The circle lies in the
+/// plane through `center` normal to `axis`, so the boundary is read
+/// against that plane, and each point where it meets the plane is decided
+/// off the circle: a vertex strictly off the plane or off the circle; a
+/// conic edge's crossings strictly inside its span (the splitting lane's
+/// certified roots, [`crate::splitting::conic_plane_crossing_roots`]), or
+/// a line edge's one crossing between the plane's two sides, each off the
+/// circle; no edge lying in the plane but a line between two of `at`.
+/// Anything undecided, and any carrier but a line or a conic, answers
+/// `false`.
+fn boundary_meets_circle_only_at<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
-    origin: Point3<T>,
-    normal: geom_core::Vec3<T>,
+    (center, axis, radius): (Point3<T>, geom_core::Vec3<T>, T),
+    at: &[VertexKey],
     band: Band,
 ) -> Result<bool, BooleanError> {
     let lost = || BooleanError::ClassificationInvariant {
         what: "an arc on a carrier: the face's boundary is not walkable",
     };
     let f = y.get_face(face).ok_or_else(lost)?;
+    let height = |p: Point3<T>| (p - center).dot(axis);
+    let off_circle = |p: Point3<T>| {
+        let h = height(p);
+        let rho = ((p - center) - axis * h).norm();
+        let miss = (h.powi(2) + (rho - radius).powi(2)).sqrt();
+        matches!(
+            decide("bool_arc_boundary_off_circle", Margin::of(miss), band),
+            Ok(Sign::Positive)
+        )
+    };
     let point = |v: VertexKey| {
         y.get_vertex(v)
             .and_then(|vd| y.get_point(vd.point))
             .copied()
             .ok_or_else(lost)
     };
-    let mut side: Option<Sign> = None;
-    let mut same_side = |p: Point3<T>| -> bool {
-        match decide(
-            "bool_arc_plane_side",
-            Margin::of((p - origin).dot(normal)),
-            band,
-        ) {
-            Ok(s @ (Sign::Positive | Sign::Negative)) => *side.get_or_insert(s) == s,
-            Ok(Sign::Zero) | Err(_) => false,
+    // A vertex's place: strictly off the plane on one side, in the plane
+    // (`Zero`) where it is one of `at` or decided off the circle, and
+    // `None` where nothing certifies it clear.
+    let place = |v: VertexKey| -> Result<Option<Sign>, BooleanError> {
+        if at.contains(&v) {
+            return Ok(Some(Sign::Zero));
         }
+        let p = point(v)?;
+        Ok(
+            match decide("bool_arc_plane_side", Margin::of(height(p)), band) {
+                Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
+                Ok(Sign::Zero) | Err(_) => off_circle(p).then_some(Sign::Zero),
+            },
+        )
     };
     for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         match y.get_loop(lk).ok_or_else(lost)?.boundary {
             crate::entity::LoopBoundary::Empty { vertex } => {
-                if !same_side(point(vertex)?) {
+                if place(vertex)?.is_none() {
                     return Ok(false);
                 }
             }
             crate::entity::LoopBoundary::Cycle { first } => {
                 for he in y.loop_cycle(first).ok_or_else(lost)? {
                     let h = y.get_half_edge(he).ok_or_else(lost)?;
-                    if !same_side(point(h.start)?) {
-                        return Ok(false);
-                    }
                     let e = y.get_edge(h.edge).ok_or_else(lost)?;
+                    let (Some(a), Some(b)) = (
+                        y.get_half_edge(e.he_plus).map(|h| h.start),
+                        y.get_half_edge(e.he_minus).map(|h| h.start),
+                    ) else {
+                        return Err(lost());
+                    };
+                    let (Some(sa), Some(sb)) = (place(a)?, place(b)?) else {
+                        return Ok(false);
+                    };
                     let Some(c) = y.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
                         return Ok(false);
                     };
-                    if !matches!(
-                        c.carrier(),
-                        geom::Curve3::Line { .. }
-                            | geom::Curve3::Circle { .. }
-                            | geom::Curve3::Ellipse { .. }
-                    ) {
-                        return Ok(false);
-                    }
                     let (t0, t1) = c.params();
-                    match crate::splitting::conic_plane_crossing_roots(
-                        c.carrier(),
-                        t0,
-                        t1,
-                        origin,
-                        normal,
-                        band,
-                    ) {
-                        Err(()) | Ok(ConicPlaneMeet::Miss | ConicPlaneMeet::Parallel { .. }) => {}
-                        Ok(ConicPlaneMeet::Roots(Ok(roots))) if roots.is_empty() => {}
-                        Ok(ConicPlaneMeet::Roots(_)) => return Ok(false),
+                    let clear = match c.carrier() {
+                        geom::Curve3::Line { .. } => match (sa, sb) {
+                            (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
+                                let (pa, pb) = (point(a)?, point(b)?);
+                                let (ha, hb) = (height(pa), height(pb));
+                                off_circle(pa + (pb - pa) * (ha / (ha - hb)))
+                            }
+                            (Sign::Zero, Sign::Zero) => at.contains(&a) && at.contains(&b),
+                            _ => true,
+                        },
+                        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+                            match crate::splitting::conic_plane_crossing_roots(
+                                c.carrier(),
+                                t0,
+                                t1,
+                                center,
+                                axis,
+                                band,
+                            ) {
+                                Ok(ConicPlaneMeet::Miss) => true,
+                                Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
+                                    roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
+                                }
+                                Ok(ConicPlaneMeet::Parallel { offset }) => matches!(
+                                    decide("bool_arc_plane_side", Margin::of(offset), band),
+                                    Ok(Sign::Positive | Sign::Negative)
+                                ),
+                                Err(()) | Ok(ConicPlaneMeet::Roots(Err(_))) => false,
+                            }
+                        }
+                        _ => false,
+                    };
+                    if !clear {
+                        return Ok(false);
                     }
                 }
             }

@@ -14,8 +14,14 @@
 //!   BUILDS, its seams aligned with the tube's or not: each rim circle
 //!   lies on the other operand's wall, and its parents are decided
 //!   distinct from that wall, so it is an ON event, and the two rims
-//!   are one seam of the zip. Undeclared, the coincident discs refuse.
-//!   A rim offset in band of the partner's wall escalates. The G1
+//!   are one seam of the zip. A tube revolved rather than extruded, and
+//!   an inverted dome in the tube's place (a lens), build the same way.
+//!   Undeclared, the coincident discs refuse. A rim offset in band of
+//!   the partner's wall escalates.
+//! - **A tube ending on a ball, or on a torus's 45° latitude**,
+//!   undeclared: the rim lies inside the partner's face rather than on
+//!   its boundary, and passes the crossing layer the same way; the union
+//!   stops in the join. The G1
 //!   hemisphere stops at the crossing layer on an edge leaving the rim,
 //!   which grazes the partner's wall; a same-radius stacked cylinder
 //!   stops there on its own rim, whose parent shares the partner's
@@ -272,9 +278,20 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds_with_its_discs_decla
     // the tube's, so each rim runs along two of the other's arcs.
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), PI / 6.0);
     let turned = topo::transform_rigid(&dome, &turn, tol).unwrap();
+    // The same tube revolved: its wall's seam is a meridian ruling.
+    let revolved = cap_on_the_tube(vec![
+        (Point2::new(0.0, -H), 0.0),
+        (Point2::new(R, -H), 0.0),
+        (Point2::new(R, 0.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+    ]);
     let want = tube_and_dome_volume();
-    for (label, cap) in [("dome", &dome), ("dome turned", &turned)] {
-        for (order, r) in unions_with_discs_rest(&tube, cap).into_iter().enumerate() {
+    for (label, tube, cap) in [
+        ("dome", &tube, &dome),
+        ("dome turned", &tube, &turned),
+        ("revolved tube", &revolved, &dome),
+    ] {
+        for (order, r) in unions_with_discs_rest(tube, cap).into_iter().enumerate() {
             let b = match r {
                 Ok(BooleanResult::Body(b)) => b.body,
                 other => panic!("{label}, order {order}: the union builds: {other:?}"),
@@ -297,6 +314,92 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds_with_its_discs_decla
                 ),
                 (false, false),
                 "{label}, order {order}: the tube's wall meets the dome's at the rim"
+            );
+        }
+    }
+}
+
+/// **A lens**: the dome on an inverted dome of the same rim, discs
+/// declared `Rest`. Both rims lie on the other's sphere, at a 90° corner.
+#[test]
+fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
+    let tol = Tol::witness();
+    let dome = dome_on_the_cap();
+    let rise = (2.0_f64.sqrt() - 1.0) * R;
+    let bowl = cap_on_the_tube(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (
+            Point2::new(0.0, -rise),
+            (core::f64::consts::FRAC_PI_4 / 4.0).tan(),
+        ),
+        (Point2::new(R, 0.0), 0.0),
+    ]);
+    let volume = |b: &Body<f64>| topo::mass_properties(b, tol).unwrap().volume;
+    let want = 2.0 * volume(&dome);
+    assert!(
+        (volume(&bowl) - volume(&dome)).abs() <= 1e-12 * want,
+        "the bowl is the dome mirrored"
+    );
+    for (order, r) in unions_with_discs_rest(&bowl, &dome).into_iter().enumerate() {
+        let b = match r {
+            Ok(BooleanResult::Body(b)) => b.body,
+            other => panic!("order {order}: the lens builds: {other:?}"),
+        };
+        topo::validate_geometric(&b, tol)
+            .unwrap_or_else(|e| panic!("order {order}: tier 3: {e:?}"));
+        assert!(
+            (volume(&b) - want).abs() <= 1e-12 * want,
+            "order {order}: the two domes: {} vs {want}",
+            volume(&b)
+        );
+        assert!(
+            planes_at_z(&b, H).is_empty(),
+            "order {order}: the discs are consumed"
+        );
+    }
+}
+
+/// **A rim lying inside the partner's face** passes the crossing layer:
+/// a tube ending on a ball of radius `√2` (its rim on the sphere, 45° to
+/// the wall), and a tube standing on a torus's 45° latitude. Each union
+/// stops in the join, on a frontier that is not the crossing layer's
+/// (`work/join/a-tube-ending-on-a-ball-refuses-section-loop-mixed.md`;
+/// the torus × plane germ frame, `work/germ/c5-plane-torus-cone-cylinder-arms.md`).
+#[test]
+fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
+    let tol = Tol::witness();
+    let none = BooleanDeclarations::none();
+    let ball = ball_poled_z(2.0_f64.sqrt(), Vec3::new(0.0, 0.0, 0.0), tol);
+    let at0 = revolved_about_y(
+        vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(3.0, 0.0), 1.0)],
+        Revolution::Full,
+        tol,
+    );
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
+    let mut torus = topo::transform_rigid(&at0, &turn, tol).unwrap();
+    torus.merge_coplanar_faces(tol).unwrap();
+    let s = core::f64::consts::FRAC_1_SQRT_2;
+    for (label, tube, partner) in [
+        ("tube on a ball", rod_z(R, 1.0, 2.0), &ball),
+        ("tube on a torus", rod_z(2.0 + s, s, 2.0), &torus),
+    ] {
+        for (order, r) in [
+            topo::union_with(&tube, partner, &none, tol),
+            topo::union_with(partner, &tube, &none, tol),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert!(
+                matches!(
+                    r,
+                    Err(
+                        BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
+                            | BooleanError::GermFrameUnsupported { .. }
+                    )
+                ),
+                "{label}, order {order}: past the crossing layer, the join's refusal: {:?}",
+                r.err()
             );
         }
     }

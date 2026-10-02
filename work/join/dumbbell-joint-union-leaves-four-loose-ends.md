@@ -55,3 +55,16 @@ The REST zip declines first, for two reasons of its own:
 `rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
 on ZIP's slate. Loosening its facing test alone reaches
 `RestZipUnsupported { ParallelSeamEdges }`.
+
+## Measured (TANG, 2026-10-02, branch `tang/abutting-rim`)
+
+Both handles BUILD there, through the declared-REST zip, at tier 3 and
+at exactly the two halves' volumes (torus 14.697464134831963, cylinder
+14.41991027997715). The zip now matches germs along circle arcs both
+operands carry between two sites before its straight-chord test, and a
+segment names its two arcs, so the joint circle's two semicircles are two
+seams (`rest.rs`, `arcs_along`). Five curved merge groups are skipped and
+shipped, as DESIGN's output rule says of a curved group. JOIN-2's plan
+replaces `enumerate_segments` with the join's segments; this is the
+interim, and the rows in `germ_torus_doors.rs` are re-pinned to the
+bodies.

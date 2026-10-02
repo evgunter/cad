@@ -35,3 +35,15 @@ weak for the geometry. The second is the same weakness that builds
 the rod's wrong body in the JOIN measurement. Its answer may come from
 JOIN's open design fork on how a section segment coinciding with an
 existing edge is identified; read that before building.
+
+## Measured (TANG, 2026-10-02, branch `tang/abutting-rim`)
+
+Both halves of this row are addressed there for circle arcs, which TANG
+needed for an abutting rim (a dome on a tube): `enumerate_segments`
+first matches a germ pair along a circle arc each operand carries from
+one site to the other, leaving along the germ (`arcs_along`), and the
+`Segment` carries those two arcs, which `realize_seam` uses in place of
+`fan_edge_between`. The straight-chord test still matches every other
+pair. The dumbbell builds. JOIN-2's plan (the zip reads the join's
+segments) would replace both; whether this row closes on that branch or
+on JOIN-2 is the owner's call.

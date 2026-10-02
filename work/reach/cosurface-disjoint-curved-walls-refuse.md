@@ -162,3 +162,15 @@ they were declared `Rest`. PR 3662 widened the definition to match the
 code, and Ev ruled for it on 2026-10-01 ("sounds good!"): a continuation
 is an aligned one-carrier pair whether its faces abut or overlap, and an
 undeclared one refuses in every op.
+
+## A stacked cylinder with its walls declared `Rest` builds (TANG, 2026-10-02)
+
+Measured on branch `tang/abutting-rim`: a tube of radius 1 over
+`z ∈ [0, 2]` unioned with one over `z ∈ [2, 3]`, the end discs and the
+two walls declared `Rest`. The walls' senses are ALIGNED, which C4
+says contradicts `Rest`, but the declaration door accepts it (this row's
+"read two ways"). On main the union refused `Join(UnpairedLooseEnds)`;
+there the declared-REST zip matches the rim's semicircles as arcs and
+the union builds, at tier 3 and at `3π`, with three curved merge groups
+skipped. `BooleanCoincidence::Continuation` is not in the code yet, so
+it could not be measured declared so.
