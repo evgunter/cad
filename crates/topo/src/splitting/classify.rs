@@ -619,37 +619,6 @@ mod tests {
         )
     }
 
-    /// **No side leaves `split` unless it is a closed solid.** An
-    /// `mvfs` seed given a plane is tier-1 sound and passes the operand
-    /// gate (no edge, plane face), but its empty loop is tier-2
-    /// scaffolding; it lies wholly below `y = 1`, so without the gate it
-    /// would come back as the below side unchanged.
-    #[test]
-    fn a_side_that_is_not_a_closed_solid_refuses() {
-        use crate::splitting::{PlaneSide, SplitError, SplitFinishError};
-        use crate::validate::ValidationError;
-        let mut body = crate::Body::<f64>::new();
-        let seed = body.mvfs(Point3::origin(), true).unwrap();
-        let surface = body.get_face(seed.face).unwrap().surface;
-        body.surfaces[surface] = geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-        };
-        assert_eq!(crate::validate::validate(&body), Ok(()), "tier 1 accepts");
-        match crate::splitting::split(&body, &plane_y(1.0), geom_core::Tol::witness()) {
-            Err(SplitError::Finish(SplitFinishError::ResultInvalid {
-                side: PlaneSide::Below,
-                errors,
-            })) => assert_eq!(
-                errors,
-                vec![ValidationError::ScaffoldingEmptyLoop { loop_: seed.r#loop }],
-                "the gate reports the seed's empty loop"
-            ),
-            other => panic!("expected the below side refused at tier 2, got {other:?}"),
-        }
-    }
-
     /// `split_conic_belly_graze`, all three arms: definitely-secant
     /// (two roots), definitely-missing (no roots), exactly-tangent
     /// (one graze root), and in-band (typed escalation).

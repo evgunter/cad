@@ -64,6 +64,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/Euler",
     "Split/Finish/NestingContradiction",
+    "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/NullScaffold",

@@ -83,7 +83,8 @@ What the refusals are (each half's operand checked at the same door):
     `review_m3_pr3_bob`, `review_m3_pr6`, the BOOL1 notch rows): pieces
     meeting along a tip line through distinct vertex copies, refused as
     undeclared `VertexVertex` contacts. `split` returns no
-    `ContactRecords`, so this door cannot pass its pinch halves.
+    `ContactRecords`, so this door cannot pass its pinch halves
+    (`split-halves-have-no-contact-records-so-no-pseudomanifold-self-check`).
   - 8 are CLEAVE's `split-pairs-curved-face-crossings-across-the-wrong-arc`
     halves (`split_section_rings::a_clockwise_section_nothing_places_keeps_its_face`,
     `pis_arc_capped_poses::every_tilted_cut_wall_reads_its_truth`),
@@ -98,9 +99,11 @@ Tier 2 costs ~20 µs a half and refuses nothing green, and it is the
 gate the boolean already runs on its result (`boolean::ops::gate`,
 typed `BooleanError::ResultInvalid`). Split's own finish already
 refuses typed for its kernel-bug nets (`TornComponent`,
-`NestingContradiction`), and it takes its operand unchecked, so an
-invalid side is reachable by input and owes a typed refusal (D2 row 5
-(ii)) rather than a debug assertion. Each run of `split_direct` now
+`NestingContradiction`). The operand is never validated: the
+reduction's one tier-2 refusal is an empty outer loop on a face that
+rule (a) measures at an ON vertex (`Reduce/CorruptOperand`, via
+`rules::face_extent`). So an invalid side can be reached by input and
+owes a typed refusal (D2 row 5 (ii)) rather than a debug assertion. Each run of `split_direct` now
 gates both sides at tier 2 and refuses `SplitFinishError::ResultInvalid`.
 The original spurred halves fail tier 2 (the review's measurement
 above), so this gate alone would have turned the mirrored run's slit
