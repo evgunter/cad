@@ -1,5 +1,5 @@
 diff --git a/demos/tour/src/main.rs b/demos/tour/src/main.rs
-index eda4fd03..73b967e1 100644
+index eda4fd03..f1d540cf 100644
 --- a/demos/tour/src/main.rs
 +++ b/demos/tour/src/main.rs
 @@ -749,7 +749,27 @@ fn run_stop(
@@ -31,15 +31,17 @@ index eda4fd03..73b967e1 100644
          .collect();
      manifest.push_str(&scene_json(stop, &bodies));
  }
-@@ -1100,9 +1120,12 @@ fn main() {
+@@ -1100,9 +1120,14 @@ fn main() {
      let mut scenes: Vec<String> = Vec::new();
      let mut dumps: Vec<uvdump::FaceDump> = Vec::new();
      let mut cells = 0usize;
++    pncad::topo::census_fold_probe::set_origin("tour-build-after::<start>");
 +    let mut last_end = std::time::Instant::now();
      let mut run = |stop: &Stop| {
 +        println!("CF-GAP\t{}\t{:e}\t{}", stop.name, last_end.elapsed().as_secs_f64(), stop.bodies.len());
          manifest.clear();
          run_stop(stop, &outdir, &mut manifest, &mut dumps, tol);
++        pncad::topo::census_fold_probe::set_origin(&format!("tour-build-after::{}", stop.name));
 +        last_end = std::time::Instant::now();
          scenes.push(manifest.clone());
          cells += usize::from(stop.montage);

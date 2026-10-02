@@ -4,7 +4,7 @@
     analyze.py <dir-eps-1e-9> [<dir-eps-1e-6> <dir-eps-1e-12> ...]
 
 Each dir holds `<pid>.jsonl` files written by the scratch topo hook
-(`topo-hook.patch`). A body is identified by its fingerprint `fp`
+(`kernel-hook.patch`). A body is identified by its fingerprint `fp`
 (Euler counts + vertex coordinates at 1e-6 + surface-kind set); the
 first record of an fp at a given scalar is its row, and every origin
 that produced it is kept.
@@ -87,6 +87,7 @@ def main():
         rows = load(d)
         scalars = collections.Counter(r["scalar"] for r in rows)
         by, origins = reduce(rows)
+        decl = load_declared(d)
         pop = {fp: r for fp, r in by.items() if r["t3_ok"]}
         eps = {r["eps"] for r in rows}
         print(f"=== {d}: eps={sorted(eps)} records={len(rows)} scalars={dict(scalars)}")
@@ -101,6 +102,11 @@ def main():
         multi = sum(1 for r in pop.values() if r["solids"] > 1)
         print(f"planar/curved: {dict(kinds)}; multi-solid: {multi}")
         fails = {fp: r for fp, r in pop.items() if not r["p_ok"]}
+        nd = sum(1 for fp in pop if fp in decl)
+        print(f"population bodies also gated WITH non-empty contacts somewhere: {nd}")
+        fd = sum(1 for fp in fails if fp in decl)
+        print(f"failures whose body is gated WITH declarations elsewhere: {fd}; "
+              f"failures with no declaration seen: {len(fails) - fd}")
         cfail = sum(1 for r in pop.values() if not r["c_ok"])
         print(f"fail empty-contact 3': {len(fails)}  (census-alone fails: {cfail})")
         var = collections.Counter()
@@ -133,7 +139,8 @@ def main():
         print("failures:")
         for fp, r in fails.items():
             os_ = sorted(origins[fp])
-            print(f"- {fp} f={r['f']} solids={r['solids']} kinds={r['kinds']} variants={r['variants']} n_err={r['n_err']}")
+            tag = "DECLARED-ELSEWHERE" if fp in decl else "no-decl-seen"
+            print(f"- [{tag}] {fp} f={r['f']} solids={r['solids']} kinds={r['kinds']} variants={r['variants']} n_err={r['n_err']}")
             print(f"    origins ({len(os_)}): {os_[:4]}")
             for e in r["errs"][:2]:
                 print(f"    err: {e[:400]}")

@@ -1,11 +1,63 @@
+diff --git a/crates/editor-core/src/product.rs b/crates/editor-core/src/product.rs
+index 81bcd925..d10d5c84 100644
+--- a/crates/editor-core/src/product.rs
++++ b/crates/editor-core/src/product.rs
+@@ -1192,6 +1192,7 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
+         crate::mate::Space::World => own_spaces(doc, evaluation, tol),
+         crate::mate::Space::Own { .. } => Vec::new(),
+     };
++    topo::census_fold_probe::minted(&aggregate, &contacts, "product");
+     Ok(Product {
+         document: doc.id(),
+         body: aggregate,
+diff --git a/crates/topo/src/boolean/ops.rs b/crates/topo/src/boolean/ops.rs
+index c9380dba..35c6beb0 100644
+--- a/crates/topo/src/boolean/ops.rs
++++ b/crates/topo/src/boolean/ops.rs
+@@ -609,6 +609,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
+         discards: fin.discards,
+         covered,
+     };
++    crate::census_fold_probe::minted(&body, &contacts, "boolean");
+     Ok(BooleanResult::Body(BooleanBody {
+         body,
+         kind: BooleanResultKind::Seamed,
+@@ -3363,6 +3364,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
+                 covered: red.covered.clone(),
+                 ..BooleanNaming::default()
+             };
++            crate::census_fold_probe::minted(&body, &contacts, "boolean");
+             Ok(BooleanResult::Body(BooleanBody {
+                 body,
+                 kind,
+@@ -3429,6 +3431,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
+             ..BooleanNaming::default()
+         },
+     };
++    crate::census_fold_probe::minted(&body, &contacts, "boolean");
+     Ok(BooleanResult::Body(BooleanBody {
+         body,
+         kind,
+diff --git a/crates/topo/src/boolean/rest.rs b/crates/topo/src/boolean/rest.rs
+index f946219e..253a0544 100644
+--- a/crates/topo/src/boolean/rest.rs
++++ b/crates/topo/src/boolean/rest.rs
+@@ -415,6 +415,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
+         discards,
+         covered,
+     };
++    crate::census_fold_probe::minted(&body, &contacts, "boolean");
+     Ok(Some(BooleanResult::Body(BooleanBody {
+         body,
+         kind: BooleanResultKind::Seamed,
 diff --git a/crates/topo/src/census_fold_probe.rs b/crates/topo/src/census_fold_probe.rs
 new file mode 100644
-index 00000000..902042f5
+index 00000000..000730f1
 --- /dev/null
 +++ b/crates/topo/src/census_fold_probe.rs
-@@ -0,0 +1,241 @@
+@@ -0,0 +1,266 @@
 +//! SCRATCH measurement hook (census-fold lane) — never committed to the
-+//! kernel; carried as `probes/census-fold/topo-hook.patch`.
++//! kernel; carried as `probes/census-fold/kernel-hook.patch`.
 +//!
 +//! When `CENSUS_FOLD_DIR` is set, every body that passes tier 3 through
 +//! `validate_geometric_certificate`, and every body handed to the tier-3′
@@ -234,6 +286,31 @@ index 00000000..902042f5
 +        + contacts.patches.len();
 +    let line = format!(
 +        "{{\"declared\":\"{fp:016x}\",\"n\":{n},\"origin\":\"{}\"}}\n",
++        esc(&origin())
++    );
++    let path = format!("{dir}/{}.declared.jsonl", std::process::id());
++    if let Ok(mut f) = std::fs::OpenOptions::new()
++        .create(true)
++        .append(true)
++        .open(path)
++    {
++        let _ = f.write_all(line.as_bytes());
++    }
++}
++
++/// Logs a contact-carrying container's body at its mint (a boolean
++/// result, an assembly product), whatever gate its caller then runs.
++pub fn minted<T: geom_core::Real + 'static>(body: &Body<T>, contacts: &ContactRecords, what: &str) {
++    let Some(dir) = enabled() else { return };
++    if *contacts == ContactRecords::default() {
++        return;
++    }
++    let Some(b) = (body as &dyn std::any::Any).downcast_ref::<Body<f64>>() else {
++        return;
++    };
++    let (fp, _) = fingerprint(b);
++    let line = format!(
++        "{{\"declared\":\"{fp:016x}\",\"n\":-1,\"what\":\"{what}\",\"origin\":\"{}\"}}\n",
 +        esc(&origin())
 +    );
 +    let path = format!("{dir}/{}.declared.jsonl", std::process::id());
