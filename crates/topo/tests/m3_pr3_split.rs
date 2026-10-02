@@ -843,3 +843,112 @@ fn a_cut_side_carrying_a_strut_refuses() {
         "the strut tip is the one finding: {errors:?}"
     );
 }
+
+/// `above` with every chart offset by zero save the one plane `pick`
+/// names, offset by `distance` (`offset_planes_together`).
+fn offset_one_plane(
+    above: &mut Body<f64>,
+    pick: impl Fn(Point3<f64>, Vec3<f64>) -> bool,
+    distance: f64,
+) {
+    let mut by_surface: std::collections::BTreeMap<_, Vec<topo::FaceKey>> = Default::default();
+    for (k, f) in above.faces() {
+        by_surface.entry(f.surface).or_default().push(k);
+    }
+    let moves: Vec<topo::ChartMove<f64>> = by_surface
+        .into_values()
+        .map(|faces| {
+            let f = above.get_face(faces[0]).unwrap();
+            let hit = match above.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => pick(*origin, *normal),
+                _ => false,
+            };
+            topo::ChartMove {
+                faces,
+                distance: if hit { distance } else { 0.0 },
+            }
+        })
+        .collect();
+    assert_eq!(moves.iter().filter(|m| m.distance != 0.0).count(), 1);
+    topo::offset_planes_together(
+        above,
+        &moves,
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+        Tol::witness(),
+    )
+    .expect("the offset runs");
+}
+
+/// **An offset that moves neither tip copy keeps them on one point**
+/// (review of PR 3856). Offsetting the x = 0 end face, far from the
+/// pinch, leaves both tip copies where they were; the pinch half
+/// passed the pseudomanifold door with no records before the offset
+/// and should after. RED at 9531122c6e: `move_points_then_rechart`
+/// sends every in-scope vertex through `move_vertex`, which mints a
+/// fresh point even for a vertex that does not move, so the twins
+/// part onto two bit-equal points and the census refuses them.
+#[test]
+fn an_offset_that_moves_neither_tip_copy_keeps_them_on_one_point() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let mut above = body_of(&result.above).clone();
+    assert_eq!(pseudomanifold_door(&above), Ok(()), "before the offset");
+    offset_one_plane(&mut above, |o, n| n.x < -0.5 && o.x == 0.0, 0.1);
+    for z in [0.0, 1.0] {
+        let tips = vertices_at(&above, 4.0, 1.0, z);
+        assert_eq!(tips.len(), 2, "both copies stay at the tip, z = {z}");
+        assert_eq!(
+            above.get_vertex(tips[0]).unwrap().point,
+            above.get_vertex(tips[1]).unwrap().point,
+            "the unmoved copies still share a point, z = {z}"
+        );
+    }
+    assert_eq!(pseudomanifold_door(&above), Ok(()), "after the offset");
+}
+
+/// **An offset that moves both tip copies together keeps them
+/// touching** (review of PR 3856). Offsetting the z = 0 cap moves both
+/// copies at z = 0 to one new place. RED at 9531122c6e: each copy's
+/// corner is solved from its own prong's planes, the two solves land
+/// one ulp apart in x (3.9999999999999996 and 4.000000000000001), each
+/// on its own fresh point, and the census refuses the pair.
+#[test]
+fn an_offset_that_moves_both_tip_copies_together_keeps_them_touching() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let mut above = body_of(&result.above).clone();
+    offset_one_plane(&mut above, |o, n| n.z < -0.5 && o.z == 0.0, 0.1);
+    let tips: Vec<topo::VertexKey> = above
+        .vertices()
+        .filter(|(_, v)| {
+            let p = *above.get_point(v.point).unwrap();
+            (p.x - 4.0).abs() < 1e-9 && p.y == 1.0 && p.z == -0.1
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(tips.len(), 2, "both copies moved to the new cap");
+    assert_eq!(pseudomanifold_door(&above), Ok(()), "after the cap offset");
+}
+
+/// **A plane inside the ON band above the notch tip** (review of PR
+/// 3856; `split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence`).
+/// At y = 1 + 1e-12 the plane misses the tip, but split reads the tip
+/// ON and hands back a pinch half whose copies share the tip's point.
+/// Before 3856 the pseudomanifold door refused that half
+/// (`UndeclaredContact`, measured on 9768086e87); at 9531122c6e it
+/// passes with no records — a near-coincidence the door no longer
+/// reports. This row asserts the door still reports it, so it is RED
+/// at 9531122c6e; whether that or a split-side refusal is the right
+/// answer is the open item's question.
+#[test]
+fn a_band_made_pinch_does_not_pass_the_door_silently() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0 + 1e-12), Tol::witness()).unwrap();
+    let above = body_of(&result.above);
+    let tips = vertices_at(above, 4.0, 1.0, 0.0);
+    assert_eq!(tips.len(), 2, "split read the tip ON and pinched there");
+    assert!(
+        pseudomanifold_door(above).is_err(),
+        "a pinch made by the band passed the door with no records"
+    );
+}
