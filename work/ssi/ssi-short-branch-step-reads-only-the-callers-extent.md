@@ -2,10 +2,13 @@
 id: ssi-short-branch-step-reads-only-the-callers-extent
 kind: issue
 title: ssi/march: the longest step is SSI_STEP_MAX of the caller's extent alone, so a feature shorter than a few steps is refused (BranchUndersampled), never traced
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
+pr: 3730
+branch: ssi/short-branch
+closed: 2026-10-02
 ---
 
 
@@ -87,3 +90,26 @@ that describes the code. This section is the spec.
 Probes (measured, uncommitted): every corner clip from 1.4 cm to 28 cm
 certifies at extent 1 m and 1.5 m. The collapsed net certifies down to
 a ~3e-7 m branch. No other row of the SSI suite enters the re-march.
+
+## Closed (2026-10-02, PR 3730)
+
+The tracer owns a short branch. `march` reads a step cap in metres,
+separate from the extent. `march_both` re-marches a trace that has
+length but too few samples for the cubic. `BranchUndersampled` is
+retired.
+
+The landed re-march rule is **not** Design item 2's
+`SSI_STEP_MAX·length`. That rule walked a state from a mid-branch seed
+onto each end, a few ε inside the boundary, and escalated the open end
+at ε 1e-12. The cap is `length / SHORT_BRANCH_STEPS`, with
+`SHORT_BRANCH_STEPS = (SSI_FIT_DEGREE + 1) | 1 = 5`; the orchestrator's
+ruling is in PR 3730's body.
+
+A trace with no length (a point contact, or a branch below the
+boundary search's resolution) refuses `SsiError::TraceUnresolved`, not
+the fit's count.
+
+Residue, filed:
+- `ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal`
+- `ssi-final-chord-far-shorter-than-the-step-fails-the-certificate`
+- `ssi-step-scale-recourse-cannot-help-a-re-marched-short-branch`
