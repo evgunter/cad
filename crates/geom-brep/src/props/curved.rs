@@ -37,8 +37,9 @@ use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 
 /// The flux and area of a curved face from its **outer** loop
-/// ([`curved_face_loops`] takes a cylinder face's rings too). Dispatches on the surface kind; `band` is
-/// the run's linear band, built once at operation entry.
+/// ([`curved_face_loops`] takes a cylinder face's rings too).
+/// Dispatches on the surface kind; `band` is the run's linear band,
+/// built once at operation entry.
 ///
 /// `sense` is the face's orientation BIT (`topo::Face::sense`): `true`
 /// where the surface's chart normal already points out of the
