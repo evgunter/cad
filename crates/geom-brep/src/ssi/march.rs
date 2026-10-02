@@ -1294,7 +1294,7 @@ mod tests {
                         fault: StepFault::SpeedUnusable,
                     }
                     .ending(crate::recourse::Reading::Build);
-                    assert_eq!(ending.as_deref(), Some(geom_core::KERNEL_DEFECT_ENDING));
+                    assert_eq!(ending, geom_core::KERNEL_DEFECT_ENDING);
                 }
                 Err(SsiError::Escalated { decision, .. }) => panic!(
                     "WRONG DIAGNOSIS: a march speed of {speed:e} escalated on \
@@ -1378,9 +1378,7 @@ mod tests {
             assert_eq!(named.to_bits(), speed.to_bits(), "the speed it names");
             let ending = r.unwrap_err().ending(crate::recourse::Reading::Build);
             assert!(
-                ending
-                    .as_deref()
-                    .is_some_and(|e| e.starts_with("Recourse: bring the operands")),
+                ending.starts_with("Recourse: bring the operands"),
                 "speed {speed:e}: {ending:?}"
             );
         }
@@ -1459,7 +1457,7 @@ mod tests {
                     // A poisoned margin names no lever of the decision's:
                     // the arm gate ends as transversality's unreadable
                     // margin, the rest as the kernel's defect.
-                    let ending = e.ending(crate::recourse::Reading::Build).unwrap();
+                    let ending = e.ending(crate::recourse::Reading::Build);
                     if guard == TraceDecision::TransversalityArm {
                         assert!(
                             ending.ends_with(geom_core::UNREADABLE_MARGIN_NOTE),

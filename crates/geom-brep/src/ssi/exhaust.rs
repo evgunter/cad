@@ -454,9 +454,8 @@ pub(super) const R3_SCALE: SizedDecision = SizedDecision {
 /// the wall moves more than the floor across the smallest step of its
 /// parameters.
 pub(super) const CHART_SCALE: SizedDecision = SizedDecision {
-    lever: "bring the spline face within the model's size range, or move its parameter domain \
-            nearer zero, so the face moves less than the tolerance across the finest step of \
-            its parameters",
+    lever: "bring the spline face within the model's size range, or its parameter domain nearer \
+            zero, so its finest parameter step moves it less than the tolerance",
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
@@ -507,8 +506,7 @@ impl core::fmt::Display for FloorRefusal {
             FloorFault::BelowResolution { resolution, reach } => write!(
                 f,
                 ", which the domain cannot resolve: where it reaches {reach:e} {unit} from \
-                 zero the finest cell bisection can cut is {resolution:e} {unit} wide, so the \
-                 subdivision could never refine to the floor"
+                 zero its finest cell is {resolution:e} {unit} wide"
             ),
         }
     }
@@ -1241,8 +1239,7 @@ mod tests {
             format!(
                 "the accounting floor 1e-9 m is {:e} chart units at a certified chart speed \
                  of 1e150 m per chart unit, which the domain cannot resolve: where it reaches \
-                 1e0 chart units from zero the finest cell bisection can cut is {:e} chart \
-                 units wide, so the subdivision could never refine to the floor",
+                 1e0 chart units from zero its finest cell is {:e} chart units wide",
                 1.0e-9 / 1.0e150,
                 1.0 - 1.0f64.next_down()
             )
