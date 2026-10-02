@@ -2010,11 +2010,17 @@ mod tests {
                 "the placeholder's centre is refused on {lp:?}, got {got:?}"
             );
         }
-        // The same placeholder wound 5ε past a period: its span is in the
-        // band, so whether it is a whole turn is not known, and the walk
-        // escalates on the span row rather than calling the loop corrupt.
+        // The same placeholder wound ε/2 past a period. Certification
+        // reads that overlap Zero at the build's band — a whole turn — and
+        // the walk is asked at a band ten times finer, where ε/2 is IN
+        // the band: whether it is a whole turn is not known there, so the
+        // walk escalates on the span row rather than calling the loop
+        // corrupt. (Certification's winding row meters the same `τ − w`
+        // at the same lever, so at one band an in-band span never
+        // certifies; a finer walk band is the only way in.)
+        let eps = band.zero();
         let mut spec = geom_brep::EdgeCurveSpec::self_loop_circle_at(Point3::new(0.0, 0.0, 0.0));
-        let over = spec.param_end + 5.0 * band.zero();
+        let over = spec.param_end + 0.5 * eps;
         spec.param_end = over;
         if let geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
             ref mut angle,
@@ -2024,8 +2030,9 @@ mod tests {
             *angle = over;
         }
         body.set_edge_curve(circ.edge, spec, tol)
-            .expect("an overlap in the band certifies");
-        let got = point_in_carrier_loop(&body, circ.r#loop, up, centre, band);
+            .expect("an overlap inside the build's band certifies");
+        let fine = Band::new(0.1 * eps, eps).expect("a finer band");
+        let got = point_in_carrier_loop(&body, circ.r#loop, up, centre, fine);
         assert!(
             matches!(
                 &got,
