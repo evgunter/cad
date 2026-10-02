@@ -92,7 +92,9 @@ The binding text is C3 in `crates/geom-brep/README.md`, as this row's
   NURBS wall. It answers either `On` (the side lies in the plane), or
   certified roots with their slope margins.
   - Root isolation runs to the sweep floor minted per side
-    (`SweepFloor`), and `SSI_BOUNDARY_BISECTIONS` retires.
+    (`SweepFloor`), and `SSI_BOUNDARY_BISECTIONS` retires on this lane
+    (the ℝ³ lane keeps its slab search as `SSI_SLAB_BISECTIONS`; see
+    Closed).
   - An unclamped wall needs a side extraction first.
   - The boolean's NURBS crossing layer reuses this door once it is
     wired.
@@ -113,12 +115,13 @@ The binding text is C3 in `crates/geom-brep/README.md`, as this row's
     receipt counts them apart.
 - **Branches.**
   - Open branches name their two crossings, and
-    `BranchEnd::BoundaryInBand` goes.
+    `BranchEnd::BoundaryInBand` goes from this lane.
   - A trace runs from one crossing to the crossing on the side it
     leaves, with its step capped at |AB|/5. A match that is missing or
     doubled is a defect.
   - `push_boundary`, `ssi_branch_open_end`, the short-branch re-march
-    and `TraceUnresolved` retire.
+    and `TraceUnresolved` retire from this lane; the ℝ³ lane keeps
+    them behind its own exit type (Closed).
   - Each known end is settled onto both surfaces, or refuses
     `EndNotOnLocus`.
 - **Short clips.** Below a fixed multiple of Kε, the candidate is the

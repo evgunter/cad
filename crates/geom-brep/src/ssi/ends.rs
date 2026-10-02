@@ -11,8 +11,8 @@
 //!   steps. It stops at its first state outside the rectangle, and that
 //!   step is matched to the unused crossing on the side it left within
 //!   the step's reach, the one nearest where the step's chord meets the
-//!   side where two are (branches converging on a side). A march that leaves where no
-//!   crossing matches refuses as the march's limit
+//!   side where two are (branches converging on a side). A march that
+//!   leaves where no crossing matches refuses as the march's limit
 //!   ([`SsiError::CrossingUnmatched`]).
 //! - Where `|AB|` is below [`SSI_SHORT_CLIP`]`·Kε`, no step of it can
 //!   clear the band, so the candidate is not marched: it is the Hermite
@@ -160,7 +160,7 @@ impl<'a> Ends<'a> {
     /// # Errors
     ///
     /// [`SsiError::CrossingUnmatched`] for a crossing with no partner,
-    /// or a march whose exit matches none or two; any refusal of the
+    /// or a march whose exit matches none; any refusal of the
     /// march, the fit or the certificate; and
     /// [`SsiError::ShortBranchUncertified`] for a short candidate the
     /// certificate refuses.
@@ -179,10 +179,7 @@ impl<'a> Ends<'a> {
                 .map(|j| (j, distance(self.sys, &a.state, &crossings[j].state)))
                 .min_by(|x, y| x.1.total_cmp(&y.1));
             let Some((j, near)) = nearest else {
-                return Err(SsiError::CrossingUnmatched {
-                    from: Some(a.at),
-                    matches: 0,
-                });
+                return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
             };
             let branch = if near < SSI_SHORT_CLIP * self.band.escalate() {
                 used[j] = true;
@@ -231,10 +228,7 @@ impl<'a> Ends<'a> {
         let RectEnd::Left { inside, outside } = trace.end else {
             // A march from the wall's boundary that comes back to its
             // start without leaving: no crossing ends it.
-            return Err(SsiError::CrossingUnmatched {
-                from: Some(a.at),
-                matches: 0,
-            });
+            return Err(SsiError::CrossingUnmatched { from: Some(a.at) });
         };
         let b = self.match_exit(Some(a), inside, outside, crossings, used)?;
         let mut states = trace.states;
@@ -242,8 +236,9 @@ impl<'a> Ends<'a> {
         Ok((b, states, trace.min_transversality))
     }
 
-    /// The one unused crossing on a side the step from `inside` to
-    /// `outside` left through, within the step's reach of `inside`.
+    /// The unused crossing on a side the step from `inside` to
+    /// `outside` left through, within the step's reach of `inside`: the
+    /// one nearest where the step's chord meets that side.
     pub(crate) fn match_exit(
         &self,
         a: Option<Crossing>,
@@ -292,7 +287,6 @@ impl<'a> Ends<'a> {
             Some((b, _)) => Ok(b),
             None => Err(SsiError::CrossingUnmatched {
                 from: a.map(|c| c.at),
-                matches: 0,
             }),
         }
     }
@@ -337,10 +331,7 @@ impl<'a> Ends<'a> {
             outside: b_out,
         } = bwd.end
         else {
-            return Err(SsiError::CrossingUnmatched {
-                from: None,
-                matches: 0,
-            });
+            return Err(SsiError::CrossingUnmatched { from: None });
         };
         let mut used = vec![false; crossings.len()];
         let to = self.match_exit(None, f_in, f_out, crossings, &used)?;

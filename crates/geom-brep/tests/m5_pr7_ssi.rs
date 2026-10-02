@@ -3550,7 +3550,7 @@ fn one_region(what: &str, r: Result<geom_brep::SsiOutcome, SsiError>) -> SsiBoun
     );
     let shown = region.to_string();
     assert!(
-        shown.contains("a region") && shown.contains("at most one arc"),
+        shown.contains("a region") && shown.contains("m of the"),
         "{what}: {shown}"
     );
     *region

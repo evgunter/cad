@@ -134,35 +134,51 @@ plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
 (`geom_brep::boundary_section`: plane × one boundary curve of the
 wall, the same door the boolean's NURBS crossing layer reads). A side
-either lies in the plane (`Side`), or meets it at isolated crossings,
-each found to the sweep floor and decided transversal along the side.
-A side lies in the plane where its distance from it is within the band
-and the wall's slope across it is one-signed over a strip beside it; a
-side shorter than the band, which the plane crosses, is decided by its
-crossings, and the surfaces tangent along a side refuse toward C7, as
-the march's transversality does (`SsiError::BoundaryTangent`).
-A corner on the plane is classified by the plane distance's two inward
-partials over a corner cell. If both are one-signed and the locus
-leaves the domain there, the corner is a `Corner`; otherwise a branch
-starts at it. In the band the pass does not pick a side: it reports
-the region with its certified reach, which asserts no topology, only
-that the cell's solution set is at most one arc lying within `reach`
-of the corner or side. Whether a vertex lies on a face stays the
+either lies within the band of the plane, or meets it at isolated
+crossings, each found to the sweep floor and decided transversal along
+the side, or refused as a graze, the locus tangent to the side, naming
+the side (`SsiError::BoundaryGraze`). A side within the band is a
+`Side` region where the wall's slope across it is one-signed over a
+strip beside it; where that slope does not clear the band the surfaces
+may be tangent along the side, and it refuses toward C7
+(`SsiError::BoundaryTangent`); where no strip has it one-signed, or
+none bounds the region (below), the side's own crossings decide it.
+A corner within the band is classified by the plane distance's two
+inward partials over a corner cell: a branch starts at it where they
+are of opposite inward sign; where they are of one sign the locus
+leaves the domain there, and the corner is a `Corner` region, or
+nothing where the corner's distance has that sign too. In the band the
+pass does not pick a side: a region asserts no topology. A `Corner`
+region certifies that its cell's solution set is at most one arc lying
+within `reach` of the corner, a `Side` region that its strip's solution
+set lies within `reach` of the side. A region is reported only where
+its certified zero set stays inside its cell, so an arc in it ends on
+the domain's sides, and where its reach is at most
+`SSI_REGION_REACH_MAX · Kε`, the largest reach still reported as an
+ε-scale contact. Beyond it the locus meets the side too shallowly to be
+a contact: no region is reported, and the roots decide, the arc traced
+between them as any branch is. A root inside a region's certified zero
+set is the region's, and one outside it is kept. A side within the band
+with neither a bounded region nor a root refuses toward C7
+(`SsiError::RegionUnbounded`). Whether a vertex lies on a face stays the
 consumer's decision, and the exact empty answer stands outside the
-domain. The one refusal the pass keeps is a graze, the locus tangent to
-a side, and it names the side. The crossings are the only ends a
-branch has on this lane: a trace runs from one to the crossing on the
-side it leaves, its step capped at a fifth of the distance to the
-nearest other crossing, so at most a fifth of the branch's. The
-plane's window must hold the wall's image, or the door refuses
-(`SsiError::WindowShortOfWall`), so a march ends only at the knot
-rectangle. The ℝ³ lane still ends an open branch at the caller's slab
+domain. Every kept root is settled onto both surfaces, or refuses
+`SsiError::EndNotOnLocus`. The crossings are the only ends a branch has
+on this lane: a trace runs from one to the unused crossing on the side
+it leaves, the one nearest where its last step meets that side, its
+step capped at a fifth of the distance to the nearest crossing not yet
+used, so at most a fifth of the branch's; a march that leaves where no
+crossing matches refuses as the march's limit
+(`SsiError::CrossingUnmatched`). The plane's window must hold the
+wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
+march ends only at the knot rectangle. The ℝ³ lane still ends an open branch at the caller's slab
 by its boundary search (`ssi_branch_open_end`), and the slab is not
 geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). A branch shorter
-than a fixed multiple of the band takes the Hermite cubic through its
-two certified ends and their tangents as its candidate instead of a
+than `SSI_SHORT_CLIP` times the band takes the Hermite cubic through
+its two certified ends and their tangents as its candidate instead of a
 march. Either way the certificate decides, and a short candidate it
-refuses is a sized refusal in the branch's length. The extent keeps
+refuses is a sized refusal in the branch's length
+(`SsiError::ShortBranchUncertified`). The extent keeps
 its other roles: the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from

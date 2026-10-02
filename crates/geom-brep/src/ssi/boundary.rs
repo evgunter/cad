@@ -9,9 +9,11 @@
 //!
 //! - **A side** is plane × one boundary curve
 //!   ([`crate::boundary_section`]). Either it lies within the band of
-//!   the plane, and the pass reports a [`SsiBoundaryContact::Side`]
-//!   region, or it meets the plane at isolated roots, each decided
-//!   transversal along the side.
+//!   the plane, or it meets the plane at isolated roots, each decided
+//!   transversal along the side. A side within the band whose slope
+//!   across it is one-signed over a strip beside it is a
+//!   [`SsiBoundaryContact::Side`] region, or nothing where the strip is
+//!   clear of the plane; otherwise its own roots decide it.
 //! - **A corner** within the band of the plane is classified by the
 //!   plane distance's two inward partials over a corner cell
 //!   ([`NurbsBoxes::deriv_box`]), the cell walking the tube ladder.
@@ -23,12 +25,16 @@
 //!   tangent to that side, a graze, which refuses naming the side.
 //!
 //! In the band the pass picks no side: a region asserts no topology,
-//! only that within its cell the solution set is at most one arc lying
-//! within `reach` of the corner or side. Whether a vertex lies on a face
-//! stays its consumer's decision. Outside the domain the exact empty
-//! answer stands. Every root the pass keeps becomes a branch end, settled
-//! onto both surfaces, and the crossings are the only ends an open
-//! branch on this lane has.
+//! only where the solution set lies. A region is reported only where
+//! its certified zero set, its **cover**, lies inside its cell and its
+//! reach is at most [`SSI_REGION_REACH_MAX`]` · Kε`; otherwise the
+//! corner or side is no region, and its roots are ordinary crossings.
+//! A root inside a reported region's cover is the region's; every other
+//! root is kept. Whether a vertex lies on a face stays its consumer's
+//! decision. Outside the domain the exact empty answer stands. Every
+//! root the pass keeps becomes a branch end, settled onto both
+//! surfaces, and the crossings are the only ends an open branch on this
+//! lane has.
 
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
@@ -129,8 +135,8 @@ pub struct BoundaryPoint {
 
 /// **A certified region of the wall's boundary the plane meets in the
 /// band** — not a contact the kernel decided: within the region the
-/// solution set is at most one arc, lying within `reach` of the corner
-/// or side. Whether that makes a vertex or an edge lie on a face is the
+/// solution set lies within `reach` of the corner or side, and at a
+/// corner it is at most one arc. Whether that makes a vertex or an edge lie on a face is the
 /// consumer's decision; outside the band no region is reported.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SsiBoundaryContact {
@@ -157,7 +163,7 @@ impl core::fmt::Display for SsiBoundaryContact {
             Self::Side { side, reach } => write!(
                 f,
                 "a region along {side}, which lies within the tolerance of the plane: the \
-                 intersection there is at most one arc within {reach:e} m of the side"
+                 intersection there lies within {reach:e} m of the side"
             ),
             Self::Corner { corner, reach } => write!(
                 f,

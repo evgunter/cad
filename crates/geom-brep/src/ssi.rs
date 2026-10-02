@@ -546,8 +546,6 @@ pub enum SsiError {
         /// The crossing the branch started from, or `None` for a branch
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
-        /// How many crossings matched.
-        matches: usize,
     },
     /// A side or corner of the wall lies within the band of the plane,
     /// and no rung of the ladder bounds the region the intersection may
@@ -903,14 +901,14 @@ impl core::fmt::Display for SsiError {
                  not settle onto both surfaces",
                 bracket.0, bracket.1
             ),
-            Self::CrossingUnmatched { from, matches } => {
+            Self::CrossingUnmatched { from } => {
                 match from {
                     Some(p) => write!(f, "ssi: the branch from {} at parameter {:e}", p.side, p.t)?,
                     None => write!(f, "ssi: the branch through the seed")?,
                 }
                 write!(
                     f,
-                    " matched {matches} crossings of the wall's boundary where it should match one"
+                    " found no crossing of the wall's boundary to end at: the march lost the branch"
                 )
             }
             Self::RegionUnbounded { side, reach, limit } => write!(
@@ -1418,8 +1416,9 @@ pub struct SsiOutcome {
     pub branches: Vec<SsiBranch>,
     /// The regions of the domain's boundary the plane meets in the band
     /// (the plane × NURBS lane's boundary pass; empty on the ℝ³ lane):
-    /// each certifies at most one arc of the intersection within its
-    /// reach of a corner or side, and decides no contact.
+    /// each certifies that the intersection there lies within its reach
+    /// of a corner or side (at a corner, at most one arc), and decides
+    /// no contact.
     pub boundary: Vec<SsiBoundaryContact>,
     /// The subdivision's accounting — the never-silence receipt.
     pub exhaustiveness: Exhaustiveness,
@@ -2325,15 +2324,17 @@ pub fn plane_nurbs_ssi(
         (q.dot(u_ref), q.dot(v_ref))
     };
     let cap = SSI_STEP_MAX * domain.extent;
+    let holds =
+        |r: &UvRect, x: &[f64; 4]| x[2] >= r.u.0 && x[2] <= r.u.1 && x[3] >= r.v.0 && x[3] <= r.v.1;
+    // A march that refuses from a seed some later branch's tube turns
+    // out to hold was a wasted march, not the op's refusal.
+    let mut refused: Vec<([f64; 4], SsiError)> = Vec::new();
     for (u, v) in seeds.iter() {
         let (pu, pv) = to_plane_chart(wall.eval(*u, *v));
         let state = [pu, pv, *u, *v];
         // Dedup against where the seed lands, as the ℝ³ lane does.
         let landed = march::newton_refine(&sys, state, tol).unwrap_or(state);
-        let covered = |r: &UvRect| {
-            landed[2] >= r.u.0 && landed[2] <= r.u.1 && landed[3] >= r.v.0 && landed[3] <= r.v.1
-        };
-        if tubes.iter().chain(&pass.regions).any(covered) {
+        if tubes.iter().chain(&pass.regions).any(|r| holds(r, &landed)) {
             continue;
         }
         let trace = match march(
@@ -2350,7 +2351,10 @@ pub fn plane_nurbs_ssi(
             // As in `cylinder_sphere_ssi`: only a seed that will not
             // settle inside the domain is no branch.
             Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
-            Err(e) => return Err(e),
+            Err(e) => {
+                refused.push((landed, e));
+                continue;
+            }
         };
         // A seed on an open branch: the branch reaches the wall's
         // boundary, where it was traced from its crossings, and the
@@ -2361,6 +2365,12 @@ pub fn plane_nurbs_ssi(
         let branch = ends.finish(&trace.states, BranchEnd::Closed, trace.min_transversality)?;
         tubes.extend(branch_chart_tubes(&branch));
         branches.push(branch);
+    }
+    if let Some((_, e)) = refused
+        .into_iter()
+        .find(|(x, _)| !tubes.iter().any(|r| holds(r, x)))
+    {
+        return Err(e);
     }
 
     let exhaustiveness = exhaust::account_chart_plane(
@@ -3375,15 +3385,11 @@ mod ending_tests {
                         side: bottom,
                         t: 0.25,
                     }),
-                    matches: 0,
                 },
             ),
             (
                 "crossing unmatched, seed",
-                SsiError::CrossingUnmatched {
-                    from: None,
-                    matches: 0,
-                },
+                SsiError::CrossingUnmatched { from: None },
             ),
             (
                 "short branch",

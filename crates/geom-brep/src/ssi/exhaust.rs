@@ -15,8 +15,8 @@
 //! 2. **accounted** — the cell lies inside a found branch's uniqueness
 //!    tube, where limb 3 already proved there is exactly one arc, or
 //!    inside a boundary contact's certified region, where the boundary
-//!    pass proved the solution set is at most one arc within the
-//!    region's reach of a corner or side of the wall
+//!    pass proved the solution set lies within the region's reach of
+//!    a corner or side of the wall (at a corner, at most one arc)
 //!    (`super::boundary`); the receipt counts the two apart;
 //! 3. **refine** — split and recurse.
 //!
@@ -248,8 +248,8 @@ pub struct Exhaustiveness {
     /// Cells proved to lie inside a found branch's uniqueness tube.
     pub accounted: u32,
     /// Cells proved to lie inside a boundary contact's certified region
-    /// ([`super::SsiBoundaryContact`]): at most one arc, within the
-    /// region's reach of a corner or side of the wall.
+    /// ([`super::SsiBoundaryContact`]): within the region's reach of a
+    /// corner or side of the wall.
     pub contact: u32,
     /// Cells that were neither, and were split — the interior nodes of
     /// the subdivision tree. Reported so the receipt adds up:
