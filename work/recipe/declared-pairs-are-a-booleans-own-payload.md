@@ -36,3 +36,24 @@ A declaration is a parameter, not an operand. It carries no material and mints n
 EDIT: `node.rs`, `edit.rs`, persistence, `refactor.rs`. Also WIRE (`eval/wire.rs` `declared_pairs` and `wire_boolean`/`wire_union`) and LIB (`pncad-py`).
 
 Filed by the AUTHOR orchestrator on Ev's ruling.
+
+## Also reached by: a count edit on a `PlacedUnion` (SHOW, 2026-10-02)
+
+A structural count edit makes a boolean newly flush without touching
+the boolean. `demos/tour/src/heatsink.rs`, wall 1 (`wall_probes`):
+fins sketched on the base top, `find_flush_candidates(base, group)`
+reports five `Rest`/`SameOpposite` pairs (base `Cap(End)` against
+`Instance { i, of: fin Cap(Start) }`), `declare_node` stores them, and
+the union against the five-shell group builds at exactly base + 5
+fins. `SetStructuralParam` to 7 then refuses the union
+`UndeclaredContact` on `Instance(5)` (and says nothing of
+`Instance(6)`: ZIP's `a-boolean-reports-one-undeclared-contact-per-refusal`).
+Declaring up front for nine fins is no way round: at five, the
+`Instance(5..8)` pairs refuse `DeclareResolve { Vanished }`.
+
+So the scene keeps its fins sunk 1/16 into the base. With `SetDeclare`
+the flush edit is two edits — the count, then the re-detected pairs —
+and the recompute story counts both. The heat sink's probe makes the
+count edit alone, so it keeps refusing after this lands: whoever lands
+it re-authors that scene flush (`Seat::Flush`) with the two edits and
+drops the probe.
