@@ -60,3 +60,28 @@ by integration`), so the frames are unrendered. Ev approved a commit-tag
 trigger in chat: `render-on-a-commit-tag` is dispatched (single Opus
 review; crosses into CIW's workflows, announced there). Scene PRs hold
 until their frames are looked at, through that door once it lands.
+
+## 2026-10-02 — snowman reviewed (MERGE WITH FIXES)
+
+Single Opus review of PR 3787. The oracles were re-derived independently: five
+configurations, slice quadrature, agreement within 2.5e-15. No MAJOR. The fix pass
+is with the lane:
+- the off-axis narration overclaims wall 7: an x shift, a z shift and a spin meet
+  three different doors;
+- the torus check is missing its axis and centre;
+- the census and the exactness claim are not pinned;
+- the README carries a measured number;
+- the contact-free routing has a third copy;
+- the filed TQUERY issue's refs, and `naming.seam_edges` as the public route it
+  should address.
+
+Class findings with no home of their own, recorded here:
+- `demos/tour/src/main.rs`'s crate doc says every scene is generic over the run
+  scalar; about 20 scene modules are f64-only (`grep -L '<S:'`). Pre-existing;
+  correct the doc in the next SHOW unit that touches `main.rs`.
+- `strut/seed-finder-home-reads-only-the-y-station` cites
+  `no-public-rim-arc-selector`, which has no file in `work/`. Pre-existing and
+  STRUT's; it will be noted on STRUT's log when this log next rides a PR.
+- "Exclude co-surface seams" has three spellings: snowman `waist`, `bodies.rs`
+  `bud_rim`, and `rim_select.rs` `Seeds::TwoSided`. The TQUERY issue owns the
+  sweep.
