@@ -2,12 +2,13 @@
 id: validate-passes-a-body-with-a-zero-width-slit-face
 kind: issue
 title: split runs no validation tier on its own outputs, so a spurred half left the op unchallenged
-status: review
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: D
 pr: 3797
 branch: tquery/split-self-validate
+closed: 2026-10-02
 ---
 
 
@@ -110,3 +111,7 @@ above), so this gate alone would have turned the mirrored run's slit
 into the direct run's `DegenerateSection`, as `SectionSpur` now does.
 Tier 3 and the pseudomanifold door stay out, for the reasons in the
 refusal list.
+
+## Closed (2026-10-02, PR 3797)
+
+`split` runs tier-2 `validate_closed` on every side it returns and refuses `SplitFinishError::ResultInvalid` (first finding in words). Tier 3 and the pseudomanifold door are deliberately not run, for the measured reasons above; the pinch residue is `split-halves-have-no-contact-records-so-no-pseudomanifold-self-check`.

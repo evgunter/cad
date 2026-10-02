@@ -2,12 +2,13 @@
 id: split-hands-out-a-body-without-running-tier-3
 kind: issue
 title: split_direct runs no tier-3 check on its output, so an invalid half is handed out silently (shell.rs's verb validates its own output)
-status: review
+status: closed
 opened: 2026-09-28
 priority: P2
 cost: E
 pr: 3797
 parent: validate-passes-a-body-with-a-zero-width-slit-face
+closed: 2026-10-02
 ---
 
 
@@ -41,3 +42,7 @@ and sweep (the table is in that item):
 - **This gate does not reach CONTACT-6's case.** That half failed
   `LoopRoleInverted`, a tier-3 finding, so the tier-2 gate would not
   have refused it. That class stays with tier 3's decision above.
+
+## Closed (2026-10-02, PR 3797)
+
+`split` runs tier-2 `validate_closed` on every side it returns and refuses `SplitFinishError::ResultInvalid` (first finding in words). Tier 3 and the pseudomanifold door are deliberately not run, for the measured reasons above; the pinch residue is `split-halves-have-no-contact-records-so-no-pseudomanifold-self-check`.
