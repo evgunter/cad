@@ -83,3 +83,18 @@ cosines.
 
 What remains here is `slab_extent`, which still waits on the carrier
 rule.
+
+## Closed
+
+`slab_extent` is taken by the same decision at the read, without
+waiting on the carrier rule: `face_box_rule` decides a cylinder
+carrier's axis length under `bool_box_cylinder_axis`
+(`crates/topo/src/boolean/boxes.rs`), both box lanes read the witness,
+and `slab_extent` takes a `UnitSpanBox` — the enclosure of a
+`UnitVec3`, the only way to mint one. An axis with no decided length
+is a broken cylinder carrier: the bracket lane's `face_box` refuses
+`ClassificationInvariant`, the census lane's `face_reach` claims
+nothing. Row:
+`a_cylinder_axis_is_decided_unit_before_the_slab_reads_it`. The cone
+and torus extents share the premise and are filed on BOXES
+(`work/boxes/cone-and-torus-box-extents-read-the-carrier-axis-as-unit-by-prose.md`).
