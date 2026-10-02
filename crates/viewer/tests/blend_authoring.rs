@@ -526,10 +526,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         Some(eval),
         &viewer::parts::PartFiles::default(),
     );
-    let row = rows
-        .iter()
-        .find(|row| row.id == fillet)
-        .expect("the fillet has a tree row");
+    let row = common::row_of(&rows, fillet);
     let RowStatus::Failed { message, .. } = &row.status else {
         panic!("the authored blend badges FAILED, got {:?}", row.status);
     };
@@ -573,10 +570,7 @@ fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
         Some(eval),
         &viewer::parts::PartFiles::default(),
     );
-    let row = rows
-        .iter()
-        .find(|row| row.id == fillet)
-        .expect("the fillet has a tree row");
+    let row = common::row_of(&rows, fillet);
     assert!(
         matches!(&row.status, RowStatus::Failed { message, .. } if *message == error.spoken(session.committed_doc())),
         "the badge renders the typed refusal: {:?}",

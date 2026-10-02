@@ -1793,7 +1793,7 @@ pub fn pick_face<T: Decide>(
 /// certification already makes one level down, stated here because
 /// the corpus pays it (`work/edit/pick-closed-acceptance-loses-a-graze-to-rounding`,
 /// and the labelling asymmetry it exposes,
-/// `work/edit/pick-a-corner-graze-verdict-depends-on-the-corner-labelling`).
+/// `work/doctail/pick-a-corner-graze-verdict-depends-on-the-corner-labelling`).
 /// A determinant that is
 /// not certifiably non-zero — the ray parallel or near-parallel to
 /// the plane, a degenerate triangle, any NaN — is a miss, and so is a
@@ -2872,7 +2872,7 @@ mod tests {
     /// **A corner graze's verdict depends on which corner the
     /// tessellator labelled `tri[0]`.** Adopted from review lane
     /// pick2-r2, and the measurement row for
-    /// `work/edit/pick-a-corner-graze-verdict-depends-on-the-corner-labelling`.
+    /// `work/doctail/pick-a-corner-graze-verdict-depends-on-the-corner-labelling`.
     ///
     /// INFORM refuses a candidate whose interval covers the range, and
     /// the interval's width is `triple_bound(s, d, e2)`-driven — a

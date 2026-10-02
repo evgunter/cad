@@ -82,7 +82,7 @@ use geom_core::Tol;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fidelity {
     /// Every vertex coordinate and stored segment field matches bit for
-    /// bit, and the declared-joint sets agree.
+    /// bit.
     BitIdentical,
     /// The shape agrees but some DERIVED value differs in its last
     /// bits — the F10/W1 classes of PROFILES-V2 §V5. The lifted program
@@ -164,13 +164,21 @@ impl std::error::Error for LiftRefusal {}
 /// over a corpus tallies these.
 #[derive(Clone, Debug)]
 pub enum LiftOutcome {
-    /// Lifted, and replay reproduces the source loop exactly (up to
-    /// `rotation`).
+    /// Lifted, and replay reproduces the source loop (up to
+    /// `rotation`): its vertex table to `fidelity`, every joint the
+    /// source declared, and the joints in `declared`.
     Lifted {
         /// The minted program.
         program: Vec<Step<f64>>,
         /// How far the seam was rotated from the source's vertex 0.
         rotation: usize,
+        /// The joints the lift DECLARED that the source left
+        /// undeclared, as ascending source vertex indices. Every
+        /// zero-turn joint is a declared tangent joint, so where the
+        /// source's data turns zero at a joint the lattice's spelling
+        /// declares it, and the replay differs from the source in
+        /// exactly that declaration.
+        declared: Vec<usize>,
         /// Bit-identical, or value-equal with derived bits shifted.
         fidelity: Fidelity,
         /// The largest ulp distance over all compared values. NOT a
@@ -276,9 +284,17 @@ pub fn lift_checked(loop_: &ProfileLoop<f64>, tol: Tol) -> LiftOutcome {
     let want = rotated(loop_, rotation);
     let verdict = compare(&want, replayed.as_loop());
     if verdict.equal {
+        let n = loop_.vertices.len();
+        let mut declared: Vec<usize> = verdict
+            .declared
+            .iter()
+            .map(|&j| (j + rotation) % n)
+            .collect();
+        declared.sort_unstable();
         LiftOutcome::Lifted {
             program,
             rotation,
+            declared,
             fidelity: if verdict.bit_identical {
                 Fidelity::BitIdentical
             } else {
@@ -589,6 +605,8 @@ struct Verdict {
     worst_ulps: u64,
     /// Largest absolute gap seen.
     worst_abs: f64,
+    /// Joints `got` declares and `want` does not, in their frame.
+    declared: Vec<usize>,
 }
 
 impl Verdict {
@@ -599,6 +617,7 @@ impl Verdict {
             bit_identical: false,
             worst_ulps: u64::MAX,
             worst_abs: f64::INFINITY,
+            declared: Vec::new(),
         }
     }
 }
@@ -613,7 +632,12 @@ fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
         js.dedup();
         js
     };
-    if joints(want) != joints(got) {
+    // The lift may declare a joint the source left undeclared — the
+    // lattice declares every zero-turn joint it spells, and the table
+    // comparison below holds the geometry to the source's — but it
+    // never drops a declaration the source made.
+    let (want_joints, got_joints) = (joints(want), joints(got));
+    if want_joints.iter().any(|j| !got_joints.contains(j)) {
         return Verdict::incomparable();
     }
     let mut verdict = Verdict {
@@ -621,6 +645,10 @@ fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
         bit_identical: true,
         worst_ulps: 0,
         worst_abs: 0.0,
+        declared: got_joints
+            .into_iter()
+            .filter(|j| !want_joints.contains(j))
+            .collect(),
     };
     // Each vertex with its leaving segment's stored fields: a line
     // stores none, an arc its centre, radius and sweep. Two loops whose
@@ -685,4 +713,38 @@ fn ulps(a: f64, b: f64) -> u64 {
         }
     };
     key(a).abs_diff(key(b))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compare;
+    use crate::{ProfileLoop, Segment};
+    use geom_core::Point2;
+
+    fn square(joints: Vec<usize>) -> ProfileLoop<f64> {
+        let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        ProfileLoop::from_chain(
+            corners.map(|(x, y)| (Point2::new(x, y), Segment::Line)),
+            joints,
+        )
+    }
+
+    /// **The comparator reads a declaration the lift added as the
+    /// same loop, and one it dropped as a different loop.** One table
+    /// throughout; only the declared-joint sets differ.
+    ///
+    /// Red if a joint-set difference compares in both directions, or
+    /// in neither.
+    #[test]
+    fn an_added_declaration_compares_and_a_dropped_one_does_not() {
+        let added = compare(&square(vec![]), &square(vec![1]));
+        assert!(added.equal && added.bit_identical, "added: one table");
+        assert_eq!(added.declared, vec![1], "added: the joint declared");
+
+        let dropped = compare(&square(vec![1]), &square(vec![]));
+        assert!(!dropped.equal, "dropped: a declaration the replay lost");
+
+        let kept = compare(&square(vec![2]), &square(vec![2]));
+        assert!(kept.equal && kept.declared.is_empty(), "kept: none added");
+    }
 }

@@ -220,10 +220,12 @@ function: `section_of` calls `prepare_profile` and runs pass 2 as a gate only �
 a section's geometry stays f64 (the skinned surface's structure must be
 lane-identical), so a seed on a parameter the section reads refuses
 `SeedPinnedSection` rather than arriving as a zero. **The sketch plane, by
-frame kind.** An AUTHORED frame's plane stays f64 under every lift
-(`mint_frame_placement`, from the frame node's own slots, carried on its
-value and read by `profile_plane_f64`), so its profile's placed
-coordinates are exact points at every scalar. A DERIVED frame
+frame kind.** An AUTHORED frame's plane is the f64 plane embedded
+under the pinned lift (`mint_frame_placement`, from the frame node's
+own slots, carried on its value and read by `profile_plane_f64`), so
+its profile's placed coordinates are exact points there; under the
+guided lift it is placed at the lane scalar's own reading of those
+slots (`frame_plane_lane`). A DERIVED frame
 (`Datum::FaceFrame`, `crates/editor-core/REFERENCES.md` DM1) has no document
 elaboration — its value is read off the evaluated body — so its profile
 is placed at the lane scalar through `frame_plane_lane` under every

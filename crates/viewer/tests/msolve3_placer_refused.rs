@@ -95,10 +95,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
     let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
-    let row = rows
-        .iter()
-        .find(|r| r.id == mate)
-        .expect("the mate has a row");
+    let row = common::row_of(&rows, mate);
     let message = row
         .status
         .message()
@@ -144,10 +141,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     // The compensation the old design rested on, measured: the
     // pattern's own row cannot state the cause, because the mate
     // fault poisoned it.
-    let placer = rows
-        .iter()
-        .find(|r| r.id == pattern)
-        .expect("the pattern has a row");
+    let placer = common::row_of(&rows, pattern);
     assert!(
         matches!(placer.status, RowStatus::Poisoned { through, .. } if through == mate),
         "the pattern is poisoned through the mate: {:?}",

@@ -152,8 +152,8 @@ pub(crate) struct Pose {
 }
 
 /// **What the mate did, in words a person reads** — the kernel's one
-/// sentence for the role, which a surface draws on the mate's row
-/// after its name rather than minting its own.
+/// sentence for the role, which a surface draws under the mate's row
+/// rather than minting its own.
 impl core::fmt::Display for MateRole {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
