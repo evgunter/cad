@@ -2,9 +2,10 @@
 id: viewer-pick-path-refusals-speak-the-node
 kind: unit
 title: The pick path's refusals (PickIndexError, EdgeNameFault, PickError, BlendEvent, IdAnswer) say their nodes through the frame's speaker
-status: review
+status: closed
 pr: 3821
 opened: 2026-10-02
+closed: 2026-10-02
 priority: P2
 cost: M
 parent: node-labels-are-document-data
