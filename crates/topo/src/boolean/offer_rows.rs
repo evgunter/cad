@@ -493,10 +493,11 @@ fn sector_side(dir: Vec3<f64>, reach: Reach<f64>) -> Result<(), BooleanError> {
 }
 
 /// A bisector at arm ½ leaving a face of bend radius 1 by `margin` more
-/// than the face bends away over the arm.
+/// than the face bends away under it: at departure cosine `c` the charge
+/// is `½c − ¼(1 − c²)`, which is `margin` at `c = 2√(½ + margin) − 1`.
 fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-    let c = 0.5 + 2.0 * margin;
+    let c = 2.0 * (0.5 + margin).sqrt() - 1.0;
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
     side_code(dir, Reach::Bisector(0.5), n, 0.5, 1.0, band()).map(|_| ())
 }
@@ -2131,6 +2132,30 @@ fn top_level_fn(line: &str) -> Option<String> {
 /// The per-site table, as the census reads it: `(file, function,
 /// decision, mentions)`.
 const SITES: &[(&str, &str, &str, usize)] = &[
+    (
+        "carrier_cross.rs",
+        "meetings",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
+        "parallel_circles",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
+        "strictly_inside",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "carrier_cross.rs",
+        "transverse",
+        "BooleanDecision::Crossing",
+        1,
+    ),
     (
         "circle_sphere.rs",
         "circle_sphere_roots",

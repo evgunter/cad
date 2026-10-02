@@ -24,12 +24,12 @@
 //! **Complete over line and circle carriers.** Two of them meet either at
 //! a point the pair's closed form names (a line through a circle's plane;
 //! two non-parallel lines; two circles whose planes cross, along the
-//! planes' common line), or along a shared stretch whose ends are vertices
+//! planes' common line; two circles in one plane), or along a shared
+//! stretch whose ends are vertices
 //! of one of them — the boundary vertices, which are always candidates.
-//! The remaining pair, two distinct circles in one plane, has no
-//! closed form here, and neither has a spiric or spline carrier on either
-//! side: those answer [`BoundaryCrossing::Unread`], and the caller keeps
-//! its frontier door.
+//! A spiric or spline carrier on either side has no closed form here: it
+//! answers [`BoundaryCrossing::Unread`], and the caller keeps its
+//! frontier door.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -264,7 +264,7 @@ fn meetings<T: Decide>(
             let m = n1.cross(n2);
             let s = m.norm();
             if !transverse(s, r1.max(r2), band)? {
-                return Ok(coplanar_circles(c1, n1, c2, band)?.then(Vec::new));
+                return Ok(Some(parallel_circles(c1, n1, r1, c2, r2, band)?));
             }
             // The planes' common line, through the point of it nearest
             // the origin of the two-plane system, then its meetings with
@@ -301,37 +301,50 @@ fn meetings<T: Decide>(
     }))
 }
 
-/// Two circles in parallel planes: `true` when they meet only along a
-/// shared stretch or not at all (distinct planes, or one plane and one
-/// centre), `false` for two distinct circles in one plane.
-fn coplanar_circles<T: Decide>(
+/// Two circles in parallel planes: none where the planes are distinct
+/// or the circles share a centre (one circle, or nested ones), else
+/// the meetings of two circles in one plane — two, one where they
+/// touch, none where they are apart or one holds the other.
+fn parallel_circles<T: Decide>(
     c1: Point3<T>,
     n1: Vec3<T>,
+    r1: T,
     c2: Point3<T>,
+    r2: T,
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> Result<Vec<Point3<T>>, BooleanError> {
     let escalate = |diag| BooleanError::Escalated {
         decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
         diag,
     };
-    match decide(
+    let sign = |row, margin| decide(row, margin, band).map_err(escalate);
+    if sign(
         "bool_carrier_cross_plane_offset",
         Margin::of((c2 - c1).dot(n1)),
-        band,
-    ) {
-        Ok(Sign::Positive | Sign::Negative) => return Ok(true),
-        Ok(Sign::Zero) => {}
-        Err(diag) => return Err(escalate(diag)),
+    )? != Sign::Zero
+    {
+        return Ok(Vec::new());
     }
-    match decide(
-        "bool_carrier_cross_concentric",
-        Margin::norm3(c2 - c1),
-        band,
-    ) {
-        Ok(Sign::Zero) => Ok(true),
-        Ok(Sign::Positive | Sign::Negative) => Ok(false),
-        Err(diag) => Err(escalate(diag)),
+    let w = c2 - c1;
+    if sign("bool_carrier_cross_concentric", Margin::norm3(w))? == Sign::Zero {
+        return Ok(Vec::new());
     }
+    let d = w.norm();
+    // Apart, or one inside the other: no meeting. Touching: one.
+    let apart = sign("bool_carrier_cross_disc", Margin::of(r1 + r2 - d))?;
+    let nested = sign("bool_carrier_cross_disc", Margin::of(d - (r1 - r2).abs()))?;
+    if apart == Sign::Negative || nested == Sign::Negative {
+        return Ok(Vec::new());
+    }
+    let e = w * (T::one() / d);
+    let a = (d * d + r1 * r1 - r2 * r2) / (d + d);
+    let foot = c1 + e * a;
+    if apart == Sign::Zero || nested == Sign::Zero {
+        return Ok(vec![foot]);
+    }
+    let h = (r1 * r1 - a * a).sqrt();
+    let f = n1.cross(e);
+    Ok(vec![foot + f * h, foot - f * h])
 }
 
 #[cfg(test)]
@@ -339,8 +352,8 @@ fn coplanar_circles<T: Decide>(
 mod meetings_rows {
     //! The closed forms behind [`super::meetings`]: every isolated meeting
     //! of two carriers is among the candidates, a pair that meets only
-    //! along a stretch or nowhere has none, and the one pair with no
-    //! closed form says so.
+    //! along a stretch or nowhere has none, and a pair with no closed
+    //! form says so.
     use super::meetings;
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
@@ -409,6 +422,20 @@ mod meetings_rows {
             holds(&got, [0.0, 1.0, 0.0]) && holds(&got, [0.0, -1.0, 0.0]),
             "great circles: {got:?}"
         );
+        // A torus's two meridians in one plane, either side of the axis,
+        // and two overlapping circles in one plane.
+        let got = meetings(
+            &circle([0.8, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5),
+            &circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5),
+            b,
+        )
+        .unwrap()
+        .unwrap();
+        let y = 0.09f64.sqrt();
+        assert!(
+            holds(&got, [0.4, y, 0.0]) && holds(&got, [0.4, -y, 0.0]),
+            "coplanar circles: {got:?}"
+        );
         // A parallel of the unit sphere and a meridian: at latitude 30°.
         let (s, c) = (0.5, 0.75f64.sqrt());
         let got = meetings(
@@ -425,7 +452,7 @@ mod meetings_rows {
     }
 
     #[test]
-    fn a_stretch_or_a_miss_has_no_candidate_and_a_coplanar_pair_is_unread() {
+    fn a_stretch_or_a_miss_has_no_candidate_and_a_parallel_line_is_unread() {
         let b = band();
         let none = |a: &Curve3<f64>, c: &Curve3<f64>| meetings(a, c, b).unwrap().map(|v| v.len());
         // Two parallel rulings, and one ruling along another.
@@ -438,9 +465,9 @@ mod meetings_rows {
         let high = circle([0.0, 2.0, 0.0], [0.0, 1.0, 0.0], 0.5);
         assert_eq!(none(&low, &high), Some(0), "two rims");
         assert_eq!(none(&low, &low), Some(0), "one rim");
-        // Two distinct circles in one plane: no closed form here.
-        let beside = circle([0.3, 1.0, 0.0], [0.0, 1.0, 0.0], 0.5);
-        assert_eq!(none(&low, &beside), None, "coplanar, not concentric");
+        // Nested circles in one plane.
+        let inner = circle([0.1, 1.0, 0.0], [0.0, 1.0, 0.0], 0.2);
+        assert_eq!(none(&low, &inner), Some(0), "nested");
         // A line parallel to a circle's plane.
         let flat = line([0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
         assert_eq!(none(&flat, &low), None, "line in the rim's plane");

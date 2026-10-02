@@ -251,33 +251,34 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 }
 
 /// **The differentials the fences promise.** None of the three poses
-/// reaches a JOIN door at all, so none of them can inherit the pinch
-/// door — which is what says the new arm is a statement about
-/// intersecting equal-radius axes and not about cylinder pairs at
-/// large.
+/// is answered by the pinch the new arm PROVES: that answer carries
+/// `RadiusEvidence::Declared`, and only intersecting equal-radius axes
+/// earn it.
 ///
-/// - Unequal radii: no equal-radius section exists, and the germ pair
-///   the join would need is never minted.
+/// - Unequal radii, axes meeting: the sector sides certify, the germ
+///   pair is minted, and the frame dispatch splits on the axes alone —
+///   so the pose reaches the pinch door with NO radius evidence, the
+///   door's open-question arm, which names both shapes and claims
+///   neither.
 /// - Skew axes: the locus is a space quartic, canal territory; the
-///   general rung has not retired. The dispatch's own verdict on this
-///   pose is pinned exactly, at both radii, by
+///   general rung has not retired, and the pose reaches it
+///   (`GermFrameUnsupported`), never the pinch door. The dispatch's own
+///   verdict on this pose is pinned exactly, at both radii, by
 ///   `the_non_parallel_cylinder_pair_splits_on_coplanarity_alone`
-///   (`boolean::join`) — this row's job is that the pose never gets
-///   that far.
+///   (`boolean::join`).
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
 ///   a wall, whose parameters are the roots of a degree-2 trigonometric
 ///   polynomial. No root lane for that exists anywhere in this tree, so
-///   this row is untouched by this unit and says so.
+///   this pose stops in the crossing layer.
 ///
-/// **Which crossing-layer door each pose takes is not the assertion.**
-/// A pierce that is never found and a pierce whose sector sides cannot
-/// be certified against the wall's curvature are both the crossing
-/// layer refusing, and which of the two a pose lands on moves with its
-/// lever arms and with the tolerance row. Pinning the exact variant
-/// here would be pinning the fixture, not the fence.
+/// **Which crossing-layer door the parallel pose takes is not the
+/// assertion.** A pierce that is never found and a pierce whose sector
+/// sides cannot be certified against the wall's curvature are both the
+/// crossing layer refusing, and which of the two a pose lands on moves
+/// with its lever arms and with the tolerance row.
 #[test]
 fn the_fenced_poses_keep_their_own_doors() {
-    // Both crossing-layer doors, and neither is a join door.
+    // Both crossing-layer doors.
     fn short_of_the_join(name: &str, e: &BooleanError) {
         assert!(
             matches!(
@@ -293,7 +294,16 @@ fn the_fenced_poses_keep_their_own_doors() {
 
     let unequal = spin(&cyl(0.6, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
     let e = union_err(&a, &unequal);
-    short_of_the_join("unequal radii", &e);
+    assert!(
+        matches!(
+            e,
+            BooleanError::GermFrameCylinderPinch {
+                evidence: geom_brep::RadiusEvidence::None,
+                ..
+            }
+        ),
+        "unequal radii: expected the pinch door's open question, got {e:?}"
+    );
     assert_same_door(
         &e,
         &union_err(&repose(&a), &repose(&unequal)),
@@ -311,7 +321,10 @@ fn the_fenced_poses_keep_their_own_doors() {
     )
     .unwrap();
     let e = union_err(&a, &skew);
-    short_of_the_join("skew axes", &e);
+    assert!(
+        matches!(e, BooleanError::GermFrameUnsupported { .. }),
+        "skew axes: expected the general rung, got {e:?}"
+    );
     assert_same_door(&e, &union_err(&repose(&a), &repose(&skew)), "skew axes");
 
     // Parallel axes, walls definitely crossing: the rim circle row.

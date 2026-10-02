@@ -188,17 +188,13 @@ fn the_pinch_door_is_reached_at_the_certified_scalar() {
     );
 }
 
-/// **The skew pose at the BODY level**, which is a weaker statement
-/// than its name once suggested and is written as the weaker one.
-///
-/// Slide the pair along the common perpendicular `â₁ × â₂` by the
-/// dyadic `0.375` and the pose stops at a CROSSING-layer door: skew
-/// walls carry no declared cover, so the germ pair is never minted and
-/// `bool_germ_frame_axes_coplanar` is never reached from here. What
-/// this row asserts is therefore the LAYER — the pose stays off every
-/// join door, the pinch door included — and not the dispatch's skew
-/// arm, which is pinned at the certified scalar in
-/// `topo::boolean::join`'s `frame_dispatch_interval_tests` instead.
+/// **The skew pose at the BODY level.** Slide the pair along the common
+/// perpendicular `â₁ × â₂` by the dyadic `0.375`: the sector sides
+/// certify, the germ pair is minted, and the frame dispatch answers the
+/// skew axes with the general rung (`GermFrameUnsupported`) — never the
+/// pinch door, whose subject is axes that meet. The dispatch's skew arm
+/// is also pinned at the certified scalar in `topo::boolean::join`'s
+/// `frame_dispatch_interval_tests`.
 #[test]
 fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
@@ -210,12 +206,8 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     .unwrap();
     let err = union_err(&a, &skew);
     assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPierceUnsupported { .. }
-                | BooleanError::CurvedSectorSideUnsupported { .. }
-        ),
-        "a skew pair must stop at a crossing-layer door, never a join one: {err:?}"
+        matches!(err, BooleanError::GermFrameUnsupported { .. }),
+        "a skew pair takes the general rung, never the pinch door: {err:?}"
     );
     // The re-posed twin, on the same obligation as every other row
     // here: a rigid motion moves no contact, so a pose whose direct and

@@ -682,9 +682,9 @@ fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
 /// **The relaxation opens no cylinder body.** The same rod through the
 /// three-face wall, under every op: the chord is no event on the third
 /// face now, and what each op meets next is a typed door, never a body.
-/// Measured: every op stops at the curved-sector sagitta charge, where
-/// the rod's pierce vertices sit on a wall — the door the torus pierces
-/// stop at too.
+/// Measured: the rod's pierce sectors certify their sides against the
+/// wall's bend, and every op stops at the join, whose arc window holds
+/// neither candidate arc in the pierced wall face (`NeitherContained`).
 #[test]
 fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
     let cyl = three_face_cylinder();
@@ -702,7 +702,13 @@ fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
     ] {
         let err = r.expect_err(what);
         assert!(
-            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                    case: topo::ArcWindowCase::NeitherContained,
+                    ..
+                })
+            ),
             "{what}: {err:?}"
         );
     }
