@@ -53,3 +53,19 @@ Every path outside `geom` / `geom-brep` keeps working through
 re-exports (`topo::CurveKind`, the `pncad` prelude). The Python
 binding keeps its own enums (its exhaustive match over the canonical
 type, #1388 V2).
+
+## How authoring went (PR 3777)
+
+**Hand-written, the fallback.** The first cut derived the kinds with
+`strum::EnumDiscriminants`. Review found the derive's docs false:
+strum_macros 0.28 always copies a payload variant's `doc` attributes
+onto its discriminant, so `SurfaceKind::Cone` carried the cone's field
+prose and `SurfaceKind::Nurbs` described an `Arc` payload it does not
+have. Docs are one of the things the derive had to carry, so the fix
+pass took the fallback:
+- `CurveKind` / `SurfaceKind` are hand-written in `geom`, one line of
+  doc per variant.
+- `Curve3::kind` / `Surface::kind` are wildcard-free matches, so a new
+  variant is a compile error until it has a kind.
+- `ALL` is still derived (`strum::VariantArray` on the kind enum), so
+  no roster or census is kept by hand.
