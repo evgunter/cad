@@ -3034,8 +3034,7 @@ pub struct Applied<P> {
     pub record: EditRecord,
     /// **What the edit did that the caller did not ask for**: the
     /// references it stranded (DM7) — the payload names, then the
-    /// appearance keys — the declarations it left with no consumer,
-    /// and the offset the mate door cleared. See [`Maintenance`].
+    /// appearance keys — and the offset the mate door cleared. See [`Maintenance`].
     ///
     /// **The order is a CONTRACT, not an accident of the
     /// implementation, and a consumer may rely on it**: every
@@ -3778,9 +3777,8 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     reach: Option<&dyn MateReach>,
 ) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
-    // The report read at the door that made it: DM7's strands and the
-    // declarations a delete orphaned, or the strands a reshaped
-    // program made. `DeleteNode` fills it, the only edit that removes
+    // The report read at the door that made it: DM7's strands a delete
+    // made, or the strands a reshaped program made. `DeleteNode` fills it, the only edit that removes
     // a node, and `SetProgram`, the only edit that drops a profile
     // step. `Rebind` moves references onto a live name at the author's
     // word and reports nothing.

@@ -2100,8 +2100,7 @@ impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
 
     fn recourse(&self) -> &str {
         "Recourse: add the candidate pair this refusal carries to the node's declared pairs \
-         (declare it with this finding, which keeps the pairs already declared), or move the \
-         geometry"
+         (declare), or move the geometry"
     }
 }
 

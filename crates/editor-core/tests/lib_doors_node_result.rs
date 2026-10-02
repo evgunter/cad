@@ -206,7 +206,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         message.contains("Boolean refused an undeclared coincidence"),
         "{message}"
     );
-    assert!(message.contains("declare the candidate pair"), "{message}");
+    assert!(message.contains("add the candidate pair"), "{message}");
     for guts in [
         "UndeclaredCoincidence",
         "UndeclaredContact",
