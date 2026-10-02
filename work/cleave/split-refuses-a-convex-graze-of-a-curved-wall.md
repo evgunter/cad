@@ -2,10 +2,12 @@
 id: split-refuses-a-convex-graze-of-a-curved-wall
 kind: issue
 title: a plane grazing a cylinder's wall from outside refuses DegenerateSection where an answer exists
-status: open
+status: review
 opened: 2026-10-02
 priority: P2
 cost: M
+pr: 3892
+branch: cleave/convex-graze
 ---
 
 
