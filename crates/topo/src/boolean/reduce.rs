@@ -4812,13 +4812,14 @@ mod clearance_rows {
     /// **No certified clearance on a graze, through the rung.** Circles,
     /// and ellipses in all eight stored orders and signs (eccentricity
     /// up to 40), metre- or kilometre-sized, centred up to a metre, a
-    /// kilometre or a hundred kilometres out (where a sampled residual's
+    /// kilometre or a thousand kilometres out (where a sampled residual's
     /// coordinate rounding, `u·|p|`, passes the band at 1e-12), each meeting a sphere or a wall (radius 1 µm to 1 m, the
     /// wall's axis across the outward normal) at a vertex, set off along
     /// the outward normal by `gap`, −40 to 40 bands. The vertex is the
     /// carrier's least distance from the surface (the carrier bends away
-    /// from it), at `|r + gap| − r`: the pose crosses when that is below
-    /// `−ε` and touches in band when it is within `ε`; a certified
+    /// from it), read from the stored surface's anchor: the pose crosses
+    /// when that is below `−ε` and touches in band when it is within
+    /// `ε`; a certified
     /// `Positive` is wrong in both. A third of the draws put a torus's
     /// tube there instead, its spine bending away from the carrier, under
     /// the same oracle. Counts printed.
@@ -4852,7 +4853,7 @@ mod clearance_rows {
                 if !circle && combo & 4 != 0 {
                     minor = -minor;
                 }
-                let far = [1.0, 1e3, 1e5][usize::try_from(rng.below(3)).unwrap()];
+                let far = [1.0, 1e3, 1e6][usize::try_from(rng.below(3)).unwrap()];
                 let center = Point3::new(
                     rng.range(-far, far),
                     rng.range(-far, far),
@@ -4922,11 +4923,43 @@ mod clearance_rows {
                     )
                 };
                 let certified = matches!(got, Some(Ok(Sign::Positive)));
-                // The least distance, at the vertex: `gap` while the
-                // surface's hub stays outside the carrier, and the
-                // carrier clear of the surface's far side once `gap`
-                // passes `−2r`.
-                let least = (r + gap).abs() - r;
+                // The least distance, at the vertex, of the STORED
+                // geometry: the surface's anchor was itself rounded where
+                // it was placed (about `u·|p|`, past the band a hundred
+                // kilometres out), so the oracle reads the vertex from
+                // that anchor — `C₀ − anchor` is exact, the two being
+                // metres apart, and the rest is metre-sized.
+                let (sv, cv) = vertex.sin_cos();
+                let from = |anchor: Point3<f64>| {
+                    (center - anchor) + u_ref * (major * cv) + n.cross(u_ref) * (minor * sv)
+                };
+                let least = match s {
+                    geom::Surface::Sphere {
+                        center: c, radius, ..
+                    } => from(c).norm() - radius,
+                    geom::Surface::Cylinder {
+                        origin,
+                        axis,
+                        radius,
+                        ..
+                    } => {
+                        let q = from(origin);
+                        (q - axis * q.dot(axis)).norm() - radius
+                    }
+                    geom::Surface::Torus {
+                        center: c,
+                        axis,
+                        major_radius,
+                        minor_radius,
+                        ..
+                    } => {
+                        let q = from(c);
+                        let h = q.dot(axis);
+                        let rho = (q - axis * h).norm();
+                        (rho - major_radius).hypot(h) - minor_radius
+                    }
+                    _ => unreachable!("the three kinds drawn"),
+                };
                 if certified {
                     if kind == 2 {
                         torus_clear += 1;
