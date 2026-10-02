@@ -4612,14 +4612,14 @@ fn attach_contact<T: Decide + Bounds>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
-    let sides = topo::readback::edge_sides(body, edge).map_err(|what| {
-        not_intact(
+    let sides = topo::readback::edge_sides(body, edge).map_err(|what| match what {
+        topo::DanglingRef::Entity(EntityId::Edge(_)) => {
+            not_intact(EntityId::Edge(edge), "an edge awaiting its description")
+        }
+        _ => not_intact(
             EntityId::Edge(edge),
-            match what {
-                topo::DanglingRef::Entity(EntityId::Edge(_)) => "an edge awaiting its description",
-                _ => "the two faces a described edge separates, or their surfaces",
-            },
-        )
+            "the two faces a described edge separates, or their surfaces",
+        ),
     })?;
     let he_plus = sides.plus.half_edge;
     let (s1, s2) = sides.surfaces();
