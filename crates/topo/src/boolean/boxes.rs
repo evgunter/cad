@@ -3011,7 +3011,7 @@ pub(crate) mod tests {
             },
         ];
         for s in kinds {
-            let kind = geom_brep::SurfaceKind::of(&s);
+            let kind = s.kind();
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
             body.set_face_surfaces_describing(
                 vec![crate::Rechart::new(s, face, true)],

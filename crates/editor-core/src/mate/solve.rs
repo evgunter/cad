@@ -114,6 +114,19 @@ pub enum Unplaced {
     },
 }
 
+impl Unplaced {
+    /// **The cause's class word**, for a machine channel: the one
+    /// spelling the clearance goldening form and the bindings' tag both
+    /// read.
+    #[must_use]
+    pub const fn word(&self) -> &'static str {
+        match self {
+            Self::NoOffset => "no_offset",
+            Self::DeadGauge { .. } => "dead_gauge",
+        }
+    }
+}
+
 impl core::fmt::Display for Unplaced {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -234,29 +247,50 @@ pub enum PoseRefusal {
     },
 }
 
-impl core::fmt::Display for PoseRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for PoseRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        use crate::spoken::Said;
         match self {
-            Self::Mate(fault) => write!(f, "{fault}"),
+            Self::Mate(fault) => write!(f, "{}", Said(&**fault, by)),
             Self::Unplaced {
                 instance,
                 group,
                 cause,
             } => write!(
                 f,
-                "instance {} has no world pose: its group (rooted at node {}) is unplaced, \
+                "{} has no world pose: its group (rooted at {}) is unplaced, \
                  because {cause}. {}",
-                instance,
-                group,
+                by.node_as(*instance, "instance"),
+                by.node(*group),
                 crate::sentence::Recourse(UNPLACED_RECOURSE)
             ),
             Self::Placement { node, error } => write!(
                 f,
-                "the placement at node {} does not evaluate: {}",
-                node,
-                error.kind()
+                "the placement at {} does not evaluate: {}",
+                by.node(*node),
+                Said(error.kind(), by.about(*node))
             ),
         }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for PoseRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl PoseRefusal {
+    /// **The refusal as the frame holding the solved document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 

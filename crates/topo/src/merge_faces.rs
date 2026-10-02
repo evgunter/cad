@@ -40,8 +40,8 @@
 
 use std::collections::BTreeMap;
 
+use geom::SurfaceKind;
 use geom::{NetState, Surface};
-use geom_brep::SurfaceKind;
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
@@ -261,7 +261,7 @@ struct PoisonedNet;
 
 impl MergeKind {
     /// The kind of one surface value. The plane question is
-    /// [`SurfaceKind::of`]'s — the crate's one carrier-kind read —
+    /// [`geom::Surface::kind`]'s — the crate's one carrier-kind read —
     /// and the net question is [`NetState`]'s, matched exhaustively so
     /// no state is answered by a default.
     fn of<T: geom_core::Real>(surface: &Surface<T>) -> Result<Self, PoisonedNet> {
@@ -271,7 +271,7 @@ impl MergeKind {
                 NetState::Poisoned => Err(PoisonedNet),
                 NetState::Described => Ok(Self::Curved),
             },
-            s if SurfaceKind::of(s) == SurfaceKind::Plane => Ok(Self::Plane),
+            s if s.kind() == SurfaceKind::Plane => Ok(Self::Plane),
             _ => Ok(Self::Curved),
         }
     }
@@ -574,9 +574,9 @@ pub enum OutlineVerdict {
         loops: Vec<LoopKey>,
     },
     /// No loop winds positively or zero, and this one rides a carrier
-    /// the kernel does not wind (a NURBS or spiric edge, or a null-edge
-    /// scaffold): it may be the outline, and which loop is cannot be
-    /// read until that winding is built.
+    /// the kernel does not wind (a NURBS or spiric edge): it may be the
+    /// outline, and which loop is cannot be read until that winding is
+    /// built.
     UnsupportedWinding {
         /// The first such loop, outline slot first.
         r#loop: LoopKey,
@@ -767,9 +767,9 @@ impl core::fmt::Display for MergeCoplanarError {
                 OutlineVerdict::UnsupportedWinding { r#loop } => write!(
                     f,
                     "no loop of the merged face {face:?} winds counterclockwise about its \
-                     outward normal, and loop {loop:?} rides a NURBS or spiric edge or a \
-                     null-edge scaffold, whose winding the kernel does not read, so which loop \
-                     is the outline is not known. Recourse: bound the merged faces with line, \
+                     outward normal, and loop {loop:?} rides a NURBS or spiric edge, whose \
+                     winding the kernel does not read, so which loop is the outline is not \
+                     known. Recourse: bound the merged faces with line, \
                      circle or ellipse edges, whose winding the kernel reads"
                 ),
                 OutlineVerdict::AllNegative => write!(
@@ -1461,12 +1461,12 @@ impl<T: Decide> Body<T> {
         // the calling op, and an inventory limit of this door is not
         // the caller's error.
         let kind_of = |k: SurfaceKey| -> Result<SurfaceKind, MergeCoplanarError> {
-            self.get_surface(k)
-                .map(SurfaceKind::of)
-                .ok_or(MergeCoplanarError::InvalidDeclaration {
+            self.get_surface(k).map(geom::Surface::kind).ok_or(
+                MergeCoplanarError::InvalidDeclaration {
                     surface: k,
                     what: "declared surface key does not resolve",
-                })
+                },
+            )
         };
         let mut eq = DeclaredSurfaceEq::default();
         let mut declined: Vec<((SurfaceKey, SurfaceKey), SurfaceKind)> = Vec::new();
@@ -4400,6 +4400,24 @@ mod winding_arm_tests {
     #[test]
     fn a_two_arc_cycle_winds_positively_and_its_counterpart_negatively() {
         let tol = Tol::witness();
+        let (body, disc, anti) = two_semicircle_disc(tol);
+        let outward = Vec3::unit_z();
+        assert_eq!(
+            signed(body.loop_winding(disc, outward, band(tol))),
+            Ok(LoopWinding::Wound(Sign::Positive)),
+            "the disc's own boundary encloses material about the outward normal"
+        );
+        assert_eq!(
+            signed(body.loop_winding(anti, outward, band(tol))),
+            Ok(LoopWinding::Wound(Sign::Negative)),
+            "the same boundary reversed anti-encloses — a ring's signature"
+        );
+    }
+
+    /// The unit disc on the z = 0 plane bounded by two semicircles
+    /// meeting at `(±1, 0, 0)`: the disc face's own loop, which winds
+    /// counterclockwise about `+z`, and the seed face's counterpart.
+    fn two_semicircle_disc(tol: Tol) -> (Body<f64>, LoopKey, LoopKey) {
         let (a, b) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(a, true).unwrap();
@@ -4451,19 +4469,9 @@ mod winding_arm_tests {
                 tol,
             )
             .unwrap();
-        let outward = Vec3::unit_z();
         let disc = body.get_face(e2.face).unwrap().outer;
         let anti = body.get_face(seed.face).unwrap().outer;
-        assert_eq!(
-            signed(body.loop_winding(disc, outward, band(tol))),
-            Ok(LoopWinding::Wound(Sign::Positive)),
-            "the disc's own boundary encloses material about the outward normal"
-        );
-        assert_eq!(
-            signed(body.loop_winding(anti, outward, band(tol))),
-            Ok(LoopWinding::Wound(Sign::Negative)),
-            "the same boundary reversed anti-encloses — a ring's signature"
-        );
+        (body, disc, anti)
     }
 
     /// **The mixed Line + Circle cycle**, and the reason the bulge is a
@@ -5162,6 +5170,181 @@ mod winding_arm_tests {
                 want,
                 "tearing {what}"
             );
+        }
+    }
+
+    /// **A run is the loop's sum with its closing chord added**, and
+    /// nothing else (`crate::loop_winding`, the boolean join's ring
+    /// lane): the open run `a → b → d` closed by the chord `d → a` is
+    /// the triangle, and is decided on the loop's margin bit for bit;
+    /// a null-edge strut on the run winds as its zero-length chord, on
+    /// the loop and the run alike; and the run reads the loop's carrier
+    /// set and claim, so a NURBS edge on it is not wound and a half its
+    /// edge does not claim is refused rather than read as a minus half.
+    #[test]
+    fn a_run_is_the_loop_sum_with_its_closing_chord() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let fresh = || {
+            tri(
+                Point3::new(2.0, 0.0, 0.0),
+                Point3::new(0.0, 2.0, 0.0),
+                Point3::new(-1.0, -1.0, 0.0),
+                tol,
+            )
+        };
+        // The run from `a → b` to `b → d`: the loop's first two halves.
+        let run_of = |t: &Tri| {
+            let he_ab = t.body.get_edge(t.ab).unwrap().he_plus;
+            (he_ab, t.body.get_half_edge(he_ab).unwrap().next)
+        };
+        let loop_margin = |t: &Tri| match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
+            Ok(LoopWinding::Wound(Ok(d))) => d,
+            other => panic!("the triangle winds: {other:?}"),
+        };
+        let run_margin = |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided(h1, h2, n, b) {
+            Ok(Some(Ok(d))) => d,
+            other => panic!("the run winds: {other:?}"),
+        };
+
+        let t = fresh();
+        let whole = loop_margin(&t);
+        assert_eq!(whole.sign, Sign::Positive, "a → b → d is counterclockwise");
+        assert_eq!(run_margin(&t, run_of(&t)), whole, "the run is the loop");
+
+        let mut t = fresh();
+        let (h1, _) = run_of(&t);
+        t.body
+            .mev_null(
+                MevSite::Fan { he1: h1, he2: h1 },
+                crate::null::NewVertexSide::Above,
+            )
+            .unwrap();
+        assert_eq!(
+            loop_margin(&t),
+            whole,
+            "a strut on the loop is wound as nothing"
+        );
+        let first = t.body.get_half_edge(h1).unwrap().prev;
+        let first = t.body.get_half_edge(first).unwrap().prev;
+        assert_eq!(
+            run_margin(&t, (first, t.body.get_half_edge(h1).unwrap().next)),
+            whole,
+            "a run opening on the strut is the same region"
+        );
+
+        let mut t = fresh();
+        let run = run_of(&t);
+        fit_a_nurbs_quarter(&mut t, tol);
+        assert_eq!(
+            t.body.planar_run_winding_decided(run.0, run.1, n, b),
+            Ok(None),
+            "a NURBS edge on the run is not wound by its chord"
+        );
+
+        let mut t = fresh();
+        let (h1, h2) = run_of(&t);
+        let own = t.body.get_half_edge(h2).unwrap().edge;
+        let other = t.body.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
+        t.body.half_edges.get_mut(h2).unwrap().edge = other;
+        assert_eq!(
+            t.body.planar_run_winding_decided(h1, h2, n, b),
+            Err(TornLoop::Unclaimed {
+                he: h2,
+                edge: other
+            }),
+            "a half its edge does not claim is not read as a minus half"
+        );
+    }
+
+    /// **A run's conic bulge is read, closing chord and all**: one
+    /// semicircle of [`two_semicircle_disc`] closed by its diameter is
+    /// a half-disc whose chord Newell sum is exactly zero, so only the
+    /// run's bulge can decide it, and it winds counterclockwise like the
+    /// disc; the run over both semicircles closes on a zero-length chord
+    /// and is the disc's own loop, margin for margin.
+    #[test]
+    fn a_run_on_arcs_is_decided_by_its_bulge() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let (body, disc, _) = two_semicircle_disc(tol);
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(disc).unwrap().boundary
+        else {
+            panic!("the disc's loop is a cycle");
+        };
+        let second = body.get_half_edge(first).unwrap().next;
+        let run = |h1, h2| match body.planar_run_winding_decided(h1, h2, n, b) {
+            Ok(Some(Ok(d))) => d,
+            other => panic!("the run winds: {other:?}"),
+        };
+        for half in [first, second] {
+            assert_eq!(
+                run(half, half).sign,
+                Sign::Positive,
+                "a semicircle closed by its diameter is a counterclockwise half-disc"
+            );
+        }
+        let whole = match body.planar_loop_winding_decided(disc, n, b) {
+            Ok(LoopWinding::Wound(Ok(d))) => d,
+            other => panic!("the disc winds: {other:?}"),
+        };
+        assert_eq!(run(first, second), whole, "the whole run is the disc");
+    }
+
+    /// **The ring lane's own shape**: a run that opens AND closes on a
+    /// null half, as every ring-lane run does (the match's two halves
+    /// are null). Struts at `a` and `d` of the triangle; the run from
+    /// the strut half entering `a` through `a → b → d` to the strut half
+    /// leaving `d` ends at that null half's far vertex — a copy of `d` —
+    /// and its closing chord `d → a` makes it the triangle, margin for
+    /// margin.
+    #[test]
+    fn a_run_between_two_null_halves_is_the_region_they_bracket() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let mut t = tri(
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-1.0, -1.0, 0.0),
+            tol,
+        );
+        let whole = match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
+            Ok(LoopWinding::Wound(Ok(d))) => d,
+            other => panic!("the triangle winds: {other:?}"),
+        };
+        let he_ab = t.body.get_edge(t.ab).unwrap().he_plus;
+        let he_bd = t.body.get_half_edge(he_ab).unwrap().next;
+        let he_da = t.body.get_half_edge(he_bd).unwrap().next;
+        for at in [he_ab, he_da] {
+            t.body
+                .mev_null(
+                    MevSite::Fan { he1: at, he2: at },
+                    crate::null::NewVertexSide::Above,
+                )
+                .unwrap();
+        }
+        let h1 = t.body.get_half_edge(he_ab).unwrap().prev;
+        let h2 = t.body.get_half_edge(he_bd).unwrap().next;
+        let is_null = |he: crate::HalfEdgeKey| {
+            let edge = t.body.get_half_edge(he).unwrap().edge;
+            let curve = t.body.get_edge(edge).unwrap().curve;
+            t.body.get_curve_geom(curve).unwrap().certified().is_none()
+        };
+        assert!(
+            is_null(h1) && is_null(h2),
+            "the run opens and closes on null halves"
+        );
+        assert_ne!(
+            t.body.half_edge_end(h2),
+            Some(t.body.get_half_edge(h2).unwrap().start),
+            "the run ends at the null half's far vertex, not at `d` itself"
+        );
+        match t.body.planar_run_winding_decided(h1, h2, n, b) {
+            Ok(Some(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
+            other => panic!("the run winds: {other:?}"),
         }
     }
 }

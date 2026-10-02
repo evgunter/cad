@@ -2,12 +2,14 @@
 id: one-kind-mirror-per-geometry-enum
 kind: unit
 title: One fieldless kind mirror per geometry enum, in geom: CurveKind and SurfaceKind beside Curve3 and Surface, every copy deleted
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [curve-kind-placement-disagrees-with-the-ratified-seat-clause, 3763, 3664]
 branch: tquery/one-kind-mirror
+pr: 3777
+closed: 2026-10-02
 ---
 
 
@@ -52,3 +54,23 @@ Every path outside `geom` / `geom-brep` keeps working through
 re-exports (`topo::CurveKind`, the `pncad` prelude). The Python
 binding keeps its own enums (its exhaustive match over the canonical
 type, #1388 V2).
+
+## How authoring went (PR 3777)
+
+**Hand-written, the fallback.** The first cut derived the kinds with
+`strum::EnumDiscriminants`. Review found the derive's docs false:
+strum_macros 0.28 always copies a payload variant's `doc` attributes
+onto its discriminant, so `SurfaceKind::Cone` carried the cone's field
+prose and `SurfaceKind::Nurbs` described an `Arc` payload it does not
+have. Docs are one of the things the derive had to carry, so the fix
+pass took the fallback:
+- `CurveKind` / `SurfaceKind` are hand-written in `geom`, one line of
+  doc per variant.
+- `Curve3::kind` / `Surface::kind` are wildcard-free matches, so a new
+  variant is a compile error until it has a kind.
+- `ALL` is still derived (`strum::VariantArray` on the kind enum), so
+  no roster or census is kept by hand.
+
+## Closed (2026-10-02, PR 3777)
+
+One hand-written `CurveKind` / `SurfaceKind` in `geom` (exhaustive `kind()`, `ALL` from `strum::VariantArray`); `topo::query`'s, `geom_brep`'s and tess-meter's mirrors and the test-only derived ones deleted; one `name()` / `adjective()` register pair, every free-string namer of the same word set routed through it.

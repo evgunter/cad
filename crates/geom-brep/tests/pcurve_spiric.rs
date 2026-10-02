@@ -550,8 +550,8 @@ fn the_mirror_torus_holds_the_oval_and_is_uncovered() {
         matches!(
             e,
             PcurveCertifyError::UnsupportedCarrier {
-                chart: geom_brep::SurfaceKind::Torus,
-                carrier: geom_brep::CurveKind::Spiric,
+                chart: geom::SurfaceKind::Torus,
+                carrier: geom::CurveKind::Spiric,
                 class: geom_brep::UncoveredClass::MirrorTorusSpiric,
             }
         ),

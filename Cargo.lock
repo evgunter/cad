@@ -4207,6 +4207,7 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui_tiles",
+ "geom",
  "geom-brep",
  "geom-core",
  "getrandom 0.3.4",

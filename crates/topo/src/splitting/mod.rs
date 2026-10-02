@@ -150,11 +150,12 @@ pub struct NullEdgeRecord {
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
-    /// The F9 side attribute (`below_end` = old vertex, `above_end` =
-    /// the minted copy holding the ABOVE run) — orientation as data.
+    /// The F9 side attribute (`above_end` = the end holding the ABOVE
+    /// run: the minted copy, save for a whole-orbit run, where the old
+    /// vertex keeps it) — orientation as data.
     pub attr: NullEdge,
     /// True for a dangling null edge (a wide same-side sector whose
-    /// bisector crossed — the strut case).
+    /// bisector crossed — the strut case, either way round).
     pub dangling: bool,
 }
 
@@ -194,7 +195,7 @@ pub enum SplitReduceError {
         /// The offending face.
         face: FaceKey,
         /// Its surface kind (the table row).
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// An edge carrier is the `Nurbs` fallback — a rung-3 carrier in
     /// the INPUT operand. The general rung itself is implemented (SSI);
@@ -349,7 +350,7 @@ impl core::fmt::Display for SplitReduceError {
             // things it can mean, and names the second as the corrupt
             // body it is rather than as a feature not built yet.
             Self::CurvedBooleanUnsupported {
-                kind: geom_brep::SurfaceKind::Nurbs,
+                kind: geom::SurfaceKind::Nurbs,
                 ..
             } => write!(
                 f,
@@ -362,13 +363,13 @@ impl core::fmt::Display for SplitReduceError {
                 "the body has {}, and the split cannot cut a body with such a face \
                  yet. There is no way through yet",
                 match kind {
-                    geom_brep::SurfaceKind::Approx => "an approximated spline face",
-                    geom_brep::SurfaceKind::Cone => "a cone face",
-                    geom_brep::SurfaceKind::Sphere => "a sphere face",
-                    geom_brep::SurfaceKind::Torus => "a torus face",
-                    geom_brep::SurfaceKind::Plane => "a plane face",
-                    geom_brep::SurfaceKind::Cylinder => "a cylinder face",
-                    geom_brep::SurfaceKind::Nurbs => "a spline (NURBS) face",
+                    geom::SurfaceKind::Approx => "an approximated spline face",
+                    geom::SurfaceKind::Cone => "a cone face",
+                    geom::SurfaceKind::Sphere => "a sphere face",
+                    geom::SurfaceKind::Torus => "a torus face",
+                    geom::SurfaceKind::Plane => "a plane face",
+                    geom::SurfaceKind::Cylinder => "a cylinder face",
+                    geom::SurfaceKind::Nurbs => "a spline (NURBS) face",
                 }
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(

@@ -53,12 +53,12 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
-use crate::query::CurveKind;
+use geom::CurveKind;
 
 /// **A frame read off stored geometry**: an origin plus the carrier's
 /// own reference directions, verbatim.
@@ -397,7 +397,7 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 /// has a kind.
 ///
 /// ```
-/// use geom_brep::SurfaceKind;
+/// use geom::SurfaceKind;
 /// use geom_core::{Point3, Vec3};
 /// use topo::readback::face_carrier_kind;
 /// use topo::{Body, FaceSurface, Surface};
@@ -424,7 +424,7 @@ pub fn face_carrier_kind<T: Real>(
     face: FaceKey,
 ) -> Result<SurfaceKind, ReadbackError> {
     let (surface, _sense) = carrier_surface(body, face)?;
-    Ok(SurfaceKind::of(surface))
+    Ok(surface.kind())
 }
 
 /// **A vertex's position** — the stored point, copied out. The
@@ -555,7 +555,7 @@ pub fn edge_carrier_kind<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Result<CurveKind, ReadbackError> {
-    Ok(CurveKind::of(edge_carrier_ref(body, edge)?))
+    Ok(edge_carrier_ref(body, edge)?.kind())
 }
 
 /// **An edge's carrier frame** — the certified carrier's own stored
@@ -1015,5 +1015,24 @@ mod tests {
             "the walk's own vocabulary, before either door renames it"
         );
         assert_eq!(crate::query::edge_carrier_kind(&body, edge), None);
+    }
+
+    /// **The rim door names the same torn curve key as an intactness
+    /// fault**, not as a seed with no carrier: a null scaffold and a
+    /// dangling geometry reference are different facts, and
+    /// `RimError::NotIntact` carries the reference that did not
+    /// resolve.
+    #[test]
+    fn the_rim_door_refuses_a_torn_curve_key_as_not_intact() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().expect("a cube has edges").0;
+        let torn = CurveKey::default();
+        body.get_edge_mut(edge).expect("a live edge").curve = torn;
+        assert_eq!(
+            crate::query::rim_of(&body, edge),
+            Err(crate::query::RimError::NotIntact(DanglingRef::Geometry(
+                GeomRef::Curve(torn)
+            )))
+        );
     }
 }
