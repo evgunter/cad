@@ -655,6 +655,9 @@ mod rim_of_rows_interval;
 #[path = "rim_of_r1_probes.rs"]
 mod rim_of_r1_probes;
 
+#[path = "rim_of_structural_review_probes.rs"]
+mod rim_of_structural_review_probes;
+
 #[path = "fillet_h6_cap_rim.rs"]
 mod fillet_h6_cap_rim;
 #[path = "n3r1_d31.rs"]
