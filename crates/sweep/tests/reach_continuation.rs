@@ -418,82 +418,200 @@ fn corner(r: f64) -> f64 {
 }
 
 /// **A tangency in the middle of an edge builds in either operand
-/// order, in every op.** A sharp outline stacked on its rounded twin:
-/// the sharp plate's straight bottom edges pass the rounded plate's
-/// fillet tangent points mid-span, where the rounded plate has a vertex
-/// (its flat wall ends there) and the sharp one has none. Whichever
-/// operand's edges are swept first, the touch is read on the edge's
-/// fragments once both directions have split it, and the Rest seam
-/// along each fillet's rim carries the fillet's arc on both sides.
+/// order, in every op.** A plate stacked on a rounded one: the upper
+/// plate's straight bottom edges pass the lower plate's fillet tangent
+/// points mid-span, where the lower plate has a vertex (its flat wall
+/// ends there) and the upper one has none. Whichever operand's edges
+/// are swept first, the touch is read on the edge's fragments once both
+/// directions have split it, and the `Rest` seam along each fillet's rim
+/// carries the fillet's arc on both sides.
 ///
-/// Two outlines, each at r = 0.25, 0.5 and 1: the 6 × 4 plate (four
-/// convex corners), and the 6 × 6 L with its 3 × 3 notch (five convex
-/// corners and a concave one, whose fillet adds material the sharp L
-/// lacks). Volumes are closed form: the plate's area is 24 − 4c and the
-/// L's 27 − 5c + c, where c is [`corner`]. The stacked interiors are
+/// The poses: the 6 × 4 sharp plate on its rounded twin, and the 6 × 6
+/// sharp L (a 3 × 3 notch: five convex corners and a concave one, whose
+/// fillet adds material the sharp L lacks) on its rounded twin, each at
+/// r = 0.25, 0.5 and 1; and two rounded plates whose fillets differ
+/// (0.3 over 0.5, and 0.5 over 0.3), where the larger fillet's tangent
+/// points fall mid-edge on the smaller one's flat walls. Volumes are
+/// closed form: a plate's area is 24 − 4c(r) and the L's 27 − 5c(r) +
+/// c(r), with c the [`corner`] area. The stacked interiors are
 /// disjoint, so the union is the sum, each difference is its minuend,
-/// and the intersection is empty. Faces: the sharp plate 6, the rounded
-/// one 10, the union 14 (two caps, the four corner overhangs of the
-/// sharp plate's bottom, four merged walls, four fillets); the sharp L
-/// 8, the rounded one 14, the union 20 (two caps, five corner
-/// overhangs, the rounded L's top exposed at the concave fillet, six
-/// merged walls, six fillets).
+/// and the intersection is empty. Faces: a sharp plate 6, a rounded one
+/// 10; the sharp L 8, the rounded one 14. The unions: on the plate 14
+/// (two caps, four corner overhangs, four merged walls, four fillets),
+/// on the L 20 (two caps, five corner overhangs, the rounded L's top
+/// exposed at the concave fillet, six merged walls, six fillets), and
+/// the mismatched pair 18 (two caps, four exposed corners of the
+/// mating plane, four merged walls, eight fillets).
 #[test]
 fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
+    let rounded_plate = |r: f64| (W * H - 4.0 * corner(r), 10);
+    let mut poses = Vec::new();
     for r in [0.25, 0.5, 1.0] {
-        let poses = [
-            (
-                "plate",
-                plate(sharp(), 1.0),
-                plate(rounded(r), 0.0),
-                (W * H, 6),
-                (W * H - 4.0 * corner(r), 10),
-                14,
-            ),
-            (
-                "L",
-                plate(ell_sharp(), 1.0),
-                plate(ell_rounded(r), 0.0),
-                (27.0, 8),
-                (27.0 - 4.0 * corner(r), 14),
-                20,
-            ),
-        ];
-        for (outline, sharp_q, rounded_p, sharp_vf, rounded_vf, union_faces) in poses {
-            for (order, a, b, (va, fa), (vb, fb)) in [
-                ("sharp is A", &sharp_q, &rounded_p, sharp_vf, rounded_vf),
-                ("rounded is A", &rounded_p, &sharp_q, rounded_vf, sharp_vf),
-            ] {
-                let label = format!("{outline}, r = {r}, {order}");
-                let (mate, walls) = findings(a, b);
-                let ab = with(&mate, &walls);
-                let (mate, walls) = findings(b, a);
-                let ba = with(&mate, &walls);
-                builds(
-                    &format!("{label}: A ∪ B"),
-                    topo::union_with(a, b, &ab, tol()),
-                    va + vb,
-                    union_faces,
-                );
-                builds(
-                    &format!("{label}: A ∖ B"),
-                    topo::subtract_with(a, b, &ab, tol()),
-                    va,
-                    fa,
-                );
-                builds(
-                    &format!("{label}: B ∖ A"),
-                    topo::subtract_with(b, a, &ba, tol()),
-                    vb,
-                    fb,
-                );
-                let meet = topo::intersect_with(a, b, &ab, tol());
-                assert!(
-                    matches!(meet, Ok(BooleanResult::Empty)),
-                    "{label}: A ∩ B, the interiors are disjoint: {meet:?}"
-                );
-            }
+        poses.push((
+            format!("plate, r = {r}"),
+            plate(sharp(), 1.0),
+            plate(rounded(r), 0.0),
+            (W * H, 6),
+            rounded_plate(r),
+            14,
+        ));
+        poses.push((
+            format!("L, r = {r}"),
+            plate(ell_sharp(), 1.0),
+            plate(ell_rounded(r), 0.0),
+            (27.0, 8),
+            (27.0 - 4.0 * corner(r), 14),
+            20,
+        ));
+    }
+    for (upper, lower) in [(0.3, 0.5), (0.5, 0.3)] {
+        poses.push((
+            format!("r = {upper} over r = {lower}"),
+            plate(rounded(upper), 1.0),
+            plate(rounded(lower), 0.0),
+            rounded_plate(upper),
+            rounded_plate(lower),
+            18,
+        ));
+    }
+    for (pose, upper, lower, upper_vf, lower_vf, union_faces) in poses {
+        for (order, a, b, (va, fa), (vb, fb)) in [
+            ("upper is A", &upper, &lower, upper_vf, lower_vf),
+            ("lower is A", &lower, &upper, lower_vf, upper_vf),
+        ] {
+            let label = format!("{pose}, {order}");
+            let (mate, walls) = findings(a, b);
+            let ab = with(&mate, &walls);
+            let (mate, walls) = findings(b, a);
+            let ba = with(&mate, &walls);
+            builds(
+                &format!("{label}: A ∪ B"),
+                topo::union_with(a, b, &ab, tol()),
+                va + vb,
+                union_faces,
+            );
+            builds(
+                &format!("{label}: A ∖ B"),
+                topo::subtract_with(a, b, &ab, tol()),
+                va,
+                fa,
+            );
+            builds(
+                &format!("{label}: B ∖ A"),
+                topo::subtract_with(b, a, &ba, tol()),
+                vb,
+                fb,
+            );
+            let meet = topo::intersect_with(a, b, &ab, tol());
+            assert!(
+                matches!(meet, Ok(BooleanResult::Empty)),
+                "{label}: A ∩ B, the interiors are disjoint: {meet:?}"
+            );
         }
+    }
+}
+
+/// **A declared `Tangent` touching a fillet mid-edge builds in either
+/// operand order, in every op.** A unit box stands beside the rounded
+/// plate, turned 45° so its west wall is tangent to the south-east
+/// fillet along the ruling at azimuth −45°: the box's wall edges pass
+/// that ruling mid-span and the plate has no edge on it. The pair
+/// declared `Tangent` is the cover (C4); undeclared, the graze refuses
+/// typed in both orders. Volumes are closed form (the box 1, the plate
+/// [`area`] of four corners, interiors disjoint); faces: the box 6, the
+/// plate 10, and the union their 16, nothing merging across a line
+/// touch.
+#[test]
+fn a_declared_tangent_beside_a_fillet_builds_in_either_operand_order() {
+    let s2 = core::f64::consts::FRAC_1_SQRT_2;
+    let touch = Point2::new(W - R + R * s2, R - R * s2);
+    let at = |along: f64, out: f64| {
+        Point2::new(touch.x + (along + out) * s2, touch.y + (along - out) * s2)
+    };
+    let boxed = plate(
+        ProfileLoop::polygon([at(-0.5, 0.0), at(-0.5, 1.0), at(0.5, 1.0), at(0.5, 0.0)]),
+        0.0,
+    );
+    let p = plate(rounded(R), 0.0);
+    let wall = boxed
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                boxed.get_face(f).and_then(|x| boxed.get_surface(x.surface)),
+                Some(geom::Surface::Plane { normal, .. })
+                    if (normal.x + s2).abs() < 1e-9 && (normal.y - s2).abs() < 1e-9
+            )
+        })
+        .expect("the box's tangent wall");
+    let fillet = p
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                p.get_face(f).and_then(|x| p.get_surface(x.surface)),
+                Some(geom::Surface::Cylinder { origin, .. }) if origin.x > W / 2.0 && origin.y < H / 2.0
+            )
+        })
+        .expect("the south-east fillet");
+    let tangent = |fa, fb| BooleanDeclarations {
+        coincident_faces: vec![FacePairDeclaration::new(
+            fa,
+            fb,
+            topo::ContactClass::Tangent,
+        )],
+        ..BooleanDeclarations::default()
+    };
+    for (order, a, b, fa, fb, (va, na), (vb, nb)) in [
+        (
+            "box is A",
+            &boxed,
+            &p,
+            wall,
+            fillet,
+            (1.0, 6),
+            (area(4.0), 10),
+        ),
+        (
+            "plate is A",
+            &p,
+            &boxed,
+            fillet,
+            wall,
+            (area(4.0), 10),
+            (1.0, 6),
+        ),
+    ] {
+        let err = topo::union_with(a, b, &BooleanDeclarations::default(), tol())
+            .expect_err("an undeclared graze refuses");
+        assert!(
+            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            "{order}, undeclared: {err:?}"
+        );
+        let (ab, ba) = (tangent(fa, fb), tangent(fb, fa));
+        builds(
+            &format!("{order}: A ∪ B"),
+            topo::union_with(a, b, &ab, tol()),
+            va + vb,
+            na + nb,
+        );
+        builds(
+            &format!("{order}: A ∖ B"),
+            topo::subtract_with(a, b, &ab, tol()),
+            va,
+            na,
+        );
+        builds(
+            &format!("{order}: B ∖ A"),
+            topo::subtract_with(b, a, &ba, tol()),
+            vb,
+            nb,
+        );
+        let meet = topo::intersect_with(a, b, &ab, tol());
+        assert!(
+            matches!(meet, Ok(BooleanResult::Empty)),
+            "{order}: A ∩ B, the interiors are disjoint: {meet:?}"
+        );
     }
 }
 
