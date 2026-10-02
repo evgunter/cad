@@ -484,7 +484,7 @@ pub fn vertex_sides<T: geom_core::Decide>(
     tol: Tol,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
     let band = geom_core::Band::linear(tol)?;
-    classify::gate_operand(body)?;
+    classify::gate_operand(body, plane, band)?;
     classify::classify_vertices(body, plane, band)
 }
 
@@ -515,7 +515,7 @@ pub fn split_reduce<T: geom_core::Decide>(
     let mut reduced = operand.clone();
     let mut body = reduced.begin_surgery();
 
-    classify::gate_operand(&body)?;
+    classify::gate_operand(&body, plane, band)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
     classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 

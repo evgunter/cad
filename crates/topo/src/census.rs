@@ -2726,7 +2726,7 @@ fn boundary_reach<T: Decide>(
 
 /// One edge's reach — [`crate::boolean::boxes::EdgeBoxRule`] at this
 /// lane's scalar.
-fn edge_reach<T: Decide>(
+pub(crate) fn edge_reach<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
 ) -> Option<(Point3<T>, Point3<T>)> {
