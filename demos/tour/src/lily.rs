@@ -1625,11 +1625,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
               bud; sweep_body(kite section, arched NURBS spine) for the \
               two short leaves; loft_body(rectangle -> diamond -> diamond \
               sections on rolled placements) for the long leaf and the sepals",
-        // One chord budget for the whole scene is a poor fit here: at
-        // 2e-3 the 0.44 m lantern is smooth and a 0.06 m stem tube
-        // costs ~2e5 triangles, because the torus lane spends its
-        // budget on the 5 m RING and not on the tube (findings 9).
-        delta: 2e-3,
+        delta: 5e-3,
         note: Some(note),
         view: View {
             elev: 12.0,
@@ -1638,7 +1634,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         },
         bodies: pieces
             .into_iter()
-            .map(|p| SceneBody::plain(p.name, p.color, p.body))
+            .map(|p| {
+                let sb = SceneBody::plain(p.name, p.color, p.body);
+                // The 0.44 m lantern is smooth at 2e-3.
+                if p.name == "lily_lantern" {
+                    sb.finer(2e-3)
+                } else {
+                    sb
+                }
+            })
             .collect(),
     }]
 }

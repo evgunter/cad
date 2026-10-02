@@ -470,10 +470,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "extrude(disc); per glyph: extrude(lines + arcs) -> subtract (blind \
               pocket); topo::split(tilted plane); exact Curve3::Ellipse section \
               carriers; pcurve trim loops + certified quadrature",
-        // The inner arcs (radius 0.1 to 0.15) want 2e-3, and the one
-        // scene-wide delta spends it on the whole cylinder too
-        // (`work/show/a-tour-scene-meshes-every-body-at-one-delta.md`).
-        delta: 2e-3,
+        delta: 1e-2,
         note: Some(format!(
             "cutting a cylinder at an angle produces an ellipse, and this kernel \
              stores one: exact semi-axes, zero residual by construction. The cap \
@@ -490,7 +487,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             up: 'z',
         },
         bodies: vec![
-            SceneBody::plain("tiltedcut_above", [0.62, 0.44, 0.80], above),
+            // The glyphs' inner arcs (radius 0.1 to 0.15) want 2e-3.
+            SceneBody::plain("tiltedcut_above", [0.62, 0.44, 0.80], above).finer(2e-3),
             SceneBody::plain("tiltedcut_below", [0.40, 0.62, 0.80], below),
         ],
     }]
