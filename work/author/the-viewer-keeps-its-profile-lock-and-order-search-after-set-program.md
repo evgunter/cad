@@ -4,7 +4,6 @@ kind: issue
 title: The viewer's profile editor still locks the shape and searches a write order: SetProgram exists and the lock, program_edits, accepted_order and three refusals are droppable
 status: closed
 opened: 2026-09-20
-refs: [a-committed-profile-program-has-no-whole-program-edit]
 priority: P0
 cost: D
 closed: 2026-09-30
@@ -126,7 +125,7 @@ does `Maintenance::Rebound`: a kept step's names keep their spelling and
 nothing is rewritten. The editor's provenance is therefore which
 committed step each held step IS (`ProfileEdit::ids`). The stale
 sentence in `SlotId::Profile`'s doc is filed as
-`work/edit/slot-id-profile-doc-says-set-program-rebinds-names`. Also,
+`work/recipe/slot-id-profile-doc-says-set-program-rebinds-names`. Also,
 "the delete cascade's strand-count affordance" counts dependent
 features, not strands, so the strand count on the edit door's Apply is
 new, modelled on it.
@@ -168,8 +167,8 @@ and the strand sentence each with two homes; both now have one. The fix
 pass rewrote the id rule onto the kernel's `Step::pieces` and proved it
 identical to the old rule on all 1369 pairs of 37 steps.
 
-Residue filed: `work/edit/slot-id-profile-doc-says-set-program-rebinds-names`
-(six stale kernel sentences), `work/edit/set-program-ids-keep-all-is-hand-spelled-outside-the-kernel`,
+Residue filed: `work/recipe/slot-id-profile-doc-says-set-program-rebinds-names`
+(six stale kernel sentences), `work/recipe/set-program-ids-keep-all-is-hand-spelled-outside-the-kernel`,
 and `work/wire/a-split-circles-phase-edit-re-aims-its-piece-names-silently`
 — a name re-aimed with no report when a split circle's phase turns by
 2π/n, pre-existing and on the naming layer's ground.

@@ -2,13 +2,12 @@
 id: rim-of-compares-point-bits-in-production-where-no-gate-looks
 kind: issue
 title: rim_of decides one rim by a production bit compare of points and scalars, which no bit-identity gate can see
-status: open
+status: dispatched
 opened: 2026-09-24
 refs: [rim-of-refuses-extruded-multi-arc-rims, the-re-basing-gate-refuses-m7-8-where-nothing-moves]
 priority: P2
 cost: M
-design: true
-needs_ev: true
+branch: tquery/rim-of-structural
 ---
 
 
@@ -141,3 +140,11 @@ So:
 **Open:** whether the seed must still be a circle arc (`NotAnArc`), or
 the door names any closed edge chain between two surfaces (an ellipse
 rim from a tilted plane through a cylinder).
+
+## Ruled again (2026-10-02, PR 3767)
+
+Ev: "1. sounds great!" — the structural rim above is the repair.
+On the seed circle gate (`NotAnArc`), after the pros and cons (PR 3767
+comments): keep it for now, "as long as it's explicitly noted in the
+code that we expect to extend this to non-circles, so it doesn't get
+read as a permanent decision". The build is `tquery/rim-of-structural`.
