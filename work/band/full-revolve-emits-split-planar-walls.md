@@ -2,12 +2,14 @@
 id: full-revolve-emits-split-planar-walls
 kind: issue
 title: A full revolve of an axis-touching profile emits each planar wall as two same-key halves, so F7 refuses it as a boolean operand through every door above the kernel
-status: open
+status: closed
 opened: 2026-09-25
 priority: P0
 cost: D
 parent: swept-continuation-walls-reach-the-boolean-unmerged
 refs: [swept-continuation-walls-reach-the-boolean-unmerged, torus-operand-gate-admission]
+pr: 3736
+closed: 2026-10-02
 ---
 
 

@@ -348,3 +348,22 @@ through a 3D fillet. Each row reds under a tangent-freezing mutant
 (radius read through `.lo()`; chamfer distance; edge point). Reviewed by
 the orchestrator's read (tests only, mutants demonstrated). Filed TINT's
 `dual-tangent-is-unpinned-for-seven-recipe-verbs`.
+
+## 2026-10-02 — continuation walls closed: sweeps build one wall per run (PR #3736)
+
+Closes `swept-continuation-walls-reach-the-boolean-unmerged` and the claimed
+`full-revolve-emits-split-planar-walls` (Ev's "construct" ruling, fork-log
+row 36). Extrude and partial revolve build one wall per run of collinear
+profile pieces (`swept::wall_runs`), a station being an `mev` chain with no
+strut; a full revolve collapses each run (`kef`/`kev`/`kemr`), so a planar
+wall in a solid is one face. Walls are stored per run; names go through
+`PieceRun` (a one-piece run is spelled as its bare locator, so bodies with
+no multi-piece run keep their names) and one constituents view
+(`names/merged.rs`). No `merge_coplanar_faces` is left on the sweep path.
+Dual review, class H (DR row on the PR): both NOT-MERGEABLE-AS-IS on the
+same two CI-demonstrated MAJORs, tally 0; the union was taken in one fix
+pass, plus a delta read. Filed: `swept-cocircular-arc-runs-build-one-wall`
+(P1), `lamina-plane-annulus-keeps-its-slit`,
+`swept-operand-merge-repairs-left-in-tests`, `swept-run-walls-style-residue`,
+SHELL's `cap-rim-refusal-order-follows-the-arena`. Merged over main's two
+filed reds (thread-count digest; the 1e-6 open-sign row).
