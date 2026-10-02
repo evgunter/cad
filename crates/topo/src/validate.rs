@@ -3677,10 +3677,27 @@ pub fn validate<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
 /// A non-empty vector of every [`ValidationError`] found, tier 1 first,
 /// in the documented deterministic order.
 pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
+    let (mut errors, scaffolding) = closed_by_tier(body);
+    errors.extend(scaffolding);
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// [`validate_closed`]'s findings split by tier: `(tier 1, tier 2)`,
+/// each in its documented order. A door that answers a structurally
+/// broken body and a body still carrying scaffolding differently reads
+/// the split here rather than classifying the variants itself.
+pub(crate) fn closed_by_tier<T: Real>(
+    body: &Body<T>,
+) -> (Vec<ValidationError>, Vec<ValidationError>) {
     let Tier1Report {
-        mut errors,
+        errors: tier1_errors,
         shell_components,
     } = tier1(body);
+    let mut errors = Vec::new();
 
     // Tier 2, check 1: no empty loops (loop-arena order).
     for (loop_key, loop_) in body.loops.iter() {
@@ -3739,11 +3756,7 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
         }
     }
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
-    }
+    (tier1_errors, errors)
 }
 
 /// Validates a body as a **tier-3 "geometric" solid** (M2 PR 3 — the
