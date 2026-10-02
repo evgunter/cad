@@ -5,7 +5,8 @@ title: the klein scene's loop sweep starts from a world-axis placement, not the 
 status: open
 opened: 2026-09-15
 priority: P3
-cost: D
+cost: E
+rides_with: klein-scene-should-adopt-the-one-body-loop-sweep
 ---
 
 ## Finding
