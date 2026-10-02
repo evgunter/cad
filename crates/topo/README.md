@@ -137,10 +137,14 @@ bridged residue, and the declaration bridges only the third
 (`ContactVerdict::{Definite, Bridged}`; `ContactRefusal::{Contradicted,
 Escalated, Undeclared, NotCertifiable}`). `Rest`: carrier
 non-contradiction through the kind ladder (`carrier_eq`: plane, sphere,
-cylinder, torus; angular margins levered at the consumed extent, length
-margins at unit arm), senses opposed as an exact bit, overlap definitely
-positive on C3's chart authority; contradicted by definitely distinct
-carriers, aligned senses, definite separation on the patch. `Tangent`:
+cylinder, torus), the pair read as one displacement over the consumed
+extent — position data at a pivot, plus the angular data levered from
+it to the extent's far reach, plus the radius differences; senses
+opposed as an exact bit; overlap definitely positive on C3's chart
+authority. Bridged only where that displacement's upper bound is in band
+at every consumed point; contradicted by a consumed point (a face
+vertex, or the whole extent) definitely off the other carrier, aligned
+senses, definite separation on the patch; escalated between. `Tangent`:
 first-order tangency along the witnessed locus, locus on both surfaces
 within ε; contradicted by definite normal independence, definite
 crossing (as far as the sampled κ_rel sees it, C1), definite separation;
