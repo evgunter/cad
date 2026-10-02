@@ -162,3 +162,14 @@ PR 3793's fix pass is in. Head `a51b3c5c6` is green, and every review item is ad
 - the matchers are tightened, with a sweep listed.
 
 The PR holds only on its frames. `tiltedcut-engraved-face` is dispatched.
+
+## 2026-10-02 — render tag fix pass in; main red on the bounds census
+
+- **PR 3791 fix pass is in** (head `eea82b6`, then the orchestrator's `1407a18cf`). All twelve review items are addressed.
+- **Acceptance on the new code:**
+  - A subject-tagged commit renders, and its re-gate correctly reports that no lane committed.
+  - A tag mentioned only in the commit body does not fire.
+  - Still unproven: the merge-ref re-gate (`pr` input). It only fires when a lane commits, so its first real firing will be the snowman's tagged push. That push is its acceptance.
+- **Main is red on `geom-core` `bounds_census`** (#3733 added `circle_image_envelope` with no roster line). Reproduced locally on `9074254`. EMIT's open #3794 carries the line; I ported it verbatim into 3791 and commented there.
+- **Filed** `ciw/montage-kernel-reset-discards-freecad-rebaseline`, from the lane's reading.
+- **Dispatched a delta review** of the fix pass, since the workflow logic changed substantially.
