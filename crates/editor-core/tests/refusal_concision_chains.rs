@@ -1460,6 +1460,14 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ),
             ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
             (
+                "SectionArcSide",
+                J::SectionArcSide {
+                    face,
+                    case: topo::ArcSideCase::EndsDisagree,
+                    band: band(),
+                },
+            ),
+            (
                 "SectionCrossings",
                 J::SectionCrossings {
                     face,
