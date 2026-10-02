@@ -58,10 +58,12 @@ pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
 pub mod enters;
+pub mod extent;
 pub mod fitted_lane;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
+pub mod locus;
 pub mod mapped;
 pub mod newell;
 pub mod nurbs_iso;
@@ -74,6 +76,7 @@ pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
 pub mod recourse;
+mod sphere_circle;
 pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;
@@ -99,27 +102,28 @@ pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, enters_material,
     enters_material_order2,
 };
+pub use extent::ExtentBall;
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
 pub use implicit::{
-    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, circle_arc_residual_range,
-    circle_residual_curvature_bound, circle_residual_extremes, circle_sphere_harmonic,
-    cone_elevation, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
-    min_radius_of_curvature,
+    ARC_RESIDUAL_SAMPLES, CircleCylinderHarmonics, CircleSphereHarmonic, circle_arc_residual_range,
+    circle_cylinder_harmonics, circle_residual_curvature_bound, circle_residual_extremes,
+    circle_sphere_harmonic, cone_elevation, curvature_lever_arm, implicit_gradient,
+    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
+    implicit_residual, min_radius_of_curvature,
 };
 pub use intersect::{
-    CoaxialEvidence, ConeCylinderSection, CurveKind, CylinderSphereSection, EqualCylinderSection,
-    PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
-    RadiusEvidence, Rung, SectionError, SectionRadius, SphereSphereSection, SurfaceKind,
-    cone_cylinder_section, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
-    plane_cylinder_section, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section,
+    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
+    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
+    Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
 pub use mapped::{MappedCurve, SketchSegment};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{

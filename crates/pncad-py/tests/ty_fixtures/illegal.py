@@ -338,10 +338,10 @@ evaluate(doc, resolver=evaluate(doc))  # ty: error
 # semantics live in.
 Node.instantiate_part(doc.id)  # ty: error
 
-# Placement is a FRAME on a node, not a coordinate triple: an improper
-# or non-rigid map is refused at the edit door, and there is no
+# An offset is a PLACEMENT, not a coordinate triple: an improper or
+# non-rigid map is refused at the edit door, and there is no
 # translation-only shortcut that would hide it.
-DocEdit.set_placement(solid, (0 * m, 0 * m, 1 * m))  # ty: error
+DocEdit.set_offset(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
 # The designate door is TOTAL and takes the whole list; one node is
 # not a root list.

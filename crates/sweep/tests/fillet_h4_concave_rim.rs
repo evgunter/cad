@@ -176,7 +176,7 @@ fn slab_with(op: BooleanOp) -> Body<f64> {
 /// The edges between a plane face and a sphere face: the one rim of a
 /// pip or a boss, as the arcs the sphere's chart seam split it into.
 fn plane_sphere_rim(body: &Body<f64>) -> Vec<EdgeKey> {
-    use geom_brep::SurfaceKind;
+    use geom::SurfaceKind;
     use topo::query::{self, SurfaceKindSet};
     query::all_edges(body)
         .into_iter()

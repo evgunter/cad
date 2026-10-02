@@ -67,13 +67,13 @@
 //! single-shell solids never reach this classifier at all (lib docs:
 //! tier-2 validity + the +V invariant own lone-shell orientation).
 
-use geom::Curve3;
 use geom::Surface;
+use geom::{Curve3, CurveKind};
 use geom_core::{Point3, Vec3};
 use topo::{Body, LoopBoundary, Shell, ShellKey};
 
 use crate::StepExportError;
-use crate::writer::{carrier_kind, certified_carrier, surface_kind};
+use crate::writer::{certified_carrier, surface_kind};
 
 /// The signed volume enclosed by `shell` (module docs).
 ///
@@ -103,7 +103,7 @@ pub(crate) fn shell_signed_volume(
             return Err(StepExportError::CurvedShellClassification {
                 shell: shell_key,
                 face: face_key,
-                kind: surface_kind(surface),
+                kind: face_kind(surface_kind(surface)),
             });
         };
         // 2·A⃗_f, accumulated in loop-storage order (D9: fixed order).
@@ -138,7 +138,7 @@ pub(crate) fn shell_signed_volume(
                     return Err(StepExportError::CurvedShellClassification {
                         shell: shell_key,
                         face: face_key,
-                        kind: carrier_kind(carrier),
+                        kind: edge_kind(carrier.kind()),
                     });
                 }
                 let a = vertex_position(body, he.start)?;
@@ -167,4 +167,38 @@ fn vertex_position(
         .ok_or(StepExportError::Corrupt {
             what: "vertex point key does not resolve",
         })
+}
+
+/// What a refused face's SURFACE is, for
+/// [`StepExportError::CurvedShellClassification`]: the surface's name
+/// and the noun, so a NURBS face never reads like a NURBS edge.
+fn face_kind(name: &str) -> String {
+    format!("{name} surface")
+}
+
+/// What a refused face's edge CARRIER is, for
+/// [`StepExportError::CurvedShellClassification`] — [`face_kind`]'s
+/// counterpart.
+fn edge_kind(kind: CurveKind) -> String {
+    format!("{} curve", kind.name())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{edge_kind, face_kind};
+    use geom::{CurveKind, SurfaceKind};
+
+    /// A face refused for its surface and a face refused for an edge's
+    /// carrier never print the same kind — the case that motivated the
+    /// nouns is `nurbs`, a name both enums have.
+    #[test]
+    fn a_refused_surface_and_a_refused_carrier_never_read_alike() {
+        assert_eq!(face_kind(SurfaceKind::Nurbs.name()), "nurbs surface");
+        assert_eq!(edge_kind(CurveKind::Nurbs), "nurbs curve");
+        for s in SurfaceKind::ALL {
+            for c in CurveKind::ALL {
+                assert_ne!(face_kind(s.name()), edge_kind(c), "{s:?} vs {c:?}");
+            }
+        }
+    }
 }

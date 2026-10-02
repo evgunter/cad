@@ -37,8 +37,8 @@ stable half.
   crosses the seam.
 - **Free-move is display state** (G3): a display frame over an
   instance's placement, no solver, admitted only for an instance no
-  mate names (`display.rs`). `DocEdit::SetPlacement` exists and keys
-  on the cluster gauge (A11).
+  mate names (`display.rs`). `DocEdit::SetOffset` exists and sets the
+  instance's offset in its gauge (A11 (2)).
 
 ## DI1 — A held node id is valid on the branch that minted it
 
@@ -188,7 +188,7 @@ excluded committing it from v1's scope. **The viewer may record a
 free-moved placement persistently**, and the reading taken is the
 stronger one, under G1's preview-versus-commit rule: the gesture's
 previews stay display frames, and **its release emits one
-`DocEdit::SetPlacement`** on the instance — one undo step, one
+`DocEdit::SetOffset`** on the instance — one undo step, one
 document transition, and the placement survives save and reopen,
 which is what a user expects of a part they placed. Consequences:
 
@@ -197,9 +197,9 @@ which is what a user expects of a part they placed. Consequences:
   `hidden` stays display state.
 - Admission is unchanged: only an instance no mate names may be
   free-moved (`free_move_check`), so the edit's target is a singleton
-  cluster and keys on itself as gauge (A11 rule 3). A later mate that
-  joins clusters re-keys the record through `ClusterMaintenance`
-  as any placement is.
+  group and roots it (A11 (3)). A later mate that places it on another
+  group clears its offset, as the mate door does for any first
+  operand (A11 (2)).
 - G3's sentence "hiding and free-move are display state, never
   persisted" narrows to hiding; `crates/viewer/README.md`, the
   `display.rs` module doc and the round-trip row that pins the

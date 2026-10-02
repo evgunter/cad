@@ -125,10 +125,10 @@ fn a_dangling_profile_ref_refuses_at_the_edit_door() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Loft {
+                node: Box::new(Node::Loft {
                     profiles: vec![bogus],
                     v_degree: count(1),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -145,10 +145,10 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Loft {
+                node: Box::new(Node::Loft {
                     profiles,
                     v_degree: len(2.0),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

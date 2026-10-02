@@ -50,15 +50,9 @@ fn assert_curved_faces_fully_minted(name: &str, body: &Body<f64>) {
                 curved_hes += 1;
                 assert!(
                     body.pcurve(he).is_some(),
-                    "{name}: half-edge {he:?} of a {:?}-chart face carries no stored \
+                    "{name}: half-edge {he:?} of a {}-chart face carries no stored \
                      cache at rest",
-                    match surface {
-                        Surface::Cylinder { .. } => "cylinder",
-                        Surface::Cone { .. } => "cone",
-                        Surface::Sphere { .. } => "sphere",
-                        Surface::Torus { .. } => "torus",
-                        _ => "other",
-                    }
+                    surface.kind().name()
                 );
             }
         }

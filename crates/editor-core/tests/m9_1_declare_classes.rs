@@ -11,7 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, ContactClass, DocEdit, EvalOptions, Node, NodeResult,
+    BooleanCoincidence, BooleanOp, CancelToken, CapEnd, DocEdit, EvalOptions, Node, NodeResult,
     ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, evaluate, find_flush_candidates,
 };
 
@@ -91,7 +91,7 @@ fn declare_node_preserves_the_findings_class() {
     // door must not re-decide. Built from a real finding so only the
     // class differs.
     let mut tangent = detected[0].clone();
-    tangent.class = ContactClass::Tangent;
+    tangent.class = BooleanCoincidence::TANGENT;
     let findings = vec![detected[0].clone(), tangent];
 
     let node: Node<editor_core::ProfileProgram> =
@@ -116,7 +116,7 @@ fn declare_node_preserves_the_findings_class() {
         "so the classes are the only thing distinguishing them — a re-defaulting \
          declare_node collapses these two rows into one meaning"
     );
-    assert_eq!(pairs[1].1, ContactClass::Tangent);
+    assert_eq!(pairs[1].1, BooleanCoincidence::TANGENT);
 }
 
 /// A hand-authored class is what the node holds: `Declare` is data,
@@ -130,17 +130,19 @@ fn an_authored_class_is_what_the_node_holds() {
         pairs: vec![
             (
                 (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
-                ContactClass::Rest,
+                BooleanCoincidence::REST,
             ),
             (
                 (cap(a, CapEnd::Start), cap(b, CapEnd::End)),
-                ContactClass::Tangent,
+                BooleanCoincidence::TANGENT,
             ),
         ],
     };
     let applied = doc
         .apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -149,8 +151,8 @@ fn an_authored_class_is_what_the_node_holds() {
     let Some(Node::Declare { pairs }) = applied.doc.node(id) else {
         panic!("the node is a Declare");
     };
-    assert_eq!(pairs[0].1, ContactClass::Rest);
-    assert_eq!(pairs[1].1, ContactClass::Tangent);
+    assert_eq!(pairs[0].1, BooleanCoincidence::REST);
+    assert_eq!(pairs[1].1, BooleanCoincidence::TANGENT);
 }
 
 /// **The wrong class, end to end from a recipe.**
@@ -178,7 +180,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
         let applied = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: declare(class),
+                    node: Box::new(declare(class)),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -189,12 +191,12 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
             .doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: Node::Boolean {
+                    node: Box::new(Node::Boolean {
                         op: BooleanOp::Union,
                         a,
                         b,
                         declare: Some(d),
-                    },
+                    }),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -215,12 +217,12 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
     };
 
     // The RIGHT class: the op consumes the declaration and runs.
-    let (ok, why) = run(ContactClass::Rest);
+    let (ok, why) = run(BooleanCoincidence::REST);
     assert!(ok, "a correctly-classed declaration still unions: {why}");
 
     // The WRONG class: typed contradiction naming the class that was
     // asked for, never a silent re-interpretation.
-    let (ok, msg) = run(ContactClass::Tangent);
+    let (ok, msg) = run(BooleanCoincidence::TANGENT);
     assert!(!ok, "a Tangent declaration on a conformal pair must refuse");
     assert!(
         msg.contains("ContactContradicted") && msg.contains("Tangent"),
@@ -244,10 +246,10 @@ fn the_detectors_class_is_the_kernels_enum() {
     );
     let findings = find_flush_candidates(&ev, a, b, Tol::witness()).expect("the detector runs");
     for f in &findings {
-        assert_eq!(f.class, ContactClass::Rest);
+        assert_eq!(f.class, BooleanCoincidence::REST);
         // Same type, spelled through the kernel path: this would not
         // compile against a parallel enum.
-        let kernel: topo::ContactClass = f.class;
+        let kernel: topo::BooleanCoincidence = f.class;
         assert_eq!(kernel.name(), "Rest");
     }
 }

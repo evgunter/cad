@@ -48,18 +48,35 @@ use super::doc::{Doc, NodeId, name_text};
 use super::mate::MateSide;
 use super::value::{Body, Evaluation};
 
+/// **The document a row's `__str__` speaks its nodes from**: the
+/// evaluated document for this document's own rows, and none for a row
+/// carried up from a document below, whose ids are that document's and
+/// are said by tag.
+#[derive(Clone, Default)]
+struct SpokenFrom(Option<Arc<d::ProfileDoc>>);
+
+impl SpokenFrom {
+    fn say<T: d::Say + core::fmt::Display>(&self, value: &T) -> String {
+        match &self.0 {
+            Some(doc) => d::spoken_by(value, doc),
+            None => value.to_string(),
+        }
+    }
+}
+
 /// Raise `ProductError` carrying the refusal's stable tag and the
-/// arm's own payload.
+/// arm's own payload, its message each node as `doc`, the gathered
+/// document, holds it.
 ///
 /// Every attribute is set on every arm, `None` where the arm does not
 /// carry it — the `WorkspaceError` posture: handling reads
 /// `err.node` without first branching on `err.variant`.
-pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError) -> PyErr {
+pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::ProfileDoc) -> PyErr {
     let (node, through, name) = product_fields(py, err);
     typed_err(
         py,
         ErrorClass::Product,
-        err.to_string(),
+        err.spoken(doc),
         &[
             (
                 "variant",
@@ -108,6 +125,13 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         E::PlacedUnderTwoRoots { placed, .. } => (id(placed), none(), none()),
         // The document-mismatch arm names two DOCUMENTS, which this
         // node/node/name triple cannot carry; the message states both.
+        // The unplaced groups are every one in the message, each
+        // with its cause.
+        E::Unplaced { groups } => (
+            groups.first().map_or_else(none, |(group, _)| id(group)),
+            none(),
+            none(),
+        ),
         E::NoBodyRoots
         | E::ProductInvalid { .. }
         | E::ContactLineage { .. }
@@ -158,17 +182,17 @@ pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyR
     // door that mints declarations over the same geometry.
     evaluation
         .paired_with(doc)
-        .map_err(|m| mispaired_product(py, m))?;
+        .map_err(|m| mispaired_product(py, m, evaluation))?;
     evaluation
         .gathered(|memo, doc, ev| crate::product_memo::body(memo, doc, ev, tol))
         .map(|body| Body::plain(Arc::new(body)))
-        .map_err(|err| product_err(py, &err))
+        .map_err(|err| product_err(py, &err, evaluation.doc()))
 }
 
 /// A mispaired `(doc, evaluation)` as the gather's own refusal — the
 /// one the memo path cannot inherit from a gather it does not reach.
-fn mispaired_product(py: Python<'_>, m: d::Mispaired) -> PyErr {
-    product_err(py, &m.into())
+fn mispaired_product(py: Python<'_>, m: d::Mispaired, evaluation: &Evaluation) -> PyErr {
+    product_err(py, &m.into(), evaluation.doc())
 }
 
 /// The product, with the stable names its entities answer to —
@@ -197,10 +221,10 @@ pub(crate) fn product_named(
     let tol = Tol::witness();
     evaluation
         .paired_with(doc)
-        .map_err(|m| mispaired_product(py, m))?;
+        .map_err(|m| mispaired_product(py, m, evaluation))?;
     let (body, names) = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::body_and_names(memo, doc, ev, tol))
-        .map_err(|err| product_err(py, &err))?;
+        .map_err(|err| product_err(py, &err, evaluation.doc()))?;
     let names = names
         .iter()
         .map(|name| name_text(py, name))
@@ -224,7 +248,7 @@ pub(crate) fn product_named(
 /// a reference every accessor silently answers `None` about.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct RefusedRef(d::RefusedRef);
+pub(crate) struct RefusedRef(d::RefusedRef, SpokenFrom);
 
 #[pymethods]
 impl RefusedRef {
@@ -258,7 +282,7 @@ impl RefusedRef {
     }
 
     fn __str__(&self) -> String {
-        self.0.to_string()
+        self.1.say(&self.0)
     }
 
     fn __repr__(&self) -> String {
@@ -329,7 +353,7 @@ impl MintedDeclaration {
 /// path, so the file to open is readable and not just printable.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct Attribution(d::Attribution);
+pub(crate) struct Attribution(d::Attribution, SpokenFrom);
 
 /// The document a foreign row is of, and the instances this document
 /// reached it through — the two halves of a [`d::Route`], as the
@@ -388,7 +412,7 @@ impl Attribution {
     }
 
     fn __str__(&self) -> String {
-        self.0.to_string()
+        self.1.say(&self.0)
     }
 
     fn __repr__(&self) -> String {
@@ -400,14 +424,14 @@ impl Attribution {
 /// kernel's own finding verbatim.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct AtRestFinding(d::AtRestFinding);
+pub(crate) struct AtRestFinding(d::AtRestFinding, SpokenFrom);
 
 #[pymethods]
 impl AtRestFinding {
     /// Which declaration the finding names, and in what relation.
     #[getter]
     fn attribution(&self) -> Attribution {
-        Attribution(self.0.attribution.clone())
+        Attribution(self.0.attribution.clone(), self.1.clone())
     }
 
     /// The finding composed the way the library renders one: the
@@ -415,7 +439,7 @@ impl AtRestFinding {
     /// own story. The kernel's messages carry their own recourse, so
     /// nothing is appended here.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        self.1.say(&self.0)
     }
 
     fn __repr__(&self) -> String {
@@ -436,7 +460,7 @@ impl AtRestFinding {
 /// other, so `getattr` never raises.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct MintRefusal(d::MintRefusal);
+pub(crate) struct MintRefusal(d::MintRefusal, SpokenFrom);
 
 #[pymethods]
 impl MintRefusal {
@@ -482,7 +506,7 @@ impl MintRefusal {
     #[getter]
     fn why(&self) -> Option<RefusedRef> {
         match &self.0 {
-            d::MintRefusal::Reference { why, .. } => Some(RefusedRef(why.clone())),
+            d::MintRefusal::Reference { why, .. } => Some(RefusedRef(why.clone(), self.1.clone())),
             d::MintRefusal::NoAtRestRecord { .. } => None,
         }
     }
@@ -501,7 +525,7 @@ impl MintRefusal {
     /// The refusal in the library's own words, its own recourse
     /// included.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        self.1.say(&self.0)
     }
 
     fn __repr__(&self) -> String {
@@ -528,7 +552,8 @@ impl CarriedRefusal {
     /// The inner document's own refusal, its `mate` a node of `of`.
     #[getter]
     fn refusal(&self) -> MintRefusal {
-        MintRefusal(self.0.refusal.clone())
+        // The row is the part's, spelled in its ids: said by tag.
+        MintRefusal(self.0.refusal.clone(), SpokenFrom::default())
     }
 
     /// The instantiating node OF THIS DOCUMENT the row came through.
@@ -658,14 +683,24 @@ impl Assembly {
 
 /// Raise `AssemblyError` carrying the refusal's stable tag and the
 /// arm's own payload.
-fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
+fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>) -> PyErr {
     use d::AssemblyError as E;
     // A gather refusal is not wrapped: the caller wants the gather's
     // own answer, and the wrapper adds nothing they can act on. It
     // still raises on THIS class — the door they called was the gate.
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let from = SpokenFrom(Some(Arc::clone(&doc)));
+    let mut node = none();
     let (refusals, findings) = match err {
+        // The group is the subject; the space's own gather refusal is
+        // in the message.
+        E::Space { group, .. } => {
+            node = Py::new(py, NodeId(*group))
+                .map(|v| v.into_any())
+                .unwrap_or_else(|_| py.None());
+            (none(), none())
+        }
         // The carried arm carries FOREIGN mates, so every row carries
         // its own route: `of` is the document to open and `via` the
         // instances this document reached it through, and the row's
@@ -691,7 +726,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
             return typed_err(
                 py,
                 ErrorClass::Assembly,
-                err.to_string(),
+                err.spoken(&*doc),
                 &[
                     (
                         "variant",
@@ -712,7 +747,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
         E::Mint { refusals } => (
             obj(refusals
                 .iter()
-                .map(|r| MintRefusal(r.clone()))
+                .map(|r| MintRefusal(r.clone(), from.clone()))
                 .collect::<Vec<_>>()
                 .into_pyobject(py)
                 .map(|v| v.unbind().into_any())),
@@ -722,7 +757,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
             none(),
             obj(findings
                 .iter()
-                .map(|f| AtRestFinding(f.clone()))
+                .map(|f| AtRestFinding(f.clone(), from.clone()))
                 .collect::<Vec<_>>()
                 .into_pyobject(py)
                 .map(|v| v.unbind().into_any())),
@@ -731,7 +766,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Assembly,
-        err.to_string(),
+        err.spoken(&*doc),
         &[
             (
                 "variant",
@@ -739,7 +774,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
                     .unbind()
                     .into_any(),
             ),
-            ("node", none()),
+            ("node", node),
             ("through", none()),
             ("of", none()),
             ("via", none()),
@@ -797,12 +832,16 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
 #[pyfunction]
 pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Assembly> {
     let tol = Tol::witness();
-    evaluation
-        .paired_with(doc)
-        .map_err(|m| assembly_err(py, &d::AssemblyError::Product(Box::new(m.into()))))?;
+    evaluation.paired_with(doc).map_err(|m| {
+        assembly_err(
+            py,
+            &d::AssemblyError::Product(Box::new(m.into())),
+            evaluation.doc_shared(),
+        )
+    })?;
     let assembly = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
-        .map_err(|err| assembly_err(py, &err))?;
+        .map_err(|err| assembly_err(py, &err, evaluation.doc_shared()))?;
     let names = assembly
         .names
         .iter()

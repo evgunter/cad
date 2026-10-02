@@ -45,6 +45,7 @@ from pncad import (
     m,
     mm,
 )
+from spoken import tag
 
 #: The chordal budget every index in this file is built at. A cube's
 #: faces are planar, so the tessellation is exact at any budget and the
@@ -481,6 +482,30 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         self.assertEqual(
             self.refusal(lambda: NodePick.build_all(ev, datum, DELTA)).variant,
             "not_a_body",
+        )
+
+    def test_the_message_speaks_the_node_as_the_evaluated_document_holds_it(self):
+        # The refusal is raised from the evaluation alone; the binding
+        # holds the document the evaluation is of, so its sentence
+        # says the node's kind, label and tag. `node` keeps the id.
+        doc = Doc()
+        datum = doc.insert(
+            Node.datum_plane((
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ))
+        )
+        doc.apply(DocEdit.set_label(datum, "sketch plane"))
+        err = self.refusal(lambda: NodePick.build(evaluate(doc), datum, 0, DELTA))
+        self.assertEqual(err.node, datum)
+        self.assertIn(
+            f'pick: Datum plane "sketch plane" ({tag(datum)})\'s value',
+            str(err),
         )
 
     def test_a_body_index_the_value_does_not_have_refuses(self):

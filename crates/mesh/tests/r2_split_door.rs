@@ -16,7 +16,7 @@
 use crate::common;
 use common::*;
 use geom_core::Tol;
-use topo::splitting::{SplitPlane, split};
+use topo::splitting::split;
 
 #[test]
 fn r2_split_door_near_pole() {
@@ -24,10 +24,11 @@ fn r2_split_door_near_pole() {
     let mut lines = vec![format!("eps = {eps:e}")];
     for rho in [0.9 * eps, 5.0 * eps, 1e3 * eps, 1e-6, 1e-3, 0.01, 0.1] {
         let y0 = (1.0f64 - rho * rho).sqrt();
-        let plane = SplitPlane {
-            origin: geom_core::Point3::new(0.0, y0, 0.0),
-            normal: geom_core::Vec3::new(0.0, 1.0, 0.0),
-        };
+        let plane = topo::test_support::split_plane(
+            geom_core::Point3::new(0.0, y0, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Tol::witness(),
+        );
         let r = split(&ball(), &plane, Tol::witness());
         match r {
             Err(e) => {

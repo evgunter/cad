@@ -55,6 +55,7 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
         // Neither sink denotes a body, so neither offers an entity to
         // invert — the same answer a declaration gives.
         | ValuePayload::Measure { .. }
@@ -320,6 +321,7 @@ test_utils::f6_variants! {
         EvaluationOfAnotherDocument,
         Ambiguous,
         Unnamed,
+        AcrossSpaces,
     ];
 }
 
@@ -418,6 +420,18 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
                 "face",
                 "body 2",
                 "kernel bug",
+            ],
+        ),
+        (
+            HitTestError::AcrossSpaces {
+                group: node,
+                cause: editor_core::Unplaced::NoOffset,
+            },
+            vec![
+                "different spaces",
+                "node 000000000007",
+                "no instance in it carries an offset",
+                "Recourse:",
             ],
         ),
     ];

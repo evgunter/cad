@@ -4,6 +4,8 @@ kind: issue
 title: zip: the declared-REST zip discards the Euler operators' own refusals (map_err(|_| …)) and reports only a sub-frontier or a desync
 status: open
 opened: 2026-09-30
+priority: P3
+cost: M
 ---
 
 

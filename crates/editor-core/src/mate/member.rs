@@ -881,7 +881,9 @@ mod tests {
         let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
             let a = crate::apply(
                 &doc,
-                &DocEdit::InsertNode { node },
+                &DocEdit::InsertNode {
+                    node: Box::new(node),
+                },
                 Tol::witness(),
                 &RefusingReach,
             )

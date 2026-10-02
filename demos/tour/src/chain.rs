@@ -165,11 +165,10 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// built around should not be a literal buried in the drawing code.
 ///
 /// **At the DEFAULT ε**, like every other measured number here: the
-/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured. WHY it
-/// moves is not established, and the cell says so: the refusal at the
-/// wall is the wedge's poisoned margin, which a band does not
-/// classify. So the cell asks at every ε whether this published box
-/// still certifies there rather than reasoning about it.
+/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured — for the
+/// reason [`crate::chaintol`]'s header gives under "What sets the
+/// wall". So the cell asks at every ε whether this published box still
+/// certifies there rather than reasoning about it.
 pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 
 /// **The same measurement at 1, 2, 3 and 4 links** — one number in
@@ -182,7 +181,8 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 /// `0.500 / 0.500 / 0.499`, and MEASURED with the radius doubled to
 /// `1.6e-3` m the fractions become `1.0000 / 0.73841 / 0.36921 /
 /// 0.22192` and the half-width `7.975e-4` m — still `0.498` of the
-/// radius. [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it. The one-link row
+/// radius; why half is [`crate::chaintol`]'s header, "What sets the
+/// wall". [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it. The one-link row
 /// is capped by the study itself rather than by the wall, and sits at
 /// `0.450` of the radius.
 ///
@@ -297,8 +297,15 @@ fn scl(v: f64) -> Expr {
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
@@ -477,7 +484,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             node,
             &Selector::of(NamePat::of_kind(EntityKind::Face)),
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                pncad::geom_brep::SurfaceKind::Cylinder,
+                pncad::prelude::SurfaceKind::Cylinder,
             ))],
             &doc.param_env::<f64>(),
             tol,

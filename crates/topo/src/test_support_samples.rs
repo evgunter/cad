@@ -178,7 +178,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v.extend(
         [
             "a declared face's surface kind is outside the Rest ladder's inventory \
-             (plane, sphere, cylinder)",
+             (plane, sphere, cylinder, torus)",
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
@@ -278,8 +278,8 @@ fn certify_errors() -> Vec<CertifyError> {
     let key = geom_brep::SurfaceKey::default();
     let mut v = vec![
         CertifyError::ChartImageUnavailable {
-            chart: geom_brep::SurfaceKind::Cone,
-            carrier: geom_brep::CurveKind::Ellipse,
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Ellipse,
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
@@ -335,16 +335,16 @@ fn certify_errors() -> Vec<CertifyError> {
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
     let mut v = vec![
         PcurveCertifyError::UnsupportedChart {
-            chart: geom_brep::SurfaceKind::Torus,
+            chart: geom::SurfaceKind::Torus,
         },
         PcurveCertifyError::UnsupportedCarrier {
-            chart: geom_brep::SurfaceKind::Torus,
-            carrier: geom_brep::CurveKind::Circle,
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
             class: geom_brep::UncoveredClass::TorusGeneralCircle,
         },
         PcurveCertifyError::CarrierOffChart {
-            chart: geom_brep::SurfaceKind::Sphere,
-            carrier: geom_brep::CurveKind::Line,
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Line,
             why: "a sphere holds no line",
         },
         PcurveCertifyError::ImageMismatch {
@@ -353,6 +353,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
+        PcurveCertifyError::ArcNearPole,
         PcurveCertifyError::IsoUnsupported {
             what: "a rational NURBS surface",
         },
@@ -863,7 +864,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     // A surface datum, poisoned or outside its range: every datum, at
     // each end of the range.
     for datum in geom::SurfaceDatum::iter() {
-        let kind = geom_brep::SurfaceKind::Torus;
+        let kind = geom::SurfaceKind::Torus;
         s.push((
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
@@ -892,7 +893,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     // A carrier datum, poisoned or outside its range: every datum, at
     // each end of the range.
     for datum in geom::CurveDatum::iter() {
-        let kind = crate::query::CurveKind::Ellipse;
+        let kind = geom::CurveKind::Ellipse;
         s.push((
             label("PoisonedCurveDatum", &datum),
             ValidationError::PoisonedCurveDatum { edge, kind, datum },

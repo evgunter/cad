@@ -42,8 +42,11 @@
 //! landing ON a loop boundary (edge/vertex hit), a tangent crossing
 //! (`d·n` in band), a tie between two crossings' advances, or an
 //! in-band advance sign all abandon the ray and retry with the next
-//! schedule member; exhaustion is the typed
-//! [`PointInSolidError::RayExhausted`]. A boundary pre-pass reports
+//! schedule member. So does a ray that may meet an untrimmable cone
+//! face (`FaceGeo::PartialCone`) ahead of `q`. Exhaustion is the typed
+//! [`PointInSolidError::RayExhausted`], or
+//! [`PointInSolidError::PartialConeFace`] when such a face set aside any
+//! ray. A boundary pre-pass reports
 //! `q` ON the solid's boundary as [`SolidContainment::OnBoundary`]
 //! before any ray is cast.
 //!
@@ -51,11 +54,20 @@
 //!
 //! - **`bool_point_in_solid_plane`**: signed elevation of `q` off a
 //!   face plane (boundary pre-pass; Zero ⇒ in-plane ⇒ loop test).
-//! - **`bool_point_in_solid_denom`**: `d·n` per face (parallel-ray
-//!   gate; Zero with `q` off-plane ⇒ the ray misses the plane —
-//!   skipped, not grazed).
+//! - **`bool_point_in_solid_denom`**: the parallel-ray gate, a length:
+//!   `d·n` per planar face, and a wall's `|d⊥|`, each levered by how far
+//!   from `q` the selection reaches (`selection_reach`), so the margin is
+//!   how far the ray rises off the plane, or drifts off its distance
+//!   from the axis, over every length at which it could meet the face.
+//!   Zero with `q` off the face ⇒ the ray misses it — skipped, not
+//!   grazed. The wall arm's outward sign at a root is read off the
+//!   decided discriminant, never re-decided.
 //! - **`bool_point_in_solid_advance`**: the crossing's advance `t`
 //!   along the ray (Zero ⇒ crossing at `q` — graze, retry).
+//! - **`bool_cone_partial_reach`**: a point's distance from a cone's
+//!   apex against the ball an untrimmable cone face lies in (Positive ⇒
+//!   that face cannot hold the point; anything else refuses or sets the
+//!   ray aside).
 //! - The in-face walk's rows are its own module's (`point_in_loop_*`
 //!   for a loop of lines, `point_in_arc_loop_*` for a loop with arcs —
 //!   [`point_in_carrier_loop`] lists them).
@@ -144,8 +156,10 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
+use crate::null::CurveGeom;
 use crate::splitting::containment::{
-    LoopContainment, PointInLoopError, SCHEDULE, loop_reach, point_in_carrier_loop,
+    LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
+    point_in_carrier_loop,
 };
 use crate::validate::decide;
 
@@ -225,7 +239,7 @@ pub enum PointInSolidError {
         /// The face.
         face: FaceKey,
         /// Its kind — the row the arm is missing for.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// The at-infinity orientation probe needs the body's signed
     /// volume and the closed-form props lane refused to certify it.
@@ -268,8 +282,15 @@ pub enum PointInSolidError {
     /// remainder — a face whose outline passes through the apex twice,
     /// an apex-closed face with a ring, a group whose members disagree
     /// on their slant window (two bands stacked on one cone, with
-    /// another surface's face between them), or a window not definitely
-    /// under a period on a face whose group does not wrap.
+    /// another surface's face between them), a window not definitely
+    /// under a period on a face whose group does not wrap, or a face
+    /// with an edge that is neither a rim nor a generator — a tilted
+    /// plane section, whose slant peaks inside the edge, so no
+    /// vertex-folded window states the face (`cone_window_premise`).
+    ///
+    /// The point-in-solid door refuses it only where such a face could
+    /// decide the answer: the point on that cone, or every ray of the
+    /// schedule meeting the cone ahead of the point.
     PartialConeFace {
         /// The cone face neither class expresses.
         face: FaceKey,
@@ -458,10 +479,9 @@ impl core::fmt::Display for PointInSolidError {
             Self::PartialConeFace { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: one of its cone faces has an \
-                 outline the inside/outside test cannot read (it passes through the \
-                 apex twice, say). The solid itself is fine. Recourse: split the cone \
-                 face so each piece reaches the apex at most once, or let its faces \
-                 cover the turn"
+                 outline the inside/outside test cannot read. The solid itself is fine. \
+                 Recourse: split the cone face so each piece reaches the apex at most \
+                 once, or let its faces cover the turn; a tilted cut has none yet"
             ),
             Self::PartialTorusFace { .. } => write!(
                 f,
@@ -519,7 +539,7 @@ pub(crate) fn face_plane<T: Decide>(
         // key that does not resolve is corruption.
         Some(s) => Err(PointInSolidError::KindUnsupported {
             face,
-            kind: geom_brep::SurfaceKind::of(s),
+            kind: s.kind(),
         }),
         None => Err(PointInSolidError::CorruptFace { face }),
     }
@@ -535,8 +555,8 @@ pub(crate) fn face_plane<T: Decide>(
 /// **Orientation (S10)**: every arm's outward direction is the chart's
 /// with the face's sense folded in. The plane arm carries it in the
 /// normal itself (there is a vector to fold it into); the curved arms have
-/// no stored normal — their outward direction is recomputed at each
-/// ray hit — so they carry the face's `sense` bit and the doors apply
+/// no stored normal — their outward sign is taken at each ray hit — so
+/// they carry the face's `sense` bit and the doors apply
 /// it to the sign they derive. Only the material-side signs need it:
 /// the boundary pre-pass compares residuals against Zero and the
 /// chart trims are parameter-domain work, both orientation-free.
@@ -687,6 +707,24 @@ enum FaceGeo<T: geom_core::Real> {
         /// derived from the chart normal.
         sense: bool,
     },
+    /// A cone face whose chart trim this door cannot state
+    /// ([`cone_chart_trim`]'s `PartialConeFace`). Its region on the cone
+    /// is unknown, so a query refuses only where that region could
+    /// matter: `q` on the double cone within the face's apex ball, or a
+    /// ray that may meet the cone ahead within it — the sweep then tries
+    /// the next ray, and the query refuses `PartialConeFace` only when
+    /// every ray does ([`partial_cone_reach`]).
+    PartialCone {
+        /// The apex.
+        apex: Point3<T>,
+        /// The unit axis.
+        axis: Vec3<T>,
+        /// The half-angle.
+        half_angle: T,
+        /// A radius about the apex the face lies within, which is also
+        /// the lever of the ray margins.
+        reach: T,
+    },
 }
 
 /// The representative of `face`'s sphere-surface face group when that
@@ -763,7 +801,19 @@ fn face_geo<T: Decide>(
             u_ref,
         }) => {
             let (az, representative, v, nappe) =
-                cone_chart_trim(body, face, charts, apex, axis, half_angle, band)?;
+                match cone_chart_trim(body, face, charts, apex, axis, half_angle, band) {
+                    Ok(trim) => trim,
+                    Err(PointInSolidError::PartialConeFace { .. }) => {
+                        let reach = partial_cone_reach(body, face, apex)?;
+                        return Ok(FaceGeo::PartialCone {
+                            apex,
+                            axis,
+                            half_angle,
+                            reach,
+                        });
+                    }
+                    Err(e) => return Err(e),
+                };
             Ok(FaceGeo::Cone {
                 apex,
                 axis,
@@ -836,7 +886,7 @@ fn face_geo<T: Decide>(
         }
         Some(s) => Err(PointInSolidError::KindUnsupported {
             face,
-            kind: geom_brep::SurfaceKind::of(s),
+            kind: s.kind(),
         }),
         None => Err(PointInSolidError::CorruptFace { face }),
     }
@@ -1120,7 +1170,7 @@ pub(super) fn wall_outline<T: Decide>(
         return Ok(WallOutline::Unsupported { reach: None });
     }
     let unsupported = || -> Result<WallOutline<T>, PointInSolidError> {
-        let (anchor, reach) = loop_reach(body, f.outer, band)?;
+        let (anchor, reach) = loop_reach(body, f.outer)?;
         Ok(WallOutline::Unsupported {
             reach: Some((anchor, reach)),
         })
@@ -1495,6 +1545,18 @@ pub(super) fn cone_chart_trim<T: Decide>(
     half_angle: T,
     band: Band,
 ) -> Result<(Option<(T, T)>, FaceKey, (T, T), bool), PointInSolidError> {
+    // Every wearer of the surface, not the face alone: a wrapped group's
+    // representative answers for its members' union.
+    for &member in
+        scope_members(body, face, charts).map_err(|face| PointInSolidError::CorruptFace { face })?
+    {
+        cone_window_premise(body, member).map_err(|e| match e {
+            PointInSolidError::PartialConeFace { .. } => {
+                PointInSolidError::PartialConeFace { face }
+            }
+            other => other,
+        })?;
+    }
     let cos_a = half_angle.cos();
     if let Some(representative) = wrapped_cone_group(body, face, charts, apex, axis, cos_a, band)? {
         let v = cone_slant_window(body, representative, apex, axis, cos_a)?;
@@ -1538,6 +1600,7 @@ pub(super) fn cone_face_trim<T: Decide>(
     half_angle: T,
     band: Band,
 ) -> Result<(Option<(T, T)>, (T, T), bool), PointInSolidError> {
+    cone_window_premise(body, face)?;
     let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
     let nappe = cone_nappe(face, v, band)?;
     if wrap_rims(body, face, WrapRims::Coaxial { origin: apex, axis }, band)?.is_some() {
@@ -1620,6 +1683,75 @@ fn cone_trimmed_window<T: Decide>(
         return Err(partial);
     }
     Ok(az)
+}
+
+/// **The premise of a vertex-folded window**: every boundary edge of
+/// the face is a rim (`Circle`, slant constant) or a generator (`Line`,
+/// slant affine), so the slant between an edge's ends never leaves the
+/// span of its ends and the vertices' window is the face's own. A
+/// plane section that is not axis-normal peaks INSIDE its edge, and
+/// the window would over-cover the face on one side of it and
+/// under-cover it on the other, so such a face is refused here rather
+/// than misread (the solid door then reads it as
+/// [`FaceGeo::PartialCone`]). Reading its region needs each section's own side
+/// along the generator (the cylinder's `wall_outline` discipline),
+/// which this arm does not have.
+///
+/// # Errors
+///
+/// [`PointInSolidError::PartialConeFace`] for an edge outside the two
+/// classes; [`PointInSolidError::CorruptFace`] for an unwalkable face.
+fn cone_window_premise<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<(), PointInSolidError> {
+    let corrupt = || PointInSolidError::CorruptFace { face };
+    let f = body.get_face(face).ok_or_else(corrupt)?;
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+            let curve = body.get_edge(edge).ok_or_else(corrupt)?.curve;
+            let Some(CurveGeom::Certified(c)) = body.get_curve_geom(curve) else {
+                return Err(corrupt());
+            };
+            match c.carrier() {
+                geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => {}
+                geom::Curve3::Ellipse { .. }
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Spiric { .. } => {
+                    return Err(PointInSolidError::PartialConeFace { face });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **A radius about the apex that a cone face lies within** — the
+/// reach [`FaceGeo::PartialCone`] refuses inside.
+///
+/// On a cone, `|p − apex|` is the slant `|v|`, a chart coordinate, so a
+/// face reaches no farther from its apex than its boundary does; each
+/// loop's ball about the apex is the containment walk's own
+/// ([`loop_extent_from`]: vertices, and each curved edge's carrier ball).
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a missing face, and
+/// [`loop_extent_from`]'s refusal of a loop that does not walk.
+fn partial_cone_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    apex: Point3<T>,
+) -> Result<T, PointInSolidError> {
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let mut reach = T::zero();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        reach = reach.max(loop_extent_from(body, lk, apex)?);
+    }
+    Ok(reach)
 }
 
 /// The face's slant window, folded over its outer cycle's vertices.
@@ -2631,6 +2763,10 @@ pub(super) fn chart_dir<T: Decide>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> Vec3<
 /// radian at the point being tested, which is what the margin has to
 /// mean.
 ///
+/// A decided membership, not [`geom::periodic_window_may_hold`]'s
+/// question; why is stated once, at
+/// [`crate::splitting::containment::arc_trim`].
+///
 /// # Errors
 ///
 /// [`PointInSolidError::Escalated`] — an in-band period guard, or a
@@ -3582,6 +3718,28 @@ fn point_in_faces<T: Decide>(
                     }
                 }
             }
+            // On the double cone, `q` may be on the face or off it, and
+            // which is the trim this face has none of.
+            FaceGeo::PartialCone {
+                apex,
+                axis,
+                half_angle,
+                reach,
+            } => {
+                let elev = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
+                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                    == Sign::Zero
+                    && decide(
+                        "bool_cone_partial_reach",
+                        Margin::of((q - apex).norm() - reach),
+                        band,
+                    )
+                    .map_err(escalate)?
+                        != Sign::Positive
+                {
+                    return Err(PointInSolidError::PartialConeFace { face });
+                }
+            }
             // The full-sphere arm (M5 PR 9c): the linearized radial
             // residual, the same metre-valued form the cylinder arm
             // and the certification layer classify. A full chart
@@ -3677,22 +3835,58 @@ fn point_in_faces<T: Decide>(
     }
 
     // ---- Closest-hit ray sweep over the fixed schedule. ----
+    // A ray that may meet a partial cone face is set aside like a
+    // graze; the query refuses naming that face only if no ray clears.
+    let reach = selection_reach(body, faces, q)?;
+    let mut partial = None;
     for r in &SCHEDULE {
         let d = r.map(T::from_f64).normalize();
-        if let Some(verdict) = cast_ray(body, sel, q, d, band, tol)? {
-            return Ok(verdict);
+        match cast_ray(body, sel, q, d, reach, band, tol) {
+            Ok(Some(verdict)) => return Ok(verdict),
+            Ok(None) => {} // graze: next schedule member
+            Err(PointInSolidError::PartialConeFace { face }) => {
+                partial = partial.or(Some(face));
+            }
+            Err(e) => return Err(e),
         }
-        // graze: next schedule member
     }
-    Err(PointInSolidError::RayExhausted)
+    Err(partial.map_or(PointInSolidError::RayExhausted, |face| {
+        PointInSolidError::PartialConeFace { face }
+    }))
+}
+
+/// **How far from `q` any loop of the selection reaches**: the radius of
+/// a ball about `q` holding every boundary loop of every face in
+/// `faces` ([`loop_extent_from`]). It asks no decision. It is the lever
+/// the ray's two skip questions are metered over (the plane arm's
+/// `d·n̂`, the wall arm's axis-parallel rung): a ray that drifts off a
+/// face's plane, or off a wall's axis, by no more than the band over
+/// this whole length meets no point of the face, so skipping it is
+/// sound. A planar face lies in its outer loop's hull, and a wall face
+/// in the hull of its loops (each of its points is on a ruling segment
+/// between two boundary points), so each lies in this ball.
+fn selection_reach<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    q: Point3<T>,
+) -> Result<T, PointInSolidError> {
+    let mut reach = T::zero();
+    for &face in faces {
+        let f = body
+            .get_face(face)
+            .ok_or(PointInSolidError::CorruptFace { face })?;
+        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+            reach = reach.max(loop_extent_from(body, l, q)?);
+        }
+    }
+    Ok(reach)
 }
 
 /// The crossing sign implied by a CHART-outward direction on a face
 /// whose orientation sense may reverse it (S10): `d·n̂_outward` has the
 /// opposite sign to `d·n̂_chart` exactly when the face's `sense` is
-/// `false`. Used by the curved doors, which recompute their outward
-/// direction from the surface at each hit and so have no stored normal
-/// to fold the sign into (the plane door gets it from [`face_geo`]).
+/// `false`. Used by the curved doors, which take their outward sign at
+/// each hit and so have no stored normal to fold it into (the plane door gets it from [`face_geo`]).
 ///
 /// Exact structure, not a numeric decision: a `bool` selects between
 /// two enum values — no comparison, no tolerance, nothing for the
@@ -3742,23 +3936,34 @@ pub(super) enum WallRoots<T> {
 /// and folding them here would have made this the ray's function with
 /// a second caller rather than a shared primitive.
 ///
-/// **The two trileans keep their names and their metering**, because
-/// both are pinned: `bool_ray_cylinder_disc`'s dimensionless
-/// `disc/(2r)²` is a deliberate non-normalization flagged at the sphere
-/// arm below, and re-metering either one would move every acceptance
-/// margin that quotes them.
+/// **Both trileans are lengths.**
+///
+/// - **`bool_point_in_solid_denom`**, the axis-parallel rung: `|d⊥|`,
+///   the line's speed off the axis, levered by `span`, the run of the
+///   line's own parameter over which the caller reads roots. Their
+///   product is how far the line drifts off its distance from the axis
+///   over that run. Zero ⇒ it drifts less than the band, so the residual
+///   is constant there and no root lands in the run.
+/// - **`bool_ray_cylinder_disc`**: the discriminant over `|d⊥|²` is
+///   the squared half-chord in the plane across the axis, `r² − p²` for
+///   a line passing `p` from it, and over `2r` it is the depth the line
+///   reaches inside the circle, the sphere arm's form
+///   ([`line_sphere_roots`]). Positive ⇒ two definite roots; Zero ⇒
+///   tangent; Negative ⇒ definite miss.
 ///
 /// # Errors
 ///
 /// [`WallRootFault`] — an in-band axis-parallel test or an in-band
 /// discriminant, with the rung that escalated. The caller wraps it in
 /// its own error type.
+#[allow(clippy::too_many_arguments)] // the line, the wall, the run and the band, each named
 pub(super) fn line_wall_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
     origin: Point3<T>,
     axis: Vec3<T>,
     radius: T,
+    span: T,
     band: Band,
 ) -> Result<WallRoots<T>, WallRootFault> {
     let w0 = q - origin;
@@ -3766,27 +3971,25 @@ pub(super) fn line_wall_roots<T: Decide>(
     let dp = d - axis * d.dot(axis);
     let a2 = dp.norm_squared();
     let two_r = T::from_f64(2.0) * radius;
-    // Ledger row F2: sin²/2r is 1/m — flagged, not cast.
-    match geom_core::k_stats::decide_flagged("bool_point_in_solid_denom", a2 / two_r, band, "F2")
-        .map_err(|diag| WallRootFault {
-            rung: WallRung::AxisParallel,
-            diag,
-        })? {
+    match decide(
+        "bool_point_in_solid_denom",
+        Margin::levered(dp.norm(), span),
+        band,
+    )
+    .map_err(|diag| WallRootFault {
+        rung: WallRung::AxisParallel,
+        diag,
+    })? {
         Sign::Positive => {}
         _ => return Ok(WallRoots::AxisParallel),
     }
     let b2 = w0p.dot(dp);
     let c2 = w0p.norm_squared() - radius.powi(2);
     let disc = b2.powi(2) - a2 * c2;
-    // Metre-scaled discriminant: Positive ⇒ two definite roots; Zero ⇒
-    // tangent; Negative ⇒ definite miss; in-band escalates.
-    // Ledger row F2: disc/(2r)² is dimensionless (its own in-tree
-    // admission, PR 9c review F3) — flagged.
-    match geom_core::k_stats::decide_flagged(
+    match decide(
         "bool_ray_cylinder_disc",
-        disc / two_r.powi(2),
+        Margin::over_lever(disc / a2, two_r),
         band,
-        "F2",
     )
     .map_err(|diag| WallRootFault {
         rung: WallRung::Discriminant,
@@ -3796,27 +3999,22 @@ pub(super) fn line_wall_roots<T: Decide>(
         Sign::Zero => return Ok(WallRoots::Tangent),
         Sign::Negative => return Ok(WallRoots::Miss),
     }
-    let root = disc.max(T::zero()).sqrt();
-    Ok(WallRoots::Two([
-        (T::zero() - b2 - root) / a2,
-        (T::zero() - b2 + root) / a2,
-    ]))
+    Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
 }
 
 /// **Which rung of [`line_wall_roots`] escalated**: the two questions
-/// the line × wall quadratic asks before it has roots. Each passes on a
-/// definite sign, and neither margin is a length (both are ledger row
-/// F2's flagged forms), so no refusal of either names a tolerance to
-/// tighten below.
+/// the line × wall quadratic asks before it has roots. Both margins are
+/// lengths ([`line_wall_roots`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum WallRung {
     /// Whether the line runs parallel to the wall's axis
-    /// (`bool_point_in_solid_denom`, `|d⊥|²/2r`): a positive margin has
-    /// roots to find, a zero one a constant residual.
+    /// (`bool_point_in_solid_denom`, `|d⊥|` levered by the run the
+    /// caller reads): a positive margin has roots to find, a zero one a
+    /// residual constant over that run.
     AxisParallel,
     /// Whether the line crosses the wall, grazes it or misses it
-    /// (`bool_ray_cylinder_disc`, `disc/(2r)²`).
+    /// (`bool_ray_cylinder_disc`, `disc/|d⊥|²` over `2r`).
     Discriminant,
 }
 
@@ -3829,6 +4027,32 @@ pub struct WallRootFault {
     pub diag: Indeterminate,
 }
 
+/// **The two roots of `a·t² + 2b·t + c`**, `[(−b − √disc)/a,
+/// (−b + √disc)/a]` with `disc = b² − a·c` decided positive by the
+/// caller, each spelled so that no sum in it cancels.
+///
+/// Of the two numerators `−b ∓ √disc`, one adds magnitudes and the
+/// other cancels when `a·c` is small beside `b²`; divided by a lead `a`
+/// that is only decided nonzero, the cancelled one is wrong by
+/// `≈ ulp·|b|/a`, far above the band on a line all but parallel to a
+/// wall's axis. Since `(−b − √disc)(−b + √disc) = a·c`, that root is
+/// also `c` over the other numerator, which adds magnitudes, and that is
+/// the spelling taken for it. Which numerator adds magnitudes is the
+/// sign of `b`, read by [`geom_core::Real::select_le_zero`] as a value
+/// selection, not a decision: both spellings name the same root, so
+/// where an enclosure of `b` straddles zero the hull of the two is as
+/// narrow as either, and neither denominator nears zero there (it is
+/// `√disc` plus a sliver).
+fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
+    let root = disc.max(T::zero()).sqrt();
+    // `−b − √disc` adds magnitudes for `b > 0`, `√disc − b` for `b ≤ 0`.
+    let (minus, plus) = (T::zero() - b - root, root - b);
+    [
+        b.select_le_zero(c / plus, minus / a),
+        b.select_le_zero(plus / a, c / minus),
+    ]
+}
+
 /// The certified roots of the LINE `q + d·t` against the sphere
 /// `(center, radius)`: `|d|²t² + 2(w·d)t + (|w|² − r²) = 0`, `w = q − c`.
 /// `d` need not be unit — a ray's is, and a `Line` carrier's is by a
@@ -3836,9 +4060,7 @@ pub struct WallRootFault {
 ///
 /// The discriminant is metered as a LENGTH: `disc/|d|²` is the squared
 /// half-chord in metres, so `disc/(|d|²·2r)` is the D4 ¶1-honest
-/// margin. That is NOT what [`line_wall_roots`] does with its own
-/// (`disc/(2r)²`, dimensionless); the length form here is the correct
-/// one, and the cylinder's is pinned where it stands.
+/// margin, the form [`line_wall_roots`] takes across the axis too.
 ///
 /// A line is never parallel to a sphere in the sense a wall's ruling
 /// is, so [`WallRoots::AxisParallel`] is never answered, and no line
@@ -3871,11 +4093,7 @@ pub(super) fn line_sphere_roots<T: Decide>(
         Sign::Zero => return Ok(WallRoots::Tangent),
         Sign::Negative => return Ok(WallRoots::Miss),
     }
-    let root = disc.max(T::zero()).sqrt();
-    Ok(WallRoots::Two([
-        (T::zero() - b2 - root) / a2,
-        (T::zero() - b2 + root) / a2,
-    ]))
+    Ok(WallRoots::Two(quadratic_roots(a2, b2, c2, disc)))
 }
 
 /// What [`line_torus_roots`] found — the same three-way keep-them-apart
@@ -4011,10 +4229,9 @@ fn cbrt<T: geom_core::Real>(x: T) -> T {
 /// (`≈ |Q|/P`). The textbook stable form transfers it onto `√(…)`
 /// instead, which does not vanish there: the radicand straddles zero,
 /// `P/(3A)` becomes the whole line, and the arm escalates a ray it has
-/// every digit for (`r1_the_q_zero_surface_certifies_on_both_sides`). The cylinder and
-/// cone arms' quadratic formula has the same hazard with no such way
-/// out, because the sign there picks WHICH root the formula names:
-/// `work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead`.
+/// every digit for (`r1_the_q_zero_surface_certifies_on_both_sides`). The
+/// quadratic arms escape the same hazard by selecting, per root, between
+/// two spellings of that one root ([`quadratic_roots`]).
 ///
 /// `A − B` itself cancels when `x` is small beside `A`, which costs an
 /// ABSOLUTE error `≈ ulp·A`, and only for `P > 0`: for `P < 0`, `B < 0`
@@ -4348,8 +4565,8 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
                 // otherwise: neither is a certified pair of factors.
                 Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
             }
-            let root = inner.max(T::zero()).sqrt();
-            ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
+            let [lo, hi] = quadratic_roots(T::one(), T::zero() - p / two, s, inner / four);
+            ((T::zero(), hi), (T::zero(), lo))
         } else {
             // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
             // whose constant term is negative, so its LARGEST real root is
@@ -4392,8 +4609,7 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
             Sign::Zero => return Ok(TorusRoots::Uncertain),
             Sign::Positive => {}
         }
-        let root = inner.max(T::zero()).sqrt();
-        for y in [(T::zero() - a - root) / two, (T::zero() - a + root) / two] {
+        for y in quadratic_roots(T::one(), a / two, c, inner / four) {
             ts[found] = y;
             found += 1;
         }
@@ -4421,6 +4637,7 @@ fn cast_ray<T: Decide>(
     sel: &SolidFaces,
     q: Point3<T>,
     d: Vec3<T>,
+    reach: T,
     band: Band,
     tol: Tol,
 ) -> Result<Option<SolidContainment>, PointInSolidError> {
@@ -4464,19 +4681,20 @@ fn cast_ray<T: Decide>(
                 // `t` below is a ratio of two such dots and cannot see
                 // the orientation at all.
                 let denom = d.dot(normal);
-                // Ledger row F2: a unit·unit cosine against the metre
-                // band — dimensionless; the coordinated ray-caster
-                // re-pin unit owns the fix. Flagged, not cast.
-                let denom_sign = geom_core::k_stats::decide_flagged(
+                // The cosine levered by the selection's reach: how far
+                // the ray rises off the plane over every length at which
+                // it could meet the face ([`selection_reach`]).
+                let denom_sign = decide(
                     "bool_point_in_solid_denom",
-                    denom,
+                    Margin::levered(denom, reach),
                     band,
-                    "F2",
                 )
                 .map_err(escalate)?;
                 if denom_sign == Sign::Zero {
                     // Parallel ray: q is definitely off this plane (the
-                    // pre-pass returned), so the ray misses it entirely.
+                    // pre-pass returned), and the ray rises less than
+                    // the band over the reach, so no point of the face
+                    // is on it.
                     continue;
                 }
                 let t = (origin - q).dot(normal) / denom;
@@ -4499,9 +4717,9 @@ fn cast_ray<T: Decide>(
             // infinite wall at the roots of a quadratic in metres
             // (the linearized residual along the ray); each definite
             // root inside the face's chart trim folds like a planar
-            // hit, with the outward sign read from the radial
-            // gradient at the hit. A tangent ray (discriminant in the
-            // zero band) grazes and retries — never a parity guess.
+            // hit, with the outward sign read off the root order
+            // (below). A tangent ray (discriminant in the zero band)
+            // grazes and retries — never a parity guess.
             FaceGeo::Cylinder {
                 origin,
                 axis,
@@ -4511,42 +4729,35 @@ fn cast_ray<T: Decide>(
                 h,
                 sense,
             } => {
-                let roots = line_wall_roots(q, d, origin, axis, radius, band)
+                // Every point of a wall face lies on a ruling segment
+                // whose two ends are points of its boundary (the hull
+                // [`wall_hit_outside_reach`] reads), so the face lies in
+                // the hull of its loops, inside the selection's ball: a
+                // hit is at most `reach` along the ray.
+                let roots = line_wall_roots(q, d, origin, axis, radius, reach, band)
                     .map_err(|fault| escalate(fault.diag))?;
                 let ts = match roots {
-                    // Axis-parallel ray: constant residual; the pre-pass
-                    // said q is off the wall, so it misses entirely.
+                    // Axis-parallel ray: it drifts off its distance from
+                    // the axis by less than the band over every length
+                    // at which it could meet the face, and the pre-pass
+                    // said q is off the wall, so it misses it.
                     WallRoots::AxisParallel | WallRoots::Miss => continue,
                     WallRoots::Tangent => return Ok(None), // tangent ray: graze
                     WallRoots::Two(ts) => ts,
                 };
-                for t in ts {
+                // The outward sign at each root is read off the decided
+                // discriminant, never re-decided: `d·rad` at a root is
+                // `b2 + a2·t = ∓√disc`, so the near root (`a2 > 0`) is
+                // the entry and the far one the exit, in the chart's
+                // outward sense (S10 folds the face's).
+                for (t, chart_outward) in ts.into_iter().zip([Sign::Negative, Sign::Positive]) {
                     let p = q + d * t;
                     match wall_hit(body, face, origin, axis, radius, u_ref, az, h, p, band)? {
                         Some(false) => continue,
                         None => return Ok(None), // trim-boundary hit: graze
                         Some(true) => {}
                     }
-                    // Outward sign: d · (radial gradient) at the hit —
-                    // a CHART direction, so the face's sense decides
-                    // whether it is the material-outward one (S10).
-                    let wp = p - origin;
-                    let rad = wp - axis * wp.dot(axis);
-                    let outward = oriented(
-                        // Ledger row F2: (unit·radial)/radius is
-                        // dimensionless — flagged, not cast.
-                        geom_core::k_stats::decide_flagged(
-                            "bool_point_in_solid_denom",
-                            d.dot(rad) / radius,
-                            band,
-                            "F2",
-                        )
-                        .map_err(escalate)?,
-                        sense,
-                    );
-                    if outward == Sign::Zero {
-                        return Ok(None); // grazing incidence at the hit
-                    }
+                    let outward = oriented(chart_outward, sense);
                     if fold(&mut best, face, t, outward)?.is_none() {
                         return Ok(None);
                     }
@@ -4632,10 +4843,9 @@ fn cast_ray<T: Decide>(
                     Sign::Zero => return Ok(None), // tangent ray: graze
                     Sign::Negative => continue,    // definite miss
                 }
-                let root = disc.max(T::zero()).sqrt();
                 // Unordered: `A` may be negative, and the closest-hit
                 // fold orders by advance anyway.
-                for t in [(T::zero() - b2 - root) / a2, (T::zero() - b2 + root) / a2] {
+                for t in quadratic_roots(a2, b2, c2, disc) {
                     let p = q + d * t;
                     match point_on_cone_in_face(
                         face, apex, axis, half_angle, u_ref, az, v, nappe, p, band,
@@ -4697,6 +4907,54 @@ fn cast_ray<T: Decide>(
                     }
                     if fold(&mut best, face, t, outward)?.is_none() {
                         return Ok(None);
+                    }
+                }
+            }
+            // A ray that may meet the untrimmable face ahead cannot be
+            // answered; one that definitely misses the double cone, or
+            // meets it only behind `q`, takes no crossing from it. The
+            // quadratic and its margins are the cone arm's above.
+            FaceGeo::PartialCone {
+                apex,
+                axis,
+                half_angle,
+                reach,
+            } => {
+                let partial = PointInSolidError::PartialConeFace { face };
+                let cos2 = half_angle.cos().powi(2);
+                let w0 = q - apex;
+                let (da, wa) = (d.dot(axis), w0.dot(axis));
+                let a2 = da.powi(2) - cos2;
+                let b2 = da * wa - w0.dot(d) * cos2;
+                let c2 = wa.powi(2) - w0.norm_squared() * cos2;
+                if decide("bool_ray_cone_lead", Margin::levered(a2, reach), band)
+                    .map_err(escalate)?
+                    == Sign::Zero
+                {
+                    return Err(partial);
+                }
+                let disc = b2.powi(2) - a2 * c2;
+                match decide("bool_ray_cone_disc", Margin::over_lever(disc, reach), band)
+                    .map_err(escalate)?
+                {
+                    Sign::Negative => continue,
+                    Sign::Zero => return Err(partial),
+                    Sign::Positive => {}
+                }
+                for t in quadratic_roots(a2, b2, c2, disc) {
+                    let behind = decide("bool_point_in_solid_advance", Margin::of(t), band)
+                        .map_err(escalate)?
+                        == Sign::Negative;
+                    let p = q + d * t;
+                    let beyond = decide(
+                        "bool_cone_partial_reach",
+                        Margin::of((p - apex).norm() - reach),
+                        band,
+                    )
+                    .map_err(escalate)?
+                        == Sign::Positive;
+                    if !behind && !beyond {
+                        return Err(partial);
                     }
                 }
             }
@@ -5072,5 +5330,128 @@ mod per_solid_entry_tests {
             };
             assert_eq!(whole, expected, "{q:?}");
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod wall_root_rows {
+    //! [`line_wall_roots`]' two rungs are lengths: the axis-parallel
+    //! rung reads the line's drift off its distance from the axis over
+    //! the run its caller reads, so a wall's size does not decide it.
+
+    use super::*;
+    use geom_core::{Band, Tol};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("the witness band: {e:?}"))
+    }
+
+    /// The roots of the line `q + d·t` on the wall of radius `r` about
+    /// the `z` axis, over a run of `span`.
+    fn roots(q: Point3<f64>, d: Vec3<f64>, r: f64, span: f64) -> WallRoots<f64> {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        line_wall_roots(q, d, Point3::new(0.0, 0.0, 0.0), z, r, span, band())
+            .unwrap_or_else(|f| panic!("the rungs decide: {f:?}"))
+    }
+
+    /// **A ray straight across a wide wall's axis has its two roots.**
+    /// The radius is `1/ε`, so the retired `|d⊥|²/2r` read `ε/2` here,
+    /// in the zero band, and the wall arm skipped every ray of the
+    /// schedule: a point on the axis of a rod that wide read `Out`
+    /// (`reach_volume_backstop.rs`'s scaled oblique rod at ε = 1e-6).
+    #[test]
+    fn a_ray_across_a_wide_walls_axis_has_both_roots() {
+        let r = 1.0 / Tol::witness().eps();
+        let got = roots(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            r,
+            4.0 * r,
+        );
+        let WallRoots::Two([t0, t1]) = got else {
+            panic!("both roots: {got:?}");
+        };
+        assert!(
+            (t0 + r).abs() <= r * 1e-15 && (t1 - r).abs() <= r * 1e-15,
+            "the roots are the radius either side: {t0}, {t1}"
+        );
+    }
+
+    /// **A near-axis ray's in-span exit root is right to its row's ε.**
+    /// Each line runs all but parallel to the axis, so the lead
+    /// `|d⊥|²` is tiny, and its exit root's numerator `−b + √disc`
+    /// cancels: spelled that way, the root is off by `1.1e-11` (against
+    /// ε = 1e-12) and `8.4e-8` (against ε = 1e-9), where
+    /// [`quadratic_roots`]' `c/(−b − √disc)` is off by `4.5e-14` and
+    /// `4.5e-11`. Each expected root is the exact root of the row's own
+    /// `f64` data, rounded once.
+    #[test]
+    fn a_near_axis_rays_exit_root_is_right_to_the_band() {
+        let tol = Tol::witness();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let rows = [
+            // ε, radius, q, d⊥, span, the exit root
+            (
+                1e-12,
+                0.5,
+                (0.484_375, 0.0625),
+                (2f64.powi(-18), 2f64.powi(-19)),
+                4096.0,
+                2_878.535_214_595_601,
+            ),
+            (1e-9, 1e3, (999.0, 0.0), (1e-6, 0.0), 2e6, 1e6),
+        ];
+        let mut off = Vec::new();
+        for (eps, r, (qx, qy), (dx, dy), span, exit) in rows {
+            let band =
+                Band::linear_at(tol, eps).unwrap_or_else(|e| panic!("the band at {eps}: {e:?}"));
+            let d = Vec3::new(dx, dy, (1.0 - dx * dx - dy * dy).sqrt());
+            let got = line_wall_roots(
+                Point3::new(qx, qy, 0.0),
+                d,
+                Point3::new(0.0, 0.0, 0.0),
+                z,
+                r,
+                span,
+                band,
+            )
+            .unwrap_or_else(|f| panic!("the rungs decide at {eps}: {f:?}"));
+            let WallRoots::Two([_, t1]) = got else {
+                panic!("both roots at {eps}: {got:?}");
+            };
+            if (t1 - exit).abs() > eps {
+                off.push(format!(
+                    "at ε = {eps}: {t1} against {exit}, off by {:e}",
+                    (t1 - exit).abs()
+                ));
+            }
+        }
+        assert!(off.is_empty(), "the exit roots: {off:?}");
+    }
+
+    /// **The axis-parallel rung reads the drift over the run.** A ray
+    /// from the axis of a unit wall, tilted off it so that over a unit
+    /// run it drifts `ε/4` from the axis, stays inside the band there and
+    /// is axis-parallel; tilted to drift `4Kε`, it is not, and has its
+    /// roots far beyond the run.
+    #[test]
+    fn the_axis_parallel_rung_reads_the_drift_over_the_run() {
+        let tol = Tol::witness();
+        let ray = |drift: f64| Vec3::new(drift, 0.0, 1.0).normalize();
+        let q = Point3::new(0.0, 0.0, 0.0);
+        let near = roots(q, ray(tol.eps() / 4.0), 1.0, 1.0);
+        assert!(
+            matches!(near, WallRoots::AxisParallel),
+            "a drift of ε/4 over the run: {near:?}"
+        );
+        let clear = roots(q, ray(4.0 * tol.k() * tol.eps()), 1.0, 1.0);
+        let WallRoots::Two([t0, t1]) = clear else {
+            panic!("a drift of 4Kε over the run has roots: {clear:?}");
+        };
+        assert!(
+            t0 < -1.0 && t1 > 1.0,
+            "the roots lie beyond the unit run: {t0}, {t1}"
+        );
     }
 }

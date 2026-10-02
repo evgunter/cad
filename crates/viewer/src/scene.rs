@@ -30,8 +30,9 @@ use std::collections::BTreeSet;
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, LoopProgram, Node,
-    ProductError, ProfileProgram, RecipeNodeId, apply, evaluate, product,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, HeldNodes, LoopProgram,
+    Node, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply, evaluate, held_by,
+    product,
 };
 use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
@@ -234,8 +235,10 @@ pub enum SceneError {
     },
     /// The document's roots did not gather into a product body, for
     /// any of the gather's reasons (`ProductErrorKind::means_no_body`
-    /// says which of them is an absence rather than a fault).
-    NoProduct(ProductError),
+    /// says which of them is an absence rather than a fault), beside
+    /// the nodes its sentence names as the gathered document held them
+    /// ([`held_by`]).
+    NoProduct(ProductError, HeldNodes),
     /// The body did not tessellate at this δ.
     NotTessellated(TessellateError),
     /// The tessellation was empty, or its positions gave no usable
@@ -312,7 +315,7 @@ impl core::fmt::Display for SceneError {
                  its value in millimetres is not a finite number",
                 unit.symbol()
             ),
-            Self::NoProduct(error) => write!(f, "{error}"),
+            Self::NoProduct(error, held) => write!(f, "{}", Said(error, Speaker::held(held))),
             Self::NotTessellated(error) => {
                 write!(
                     f,
@@ -886,6 +889,12 @@ impl core::fmt::Display for SceneDocError {
 
 impl core::error::Error for SceneDocError {}
 
+/// The gather's refusal of `doc`, its nodes said as `doc` holds them.
+fn no_product(error: ProductError, doc: &Doc<ProfileProgram>) -> SceneError {
+    let held = held_by(&error, doc);
+    SceneError::NoProduct(error, held)
+}
+
 /// Evaluate a document and gather its product body.
 ///
 /// # Errors
@@ -894,7 +903,7 @@ impl core::error::Error for SceneDocError {}
 pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, SceneError> {
     let cancel = CancelToken::new();
     let evaluation = evaluate::<f64>(doc, None, &cancel, &EvalOptions::default(), tol);
-    product(doc, &evaluation, tol).map_err(SceneError::NoProduct)
+    product(doc, &evaluation, tol).map_err(|error| no_product(error, doc))
 }
 
 /// **Gather the product of a pair the landing did not keep one for.**
@@ -916,7 +925,7 @@ pub fn product_of_evaluation(
     evaluation: &pncad::document::Evaluation<f64>,
     tol: Tol,
 ) -> Result<Body<f64>, SceneError> {
-    product(doc, evaluation, tol).map_err(SceneError::NoProduct)
+    product(doc, evaluation, tol).map_err(|error| no_product(error, doc))
 }
 
 /// The scene of a product SOMEONE ELSE gathered.
@@ -1521,7 +1530,9 @@ fn insert(
     // asked.
     let applied = apply(
         &doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         tol,
         &pncad::document::RefusingReach,
     )

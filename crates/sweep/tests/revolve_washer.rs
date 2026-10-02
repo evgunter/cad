@@ -39,7 +39,7 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     // Four walls: two cylinders (r = 1, r = 2) and two plane annuli.
     let mut cylinders = 0;
     let mut planes = 0;
-    for w in &t.walls[0] {
+    for w in &t.walls()[0] {
         let f = w.expect("no on-axis segments");
         match t
             .body
@@ -78,6 +78,7 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
         pi_walls,
         pi_meridians,
         pi_rims,
+        ..
     } = &t.kind
     else {
         panic!("full revolve");
@@ -126,8 +127,8 @@ fn donut_two_arc_profile_shares_one_torus() {
     assert_eq!(counts(&t.body), (2, 4, 2, 0));
     // One shared torus surface.
     assert_eq!(t.body.surfaces().count(), 1);
-    let k0 = t.body.get_face(t.walls[0][0].unwrap()).unwrap().surface;
-    let k1 = t.body.get_face(t.walls[0][1].unwrap()).unwrap().surface;
+    let k0 = t.body.get_face(t.walls()[0][0].unwrap()).unwrap().surface;
+    let k1 = t.body.get_face(t.walls()[0][1].unwrap()).unwrap().surface;
     assert_eq!(k0, k1);
     assert!(matches!(
         t.body.get_surface(k0),
@@ -166,8 +167,8 @@ fn donut_two_arc_profile_shares_one_torus() {
     // change to revolve's face order fails on that fact with its own
     // name on it instead of on a mysterious negative volume.
     for (n, (fk, want)) in [
-        (t.walls[0][0].unwrap(), (0.0, 0.5)),
-        (t.walls[0][1].unwrap(), (0.5, 1.0)),
+        (t.walls()[0][0].unwrap(), (0.0, 0.5)),
+        (t.walls()[0][1].unwrap(), (0.5, 1.0)),
     ]
     .into_iter()
     .enumerate()
@@ -188,11 +189,11 @@ fn donut_two_arc_profile_shares_one_torus() {
         &t.body,
         &[
             (
-                t.walls[0][0].unwrap(),
+                t.walls()[0][0].unwrap(),
                 geom_core::Point3::new(0.0, 0.0, 1.5),
             ),
             (
-                t.walls[0][1].unwrap(),
+                t.walls()[0][1].unwrap(),
                 geom_core::Point3::new(0.0, 1.0, 1.5),
             ),
         ],
@@ -209,11 +210,11 @@ fn donut_two_arc_profile_shares_one_torus() {
         &t.body,
         &[
             (
-                t.walls[0][0].unwrap(),
+                t.walls()[0][0].unwrap(),
                 geom_core::Point3::new(7.0, -3.0, 12.5),
             ),
             (
-                t.walls[0][1].unwrap(),
+                t.walls()[0][1].unwrap(),
                 geom_core::Point3::new(7.0, -2.0, 12.5),
             ),
         ],

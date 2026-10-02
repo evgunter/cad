@@ -83,8 +83,8 @@ pub use reach::{
 };
 pub(crate) use solve::solve_with_env;
 pub use solve::{
-    ClusterMaintenance, MateRole, SolvedPoses, groups, reading_edges, relative_freedom_components,
-    root_of, solve_document,
+    MateRole, PoseRefusal, SolvedPoses, Space, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
+    places, reading_edges, relative_freedom_components, root_of, solve_document,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -482,8 +482,8 @@ impl Alignment {
     }
 
     /// Whether every authored coordinate is finite — the edit door's
-    /// admission test, the placement registry's rule applied one level
-    /// out (a non-finite alignment could never decide anything). A
+    /// admission test, as a placement's (a non-finite alignment could
+    /// never decide anything). A
     /// `FromFace` side authors no number; its face's pose is the
     /// part's, read at the solve, and is not a number this door can
     /// see.
@@ -677,17 +677,23 @@ pub enum LeverRefusal {
     },
 }
 
-impl core::fmt::Display for LeverRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// The part's own refusal is numbered in the part, so it is said by its
+// own `Display`; the instance and the node are this document's.
+impl crate::spoken::Say for LeverRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Reach {
                 instance, refusal, ..
-            } => write!(f, "instance {}'s part {refusal}", instance),
+            } => write!(f, "{}'s part {refusal}", by.node_as(*instance, "instance")),
             Self::NotAnInstance { node } => write!(
                 f,
-                "node {} is not a live instantiate node, so it has no part whose extent \
+                "{} is not a live instantiate node, so it has no part whose extent \
                  could lever a verdict. {}",
-                node,
+                by.node(*node),
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::OutOfRange { parts, datum } => {
@@ -710,6 +716,13 @@ impl core::fmt::Display for LeverRefusal {
                 )
             }
         }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for LeverRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -753,8 +766,15 @@ impl FaceRefusal {
     }
 }
 
-impl core::fmt::Display for FaceRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// The face is the part's name and the reach's refusal the part's, both
+// numbered in the part, so each is said by its own `Display`; the
+// instance and the node are this document's.
+impl crate::spoken::Say for FaceRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Reach {
                 instance,
@@ -763,17 +783,24 @@ impl core::fmt::Display for FaceRefusal {
                 ..
             } => write!(
                 f,
-                "instance {}'s part answers none for the {face}: {refusal}",
-                instance
+                "{}'s part answers none for the {face}: {refusal}",
+                by.node_as(*instance, "instance")
             ),
             Self::NotAnInstance { node } => write!(
                 f,
-                "node {} is not a live instantiate node, so it has no part whose face could \
+                "{} is not a live instantiate node, so it has no part whose face could \
                  be read. {}",
-                node,
+                by.node(*node),
                 geom_core::KERNEL_DEFECT_ENDING
             ),
         }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for FaceRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -1115,6 +1142,31 @@ pub enum MateFault {
         /// and the fault's every other arm stays the size it is.
         refusal: Box<LeverRefusal>,
     },
+    /// **A checked offset disagrees with the solve** (A11 (2)): a
+    /// member of a placed group that is not its root carries an
+    /// offset, which states where it sits, and the solve places it
+    /// elsewhere. The statement is verified, never trusted and never
+    /// ignored, so the instance is faulted and the rest of its group
+    /// stands. Recourse: [`OFFSET_RECOURSE`].
+    OffsetDisagrees {
+        /// The instance whose offset disagrees.
+        instance: RecipeNodeId,
+        /// Its group's root, whose offset places the group.
+        root: RecipeNodeId,
+        /// The predicate that measured the disagreement.
+        predicate: &'static str,
+        /// What it measured.
+        clash: Clash,
+    },
+    /// **A checked offset could not be checked** (A11 (2)): the
+    /// statement is neither confirmed nor refuted, so the instance is
+    /// faulted rather than trusted.
+    OffsetUnchecked {
+        /// The instance whose offset could not be checked.
+        instance: RecipeNodeId,
+        /// Why.
+        cause: Box<OffsetCheck>,
+    },
     /// **A side's `FromFace` frame did not resolve to a pose**: the
     /// mated part's own evaluation answered no pose for the face the
     /// frame names ([`MateReach::face_pose`]), in the resolver's or
@@ -1126,7 +1178,7 @@ pub enum MateFault {
     /// a mate being inserted, and the solve at every evaluation for a
     /// state a part edit brings a mate to (a face that vanished or
     /// changed carrier) — a load never refuses it, since replay
-    /// declines the read ([`solve::Maintain`]).
+    /// declines the read (`solve::admit_mate`).
     FaceUnresolved {
         /// The mate.
         mate: RecipeNodeId,
@@ -1137,6 +1189,96 @@ pub enum MateFault {
         /// arm, and the fault's every other arm stays the size it is.
         refusal: Box<FaceRefusal>,
     },
+}
+
+/// The recourse a disagreeing checked offset names.
+pub const OFFSET_RECOURSE: &str = "clear the offset, or change the mate";
+
+/// **Why a checked offset could not be checked**
+/// ([`MateFault::OffsetUnchecked`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum OffsetCheck {
+    /// A placement the check reads did not evaluate at the document's
+    /// own parameters: the offset itself, the root's, or a gauge on
+    /// the chain.
+    Placement {
+        /// The instance or gauge whose placement refused.
+        node: RecipeNodeId,
+        /// The evaluation layer's own refusal, unchanged.
+        error: NodeRefusal,
+    },
+    /// The member's part reach — the lever the check is decided over —
+    /// is not in hand.
+    Unleverable(LeverRefusal),
+    /// The check landed in the ambiguity band.
+    Indeterminate(Box<Indeterminate>),
+    /// The solve gives the member no pose: `mate`, which welds its
+    /// group, refused, so the group's spanning tree does not reach it.
+    Unreached {
+        /// The group's first mate the solve refused.
+        mate: RecipeNodeId,
+    },
+}
+
+impl crate::spoken::Say for OffsetCheck {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Placement { node, .. } => {
+                write!(f, "the placement at {} does not evaluate", by.node(*node))
+            }
+            Self::Unleverable(refusal) => write!(f, "{}", crate::spoken::Said(refusal, by)),
+            Self::Indeterminate(diag) => {
+                write!(f, "the check could not be decided — {}", diag.payload())
+            }
+            Self::Unreached { mate } => write!(
+                f,
+                "the solve gives it no pose, because {}, which welds its group, refused",
+                by.node_as(*mate, "mate")
+            ),
+        }
+    }
+}
+
+/// The cause where no document is at hand: each node by its tag.
+impl core::fmt::Display for OffsetCheck {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+/// The measurement a refusal quotes, as the tail of its sentence:
+/// what was measured where `there` would have had to hold.
+fn write_clash(f: &mut core::fmt::Formatter<'_>, clash: Clash, there: &str) -> core::fmt::Result {
+    match clash {
+        Clash::Structural => write!(
+            f,
+            "found the cosets meet in the empty set — a structural refusal, with no margin to \
+             measure"
+        ),
+        Clash::Length { metres } if metres.is_finite() => {
+            write!(f, "measured a clash of {metres} m where {there}")
+        }
+        // A length that is not finite is not one.
+        Clash::Length { metres } => write!(
+            f,
+            "measured a clash that is not a finite length ({metres}) where {there}"
+        ),
+        Clash::Levered(lever @ Lever::Roll { radians, arm }) => write!(
+            f,
+            "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m where {there}",
+            lever.deviation()
+        ),
+        Clash::Levered(lever @ Lever::Residual { value, arm }) => write!(
+            f,
+            "measured a dimensionless residual of {value} on a {arm} m arm, a deviation of {} m \
+             where {there}",
+            lever.deviation()
+        ),
+    }
 }
 
 /// **The pairing predicate's finding, in this door's vocabulary.**
@@ -1189,7 +1331,14 @@ impl MateFault {
             | Self::PartSelectsAnotherCopy { .. }
             | Self::SelfMate { .. }
             | Self::Unleverable { .. }
-            | Self::FaceUnresolved { .. } => None,
+            | Self::FaceUnresolved { .. }
+            | Self::OffsetDisagrees { .. } => None,
+            Self::OffsetUnchecked { cause, .. } => match &**cause {
+                OffsetCheck::Placement { node, error } => Some((*node, error)),
+                OffsetCheck::Unleverable(_)
+                | OffsetCheck::Indeterminate(_)
+                | OffsetCheck::Unreached { .. } => None,
+            },
         }
     }
 
@@ -1310,8 +1459,20 @@ impl Refuted {
     }
 }
 
-impl core::fmt::Display for MateFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// Every node the fault names is in the mate's own document; a part's
+// face and refusal are numbered in the part and said by their own
+// `Display`. The mate is said by what it is, so a frame that has already
+// named it ([`crate::spoken::Speaker::about`]) reads `this mate`.
+impl crate::spoken::Say for MateFault {
+    #[allow(clippy::too_many_lines)] // one arm per variant, each short
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        use crate::spoken::Said;
+        let mate_ = |id: RecipeNodeId| by.node_as(id, "mate");
+        let instance_ = |id: RecipeNodeId| by.node_as(id, "instance");
         match self {
             // The two ids ride the payload; the sentence names the roles.
             Self::PosesOfAnotherDocument { .. } => f.write_str(
@@ -1321,28 +1482,28 @@ impl core::fmt::Display for MateFault {
             ),
             Self::Frame { mate, side, error } => write!(
                 f,
-                "mate {}'s {} frame has no definite placement: {error}",
-                mate,
+                "{}'s {} frame has no definite placement: {error}",
+                mate_(*mate),
                 side.name()
             ),
             Self::ClassNotAdmitted { mate } => write!(
                 f,
-                "mate {}'s contact class is not admitted in v1 — {}. Recourse: delete the \
+                "{}'s contact class is not admitted in v1 — {}. Recourse: delete the \
                  mate, and insert it again declaring a Rest",
-                mate,
+                mate_(*mate),
                 topo::FIT_DEFERRAL
             ),
             Self::TableLacks { mate, what } => write!(
                 f,
-                "mate {}: the coset table has no entry for {what}, and refuses rather than \
+                "{}: the coset table has no entry for {what}, and refuses rather than \
                  invent one. Recourse: delete the mate, and insert it again as a coaxial mate \
                  carrying the clocking",
-                mate
+                mate_(*mate)
             ),
             Self::Indeterminate { mate, diag } => write!(
                 f,
-                "mate {}: a case split could not be decided — {}. Recourse: {}",
-                mate,
+                "{}: a case split could not be decided — {}. Recourse: {}",
+                mate_(*mate),
                 diag.payload(),
                 geom_core::NO_DECLARATION_RECOURSE
             ),
@@ -1354,17 +1515,17 @@ impl core::fmt::Display for MateFault {
                 clash,
             } => {
                 // One mate named on BOTH sides is a mate contradicting
-                // itself, and "mates 6 and 6" reads as an indexing
+                // itself, and "mate 6 and mate 6" reads as an indexing
                 // fault rather than as the shape the payload states.
                 if held == added {
                     write!(
                         f,
-                        "mate {} contradicts itself — the constraints it declares admit no \
+                        "{} contradicts itself — the constraints it declares admit no \
                          common pose",
-                        held
+                        mate_(*held)
                     )?;
                 } else {
-                    write!(f, "mates {} and {} cannot both hold", held, added)?;
+                    write!(f, "{} and {} cannot both hold", mate_(*held), mate_(*added))?;
                 }
                 // The predicate's name is routing and rides the
                 // payload; the sentence says what it found in words.
@@ -1376,38 +1537,10 @@ impl core::fmt::Display for MateFault {
                 // WHETHER there is a measurement to report, and of
                 // which kind, is the predicate's fact and the type
                 // carries it: a levered clash prints the product of
-                // the two halves it shows, computed here, so the
+                // the two halves it shows, computed there, so the
                 // sentence cannot assert an identity the payload
                 // failed to keep.
-                match clash {
-                    Clash::Structural => write!(
-                        f,
-                        "found the cosets meet in the empty set — a structural refusal, with no \
-                         margin to measure"
-                    )?,
-                    Clash::Length { metres } if metres.is_finite() => write!(
-                        f,
-                        "measured a clash of {metres} m where the cosets would have had to meet"
-                    )?,
-                    // A length that is not finite is not one.
-                    Clash::Length { metres } => write!(
-                        f,
-                        "measured a clash that is not a finite length ({metres}) where the cosets \
-                         would have had to meet"
-                    )?,
-                    Clash::Levered(lever @ Lever::Roll { radians, arm }) => write!(
-                        f,
-                        "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
-                         where the cosets would have had to meet",
-                        lever.deviation()
-                    )?,
-                    Clash::Levered(lever @ Lever::Residual { value, arm }) => write!(
-                        f,
-                        "measured a dimensionless residual of {value} on a {arm} m arm, a \
-                         deviation of {} m where the cosets would have had to meet",
-                        lever.deviation()
-                    )?,
-                }
+                write_clash(f, *clash, "the cosets would have had to meet")?;
                 // The repair is the same whichever measurement the
                 // predicate had to report, so it is stated once.
                 write!(f, ". Recourse: {CONTRADICTORY_RECOURSE}")
@@ -1419,21 +1552,21 @@ impl core::fmt::Display for MateFault {
                 residual,
             } => write!(
                 f,
-                "mate {} does not determine instance {} from instance {}: {} survives. \
+                "{} does not determine {} from {}: {} survives. \
                  Recourse: {UNDER_RECOURSE}",
-                mate,
-                child,
-                parent,
+                mate_(*mate),
+                instance_(*child),
+                instance_(*parent),
                 residual.describe()
             ),
             Self::DanglingHead { mate, side, head } => write!(
                 f,
-                "mate {}'s {} reference resolves through node {}, which does not resolve to a \
+                "{}'s {} reference resolves through {}, which does not resolve to a \
                  live member (an instance, or a pattern-placed instance). Recourse: rebind the \
                  reference, or delete the mate",
-                mate,
+                mate_(*mate),
                 side.name(),
-                head
+                by.node(*head)
             ),
             // `error` is the placer's own refusal, drawn on a line of its
             // own — the placer's row, or the mate's carried line — so
@@ -1442,11 +1575,11 @@ impl core::fmt::Display for MateFault {
                 mate, side, placer, ..
             } => write!(
                 f,
-                "mate {}'s {} reference has no derived pose: node {p}, on its derivation, \
-                 refuses. Recourse: repair node {p}",
-                mate,
+                "{}'s {} reference has no derived pose: {p}, on its derivation, \
+                 refuses. Recourse: repair {p}",
+                mate_(*mate),
                 side.name(),
-                p = placer
+                p = by.node(*placer)
             ),
             Self::PartSelectsAnotherCopy {
                 mate,
@@ -1456,23 +1589,76 @@ impl core::fmt::Display for MateFault {
                 selected,
             } => write!(
                 f,
-                "mate {}'s {} reference names copy {named}; the part node {p} above it selects \
+                "{}'s {} reference names copy {named}; the {p} above it selects \
                  copy {selected}, and a document may not place one copy and gather another. \
-                 Recourse: set part node {p}'s index to copy {named}, or rebind the reference \
+                 Recourse: set {p}'s index to copy {named}, or rebind the reference \
                  to copy {selected}",
-                mate,
+                mate_(*mate),
                 side.name(),
-                p = part
+                p = by.node_as(*part, "part node")
             ),
             Self::SelfMate { mate, instance } => write!(
                 f,
-                "mate {} names one member on both sides (it stands on instance {}); a mate \
+                "{} names one member on both sides (it stands on {}); a mate \
                  relates a PAIR. Recourse: rebind one side to another member, or delete the \
                  mate",
-                mate, instance
+                mate_(*mate),
+                instance_(*instance)
             ),
             Self::Unleverable { mate, refusal } => {
-                write!(f, "mate {}: {refusal}", mate)
+                write!(f, "{}: {}", mate_(*mate), Said(&**refusal, by))
+            }
+            Self::OffsetDisagrees {
+                instance,
+                root,
+                predicate,
+                clash,
+            } => {
+                write!(
+                    f,
+                    "{}'s offset disagrees with where its mates place it relative to \
+                     its group's root, {} — predicate `{predicate}` ",
+                    instance_(*instance),
+                    instance_(*root)
+                )?;
+                write_clash(
+                    f,
+                    *clash,
+                    "the offset and the solve would have had to agree",
+                )?;
+                write!(f, ". {}", crate::sentence::Recourse(OFFSET_RECOURSE))
+            }
+            Self::OffsetUnchecked { instance, cause } => {
+                write!(
+                    f,
+                    "{}'s offset could not be checked against where its mates place \
+                     it: {}",
+                    instance_(*instance),
+                    Said(&**cause, by)
+                )?;
+                // A lever refusal ends on its own recourse.
+                match &**cause {
+                    OffsetCheck::Placement { node, .. } => write!(
+                        f,
+                        ". {}",
+                        crate::sentence::Recourse(format_args!(
+                            "repair {}, or clear the offset",
+                            by.node(*node)
+                        ))
+                    ),
+                    OffsetCheck::Unleverable(_) => Ok(()),
+                    OffsetCheck::Unreached { mate } => write!(
+                        f,
+                        ". {}",
+                        crate::sentence::Recourse(format_args!(
+                            "repair {}, or clear the offset",
+                            mate_(*mate)
+                        ))
+                    ),
+                    OffsetCheck::Indeterminate(_) => {
+                        write!(f, ". {}", crate::sentence::Recourse("clear the offset"))
+                    }
+                }
             }
             Self::FaceUnresolved {
                 mate,
@@ -1480,11 +1666,30 @@ impl core::fmt::Display for MateFault {
                 refusal,
             } => write!(
                 f,
-                "mate {}'s {} frame names a face that did not resolve to a pose: {refusal}",
-                mate,
-                side.name()
+                "{}'s {} frame names a face that did not resolve to a pose: {}",
+                mate_(*mate),
+                side.name(),
+                Said(&**refusal, by)
             ),
         }
+    }
+}
+
+/// The fault where no document is at hand: each node by its tag.
+impl core::fmt::Display for MateFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl MateFault {
+    /// **The fault as the frame holding the mate's document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). A fault
+    /// is memoized with the solve and the evaluation, so it holds ids,
+    /// never a label.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 

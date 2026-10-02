@@ -155,7 +155,7 @@ fn probe_apex_level_rim_refuses() {
     };
     match chart_pcurve(&carrier, &cone, band()) {
         Err(PcurveCertifyError::CarrierOffChart {
-            chart: geom_brep::SurfaceKind::Cone,
+            chart: geom::SurfaceKind::Cone,
             ..
         }) => {}
         other => panic!("expected CarrierOffChart, got {other:?}"),
