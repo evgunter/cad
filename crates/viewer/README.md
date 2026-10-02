@@ -694,8 +694,8 @@ Fourteen censuses, none of them a dump:
 | `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
 | `frame::outcome_notices` | a field of `OpOutcome` reaches the chrome and is never worded — an edit's consequence the door reported and the one client never shows, which is what DM7's report exists to end |
 | `Withdrawal::all` | a KIND of withdrawal reaches the chrome's notices and is never worded — the fan-out from a `PruneReport` that three hand-written `extend` calls in `app`-gated code used to do, where no row could execute it |
-| `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
-| `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+| `Say for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
+| `Say for BlendTarget` | a refusal names a scope narrower than the target it refused on |
 | `PruneReport::is_empty` | a fourth kind of withdrawal leaves the revision where it was, which is the chrome not rebuilding a picture that changed |
 | `PickCache::forget` | a fourth thing describing the picture outlives the picture — a missed `attempt` is what lets a late build install an index of a document nobody is looking at |
 | `Display for Unusable` | the one sentence a refused preferences store shows says less than the value holds |
@@ -877,6 +877,38 @@ label without acting would leave a stale label on the line.
 `Refusal::Edit` is the exception inside the batch: the kernel door
 speaks `EditError` at the refusal, so a rename later in its own batch
 does not reach it (`work/emit/edit-error-respeaks-from-a-later-version.md`).
+
+**The pick path's refusals hold bare ids and are spoken where they are
+drawn.** The pick index, its edge names, the id pass and the blend
+tool's loads are built from the landed run alone, so `PickIndexError`,
+`IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
+`BlendTarget`, `BlendEvent`, `idpass::IdAnswer` and
+`idpass::Disagreement` carry no document and implement `Say`; their
+`Display` says each node by its tag. The frame that draws one speaks
+it from the landed document (`DocSession::landed_pair`), the one whose
+ids it is spelled in: `frame::pick_refusal`, `frame::index_badge`'s
+tooltip, `frame::held_edges_badge`, `frame::tool_notice` (through
+`ToolNotice::said`), `Disagreement::notice`, the blend panel's target
+line and the datum form's face readout. A value carried past the frame
+that made it keeps the document it is spelled in (`frame::Spelled`),
+and is said by its tags from any other: the held-edge refusal the
+viewport leaves for the next frame's toolbar is one, since an `Open`
+between the two lands another document. `BlendEvent::TargetLost`
+names its node as the document spoke it when the target was picked,
+since no later document holds it.
+
+**The selection's verdict is spoken from the landed document too.**
+`DocSession::standing` asks a picked entity's resolution of the landed
+run every frame, so `pane::properties::standing_verdict` says its
+`ResolveError`, and its `ResolveIndeterminate` through
+`app::indeterminate_wording`, from that run's document.
+
+The landed document lags the committed one by a run. A sentence spoken
+from it says the label the landed run was read under, so a rename that
+has not landed yet reaches a badge at the next landing, and a line
+message (made once) at the next act or the next time it is said. The
+`frame::acts` argument above covers sentences spoken from the committed
+document only.
 
 **Seventeen of the eighteen writers that can put a sentence on the line
 now come through the ranking.** All eighteen used to reach the field

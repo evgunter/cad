@@ -711,30 +711,12 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         moved: impl Fn(FaceKey) -> Option<Slot>,
     ) -> Result<Sides, EulerOpError> {
-        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let side = |he: HalfEdgeKey| {
-            let he_data = self.resolve_half_edge(he)?;
-            let face = self
-                .get_loop(he_data.parent_loop)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Loop(he_data.parent_loop),
-                })?
-                .face;
-            let surface = self
-                .get_face(face)
-                .ok_or(EulerOpError::StaleKey {
-                    key: EntityId::Face(face),
-                })?
-                .surface;
-            Ok::<_, EulerOpError>((surface, moved(face).unwrap_or(Slot::Kept(surface))))
-        };
-        let (plus, plus_after) = side(edge_data.he_plus)?;
-        let (minus, minus_after) = side(edge_data.he_minus)?;
+        let sides = crate::readback::edge_sides(self, edge)?;
+        let after =
+            |side: crate::readback::EdgeSide| moved(side.face).unwrap_or(Slot::Kept(side.surface));
         Ok(Sides {
-            before: [plus, minus],
-            after: [plus_after, minus_after],
+            before: [sides.plus.surface, sides.minus.surface],
+            after: [after(sides.plus), after(sides.minus)],
         })
     }
 
@@ -1407,11 +1389,8 @@ mod tests {
 
     /// `edge`'s two faces, `he_plus`'s first.
     fn faces_of(body: &Body<f64>, edge: EdgeKey) -> [FaceKey; 2] {
-        let e = body.get_edge(edge).unwrap();
-        [
-            body.face_of_half_edge(e.he_plus).unwrap(),
-            body.face_of_half_edge(e.he_minus).unwrap(),
-        ]
+        let (plus, minus) = crate::readback::edge_sides(body, edge).unwrap().faces();
+        [plus, minus]
     }
 
     /// The edges with a half on `face`, in edge-arena order.

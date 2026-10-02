@@ -5540,10 +5540,10 @@ pub(crate) fn tier3_local_checks_marked<
                 error,
             }),
         }
-        let Some((fs_plus, fs_minus)) = edge_face_surfaces(body, edge.he_plus, edge.he_minus)
-        else {
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
+        let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
         // scaffolding door is for edges whose surfaces do not exist
         // yet. This edge has two faces — the lookup above answered —
@@ -5686,11 +5686,11 @@ pub(crate) fn tier3_local_checks_marked<
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        let Some(((f_plus, fs_plus), (f_minus, fs_minus))) =
-            edge_adjacent_faces(body, edge.he_plus, edge.he_minus)
-        else {
+        let Ok(sides) = crate::readback::edge_sides(body, edge_key) else {
             continue;
         };
+        let (f_plus, fs_plus) = (sides.plus.face, sides.plus.surface);
+        let (f_minus, fs_minus) = (sides.minus.face, sides.minus.surface);
         let (Some(s_plus), Some(s_minus)) =
             (body.surfaces.get(fs_plus), body.surfaces.get(fs_minus))
         else {
@@ -7917,34 +7917,6 @@ fn edge_endpoints<T: Real>(
     let p_start = *body.points.get(body.vertices.get(plus.start)?.point)?;
     let p_end = *body.points.get(body.vertices.get(end_vertex)?.point)?;
     Some((p_start, p_end))
-}
-
-/// The surface keys of an edge's two adjacent faces (`he_plus`'s side,
-/// `he_minus`'s side), or `None` on unresolvable links.
-fn edge_face_surfaces<T: Real>(
-    body: &Body<T>,
-    he_plus: HalfEdgeKey,
-    he_minus: HalfEdgeKey,
-) -> Option<(crate::geometry::SurfaceKey, crate::geometry::SurfaceKey)> {
-    let ((_, s_plus), (_, s_minus)) = edge_adjacent_faces(body, he_plus, he_minus)?;
-    Some((s_plus, s_minus))
-}
-
-/// An edge's two adjacent faces with their surface keys (`he_plus`'s
-/// side, `he_minus`'s side), or `None` on unresolvable links.
-fn edge_adjacent_faces<T: Real>(
-    body: &Body<T>,
-    he_plus: HalfEdgeKey,
-    he_minus: HalfEdgeKey,
-) -> Option<(
-    (FaceKey, crate::geometry::SurfaceKey),
-    (FaceKey, crate::geometry::SurfaceKey),
-)> {
-    let face_of = |he: HalfEdgeKey| {
-        let face = body.face_of_half_edge(he)?;
-        Some((face, body.get_face(face)?.surface))
-    };
-    Some((face_of(he_plus)?, face_of(he_minus)?))
 }
 
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).

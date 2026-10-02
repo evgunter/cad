@@ -1974,21 +1974,24 @@ mod tests {
     #[test]
     fn the_walk_consumers_keep_their_own_refusal() {
         let mut t = pillow(Tol::witness());
-        // `Option`: the edge door names WHICH faces, in
-        // `he_plus`-then-`he_minus` order. `is_some()` would pass on an
+        // Typed `DanglingRef`: the edge door names WHICH faces, in
+        // `he_plus`-then-`he_minus` order. `is_ok()` would pass on an
         // `(f_plus, f_plus)` — the typo a re-spelling of two
         // near-identical lines makes — so the pair is asserted.
         let e = t.body.get_edge(t.edges[0]).unwrap().clone();
         assert_eq!(e.he_plus, t.hes_a[0]);
         assert_eq!(e.he_minus, t.hes_b[0]);
-        assert_eq!(
-            crate::replace_face::edge_faces(&t.body, t.edges[0]),
-            Some((t.face_a, t.face_b))
-        );
+        let faces = |b: &Body<f64>| crate::readback::edge_sides(b, t.edges[0]).map(|s| s.faces());
+        assert_eq!(faces(&t.body), Ok((t.face_a, t.face_b)));
         assert_ne!(t.face_a, t.face_b);
         let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
-        assert_eq!(crate::replace_face::edge_faces(&t.body, t.edges[0]), None);
+        assert_eq!(
+            faces(&t.body),
+            Err(crate::readback::DanglingRef::Entity(
+                crate::entity::EntityId::Loop(LoopKey::default())
+            ))
+        );
         // Typed `Result`, entity-AGNOSTIC: the same staleness is a
         // REFUSAL, not a `None` a caller may drop.
         assert!(matches!(

@@ -100,7 +100,7 @@ pub(super) fn split_connect<T: Decide>(
 ) -> Result<(Vec<CompletedSection>, FragmentRows), SplitJoinError> {
     let exact = order::exact_band().map_err(SplitJoinError::Band)?;
 
-    // The minted above-copy set (role resolution is key membership).
+    // The null edges' above ends (role resolution is key membership).
     let mut above_set: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
     for r in &red.null_edges {
         above_set.insert(r.attr.above_end, ());
