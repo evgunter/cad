@@ -105,9 +105,12 @@ pub use editor_core::{
     PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
 };
 
-// How a sentence names a node: the kind noun and tag a person reads, and
-// the full-width id a machine channel prints.
-pub use editor_core::{FullId, SpokenName, SpokenNode, node_kind_noun};
+// How a sentence names a node: the kind noun and tag a person reads, the
+// speaker a refusal holding bare ids is said by, and the full-width id a
+// machine channel prints.
+pub use editor_core::{
+    FullId, Said, Say, Speaker, SpokenName, SpokenNode, node_kind_noun, spoken_by,
+};
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
 // kernel stores and speaks, never identity.

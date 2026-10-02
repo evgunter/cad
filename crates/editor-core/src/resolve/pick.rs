@@ -624,26 +624,50 @@ pub enum NodePickError {
 // standing's own sentence; `Tessellate`/`Index` FORWARD their
 // payload's `Display` verbatim, each carrying its own door's words,
 // prefix included.
-impl core::fmt::Display for NodePickError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for NodePickError {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Standing(standing) => write!(f, "pick: {standing}"),
+            Self::Standing(standing) => {
+                write!(f, "pick: {}", crate::spoken::Said(standing, by))
+            }
             Self::NotABody { node } => write!(
                 f,
-                "pick: node {}'s value is not body-denoting (a datum, profile, declaration, or \
+                "pick: {}'s value is not body-denoting (a datum, profile, declaration, or \
                  mate), so there is nothing to tessellate and index — offer a body-producing \
                  node instead",
-                node
+                by.node(*node)
             ),
             Self::NoSuchBody { node, body } => write!(
                 f,
-                "pick: node {}'s value has no output body at index {} — the index is stale, or \
+                "pick: {}'s value has no output body at index {} — the index is stale, or \
                  that body is currently empty (an annihilated boolean, an empty split side)",
-                node, body
+                by.node(*node),
+                body
             ),
             Self::Tessellate(error) => write!(f, "{error}"),
             Self::Index(error) => write!(f, "{error}"),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for NodePickError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl NodePickError {
+    /// **The refusal as the frame holding the evaluated document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
+    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -687,8 +711,12 @@ impl From<NodeStanding> for NameLookupError {
     }
 }
 
-impl core::fmt::Display for NameLookupError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for NameLookupError {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::EvaluationOfAnotherDocument(m) => write!(
                 f,
@@ -696,8 +724,27 @@ impl core::fmt::Display for NameLookupError {
                  and the tables it is read against are of two documents",
                 m.found, m.expected
             ),
-            Self::Standing(standing) => write!(f, "name lookup: {standing}"),
+            Self::Standing(standing) => {
+                write!(f, "name lookup: {}", crate::spoken::Said(standing, by))
+            }
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for NameLookupError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl NameLookupError {
+    /// **The refusal as the frame holding the evaluated document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
+    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 

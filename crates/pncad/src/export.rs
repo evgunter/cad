@@ -26,7 +26,7 @@
 
 use editor_core::{
     BooleanValue, CarriedUnplaced, Evaluation, NodeStanding, ProductError, ProfileDoc,
-    RecipeNodeId, Unplaced, ValuePayload,
+    RecipeNodeId, Said, Say, Speaker, Unplaced, ValuePayload,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
@@ -79,30 +79,27 @@ pub enum ExportError {
     },
 }
 
-// A node reaches prose as its bare id. The message is for a human,
-// and the wrapper's `Debug` spelling puts a Rust type name in front of
-// the one part of it they can act on.
-impl core::fmt::Display for ExportError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Say for ExportError {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Standing(standing) => write!(f, "export: {standing}"),
-            Self::NotABody { node, kind } => {
+            ExportError::Standing(standing) => write!(f, "export: {}", Said(standing, by)),
+            ExportError::NotABody { node, kind } => {
                 write!(
                     f,
-                    "export: node {} evaluates to a `{kind}`, not a body",
-                    node
+                    "export: {} evaluates to a `{kind}`, not a body",
+                    by.node(*node)
                 )
             }
-            Self::EmptyBoolean { node } => {
+            ExportError::EmptyBoolean { node } => {
                 write!(
                     f,
-                    "export: node {}'s Boolean is empty — nothing to export",
-                    node
+                    "export: {}'s Boolean is empty — nothing to export",
+                    by.node(*node)
                 )
             }
-            Self::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
-            Self::Product(e) => write!(f, "export: {e}"),
-            Self::Unplaced { parts } => {
+            ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
+            ExportError::Product(e) => write!(f, "export: {e}"),
+            ExportError::Unplaced { parts } => {
                 write!(
                     f,
                     "export: STEP writes one world, and these parts are unplaced:"
@@ -110,8 +107,9 @@ impl core::fmt::Display for ExportError {
                 for (node, group, cause) in parts {
                     write!(
                         f,
-                        " node {} (its group, rooted at node {}, is unplaced because {cause});",
-                        node, group
+                        " {} (its group, rooted at {}, is unplaced because {cause});",
+                        by.node(*node),
+                        by.node(*group)
                     )?;
                 }
                 write!(
@@ -120,7 +118,9 @@ impl core::fmt::Display for ExportError {
                     editor_core::Recourse(editor_core::UNPLACED_RECOURSE)
                 )
             }
-            Self::UnplacedBelow { groups } => {
+            // A group below is spelled in its part's ids, so its row
+            // keeps its own words.
+            ExportError::UnplacedBelow { groups } => {
                 write!(
                     f,
                     "export: STEP writes one world, and a part below holds unplaced groups its \
@@ -139,6 +139,23 @@ impl core::fmt::Display for ExportError {
                 )
             }
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ExportError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+impl ExportError {
+    /// **The refusal as the frame holding the evaluated document says
+    /// it**: each of its nodes as `doc` holds it now. The door reads an
+    /// evaluation alone, so the refusal holds ids, never a label.
+    #[must_use]
+    pub fn spoken(&self, doc: &ProfileDoc) -> String {
+        editor_core::spoken_by(self, doc)
     }
 }
 
