@@ -75,6 +75,20 @@ fn d_shape(flat: f64) -> Shape {
 }
 
 fn shapes() -> Vec<(String, Shape)> {
+    let v = shapes_raw();
+    v.into_iter()
+        .filter(|(name, sh)| {
+            let lp = bulge_loop(sh.iter().map(|&((x, y), b)| (Point2::new(x, y), b)).collect());
+            let ok = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol());
+            if let Err(e) = &ok {
+                println!("J3R2 SHAPE-REFUSED {name}: {e:?}");
+            }
+            ok.is_ok()
+        })
+        .collect()
+}
+
+fn shapes_raw() -> Vec<(String, Shape)> {
     let mut v = Vec::new();
     for flat in [0.3, 0.0, -0.3, 0.45, 0.49, 0.4999, -0.45, -0.49, -0.4999, -0.49999, -0.4999999] {
         v.push((format!("D{flat}"), d_shape(flat)));
@@ -83,9 +97,9 @@ fn shapes() -> Vec<(String, Shape)> {
         "stadium".into(),
         vec![
             ((-0.3, -0.2), 0.0),
-            ((0.3, -0.2), 1.0),
+            ((0.3, -0.2), 0.6),
             ((0.3, 0.2), 0.0),
-            ((-0.3, 0.2), 1.0),
+            ((-0.3, 0.2), 0.6),
         ],
     ));
     v.push((
@@ -97,7 +111,7 @@ fn shapes() -> Vec<(String, Shape)> {
         vec![
             ((-0.3, -0.3), 0.0),
             ((0.3, -0.3), 0.0),
-            ((0.3, 0.1), 1.0),
+            ((0.3, 0.1), 0.6),
             ((-0.3, 0.1), 0.0),
         ],
     ));
@@ -228,7 +242,8 @@ fn j3r2_pocket_battery() {
         }
         let s = bulge_area(&base);
         for phi in [0.0, 0.7, std::f64::consts::FRAC_PI_2, std::f64::consts::PI, 2.3, 4.0] {
-            for off in [(0.0, 0.0), (0.37, -0.21)] {
+            for off in [(0.0f64, 0.0f64), (0.37, -0.21), (0.8, 0.1), (0.75, 0.75)] {
+                let inside = off.0.abs() + 0.5 < 1.0 && off.1.abs() + 0.5 < 1.0;
                 let shape = turn(&base, phi, off);
                 for (entry, z0, h) in entries {
                     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
@@ -239,7 +254,7 @@ fn j3r2_pocket_battery() {
                     }
                     let ov = (1.0f64.min(z0 + h) - 0.0f64.max(z0)).max(0.0);
                     let tag = format!("pocket {name} phi={phi:.3} off={off:?} {entry}");
-                    run_ops(&tag, &blk, &c, vb, vc, Some(s * ov));
+                    run_ops(&tag, &blk, &c, vb, vc, inside.then_some(s * ov));
                 }
             }
         }
@@ -269,11 +284,15 @@ fn j3r2_tilted_battery() {
                     // Through: from (0, −0.3, −0.6), extruded 2.6, the
                     // slab crossed whole when the tilt keeps both caps
                     // outside it.
+                    let rot = Affine3::rotation_about_axis(Point3::origin(), axis, theta);
+                    let n0 = rot.transform_vec(Vec3::new(0.0, 0.0, 1.0));
+                    // Through: the axis passes (0, 0, 0.5), so the
+                    // cutter stays clear of the block's side walls.
+                    let through = Point3::new(0.0, 0.0, 0.5) - n0 * 1.3;
                     for (entry, p, h) in [
                         ("top", Point3::new(0.0, 0.0, 0.5), 1.0),
-                        ("through", Point3::new(0.0, -0.25, -0.75), 2.6),
+                        ("through", through, 2.6),
                     ] {
-                        let rot = Affine3::rotation_about_axis(Point3::origin(), axis, theta);
                         let place = Affine3::translation(p - Point3::origin()) * rot;
                         let o = place.transform_point(Point3::origin());
                         assert!((o - p).norm() < 1e-12, "placement composes as expected");
@@ -405,5 +424,162 @@ fn j3r2_rand() {
         let (bp, bq) = (zb(&shape(&p), zp), zb(&shape(&q), zq));
         let tag = format!("case {case} P={p:?} z{zp:?} Q={q:?} z{zq:?}");
         run_ops(&tag, &bp, &bq, vp, vq, Some(ov));
+    }
+}
+
+fn seg_area(r: f64, d: f64) -> f64 {
+    r * r * (d / r).acos() - d * (r * r - d * d).sqrt()
+}
+
+/// A rod of radius 0.5 along `x` over `[−1.5, 1.5]`, its axis at
+/// `(y0, z0)`, against the block: the block's edges along `y` pierce the
+/// rod's wall (the pierce-ring lane JOIN-3 moved).
+#[test]
+#[ignore = "differential battery; run with --ignored"]
+fn j3r2_groove_battery() {
+    let blk = block();
+    let r = 0.5;
+    for z0 in [0.6, 0.8, 1.0, 1.2, 1.45, 0.3] {
+        for y0 in [0.0, 0.3, -0.45] {
+            let rot = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), std::f64::consts::FRAC_PI_2);
+            let place = Affine3::translation(Vec3::new(-1.5, 0.0, 0.0)) * rot;
+            let probe = place.transform_vec(Vec3::new(0.0, 0.0, 1.0));
+            assert!((probe - Vec3::new(1.0, 0.0, 0.0)).norm() < 1e-12, "{probe:?}");
+            // Sketch (u, v) lands at world (z = −u, y = v).
+            let disc = profile::circle(Point2::new(-z0, y0), r, tol()).unwrap();
+            let p = Profile::new(SketchPlane::new(place), vec![disc.into()])
+                .validate(tol())
+                .unwrap();
+            let rod = extrude(&p, Extrusion::Distance(3.0), tol()).unwrap().body;
+            let vr = topo::mass_properties(&rod, tol()).unwrap().volume;
+            // The disc's part inside z ∈ [0, 1] (y is inside the block).
+            let below = |h: f64| {
+                // area of the disc below the plane z = h
+                let d = h - z0;
+                if d >= r {
+                    std::f64::consts::PI * r * r
+                } else if d <= -r {
+                    0.0
+                } else if d >= 0.0 {
+                    std::f64::consts::PI * r * r - seg_area(r, d)
+                } else {
+                    seg_area(r, -d)
+                }
+            };
+            let vi = (below(1.0) - below(0.0)) * 2.0;
+            let tag = format!("groove z0={z0} y0={y0}");
+            run_ops(&tag, &blk, &rod, 4.0, vr, Some(vi));
+        }
+    }
+}
+
+fn snow_ball(r: f64, y: f64) -> Body<f64> {
+    sweep::test_support::revolved_about_y(
+        vec![
+            (Point2::new(0.0, y - r), 1.0),
+            (Point2::new(0.0, y + r), 0.0),
+        ],
+        sweep::Revolution::Full,
+        tol(),
+    )
+}
+
+/// The spun snowman (JOIN-3 re-pinned it from the pierce-ring door to a
+/// build): more spins, more offsets, both orders.
+#[test]
+#[ignore = "differential battery; run with --ignored"]
+fn j3r2_snowman_battery() {
+    let pi = std::f64::consts::PI;
+    let cap = |r: f64, h: f64| pi * h * h * (3.0 * r - h) / 3.0;
+    for (r1, r2, d) in [(1.0, 0.8, 1.4), (1.0, 0.8, 0.5), (1.0, 1.0, 1.9), (0.7, 1.0, 1.2)] {
+        let a = snow_ball(r1, 0.0);
+        let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
+        let lens = cap(r1, r1 - x) + cap(r2, r2 - (d - x));
+        let (va, vb) = (4.0 / 3.0 * pi * r1.powi(3), 4.0 / 3.0 * pi * r2.powi(3));
+        for angle in [1e-3, 0.3, 0.9, std::f64::consts::FRAC_PI_2, 2.0, 3.0, 4.4, 5.9] {
+            let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), angle);
+            let b = topo::transform_rigid(&snow_ball(r2, d), &spin, tol()).unwrap();
+            let tag = format!("snow r1={r1} r2={r2} d={d} spin={angle}");
+            run_ops(&tag, &a, &b, va, vb, Some(lens));
+        }
+    }
+}
+
+/// Whether the tilted battery's CUTTERS are themselves legal operands
+/// (a disjoint union with a far brick): the results' non-operand column
+/// is read against this.
+#[test]
+#[ignore = "probe"]
+fn j3r2_tilted_operands() {
+    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
+    println!("block: {:?}", topo::union(&block(), &far, tol()).map(|_| ()).map_err(|e| e.kind()));
+    for (name, base) in shapes() {
+        for (axis, ax_name) in [
+            (Vec3::new(1.0, 0.0, 0.0), "x"),
+            (Vec3::new(1.0, 1.0, 0.0), "xy"),
+        ] {
+            for theta in [0.0, 0.15, 0.3] {
+                let rot = Affine3::rotation_about_axis(Point3::origin(), axis, theta);
+                let place = Affine3::translation(Vec3::new(0.0, 0.0, 0.5)) * rot;
+                let c = body_of(SketchPlane::new(place), &base, 1.0);
+                let r = topo::union(&c, &far, tol()).map(|_| ()).map_err(|e| e.kind());
+                println!("J3R2OP {name} ax={ax_name} th={theta} => {r:?}");
+            }
+        }
+    }
+}
+
+/// The non-operand column of the tilted battery, read against a tilted
+/// ROUND rod (a full-ellipse ring, no straight side) and with the full
+/// refusal printed.
+#[test]
+#[ignore = "probe"]
+fn j3r2_tilted_rod_operand() {
+    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
+    let disc: Shape = vec![((0.5, 0.0), 1.0), ((-0.5, 0.0), 1.0)];
+    for (name, shape) in [("disc", disc), ("D0.3", d_shape(0.3)), ("square", vec![((-0.3, -0.3), 0.0), ((0.3, -0.3), 0.0), ((0.3, 0.3), 0.0), ((-0.3, 0.3), 0.0)])] {
+        for theta in [0.0, 0.15] {
+            let rot = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), theta);
+            let place = Affine3::translation(Vec3::new(0.0, 0.0, 0.5)) * rot;
+            let c = body_of(SketchPlane::new(place), &shape, 1.0);
+            match topo::subtract(&block(), &c, tol()) {
+                Err(e) => println!("J3R2ROD {name} th={theta}: subtract refuses {e:?}"),
+                Ok(r) => {
+                    let bb = r.body().unwrap();
+                    let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
+                    let op = topo::union(&bb.body, &far, tol()).map(|_| ());
+                    println!("J3R2ROD {name} th={theta}: builds cert={cert}; operand {op:?}");
+                }
+            }
+        }
+    }
+}
+
+/// `reach_wall_chord_rows`' c = 0.9 deep poses, re-pinned by JOIN-3
+/// from the ring door to ∩ and B∖A building: that row reads only
+/// `validate_geometric` and the volume; this adds tiers 2 and 3′ and the
+/// legal-operand column.
+#[test]
+#[ignore = "probe"]
+fn j3r2_reach_wall_c09() {
+    use crate::common::operands::{framed_bar, three_arc_cylinder};
+    let (w, t0, t1) = (
+        0.404_001_346_965_559_2,
+        -0.688_250_512_587_890_8,
+        1.738_194_969_430_420_4,
+    );
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let a = three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0);
+    let vbar = w * w * (t1 - t0);
+    let c = 0.9_f64;
+    let lo = c - w / 2.0;
+    let half = (1.0 - lo * lo).sqrt();
+    let f = |x: f64| 0.5 * (x * (1.0 - x * x).sqrt() + x.asin()) - lo * x;
+    let area = f(half.min(t1)) - f((-half).max(t0));
+    let va = topo::mass_properties(&a, tol()).unwrap().volume;
+    for depth in [0.03, 0.1, 0.3] {
+        let o = Point3::new(c * s, -c * s, 2.0 - depth + w / 2.0);
+        let b = framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w);
+        run_ops(&format!("reach c=0.9 depth={depth}"), &a, &b, va, vbar, Some(area * depth));
     }
 }
