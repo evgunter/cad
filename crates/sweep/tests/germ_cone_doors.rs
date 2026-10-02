@@ -411,7 +411,7 @@ fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
             };
             assert_eq!(
                 (kind, other_kind),
-                (geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Cone)
+                (geom::SurfaceKind::Plane, geom::SurfaceKind::Cone)
             );
             assert!(why.contains("general rung"), "{why}");
             assert_eq!(before, format!("{work:?}"), "body moved across an Err");

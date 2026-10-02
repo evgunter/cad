@@ -16,7 +16,7 @@
 
 use crate::common::operands::{plate6, plate6_cyl};
 use crate::mate2_common;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use mate2_common::{
     assert_additive, body_of, boolean_body, collar, collar_at, peg_at, plane_face, volume,
@@ -589,7 +589,7 @@ fn axis_y() -> RevolveAxis<f64> {
 fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, topo::SurfaceKey) {
     let faces: Vec<_> = body
         .faces()
-        .filter(|(_, f)| body.get_surface(f.surface).map(SurfaceKind::of) == Some(kind))
+        .filter(|(_, f)| body.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect();
     assert!(faces.len() >= 2, "{kind:?}: need two faces, got {faces:?}");
