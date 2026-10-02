@@ -358,3 +358,22 @@ side verdict that changes which curved refusals become bodies.
 The dual-review row (DR-35) rides this PR's last commit.
 — (REACH orchestrator)
 - 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+
+## 2026-10-02 — the extent scan reads faces (PR 3801)
+
+The first unit of REACH's second wave, built by a cloud implementer
+session, dual-reviewed by two local reviewers, then delta-reviewed by a
+cloud reviewer. A ball inside or holding a two-sphere body, a ball inside
+a cylinder and a lens beside a slab build. The extent scan now asks the
+section certificate whether the FACES meet, where it asked whether the
+carriers did.
+
+- **No MAJOR.** One reviewer found the plane arm's permissive direction
+  unguarded: a mutant there shipped wrong bodies and survived every
+  suite. It is now pinned.
+- **Class finding.** A no-crossings verdict decided on the carriers where
+  the faces decide. The sweep found two tangency siblings, filed as one
+  item.
+
+The dual-review row (DR-40) rides this PR's last commit.
+— (REACH orchestrator)
