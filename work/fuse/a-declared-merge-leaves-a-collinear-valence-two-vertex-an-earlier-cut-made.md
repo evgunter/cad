@@ -8,6 +8,7 @@ cost: M
 opened: 2026-09-24
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
 design: true
+needs_ev: true
 ---
 
 
