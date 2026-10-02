@@ -32,6 +32,16 @@ That branch levers the ray's parallel test against a face's plane
 (`bool_point_in_solid_denom`) by the selection's reach instead of
 reading the bare cosine. With it, both `wide_wedge_with_a_far_vertex_*`
 cases build below the vertex's offer, where they refused
-`ShellWitnessExhausted` before. Which predicate read in band before was
-not measured. The `m5_pr8_bvh_diff` corner's reading is still
-unexamined.
+`ShellWitnessExhausted` before. The `m5_pr8_bvh_diff` corner's reading
+is still unexamined.
+
+Measured by the branch's review (probes over the wide wedge at
+ε = 4.95e-10, just below the vertex's offer):
+
+- On main the union and the intersect both refuse
+  `ShellWitnessExhausted`, with 26 of the shell's witnesses in band.
+  The first in-band margin is `bool_point_in_solid_denom`, at 1.91e-9:
+  the bare cosine against a face's plane.
+- On the branch the union builds, with volume 64.5 (the closed form),
+  and 0 of 1720 `point_in_solid` probes against the closed form answer
+  wrong. The intersect is `Empty`.
