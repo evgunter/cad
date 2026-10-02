@@ -384,7 +384,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         KeyView::Direct,
         KeyView::Graft(&graft),
         &desc,
-    );
+    )?;
     remap_carried(
         &mut contacts,
         &body,
@@ -392,7 +392,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &KeyView::Direct,
         &KeyView::Graft(&graft),
         &desc,
-    );
+    )?;
     body.sweep_and_close();
     let body = zipped;
     gate(&body)?;

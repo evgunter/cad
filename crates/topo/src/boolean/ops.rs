@@ -562,7 +562,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         KeyView::Direct,
         KeyView::Graft(&fin.graft),
         &desc,
-    );
+    )?;
     remap_carried(
         &mut contacts,
         &body,
@@ -570,7 +570,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &KeyView::Direct,
         &KeyView::Graft(&fin.graft),
         &desc,
-    );
+    )?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
     // the finished body — the same pass the split lane runs. A planar
@@ -2246,29 +2246,50 @@ impl Descendants {
         body.get_vertex(k).map(|_| k)
     }
 
-    /// Chases a face key through the absorption rows until live.
-    fn live_face<T: Real>(&self, body: &Body<T>, f: FaceKey) -> Option<FaceKey> {
-        let mut k = f;
-        for _ in 0..=self.faces.len() {
-            if body.get_face(k).is_some() {
-                return Some(k);
+    /// Chases a face key through the absorption rows until live:
+    /// `None` when the chain ends at a dead key with no row (the face
+    /// was consumed).
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] when the rows cycle: a walk that
+    /// outlasts the row count has revisited a key, a corrupt record,
+    /// and reading it as consumed would drop a declared contact.
+    fn live_face<T: Real>(
+        &self,
+        body: &Body<T>,
+        f: FaceKey,
+    ) -> Result<Option<FaceKey>, BooleanError> {
+        let live = |k| body.get_face(k).is_some();
+        let end = super::discard::fragment_root(f, self.faces.len(), |k| {
+            if live(k) {
+                None
+            } else {
+                self.faces.get(&k).copied()
             }
-            k = *self.faces.get(&k)?;
-        }
-        None
+        })
+        .ok_or(BooleanError::JoinDesync {
+            what: "a face's absorption rows are cyclic",
+        })?;
+        Ok(live(end).then_some(end))
     }
 }
 
 /// Remaps the declared contacts into result keys — operand views
 /// first (graft lineage), then the D5 descendant chase — dropping
 /// records only when the entity is genuinely consumed (module docs).
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] on cycling absorption rows
+/// ([`Descendants::live_face`]).
 pub(super) fn remap_contacts<T: Real>(
     body: &Body<T>,
     contacts: &ContactRecords,
     a_view: KeyView<'_>,
     b_view: KeyView<'_>,
     desc: &Descendants,
-) -> ContactRecords {
+) -> Result<ContactRecords, BooleanError> {
     // v-v pairs chase through zip fusions (a fused vertex's partner
     // may still coincide with the survivor); a pair fused into ONE
     // vertex is consumed (structural now) and drops.
@@ -2288,7 +2309,8 @@ pub(super) fn remap_contacts<T: Real>(
         }
         body.get_vertex(k).map(|_| k)
     };
-    let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
+    let face =
+        |view: &KeyView<'_>, f: FaceKey| view.face(f).map_or(Ok(None), |k| desc.live_face(body, k));
     let mut out = ContactRecords::default();
     for c in &contacts.vv {
         // Two records whose ends fused into one pair are one record.
@@ -2305,13 +2327,13 @@ pub(super) fn remap_contacts<T: Real>(
         }
     }
     for c in &contacts.a_on_b {
-        if let (Some(vertex), Some(face)) = (vert_strict(&a_view, c.vertex), face(&b_view, c.face))
+        if let (Some(vertex), Some(face)) = (vert_strict(&a_view, c.vertex), face(&b_view, c.face)?)
         {
             out.a_on_b.push(VfContact { vertex, face });
         }
     }
     for c in &contacts.b_on_a {
-        if let (Some(vertex), Some(face)) = (vert_strict(&b_view, c.vertex), face(&a_view, c.face))
+        if let (Some(vertex), Some(face)) = (vert_strict(&b_view, c.vertex), face(&a_view, c.face)?)
         {
             out.b_on_a.push(VfContact { vertex, face });
         }
@@ -2340,8 +2362,8 @@ pub(super) fn remap_contacts<T: Real>(
     };
     for c in &contacts.curves {
         if let (Some(face_a), Some(face_b), Some(witness)) = (
-            face(&a_view, c.face_a),
-            face(&b_view, c.face_b),
+            face(&a_view, c.face_a)?,
+            face(&b_view, c.face_b)?,
             live_edge(&a_view, c.witness),
         ) {
             out.curves.push(CurveContact {
@@ -2352,11 +2374,11 @@ pub(super) fn remap_contacts<T: Real>(
         }
     }
     for c in &contacts.patches {
-        if let (Some(face_a), Some(face_b)) = (face(&a_view, c.face_a), face(&b_view, c.face_b)) {
+        if let (Some(face_a), Some(face_b)) = (face(&a_view, c.face_a)?, face(&b_view, c.face_b)?) {
             out.patches.push(PatchContact { face_a, face_b });
         }
     }
-    out
+    Ok(out)
 }
 
 /// The declared face pairs lowered to SURVIVING result SURFACE pairs
@@ -2410,6 +2432,10 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// re-added. Carried A rows land in `vv`/`a_on_b`, carried B rows in
 /// `vv`/`b_on_a` (the census flattens the split; the fields record
 /// which lineage carried the row).
+///
+/// # Errors
+///
+/// As [`remap_contacts`].
 pub(super) fn remap_carried<T: Real>(
     out: &mut ContactRecords,
     body: &Body<T>,
@@ -2417,7 +2443,7 @@ pub(super) fn remap_carried<T: Real>(
     a_view: &KeyView<'_>,
     b_view: &KeyView<'_>,
     desc: &Descendants,
-) {
+) -> Result<(), BooleanError> {
     let vert = |side: (Operand, &KeyView<'_>), v: VertexKey| desc.live_vertex(body, side, v);
     let vert_strict = |view: &KeyView<'_>, v: VertexKey| {
         let k = view.vertex(v)?;
@@ -2426,7 +2452,8 @@ pub(super) fn remap_carried<T: Real>(
         }
         body.get_vertex(k).map(|_| k)
     };
-    let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
+    let face =
+        |view: &KeyView<'_>, f: FaceKey| view.face(f).map_or(Ok(None), |k| desc.live_face(body, k));
     let push_vv = |out: &mut ContactRecords, carried: &CarriedContacts, side| {
         for c in &carried.vv {
             if let (Some(a), Some(b)) = (vert(side, c.pair.a), vert(side, c.pair.b))
@@ -2451,7 +2478,7 @@ pub(super) fn remap_carried<T: Real>(
     for c in &decls.carried_a.vf {
         if let (Some(vertex), Some(fk)) = (
             vert_strict(a_view, c.rest.vertex),
-            face(a_view, c.rest.face),
+            face(a_view, c.rest.face)?,
         ) && !dup_vf(out, vertex, fk)
         {
             out.a_on_b.push(VfContact { vertex, face: fk });
@@ -2460,12 +2487,13 @@ pub(super) fn remap_carried<T: Real>(
     for c in &decls.carried_b.vf {
         if let (Some(vertex), Some(fk)) = (
             vert_strict(b_view, c.rest.vertex),
-            face(b_view, c.rest.face),
+            face(b_view, c.rest.face)?,
         ) && !dup_vf(out, vertex, fk)
         {
             out.b_on_a.push(VfContact { vertex, face: fk });
         }
     }
+    Ok(())
 }
 
 /// The tier gates: tier 1 + tier 2 on the finished result (tier 3 is
@@ -3231,7 +3259,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 KeyView::Direct,
                 KeyView::Graft(&graft),
                 &desc,
-            );
+            )?;
             remap_carried(
                 &mut contacts,
                 &body,
@@ -3239,7 +3267,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 &KeyView::Direct,
                 &KeyView::Graft(&graft),
                 &desc,
-            );
+            )?;
             gate(&body)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
@@ -3297,8 +3325,8 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
     };
-    let mut contacts = remap_contacts(&body, contacts, a_view, b_view, &desc);
-    remap_carried(&mut contacts, &body, decls, &a_view, &b_view, &desc);
+    let mut contacts = remap_contacts(&body, contacts, a_view, b_view, &desc)?;
+    remap_carried(&mut contacts, &body, decls, &a_view, &b_view, &desc)?;
     gate(&body)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
@@ -3744,12 +3772,14 @@ mod tests {
             KeyView::Direct,
             KeyView::Direct,
             &Descendants::default(),
-        );
+        )
+        .unwrap();
         assert!(out.a_on_b.is_empty());
         // With the row: the record survives, renamed to the survivor.
         let mut desc = Descendants::default();
         desc.faces.insert(dead_face, live_face);
-        let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
+        let out =
+            remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc).unwrap();
         assert_eq!(out.a_on_b.len(), 1);
         assert_eq!(out.a_on_b[0].face, live_face);
         assert_eq!(out.a_on_b[0].vertex, live_vertex);
@@ -3770,8 +3800,93 @@ mod tests {
         };
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex));
-        let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
+        let out =
+            remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc).unwrap();
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
+    }
+
+    /// **A cycle in the face absorption rows refuses; a chain that ends
+    /// at a dead key drops the record.** The two dead faces name each
+    /// other, so the chase never reaches a live face nor a key without
+    /// a row: it revisits, and a revisit is a corrupt record. Read as
+    /// "consumed", it would drop a declared contact without a word —
+    /// the dead end's answer, which this pins as different.
+    #[test]
+    fn a_cycling_absorption_row_refuses_where_a_dead_end_drops() {
+        use super::{Descendants, KeyView, remap_carried, remap_contacts};
+        use crate::boolean::{
+            BooleanDeclarations, CarriedContacts, CarriedVf, ContactClass, ContactRecords,
+            VfContact,
+        };
+        use crate::entity::FaceKey;
+
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let mut body = quad_prism(&square, 1.0, Tol::witness());
+        let vertex = body.vertices().next().map(|(k, _)| k).unwrap();
+        let keys: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let (d0, d1) = (keys[4], keys[5]);
+        body.faces.remove(d0);
+        body.faces.remove(d1);
+        let contacts = ContactRecords {
+            a_on_b: vec![VfContact { vertex, face: d0 }],
+            ..ContactRecords::default()
+        };
+        let remap = |desc: &Descendants| {
+            remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, desc)
+        };
+
+        let mut dead_end = Descendants::default();
+        dead_end.faces.insert(d0, d1);
+        let dropped = remap(&dead_end).expect("a chain that ends is not corrupt");
+        assert!(dropped.a_on_b.is_empty(), "dead end: {:?}", dropped.a_on_b);
+
+        let mut cycle = Descendants::default();
+        cycle.faces.insert(d0, d1);
+        cycle.faces.insert(d1, d0);
+        let joined = |r: Result<_, BooleanError>| match r {
+            Err(BooleanError::JoinDesync { what }) => what,
+            other => panic!("a cycle must refuse JoinDesync, got {other:?}"),
+        };
+        assert_eq!(
+            joined(remap(&cycle).map(|_| ())),
+            "a face's absorption rows are cyclic",
+            "remap_contacts on a cycle"
+        );
+
+        // The carried lane reads the same chase.
+        let decls = BooleanDeclarations {
+            carried_a: CarriedContacts {
+                vf: vec![CarriedVf {
+                    rest: VfContact { vertex, face: d0 },
+                    class: ContactClass::Rest,
+                }],
+                ..CarriedContacts::default()
+            },
+            ..BooleanDeclarations::default()
+        };
+        let carry = |desc: &Descendants| {
+            let mut out = ContactRecords::default();
+            remap_carried(
+                &mut out,
+                &body,
+                &decls,
+                &KeyView::Direct,
+                &KeyView::Direct,
+                desc,
+            )
+            .map(|()| out)
+        };
+        let carried = carry(&dead_end).expect("a chain that ends is not corrupt");
+        assert!(
+            carried.a_on_b.is_empty(),
+            "carried dead end: {:?}",
+            carried.a_on_b
+        );
+        assert_eq!(
+            joined(carry(&cycle).map(|_| ())),
+            "a face's absorption rows are cyclic",
+            "remap_carried on a cycle"
+        );
     }
 
     /// **A v-v record follows a vertex either operand's pinch weld
@@ -3822,6 +3937,7 @@ mod tests {
                 KeyView::Graft(&graft),
                 desc,
             )
+            .unwrap()
             .vv
         };
         assert!(
@@ -3952,8 +4068,9 @@ mod tests {
             b_on_a: vec![VfContact { vertex: v, face }],
             ..ContactRecords::default()
         };
-        let remap =
-            |c: &ContactRecords| remap_contacts(&body, c, KeyView::Direct, KeyView::Direct, &desc);
+        let remap = |c: &ContactRecords| {
+            remap_contacts(&body, c, KeyView::Direct, KeyView::Direct, &desc).unwrap()
+        };
         assert_eq!(
             desc.live_vertex(&body, (Operand::A, &KeyView::Direct), fused_in),
             None,
