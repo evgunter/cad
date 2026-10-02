@@ -687,3 +687,83 @@ fn the_drive_memo_key_carries_both_new_dials() {
     assert!(!m.accepts(budget(), SymRules::without_the_reads()));
     assert!(!m.accepts(budget(), SymRules::without_canonical_root()));
 }
+
+/// DECIDE-9 review probes: printed, then asserted only where the
+/// expectation is the soundness side.
+#[test]
+fn decide9_review_probes() {
+    fn z(x: Sym<Interval>) -> Sym<Interval> {
+        x.sqrt().powi(2) - x
+    }
+    type Probe = (&'static str, fn() -> Sym<Interval>);
+    let probes: [Probe; 9] = [
+        ("copysign(min(x,3) - x, y) [gated zero magnitude]", || {
+            let x = over("x", 1.0, 2.0);
+            let y = over("y", 3.0, 4.0);
+            (x.min(lit(3.0)) - x).copysign(y)
+        }),
+        ("copysign(min(x,3) - x, min(x,3)) [gated zero, gated sign]", || {
+            let x = over("x", 1.0, 2.0);
+            (x.min(lit(3.0)) - x).copysign(x.min(lit(3.0)))
+        }),
+        ("copysign(Z, y) [ungated zero, plain sign]", || {
+            let x = over("x", 1.0, 2.0);
+            let y = over("y", 3.0, 4.0);
+            z(x).copysign(y)
+        }),
+        ("Z * (1 / (min(x,3) - x)) [read arm is zero: no value]", || {
+            let x = over("x", 1.0, 2.0);
+            z(x) * (lit(1.0) / (x.min(lit(3.0)) - x))
+        }),
+        ("Z * (1 / min(x - 1.5, 3)) [pole inside the box]", || {
+            let x = over("x", 1.0, 2.0);
+            z(x) * (lit(1.0) / (x - lit(1.5)).min(lit(3.0)))
+        }),
+        ("Z * min(x,3) + (min(x,3) - x) [sum of ungated and gated zero]", || {
+            let x = over("x", 1.0, 2.0);
+            z(x) * x.min(lit(3.0)) + (x.min(lit(3.0)) - x)
+        }),
+        ("sqrt(Z * min(x,3)) [atom over the new ungated zero]", || {
+            let x = over("x", 1.0, 2.0);
+            (z(x) * x.min(lit(3.0))).sqrt()
+        }),
+        ("min(x,3) * Z [zero on the right]", || {
+            let x = over("x", 1.0, 2.0);
+            x.min(lit(3.0)) * z(x)
+        }),
+        ("(Z * min(x,3)) * (min(x,3) - x) [ungated product times gated zero]", || {
+            let x = over("x", 1.0, 2.0);
+            (z(x) * x.min(lit(3.0))) * (x.min(lit(3.0)) - x)
+        }),
+    ];
+    for (what, build) in probes {
+        let on = row(what, how(SymRules::shipped(), build));
+        let off = row(what, how(SymRules::without_the_reads(), build));
+        println!("PROBE {what}: shipped={on} | read shut={off}");
+    }
+    // The door: a registered zero times a read factor.
+    for (label, rules) in [
+        ("shipped", SymRules::shipped()),
+        ("read shut", SymRules::without_the_reads()),
+    ] {
+        let (out, counts) = with_session_rules(budget(), rules, || {
+            let x = over("x", 0.9, 1.1);
+            let sq = x * x;
+            let reg = sq.register_equal(x, Tol::witness());
+            let m = (sq - x) * x.min(lit(3.0));
+            (
+                reg,
+                geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
+            )
+        });
+        println!(
+            "PROBE door (x*x registered = x) * min(x,3), {label}: {:?} -> {}",
+            out.0,
+            label_of(out.1, counts)
+        );
+    }
+}
+
+fn label_of(out: Result<Sign, geom_core::predicate::Indeterminate>, c: SymCounts) -> String {
+    format!("{} {c:?}", label(out, c))
+}
