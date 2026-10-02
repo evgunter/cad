@@ -561,18 +561,43 @@ impl FacePairDeclaration {
 /// only while every non-`Rest` class refused wholesale, and would have
 /// become silent last-write-wins the day the op grew a second class
 /// arm.)
-#[derive(Debug, Default)]
-pub(crate) struct DeclaredPairs {
+#[derive(Debug)]
+pub(crate) struct DeclaredPairs<T: Real> {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), ContactClass>,
     /// The `Rest` pairs the declaration door's carrier ladder called ONE
     /// carrier, `(A face, B face)`.
     one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
     /// Each declared pair's consumed extent, measured on the operands
     /// at rest ([`rest::pair_reach`]), `(A face, B face)`.
-    reach: std::collections::BTreeMap<(FaceKey, FaceKey), geom_brep::ExtentBall<f64>>,
+    reach: std::collections::BTreeMap<(FaceKey, FaceKey), geom_brep::ExtentBall<T>>,
 }
 
-impl DeclaredPairs {
+impl<T: Real> Default for DeclaredPairs<T> {
+    fn default() -> Self {
+        Self {
+            map: std::collections::BTreeMap::new(),
+            one_carrier: std::collections::BTreeSet::new(),
+            reach: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+impl<T: Decide> DeclaredPairs<T> {
+    /// Records each declared pair's consumed extent on the operands
+    /// `a` and `b` at rest. Mid-operation a face is a piece of its
+    /// rest self, so that ball still encloses it, while its own box
+    /// may no longer read (null scaffolding on its boundary).
+    pub(crate) fn measured(mut self, a: &Body<T>, b: &Body<T>) -> Self {
+        self.reach = self
+            .map
+            .keys()
+            .filter_map(|&(fa, fb)| rest::pair_reach(a, fa, b, fb).map(|ball| ((fa, fb), ball)))
+            .collect();
+        self
+    }
+}
+
+impl<T: Real> DeclaredPairs<T> {
     pub(crate) fn build(
         decls: &BooleanDeclarations,
         one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
@@ -588,24 +613,9 @@ impl DeclaredPairs {
         }
     }
 
-    /// Records each declared pair's consumed extent on the operands
-    /// `a` and `b` at rest. Mid-operation a face is a piece of its
-    /// rest self, so that ball still encloses it, while its own box
-    /// may no longer read (null scaffolding on its boundary).
-    pub(crate) fn measured<T: Decide + Bounds>(mut self, a: &Body<T>, b: &Body<T>) -> Self {
-        self.reach = self
-            .map
-            .keys()
-            .filter_map(|&(fa, fb)| {
-                rest::pair_reach(a, fa, b, fb).map(|ball| ((fa, fb), ball.bracketed()))
-            })
-            .collect();
-        self
-    }
-
     /// The (operand-tagged) declared pair's consumed extent, as
     /// [`Self::measured`] recorded it.
-    pub(crate) fn reach_of<T: Real>(
+    pub(crate) fn reach_of(
         &self,
         o1: Operand,
         f1: FaceKey,
@@ -617,7 +627,7 @@ impl DeclaredPairs {
             (Operand::B, Operand::A) => self.reach.get(&(f2, f1)),
             _ => None,
         }
-        .map(|ball| ball.lift())
+        .copied()
     }
 
     /// Whether the (operand-tagged) pair is a `Rest` declaration the
@@ -3346,7 +3356,7 @@ mod tests {
         };
         // The escalated arm, as the lookup mints it for an undeclared
         // pair of planar corners.
-        let door = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default())
+        let door = DeclaredPairs::<f64>::build(&BooleanDeclarations::none(), Default::default())
             .on_pair_door((
                 Operand::A,
                 FaceKey::default(),
@@ -3585,7 +3595,7 @@ mod tests {
             },
             BooleanError::plane_identity(
                 PlaneRung::Parallel,
-                DeclaredPairs::build(&BooleanDeclarations::none(), Default::default())
+                DeclaredPairs::<f64>::build(&BooleanDeclarations::none(), Default::default())
                     .on_pair_door((Operand::A, face, Operand::B, face)),
                 diag,
             ),

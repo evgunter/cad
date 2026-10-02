@@ -62,7 +62,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
     let survivors: Vec<&PairRecord> = records.iter().filter(|r| r.intersect).collect();
@@ -282,7 +282,7 @@ fn record_germ_dir<T: Decide>(
     b_body: &Body<T>,
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     // What the door read of the pair, which the questions below refuse

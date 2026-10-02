@@ -305,7 +305,7 @@ impl Settling {
     }
 }
 
-impl super::DeclaredPairs {
+impl<T: geom_core::Real> super::DeclaredPairs<T> {
     /// **What a door read of the declaration ahead of `question`**,
     /// looked up for the face pairs it asks about, in order: the first
     /// declared pair's class is [`DeclarationRead::Spent`] (the question
@@ -1817,7 +1817,7 @@ mod tests {
                     .unwrap_or_default(),
                 ..BooleanDeclarations::none()
             };
-            DeclaredPairs::build(&decls, Default::default())
+            DeclaredPairs::<f64>::build(&decls, Default::default())
         };
         let mut reads = vec![declared(None).read(&pair, which, &[])];
         for &class in ContactClass::ALL {
@@ -2446,7 +2446,7 @@ mod tests {
         use crate::boolean::{BooleanDeclarations, DeclaredPairs, FacePairDeclaration};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let none = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+        let none = DeclaredPairs::<f64>::build(&BooleanDeclarations::none(), Default::default());
         let settled = |which: Coincide| -> &'static [ContactClass] {
             match which {
                 Coincide::OnPlanes => &[ContactClass::Rest],
@@ -2492,7 +2492,7 @@ mod tests {
                     coincident_faces: vec![FacePairDeclaration::new(face, face, class)],
                     ..BooleanDeclarations::none()
                 };
-                let declared = DeclaredPairs::build(&decls, Default::default());
+                let declared = DeclaredPairs::<f64>::build(&decls, Default::default());
                 assert_eq!(
                     declared.read(&pair, which, ContactClass::ALL),
                     DeclarationRead::Spent(class),
@@ -2513,7 +2513,7 @@ mod tests {
         use crate::boolean::{BooleanDeclarations, DeclaredPairs};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let none = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+        let none = DeclaredPairs::<f64>::build(&BooleanDeclarations::none(), Default::default());
         let diag = diag_of(MarginDiag::value((band().zero() + band().escalate()) / 2.0));
         let mut carried_any = 0;
         for minted in Coincide::iter() {
@@ -3477,7 +3477,7 @@ mod tests {
         // Every door a plane rung reaches, the undeclared ones included:
         // no declaration reads poison, so none is offered, and the
         // refusal is the kernel's.
-        let undeclared = crate::boolean::DeclaredPairs::build(
+        let undeclared = crate::boolean::DeclaredPairs::<f64>::build(
             &crate::boolean::BooleanDeclarations::none(),
             Default::default(),
         );

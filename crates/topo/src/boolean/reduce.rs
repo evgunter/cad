@@ -367,7 +367,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
@@ -716,7 +716,7 @@ fn edge_face_read<T: geom_core::Real>(
     x_is: Operand,
     edge: &crate::entity::Edge,
     face: FaceKey,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     question: Coincide,
 ) -> DeclarationRead {
     let pairs: Vec<_> = [
@@ -735,7 +735,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     x: &mut Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     strategy: SweepStrategy,
@@ -1219,7 +1219,7 @@ pub(super) fn curved_face_arm<T: Decide>(
     face: FaceKey,
     pu: Point3<T>,
     pv: Point3<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
@@ -1879,7 +1879,7 @@ fn on_declared_rest_carrier<T: Decide>(
     x_is: Operand,
     edge: &crate::entity::Edge,
     face: FaceKey,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
 ) -> bool {
     [
         x.face_of_half_edge(edge.he_plus),
