@@ -697,6 +697,169 @@ class TestBossplate(unittest.TestCase):
         self.assertAlmostEqual(volume_of(doc, fused), expected, delta=1e-6)
 
 
+class TestSnowman(unittest.TestCase):
+    """Tour scene `snowman` (demos/tour/src/snowman.rs, row 18): two
+    coaxial balls, each a full revolve of a semicircle, under union,
+    subtract and intersect, and the union's waist rolled into a torus
+    band at r = 0.05.
+
+    Every oracle is the scene's own closed form: spherical caps cut by
+    the radical plane for the three booleans, and the union plus the
+    band's Pappus delta-V for the fillet.
+
+    The waist is where the row earns its star. The scene says it by
+    description, `(Sphere, Sphere)`, and that description also names
+    every seam meridian, because a full revolve leaves each ball as
+    two half-bands on one sphere. The scene drops the meridians
+    through `rim_of`'s `CoSurface` refusal, which has no document
+    spelling, and no selector atom says "two different surfaces"
+    (work/tquery/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam.md).
+    So the selection here adds a station bracket the scene never
+    states: strictly above the bottom ball's centre plane and below
+    the head's. A meridian's carrier is a circle about its own ball's
+    centre, so it sits on one of the two planes; the waist's circle
+    sits on the radical plane between them."""
+
+    R1: ClassVar[float] = 0.3
+    R2: ClassVar[float] = 0.2
+    D: ClassVar[float] = 0.4
+    ROLL: ClassVar[float] = 0.05
+    SLACK: ClassVar[float] = 1e-12
+
+    def ball(self, doc, frame, axis, r, y):
+        semicircle = (
+            Open.at((0 * m, (y - r) * m))
+            .arc_to(Center(c=(0 * m, y * m), winding=ArcSweep.Ccw, p=(0 * m, (y + r) * m)))
+            .line_to(Start)
+        )
+        profile = doc.insert(Node.profile(semicircle, plane=frame))
+        return doc.insert(Node.revolve(profile, axis, Expr.angle_in(2 * math.pi, rad)))
+
+    def level(self, doc, y):
+        return doc.insert(
+            Node.datum_plane(
+                (Expr.length_in(0, m), Expr.length_in(y, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(1.0), Expr.literal(0.0)),
+            )
+        )
+
+    def waist_height(self):
+        return (self.D**2 + self.R1**2 - self.R2**2) / (2 * self.D)
+
+    def lens_volume(self):
+        def cap(r, h):
+            return math.pi * h * h * (3 * r - h) / 3
+
+        x = self.waist_height()
+        return cap(self.R1, self.R1 - x) + cap(self.R2, self.R2 - (self.D - x))
+
+    def roll_centre(self):
+        y = ((self.R1 + self.ROLL) ** 2 - (self.R2 + self.ROLL) ** 2 + self.D**2) / (2 * self.D)
+        return (math.sqrt((self.R1 + self.ROLL) ** 2 - y * y), y)
+
+    def band_delta_v(self):
+        """The scene's `band_delta_v`: Pappus over the meridian section
+        between the two spheres' arcs and the rolling ball's, as
+        `pi * (closed integral of rho^2 dy)` along its three arcs."""
+
+        def arc(c, s, p, q):
+            a = c[0]
+
+            def f(t):
+                return (
+                    a * a * s * math.sin(t)
+                    + a * s * s * (t + math.sin(t) * math.cos(t))
+                    + s**3 * (math.sin(t) - math.sin(t) ** 3 / 3)
+                )
+
+            t0 = math.atan2(p[1] - c[1], p[0] - c[0])
+            dt = math.atan2(q[1] - c[1], q[0] - c[0]) - t0
+            if dt > math.pi:
+                dt -= 2 * math.pi
+            elif dt <= -math.pi:
+                dt += 2 * math.pi
+            return f(t0 + dt) - f(t0)
+
+        r1, r2, d, s = self.R1, self.R2, self.D, self.ROLL
+        x = self.waist_height()
+        waist = (math.sqrt(r1 * r1 - x * x), x)
+        c = self.roll_centre()
+        t1 = (c[0] * r1 / (r1 + s), c[1] * r1 / (r1 + s))
+        t2 = (c[0] * r2 / (r2 + s), d + (c[1] - d) * r2 / (r2 + s))
+        return math.pi * (arc((0, 0), r1, waist, t1) + arc(c, s, t1, t2) + arc((0, d), r2, t2, waist))
+
+    def assert_volume(self, ev, node, expected):
+        body = ev.value(node).body()
+        body.validate()
+        volume = body.mass_properties().volume
+        self.assertLess(abs(volume - expected) / expected, self.SLACK, f"{volume} against {expected}")
+
+    def test_the_snowman_meets_its_closed_forms(self):
+        doc = Doc()
+        frame = doc.sketch_frame()
+        axis = y_axis(doc, frame)
+        bottom = self.ball(doc, frame, axis, self.R1, 0.0)
+        head = self.ball(doc, frame, axis, self.R2, self.D)
+        union = doc.insert(Node.boolean(BooleanOp.Union, bottom, head))
+        bitten = doc.insert(Node.boolean(BooleanOp.Subtract, bottom, head))
+        lens = doc.insert(Node.boolean(BooleanOp.Intersect, bottom, head))
+        below, above = self.level(doc, 0.0), self.level(doc, self.D)
+
+        ev = evaluate(doc)
+        va = 4 / 3 * math.pi * self.R1**3
+        vb = 4 / 3 * math.pi * self.R2**3
+        vl = self.lens_volume()
+        self.assert_volume(ev, union, va + vb - vl)
+        self.assert_volume(ev, bitten, va - vl)
+        self.assert_volume(ev, lens, vl)
+
+        edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+        spheres = GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Sphere)
+        described = ev.select_where(union, edges, [spheres])
+        self.assertEqual(
+            (len(described), len(ev.all_edges(union))),
+            (6, 6),
+            "(Sphere, Sphere) names every edge: two waist arcs, four meridians",
+        )
+        waist = ev.select_where(
+            union,
+            edges,
+            [
+                spheres,
+                GeomPred.datum_distance(below, Cmp.Greater, Expr.length_in(0, m)),
+                GeomPred.datum_distance(above, Cmp.Less, Expr.length_in(0, m)),
+            ],
+        )
+        self.assertEqual(len(waist), 2)
+        self.assertEqual(
+            sorted(waist),
+            sorted(ev.select(union, Selector.of(NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.Seam))))),
+            "the bracket keeps exactly the boolean's seam arcs",
+        )
+
+        # The description alone hands the roller the meridians, whose
+        # two sides are one sphere: no wedge to sit in.
+        unsorted = doc.insert(Node.fillet(union, Expr.length_in(self.ROLL, m), described))
+        rolled = doc.insert(Node.fillet(union, Expr.length_in(self.ROLL, m), waist))
+        ev = evaluate(doc)
+        with self.assertRaises(EvaluationError) as refused:
+            ev.value(unsorted)
+        self.assertEqual(
+            (refused.exception.kind, refused.exception.inner_kind), ("fillet", "tangential_edge")
+        )
+
+        self.assert_volume(ev, rolled, va + vb - vl + self.band_delta_v())
+        self.assertEqual(len(ev.all_faces(rolled)), len(ev.all_faces(union)) + 1)
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
+        bands = ev.select_where(rolled, faces, [GeomPred.surface_kind(SurfaceKind.Torus)])
+        self.assertEqual(len(bands), 1)
+        pose = ev.face_frame(rolled, bands[0])
+        ox, oy, oz = (c.meters for c in pose.origin)
+        self.assertEqual((ox, oz), (0.0, 0.0), "the band is centred on the axis")
+        self.assertAlmostEqual(oy, self.roll_centre()[1], delta=1e-12)
+        self.assertEqual((pose.axis[0], abs(pose.axis[1]), pose.axis[2]), (0.0, 1.0, 0.0))
+
+
 # ------------------------------------------------------------------
 # The rows LIB-PYG23A unblocked: G3 (non-xy sketch planes) entirely,
 # and G2's LOFT half. Each rebuilds the scene from the same authored
@@ -728,7 +891,7 @@ def prism_loft(doc, heights):
 
 
 class TestLoftPrism(unittest.TestCase):
-    """Tour scene `loft_prism` (demos/tour/src/skinned.rs, row 18; the
+    """Tour scene `loft_prism` (demos/tour/src/skinned.rs, row 19; the
     document twin is editor-core/tests/corpus/loft_prism.rs): three
     polyline quad sections — squares at z = 0 and z = 2, a trapezoid at
     z = 1 — skinned at v-degree 2. The middle section is not an affine
@@ -2450,7 +2613,7 @@ def fully_revolved(doc, frame, axis, meridian):
 
 
 class TestTeapot(unittest.TestCase):
-    """Tour scene `teapot` (rows 27 and 44, demos/tour/src/teapot.rs):
+    """Tour scene `teapot` (row 28, demos/tour/src/teapot.rs):
     `shell`'s designated demo, as ONE document — a revolved pot
     hollowed by `Node.shell` and OPENED at its mouth, a revolved lid
     whose three latitude rims roll through `Node.fillet`, a revolved
@@ -3217,7 +3380,7 @@ class TestTeapot(unittest.TestCase):
 
 
 class TestTorusvessel(unittest.TestCase):
-    """Tour scene `torusvessel` (row 44, demos/tour/src/torusvessel.rs):
+    """Tour scene `torusvessel` (row 45, demos/tour/src/torusvessel.rs):
     the teapot's belly with its arc centre pushed OFF the axis, so the
     wall is a TORUS — the shape `teapot`'s wall 1 used to pin as
     unhollowable — hollowed by `Node.shell` with an EMPTY open list,
@@ -3234,7 +3397,7 @@ class TestTorusvessel(unittest.TestCase):
     The oracle is the scene's own closed form at two thicknesses: the
     boundary moved inward by `t` is a foot cylinder, a torus band over
     `u ∈ [-a', a']` and a neck, so the wall is one form evaluated
-    twice and differenced. Row 45 (`torusvesselcup`) stays NO on its
+    twice and differenced. Row 46 (`torusvesselcup`) stays NO on its
     named secondary, `Body::merge_coplanar_faces`, which no document
     node binds.
     """
@@ -3377,7 +3540,7 @@ class TestTorusvessel(unittest.TestCase):
 
 
 class TestTwopeg(unittest.TestCase):
-    """Tour scene `twopeg` (row 38), demos/tour/src/twopeg.rs: two
+    """Tour scene `twopeg` (row 39), demos/tour/src/twopeg.rs: two
     plates that locate on each other three ways at once — the mating
     plane, and each peg's wall against its own bore's wall.
 
@@ -3458,7 +3621,7 @@ class TestTwopeg(unittest.TestCase):
             )
 
     def test_the_mate_is_authorable_and_the_declaration_is_what_unlocks_it(self):
-        """Row 38's mate, through the curated surface, end to end.
+        """Row 39's mate, through the curated surface, end to end.
 
         The detector reports all THREE of this mate's contacts now —
         the mating plane and both peg fits, since its reach is the
@@ -3503,7 +3666,7 @@ class TestTwopeg(unittest.TestCase):
         self.assertAlmostEqual(body.mass_properties().volume, 48.0, delta=1e-12)
 
     def test_declaring_only_the_walls_the_plane_rung_reaches_still_refuses(self):
-        """The other half of row 38, and the reason the mate above is
+        """The other half of row 39, and the reason the mate above is
         a statement about DECLARATION rather than about the detector.
 
         The six `SameOriented` wall findings are declarable and always
@@ -3690,8 +3853,8 @@ class TestMeshCrossCheck(unittest.TestCase):
 
 
 class TestTubeAndHollowTube(unittest.TestCase):
-    """Tour scenes `tube_along_arc` (row 23), `hollowelbow` (row 25)
-    and `hollowtorus` (row 26), through the recipe doors LIB-TUBE
+    """Tour scenes `tube_along_arc` (row 24), `hollowelbow` (row 26)
+    and `hollowtorus` (row 27), through the recipe doors LIB-TUBE
     opened.
 
     Two doors, because a solid tube and a hollow one are different
@@ -3706,7 +3869,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         hollow ring   V = 2*pi**2*R*(ro**2 - ri**2)
         hollow elbow  V = theta*R*pi*(ro**2 - ri**2)
 
-    But volumes are NOT what rows 25/26 are about. Their subject is
+    But volumes are NOT what rows 26/27 are about. Their subject is
     the STORAGE contract — the door holds the caller's numbers rather
     than reconstructing them — and a volume row would pass either way.
     Python cannot read a surface's stored `minor_radius` field (that
@@ -4437,8 +4600,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             self.assertIsNotNone(below)
 
     def test_the_cutaway_scene_has_a_document_spelling(self):
-        """Tour scene `cutaway` (demos/tour/src/cutaway.rs), audit row
-        31 — the row LIB-G14 flips.
+        """Tour scene `cutaway` (demos/tour/src/cutaway.rs), the sectioned
+        half of audit row 40 — the row LIB-G14 flips.
 
         The scene runs `topo::split` KERNEL-level on the 15-op boolean
         project box with a tilted plane (normal (0.75, 0.1875, 1) — no
