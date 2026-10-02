@@ -1,27 +1,31 @@
 ---
 id: peg-in-socket-union-refuses-join-desync-at-a-coarse-eps
 kind: issue
-title: The torus peg-in-socket union builds at the default eps but refuses JoinDesync at eps 1e-6
+title: The torus peg-in-socket union's chord join cannot read its section loops' roles above eps 2e-7
 status: open
 opened: 2026-10-02
 ---
 
 
-Found on PR 3790 (JOIN-1). CI's `CAD_TOLERANCE_EPS=1e-6` row on 8f8206f8 reported it, and I measured it locally.
+CI's `CAD_TOLERANCE_EPS=1e-6` row on PR 3790 (JOIN-1) at 8f8206f8 found this. PR 3790's delta-2 review measured the ε ladder.
 
 ## Repro
 
 `crates/sweep/tests/mate7a_torus_rest.rs`: the torus peg-in-socket union of `socket()` and `segment_a()` under `wall_declarations(.., ContactClass::Rest)`. Those declarations cover the walls as `Rest` and the flush caps as continuations.
 
-| tree | ε = 1e-12 | ε = 1e-9 (default) | ε = 1e-6 |
-|---|---|---|---|
-| main 1ff6064e1 | — | `Join(UnpairedLooseEnds { count: 8 })` | `Join(UnpairedLooseEnds { count: 8 })` |
-| JOIN-1 8f8206f8 | builds, sound | builds: sound, additive, a legal operand | `JoinDesync { what: "neither section loop's regions hold a decisive witness" }` |
+| ε | the chord join |
+|---|---|
+| 1e-12 … 2e-7 | builds it: sound, additive, a legal operand |
+| 3e-7 … 2e-6 | refuses `Join(SectionLoopUndecided)` |
 
-The refusal comes from the section-loop witness reading, `loop_roles` (`crates/topo/src/boolean/join.rs:1873`). At the coarse ε, no region of either section loop holds a decisive witness.
+The threshold lies between 2e-7 and 3e-7.
 
-No ε ships an unsound body. Both rows that build the union (`peg_in_socket_union_holds`) accept that typed refusal only above the default ε.
+The refusal comes from the section-loop role probe, `loop_roles` (`crates/topo/src/boolean/join.rs`). No region of either section loop holds a witness that reads which side of the other solid it lies on. That is the curved-face frontier of `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`, and it is not a kernel defect. Until PR 3790's fix pass 3 it was refused as `JoinDesync`, whose text reads "kernel bug or corrupt reduction"; it now has its own typed refusal, which ends in the shared NOT_YET ending.
+
+Since main's declared-REST zip learned to match arcs (TANG, PR 3823), the zip takes that refusal over. The union now builds at every ε, with the same census (4 faces, 6 edges, 4 vertices, one shell), so `peg_in_socket_union_holds` requires the build at every ε.
+
+On main 1ff6064e1, before the merge, the pose refused `Join(UnpairedLooseEnds { count: 8 })` at every ε.
 
 ## What is not known
 
-I have not measured which witness reads in band at 1e-6, or whether a finer witness choice would decide it.
+I have not measured which witness reads in band above 2e-7, or whether a witness off the curved faces' boundaries would decide it.

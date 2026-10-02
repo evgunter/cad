@@ -25,8 +25,10 @@
 //!   sphere-zone swelling with a coaxial BORE at the stem's own
 //!   diameter, so the two bodies are cosurface along the whole bore:
 //!   the cleanest declared CYLINDRICAL contact this plant has, and
-//!   the exact class M9-3 built. It still does not JOIN, and probes
-//!   12 and 13 are why — measured, not assumed.
+//!   the exact class M9-3 built. The declared socket unions
+//!   (`review_probes::the_curved_rungs_declare_the_socket_and_leave_the_stem_glue_alone`);
+//!   the scene still shows the two threaded and apart
+//!   (`work/show/lily-rootstock-joins-at-its-socket.md`).
 //! - the **stem** is a chain of circular tube arcs — each one a
 //!   windowed TUBE ALONG AN ARC, i.e. a torus segment said in world
 //!   coordinates: ring centre, spine axis, start radial, ring radius,
@@ -1425,8 +1427,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             name: "lily_corm",
             color: GREEN_CORM,
             // The swollen stem-base, threaded on the foot below —
-            // TOUCHING it along the whole bore and not joined to it,
-            // like every other pair on this plant (probe 12).
+            // TOUCHING it along the whole bore and not joined to it.
             body: corm(
                 CORM_TOP_Z,
                 CORM_GLOBE,
@@ -1596,9 +1597,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          sphere. The five analytic bodies approximate nothing — torus, \
          sphere, cone and plane exactly, parameters included; the \
          blades are fitted skins, the price of leaving the plane. \
-         Nothing is JOINED — the corm threaded on the stem's foot \
-         least of all, and the leaf to its own sheath least of all \
-         after that: see the wall probes.",
+         Nothing is JOINED — the leaf to its own sheath least of \
+         all: see the wall probes.",
         pieces.len()
     );
     vec![Stop {
@@ -2018,7 +2018,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    this and WITHDRAWN; the fix landed at the source instead — a
     //    full revolve sweeps a planar cap whole, so the lantern
     //    arrives maximal-faced. After F7 comes the curved
-    //    PIERCE arm (wall 12's door), and only after that could a
+    //    PIERCE arm, and only after that could a
     //    germ-pair question arise.
     //
     //    So wall 2's binding blocker is #1031, not #968's shape. The
@@ -2262,58 +2262,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",
-    );
-
-    // 12. The corm is the stem's OWN base, swollen: the two bodies are
-    //     cosurface along the whole bore, at one radius stated once
-    //     and used by both. That is a declared CYLINDRICAL `Rest` —
-    //     precisely the contact class M9-3 built — and it is DECLARED
-    //     here, face pair by face pair, because the author knows which
-    //     wall meets which.
-    //
-    //     It is said through the DETECTOR, not face pair by face pair:
-    //     `crate::booleans::flush_declarations` reports this mate's
-    //     bore-wall pairs and declares them, because the detector's
-    //     reach is the `Rest` ladder's reach and this contact is a
-    //     cylindrical rung of it. The scene used to assemble the pairs
-    //     itself, filtering both arenas for a wall at `STEM_R`, while
-    //     the detector was planar and had nothing to say about a mate
-    //     with no planar contact anywhere on it.
-    //
-    //     It refuses one door short of the zip, at the reduction's
-    //     curved-face arm rather than the declaration gate. The sphere
-    //     zone no longer stops it: the line x sphere root lane landed
-    //     (`work/reach/line-edge-crossing-a-sphere-face-has-no-root-lane.md`,
-    //     closed). What stops it now is the foot's seam ruling against
-    //     the corm's own BORE wall: the ruling's endpoints sit on the
-    //     shared carrier past each rim, so the declared cover records
-    //     nothing, and its crossings with the bore's rim circles are
-    //     interior to both edges and recorded by nobody — the class
-    //     `work/reach/full-turn-bore-rest-mate-does-not-union.md` names
-    //     on its minimal shaft-in-a-revolved-bore fixture.
-    let (corm_body, foot_body) = (by("lily_corm"), by("lily_foot"));
-    let bore_decls = crate::booleans::flush_declarations(corm_body, foot_body, tol);
-    wall(
-        12,
-        "thread the corm onto the stem's foot at their shared cylinder wall \
-         (declared cylindrical Rest, no planar contact anywhere on the mate)",
-        pncad::topo::union_with(corm_body, foot_body, &bore_decls, tol),
-        // The KIND is the claim: the reduction's curved-face arm, at
-        // an edge — NOT the declaration gate, which admitted the pair,
-        // and not a carrier refusal. The operand is pinned too, as the
-        // measurement of which side the sweep reaches first (see the
-        // note above).
-        |e| {
-            matches!(
-                e,
-                BooleanError::CurvedPierceUnsupported {
-                    operand: Operand::B,
-                    ..
-                }
-            )
-        },
-        "give the plant a joined rootstock, and re-derive the two-peg cell's \
-         claim about what a cylindrical mate needs beside it",
     );
 
     // 13 — RETIRED. It pinned the merge door SHUT on a full revolve's
@@ -3972,9 +3920,9 @@ mod verbs_gate_r1_probes {
     ///    scene used to assemble those pairs itself by filtering both
     ///    arenas for a wall at `STEM_R`, and the detector reports
     ///    exactly that set — the corm's one bore wall against the
-    ///    foot's three arcs. Wall 12's refusal is unmoved, which
-    ///    is the point: what changed is who wrote the declaration
-    ///    down, not what the kernel does with it.
+    ///    foot's three arcs — and the union it declares builds: one
+    ///    shell, valid at tier 3, its volume the two parts' sum (the
+    ///    interiors are disjoint).
     /// 2. The stem GLUE (wall 1) declares exactly what it declared
     ///    while the detector was planar — the two arcs' shared disk.
     ///    Their tube walls are tori about DIFFERENT ring centres, so
@@ -4017,6 +3965,26 @@ mod verbs_gate_r1_probes {
                 Some(SurfaceKind::Cylinder)
             );
         }
+        let rootstock = match pncad::topo::union_with(corm, foot, &socket, tol) {
+            Ok(pncad::topo::BooleanResult::Body(bb)) => bb.body,
+            other => panic!("the declared socket unions: {:?}", other.err()),
+        };
+        assert_eq!(rootstock.shells().count(), 1, "one rootstock shell");
+        assert_eq!(
+            pncad::topo::validate_geometric(&rootstock, tol),
+            Ok(()),
+            "the rootstock is valid at tier 3"
+        );
+        let volume = |b: &Body<f64>| {
+            pncad::topo::mass_properties(b, tol)
+                .expect("a volume")
+                .volume
+        };
+        let (got, parts) = (volume(&rootstock), volume(corm) + volume(foot));
+        assert!(
+            (got - parts).abs() <= 1e-12 * parts,
+            "the rootstock's volume is the parts' sum: {got} vs {parts}"
+        );
 
         let (stem, arch) = (by("lily_stem"), by("lily_arch"));
         let glue = pncad::topo::flush::find_flush_candidates(stem, arch, tol)

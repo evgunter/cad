@@ -40,7 +40,7 @@ use super::{
 use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::Body;
 use crate::contact::BooleanCoincidence;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
 
@@ -148,7 +148,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
         // the pair of the two solids' own fold flankers), so the planes'
         // intersection is not its direction; the A flanker's bound read
         // On is.
-        let germ_dir = |i: usize, r: &PairRecord| match loci[i] {
+        let record_dir = |i: usize, r: &PairRecord| match loci[i] {
             (super::Locus::OnEdge(_), super::Locus::OnEdge(_)) => {
                 let s = &a_sectors[r.a];
                 let bound = if raw[i].sa.0 == SideCode::On {
@@ -167,8 +167,8 @@ pub(super) fn insert_null_pairs<T: Decide>(
                 band,
             ),
         };
-        let g0_dir = germ_dir(i0, r0)?;
-        let g1_dir = germ_dir(i1, r1)?;
+        let g0_dir = record_dir(i0, r0)?;
+        let g1_dir = record_dir(i1, r1)?;
         let (a_rec, a_swapped) = mint_directed(
             a_body,
             Operand::A,
@@ -219,7 +219,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
 type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>);
 
 /// A germ's `(A face, B face)` and `(A locus, B locus)`.
-type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
+pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
 
 #[allow(clippy::too_many_arguments)]
 fn mint_directed<T: Decide>(
@@ -238,26 +238,14 @@ fn mint_directed<T: Decide>(
     // dangling strut's two halves splice consecutively into the loop
     // as [he_plus, he_minus]; interleaved (crossing) chords at
     // multi-germ corner sites wall pending pairs off, so the half the
-    // loop walk meets FIRST (he_plus) must face the germ angularly
-    // closest to the splice corner's arrival edge (the anchor bound;
-    // convex-sector dot comparison). Senses follow the facing by the
-    // sense theorem, so only the splice order moves. Run direction is
-    // untouched (a strut's reverse run spans the whole orbit).
-    // A germ along an edge of this solid names the side of the spike it
-    // faces structurally: the strut splices [he_plus, he_minus] between
-    // the corner's arrival half (`sectors[from].he`'s edge) and its
-    // departure half (the orbit successor's), so the half beside the
-    // germ's own locus edge faces it. The angular order below is the
-    // reading for germs inside a face only: two germs along the
-    // corner's two bounding edges sit exactly ON the comparison's
-    // bounds, where it bound them crossed (the lens and the ball's
-    // poles, JOIN-1 fix pass 2).
-    let own_edge = |g: &Germ<T>| match (operand, g.2.1) {
-        (Operand::A, (super::Locus::OnEdge(e), _)) | (Operand::B, (_, super::Locus::OnEdge(e))) => {
-            Some(e)
-        }
-        _ => None,
-    };
+    // loop walk meets FIRST (he_plus) must face the right germ. A germ
+    // along an edge of this solid names it structurally
+    // ([`strut_facing`]); otherwise the half meeting the loop first
+    // faces the germ angularly closest to the splice corner's arrival
+    // edge (the anchor bound; convex-sector dot comparison). Senses
+    // follow the facing by the sense theorem, so only the splice order
+    // moves. Run direction is untouched (a strut's reverse run spans
+    // the whole orbit).
     let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
     let structural = if empty {
         let corrupt = || BooleanError::CorruptOperand { operand, vertex };
@@ -268,13 +256,12 @@ fn mint_directed<T: Decide>(
         let mate = body.mate(sectors[gf.0].he).ok_or_else(corrupt)?;
         let departure_he = body.get_half_edge(mate).ok_or_else(corrupt)?.next;
         let departure = body.get_half_edge(departure_he).ok_or_else(corrupt)?.edge;
-        match (own_edge(&gf), own_edge(&gt)) {
-            (Some(e), _) if e == arrival => Some(true),
-            (Some(e), _) if e == departure => Some(false),
-            (_, Some(e)) if e == departure => Some(true),
-            (_, Some(e)) if e == arrival => Some(false),
-            _ => None,
-        }
+        strut_facing(
+            arrival,
+            departure,
+            own_locus_edge(operand, gf.2),
+            own_locus_edge(operand, gt.2),
+        )?
     } else {
         None
     };
@@ -325,6 +312,59 @@ fn mint_directed<T: Decide>(
         spike_from_first,
     )?;
     Ok((rec, swapped))
+}
+
+/// The edge of `operand`'s own solid a germ runs along, if its locus
+/// there is `OnEdge`.
+pub(super) fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeKey> {
+    match (operand, loci) {
+        (Operand::A, (super::Locus::OnEdge(e), _)) | (Operand::B, (_, super::Locus::OnEdge(e))) => {
+            Some(e)
+        }
+        _ => None,
+    }
+}
+
+/// **Which half of a strut faces which germ, where a germ runs along an
+/// edge of its own solid.** A strut splices its halves
+/// `[he_plus, he_minus]` into its corner between the arrival half and
+/// the departure half, so `he_plus` lies beside the arrival edge and
+/// `he_minus` beside the departure edge, and the half beside a germ's
+/// own locus edge is the half that faces it — an angular reading would
+/// meet such a germ exactly ON its comparison's bound.
+///
+/// `Some(true)`: `he_plus` faces `first` and `he_minus` `second`;
+/// `Some(false)`: the reverse; `None`: no germ runs along the corner's
+/// edges, or the corner's two edges are one (a closed edge's lone
+/// vertex), so the edges tell the halves apart for neither germ, and the
+/// caller reads the facing another way. Two germs whose edges name
+/// opposite facings are no strut the classification mints: refused.
+pub(super) fn strut_facing(
+    arrival: EdgeKey,
+    departure: EdgeKey,
+    first: Option<EdgeKey>,
+    second: Option<EdgeKey>,
+) -> Result<Option<bool>, BooleanError> {
+    if arrival == departure {
+        return Ok(None);
+    }
+    let mut votes = [
+        (first == Some(arrival)).then_some(true),
+        (first == Some(departure)).then_some(false),
+        (second == Some(departure)).then_some(true),
+        (second == Some(arrival)).then_some(false),
+    ]
+    .into_iter()
+    .flatten();
+    let Some(facing) = votes.next() else {
+        return Ok(None);
+    };
+    if votes.any(|v| v != facing) {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a strut's germs run along its corner's edges in contradictory order",
+        });
+    }
+    Ok(Some(facing))
 }
 
 /// The unit direction of an orbit half-edge away from its start

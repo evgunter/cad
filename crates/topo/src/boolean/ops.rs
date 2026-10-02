@@ -1326,28 +1326,57 @@ fn ball_against_plane<T: Decide>(
 /// vertex-on-face contact pairs every face the vertex bounds with the
 /// face it lies on, and a vertex-on-vertex contact pairs every face
 /// each vertex bounds.
+///
+/// "The faces a vertex bounds" are read at the contact point, not at
+/// one key: the classification's null edges split a contact vertex into
+/// copies at that point, and which copy keeps which face's corner is
+/// the scaffolding's choice (the side each null edge's new vertex
+/// took), so every copy the vertex's null edges reach is read with it.
 fn event_pairs<T: Real>(
     red: &BooleanReduction<T>,
 ) -> Result<BTreeSet<(FaceKey, FaceKey)>, BooleanError> {
     let a_faces = faces_by_vertex(&red.a)?;
     let b_faces = faces_by_vertex(&red.b)?;
-    let around = |m: &BTreeMap<VertexKey, Vec<FaceKey>>, v: VertexKey| {
-        m.get(&v).cloned().unwrap_or_default()
+    let mut copies: BTreeMap<(bool, VertexKey), Vec<VertexKey>> = BTreeMap::new();
+    for e in &red.null_edges {
+        copies
+            .entry((e.operand == Operand::A, e.at_vertex))
+            .or_default()
+            .extend([e.attr.below_end, e.attr.above_end]);
+    }
+    let around = |operand: Operand, v: VertexKey| {
+        let m = match operand {
+            Operand::A => &a_faces,
+            Operand::B => &b_faces,
+        };
+        let mut faces: Vec<FaceKey> = core::iter::once(v)
+            .chain(
+                copies
+                    .get(&(operand == Operand::A, v))
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            )
+            .flat_map(|u| m.get(&u).cloned().unwrap_or_default())
+            .collect();
+        faces.sort();
+        faces.dedup();
+        faces
     };
     let mut out = BTreeSet::new();
     for c in &red.contacts.a_on_b {
-        for fa in around(&a_faces, c.vertex) {
+        for fa in around(Operand::A, c.vertex) {
             out.insert((fa, c.face));
         }
     }
     for c in &red.contacts.b_on_a {
-        for fb in around(&b_faces, c.vertex) {
+        for fb in around(Operand::B, c.vertex) {
             out.insert((c.face, fb));
         }
     }
     for c in &red.contacts.vv {
-        for fa in around(&a_faces, c.a) {
-            for fb in around(&b_faces, c.b) {
+        for fa in around(Operand::A, c.a) {
+            for fb in around(Operand::B, c.b) {
                 out.insert((fa, fb));
             }
         }

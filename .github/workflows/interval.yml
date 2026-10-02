@@ -32,6 +32,11 @@ on:
       run_interval_oracle:
         type: string
         required: true
+      # The object to check out; empty is the run's own sha.
+      ref:
+        type: string
+        required: false
+        default: ""
 
 jobs:
 
@@ -74,6 +79,8 @@ jobs:
     # "Certification" section.
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
       # local-scripts/ (the local half of the tooling split) and .claude/
       # (agent session config: the SessionStart hook that provisions a
@@ -147,6 +154,8 @@ jobs:
       RUSTFLAGS: "-C target-cpu=x86-64-v3"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable

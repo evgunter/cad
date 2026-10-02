@@ -1418,6 +1418,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::SingleSiteSectionLoop { count: 2 },
             ),
             ("SectionLoopMixed", J::SectionLoopMixed { face }),
+            ("SectionLoopUndecided", J::SectionLoopUndecided { face }),
             ("CutInvariant", J::CutInvariant { edge }),
             (
                 "Corrupt",

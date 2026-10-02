@@ -58,9 +58,10 @@
 //!    An edge-edge germ's record may pair two COPLANAR flankers (each
 //!    solid's own fold flanker, `recl::place_germ`), where `nA×nB` is
 //!    zero and names no line: there the germ line is the common edge
-//!    itself (`insert`'s `germ_dir` takes the A flanker's bound read
-//!    On), and the loops' direction along it is the region boundaries'
-//!    as above, read on that edge.
+//!    itself (`insert::insert_null_pairs`' `record_dir` takes the A
+//!    flanker's bound read On there, and `fn germ_dir`'s normal cross
+//!    everywhere else), and the loops' direction along it is the region
+//!    boundaries' as above, read on that edge.
 //! 2. **The sense theorem.** The half FACING germ `g` is UP (starts
 //!    at `below_end`) iff `g`'s own-solid forward-wedge code is Out;
 //!    geometrically, with the orbit-forward direction `w = σ·n_own×d`
@@ -1838,18 +1839,15 @@ fn resolve_roles_geometric<T: Decide>(
 /// only where the other boundary crosses the face with opposed senses,
 /// and each reading comes from a point of an uncut region, so the two
 /// sides differ unless the join minted a seam that is not a crossing (a
-/// tangential contact) or left a crossing uncut. One row reached it:
-/// two lens prisms flush-declared (`join1_delta_probes`
-/// `overlapping_lens_prisms_declared_union_builds`), whose rim segments
-/// lie along edges of one operand at strut sites. The strut's two
-/// halves faced each other's germs, the join minted each segment's
-/// chord inside the cap beside the rim, and both loops' regions were
-/// cap pieces, both In. A strut's half now faces the germ along its own
-/// edge (`insert`, the spike order), the lens builds, and no row
-/// reaches the guard; it stands for those two defects.
+/// tangential contact), left a crossing uncut, or bound a strut's halves
+/// to the wrong germs — each chord then lies on the wrong side of its
+/// rim and both loops' regions are pieces of one cap
+/// (`join1_delta_probes::overlapping_lens_prisms_declared_union_builds`
+/// pins the pose; `insert::strut_facing` is the rule it holds).
 ///
-/// **Neither deciding** is refused as the join's own: every witness of
-/// both loops' regions read the other boundary or too near it, which a
+/// **Neither deciding** is the curved-face frontier, refused
+/// [`SplitJoinError::SectionLoopUndecided`]: every witness of both
+/// loops' regions read the other boundary or too near it, which a
 /// crossing's two flanks cannot both do unless their faces are all
 /// curved (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
 /// No in-band reading is named as the cause: it is about one point.
@@ -1869,9 +1867,11 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        (Reading::Undecided(_), Reading::Undecided(_)) => Err(BooleanError::JoinDesync {
-            what: "neither section loop's regions hold a decisive witness",
-        }),
+        (Reading::Undecided(_), Reading::Undecided(_)) => {
+            Err(BooleanError::Join(SplitJoinError::SectionLoopUndecided {
+                face,
+            }))
+        }
     }
 }
 
@@ -1962,8 +1962,18 @@ mod loop_roles_rows {
         }
         let err = loop_roles(face, (o, undecided()), (r, undecided())).unwrap_err();
         assert!(
-            matches!(err, BooleanError::JoinDesync { .. }),
+            matches!(
+                err,
+                BooleanError::Join(SplitJoinError::SectionLoopUndecided { face: f }) if f == face
+            ),
             "neither decides: {err:?}"
+        );
+        // The curved-face frontier reads as what the Boolean cannot yet
+        // do, not as a kernel defect.
+        let text = err.to_string();
+        assert!(
+            text.ends_with(geom_core::NOT_YET_ENDING) && !text.contains("kernel"),
+            "{text}"
         );
     }
 }

@@ -51,10 +51,7 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, w
         .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
     let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
     assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
-    // Every boolean output is a legal boolean operand (DESIGN).
-    let far = brick((50.0, 51.0), (50.0, 51.0), (0.0, 1.0), tol());
-    topo::union(&bb.body, &far, tol())
-        .unwrap_or_else(|e| panic!("{what}: the result is no legal operand: {e:?}"));
+    sweep::test_support::assert_legal_operand(what, &bb.body, tol());
 }
 
 const HEX: [(f64, f64); 6] = [

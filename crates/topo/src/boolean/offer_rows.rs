@@ -2139,6 +2139,12 @@ fn top_level_fn(line: &str) -> Option<String> {
 /// decision, mentions)`.
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
+        "carrier_cross.rs",
+        "escalated",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
         "circle_cylinder.rs",
         "-",
         "BooleanDecision::ArcCylinderRoots",
@@ -2294,6 +2300,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     (
         "reduce.rs",
+        "arc_chain_reaches",
+        "Coincide::EdgeOnCurvedFace",
+        1,
+    ),
+    (
+        "reduce.rs",
         "curved_face_arm",
         "Coincide::ArcOnCoveredFace",
         1,
@@ -2357,7 +2369,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
     (
         "reduce.rs",
-        "vertex_on_curved_face",
+        "vertex_on_curved_face_at",
         "BooleanDecision::VertexOnVertex",
         1,
     ),

@@ -209,11 +209,7 @@ pub(super) fn build_sectors<T: Decide>(
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => {
                 let (t0, t1) = curve.params();
-                let tangent = if he == edge.he_plus {
-                    curve.carrier().deriv(t0)
-                } else {
-                    -curve.carrier().deriv(t1)
-                };
+                let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
                 let extent =
                     geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
                 Ok((tangent.normalize() * extent, Reach::Extent(extent)))

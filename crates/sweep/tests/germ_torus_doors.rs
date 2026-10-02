@@ -236,7 +236,7 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
         assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
     }
     let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
-        .expect_err("no torus union builds a body yet");
+        .expect_err("an undeclared coincident torus pair refuses");
     assert!(
         !matches!(err, BooleanError::NonMaximalFaces { .. }),
         "F7 does not answer on the halves as built: {err:?}"
@@ -358,16 +358,17 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
 }
 
 /// **The declared waists pass the crossing layer.** With both waist
-/// pairs declared `Rest`, the seam meridian reaches the declared-cover
-/// rung through the carrier identity, and neither the circle rung's
-/// frontier nor its escalation is what the union answers: it builds.
+/// pairs declared continuations, the seam meridian reaches the
+/// declared-cover rung through the carrier identity, and neither the
+/// circle rung's frontier nor its escalation is what the union answers:
+/// it builds.
 #[test]
 fn the_declared_waists_pass_the_circle_rung() {
-    let built = t2(Handle::Torus);
+    let r = t2(Handle::Torus);
     assert!(
-        built.is_ok(),
-        "the carrier-identity rung must carry the declared waists past the circle rung: \
-         {built:?}"
+        matches!(r, Ok(topo::BooleanResult::Body(_))),
+        "the carrier-identity rung must carry the declared waists past the circle rung: {:?}",
+        r.err()
     );
 }
 
@@ -791,13 +792,13 @@ fn the_torus_waisted_union_builds_like_the_cylinder_control() {
             (v - want).abs() < 1e-9,
             "{handle:?}: the halves only touch, so the union is their sum: {v} against {want}"
         );
-        // Every boolean output is a legal boolean operand (DESIGN): the
-        // waists' seam is a recorded curved skip, the planar continuation
-        // none (both halves' discs are consumed).
-        let far =
-            sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
-        topo::union(&bb.body, &far, Tol::witness())
-            .unwrap_or_else(|e| panic!("{handle:?}: the union is a legal operand: {e:?}"));
+        // The waists' seam is a recorded curved skip, the planar
+        // continuation none (both halves' discs are consumed).
+        sweep::test_support::assert_legal_operand(
+            &format!("{handle:?} dumbbell"),
+            &bb.body,
+            Tol::witness(),
+        );
     }
 }
 

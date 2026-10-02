@@ -19,9 +19,11 @@
 //!    a kissing torus pair classifies wedge 2π (the cusp family, whose
 //!    certified rim witness is defined and unbuilt). Each refuses
 //!    typed naming the arm the geometry earned.
-//! 4. **∖ and ∩ stop where ∪ does.** The torus is on the revert
-//!    roster, so each fixture under a subtract (both orders) or an
-//!    intersect refuses at the door its union meets.
+//! 4. **∖ and ∩ stop where ∪ does**, except on the socket. The torus is
+//!    on the revert roster, so each fixture under a subtract (both
+//!    orders) or an intersect refuses at the door its union meets; the
+//!    socket's union is built by the declared-REST zip, which is a
+//!    union lane, and its ∖ and ∩ stop at the section pass.
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
@@ -30,7 +32,8 @@
 //! before the sampled clearance, whose `±charge` about an identically
 //! zero residual would read definitely negative — and stops at the
 //! no-crossings fallback's section pass, on the coincident pair's
-//! tangency.
+//! tangency. The peg seated in its socket goes further: its union
+//! builds, through the declared-REST zip.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -205,29 +208,21 @@ fn wall_declarations(
 // 1. The declaration door: the carrier ladder's torus rung.
 // -------------------------------------------------------------------
 
-/// The peg-in-socket union under `decls`, held to what it promises.
+/// The peg-in-socket union under `decls`, held to what it promises at
+/// every ε: sound at tiers 2 and 3′ and the at-rest certificate,
+/// additive (the parts only touch), one shell of four faces, six edges
+/// and four vertices, and a legal operand.
 ///
-/// At the default ε and finer it builds since JOIN-1 (each strut's half
-/// beside a germ's locus edge faces it): sound at tiers 2 and 3′ and the
-/// at-rest certificate, additive (the parts only touch), and a legal
-/// operand. At a coarser ε (the CI 1e-6 row) the join's section-loop
-/// witness reads in band and the union refuses typed instead —
-/// `JoinDesync`, as main refuses it at every ε with
-/// `Join(UnpairedLooseEnds)`
-/// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`).
-/// A body is never shipped unsound at any ε.
+/// At ε up to 2e-7 the chord join builds it (each strut's half beside
+/// a germ's locus edge faces it). From 3e-7 the join's role probe reads
+/// both section loops in band and refuses
+/// `Join(SectionLoopUndecided)`, the curved-face frontier
+/// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`);
+/// the declared-REST zip takes that refusal over and builds the same
+/// census.
 fn peg_in_socket_union_holds(s: &Body<f64>, p: &Body<f64>, decls: &BooleanDeclarations) {
-    let r = topo::union_with(s, p, decls, Tol::witness());
-    let r = match r {
-        Err(e) if Tol::witness().eps() > geom_core::tolerance::DEFAULT_EPS => {
-            assert!(
-                matches!(e, BooleanError::JoinDesync { .. } | BooleanError::Join(_)),
-                "above the default ε the union refuses at the join, typed: {e:?}"
-            );
-            return;
-        }
-        r => r.unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}")),
-    };
+    let r = topo::union_with(s, p, decls, Tol::witness())
+        .unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}"));
     let bb = r.body().expect("a union of two solids is not empty");
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
     assert_eq!(
@@ -245,9 +240,17 @@ fn peg_in_socket_union_holds(s: &Body<f64>, p: &Body<f64>, decls: &BooleanDeclar
         (v - want).abs() < 1e-9 * want.max(1.0),
         "the parts only touch, so the union is additive: {v} against {want}"
     );
-    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness());
-    topo::union(&bb.body, &far, Tol::witness())
-        .unwrap_or_else(|e| panic!("every boolean output is a legal operand: {e:?}"));
+    assert_eq!(
+        (
+            bb.body.faces().count(),
+            bb.body.edges().count(),
+            bb.body.vertices().count(),
+            bb.body.shells().count()
+        ),
+        (4, 6, 4, 1),
+        "F, E, V, shells"
+    );
+    sweep::test_support::assert_legal_operand("peg ∪ socket", &bb.body, Tol::witness());
 }
 
 /// **The rung exists.** Before it, a `Rest` declaration on a torus
@@ -257,9 +260,11 @@ fn peg_in_socket_union_holds(s: &Body<f64>, p: &Body<f64>, decls: &BooleanDeclar
 /// are ONE carrier with opposed material sides, which is what `Rest`
 /// means; the declaration is now admitted and the ladder runs on it.
 ///
-/// What the op then does is the next row's subject. This one is about
-/// the door, so it asserts only that the refusal is no longer the
-/// door's.
+/// The union then builds ([`peg_in_socket_union_holds`]): the peg and
+/// the socket share no interior, so the body holds exactly their two
+/// volumes, and the census pins the pairing: the outer torus wall's two
+/// faces, and at each end one disc, the peg's merged into the socket's
+/// annulus.
 #[test]
 fn a_declared_torus_rest_pair_passes_the_declaration_door() {
     let (s, p) = (socket(), segment_a());

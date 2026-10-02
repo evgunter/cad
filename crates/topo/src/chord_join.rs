@@ -262,10 +262,8 @@ pub enum SplitJoinError {
     /// that reach it; what can still disagree is an edge leaving a
     /// vertex tangent to the surface it is read against (read to first
     /// order in the boolean, to second in the split), a coincidence of
-    /// the two solids the join has no rule for (a declared continuation
-    /// over a rabbet's step reaches it,
-    /// `work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`),
-    /// a corrupt reduction, or a kernel defect.
+    /// the two solids the join has no rule for, a corrupt reduction, or
+    /// a kernel defect.
     UnpairedLooseEnds {
         /// How many halves remained.
         count: usize,
@@ -293,6 +291,18 @@ pub enum SplitJoinError {
     /// poses that pin that arm's arc crossing.
     SectionLoopMixed {
         /// The offending null face.
+        face: FaceKey,
+    },
+    /// Neither section loop of a null face reads which side of the other
+    /// solid it lies on: every witness the role probe holds for either
+    /// loop's regions lies on the other solid's boundary or within its
+    /// band of it. A crossing's two flanks cannot both read that way
+    /// unless their faces are curved and the witness can only sit on
+    /// their boundaries — the frontier of
+    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`,
+    /// and no kernel defect.
+    SectionLoopUndecided {
+        /// The null face whose loops' roles went unread.
         face: FaceKey,
     },
     /// `cut` found neither side of an interior null edge to be a
@@ -494,6 +504,13 @@ impl SplitJoinError {
                 "{count} section loop(s) close through a single vertex: a closed curve of \
                  one solid lies in a face of the other and meets nothing else of it, and a \
                  loop joined at one site is not built. {}",
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::SectionLoopUndecided { .. } => write!(
+                f,
+                "which of a section's two loops bounds the result cannot be read: every \
+                 point it is read at lies on a curved face's boundary or too near the \
+                 other part. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopMixed { face } => write!(
@@ -2334,13 +2351,13 @@ fn run_azimuth_images<T: Decide>(
 /// (the rod's ruling, a lens rim on a wall).
 fn along_edge_spec<T: Decide>(
     body: &Body<T>,
-    along: bool,
+    lane: &JoinLane<'_, T>,
     segment: SegmentEdge,
     face: FaceKey,
     u1: VertexKey,
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    let (true, SegmentEdge::Is(Some(edge))) = (along, segment) else {
+    let (JoinLane::AlongEdge, SegmentEdge::Is(Some(edge))) = (lane, segment) else {
         return Ok(None);
     };
     let point = |v: VertexKey| {
@@ -2500,7 +2517,6 @@ impl ChordJoiner {
         };
 
         let mut chords = Vec::new();
-        let along = matches!(lane, JoinLane::AlongEdge);
         let mut newf = None;
         // The RUN the section chords co-bound (real halves between h1
         // and h2 in next order) — the divided face's other boundary,
@@ -2545,7 +2561,7 @@ impl ChordJoiner {
                 // the mef run walks the long way to the between edge,
                 // which is exactly cycle[h1..h2]) — one window.
                 let (u1, u2) = (start_of(body, h1)?, start_of(body, outside)?);
-                let spec = match along_edge_spec(body, along, segment, oldf, u1, u2)? {
+                let spec = match along_edge_spec(body, &lane, segment, oldf, u1, u2)? {
                     Some(spec) => Some(spec),
                     None => {
                         chord_spec(body, self.band, lane.reborrow(), oldf, &run_halves, u1, u2)?
@@ -2582,7 +2598,7 @@ impl ChordJoiner {
             // rather than guessing).
             let target_cycle = body.loop_cycle(target).ok_or_else(|| corrupt_he(target))?;
             let (u1, u2) = (start_of(body, target)?, start_of(body, ring)?);
-            let spec = match along_edge_spec(body, along, segment, oldf, u1, u2)? {
+            let spec = match along_edge_spec(body, &lane, segment, oldf, u1, u2)? {
                 Some(spec) => Some(spec),
                 None => chord_spec(
                     body,
@@ -2641,7 +2657,7 @@ impl ChordJoiner {
                 run_halves.clone()
             };
             let (u1, u2) = (start_of(body, h2)?, start_of(body, next(body, h1)?)?);
-            let spec = match along_edge_spec(body, along, segment, owner, u1, u2)? {
+            let spec = match along_edge_spec(body, &lane, segment, owner, u1, u2)? {
                 Some(spec) => Some(spec),
                 None => chord_spec(body, self.band, lane, owner, &run2, u1, u2)?,
             };

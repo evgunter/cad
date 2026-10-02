@@ -61,9 +61,6 @@ and the typed-refusal half of `closed-in-face-section-loop-has-one-site`.
   (`chord_join::along_edge_spec`: lines straight, circles their own
   arc), its frame is the edge's curve, and no section of the germ's
   face pair (possibly one carrier) is read.
-- ~~A scaffold at rest is restated~~ — withdrawn in fix pass 2: it
-  hid an illegal output (two same-sense coplanar neighbours) behind a
-  passing tier 3.
 - `locus_at_site` reads the whole null-edge site; `find_match` and
   `loose_partners` share one criterion (`join::partners`); the boolean
   lanes' dead `between_edge_is_section` arms and `JoinLane::Planar`'s
@@ -110,3 +107,10 @@ operand: the rabbet step
 closed), mate7a's torus peg-in-socket, and the `curved_mergedoor`
 scenes C and D, through the join.
 
+
+## Fix pass 3 (delta-2 review, PR 3790)
+
+- **The role probe's curved-face frontier is typed.** When neither section loop reads, the join refuses `Join(SectionLoopUndecided)`, which ends in the shared NOT_YET ending. It used to refuse `JoinDesync`, which reads as a kernel bug. The declared-REST door takes it over as it does any `Join` refusal. See `peg-in-socket-union-refuses-join-desync-at-a-coarse-eps` for the threshold.
+- **One home for the strut facing rule.** `insert::strut_facing` decides which half of a strut faces which germ, from the germs' own locus edges. Both strut minters, `insert`'s spike order and `vtxfac`'s pierce struts, read it. Germs that name opposite facings refuse with `ClassificationInvariant`.
+- **The interior-loop guard's event pairs** (`ops::event_pairs`) read the faces around a contact vertex together with its null-edge copies. Which copy keeps a face's corner is the scaffolding's choice. Without this, main's dome-on-rim rows, which the join now builds, had their sphere × disc pair misread as no event.
+- **One operand check for the suites:** `sweep::test_support::assert_legal_operand`.

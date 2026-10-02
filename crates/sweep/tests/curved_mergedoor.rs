@@ -121,6 +121,7 @@ fn union_honest(
         Ok(()),
         "{label}: tier 3′"
     );
+    sweep::test_support::assert_legal_operand(label, &bb.body, Tol::witness());
     bb
 }
 

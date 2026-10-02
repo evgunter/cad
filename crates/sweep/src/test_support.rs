@@ -211,6 +211,20 @@ pub fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -
     topo::test_support::brick(x, y, z, tol)
 }
 
+/// **Every boolean output is a legal boolean operand** (DESIGN,
+/// "Maximal faces"): asserts that `body` passes the next boolean's
+/// operand gates, by uniting it with a unit brick at `[50, 51]³` that it
+/// does not touch, so nothing but those gates runs on it. Panics naming
+/// `what` and the gate's refusal. The suites' bodies lie well inside
+/// `|x| < 50`; a body that reached the brick would be read as an
+/// overlap, not as a gate.
+pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
+    let far = brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol);
+    if let Err(e) = topo::union(body, &far, tol) {
+        panic!("{what}: the result is no legal operand: {e:?}");
+    }
+}
+
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
 /// outline the fixtures here build on when they need the loop rather

@@ -671,10 +671,7 @@ fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
             W * H,
             6,
         );
-        // Every boolean output is a legal boolean operand (DESIGN).
-        let far = brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0));
-        topo::union(&union.body, &far, tol())
-            .unwrap_or_else(|e| panic!("{label}: the union is a legal operand: {e:?}"));
+        sweep::test_support::assert_legal_operand(label, &union.body, tol());
         builds(
             &format!("{label}, subtract"),
             topo::subtract_with(&a, &block, &d, tol()),

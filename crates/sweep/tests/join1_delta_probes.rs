@@ -399,12 +399,8 @@ fn overlapping_lens_prisms_declared_union_builds() {
     let line = outcome(r, want, 1e-6);
     println!("[lens] {line}");
     assert!(line.starts_with("OK SOUND"), "{line}");
-    // A legal operand: the union of the result with a far brick runs.
     let r = topo::union_with(&a, &b, &d, tol()).unwrap();
-    let bb = r.body().unwrap();
-    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (0.0, 1.0), tol());
-    topo::union(&bb.body, &far, tol())
-        .unwrap_or_else(|e| panic!("the lens union is a legal operand: {e:?}"));
+    sweep::test_support::assert_legal_operand("lens ∪", &r.body().unwrap().body, tol());
 }
 
 /// The hexagon ∪ box corner-edge pose (`join1_r1_rows`) builds on the
@@ -471,14 +467,13 @@ fn the_declared_seam_body_is_an_operand() {
     );
 }
 
-/// The mechanism rows' peg ∪ collar bodies (`join1_mechanisms`): the
-/// flush bottom caps (peg disk, collar annulus) are coplanar and
-/// undeclared. Read the shipped body's seams, and use it as an operand
+/// The mechanism rows' peg ∪ collar bodies (`join1_mechanisms`), the
+/// walls declared `Rest` and the flush caps (peg disc, collar annulus)
+/// continuations (`mate2_common::wall_decls`), which the merge stage
+/// glues. Read the shipped body's seams, and use it as an operand
 /// against a disjoint brick (no contact at all: only the operand gates
-/// run on it). Red on main (the REST zip's body) and on 21b7f289 (the
-/// join's) alike: both refuse `CoplanarNeighbours`. Not JOIN-1's.
+/// run on it): both build, and both are operands.
 #[test]
-#[ignore = "red on main and here alike: a declared-REST union's continuation is FUSE's issue and REACH PR 3657's refusal, not JOIN-1's"]
 fn the_peg_collar_unions_are_operands() {
     use crate::mate2_common::{collar_at, peg_at, wall_decls};
     use sweep::test_support::brick;

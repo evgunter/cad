@@ -89,3 +89,16 @@ read. Undeclared, both still refuse `CurvedPierceUnsupported` at the
 circle rung. Re-pinned:
 `crates/sweep/tests/germ_torus_doors.rs`
 `the_torus_waisted_union_builds_like_the_cylinder_control`.
+
+## Measured (TANG, 2026-10-02, branch `tang/abutting-rim`)
+
+Both handles BUILD there, the joint discs declared `Rest` and the
+handles continuations, through the declared-REST zip: tier 3 and 3′, at
+exactly the two halves' volumes (torus 14.697464134831963, cylinder
+14.41991027997715), `(12, 22, 14)` faces, edges, vertices, one shell.
+The zip now matches germs along circle arcs both operands carry between
+two sites before its straight-chord test, and a segment names its two
+arcs, so the joint circle's two semicircles are two seams
+(`boolean/arcs.rs`, `arcs_along`). JOIN-2's plan replaces
+`enumerate_segments` with the join's segments; this is the interim, and
+the rows in `germ_torus_doors.rs` are re-pinned to the bodies.

@@ -44,43 +44,16 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
         .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
     let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
     assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
-    // Every boolean output is a legal boolean operand (DESIGN).
-    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (0.0, 1.0), tol());
-    topo::union(&bb.body, &far, tol())
-        .unwrap_or_else(|e| panic!("{what}: the result is no legal operand: {e:?}"));
-}
-
-/// The walls declared `Rest` AND every flush pair of two planar faces
-/// (the peg's caps in the collar's cap planes, abutting across the rim,
-/// same sense). Left undeclared, that continuation would hand a declared
-/// union to the REST zip instead of the chord join these rows are about
-/// (`BooleanReduction::continuation`); declared, the merge stage glues
-/// it and the result is a legal operand.
-fn walls_and_caps(c: &topo::Body<f64>, p: &topo::Body<f64>) -> topo::BooleanDeclarations {
-    let mut decls = wall_decls(c, p);
-    let planar = |body: &topo::Body<f64>, f: topo::FaceKey| {
-        body.get_face(f)
-            .and_then(|fd| body.get_surface(fd.surface))
-            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
-    };
-    for f in topo::flush::find_flush_candidates(c, p, tol()).expect("the detector decides") {
-        let (fa, fb) = f.pair;
-        if planar(c, fa) && planar(p, fb) {
-            decls
-                .coincident_faces
-                .push(topo::FacePairDeclaration::new(fa, fb, f.class));
-        }
-    }
-    decls
+    sweep::test_support::assert_legal_operand(what, &bb.body, tol());
 }
 
 /// **Locus matching.** A peg in a collar's bore, flush with the
-/// collar's bottom and proud above its top, every wall pair and the
-/// flush bottom caps declared (`walls_and_caps`). The peg's bottom rim
-/// arcs lie on the bore's: each section segment there is an edge of
-/// both solids, and the loci name the same two edges at both of its
-/// ends. The union is the collar with the
-/// peg's proud part: additive.
+/// collar's bottom and proud above its top, every wall pair declared
+/// `Rest` and the flush bottom caps continuations (`wall_decls`). The
+/// peg's bottom rim arcs lie on the bore's: each section segment there
+/// is an edge of both solids, and the loci name the same two edges at
+/// both of its ends. The union is the collar with the peg's proud part:
+/// additive.
 ///
 /// The declared-REST zip takes over a declared union the join refuses,
 /// and builds this one too, so the volume alone cannot tell the lanes
@@ -92,7 +65,7 @@ fn walls_and_caps(c: &topo::Body<f64>, p: &topo::Body<f64>) -> topo::BooleanDecl
 fn matching_reads_the_germs_loci() {
     let (c, p) = (collar_at(0.0), peg_at(0.0, 1.0, 1.5));
     let want = volume(&c) + volume(&p);
-    let r = topo::union_with(&c, &p, &walls_and_caps(&c, &p), tol());
+    let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
         let declared = bb
             .naming
@@ -114,7 +87,8 @@ fn matching_reads_the_germs_loci() {
 }
 
 /// **The structural skip.** A peg exactly the collar's height, flush
-/// at both ends, every wall pair and both cap pairs declared: the union is the
+/// at both ends, every wall pair and both cap pairs declared
+/// (`wall_decls`): the union is the
 /// unbored collar. Both rims are edges of both solids. Each solid
 /// mints ONE copy of a rim arc, in the face its fold leaves Out, and
 /// keeps the rim itself as the other copy: the chord on the far side
@@ -126,7 +100,7 @@ fn the_skip_takes_the_locus_edge_for_the_segment() {
     let want = volume(&c) + volume(&p);
     assert_sound(
         "flush peg ∪ collar",
-        topo::union_with(&c, &p, &walls_and_caps(&c, &p), tol()),
+        topo::union_with(&c, &p, &wall_decls(&c, &p), tol()),
         want,
     );
 }

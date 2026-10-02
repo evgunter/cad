@@ -835,5 +835,10 @@ mod review_3701_probes;
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;
 
+#[path = "full_turn_bore_mate.rs"]
+mod full_turn_bore_mate;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
+
+#[path = "join1_delta2_harness.rs"]
+mod join1_delta2_harness;
