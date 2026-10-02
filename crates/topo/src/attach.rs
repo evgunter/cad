@@ -1959,17 +1959,14 @@ mod tests {
     fn push_out_top_and_front(body: &mut Body<f64>, d: f64) {
         let vertices: Vec<_> = body.vertices().map(|(k, _)| k).collect();
         for v in vertices {
-            let old = body.get_vertex(v).unwrap().point;
-            let mut p = *body.get_point(old).unwrap();
+            let mut p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
             if p.y == 0.0 {
                 p.y = -d;
             }
             if p.z == 1.0 {
                 p.z = 1.0 + d;
             }
-            let new = body.add_point(p);
-            body.get_vertex_mut(v).unwrap().point = new;
-            body.remove_point_if_orphaned(old);
+            body.move_vertex(v, p).unwrap();
         }
     }
 

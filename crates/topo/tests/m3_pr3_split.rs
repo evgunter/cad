@@ -347,6 +347,105 @@ fn notched_block_end_to_end() {
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
 }
 
+/// The pseudomanifold door at rest (tiers 1–3, then the tier-3′
+/// census) over `body`, with NO declared contacts.
+fn pseudomanifold_door(body: &Body<f64>) -> Result<(), Vec<topo::ValidationError>> {
+    use topo::AtRestPolicy;
+    let kept = <f64 as AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness())?;
+    <f64 as AtRestPolicy>::gate_at_rest_declared(
+        &kept,
+        &topo::ContactRecords::default(),
+        Tol::witness(),
+    )
+    .map(|_| ())
+}
+
+/// **A pinch half passes the pseudomanifold door with no records**
+/// (D1 tier 3′: an op's copies of one vertex share its point). Above's
+/// two tip copies at each end of the tip line are distinct vertices on
+/// ONE point, so the census clears their touch as structural sharing —
+/// the vertex pair and the collinear tip edges both bounded by such
+/// pairs.
+#[test]
+fn notched_block_halves_pass_the_pseudomanifold_door_with_no_records() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let (above, below) = (body_of(&result.above), body_of(&result.below));
+    for z in [0.0, 1.0] {
+        let tips = vertices_at(above, 4.0, 1.0, z);
+        assert_eq!(tips.len(), 2, "two copies at the tip, z = {z}");
+        assert_eq!(
+            above.get_vertex(tips[0]).unwrap().point,
+            above.get_vertex(tips[1]).unwrap().point,
+            "the copies share the cut vertex's point, z = {z}"
+        );
+    }
+    assert_eq!(pseudomanifold_door(above), Ok(()), "above (the pinch half)");
+    assert_eq!(pseudomanifold_door(below), Ok(()), "below");
+}
+
+/// **Moving one copy parts it from its twin**: offsetting the middle
+/// wedge's tip-side flank inward moves that wedge's tip copies through
+/// the door that mints a fresh point for every moved vertex, so the
+/// twins no longer share a point, the wedges no longer touch, and the
+/// half still passes with no records.
+#[test]
+fn moving_one_tip_copy_parts_it_from_its_twin() {
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let mut above = body_of(&result.above).clone();
+    // The middle wedge's flank from (4, 1) to (5, 2): outward normal
+    // (-1, 1)/√2, its plane through the tip.
+    let flank = |b: &Body<f64>, f: &topo::Face| match b.get_surface(f.surface) {
+        Some(Surface::Plane { origin, normal, .. }) => {
+            normal.x < 0.0
+                && normal.y > 0.0
+                && normal.dot(Point3::new(4.0, 1.0, 0.0) - *origin).abs() < 1e-12
+        }
+        _ => false,
+    };
+    let mut by_surface: std::collections::BTreeMap<_, Vec<topo::FaceKey>> = Default::default();
+    for (k, f) in above.faces() {
+        by_surface.entry(f.surface).or_default().push(k);
+    }
+    let moves: Vec<topo::ChartMove<f64>> = by_surface
+        .into_values()
+        .map(|faces| {
+            let moved = flank(&above, above.get_face(faces[0]).unwrap());
+            topo::ChartMove {
+                faces,
+                distance: if moved { -0.1 } else { 0.0 },
+            }
+        })
+        .collect();
+    assert_eq!(
+        moves.iter().filter(|m| m.distance != 0.0).count(),
+        1,
+        "one flank moves"
+    );
+    topo::offset_planes_together(
+        &mut above,
+        &moves,
+        geom_core::Band::linear(Tol::witness()).unwrap(),
+        Tol::witness(),
+    )
+    .expect("the flank offsets");
+    for z in [0.0, 1.0] {
+        assert_eq!(
+            vertices_at(&above, 4.0, 1.0, z).len(),
+            1,
+            "one copy stays at the tip, z = {z}"
+        );
+    }
+    let points: std::collections::BTreeSet<_> = above.vertices().map(|(_, v)| v.point).collect();
+    assert_eq!(
+        points.len(),
+        above.vertices().count(),
+        "no two vertices share a point once the copies part"
+    );
+    assert_eq!(pseudomanifold_door(&above), Ok(()));
+}
+
 /// One-sided pure tangency (PR 2 carry-forward 2): the apex prism
 /// touching the plane from above along its apex edge only — the
 /// degenerate side is REFUSED typed (zero-area section polygon), no

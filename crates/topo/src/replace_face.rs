@@ -2181,15 +2181,8 @@ pub(crate) fn move_points_then_rechart<T: Decide>(
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
     for (vertex, point) in moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
+        work.move_vertex(*vertex, *point)
+            .ok_or(ReplaceFaceError::Corrupt)?;
     }
     work.set_face_surfaces_describing(charts, specs, tol)
         .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;

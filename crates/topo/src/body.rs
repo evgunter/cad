@@ -619,13 +619,29 @@ impl<T: Real> Body<T> {
         }
     }
 
+    /// **The one door that moves a vertex**: mints a fresh point at
+    /// `point`, rebinds `vertex` to it, and frees the old point if no
+    /// other vertex sits on it. Returns the new key, or `None` (body
+    /// untouched) if `vertex` does not resolve.
+    ///
+    /// It always mints, never writes the old point in place: an op's
+    /// copies of one vertex share its point (`Body::mev_null`, D1 tier
+    /// 3′), so an in-place write would drag the twin along. Moving one
+    /// copy through here parts it from its twin.
+    pub(crate) fn move_vertex(&mut self, vertex: VertexKey, point: Point3<T>) -> Option<PointKey> {
+        let old = self.vertices.get(vertex)?.point;
+        let new = self.add_point(point);
+        self.vertices[vertex].point = new;
+        self.remove_point_if_orphaned(old);
+        Some(new)
+    }
+
     /// Removes `point` from the point arena iff no vertex references it,
     /// returning whether it was removed. Used by vertex-killing operators
-    /// (PR 4's `kev`/`kvfs`): with M1's per-vertex point minting the
-    /// killed vertex's point is always orphaned in practice, but the scan
-    /// is the rule — it keeps the op sound standalone if points are ever
-    /// shared. Deterministic (D9), same shape as
-    /// [`Body::remove_curve_if_orphaned`].
+    /// (`kev`/`kvfs`) and [`Body::move_vertex`]: an op's copies of one
+    /// vertex share its point (`Body::mev_null`), so the point outlives
+    /// a vertex while a twin still sits on it. Deterministic (D9), same
+    /// shape as [`Body::remove_curve_if_orphaned`].
     pub(crate) fn remove_point_if_orphaned(&mut self, point: PointKey) -> bool {
         if self.vertices.values().any(|vertex| vertex.point == point) {
             return false;

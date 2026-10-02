@@ -177,7 +177,8 @@
 //!   two bounds is backed. Where both edges hold a vertex at the
 //!   bound, that means the pair is v-v-declared, or backed by a
 //!   declared face pair holding the two vertices on its two boundaries
-//!   (`vv_face_backed`), or is one shared vertex — structural. Where
+//!   (`vv_face_backed`), or is one vertex or two on one point —
+//!   structural. Where
 //!   only one edge holds a vertex there — the endpoint rests on the
 //!   other edge's INTERIOR — the bound is a vertex-on-edge event and
 //!   is backed by exactly that lane's rung: a declared face pair
@@ -195,10 +196,10 @@
 //!   that vertex must be v-on-f-declared on this face, v-v-declared
 //!   with a coincident vertex of the face's boundary, backed by a
 //!   declared face pair naming this face and one holding the vertex
-//!   (`vf_face_backed`), or itself a vertex of the face's boundary
-//!   (structural). Where it holds none — the bound falls where a
-//!   boundary vertex of the face rests on the edge — the bound is a
-//!   vertex-on-edge event and is backed by exactly that lane's rung: a
+//!   (`vf_face_backed`), or itself a vertex of the face's boundary or
+//!   on one point with one (structural). Where it holds none — the
+//!   bound falls where a boundary vertex of the face rests on the
+//!   edge — the bound is a vertex-on-edge event and is backed by exactly that lane's rung: a
 //!   declared face pair holding that vertex on one boundary and naming
 //!   a face the edge bounds (`ve_face_backed`). Same argument as the
 //!   edge-edge bullet's, one dimension up: a bound of the overlap is a
@@ -273,6 +274,7 @@ use crate::chart_region::{ChartRegionError, RegionLane};
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
 };
+use crate::geometry::PointKey;
 use crate::null::CurveGeom;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, StaleDeclaration, ValidationError, decide,
@@ -319,6 +321,9 @@ struct Geo<T: Real> {
     faces: Vec<FaceGeo<T>>,
     /// Key → position (the sweeps' random-access view of `verts`).
     vmap: std::collections::BTreeMap<VertexKey, Point3<T>>,
+    /// Key → the point the vertex sits on: two vertices on one point
+    /// are structural sharing ([`Geo::same_point`]).
+    vpoint: std::collections::BTreeMap<VertexKey, PointKey>,
     /// Faces on non-`Plane` carriers — outside the exact planar
     /// sweeps, inside the conformal face-pair arm.
     curved_faces: Vec<FaceKey>,
@@ -1087,6 +1092,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         .iter()
         .filter_map(|(k, v)| body.points.get(v.point).map(|p| (k, *p)))
         .collect();
+    let vpoint = body.vertices.iter().map(|(k, v)| (k, v.point)).collect();
     let mut edges = Vec::new();
     for (key, edge) in body.edges.iter() {
         if !edge_is_line(body, key) {
@@ -1176,8 +1182,22 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         edges,
         faces,
         vmap,
+        vpoint,
         curved_faces,
         vertex_faces,
+    }
+}
+
+impl<T: Real> Geo<T> {
+    /// Whether `a` and `b` are one vertex or sit on one point — the
+    /// structural rung of D1 tier 3′ ("same surface or point key"): an
+    /// op's copies of one vertex share its point.
+    fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
+        a == b
+            || matches!(
+                (self.vpoint.get(&a), self.vpoint.get(&b)),
+                (Some(pa), Some(pb)) if pa == pb
+            )
     }
 }
 
@@ -1286,7 +1306,11 @@ fn pair_vertex_vertex<T: Decide>(
     let Some(zero) = gap_is_zero("pm_census_vv_gap", Margin::norm3(pa - pb), band, errors) else {
         return;
     };
-    if zero && !declared.vv.contains(&(ka, kb)) && !declared.vv_face_backed(geo, ka, kb) {
+    if zero
+        && !geo.same_point(ka, kb)
+        && !declared.vv.contains(&(ka, kb))
+        && !declared.vv_face_backed(geo, ka, kb)
+    {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexVertex { a: ka, b: kb },
             witness: witness(pa),
@@ -1590,7 +1614,8 @@ fn any_boundary_vertex_at<T: Decide>(
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
 /// boundary vertex of `f`, face-backed onto `f`, or the vertex is
-/// itself on `f`'s boundary (structural).
+/// itself on `f`'s boundary or shares its point with a boundary vertex
+/// of `f` at the bound (structural).
 ///
 /// Where it does not, a boundary vertex of `f` rests at the bound: the
 /// event is a vertex-on-edge, and it takes that lane's rung
@@ -1629,7 +1654,9 @@ fn ef_bound_backed<T: Decide>(
     {
         return true;
     }
-    any_boundary_vertex_at(f, geo, q, band, errors, |w| declared.vv.contains(&(ve, w)))
+    any_boundary_vertex_at(f, geo, q, band, errors, |w| {
+        geo.same_point(ve, w) || declared.vv.contains(&(ve, w))
+    })
 }
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
@@ -2194,8 +2221,8 @@ fn ee_crossing_lane<T: Decide>(
 
 /// Parallel pair: if collinear, the span overlap `[lo, hi]` on `ea`'s
 /// axis is a finding when positive-length; certified iff both bounds
-/// carry a coincident vertex pair that is v-v-declared or one shared
-/// vertex (structural) — the D3 rule.
+/// carry a coincident vertex pair that is v-v-declared, one vertex, or
+/// two on one point (structural) — the D3 rule.
 fn ee_collinear_lane<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
@@ -2247,8 +2274,8 @@ fn ee_collinear_lane<T: Decide>(
 }
 
 /// D3 backing for one bound of a collinear overlap: both edges hold a
-/// vertex at the bound and the pair is declared (or is one shared
-/// vertex — structural), or — where only ONE edge has a vertex there,
+/// vertex at the bound and the pair is declared (or is one vertex, or
+/// two on one point — structural), or — where only ONE edge has a vertex there,
 /// so the bound rests on the other edge's interior — that vertex is
 /// face-backed onto the other edge.
 ///
@@ -2275,7 +2302,9 @@ fn ee_bound_backed<T: Decide>(
     let vb = edge_vertex_at(eb, sb, band, errors);
     match (va, vb) {
         (Some(va), Some(vb)) => {
-            va == vb || declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+            geo.same_point(va, vb)
+                || declared.vv.contains(&(va, vb))
+                || declared.vv_face_backed(geo, va, vb)
         }
         (Some(va), None) => declared.ve_face_backed(geo, va, eb),
         (None, Some(vb)) => declared.ve_face_backed(geo, vb, ea),
@@ -9021,5 +9050,70 @@ mod tests {
             assert!(!tip.is_empty(), "{side}: {got:?}");
             assert!(tip.iter().all(|t| !t.is_rest()), "{side}: {tip:?}");
         }
+    }
+
+    /// **Two points at one position are not one point**: the notched
+    /// block's pinch half clears with no records while its tip copies
+    /// share the cut vertex's point; rebinding one copy to a fresh,
+    /// bit-equal point leaves a coincidence of values, which the
+    /// census refuses as an undeclared vertex–vertex contact.
+    #[test]
+    fn a_tip_copy_on_its_own_bit_equal_point_is_an_undeclared_contact() {
+        let notched = [
+            (0.0, 0.0),
+            (8.0, 0.0),
+            (8.0, 2.0),
+            (7.0, 1.0),
+            (6.0, 1.0),
+            (5.0, 2.0),
+            (4.0, 1.0),
+            (3.0, 2.0),
+            (0.0, 2.0),
+        ];
+        let tol = Tol::witness();
+        let fx = crate::test_support_fixtures::prism::<f64>(&notched, 1.0, tol);
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            tol,
+        );
+        let result = crate::split(&fx.body, &plane, tol).expect("the notched block splits");
+        let mut above = result.above.body().expect("above has material").clone();
+        let tip = Point3::new(4.0, 1.0, 0.0);
+        let copies: Vec<VertexKey> = above
+            .vertices()
+            .filter(|(_, v)| {
+                let p = above.points[v.point];
+                (p.x, p.y, p.z) == (tip.x, tip.y, tip.z)
+            })
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(copies.len(), 2, "two tip copies at z = 0");
+        let none = ContactRecords::default();
+        assert_eq!(
+            crate::validate_pseudomanifold(&above, &none, tol),
+            Ok(()),
+            "copies on one point are structural sharing"
+        );
+
+        above
+            .move_vertex(copies[1], tip)
+            .expect("the copy resolves");
+        assert_ne!(
+            above.vertices[copies[0]].point, above.vertices[copies[1]].point,
+            "the move minted a fresh point"
+        );
+        let errors = crate::validate_pseudomanifold(&above, &none, tol)
+            .expect_err("bit-equal values never glue");
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::VertexVertex { a, b },
+                    ..
+                } if [*a, *b] == [copies[0], copies[1]] || [*a, *b] == [copies[1], copies[0]]
+            )),
+            "{errors:?}"
+        );
     }
 }
