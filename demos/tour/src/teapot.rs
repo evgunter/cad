@@ -287,7 +287,7 @@ use pncad::document::{
     RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
-use pncad::geom_brep::SurfaceKind;
+use pncad::prelude::SurfaceKind;
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::query;
 use pncad::prelude::{

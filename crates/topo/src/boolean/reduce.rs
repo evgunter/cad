@@ -216,11 +216,11 @@ pub(super) struct UnsupportedPair {
     /// That face.
     pub face: FaceKey,
     /// Its kind — the half of the germ pair with no arm.
-    pub kind: geom_brep::SurfaceKind,
+    pub kind: geom::SurfaceKind,
     /// The other operand's face whose box overlaps it.
     pub other_face: FaceKey,
     /// That face's kind — the other half of the germ pair.
-    pub other_kind: geom_brep::SurfaceKind,
+    pub other_kind: geom::SurfaceKind,
 }
 
 /// **The pair-scoped operand scan: the first face whose KIND has no
@@ -300,11 +300,11 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // Arena order both ways, and no box is built for an operand
         // that carries no unsupported kind at all — the common case
         // pays nothing for this gate.
-        let mut offenders: Vec<(FaceKey, geom_brep::SurfaceKind)> = Vec::new();
+        let mut offenders: Vec<(FaceKey, geom::SurfaceKind)> = Vec::new();
         for (key, f) in body.faces() {
             let s = surface_of(body, f)?;
             if !supported(s) {
-                offenders.push((key, geom_brep::SurfaceKind::of(s)));
+                offenders.push((key, s.kind()));
             }
         }
         if offenders.is_empty() {
@@ -313,10 +313,10 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // The other side's boxes are built ONCE, and only now that an
         // offender exists: the scan is `offenders × other faces`, so
         // re-boxing per offender would re-walk a whole body per cone.
-        let others: Vec<(FaceKey, geom_brep::SurfaceKind, bvh::Aabb)> = other
+        let others: Vec<(FaceKey, geom::SurfaceKind, bvh::Aabb)> = other
             .faces()
             .map(|(key, f)| {
-                let kind = geom_brep::SurfaceKind::of(surface_of(other, f)?);
+                let kind = surface_of(other, f)?.kind();
                 Ok((key, kind, super::boxes::face_box(other, key, pad)?))
             })
             .collect::<Result<_, BooleanError>>()?;
@@ -1268,8 +1268,8 @@ pub(super) fn curved_face_arm<T: Decide>(
     // poison path gets re-entered when a gate later narrows. The arm
     // is written for the same reason the extent scan's is.
     if let Some(kind) = match surface {
-        geom::Surface::Nurbs(_) => Some(geom_brep::SurfaceKind::Nurbs),
-        geom::Surface::Approx(_) => Some(geom_brep::SurfaceKind::Approx),
+        geom::Surface::Nurbs(_) => Some(geom::SurfaceKind::Nurbs),
+        geom::Surface::Approx(_) => Some(geom::SurfaceKind::Approx),
         geom::Surface::Plane { .. }
         | geom::Surface::Cylinder { .. }
         | geom::Surface::Cone { .. }

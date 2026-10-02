@@ -458,7 +458,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
     use geom::ConventionEnd::{Lower, Upper};
     use geom::ConventionMeasure::{Length, Tilt, Value};
     use geom::SurfaceDatum as D;
-    use geom_brep::SurfaceKind as K;
+    use geom::SurfaceKind as K;
     enum Verdict {
         Poisoned,
         Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
@@ -909,11 +909,11 @@ fn pillow_with_carrier(
 /// rides after the datum's.)
 #[test]
 fn check_1_names_the_carrier_datum_that_describes_no_curve() {
-    use crate::query::CurveKind as K;
     use geom::ConventionEnd::{Lower, Upper};
     use geom::ConventionMeasure::{Length, Value};
     use geom::Curve3;
     use geom::CurveDatum as D;
+    use geom::CurveKind as K;
     let tol = Tol::witness();
     let pi = core::f64::consts::PI;
     let c = Point3::new(0.5, 0.0, 0.0);

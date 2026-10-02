@@ -9,7 +9,7 @@
 //!    nothing else — including the *payload types of error enums*,
 //!    which are otherwise the leak that forces a second `path`
 //!    dependency: `topo::BooleanError::CurvedBooleanUnsupported`
-//!    carries a `geom_brep::SurfaceKind` that `topo` does not
+//!    carries a `geom::SurfaceKind` that `topo` does not
 //!    re-export, so a `topo`-only consumer can receive the error and
 //!    not spell its payload. Re-exporting the owning crates closes
 //!    that whole class rather than one case, at the cost of a longer

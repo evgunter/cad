@@ -91,7 +91,7 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
-use pncad::geom_brep::SurfaceKind;
+use pncad::prelude::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};

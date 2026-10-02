@@ -73,7 +73,7 @@ use geom_core::{Point3, Vec3};
 use topo::{Body, LoopBoundary, Shell, ShellKey};
 
 use crate::StepExportError;
-use crate::writer::{carrier_kind, certified_carrier, surface_kind};
+use crate::writer::{certified_carrier, surface_kind};
 
 /// The signed volume enclosed by `shell` (module docs).
 ///
@@ -138,7 +138,7 @@ pub(crate) fn shell_signed_volume(
                     return Err(StepExportError::CurvedShellClassification {
                         shell: shell_key,
                         face: face_key,
-                        kind: carrier_kind(carrier),
+                        kind: carrier.kind().name(),
                     });
                 }
                 let a = vertex_position(body, he.start)?;

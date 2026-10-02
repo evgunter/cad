@@ -516,8 +516,8 @@ fn a_tall_cylinder_wall_rim_carves_past_a_two_pi_meridian() {
             topo::query::edge_adjacent_matches(
                 &body,
                 k,
-                topo::query::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
-                topo::query::SurfaceKindSet::just(geom_brep::SurfaceKind::Cone),
+                topo::query::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+                topo::query::SurfaceKindSet::just(geom::SurfaceKind::Cone),
             )
         })
         .collect();

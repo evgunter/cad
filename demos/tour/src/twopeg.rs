@@ -66,7 +66,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, polygon, v3, validated};
-use pncad::geom_brep::SurfaceKind;
+use pncad::prelude::SurfaceKind;
 use pncad::geom_core::{Affine3, Tol, Vec3};
 use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{ConstructedLoop, SketchPlane, ValidatedProfile, circle_split};

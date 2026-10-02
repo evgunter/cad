@@ -459,7 +459,7 @@ pub enum ShellError<T: Real> {
         /// The designated face.
         face: FaceKey,
         /// Its surface kind.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// A designated face shares its chart with faces of its own solid
     /// that were NOT designated. The rim surgery lifts a solid's wearers
@@ -2612,7 +2612,7 @@ fn check_designation<T: Real>(
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(ShellError::OpenFaceRingUnsupported {
                 face: *face,
-                kind: geom_brep::SurfaceKind::of(surface),
+                kind: surface.kind(),
             });
         }
     }

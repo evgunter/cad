@@ -152,9 +152,9 @@ fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
         .expect_err("the stem glue still refuses, at the join");
     let BooleanError::GermFrameUnsupported {
         a_face,
-        a_kind: geom_brep::SurfaceKind::Plane,
+        a_kind: geom::SurfaceKind::Plane,
         b_face,
-        b_kind: geom_brep::SurfaceKind::Torus,
+        b_kind: geom::SurfaceKind::Torus,
     } = err
     else {
         panic!("the lily's next door is the plane × torus germ frame: {err:?}");

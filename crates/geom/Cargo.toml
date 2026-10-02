@@ -14,10 +14,10 @@ workspace = true
 # `topo::ValidationError` renders through derive a companion
 # discriminant enum (`strum::EnumDiscriminants`), so a variant added
 # here is a gap in that row by construction, not by a hand-kept list.
-# `Surface` and `Curve3` derive one the same way, and
-# `geom::test_support` reads them to build one fixture of every
-# analytic kind. Test-only: enabled through dev-dependency edges alone.
-test-support = ["dep:strum", "geom-core/test-support"]
+# `geom::test_support` reads `SurfaceKind` and `CurveKind` to build one
+# fixture of every analytic kind. Test-only: enabled through
+# dev-dependency edges alone.
+test-support = ["geom-core/test-support"]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it
@@ -26,8 +26,10 @@ test-support = ["dep:strum", "geom-core/test-support"]
 probe = ["geom-core/probe"]
 
 [dependencies]
-# Optional: `test-support` above.
-strum = { version = "0.28", features = ["derive"], optional = true }
+# `CurveKind` and `SurfaceKind`, the fieldless mirrors of `Curve3` and
+# `Surface`, are derived (`strum::EnumDiscriminants`); `test-support`
+# above derives its rosters with it too.
+strum = { version = "0.28", features = ["derive"] }
 # Certified-conservative box constructors (the two `boxes` modules):
 # the bvh crate sits BELOW the geometry crate by design (its docs).
 bvh = { path = "../bvh" }

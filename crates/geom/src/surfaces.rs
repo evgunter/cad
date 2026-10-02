@@ -90,14 +90,14 @@ pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 /// the enum is cheap to clone (one refcount) but no longer `Copy`. The
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
-#[derive(Clone, Debug)]
-// The variant roster the analytic-kind fixtures read
-// ([`crate::test_support`]; this crate's `test-support` feature,
-// test builds only).
-#[cfg_attr(
-    feature = "test-support",
-    derive(strum::EnumDiscriminants),
-    strum_discriminants(name(SurfaceVariant), derive(strum::EnumIter), doc(hidden))
+#[derive(Clone, Debug, strum::EnumDiscriminants)]
+#[strum_discriminants(
+    name(SurfaceKind),
+    derive(PartialOrd, Ord, Hash, strum::VariantArray),
+    doc = "Which [`Surface`] variant a surface is: the workspace's one fieldless",
+    doc = "mirror of the surface enum ([`Surface::kind`]), derived from it, so",
+    doc = "a variant added to [`Surface`] is a kind by construction. Each",
+    doc = "variant carries its surface variant's docs."
 )]
 pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
@@ -284,7 +284,59 @@ pub enum Surface<T: Real> {
     /// no other door), so unlike [`Surface::Nurbs`] there is no
     /// placeholder state in this variant: an `Approx` surface is always
     /// described.
+    ///
+    /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]): a table
+    /// indexed by kind decides what a claim about a surface means, and a
+    /// claim about an approximating surface is a claim about the fit,
+    /// not about the surface asked for.
     Approx(Arc<ApproxSurface<T>>),
+}
+
+impl<T: Real> Surface<T> {
+    /// Which variant this surface is.
+    #[must_use]
+    pub fn kind(&self) -> SurfaceKind {
+        SurfaceKind::from(self)
+    }
+}
+
+impl SurfaceKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; <Self as strum::VariantArray>::VARIANTS.len()] =
+        match <Self as strum::VariantArray>::VARIANTS.first_chunk() {
+            Some(all) => *all,
+            None => unreachable!(),
+        };
+
+    /// The kind's name: one lower-case word, the spelling refusals and
+    /// tables print.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Plane => "plane",
+            Self::Cylinder => "cylinder",
+            Self::Cone => "cone",
+            Self::Sphere => "sphere",
+            Self::Torus => "torus",
+            Self::Nurbs => "nurbs",
+            Self::Approx => "approx",
+        }
+    }
+
+    /// The kind as an adjective for a face or its surface, for prose
+    /// ("a cylindrical face").
+    #[must_use]
+    pub const fn adjective(self) -> &'static str {
+        match self {
+            Self::Plane => "flat",
+            Self::Cylinder => "cylindrical",
+            Self::Cone => "conical",
+            Self::Sphere => "spherical",
+            Self::Torus => "toroidal",
+            Self::Nurbs => "spline",
+            Self::Approx => "fitted",
+        }
+    }
 }
 
 /// **The ring-torus convention's ring half, decided: its one home.**

@@ -1795,8 +1795,8 @@ pub fn rod_creases<T: Real>(body: &Body<T>) -> Vec<EdgeKey> {
                 && query::edge_adjacent_matches(
                     body,
                     k,
-                    SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
-                    SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
+                    SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+                    SurfaceKindSet::just(geom::SurfaceKind::Plane),
                 )
         })
         .collect()
