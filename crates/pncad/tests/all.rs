@@ -6680,6 +6680,63 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
     }
 }
 
+/// **The product door reads unplaced groups in document order, not id
+/// order**: with every instance unplaced it refuses
+/// `ProductError::Unplaced` listing the groups as the document holds
+/// them, and with the first placed, the own spaces it gathers beside
+/// the world (what the at-rest gate walks) come in that order too. The
+/// instance count grows until the ids do not run in document order.
+#[test]
+fn the_product_reads_unplaced_groups_in_document_order() {
+    use pncad::document::{DocEdit, ProductError, RecipeNodeId, Unplaced};
+    let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
+    let dir = WsDir::new("place-product-order");
+    let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-product-order-part");
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let (doc, ids) = (3..12)
+        .map(|n| asm2a_assembly("place-product-order", doc_ref, n))
+        .find(|(_, ids)| !ascending(&ids[1..]) && !ascending(ids))
+        .expect("some instance count puts the ids out of document order");
+    let unplace = |doc: pncad::document::ProfileDoc, instance| {
+        pncad::document::apply(
+            &doc,
+            &DocEdit::SetOffset {
+                instance,
+                offset: None,
+            },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("an offset clears")
+        .doc
+    };
+    let some_placed = ids[1..].iter().fold(doc, |doc, &i| unplace(doc, i));
+    let none_placed = unplace(some_placed.clone(), ids[0]);
+
+    let ev = asm2a_eval(&none_placed, &ws);
+    match pncad::document::product(&none_placed, &ev, Tol::witness()) {
+        Err(ProductError::Unplaced { groups }) => assert_eq!(
+            groups,
+            ids.iter()
+                .map(|&i| (i, Unplaced::NoOffset))
+                .collect::<Vec<_>>(),
+            "the groups, as the document holds them"
+        ),
+        other => panic!("a document with nothing placed refuses Unplaced: {other:?}"),
+    }
+
+    let ev = asm2a_eval(&some_placed, &ws);
+    let spaces: Vec<RecipeNodeId> = pncad::document::own_spaces(&some_placed, &ev, Tol::witness())
+        .iter()
+        .map(|space| space.group)
+        .collect();
+    assert_eq!(
+        spaces,
+        ids[1..],
+        "the own spaces, as the document holds their roots"
+    );
+}
+
 /// The three consistency checks D1 puts on a stored arc.
 const CONSISTENCY: [&str; 3] = ["arc_start_on_carrier", "arc_landing", "arc_sweep_range"];
 

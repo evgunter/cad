@@ -1363,6 +1363,71 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
     panic!("no length in 0..64 put the reached ids out of document order");
 }
 
+/// **A deleted node the name reaches is named after every live one**:
+/// a deleted node has no place in the document, so the live node is
+/// the one the author can still act on. The union whose face the cut
+/// names is deleted (the name stays, a DM7 strand), and its id is made
+/// to sort BELOW the live block's, so a pick by lowest id, or one that
+/// let a deleted node sort first, would name the union.
+#[test]
+fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
+    use editor_core::{BooleanOp, EntityKind, derivation_nodes};
+    for k in 0..64u32 {
+        let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
+        let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0 + f64::from(k) / 8.0);
+        let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
+        let (doc, u) = insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a,
+                b,
+                declare: None,
+            },
+        );
+        if a < u {
+            continue;
+        }
+        let ev = run(&doc, &EvalOptions::default());
+        let table = &ev.value(u).expect("the union evaluates").name_table;
+        let face_from = |seg: fn(&RoleSeg) -> bool| {
+            table
+                .iter()
+                .map(|(n, _)| n.clone())
+                .find(|n| n.kind == EntityKind::Face && n.path.first().is_some_and(seg))
+                .expect("the union keeps a face of each operand")
+        };
+        let from_a = face_from(|s| matches!(s, RoleSeg::FromA(_)));
+        let from_b = face_from(|s| matches!(s, RoleSeg::FromB(_)));
+        assert!(derivation_nodes(&from_a).contains(&a));
+        let (doc, decl) = insert(
+            doc,
+            Node::declare_rest(vec![(
+                SitedRef::at_mint(from_a.clone()),
+                SitedRef::at_mint(from_b),
+            )]),
+        );
+        let (doc, _) = step(doc, DocEdit::DeleteNode { id: u });
+        assert!(doc.node(u).is_none(), "the union is gone, its name stays");
+        match split(
+            &doc,
+            &BTreeSet::from([decl]),
+            DocumentId::derive("asm4-reach-deleted-part"),
+            Tol::witness(),
+            None,
+        ) {
+            Err(SplitError::PartNameReachesRemainder { missing, .. }) => assert_eq!(
+                missing,
+                doc.spoken(a),
+                "the live node, not the deleted union whose id sorts first"
+            ),
+            other => panic!("expected PartNameReachesRemainder, got {other:?}"),
+        }
+        return;
+    }
+    panic!("no length in 0..64 gave the union the lower id");
+}
+
 /// Inline's parameter, tolerance, and metadata refusals.
 #[test]
 fn inline_param_epsilon_and_metadata_refusals_fire_typed() {

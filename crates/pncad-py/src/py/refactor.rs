@@ -791,15 +791,9 @@ impl InlineOutcome {
     }
 }
 
-/// A node map as the pairs Python reads, in the order the mapped-to
-/// document holds the nodes: a `NodeId` has no order a caller can
-/// read, so the list's own order is the one it gets.
+/// A node map as the pairs Python reads ([`crate::node_map`]).
 fn pairs_in_order(map: &d::NodeMap, doc: &d::ProfileDoc) -> Vec<(NodeId, NodeId)> {
-    let to = doc.positions();
-    let mut pairs: Vec<(d::RecipeNodeId, d::RecipeNodeId)> =
-        map.iter().map(|(&a, &b)| (a, b)).collect();
-    pairs.sort_by_key(|&(a, b)| (to.get(&b).copied().unwrap_or(usize::MAX), a));
-    pairs
+    crate::node_map::in_document_order(map, doc)
         .into_iter()
         .map(|(a, b)| (NodeId(a), NodeId(b)))
         .collect()

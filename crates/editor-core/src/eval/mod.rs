@@ -196,6 +196,32 @@ impl<T: Decide> Evaluation<T> {
         crate::mate::Space::of(self.unplaced.get(&node).copied())
     }
 
+    /// **[`Evaluation::unplaced`] in `doc`'s order**, as `(node, root,
+    /// cause)`: the one reading of the map that a list, a report or a
+    /// refusal takes. The map is keyed by id, and an id is a digest, so
+    /// its own order is no order a reader can follow.
+    ///
+    /// `doc` is the document this evaluation is of.
+    pub fn unplaced_in_order<'a, P>(
+        &'a self,
+        doc: &'a Doc<P>,
+    ) -> impl Iterator<Item = (RecipeNodeId, RecipeNodeId, crate::mate::Unplaced)> + 'a {
+        doc.order().iter().filter_map(|&node| {
+            let &(root, cause) = self.unplaced.get(&node)?;
+            Some((node, root, cause))
+        })
+    }
+
+    /// **Every unplaced group, by its root, with its cause**, in
+    /// `doc`'s order ([`Evaluation::unplaced_in_order`]): a root lives
+    /// in its own group's space, so each group is its root's row.
+    pub fn unplaced_groups<P>(&self, doc: &Doc<P>) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
+        self.unplaced_in_order(doc)
+            .filter(|&(node, root, _)| node == root)
+            .map(|(_, root, cause)| (root, cause))
+            .collect()
+    }
+
     /// **Every unplaced group in a document below this one** (A9,
     /// A11 (2)), routed through the instance it arrived by
     /// ([`crate::CarriedUnplaced`]), once each, in [`Self::order`]: what

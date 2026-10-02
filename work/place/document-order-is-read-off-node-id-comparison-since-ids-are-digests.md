@@ -69,3 +69,21 @@ canonical-identity or contract-stated tie-breaks. The union pairwise
 judgement's "lesser id as operand A" is one of the stated tie-breaks.
 
 Filed: `work/chrome/display-prune-withdrawals-list-instances-in-id-order.md`.
+
+The review's fix pass found a site the sweep had misfiled as "lookup
+only": `product::unplaced_groups`, which fed `ProductError::Unplaced`
+and `own_spaces`, and through `own_spaces` the at-rest gate. "Unplaced
+groups in document order" now has one home, `Evaluation::unplaced_in_order`
+/ `Evaluation::unplaced_groups(doc)`, and the product, the part seam and
+the export all read through it.
+
+The fix pass also added three rows:
+- the product door's order;
+- a deleted node sorting after a live one in `PartNameReachesRemainder`;
+- a Rust-side node-map row that asserts the disorder before checking
+  the fix.
+
+A pass over the order words in the doc comments ("root order", "node
+order", "ascending", "lowest", "id order") filed two more rows:
+- `work/wire/union-pairwise-refusal-names-its-pair-in-digest-id-order.md`;
+- `work/vgeom/pick-ambiguity-lists-groups-in-id-order.md`.

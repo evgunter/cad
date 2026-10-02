@@ -2112,17 +2112,23 @@ pub fn split(
     // the severed-gauge rule's, neither built yet; every cut instance
     // then names a gauge outside the cut, and those references must
     // land on ONE anchor, which the instance left behind names.
-    let cut_instances: Vec<RecipeNodeId> = doc
+    //
+    // Every walk over the cut below reads it in document order, so the
+    // node a refusal names is the one the author placed first.
+    let in_order: Vec<RecipeNodeId> = doc
         .order()
         .iter()
         .copied()
         .filter(|id| cut.contains(id))
+        .collect();
+    let cut_instances: Vec<RecipeNodeId> = in_order
+        .iter()
+        .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
         .collect();
-    if let Some(&gauge) = doc
-        .order()
+    if let Some(&gauge) = in_order
         .iter()
-        .find(|id| cut.contains(id) && matches!(doc.node(**id), Some(Node::Gauge { .. })))
+        .find(|id| matches!(doc.node(**id), Some(Node::Gauge { .. })))
     {
         return Err(SplitError::CutHoldsGauge {
             gauge: doc.spoken(gauge),
@@ -2163,7 +2169,7 @@ pub fn split(
     // instance and lives in the world holds geometry in the world's
     // coordinates, and votes for the world. They must agree.
     let mut anchor: Option<Option<RecipeNodeId>> = None;
-    for &node in doc.order().iter().filter(|id| cut.contains(id)) {
+    for &node in &in_order {
         let vote = match doc.node(node) {
             Some(Node::InstantiatePart { gauge, .. }) => {
                 if matches!(
@@ -2199,7 +2205,7 @@ pub fn split(
     // space lives in an unplaced group's own.
     let mut in_world = false;
     let mut first_own = None;
-    for &id in doc.order().iter().filter(|id| cut.contains(id)) {
+    for &id in &in_order {
         match spaces.space.get(&id) {
             Some(crate::mate::Space::World) => in_world = true,
             Some(crate::mate::Space::Own { group, .. }) => {
@@ -2441,15 +2447,9 @@ pub fn split(
     }
     // The cut nodes in document order, each under the id the part's
     // insert door mints for it (D9 — two runs agree byte for byte).
-    let olds: Vec<RecipeNodeId> = doc
-        .order()
-        .iter()
-        .filter(|id| cut.contains(id))
-        .copied()
-        .collect();
     let (node_map, step_map) = carry(
         doc,
-        &olds,
+        &in_order,
         &mut part,
         (tol, &part_reach),
         (
@@ -2483,7 +2483,7 @@ pub fn split(
     // node's identity, so there is no cross-id-space reference for the
     // remap to miss. A future witness vocabulary that embeds foreign
     // stable names must remap here or refuse.
-    for &old in &olds {
+    for &old in &in_order {
         if let (Some(&new), Some(witness)) = (node_map.get(&old), doc.witness(old)) {
             part_apply(
                 &mut part,

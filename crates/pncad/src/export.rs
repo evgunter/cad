@@ -74,8 +74,9 @@ pub enum ExportError {
     /// unplaced groups out, so writing it would write the part without
     /// them. Each group with the route it arrived by and its cause.
     UnplacedBelow {
-        /// Every such group, once each, in the order the evaluation
-        /// carried them up (`Evaluation::unplaced_below`).
+        /// Every such group, once each: by the node it arrived through,
+        /// in `Evaluation::order`, and within one node as the document
+        /// below holds them (`Evaluation::all_unplaced_below`).
         groups: Vec<CarriedUnplaced>,
     },
 }
@@ -235,18 +236,13 @@ pub fn export_document_step(
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    let parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)> = doc
-        .order()
-        .iter()
-        .filter(|&&node| {
+    let parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)> = evaluation
+        .unplaced_in_order(doc)
+        .filter(|&(node, _, _)| {
             matches!(
                 doc.node(node),
                 Some(editor_core::Node::InstantiatePart { .. })
             )
-        })
-        .filter_map(|&node| {
-            let &(group, cause) = evaluation.unplaced.get(&node)?;
-            Some((node, group, cause))
         })
         .collect();
     if !parts.is_empty() {

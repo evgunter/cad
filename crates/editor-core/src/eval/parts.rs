@@ -674,15 +674,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // they cross beside it: its own, and those its parts carried up
         // to it, read off the evaluation rather than the product so a
         // group below an instance no root gathers is named too.
-        let unplaced = Arc::new(
-            doc.order()
-                .iter()
-                .filter_map(|&id| match evaluation.unplaced.get(&id) {
-                    Some(&(root, cause)) if root == id => Some((root, cause)),
-                    _ => None,
-                })
-                .collect(),
-        );
+        let unplaced = Arc::new(evaluation.unplaced_groups(doc));
         let carried_unplaced = Arc::new(evaluation.all_unplaced_below());
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
