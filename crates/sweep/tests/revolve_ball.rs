@@ -62,6 +62,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
         pi_walls,
         pi_meridians,
         pi_rims,
+        ..
     } = &t.kind
     else {
         panic!("full revolve");
@@ -72,11 +73,11 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert!(meridians[1].is_none(), "axis segment omitted");
     // The sphere key both bands share — the chart both meridians below
     // are images in.
-    let sphere = t.body.get_face(t.walls[0][0].unwrap()).unwrap().surface;
+    let sphere = t.body.get_face(t.walls()[0][0].unwrap()).unwrap().surface;
     // The angle-0 meridian IS the sphere's parameterization seam:
     // derived by the kernel, carrying D1's seam obligation.
     assert_seam_of(&t.body, arc_edge, sphere);
-    assert_eq!(t.walls[0][1], None);
+    assert_eq!(t.walls()[0][1], None);
     assert!(t.rims[0].iter().all(Option::is_none));
     // Both poles are EXPORTED (M9-D1), in canonical vertex order —
     // this body's only two vertices, south first.
@@ -116,7 +117,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
         &t.body,
         &[
             (
-                t.walls[0][0].unwrap(),
+                t.walls()[0][0].unwrap(),
                 geom_core::Point3::new(0.0, 0.0, -1.0),
             ),
             (pi_walls[0].unwrap(), geom_core::Point3::new(0.0, 0.0, 1.0)),

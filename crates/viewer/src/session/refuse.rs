@@ -16,8 +16,8 @@
 
 use pncad::document::{
     BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
-    Evaluation, Node, NodeErrorKind, ParamName, ParseError, ProfileProgram, RecipeNodeId, SlotId,
-    ValuePayload,
+    Evaluation, HeldNodes, Node, NodeErrorKind, ParamName, ParseError, ProfileProgram,
+    RecipeNodeId, Said, SlotId, Speaker, SpokenNode, ValuePayload, held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
@@ -243,8 +243,8 @@ pub enum Refusal {
     },
     /// The node does not exist, or does not carry that slot.
     NoSuchSlot {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it at the refusal.
+        node: SpokenNode,
         /// The slot named.
         slot: SlotId,
     },
@@ -313,8 +313,8 @@ pub enum Refusal {
     /// for every seat, so the sentence is spelled once (GAUTH-4/5 add
     /// more seats to the same rule).
     WrongNodeKind {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it at the refusal.
+        node: SpokenNode,
         /// The kind the seat requires.
         wanted: NodeKindWanted,
     },
@@ -432,12 +432,66 @@ pub enum Refusal {
     /// between): it is an edit of something that is not there any
     /// more, and is not written over what is.
     ProfileEditStale {
-        /// The profile node.
-        node: RecipeNodeId,
+        /// The profile node, as the document held it at the refusal.
+        node: SpokenNode,
     },
 }
 
 impl Refusal {
+    /// **This refusal with every node it names spoken again from
+    /// `doc`** — a later version of the document it was raised in, so
+    /// a label changed since the raise is the one it says.
+    ///
+    /// **Within one document's history an id names one node.** An id
+    /// is the head of the document's mint chain at the insert that
+    /// minted it (`editor_core::mint`), and the chain is a digest of
+    /// every minting edit before it: two versions that part from one
+    /// value — an undo, then a different insert — mint different ids
+    /// from there on, so an id one version holds is either the same
+    /// node in a later version or absent from it (`node <tag>`). That
+    /// is what makes re-speaking from a later version sound, and it is
+    /// why a document an `Open` or a `New` replaced is never `doc`
+    /// here: another document's chain says nothing about these ids.
+    ///
+    /// [`Self::Edit`] is the kernel door's sentence, spoken at that
+    /// door ([`EditError`] holds its nodes spoken), and stays as the
+    /// door said it (`work/emit/edit-error-respeaks-from-a-later-version.md`).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| doc.spoken(node.id());
+        match self {
+            Self::NoSuchSlot { node, slot } => Self::NoSuchSlot {
+                node: again(node),
+                slot,
+            },
+            Self::WrongNodeKind { node, wanted } => Self::WrongNodeKind {
+                node: again(node),
+                wanted,
+            },
+            Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
+            Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
+            Self::Display(fault) => Self::Display(fault.respoken(doc)),
+            Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
+            unspoken @ (Self::DrivenByExpression { .. }
+            | Self::NoSuchParam(_)
+            | Self::ParamNotANumber { .. }
+            | Self::ParamExists { .. }
+            | Self::EmptyName
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::Parse(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo { .. }
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }) => unspoken,
+        }
+    }
+
     /// **The parse error, when the refusal is the expression door's
     /// parse refusal** — the text an author typed did not parse, so
     /// nothing reached the document and the typed source is still the
@@ -737,7 +791,7 @@ impl core::fmt::Display for Refusal {
                 Self::affordance(params, *slot, *current, *notation)
             ),
             Self::NoSuchSlot { node, slot } => {
-                write!(f, "node {} has no {} slot", node, slot.label())
+                write!(f, "{node} has no {} slot", slot.label())
             }
             Self::NoSuchParam(name) => {
                 write!(
@@ -764,7 +818,7 @@ impl core::fmt::Display for Refusal {
                 )
             }
             Self::WrongNodeKind { node, wanted } => {
-                write!(f, "node {} is not {} in this document", node, wanted.name())
+                write!(f, "{node} is not {} in this document", wanted.name())
             }
             // The frame is layer 3's and the sentence is the door's.
             // Nothing is doubled: `EditError`'s arms state the problem
@@ -794,9 +848,8 @@ impl core::fmt::Display for Refusal {
             ),
             Self::ProfileEditStale { node } => write!(
                 f,
-                "node {}'s profile changed since the editor loaded it; the editor's program was \
-                 not written — the editor now shows the profile as it is",
-                node
+                "{node} changed since the editor loaded it; the editor's program was not \
+                 written — the editor now shows the profile as it is"
             ),
         }
     }
@@ -823,11 +876,14 @@ pub struct RefusedBoolean {
     /// Always the kernel's `NodeErrorKind::UndeclaredContact`: the one
     /// constructor admits nothing else.
     refused: NodeErrorKind,
+    /// The nodes `refused` names, as the document the boolean was
+    /// judged in held them ([`held_by`]).
+    held: HeldNodes,
 }
 
 impl RefusedBoolean {
     /// **What the boolean `op` of `a` and `b`, evaluated as `node` in
-    /// `eval` with `declared` already declared, refused** — `None` when
+    /// `eval` (of `doc`) with `declared` already declared, refused** — `None` when
     /// the node has no failure of its own ([`crate::tree::own_error`]:
     /// a poisoned node's cause is an ancestor's, sited at that
     /// ancestor's operands), or fails for any reason but an undeclared
@@ -838,6 +894,7 @@ impl RefusedBoolean {
     /// operands, so declaring it would commit a boolean that refuses
     /// the declaration instead. That refusal stays the node's own.
     pub(crate) fn read(
+        doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
         node: RecipeNodeId,
         attempt: (BooleanOp, [RecipeNodeId; 2]),
@@ -845,6 +902,7 @@ impl RefusedBoolean {
         at: Generation,
     ) -> Option<Self> {
         Self::of(
+            doc,
             &crate::tree::own_error(node, eval)?.kind,
             attempt,
             declared,
@@ -852,8 +910,10 @@ impl RefusedBoolean {
         )
     }
 
-    /// [`Self::read`]'s judgement of the node's own error `refused`.
+    /// [`Self::read`]'s judgement of the node's own error `refused`,
+    /// its nodes said as `doc` holds them.
     fn of(
+        doc: &Doc<ProfileProgram>,
         refused: &NodeErrorKind,
         (op, [a, b]): (BooleanOp, [RecipeNodeId; 2]),
         declared: Vec<FlushFinding>,
@@ -881,7 +941,18 @@ impl RefusedBoolean {
                 merged: merged.clone(),
                 diag: *diag,
             },
+            held: held_by(refused, doc),
         })
+    }
+
+    /// This refusal with its nodes spoken from `doc`, a later version of
+    /// the document it was judged in ([`Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        Self {
+            held: held_by(&self.refused, doc),
+            ..self
+        }
     }
 
     /// The finding the kernel refused: the pair and the class a
@@ -925,7 +996,7 @@ impl core::fmt::Display for RefusedBoolean {
     /// declared says so after it: that is the kernel refusing its own
     /// declaration, which no recourse in the sentence can answer.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.refused)?;
+        write!(f, "{}", Said(&self.refused, Speaker::held(&self.held)))?;
         if self.re_raised() {
             write!(
                 f,
@@ -1053,7 +1124,7 @@ pub const NO_FACE_PICKED: &str = "pick a face in the viewport to read the frame 
 /// evaluator's single-body operand door. This says the same things one
 /// step earlier, so the author learns before the node lands rather
 /// than from a badge on it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FaceFrameFault {
     /// Nothing is picked, or what is picked is not a face. A frame on
     /// a face has no seat to fall back on: the face IS the pick.
@@ -1076,8 +1147,9 @@ pub enum FaceFrameFault {
     /// transform of a pattern is body-denoting by kind and several
     /// bodies by value.
     NotOneBody {
-        /// The node whose body the ray met.
-        at: RecipeNodeId,
+        /// The node whose body the ray met, as the landed document
+        /// held it.
+        at: SpokenNode,
     },
     /// The name does not resolve to one face in this evaluation — a
     /// stale pick, a tie, a failed node, or a node this document no
@@ -1100,6 +1172,9 @@ pub enum FaceFrameFault {
         /// `NodeStanding` documents
         /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         error: InterrogateError,
+        /// The nodes `error` names, as the landed document held them
+        /// ([`held_by`]).
+        held: HeldNodes,
     },
     /// The face's carrier is not a plane, and a sketch frame wants
     /// one. Names the kind it actually is, because "not a plane" alone
@@ -1117,6 +1192,25 @@ pub enum FaceFrameFault {
 }
 
 impl FaceFrameFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in ([`Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::NotOneBody { at } => Self::NotOneBody {
+                at: doc.spoken(at.id()),
+            },
+            Self::Unresolved { error, .. } => {
+                let held = held_by(&error, doc);
+                Self::Unresolved { error, held }
+            }
+            unspoken @ (Self::NoFace
+            | Self::NotLanded
+            | Self::NotPlanar { .. }
+            | Self::NotDrawn) => unspoken,
+        }
+    }
+
     /// **How loud the datum form draws this fault** — the salience a
     /// surface reads off the value, as
     /// [`crate::session::Standing::tone`] reads it off a selection.
@@ -1154,11 +1248,14 @@ impl core::fmt::Display for FaceFrameFault {
             }
             Self::NotOneBody { at } => write!(
                 f,
-                "node {}'s value is several bodies, so a face on it names no single body to \
-                 read a frame out of — project the one you mean first",
-                at
+                "{at}'s value is several bodies, so a face on it names no single body to read \
+                 a frame out of — project the one you mean first"
             ),
-            Self::Unresolved { error } => write!(f, "that face does not resolve: {error}"),
+            Self::Unresolved { error, held } => write!(
+                f,
+                "that face does not resolve: {}",
+                Said(error, Speaker::held(held))
+            ),
             Self::NotPlanar { carrier } => write!(
                 f,
                 "a sketch frame is read off a PLANAR face, and that one's carrier is a {} — \
@@ -1203,7 +1300,7 @@ pub fn face_frame_seat(
     // the node — an evaluation has no result for a node its document
     // does not have, and the interrogation door says so in its own
     // words.
-    let (_doc, ev) = landed.ok_or(FaceFrameFault::NotLanded)?;
+    let (doc, ev) = landed.ok_or(FaceFrameFault::NotLanded)?;
     // `at` is the node whose BODY the ray met, never the feature that
     // minted the face: the name is read out of that body's own table,
     // and a flat shrunk by a later fillet is a smaller face there than
@@ -1223,16 +1320,18 @@ pub fn face_frame_seat(
         .value(at)
         .is_some_and(|value| one_body(&value.payload).is_none())
     {
-        return Err(FaceFrameFault::NotOneBody { at });
+        return Err(FaceFrameFault::NotOneBody { at: doc.spoken(at) });
     }
     // DM1b as a TAG READ, consulting no number: the same comparison
     // the node itself makes at evaluation.
     match face_carrier_kind(ev, at, &face.name) {
         Ok(SurfaceKind::Plane) => Ok((at, face.name.clone())),
         Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
-        Err(error) => Err(FaceFrameFault::Unresolved {
-            error: crate::tree::interrogation_as_drawn(error, ev),
-        }),
+        Err(error) => {
+            let error = crate::tree::interrogation_as_drawn(error, ev);
+            let held = held_by(&error, doc);
+            Err(FaceFrameFault::Unresolved { error, held })
+        }
     }
 }
 
@@ -1316,19 +1415,22 @@ mod refused_boolean {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{BooleanOp, Node, NodeErrorKind, RecipeNodeId};
+    use pncad::document::{BooleanOp, Doc, Node, NodeErrorKind, ProfileProgram, RecipeNodeId};
     use pncad::geom_core::{KERNEL_DEFECT_ENDING, Tol};
 
     use super::RefusedBoolean;
     use crate::generation::Generation;
-    use crate::test_support::{boss_on_block, evaluated_insert};
+    use crate::test_support::{boss_on_block, inserted_and_evaluated};
 
     /// The boss scene's union refusal as the kernel raised it, handed
-    /// to `with` — its evaluation lives only as long as this call.
-    fn with_refusal<R>(with: impl FnOnce(&NodeErrorKind, [RecipeNodeId; 2]) -> R) -> R {
+    /// to `with` beside the document the union was evaluated in — its
+    /// evaluation lives only as long as this call.
+    fn with_refusal<R>(
+        with: impl FnOnce(&Doc<ProfileProgram>, &NodeErrorKind, [RecipeNodeId; 2]) -> R,
+    ) -> R {
         let tol = Tol::witness();
         let (doc, block, boss) = boss_on_block("refused-boolean", tol);
-        let (eval, union) = evaluated_insert(
+        let (judged, eval, union) = inserted_and_evaluated(
             &doc,
             Node::Boolean {
                 op: BooleanOp::Union,
@@ -1341,7 +1443,7 @@ mod refused_boolean {
         let kind = &crate::tree::own_error(union, &eval)
             .expect("the plain union fails on its own")
             .kind;
-        with(kind, [block, boss])
+        with(&judged, kind, [block, boss])
     }
 
     /// **A pair the attempt already declares is not offered again**: the
@@ -1350,8 +1452,9 @@ mod refused_boolean {
     /// not name the defect.
     #[test]
     fn a_pair_already_declared_is_refused_as_a_defect_not_offered() {
-        with_refusal(|kind, operands| {
+        with_refusal(|doc, kind, operands| {
             let first = RefusedBoolean::of(
+                doc,
                 kind,
                 (BooleanOp::Union, operands),
                 Vec::new(),
@@ -1360,6 +1463,7 @@ mod refused_boolean {
             .expect("the premise: the plain union's refusal is offerable");
             assert!(first.offer().is_some(), "the premise: it offers");
             let again = RefusedBoolean::of(
+                doc,
                 kind,
                 (BooleanOp::Union, operands),
                 vec![first.finding().clone()],
@@ -1379,7 +1483,7 @@ mod refused_boolean {
     /// the refusal stays the node's own. Red if it is offered.
     #[test]
     fn a_same_operand_pair_is_not_offered() {
-        with_refusal(|kind, operands| {
+        with_refusal(|doc, kind, operands| {
             let NodeErrorKind::UndeclaredContact {
                 finding,
                 merged,
@@ -1397,6 +1501,7 @@ mod refused_boolean {
             };
             assert!(
                 RefusedBoolean::of(
+                    doc,
                     &one_operand,
                     (BooleanOp::Union, operands),
                     Vec::new(),

@@ -12,18 +12,11 @@
 //! `(4/64, 1/64)` and the mouth at `(3/64, 8/64)`, so both junction
 //! residuals are exactly `0.0` in `f64`.
 //!
-//! # The mouth is TWO faces, and the document names both
+//! # The mouth is ONE face
 //!
-//! A FULL revolve emits every profile segment as two faces — the
-//! `[0, π)` band and the `[π, 2π)` band — on ONE chart, so the mouth
-//! disc is two half-discs on one plane. The kernel's rim surgery lifts
-//! a chart as a whole and refuses a partial designation
-//! (`ShellError::OpenFaceChartPartial`), and the document layer does
-//! not complete charts on the author's behalf (that is a kernel rule,
-//! and the seat's), so `open` names both halves. The order is the
-//! rim's identity: the first named carries it, so the rim here is
-//! `Rim(Band(mouth))`, and a document naming the halves the other way
-//! round mints `Rim(BandPi(mouth))` and keys apart from this one.
+//! A FULL revolve builds a plane wall whole (`crates/sweep/README.md`,
+//! "Walls: one per run"), so the mouth disc is one face on its plane
+//! and `open` names it alone; the rim is `Rim(Band(mouth))`.
 //!
 //! # No mass pin
 //!
@@ -41,7 +34,7 @@
 
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band,
 };
 
 use crate::fixture::{ang, axis_in_plane, frame, len, len2};
@@ -93,11 +86,10 @@ pub fn meridian() -> LoopProgram {
     ])
 }
 
-/// The vessel with its `open` list AUTHORED by the caller — two names,
-/// whatever faces they are: the mouth's two halves in either order
-/// (which decides which half carries the rim), or a designation the
-/// kernel refuses. [`document`] names the mouth's `Band` half first.
-pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> [StableName; 2]) -> CorpusDoc {
+/// The vessel with its `open` list AUTHORED by the caller — whatever
+/// faces they are: the mouth, or a designation the kernel refuses.
+/// [`document`] names the mouth.
+pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>) -> CorpusDoc {
     let mut r = Recorder::new();
 
     // u = +X (the radius), v = +Z (the axis): the meridian's own axis
@@ -115,7 +107,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> [StableName; 2]
         angle: ang(std::f64::consts::TAU),
     });
     let open = open(&r.doc, pot);
-    let vessel = r.insert(Node::shell(pot, len(WALL), open.to_vec()));
+    let vessel = r.insert(Node::shell(pot, len(WALL), open));
 
     CorpusDoc {
         name: "vessel",
@@ -141,7 +133,7 @@ pub fn mouth(doc: &ProfileDoc, pot: RecipeNodeId) -> ProfileEdgeRef {
     crate::fixture::piece(doc, pot, 0, SEG_MOUTH as usize)
 }
 
-/// The vessel's corpus document: the mouth's `Band` half named first.
+/// The vessel's corpus document: the mouth opened.
 pub fn document() -> CorpusDoc {
-    document_with_open(|doc, pot| [band(pot, mouth(doc, pot)), band_pi(pot, mouth(doc, pot))])
+    document_with_open(|doc, pot| vec![band(pot, mouth(doc, pot))])
 }
