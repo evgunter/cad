@@ -1,9 +1,9 @@
 //! The rocker plate — the tour's fillet stop: a plate rounded in the
 //! profile and on the solid.
 //!
-//! Every corner of the outline and the eye slot is authored through the PATHS lattice's
-//! fillet doors, and between them they cover the whole corner taxonomy
-//! the S2 unit opened: **arc×line** (hub → lower flank), **line×line** (the
+//! Every corner of the outline and the eye slot is authored through
+//! the PATHS lattice's fillet doors, and between them they cover the
+//! whole corner taxonomy the S2 unit opened: **arc×line** (hub → lower flank), **line×line** (the
 //! keel knee), **line×arc** (flank → boss), **arc×line** again (boss →
 //! upper flank), **line×arc** (flank → hub), and — in the eye-shaped
 //! slot through the hub — **arc×arc**, at a corner where TWO tangent
@@ -384,7 +384,10 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     // arc whose radius equals R_EYE", which would find the wrong arc
     // the moment two blends shared a radius, and nothing at all if
     // the stored radius drifted an ulp.
-    let eye_loop = vp.loops().get(1).expect("the eye is the profile's second loop");
+    let eye_loop = vp
+        .loops()
+        .get(1)
+        .expect("the eye is the profile's second loop");
     let blends = eye_loop.blend_arcs();
     let [blend] = blends.as_slice() else {
         panic!(
@@ -458,7 +461,7 @@ fn crease_narration(tol: Tol) -> String {
         "round the keyhole's creases at the outline's blend radius R_BLEND = R_disc",
         fillet_edges(&plate.body, &creases, R_BLEND, tol),
         |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
-        "round the creases at R_BLEND",
+        "set R_CREASE to R_BLEND, the plate's own blend radius",
     );
     // Above r ≈ 0.32 the slot end's corner enters the region the cap
     // meter encloses the sliver with (an annulus about the ball's
@@ -480,7 +483,7 @@ fn crease_narration(tol: Tol) -> String {
                 } if face == plate.bottom || face == plate.top
             )
         },
-        "round the creases at the largest radius the slot admits",
+        "raise R_CREASE to the largest radius the slot admits",
     );
 
     let rounded = fillet_edges(&plate.body, &creases, R_CREASE, tol)
@@ -494,8 +497,8 @@ fn crease_narration(tol: Tol) -> String {
         "the two creases remove 2·A·depth = {want:e}, measured ΔV = {dv:e}"
     );
     let counts = euler_counts(&rounded.body);
-    // Each crease's fillet face adds a face, splits its vertical edge
-    // in two and both cap vertices in two, joined by a cap arc: +2
+    // Each crease's fillet face replaces its vertical edge by two and
+    // each of its cap vertices by two joined by a cap arc: +2
     // vertices, +3 edges, +1 face per crease on the plate's 34/51/19.
     assert_eq!(
         (counts.v, counts.e, counts.f, counts.r, counts.genus()),
