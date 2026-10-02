@@ -1,8 +1,9 @@
-//! **The teapot's document, tabulated** — the one-request roll the
-//! scene ships, held to the class and to the kernel door.
+//! **The teapot lid's ANNULAR twin, tabulated** — the scene's lid
+//! bored with a steam vent, so every latitude rim is ONE closed edge,
+//! and its one-request rolls held to the class and to the kernel door.
 //!
 //! 1. **Every pair of the lid's rims composes in ONE request**, and so
-//!    do the scene's three. A band slits — and its trimline crosses —
+//!    do the three the scene rolls. A band slits — and its trimline crosses —
 //!    ONE support's seam meridian, so two rims at the two ends of one
 //!    meridian segment put two slits and two crossings on one source
 //!    meridian. On this lid those pairs are `{1, 2}` (the flange cone's
@@ -12,17 +13,15 @@
 //!    band each.
 //! 2. **The one request builds the kernel's one-request body**: same
 //!    census, the three bands' stored `(station, major, minor)` bit for
-//!    bit, the mass to a relative 1e-14 — and the same face ORDER,
-//!    which is what the tess-budget rows and the uv sheet's cells key
-//!    on.
+//!    bit, the mass to a relative 1e-14 — and the same face ORDER.
 //! 3. **The names are a function of the recipe's names, not of its
 //!    numbers**: the rolled lid's name set at two radii is one set.
 //!
-//! The meridian and the constants are re-spelled here because a demo
-//! binary's module cannot be imported by an integration test — the
-//! same reason `verbs_teapot.rs` carries its own `genus`. They are
-//! copied from `src/teapot.rs` and nothing here may be edited without
-//! editing it.
+//! The stations are copied from `src/teapot.rs` (a demo binary's
+//! module cannot be imported by an integration test — the same reason
+//! `verbs_teapot.rs` carries its own `genus`); `R_VENT` is this file's
+//! own. The scene ships the SOLID lid, whose rims are half-arc pairs;
+//! the bore is what gives these rows a closed rim at every vertex.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
