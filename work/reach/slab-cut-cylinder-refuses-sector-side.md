@@ -124,13 +124,3 @@ Residue, each in its own file:
 - `boolean-door-passes-a-geometrically-open-result-the-backstop-cannot-see`
   (the backstop's negativity floor, with the door's tier-3 gap);
 - `vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces`.
-
-## Evidence (2026-10-02, `reach/tilted-sphere-pair`): an off-seam-plane ball pair
-
-Once a sphere pair's tilted section has an arc rule, a pair whose
-centre line leaves the seam plane stops here too: ball(1) at
-`(2, 2, 0.5)` against ball(1) at `(3.3, 2, 0.7)`, and ball(1) at the
-origin against ball(0.7) at `(0.9, 0.3, 0.6)`, refuse
-`CurvedSectorSideUnsupported` under ∪, ∩ and both ∖ (margins −0.36 and
-−0.39), where their in-seam-plane siblings build
-(`crates/sweep/tests/tilted_sphere_pair.rs`, the frontier row).

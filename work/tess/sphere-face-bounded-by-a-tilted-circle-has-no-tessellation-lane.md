@@ -31,16 +31,18 @@ on lily wall 7's carve (`demos/tour/src/lily.rs`,
 cites `require_iso_rectangle` and refuses (`mesh/src/curved.rs`,
 `require_iso_rectangle_face`); the trimmed lane
 (`mesh/src/trimmed.rs`) has no sphere arm ("conic trims on
-cone/sphere/torus charts refuse typed naming that frontier"), and the
-chart image of a tilted circle on a sphere is
-`UncoveredClass::SphereGeneralCircle` in `geom_brep::pcurve_cache` —
-no closed-form pcurve to sample.
+cone/sphere/torus charts refuse typed naming that frontier"). The
+closed-form chart door has no image for a tilted circle on a sphere
+(`UncoveredClass::SphereGeneralCircle` in `geom_brep::pcurve_cache`);
+the pcurve mint routes it through the fitted lane, and a fitted image
+"still refuses typed on every chart" in the trimmed lane (its doc), for
+want of a certified UV chord-step bound.
 
 ## What a fix owes
 
 A sphere arm in the trimmed lane whose trim polygon comes from the
 tilted circles' chart images (sampled at the shared chord parameters,
-as the cylinder arm samples its ellipses), and a chart-image source for
-them: the fitted route `certify_fitted`'s Circle arm names, or a closed
-form for `(u(t), v(t))` of a circle on the sphere. The lily's three
+as the cylinder arm samples its ellipses), with a UV chord-step bound
+for them: on the fitted rows' certificate, or on a closed form for
+`(u(t), v(t))` of a circle on the sphere. The lily's three
 tepal seams and every tilted sphere pair wait on it to be drawn.

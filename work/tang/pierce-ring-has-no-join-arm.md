@@ -370,3 +370,16 @@ the poses that stopped one layer early now reach this unit's doors:
   ε row) now reaches this door rather than the sector side.
 - The story suite's rook keeps its square crown for this door; its
   module docs say so (`crates/viewer/tests/story_authoring.rs`).
+
+## Evidence (2026-10-02, `reach/tilted-sphere-pair`): tilted sphere pairs and plane cuts
+
+Once a sphere section tilted against the chart has an arc rule (the
+wall lane's run-side rule, `chord_join::select_arc_by_run_side`), the
+ring is where every tilted pose whose pierce lands inside a face stops:
+ball(1) at `(2, 2, 0.5)` against ball(1) at `(3.3, 2, 0.7)`, and against
+ball(0.7) at `(2.9, 2.3, 1.1)`, refuse `Join(SectionArcSide { case:
+NoCertifiedRun })` under ∪, ∩ and ∖ — the run the chord is handed is
+null scaffolding, the run-side rule's form of `NoChartedRun`
+(`crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side`). Their
+in-seam-plane siblings, whose pierces land on the seams, build.
