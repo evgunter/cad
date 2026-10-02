@@ -38,7 +38,7 @@ description: >
 
 inputs:
   lane:
-    description: "Lane name, for messages (kernel / freecad / uv / wild)"
+    description: "Lane name, for messages and check names (kernel / freecad / uv / mc / wild / gui)"
     required: true
   dir:
     description: "The committed lane directory, repo-relative"
@@ -49,14 +49,6 @@ inputs:
       has no branch to write (a dispatch aimed at a bare SHA), in which
       case the action reports the drift and the install command exactly
       as the old gate did, and commits nothing.
-    required: false
-    default: ""
-  report_sha:
-    description: >
-      The commit the neutral check is posted against WHEN NOTHING IS
-      COMMITTED (see `push_to`). Must be the PR's HEAD sha on a
-      pull_request — `github.sha` there is the merge commit, and a check
-      posted against that never appears on the PR.
     required: false
     default: ""
   token:
@@ -71,11 +63,12 @@ runs:
         LANE: ${{ inputs.lane }}
         DIR: ${{ inputs.dir }}
         PUSH_TO: ${{ inputs.push_to }}
-        REPORT_SHA: ${{ inputs.report_sha }}
         GH_TOKEN: ${{ inputs.token }}
         RUN_ID: ${{ github.run_id }}
       run: |
         set -euo pipefail
+        # shellcheck source=lib.sh
+        source "$GITHUB_ACTION_PATH/lib.sh"
 
         drift="$(git status --porcelain -- "$DIR/")"
         if [ -z "$drift" ]; then
@@ -101,32 +94,18 @@ runs:
           exit 1
         fi
 
-        # REPORT-ONLY MODE (`push_to` empty). Two situations reach it,
-        # and both want the same thing — say so, commit nothing:
-        #
-        #   * A PULL REQUEST. ci.yml deliberately withholds `push_to`
-        #     there. A bot commit onto the PR branch would become the
-        #     PR's head, and because it is pushed with GITHUB_TOKEN it
-        #     triggers no run of its own — so the PR would show this
-        #     one neutral check and NOTHING else, with every green check
-        #     stranded on the parent commit. The recursion guard and
-        #     that blank slate are the same fact, so the fix is to not
-        #     commit here: main's own push run re-baselines after merge.
-        #   * A DISPATCH AIMED AT A BARE SHA, which has no branch to
-        #     commit onto at all.
-        #
-        # The check goes on REPORT_SHA, not $GITHUB_SHA: on a
-        # pull_request the latter is the merge commit, and a check
-        # posted there never appears on the PR.
+        # REPORT-ONLY MODE (`push_to` empty): a run aimed at a named
+        # `ref` with no `push_to`, which has no branch to commit onto.
+        # Say so on this run's sha, commit nothing.
         if [ -z "$PUSH_TO" ]; then
           fix="local-scripts/render-hosted.sh --run ${RUN_ID} --lane ${LANE}"
           report_summary="$(printf '%s\n' \
             "\`$DIR\` does not match what this code renders." \
             "" \
-            "**Nothing is broken, and there is nothing to commit by hand.** This run" \
-            "did not re-baseline: on a pull request the cells are left alone and" \
-            "\`main\`'s own run commits them right after the merge. If the render is" \
-            "what you intended, this check is a PASS — no re-run, no second commit." \
+            "**Nothing is broken.** This run had no branch to commit to, so it did" \
+            "not re-baseline. To commit new cells to a PR's branch, push a commit" \
+            "whose subject carries \`[render]\`. If the render is what you intended," \
+            "this check is a PASS." \
             "" \
             "To LOOK at the new cells before merging, take this run's artifact:" \
             "" \
@@ -146,15 +125,27 @@ runs:
             '```')"
           gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
             -f "name=render drift (${LANE})" \
-            -f "head_sha=${REPORT_SHA:-$GITHUB_SHA}" \
+            -f "head_sha=${GITHUB_SHA}" \
             -f "status=completed" \
             -f "conclusion=neutral" \
-            -f "output[title]=${DIR} differs from this render — re-baselined on merge to main" \
+            -f "output[title]=${DIR} differs from this render — not committed (no branch to commit to)" \
             -f "output[summary]=${report_summary}" \
             --silent
-          echo "reported drift on ${REPORT_SHA:-$GITHUB_SHA} (no commit: push_to empty)"
+          echo "reported drift on ${GITHUB_SHA} (no commit: push_to empty)"
           exit 0
         fi
+
+        # THE CELLS BELONG TO THE TREE THAT DREW THEM. Past the rendered
+        # commit the branch may hold only this workflow's own re-baseline
+        # commits (other lanes of this run); a commit from anyone else means
+        # the branch moved during the render, and these cells would be
+        # committed onto a tree they were not drawn from. That refuses, with
+        # a failing check on the new tip. The default branch is exempt: the
+        # nightly renders it while merges keep landing, a refusal there would
+        # starve it of every re-baseline on a busy day, and the next nightly
+        # re-draws whatever a moved tip made stale.
+        rendered="$(git rev-parse HEAD)"
+        default_branch="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .default_branch)"
 
         # The rendered cells are in the working tree, and the retry
         # below resets the tree to the remote — so stash them somewhere
@@ -178,6 +169,19 @@ runs:
           # holds the ancestry, so the resulting child commit is an
           # ordinary fast-forward push.
           git fetch --depth=1 origin "$PUSH_TO"
+          tip="$(git rev-parse "origin/$PUSH_TO")"
+          if [ "$tip" != "$rendered" ] && [ "$PUSH_TO" != "$default_branch" ]; then
+            past="$(past_rendered "$rendered" "$tip")"
+            case "$past" in
+              identical|bot) ;;
+              *)
+                why="${PUSH_TO} moved during the render (now ${tip}; ${past}), so these ${LANE} cells, drawn from ${rendered}, were not committed onto it. Push again with [render] in the subject to render the new tip. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"
+                post_failure "render refused (${LANE})" "$tip" \
+                  "the branch moved during the render; push again with [render]" "$why"
+                echo "::error title=${DIR} not re-baselined::${why}"
+                exit 1 ;;
+            esac
+          fi
           git reset --hard "origin/$PUSH_TO"
           mkdir -p "$DIR"
           cp -a "$staged/." "$DIR/"
@@ -186,7 +190,7 @@ runs:
             echo "$DIR already current on $PUSH_TO (another run landed it)."
             exit 0
           fi
-          git commit -m "render($LANE): re-baseline committed cells [skip ci]"
+          git commit -m "render($LANE): re-baseline committed cells"
           if git push origin "HEAD:$PUSH_TO"; then
             pushed="$(git rev-parse HEAD)"
             break
