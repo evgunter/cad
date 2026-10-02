@@ -101,10 +101,13 @@
 //! Opposite `S` mints the null edge: a convex graze then refuses at the
 //! join's zero-area net, and a concave one is cut or refuses, but
 //! neither is answered wrongly. Sending the entry to `S` instead
-//! answers convex grazes and also puts a concave graze's hole on the
-//! wrong side, in closed halves (the guard:
-//! `sweep/tests/split_tangent_edge_curved.rs`,
-//! `a_concave_graze_never_answers_with_the_hole_on_the_wrong_side`).
+//! answers convex grazes, and answers concave ones too: closed halves
+//! with the hole on the wrong side (10.0 / 5.2146 against a truth of
+//! 9.2146 / 6.0, PR 3726's review). The guards are
+//! `sweep/tests/split_tangent_edge_curved.rs` (the convex graze's
+//! refusal, and
+//! `a_concave_graze_never_answers_with_the_hole_on_the_wrong_side`)
+//! and `wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`.
 //! Answering convex grazes is
 //! `work/cleave/split-refuses-a-convex-graze-of-a-curved-wall.md`.
 //!
