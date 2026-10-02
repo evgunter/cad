@@ -582,6 +582,20 @@ pub trait ProfilePayload: serde::Serialize {
     fn plane_input(&self) -> Option<crate::RecipeNodeId> {
         None
     }
+    /// **Every authored step's piece this program draws** under `env`
+    /// — [`ProfileProgram::pieces`], the one answer to which pieces a
+    /// program draws, flattened over its loops. Empty for a payload
+    /// with no program. Required, so a payload that holds a program
+    /// cannot answer that it draws nothing by omission.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileProgram::pieces`]'s refusals, for the same causes.
+    fn drawn_pieces(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal>;
 }
 
 /// A typed authoring-time program refusal (VQ9; `EditError`'s payload).
@@ -2039,6 +2053,18 @@ impl ProfileProgram {
             .map_err(ProgramRefusal::Pieces)
     }
 
+    /// **Every step of this program kept where it is**: the `ids` of a
+    /// [`crate::DocEdit::SetProgram`] that keeps each step in its own
+    /// place — per loop, per step, `Some` of the step's id. A reshaping
+    /// that adds or drops steps starts from it and edits the lists.
+    #[must_use]
+    pub fn kept_in_place(&self) -> Vec<Vec<Option<StepId>>> {
+        self.ids
+            .iter()
+            .map(|ids| ids.iter().copied().map(Some).collect())
+            .collect()
+    }
+
     /// **Whether this program carries step ids at all.** A program no
     /// door has minted ids for carries NO lists: the one spelling of
     /// "unminted" is an empty [`ProfileProgram::ids`]. Any list at all
@@ -2353,6 +2379,13 @@ impl ProfilePayload for ProfileProgram {
 
     fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
+    }
+    fn drawn_pieces(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
+        Ok(self.pieces(env, tol)?.edges.into_iter().flatten().collect())
     }
     fn plane_input(&self) -> Option<crate::RecipeNodeId> {
         Some(self.plane)

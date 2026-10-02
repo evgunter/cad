@@ -4129,12 +4129,15 @@ impl DocEdit {
     /// inserted, so the door is told rather than guessing.
     ///
     /// A name on a profile piece spells its step's id, so a name on a
-    /// kept step keeps denoting its piece and is not touched. A step
-    /// the new program does not keep takes its id with it: every name
-    /// on it — a fillet's selection, a shell's mouth, a derived
-    /// frame's face, a paint — keeps its spelling, resolves to nothing,
-    /// and is reported as a `strand` or a `stranded_appearance` until
-    /// `DocEdit.rebind` repairs it.
+    /// kept step keeps denoting its piece wherever the new program
+    /// draws it and is not touched. A step the new program does not
+    /// keep takes its id with it: every name on it — a fillet's
+    /// selection, a shell's mouth, a derived frame's face, a paint —
+    /// keeps its spelling, resolves to nothing, and is reported as a
+    /// `strand` or a `stranded_appearance` until `DocEdit.rebind`
+    /// repairs it. So is a name on a kept step's piece the new program
+    /// stops drawing, as a fillet inserted before a leg takes the
+    /// leg's segment.
     ///
     /// Raises `StepHandleError` `handle_off_program` for a handle that
     /// is not a step of its loop's new program. Refuses
