@@ -15,7 +15,7 @@ Three coincidence questions end on their lever alone because their
 escalation does not say which rung refused (`LeverPass::ByRung`,
 `Coincide::ending` in `crates/topo/src/boolean/refusal_routes.rs`):
 
-- `Coincide::TangentLocus`: `rest::tangent_locus` returns a bare
+- `Coincide::TangentLocus`: `geom_brep::tangent_locus` returns a bare
   `Indeterminate` (`TangentLocusError::Escalated`), wrapped at
   `boolean::verify_tangent_declaration` (`mod.rs`) and at
   `insert::record_germ_dir` and `sectors::tangent_lump`;

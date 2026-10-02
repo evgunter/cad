@@ -1510,7 +1510,7 @@ pub(super) fn curved_face_arm<T: Decide>(
         // negative between): it is the witness lane's SEPARATION
         // INVARIANT — every pair `tangent_locus` admits has each
         // carrier wholly in ONE closed residual half-space of the
-        // other (the contract sentence on [`super::rest::tangent_locus`];
+        // other (the contract sentence on [`geom_brep::tangent_locus`];
         // a `Rest` cover's shared carrier is residual-zero
         // identically) — so a covered on-carrier edge's residual is
         // one-signed and a Zero endpoint is a touch, never an entry.
@@ -1527,7 +1527,7 @@ pub(super) fn curved_face_arm<T: Decide>(
         // already admits has exactly that structure
         // (`crates/topo/tests/verbs_cylsph_tangent_residuals.rs` pins
         // both halves). What keeps that arm out is downstream and
-        // structural, and is stated at [`super::rest::tangent_locus`]
+        // structural, and is stated at [`geom_brep::tangent_locus`]
         // itself: `TangentLocus` carries a LINE only and no consumer of
         // it has a circle story. The RULE this comment states is
         // unchanged; only the example it reached for was superseded. A
