@@ -68,8 +68,8 @@
 //!    is FORCED by nesting for sector widths W ≤ π — the whole
 //!    crossing-minted class (edge-interior sites are exact
 //!    half-planes); reflex corners W > 3π/2 with germ angle
-//!    θ ∈ (π/2, W−π) sit in an unforced window and can refuse
-//!    `SeamOrientation` (ops module "Known limitations").
+//!    θ ∈ (π/2, W−π) sit in an unforced window (ops module "Known
+//!    limitations").
 //! 3. **What the join controls.** Surgery never reverses existing
 //!    halves, and chords close cycles forced by arc endpoints, so the
 //!    directed cycles after every join are fixed by the senses alone:

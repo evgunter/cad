@@ -53,8 +53,7 @@ fn orders() -> Vec<[char; 4]> {
 /// All 24 orders fold to the bar-and-stub prism: every step merges
 /// what it was licensed to merge, the finished body is two caps and
 /// eight walls, it validates at tiers 2, 3 and 3′, and its volume is
-/// the bar's 2.2 plus the stub's 0.5. The six orders that fold `a`,
-/// `c`, `d` before `f` are the ones the merged bar first refused.
+/// the bar's 2.2 plus the stub's 0.5.
 #[test]
 fn the_star_fixture_folds_in_every_member_order() {
     let tol = Tol::witness();
@@ -89,7 +88,8 @@ fn the_star_fixture_folds_in_every_member_order() {
         );
         assert_eq!(acc.faces().count(), 10, "{order:?}: two caps, eight walls");
         // 1.2 and 2.2 are not dyadic, so 2.7 is the nearest double to
-        // the exact volume; the divergence sum lands within a few ulps.
+        // the exact volume; the divergence sum lands within 4 ulps of
+        // it (an ulp at 2.7 is 2·EPSILON).
         let volume = mass_properties(&acc, tol).unwrap().volume;
         assert!(
             (volume - 2.7).abs() <= 8.0 * f64::EPSILON,

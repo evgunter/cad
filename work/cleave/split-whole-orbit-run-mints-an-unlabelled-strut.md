@@ -2,8 +2,9 @@
 id: split-whole-orbit-run-mints-an-unlabelled-strut
 kind: issue
 title: The splitter's null-edge insertion turns an Above run holding every real edge of the orbit into a strut and records it as a fan split
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-02
 ---
 
 ## What
@@ -55,3 +56,13 @@ arm.
 
 Record the strut with the side attribute swapped (the strut tip is the
 Below copy), and pin the three splits above as rows.
+
+## Closed 2026-10-02 — PR 3770 (`join/star-desync`)
+
+This was fixed alongside its boolean twin, in JOIN's PR. `insert_null_edges` now reads
+`he2 == first.he` as the whole-orbit strut. It mints with
+`NewVertexSide::Below` and records `below_end: copy`,
+`above_end: vertex` and `dangling: true`. The three splits above are
+pinned with their volumes (8 + 6, 7 + 7, 8 + 6) and with tiers 2 and 3 in
+`crates/topo/tests/join_whole_orbit_rows.rs`,
+`a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit`.
