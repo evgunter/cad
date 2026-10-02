@@ -125,3 +125,15 @@ Class finding, logged rather than filed: the floor-plus-resting-cylinder
 fixture and the in-band geometric-mean helper (`in_band()`) are spelled
 separately in at least `offer_rows.rs`, `boolean::ops` tests and two
 sweep test files. That is a test-support home waiting to exist (P4).
+
+## 2026-10-02 — what a solid is goes to Ev (PR 3901)
+
+The multi-solid-operand fork converged after one round (row 48). Both
+designers recommend that a solid is one piece of material, one Outer
+plus its directly nested Voids, and that booleans, `shell` and `split`
+take bodies and sort their results by nesting. The B designer moved to
+this on ASSEMBLY.md A2, which is Ev's own. The residue for Ev is
+whether a product is refused as an operand in the editor or admitted.
+PR 3891 stays held. Under the recommendation it is reworked into the
+shared sort, reusing check 10's witness loop, together with its
+review's m1–m3. If Ev chooses otherwise, it is closed.
