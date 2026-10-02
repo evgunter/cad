@@ -200,3 +200,11 @@ refusal must name the knobs varied.
 review fix made the code subject-only, so the text is now false. Put to
 Ev in chat: (a) say "subject line" (recommended), or (b) widen the code
 back. A body-only warning goes in either way.
+
+## 2026-10-02 — render tag second pass in; lofts and teapot lid dispatched
+
+PR 3791 head `ecf3ef9` is green, and the body-only warning is shown firing on that run. The PR now waits only on Ev's §3 wording answer.
+
+`lofts-correspondence-twist` and `teapot-lid-unbored` are dispatched to one lane, as two PRs. The lofts PR merges on the orchestrator's read; the teapot lid PR gets a single review.
+
+Brief addition from the klein lesson: a pinned refusal names the knobs that were varied.
