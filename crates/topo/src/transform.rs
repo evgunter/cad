@@ -758,13 +758,9 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     // mapped geometry, never a mapped stored cache. A rigid map carries
     // the chart frame with the surface, so chart coordinates are
     // invariant and the re-derived caches are the same numbers; running
-    // the derivation anyway is what keeps the certificate honest (D4 ¶2)
-    // and costs a body that carried none exactly nothing. The pass runs
-    // when the operand carried caches: an operand at rest carries one on
-    // every face whose chart mints, so the image leaves complete, and an
-    // operand storing none is all-planar, uncovered, or already short of
-    // rows at rest — tier 3's to name on the input, not this map's to
-    // refuse.
+    // the derivation anyway is what keeps the certificate honest (D4 ¶2).
+    // An operand at rest stores a row on every face that owes one, so an
+    // operand storing none has no face that does.
     if out.pcurves().next().is_some() {
         crate::pcurves::mint_pcurves(&mut out, tol)
             .map_err(|source| TransformError::Pcurve { source })?;

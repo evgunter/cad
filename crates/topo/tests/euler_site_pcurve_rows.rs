@@ -220,9 +220,10 @@ fn a_mekr_on_a_minted_wall_leaves_the_face_complete() {
     assert_eq!(rows_deep(&body), minted);
 }
 
-/// **Absence is never a claim.** A wall whose rows are detached stores
-/// none, and the op mints none onto it: an unminted face is the minting
-/// pass's, and a row minted onto it would half-mint it the other way.
+/// **The op mints nothing onto an unminted face.** A wall whose rows
+/// are detached stores none, and the op mints none onto it: an unminted
+/// face is the producer's closing mint's, and a row minted onto it would
+/// half-mint it the other way.
 /// The seed face on the same cylinder keeps its rows, so the op's plan
 /// runs; it reads the face it touches, not the body, and the seed
 /// face's rows are exactly as they were.
