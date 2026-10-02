@@ -42,3 +42,14 @@ Same posture to check on `line_wall_roots` (line × cylinder) and the
 line × torus quartic in the same file. Found by the sweep in the
 circle × sphere root-slack unit; HONE's ground (`boolean/*`, latent
 unsoundness).
+
+The split lane's conic × plane crossing
+(`crates/topo/src/splitting/classify.rs`, `conic_crossing_roots`) is a
+third instance of the shape: roots `φ ± acos(−D/R)` with no position
+meter, and `acos` near `±1` (a graze just past the band) amplifies the
+ratio's rounding by `1/√(1 − (D/R)²)`. There `split_edge`'s child
+certification re-verifies every insertion against ε, so a misplaced
+root is refused downstream rather than built; the question is whether
+it should be refused at the root, as the circle doors do, or placed
+better (the circle doors now measure the half-chord from the extreme
+nearer zero, `circle_roots::first_harmonic_roots`).
