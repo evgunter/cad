@@ -325,7 +325,7 @@ pub fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 /// be outward-facing, in `tests/cube_doors_agree.rs` — which asserts
 /// each face's outward normal against the corners and so reads the
 /// composite rule rather than the profile alone.
-pub fn prism_ops<T: geom_core::Decide>(
+pub fn prism_ops<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     profile: &[(f64, f64)],
     z: (f64, f64),
@@ -470,7 +470,7 @@ pub const UNIT_SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0
 /// scaffolding door, named by both at-rest rules — the state this
 /// fixture's suites measure, and the one thing that distinguishes it
 /// from every other box builder in this file.
-pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> CubeOps<T> {
+pub fn geometric_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(tol: Tol) -> CubeOps<T> {
     unit_cube(FaceGeometry::Certified, tol)
 }
 
@@ -483,13 +483,16 @@ pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> CubeOps<T> {
 /// It is a separate door rather than a `bool` at the call site for the
 /// same reason the description step is: a reader must be able to see
 /// which body a suite took.
-pub fn declined_cube<T: geom_core::Decide>(tol: Tol) -> CubeOps<T> {
+pub fn declined_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(tol: Tol) -> CubeOps<T> {
     unit_cube(FaceGeometry::Declined, tol)
 }
 
 /// The shared body of [`geometric_cube`] and [`declined_cube`]: the
 /// cube sequence at [`UNIT_SQUARE`], untransformed, bundled.
-fn unit_cube<T: geom_core::Decide>(faces: FaceGeometry, tol: Tol) -> CubeOps<T> {
+fn unit_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    faces: FaceGeometry,
+    tol: Tol,
+) -> CubeOps<T> {
     let mut body = Body::<T>::new();
     let ops = prism_ops(
         &mut body,
@@ -588,13 +591,17 @@ pub struct Prism<T: Real> {
 /// welcome), extruded from z = 0 to z = `height`: [`prism_ops`]
 /// untransformed, then described. Every face gets its outward-CCW
 /// Newell plane, every edge a certified chord line.
-pub fn prism<T: geom_core::Decide>(profile: &[(f64, f64)], height: f64, tol: Tol) -> Prism<T> {
+pub fn prism<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    profile: &[(f64, f64)],
+    height: f64,
+    tol: Tol,
+) -> Prism<T> {
     prism_z(profile, 0.0, height, tol)
 }
 
 /// [`prism`] with an explicit z-range `[z0, z1]` (M3 PR 4: bricks at
 /// arbitrary heights for the boolean fixtures).
-pub fn prism_z<T: geom_core::Decide>(
+pub fn prism_z<T: geom_core::Decide + crate::props::AtRestPolicy>(
     profile: &[(f64, f64)],
     z0: f64,
     z1: f64,
@@ -648,7 +655,7 @@ pub fn prism_z<T: geom_core::Decide>(
 /// name, and that one door still stops short of the description step.
 /// That file's independent row is the first claim and its negative row
 /// the second.
-pub fn brick<T: geom_core::Decide>(
+pub fn brick<T: geom_core::Decide + crate::props::AtRestPolicy>(
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
@@ -674,7 +681,10 @@ pub fn brick<T: geom_core::Decide>(
 /// `upgrade_edges_to_intersections` review posture). Smooth edges
 /// (coplanar neighbors — collinear profile runs) keep their
 /// conventional chord, mirroring the pipeline's D2 split.
-pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
+pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: Tol,
+) {
     let band = Band::linear(tol).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
@@ -707,7 +717,7 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: 
 /// transform — and **with** the description step, so its edges carry
 /// `Intersection`/`Derived` where `geometric_cube`'s carry
 /// `Scaffold(ExtrudedPoint …)`/`Declared`.
-pub fn mapped_cube<T: geom_core::Decide>(
+pub fn mapped_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(
     map: impl Fn(f64, f64, f64) -> Point3<T>,
     tol: Tol,
 ) -> Body<T> {
@@ -718,7 +728,7 @@ pub fn mapped_cube<T: geom_core::Decide>(
 
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
-pub fn cube_into<T: geom_core::Decide>(
+pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     map: impl Fn(f64, f64, f64) -> Point3<T>,
     tol: Tol,
@@ -807,7 +817,7 @@ pub struct RingFaceOps {
 /// `rim` has at least three corners, in the membrane's outward-CCW
 /// order, and lies in the host face; nothing checks the order or the
 /// placement.
-pub fn plant_ring_face<T: geom_core::Decide>(
+pub fn plant_ring_face<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     at: HalfEdgeKey,
     rim: &[Point3<T>],
@@ -883,7 +893,7 @@ pub struct HoleOps {
 /// Every face the hole adds inherits the entry face's surface key, as
 /// at [`plant_ring_face`]. `drops` has one point per rim corner and
 /// lies in `exit`; nothing checks the placement.
-pub fn drill_hole<T: geom_core::Decide>(
+pub fn drill_hole<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     at: HalfEdgeKey,
     exit: FaceKey,
@@ -1008,7 +1018,11 @@ pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
 ///
 /// The holes must lie inside the top face and clear of one another;
 /// nothing checks either.
-pub fn holed_block<T: geom_core::Decide>(w: f64, hole_centres: &[f64], tol: Tol) -> Body<T> {
+pub fn holed_block<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    w: f64,
+    hole_centres: &[f64],
+    tol: Tol,
+) -> Body<T> {
     let pt = identity_map::<T>;
     let mut body = Body::<T>::new();
     let ops = prism_ops(

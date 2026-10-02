@@ -54,3 +54,13 @@ in both orders. This row can close when PR 3823 lands.
 With the walls declared `Continuation` (REACH, PR 3657), the stacked
 tube builds under PR 3823's arc-first REST matching: 3π, (6,10,6,1),
 tier 3 and 3′. It is pinned in `curved_mergedoor`.
+
+## The item's rows (REACH, PR 3845)
+
+`crates/sweep/tests/reach_aligned_half_rods.rs` pins the repro as filed
+on `origin/main` after PR 3823, at ε 1e-9, 1e-6 and 1e-12: the union
+at θ = 0, 0.7, π/2 and π builds at 2π (closed form), six faces, tier 3
+and 3′; a third rod stacks at 3π; undeclared or mate-only refuses
+`UndeclaredCoincidence`; and ∩, A ∖ B, B ∖ A keep the rounded stack's
+`FallbackExtentUnsupported`
+(`rounded-stack-subtract-and-intersect-refuse-fallback-extent`).

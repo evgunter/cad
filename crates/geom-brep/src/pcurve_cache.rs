@@ -2453,8 +2453,8 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::StepRefinementFailed { .. }
         | E::SelfCrossingLocus { .. }
         | E::Fit(_)
+        | E::TraceUnresolved { .. }
         | E::FitSampleBudget { .. }
-        | E::BranchUndersampled { .. }
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }
         | E::Band(_)

@@ -772,7 +772,7 @@ pub(crate) struct RunWalls {
 /// `at(end)` otherwise. `wall(body, run, faces)` gives the
 /// closing edge's spec and the wall's surface, or `None` for a run
 /// that sweeps no wall (a revolve's on-axis segment).
-pub(crate) fn build_run_walls<T: Decide, E: From<EulerOpError>>(
+pub(crate) fn build_run_walls<T: Decide + topo::AtRestPolicy, E: From<EulerOpError>>(
     body: &mut Body<T>,
     runs: &[Run],
     n: usize,
@@ -858,7 +858,7 @@ pub(crate) fn face_surface_key<T: Real>(
 /// every edge is a cap–wall rim between a plane and a `Surface::Nurbs`
 /// wall; D2 exempts NURBS-adjacent edges from the must-carry demand,
 /// and loft's module doc says these rims are never classified.
-pub(crate) fn describe_face_rim_at_rest<T: Decide>(
+pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     tol: Tol,

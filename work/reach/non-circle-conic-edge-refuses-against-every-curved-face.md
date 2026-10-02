@@ -52,6 +52,24 @@ the sphere, so a clearance verdict alone would let it through.
 Spiric (`spiric_rim`) and NURBS edges take the same line of code; they
 are not measured here against a real shape.
 
+## Also met: an engraved section face (SHOW, 2026-10-02)
+
+The `tiltedcut` scene (`demos/tour/src/curvedcut.rs`, wall 1 of
+`walls`) engraves a C, an annular sector of radii 0.25 and 0.15, into
+the elliptical section face of a cylinder (r 1, height 2.5) cut by the
+plane through `(0, 0, 1.25)` with normal `(sin 0.3, 0, cos 0.3)`: a
+blind pocket 0.05 deep whose outline lies strictly inside the ellipse
+(its leftmost point 0.30 short of the rim along the major axis). `subtract(lower half, tool)` refuses
+`CurvedPierceUnsupported { operand: A, .. }` with the edge the half's
+`Ellipse` rim and the face one of the tool's cylinder walls, an
+ellipse × cylinder pair whose carriers never meet. The U and a disc
+refuse the same way, on either half's section face, at every pose the
+review tried (offsets (0, 0), (0.3, 0.2), (−0.2, −0.3); depths 0.02,
+0.05, 0.2). Walls 1 (C, lower half) and 2 (U, upper half) assert the
+rim is an `Ellipse` and panic when the subtraction builds or refuses
+otherwise. Lines-only glyphs get past this door and are
+pose-dependent: `work/contact/at-infinity-probe-measures-in-closed-form-only.md`.
+
 ## Outcome (2026-10-02, branch `reach/conic-edge-curved-face`)
 
 The conic rung is the ellipse's too. `geom_brep::Conic` (a circle is its

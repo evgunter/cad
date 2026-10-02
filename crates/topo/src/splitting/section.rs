@@ -86,11 +86,8 @@ pub enum SectionError<T: Real> {
         diag: Option<Indeterminate>,
     },
     /// Nothing decides which outline encloses a hole — an outline edge
-    /// on a spiric or NURBS carrier, a contact or containment in the
-    /// band, or a clockwise sliver the join mints when it chords a
-    /// curved face across the wrong arc, which touches the outline
-    /// around it
-    /// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
+    /// on a spiric or NURBS carrier, or a contact or containment in the
+    /// band ([`super::section_loops`]'s `nest` says what else could).
     /// The split keeps such a hole as a face of its own; a region list
     /// cannot state it.
     UnplacedHole {
@@ -183,7 +180,7 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// stages' refusals through unchanged — in particular a pure-tangency
 /// section REFUSES (`DegenerateSection`, exactly as [`super::split`]
 /// does) rather than reporting a degenerate zero-area trace.
-pub fn plane_section<T: geom_core::Decide>(
+pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
