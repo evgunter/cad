@@ -103,30 +103,16 @@ pub enum ArcWindowCase {
     /// The joined run carries no edge with a closed-form chart image,
     /// so the divided face has no azimuth window at all.
     ///
-    /// **Its ROUTINE source is a pierce RING**, and that is a
-    /// legitimate typed destination rather than a corruption. A ring
-    /// minted in a wall face is an EMPTY loop carrying only null
-    /// scaffolding, and `run_azimuth_window` skips null scaffolding
-    /// (zero-length, no azimuth extent) by contract — so a run made of
-    /// nothing else leaves the face windowless every time, by
-    /// construction. That is what a line-edge pierce into a cylinder
-    /// wall produces today, and it stands until the ring-join unit
-    /// (#1291) gives a ring's run its own chord lane. (An earlier reading —
-    /// "a cylinder face's run always carries one on the shipped lane;
-    /// this is the typed door for a corrupt or frontier-carrier run" —
-    /// was falsified by that lane, and is replaced rather than left
-    /// standing beside it.) A corrupt or frontier-carrier run still
-    /// arrives here too; this variant does not distinguish the two.
+    /// A cross-loop chord reads the divided face's outer cycle
+    /// ([`cross_loop_window_cycle`]), never a pierce ring's own null
+    /// scaffolding, which `run_azimuth_window` steps over. A same-loop
+    /// chord reads the run it co-bounds the new face with, so a run made
+    /// of scaffolding alone, a frontier-carrier run and a corrupt one
+    /// arrive here; this variant does not distinguish them.
     NoChartedRun,
     /// NEITHER candidate arc lies inside the window — the window is
     /// degenerate relative to the chord (an ill-conditioned operand, or
     /// a run that does not actually co-bound the face with this chord).
-    ///
-    /// An asymmetric wall pierce lands here (an off-centre bar through
-    /// a pipe, a rod through a three-face wall). The x₁ rows below say
-    /// which of the two readings that is — a run that does not end
-    /// where its chord starts is the PAIRING one — and #1291 holds the
-    /// question with those fixtures.
     NeitherContained,
     /// BOTH candidates lie inside the window: the window spans at least
     /// one full period, so containment does not distinguish the arcs.
@@ -770,6 +756,30 @@ enum SectionCase<T: Real> {
     Tangent(geom::Curve3<T>),
 }
 
+/// The sphere arm's polar gate: a section plane with normal `normal`
+/// through a sphere face whose chart's polar axis is `polar` (radius
+/// `radius`) must hold the polar axis as its normal, or the azimuth is
+/// not monotone along the section and the arc-side rule refuses
+/// [`SplitJoinError::SectionNotPolar`].
+fn require_polar_section<T: Decide>(
+    face: FaceKey,
+    normal: Vec3<T>,
+    polar: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<(), SplitJoinError> {
+    match decide(
+        "split_sphere_section_polar",
+        Margin::levered(normal.cross(polar).norm(), radius),
+        band,
+    )
+    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    {
+        Sign::Zero => Ok(()),
+        Sign::Positive | Sign::Negative => Err(SplitJoinError::SectionNotPolar { face, band }),
+    }
+}
+
 /// The section of the surface PAIR `(s1, s2)` under THE C5 table, in
 /// the frame the arc-side rule reads — **one implementation for both
 /// chord lanes** — this classification was written twice in this file,
@@ -867,18 +877,7 @@ fn section_case<T: Decide>(
                 "plane×sphere classification carried a non-circle",
             ));
         };
-        match decide(
-            "split_sphere_section_polar",
-            Margin::levered(axis.cross(*sph_axis).norm(), *sph_r),
-            band,
-        )
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-        {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(SplitJoinError::SectionNotPolar { face, band });
-            }
-        }
+        require_polar_section(face, axis, *sph_axis, *sph_r, band)?;
         return Ok(SectionCase::Conic(SectionConic {
             center,
             normal: axis,
@@ -2559,16 +2558,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let (origin, normal) = closure;
     let n = normal.get();
     if sphere {
-        if decide(
-            "split_sphere_section_polar",
-            Margin::levered(n.cross(axis).norm(), radius),
-            band,
-        )
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-            != Sign::Zero
-        {
-            return Err(SplitJoinError::SectionNotPolar { face, band });
-        }
+        require_polar_section(face, n, axis, radius, band)?;
         let (a, l) = straight(from, to);
         area = area + a;
         length = length + l;

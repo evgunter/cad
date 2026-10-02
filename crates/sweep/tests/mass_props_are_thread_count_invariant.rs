@@ -351,6 +351,14 @@ fn digest() -> String {
 /// and the arc loft's `s²·(18 + π(1+√2))`.
 /// Volumes, volume pads, refusals, verdict hashes and the sym-session
 /// counts are unchanged.
+///
+/// **Re-cut at all three ε when a cylinder face's flux became its chart
+/// Green form** (`geom_brep::props::curved_face_loops`, `−∮ v du` over
+/// every loop). Only `bulged_extrusion`'s verdict row moves: its walls
+/// no longer run the iso-rectangle premises and the rim-side reading
+/// (`props_rim_level`, `props_rim_level_group`, `props_du_consistent`,
+/// `props_rim_side`), so 18 verdicts fall to 13 and the hash with them.
+/// Its volume and area bits, and every other row, are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

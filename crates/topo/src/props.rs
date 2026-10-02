@@ -237,8 +237,9 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { .. } => write!(
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
-                 other than a cylinder wall bounded by circles about its axis and straight \
-                 lines along it"
+                 other than a cylinder wall bounded by circles about its axis and lines along \
+                 it. Recourse: move the cut so it crosses the face's edge instead of closing \
+                 inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,

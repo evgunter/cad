@@ -5,7 +5,8 @@
 //!
 //! **Two lanes, and this header describes one of them.** Everything
 //! below is the CLOSED-FORM lane: the M2 analytic surfaces over
-//! structurally verified iso-parameter rectangles. The other is
+//! structurally verified iso-parameter rectangles, and a cylinder face
+//! over any region its rims and rulings bound. The other is
 //! [`quad`], the certified-quadrature lane — NURBS patches, conic-
 //! trimmed faces, an enclosure with a `pad` rather than an exact
 //! number — and it is `pub`, larger than this lane, and governed by
@@ -52,7 +53,8 @@
 //! module's.
 //!
 //! Areas of curved faces come from the chart Jacobians over the face's
-//! iso-parameter rectangle `[u0,u1]×[v0,v1]`; planar face area is
+//! iso-parameter rectangle `[u0,u1]×[v0,v1]` — on a cylinder, over its
+//! chart region `−∮ v du`, every loop included; planar face area is
 //! `‖A⃗_f‖` (rings subtract automatically via their stored opposite
 //! orientation).
 //!

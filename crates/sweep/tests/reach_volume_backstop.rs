@@ -235,36 +235,33 @@ fn a_rod_cut_by_an_oblique_box_keeps_its_volume() {
     );
 }
 
-/// **A wall the property layer has no measurement for.** An extruded
-/// half-disk (the `x = 0` line from `(0, 4)` to the origin, back along
-/// the radius-2 arc about `(0, 2)`, height 1) minus the box
-/// `[1.5, 2.5]² × [0.5, 2.5]`: the box notches the curved wall from
-/// its top rim, along two rulings and an arc, and a notched wall is
-/// neither an iso-rectangle (the closed form) nor conic-trimmed (the
-/// quadrature). The backstop cannot measure the result, so it refuses
-/// naming the result and carrying the face's own refusal
-/// (`work/props/a-notched-cylinder-wall-has-no-volume-measurement`).
+/// **A notched wall measures.** An extruded half-disk (the `x = 0`
+/// line from `(0, 4)` to the origin, back along the radius-2 arc about
+/// `(0, 2)`, height 1) minus the box `[1.5, 2.5]² × [0.5, 2.5]`: the box
+/// notches the curved wall from its top rim, along two rulings and an
+/// arc. The wall's chart Green form measures it in closed form, so the
+/// backstop passes and the result is the half-disk less the notch: its
+/// floor, `∫ (√(4 − s²) − 1.5) ds` over `|s| ≤ ½`, times the half metre
+/// it sinks.
 #[test]
-fn a_notched_wall_refuses_as_unmeasured() {
+fn a_notched_wall_measures_in_closed_form() {
     let half = bulge_loop(vec![
         (Point2::new(0.0, 4.0), 0.0),
         (Point2::new(0.0, 0.0), 1.0),
     ]);
     let half_disk: Body<f64> = extruded(SketchPlane::xy(), vec![half], 1.0, tol());
     let notch = brick((1.5, 2.5), (1.5, 2.5), (0.5, 2.5), tol());
-    let err = topo::subtract(&half_disk, &notch, tol()).expect_err("the notched wall refuses");
+    let body = body_of(topo::subtract(&half_disk, &notch, tol()), "the notched half-disk");
+    topo::validate_geometric_certificate(&body, tol())
+        .unwrap_or_else(|e| panic!("the notched half-disk does not certify at rest: {e:?}"));
+    let p = topo::mass_properties(&body, tol()).unwrap();
+    let floor = 0.5 * 3.75f64.sqrt() + 4.0 * 0.25f64.asin() - 1.5;
+    let expect = 2.0 * PI - 0.5 * floor;
+    assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
     assert!(
-        matches!(
-            err,
-            BooleanError::VolumeUnmeasured {
-                operand: None,
-                source: MassPropsError::Face {
-                    source: geom_brep::props::PropsError::NotIsoRectangle { .. },
-                    ..
-                },
-            }
-        ),
-        "{err:?}"
+        (p.volume - expect).abs() <= 1e-12 * expect,
+        "the notched half-disk: {} against the analytic {expect}",
+        p.volume
     );
 }
 

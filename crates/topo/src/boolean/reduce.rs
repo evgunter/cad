@@ -1484,10 +1484,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// through a one-sided cover arm — those rest on a line's separation
 /// story.
 ///
-/// **What a successful wall pierce reaches next is a typed door, not
-/// a body**: a ring minted in a cylinder face has no join arm (#1291),
-/// so it lands on `SplitJoinError::SectionArcWindow{NoChartedRun}`. A
-/// planar cap pierce joins.
+/// A successful wall pierce reaches the join with a ring in the
+/// pierced face, and the ring's chords take their arc from that face's
+/// own azimuth window (`chord_join`'s `cross_loop_window_cycle`).
 ///
 /// **This lane WIDENS what an undeclared pair reaches, and the widening
 /// is named here rather than left to be discovered.** Before it,

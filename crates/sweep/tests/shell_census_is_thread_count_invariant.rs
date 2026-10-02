@@ -41,24 +41,12 @@ fn voided_rod() -> Body<f64> {
 /// moved; this row pins each `(predicate, sign)` with its count,
 /// order-free.
 ///
-/// ONE of the twelve predicates is ANCHOR-RELATIVE by construction,
-/// and its sign is a fact about cycle order rather than about the
-/// body: `props_rim_side` is the sign of `lo + hi − 2·level` on
-/// whichever rim the loop walk from `Cycle::first` meets FIRST
-/// (`geom_brep`'s `props/curved.rs`, `linear_rim_side`'s `side`). The
-/// flux compensates (`Positive ⇒ d_u_sign`, `Negative ⇒ flip`), so
-/// the readings do not depend on the anchor while that sign does —
-/// the void shell here is the rod REVERTED, and `Body::revert` moves
-/// every loop's anchor to its source predecessor, which is why it
-/// reads `Positive` on this tree and `Negative` on one whose reversal
-/// kept the anchor. The other eleven are per-rim, per-meridian or
-/// per-face facts and count the same whichever rim comes first.
-///
-/// It was two. `props_rim_dir_group` compared each rim's traversal
-/// direction against that same first rim's, through a `Margin` over
-/// two values that are `±1` by construction; the direction is a
-/// discrete sign now and is compared as one, so that predicate
-/// records nothing and the multiset below is one row shorter.
+/// None of them is anchor-relative. The rod's walls are cylinder
+/// faces, whose flux is the chart Green form `−∮ v du`: it takes the
+/// material side from the loops' own traversal, so the rim-side
+/// reading (`props_rim_side`, the sign of `lo + hi − 2·level` on
+/// whichever rim the walk from `Cycle::first` meets first) and the
+/// iso-rectangle premises it rests on are not run on this body at all.
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = voided_rod();
@@ -78,16 +66,12 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("chk_shell_volume_sign Negative", 1),
         ("chk_shell_volume_sign Positive", 1),
         ("props_circle_axis_class Positive", 4),
-        ("props_du_consistent Zero", 2),
         ("props_face_extent Positive", 2),
         ("props_meridian_axial Zero", 4),
         ("props_meridian_on_surface Zero", 4),
         ("props_rim_axis_parallel Zero", 4),
         ("props_rim_center_on_axis Zero", 4),
         ("props_rim_fit Zero", 4),
-        ("props_rim_level Zero", 4),
-        ("props_rim_level_group Positive", 2),
-        ("props_rim_side Positive", 2),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

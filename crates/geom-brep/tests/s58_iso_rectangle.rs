@@ -20,6 +20,12 @@
 //! the tree on ONE arm, inside `torus()`, for a periodicity reason;
 //! this suite is the record that it now governs all four.
 //!
+//! **The cylinder has since left the premise.** Its flux lane is the
+//! chart Green form `A = −∮ v du`, which integrates the region the
+//! boundary actually bounds, so the cylinder rows below MEASURE the
+//! plus, the staircase and the L at their exact areas; the cone, sphere
+//! and torus still refuse on the one predicate.
+//!
 //! Every row is built as key-free `LoopEdge`s and run through the
 //! public `curved_face`, the same entry `topo::mass_properties` uses
 //! per face. The controls are load-bearing: a rectangle of the same
@@ -141,6 +147,19 @@ fn accepts_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact_
     }
 }
 
+/// A cylinder domain bounded by rims and rulings measures at its exact
+/// chart area, scaled by the radius.
+fn measures_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact_area: f64) {
+    let fc = curved_face(s, edges, true, band())
+        .unwrap_or_else(|e| panic!("{kind}: the rim-and-ruling domain was refused: {e:?}"));
+    let rel = (fc.area - exact_area).abs() / exact_area;
+    assert!(
+        rel < 1e-12,
+        "{kind}: area {:.15e} != exact {exact_area:.15e} (rel {rel:.3e})",
+        fc.area
+    );
+}
+
 /// The non-rectangular domain must be refused by the ONE named
 /// predicate — not by some other check that happens to fire, which is
 /// the whole point of S58 (the torus was already protected, by a
@@ -166,8 +185,13 @@ fn refuses_on_rim_level(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>]) {
 const UC: f64 = 0.5;
 const UO: f64 = 1.0;
 
+/// The plus's chart area: the column and the two arms.
+fn plus_area(v0: f64, v1: f64, v2: f64, v3: f64) -> f64 {
+    2.0 * UC * (v3 - v0) + 2.0 * (UO - UC) * (v2 - v1)
+}
+
 #[test]
-fn cylinder_plus_domain_refuses_and_the_rectangle_still_measures() {
+fn cylinder_plus_domain_and_the_rectangle_both_measure() {
     let r = 0.010;
     let (s, rim, mer) = cylinder_kit(r);
     let (a0, a1, a2, a3) = (0.0, 0.006, 0.014, 0.020);
@@ -177,10 +201,11 @@ fn cylinder_plus_domain_refuses_and_the_rectangle_still_measures() {
         &rect_loop(&rim, &mer, a0, a3, -UO, UO),
         r * 2.0 * UO * (a3 - a0),
     );
-    refuses_on_rim_level(
+    measures_exactly(
         "cylinder",
         &s,
         &plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO),
+        r * plus_area(a0, a1, a2, a3),
     );
 }
 
@@ -335,22 +360,22 @@ fn torus_plus_domain_still_refuses_by_the_shared_predicate() {
 
 /// The cylinder rows of #649's probe that the SUM rule accepted:
 /// tall-armed plus (−49.98%), double-plus (−47.37%), Z-staircase
-/// (−28.57%). All three have interior rim levels; all three now refuse
-/// on the one predicate. The L-shape is the row the sum rule DID catch
-/// — it must keep refusing, and it is allowed to refuse on either
-/// predicate, since it violates both.
+/// (−28.57%), and the L-shape the sum rule did catch. Each measures at
+/// its exact chart area: none of the undercounts can recur on a lane
+/// that integrates the region itself.
 #[test]
-fn the_whole_649_family_refuses() {
+fn the_whole_649_family_measures() {
     let r = 0.010;
     let (s, rim, mer) = cylinder_kit(r);
     let vtop = 0.020;
 
     // Tall arms: the undercount approaches −50%.
     for (a, b) in [(0.001, 0.019), (1e-5, vtop - 1e-5)] {
-        refuses_on_rim_level(
+        measures_exactly(
             "cylinder tall-arm plus",
             &s,
             &plus_loop(&rim, &mer, 0.0, a, b, vtop, UC, UO),
+            r * plus_area(0.0, a, b, vtop),
         );
     }
 
@@ -378,7 +403,12 @@ fn the_whole_649_family_refuses() {
         rim(z1, -UO, -UC, 18, 19),
         mer(-UC, z1, 0.0, 19, 0),
     ];
-    refuses_on_rim_level("cylinder double-plus", &s, &dbl);
+    measures_exactly(
+        "cylinder double-plus",
+        &s,
+        &dbl,
+        r * (2.0 * UC * vtop + 2.0 * (UO - UC) * ((z2 - z1) + (z4 - z3))),
+    );
 
     // Z-staircase: two offset blocks, every group sum 1.0.
     let (v1, v2) = (0.006, 0.014);
@@ -392,10 +422,9 @@ fn the_whole_649_family_refuses() {
         rim(v2, 0.0, -1.0, 6, 7),
         mer(-1.0, v2, 0.0, 7, 0),
     ];
-    refuses_on_rim_level("cylinder Z-staircase", &s, &stair);
+    measures_exactly("cylinder Z-staircase", &s, &stair, r * (v2 + (vtop - v1)));
 
-    // The L-shape: unequal group sums AND an interior level. It was
-    // already refused before S58; either predicate may claim it.
+    // The L-shape: unequal group sums AND an interior level.
     let l_shape = vec![
         rim(0.0, -1.0, 0.0, 0, 1),
         mer(0.0, 0.0, v1, 1, 2),
@@ -404,13 +433,7 @@ fn the_whole_649_family_refuses() {
         rim(vtop, 1.0, -1.0, 4, 5),
         mer(-1.0, vtop, 0.0, 5, 0),
     ];
-    assert!(
-        matches!(
-            curved_face(&s, &l_shape, true, band()),
-            Err(PropsError::NotIsoRectangle { .. })
-        ),
-        "the L-shape must stay refused"
-    );
+    measures_exactly("cylinder L-shape", &s, &l_shape, r * (vtop + (vtop - v1)));
 }
 
 /// **Multi-arc rims at the two extremes still measure.** M5 PR 9
@@ -455,9 +478,9 @@ fn rotations(edges: &[LoopEdge<f64>]) -> Vec<Vec<LoopEdge<f64>>> {
         .collect()
 }
 
-/// **The material-side gate refuses the domains the flux lane refuses.**
+/// **The material-side gate refuses a plus domain.**
 ///
-/// `boundary_material_sign` re-runs the same boundary parse and reads
+/// `boundary_material_sign` re-runs the flux lanes' boundary parse and reads
 /// the side off the FIRST rim, through `lo + hi − 2v` — *which extreme
 /// is this rim at*. On a plus domain the question has no answer and the
 /// test returned a definite ±1 anyway. This geometry puts the arms HIGH
@@ -475,17 +498,13 @@ fn the_material_side_gate_refuses_a_plus_domain_at_every_rotation() {
     let (s, rim, mer) = cylinder_kit(r);
     let band = band();
     let edges = plus_loop(&rim, &mer, 0.0, 0.016, 0.018, 0.020, UC, UO);
-    // The flux lane's own verdict on this face, for the comparison the
-    // row is about.
-    refuses_on_rim_level("cylinder high-arm plus", &s, &edges);
     for (k, rot) in rotations(&edges).into_iter().enumerate() {
         match boundary_material_sign(&s, &rot, band) {
             Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level",
             }) => {}
             other => panic!(
-                "rotation {k}: the material-side gate answered on a domain the flux \
-                 lane refuses: {other:?}"
+                "rotation {k}: the material-side gate answered on a plus domain: {other:?}"
             ),
         }
     }

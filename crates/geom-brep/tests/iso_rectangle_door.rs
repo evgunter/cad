@@ -4,12 +4,13 @@
 //! wanting a volume.
 //!
 //! Every row is built as key-free `LoopEdge`s and run through the door
-//! AND through `curved_face`, so the rows state where the two agree
-//! (a rectangle passes both, a notch refuses both by `props_rim_level`,
-//! an oblique sphere section refuses both by the same incidence name)
-//! and the rimless lune, a chart rectangle the door admits on the
-//! shape alone while the flux lane measures it at the width its loop
-//! bounds — two premises, one face.
+//! AND through `curved_face`, so the rows state where the two agree (a
+//! rectangle passes both, an oblique sphere section refuses both by the
+//! same incidence name) and where they part: a notched cylinder wall,
+//! which the door refuses by `props_rim_level` while the cylinder's
+//! chart Green form measures it, and the rimless lune, a chart
+//! rectangle the door admits on the shape alone while the flux lane
+//! measures it at the width its loop bounds.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
@@ -70,10 +71,12 @@ fn great(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 }
 
 /// A cylinder rectangle passes the door and measures; the U-shaped
-/// keyway (a notch cut into the top rim) refuses at the door AND at the
-/// flux lane, both by `props_rim_level` — one predicate, two callers.
+/// keyway (a notch cut into the top rim) refuses at the door by
+/// `props_rim_level`, and the flux lane measures it: its chart area is
+/// the `1.5 × 1` rectangle less the `0.5 × 0.4` notch, on the unit
+/// radius about the origin, so area and flux are both `1.3`.
 #[test]
-fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
+fn a_keyway_refuses_at_the_door_and_measures_in_the_flux_lane() {
     let rect = vec![
         rim(0.0, 0.0, 1.5, 0, 1),
         mer(1.5, 0.0, 1.0, 1, 2),
@@ -96,10 +99,9 @@ fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
         what: "props_rim_level",
     });
     assert_eq!(require_iso_rectangle(&cylinder(), &keyway, band()), want);
-    assert_eq!(
-        curved_face(&cylinder(), &keyway, true, band()).map(|_| ()),
-        want
-    );
+    let c = curved_face(&cylinder(), &keyway, true, band()).expect("the keyway measures");
+    assert!((c.area - 1.3).abs() < 1e-15, "area {}", c.area);
+    assert!((c.flux - 1.3).abs() < 1e-15, "flux {}", c.flux);
 }
 
 /// **Two homes, one lune.** A lune between two great circles a

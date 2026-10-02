@@ -1,7 +1,8 @@
-//! Closed-form flux/area for the curved M2 surfaces (cylinder, cone,
-//! sphere, torus) over structurally verified iso-parameter rectangles
-//! (see [`super`] module docs for the formulation and the stored-data
-//! discipline).
+//! Closed-form flux/area for the curved M2 surfaces: a cylinder face
+//! bounded by rims and rulings in any shape, holes included (its chart
+//! Green form, [`curved_face_loops`]), and cone, sphere and torus faces
+//! over structurally verified iso-parameter rectangles (see [`super`]
+//! module docs for the formulation and the stored-data discipline).
 //!
 //! **Not everything public here serves that lane, and one item must
 //! NOT be cited by it.** This module hosts two structural predicates
@@ -35,9 +36,8 @@ use geom_core::{
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 
-/// The flux and area of a curved face from its **outer** loop (curved
-/// M2 faces carry no rings — the owning body refuses ringed curved
-/// faces before calling). Dispatches on the surface kind; `band` is
+/// The flux and area of a curved face from its **outer** loop
+/// ([`curved_face_loops`] takes a cylinder face's rings too). Dispatches on the surface kind; `band` is
 /// the run's linear band, built once at operation entry.
 ///
 /// `sense` is the face's orientation BIT (`topo::Face::sense`): `true`
