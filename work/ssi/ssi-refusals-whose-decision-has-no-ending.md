@@ -58,7 +58,10 @@ over one representative payload each closes the class.
 `SsiError::ending` returns `String` over an exhaustive match, so no arm
 can end in nothing. Each of the thirteen arms is routed by its decision
 (table in the PR body); `Band(BandError)` was unreachable and is
-deleted. `each_ssi_ending_is_its_decisions` numbers every arm with a
+deleted. `StepBudget` carries the rung that held most of its steps
+short (`StepBound`): the extent and domain cap ends in those levers, the
+curvature rungs in the last resort, as `FitSampleBudget`.
+`each_ssi_ending_is_its_decisions` numbers every arm with a
 wildcard-free match and renders a roster through the concision checks
 (`test_utils::refusal::problems`), which also cut four existing payloads
 to the 75-word budget. The sweep's findings are filed:
