@@ -18,8 +18,12 @@ hands the shared first-harmonic door
 (`circle_roots::first_harmonic_roots`) the extremes `c₀ ∓ A₁` with the
 harmonics' whole `noise` on each and no phase charge. That is the
 door's documented fallback ("a door whose only account is `noise`"),
-and its slack is `ρ·noise/√(−lo·hi)`, `noise` being `NOISE_ULPS`
-half-ulps of the m² term bound `(|C₀ − o| + ρ)² + r²` over `2r`.
+and its slack is `ρ·(noise/√(−lo·hi) + 16u·τ)` — the residual error at
+the root over the slope, plus the angle arithmetic's charge every
+first-harmonic root takes — with `noise` `NOISE_ULPS` half-ulps of the
+m² term bound `(|C₀ − o| + ρ)² + r²` over `2r`, plus the dropped
+second harmonic. The extremes the arm decides on are `c₀ ∓ A₁`, computed
+as differences.
 
 The circle × sphere door no longer does this: its extremes are the
 factored `(D∓ − r)(D∓ + r)/2r` with first-order running rounding

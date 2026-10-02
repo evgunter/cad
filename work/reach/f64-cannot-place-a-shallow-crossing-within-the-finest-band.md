@@ -28,11 +28,17 @@ read by `circle_roots::first_harmonic_roots`):
 
 `lo_error ≈ 13u` of the pose's unit length scale (`u = 2⁻⁵³`): the
 chain `e = C₀ − c`, three dot products, two hypots and the factored
-product, each operation charged `u·|result|`. That is the floor of a
-FIRST-ORDER f64 bound, not a slack in it: a correctly rounded
-evaluation of anything of size ~2 m is already off by up to 2.2e-16.
-At slope `s` the slack is `lo_error / s`, so the band 1e-12 needs
-`s ≳ 1.5e-3`, i.e. `δ ≳ 5e-7` on this pose. Pinned by
+product, each operation charged `u·|result|`. The bound is
+pessimistic, but not by much: the dual review of PR 3847 measured
+`|lo − lo*| ≤ 0.58·lo_error` over 27k poses against an mpmath
+evaluation of the factored form, so a bound sharpened to the measured
+worst case is about 1.7× lower. That does not move the frontier: at
+δ 1e-7 the slack would be `2.2e-12 / 1.7 ≈ 1.3e-12`, still past the
+band. A correctly rounded evaluation of anything of size ~2 m is
+already off by up to 2.2e-16, so at slope `s` the slack is of order
+`lo_error / s` whatever the count, and the band 1e-12 needs
+`s ≳ 1.5e-3` (`≳ 9e-4` at the measured worst case), i.e. `δ ≳ 5e-7`
+(`≳ 2e-7`) on this pose. Pinned by
 `the_near_tangent_family_stops_at_1e_7_at_eps_1e_12` (sweep) and
 `the_root_slack_meter_refuses_a_reading_in_the_band_gap` (topo).
 

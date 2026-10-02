@@ -401,6 +401,227 @@ mod tests {
         );
     }
 
+    /// **The half-chord is read from the extreme nearer zero.** A sphere
+    /// of radius 2 dipping `δ` from `2.3e-6` to `2.9e-5` into a circle of
+    /// radius 4096, on a band of `1e-7`: the far extreme is `≈ 1.7e7` m
+    /// of residual against a near one of `≈ −δ`, so `hi/(hi − lo)` and
+    /// `c₀/A₁` sit within `≈ 1e-12` of `1`, where `asin` and `acos`
+    /// amplify their argument's rounding by `≈ 1e6`: read off either,
+    /// a half-chord is up to `≈ 1e-6` m of arc out. (The depths are not
+    /// dyadic, since on a dyadic pose those ratios can come out exact
+    /// and hide it; `δ = (ρ + r) − d` is still exact, by Sterbenz.)
+    /// Read from the near extreme, both roots lie within the band of
+    /// the closed form `1 − cos θ = δ(2r − δ)/2dρ`.
+    #[test]
+    fn a_small_sphere_grazing_a_large_circle_is_placed_from_its_near_extreme() {
+        let (rho, r) = (4096.0, 2.0);
+        let band = Band::new(1e-7, 1e-6).unwrap();
+        for nominal in [2.3e-6, 3.7e-6, 5.1e-6, 7.9e-6, 1.3e-5, 2.9e-5] {
+            let d = rho + r - nominal;
+            let delta = (rho + r) - d;
+            let want = 2.0 * (delta * (2.0 * r - delta) / (4.0 * d * rho)).sqrt().asin();
+            let CircleRoots::Certified {
+                count: 2,
+                thetas: [ts @ .., _, _],
+            } = circle_sphere_roots(&circle(rho), -1.0, 1.0, &sphere([d, 0.0, 0.0], r), band)
+                .unwrap()
+            else {
+                panic!("δ = {delta:e}: the small sphere crosses the circle twice");
+            };
+            for t in ts {
+                let off = rho * (t.abs() - want).abs();
+                assert!(
+                    off <= band.zero(),
+                    "δ = {delta:e}: root ±{t} is {off:e} of arc off the closed form ±{want}"
+                );
+            }
+        }
+    }
+
+    /// **A frame that is not orthonormal is charged for it.** The
+    /// carrier's `û` is stretched by `2⁻²⁰`, so the circle the frame
+    /// evaluates has radius `1 + 2⁻²⁰` and its nearest point dips
+    /// `2⁻²¹` into the sphere — a crossing. The factored form, which
+    /// assumes the frame orthonormal, puts that point `≈ 2.1e-6` OUTSIDE
+    /// and would answer a definite miss. The frame's defect is charged
+    /// to both extremes (`CircleSphereHarmonic::frame_error`), and the
+    /// door then refuses rather than answer.
+    #[test]
+    fn a_frame_that_is_not_orthonormal_is_charged_for_it() {
+        let stretch = 2f64.powi(-20);
+        let d = 1.0 + R + 2f64.powi(-21);
+        let truth = d - (1.0 + stretch);
+        assert!(
+            truth < R,
+            "the evaluated circle's nearest point is inside the sphere"
+        );
+        let got = circle_sphere_roots(
+            &framed([0.0; 3], [0.0, 0.0, 1.0], [1.0 + stretch, 0.0, 0.0], 1.0),
+            -1.0,
+            1.0,
+            &sphere([d, 0.0, 0.0], R),
+            band(),
+        )
+        .unwrap();
+        assert!(
+            matches!(got, CircleRoots::Uncertain),
+            "a crossing the factored form misreads is refused, got {got:?}"
+        );
+    }
+
+    /// A circle of radius `rho` about `c` in the frame `(n, u)`, as
+    /// stored — orthonormal or not.
+    fn framed(c: [f64; 3], n: [f64; 3], u: [f64; 3], rho: f64) -> geom::Curve3<f64> {
+        geom::Curve3::Circle {
+            center: Point3::from_array(c),
+            axis: Vec3::new(n[0], n[1], n[2]),
+            radius: rho,
+            u_ref: Vec3::new(u[0], u[1], u[2]),
+        }
+    }
+
+    /// The root slack's terms as the door charges them (module docs of
+    /// `circle_roots`, "root slack"), each in metres of arc: the near
+    /// extreme's error over the slope, the far extreme's share, the
+    /// phase's error, the angle arithmetic's. Restated here only to pose
+    /// the pin rows below, each of which sets its band between the slack
+    /// with and without one term.
+    struct SlackTerms {
+        near: f64,
+        far_share: f64,
+        phase: f64,
+        angle: f64,
+        noise: f64,
+        lo: f64,
+        hi: f64,
+    }
+
+    impl SlackTerms {
+        fn of(c: [f64; 3], n: [f64; 3], u: [f64; 3], rho: f64, sc: [f64; 3], r: f64) -> Self {
+            let h = geom_brep::circle_sphere_harmonic(
+                Point3::from_array(c),
+                Vec3::new(n[0], n[1], n[2]),
+                rho,
+                Vec3::new(u[0], u[1], u[2]),
+                Point3::from_array(sc),
+                r,
+            );
+            let (lo_n, hi_n) = (h.lo_error + h.frame_error, h.hi_error + h.frame_error);
+            let (swing, slope) = (h.hi - h.lo, (-h.lo * h.hi).max(0.0).sqrt());
+            let (near, far) = if h.lo.abs() <= h.hi.abs() {
+                (h.hi * lo_n, -h.lo * hi_n)
+            } else {
+                (-h.lo * hi_n, h.hi * lo_n)
+            };
+            Self {
+                near: rho * near / swing / slope,
+                far_share: rho * far / swing / slope,
+                phase: rho * h.phase_error / h.e_u.hypot(h.e_v),
+                angle: rho * super::super::circle_roots::rounding_charge(core::f64::consts::TAU),
+                noise: lo_n.max(hi_n),
+                lo: h.lo,
+                hi: h.hi,
+            }
+        }
+
+        fn full(&self) -> f64 {
+            self.near + self.far_share + self.phase + self.angle
+        }
+    }
+
+    /// **Each term of the root slack decides a pose.** For each term,
+    /// a pose where it is a real share of the slack, and a band whose
+    /// zero sits just above the slack WITHOUT it: the full slack then
+    /// lies in the band's gap and the door refuses, where a slack that
+    /// dropped the term would read zero and certify. Each term is a
+    /// first-order error the root really carries (`circle_roots` module
+    /// docs): the far extreme's share of the residual's error at the
+    /// root, the phase's error, and the angle arithmetic's own rounding,
+    /// which a review measured exceeding the rest of the slack on one
+    /// generic pose in three thousand. The premises are asserted, so a
+    /// pose that stops isolating its term fails as itself.
+    #[test]
+    fn each_term_of_the_root_slack_decides_a_pose() {
+        let tilted = Vec3::new(1.0, 2.0, 2.0).normalize();
+        let tilted_u = tilted.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
+        let (tn, tu) = (
+            [tilted.x, tilted.y, tilted.z],
+            [tilted_u.x, tilted_u.y, tilted_u.z],
+        );
+        let at = |o: [f64; 3], s: f64, a: [f64; 3], b: f64, c: [f64; 3]| -> [f64; 3] {
+            core::array::from_fn(|i| o[i] + s * a[i] + b * c[i])
+        };
+        let v = tilted.cross(tilted_u);
+        let tv = [v.x, v.y, v.z];
+        type Pose = ([f64; 3], [f64; 3], [f64; 3], f64, [f64; 3], f64);
+        let poses: [(&str, Pose, fn(&SlackTerms) -> f64); 3] = [
+            (
+                "the angle arithmetic",
+                (
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    1.0,
+                    [1.0 + R - 2f64.powi(-10), 0.0, 0.0],
+                    R,
+                ),
+                |t| t.angle,
+            ),
+            (
+                "the far extreme's share",
+                (
+                    [0.2, -0.1, 0.3],
+                    tn,
+                    tu,
+                    1.0,
+                    at([0.2, -0.1, 0.3], -1.2, tu, 0.3, tn),
+                    1.59,
+                ),
+                |t| t.far_share,
+            ),
+            (
+                "the phase",
+                (
+                    [0.2, -0.1, 0.3],
+                    tn,
+                    tu,
+                    10.0,
+                    at(at([0.2, -0.1, 0.3], -0.4, tu, 0.0, tv), 0.0, tu, -5.0, tn),
+                    11.0,
+                ),
+                |t| t.phase,
+            ),
+        ];
+        for (label, (c, n, u, rho, sc, r), term) in poses {
+            let t = SlackTerms::of(c, n, u, rho, sc, r);
+            let (full, share) = (t.full(), term(&t));
+            let zero = (full - share) * (1.0 + 1e-9);
+            assert!(
+                share > 1e-3 * full && full <= 10.0 * zero,
+                "{label}: the term is a share of the slack: {share:e} of {full:e}"
+            );
+            assert!(
+                t.noise <= zero && t.lo.abs() >= 10.0 * zero && t.hi.abs() >= 10.0 * zero,
+                "{label}: the pose reaches the slack (noise {:e}, extremes {:e}, {:e}, zero {zero:e})",
+                t.noise,
+                t.lo,
+                t.hi
+            );
+            let got = circle_sphere_roots(
+                &framed(c, n, u, rho),
+                -4.0,
+                4.0,
+                &sphere(sc, r),
+                Band::new(zero, 10.0 * zero).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                matches!(got, CircleRoots::Uncertain),
+                "{label}: the slack with this term lies in the gap, so the door refuses, got {got:?}"
+            );
+        }
+    }
+
     /// **A desynced caller is a kernel defect, loudly.** The door is
     /// dispatched on a circle against a sphere; anything else reaching it
     /// is the caller's broken invariant, never an answer.
