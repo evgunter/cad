@@ -1,14 +1,14 @@
 ---
 id: dev1-cylinder-sphere-circle-locus-arm
 kind: issue
-title: DEV-1 witness lane - coaxial cylinder x sphere TangentLocus::Circle arm (the tube-chain cap rim)
-status: open
+title: The circle loci in general form: TangentLocus as a curve carrier with tangent_at, the certified side as data, wedge routing run on the locus, banked with the kissing arm
+status: parked
 opened: 2026-08-23
 github: 974
 refs: [971, 967]
 priority: P1
 cost: H
-design: true
+blocked_on: [declared-cusps-second-order-wedge-arm]
 ---
 
 ## From GitHub issue 974
@@ -28,3 +28,35 @@ The M9-3 follow-up STOP-reported in PR #971: the cylinder×sphere G1 cap rim (a 
 ## Home
 
 `crates/topo/src/boolean/rest.rs` and `carrier_eq.rs` are in S-MATE's `paths:` territory, and Rest reach is its charter.
+
+## 2026-10-02 — re-scoped (TANG, after the DEV-1 designer pair)
+
+The BLOCKING PRECONDITION above is stale: the coaxial cylinder×sphere
+separation invariant is measured and satisfied
+(`crates/topo/tests/verbs_cylsph_tangent_residuals.rs`). The row's
+motivating fixture is in the wrong class. A sphere-capped tube's rim is
+a wedge-π seam with aligned normals, not a `Tangent` contact (C1, C4),
+so a circle witness gives it nothing; its path is
+`a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`
+and `pi-seam-between-two-operands-has-no-declaration`. The two
+designers agreed on this disposition:
+
+- A circle locus serves the coaxial KISS only: a ball in an
+  equal-radius bore (wedge 2π), or a rod ending in an equal-radius
+  spherical hollow (wedge 0). Its consumer mints the cusp edge, which is
+  unbuilt for the LINE locus too (`declared-cusps-second-order-wedge-arm`
+  item 3), so it banks with that arm, as MATE-7 Q2 banks the
+  torus×torus witness.
+- When it builds, it builds in general form. `TangentLocus` wraps a
+  `Curve3` (Line | Circle) with `tangent_at(p)`: coaxial surfaces of
+  revolution touch where their meridian profiles touch, swept about the
+  axis, and the line arms are the same construction swept by
+  translation. The certified side each carrier lies on is DATA on the
+  verified declaration (see
+  `covered-circle-rung-reads-a-negative-endpoint-as-a-crossing`). The
+  material-wedge routing runs first, on the locus, for every shape. The
+  arms read the section classifiers' tangency variants
+  (`tangent-locus-re-meters-the-section-classifiers-tangency`).
+- The DEV-1 set's provenance is an orchestrator's acceptance of an
+  implementer deviation (M9-1 PR-2, `docs/MODEL-AB-LOG.md`), so
+  widening it later reverses nothing Ev ruled.
