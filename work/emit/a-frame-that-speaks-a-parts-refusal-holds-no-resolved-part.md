@@ -8,6 +8,7 @@ priority: P3
 cost: M
 design: true
 needs_ev: true
+pr: 3839
 branch: emit/ev-part-labels-at-the-seam
 parent: node-labels-are-document-data
 refs: [viewer-panes-speak-the-kernel-refusals-they-draw]
