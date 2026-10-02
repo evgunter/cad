@@ -402,8 +402,10 @@ pub enum SplitJoinError {
     /// band of it. A crossing's two flanks cannot both read that way
     /// unless their faces are curved and the witness can only sit on
     /// their boundaries — the frontier of
-    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`,
-    /// and no kernel defect.
+    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`
+    /// — or the two solids' faces lie within the band of each other (a
+    /// settled in-band coincidence,
+    /// `topo/tests/door_backstop_settled_residue.rs`). No kernel defect.
     SectionLoopUndecided {
         /// The null face whose loops' roles went unread.
         face: FaceKey,
