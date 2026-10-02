@@ -2,12 +2,13 @@
 id: slot-id-profile-doc-says-set-program-rebinds-names
 kind: issue
 title: Six kernel sites still say SetProgram rebinds the names it moves; since #3193 it rewrites none
-status: review
+status: closed
 opened: 2026-09-29
 priority: P4
 cost: E
 branch: recipe/set-program-undrawn-names
 pr: 3879
+closed: 2026-10-02
 ---
 
 ## The finding

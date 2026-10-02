@@ -2,12 +2,13 @@
 id: a-reshaping-that-shadows-a-kept-steps-piece-reports-nothing
 kind: issue
 title: A SetProgram that keeps a step but leaves its named role undrawn reports nothing: the name vanishes with no Maintenance row
-status: review
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: M
 branch: recipe/set-program-undrawn-names
 pr: 3879
+closed: 2026-10-02
 ---
 
 ## The finding

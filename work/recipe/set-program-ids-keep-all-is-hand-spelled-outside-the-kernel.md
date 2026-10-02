@@ -2,12 +2,13 @@
 id: set-program-ids-keep-all-is-hand-spelled-outside-the-kernel
 kind: issue
 title: SetProgram's keep-every-step ids live in the viewer, and the kernel's tests spell them by hand five times
-status: review
+status: closed
 opened: 2026-09-30
 priority: P4
 cost: E
 branch: recipe/set-program-undrawn-names
 pr: 3879
+closed: 2026-10-02
 ---
 
 
