@@ -245,3 +245,15 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   more evidence for that row and a door that sees them. (TQUERY
   orchestrator)
 - 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+- 2026-10-02: resumed after a usage-limit outage (about 22 h idle).
+  - The mint-doors fix pass and the tangency review died mid-task and
+    are resumed.
+  - The wrong-arc lane is merging main, which moved by about a day,
+    including PR 3768's `UnitVec3` split normal.
+  - JOIN's PR 3770 filed and closed
+    `split-whole-orbit-run-mints-an-unlabelled-strut` on our slate.
+    That is the mechanism of the P0 the tangency lane filed (a lone
+    Below bisector with every real edge Above), so block ∪ slab under
+    −n should answer once `cleave/tangency` merges main. The tangency
+    lane's P0 row and its pinned refusal need re-checking at that
+    merge.
