@@ -2454,15 +2454,22 @@ impl EditError {
                 )
             }
             // The two rule-shaped arms FORWARD the fault set's one
-            // prose vocabulary (`PlacementRuleFault`'s `Display`); the
-            // two frame-shaped arms below keep their own prose because
-            // their subject is a single group frame, which has no
-            // index in a rule's placement list.
+            // prose vocabulary (`PlacementRuleFault`'s `Display`). A
+            // rule's shape is written only by the insert that authors
+            // its node, so the recourse is that insert's.
             Self::EmptyPlacementList { node } => {
-                write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)
+                write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)?;
+                tail.recourse(f, format_args!("list at least one placement"))
             }
             Self::PlacementRuleMismatch { node } => {
-                write!(f, "{node}: {}", PlacementRuleFault::CountSpelling)
+                write!(f, "{node}: {}", PlacementRuleFault::CountSpelling)?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "give a stepped rule a count and a listed rule none, and list placements \
+                         on a placed union rather than a pattern"
+                    ),
+                )
             }
             Self::ImproperPlacement {
                 node,

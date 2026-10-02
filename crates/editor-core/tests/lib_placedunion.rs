@@ -478,6 +478,79 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     );
 }
 
+/// **Each placement-rule refusal's recourse gets through.** A rule's
+/// shape is written only by the insert that authors its node, so the
+/// recourse is that insert's: each refused shape below is refused with
+/// a recourse, and the node it names, inserted as the recourse says,
+/// applies.
+#[test]
+fn a_placement_rule_refusals_recourse_gets_through() {
+    let (doc, fin) = fin_only();
+    let insert = |node: Node<editor_core::ProfileProgram>| {
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let linear = || PatternKind::Linear {
+        direction: [scl(1.0), scl(0.0), scl(0.0)],
+        spacing: len(2.0),
+    };
+    let listed = || PatternKind::Explicit(vec![Frame::IDENTITY]);
+    for (label, refused, followed) in [
+        (
+            "a listed rule with a count, given none",
+            Node::PlacedUnion {
+                input: fin,
+                count: Some(Expr::count(1)),
+                kind: listed(),
+            },
+            Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+        ),
+        (
+            "a stepped rule without a count, given one",
+            Node::PlacedUnion {
+                input: fin,
+                count: None,
+                kind: linear(),
+            },
+            Node::placed_union(fin, Expr::count(2), linear()).expect("a stepped rule"),
+        ),
+        (
+            "a pattern's list, on a placed union",
+            Node::Pattern {
+                input: fin,
+                count: Expr::count(1),
+                kind: listed(),
+            },
+            Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+        ),
+        (
+            "an empty list, given a placement",
+            Node::placed_union_at(fin, Vec::new()),
+            Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+        ),
+    ] {
+        let error = insert(refused).expect_err(label);
+        assert!(
+            matches!(
+                error,
+                EditError::PlacementRuleMismatch { .. } | EditError::EmptyPlacementList { .. }
+            ),
+            "{label} refuses as a placement rule: {error:?}"
+        );
+        assert!(
+            error.to_string().contains("Recourse: "),
+            "{label} states its recourse: {error}"
+        );
+        assert!(insert(followed).is_ok(), "{label} applies");
+    }
+}
+
 /// **An explicit rule has no expression slots**, and a stepped one has
 /// exactly the pattern node's — the slot API is the one place the two
 /// nodes could have drifted, so it is pinned directly.

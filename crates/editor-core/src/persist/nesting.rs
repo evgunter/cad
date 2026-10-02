@@ -2,9 +2,10 @@
 //! that.**
 //!
 //! A body nests only as deep as the values in it that nest. An
-//! expression is bounded where it is minted, by [`MAX_NESTING`], so the
-//! deepest body this build saves outside its stable names is known, and
-//! [`BODY_NESTING`] is it. A stable name is not bounded: it nests one
+//! expression is bounded where it is minted, by [`MAX_NESTING`], and a
+//! metadata value by its own bound ([`crate::meta::MAX_NESTING`]), so
+//! the deepest body this build saves outside its stable names is known,
+//! and [`BODY_NESTING`] is it. A stable name is not bounded: it nests one
 //! whole name per derivation level (`names::nest`), and a part chain at
 //! its bound already puts a thousand levels into one. So the load door
 //! reads a body in two ways at once:
@@ -82,8 +83,32 @@ const LEVELS_PER_NESTING: usize = 2;
 
 /// The deepest a body this build saves can nest outside its stable
 /// names: an expression or a measurement nested to [`MAX_NESTING`] in
-/// the deepest position one sits.
-pub(crate) const BODY_NESTING: usize = ENVELOPE + LEVELS_PER_NESTING * MAX_NESTING;
+/// the deepest position one sits, or a metadata value nested to its
+/// own bound ([`META_BODY_NESTING`]), whichever is deeper.
+pub(crate) const BODY_NESTING: usize = {
+    let expr = ENVELOPE + LEVELS_PER_NESTING * MAX_NESTING;
+    if expr > META_BODY_NESTING {
+        expr
+    } else {
+        META_BODY_NESTING
+    }
+};
+
+/// The most JSON brackets that enclose a metadata value's root anywhere
+/// a save writes one: an appearance record's metadata in a snapshot, or
+/// a `SetAppearanceMeta` edit in the edit log.
+const META_ENVELOPE: usize = 6;
+
+/// The deepest a body nests around a metadata value at its bound
+/// ([`crate::meta::MAX_NESTING`]): a list or a map is two brackets on
+/// the wire (`{"List": [...]}`), and an empty one at the bottom two more.
+///
+/// Not a hand count: `meta_nesting_bound`'s
+/// `every_door_takes_a_value_at_the_bound_on_the_smallest_stack` saves
+/// a value at the bound both ways and fails when its deepest save
+/// disagrees.
+pub(crate) const META_BODY_NESTING: usize =
+    META_ENVELOPE + LEVELS_PER_NESTING * crate::meta::MAX_NESTING;
 
 /// Where a body first nests past [`BODY_NESTING`] outside its names:
 /// the 1-based line and column of the bracket that does, counted as

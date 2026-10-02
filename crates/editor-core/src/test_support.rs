@@ -282,6 +282,10 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
 /// (`tests/expr_nesting_bound.rs`).
 pub const BODY_NESTING: usize = crate::persist::nesting::BODY_NESTING;
 
+/// **The deepest a body nests around a metadata value at its bound**,
+/// which [`BODY_NESTING`] covers (`tests/meta_nesting_bound.rs`).
+pub const META_BODY_NESTING: usize = crate::persist::nesting::META_BODY_NESTING;
+
 // --- the mint's preimage --------------------------------------------
 
 /// **The node id an insert of `node` draws from an empty document's

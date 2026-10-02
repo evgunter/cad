@@ -532,13 +532,13 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "PlacementRuleMismatch",
             EditError::PlacementRuleMismatch {
-                node: s(5, "InstantiatePart"),
+                node: s(5, "Pattern"),
             },
         ),
         (
             "EmptyPlacementList",
             EditError::EmptyPlacementList {
-                node: s(5, "InstantiatePart"),
+                node: s(5, "PlacedUnion"),
             },
         ),
         (
@@ -952,11 +952,8 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
 /// the row namespace that writes it: the node, measure, sketch step or
 /// mate the refusal is about, and a pair's corner list.
 const LABELS: &[(&str, &str)] = &[
-    (
-        "Edit/PlacementRuleMismatch",
-        "InstantiatePart \"base plate\"",
-    ),
-    ("Edit/EmptyPlacementList", "InstantiatePart \"base plate\""),
+    ("Edit/PlacementRuleMismatch", "Pattern \"base plate\""),
+    ("Edit/EmptyPlacementList", "PlacedUnion \"base plate\""),
     ("Edit/MeasureMalformed", "Measure \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
@@ -969,11 +966,6 @@ const LABELS: &[(&str, &str)] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/recipe/edit-refusals-short-of-the-shape-guard.md, held for
-    // work/place/placement-is-spelled-three-ways-node-registry-and-rule.md:
-    // the two placement-rule arms, which the gauge unit did not touch.
-    "Edit/EmptyPlacementList",
-    "Edit/PlacementRuleMismatch",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Edit/ProfileProgramRefused(Resolve)",
     "Edit/ProfileProgramRefused(Transition)",
