@@ -4920,12 +4920,6 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The pick path speaks from the landed document, not the shown
-    /// one.** A rename committed while its run is held leaves the shown
-    /// document ahead of the landed one; the blend panel's target line
-    /// and the held mark's badge say the label the landed run's ids
-    /// were read in, which is the label the picture they describe was
-    /// drawn under.
     /// The startup app over a [`Gated`] seam, open, and the gate.
     fn gated() -> (Driven, std::sync::Arc<std::sync::atomic::AtomicBool>) {
         let open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
@@ -4984,6 +4978,12 @@ mod properties_pane_tests {
         (drawn, landed)
     }
 
+    /// **The pick path speaks from the landed document, not the shown
+    /// one.** A rename committed while its run is held leaves the shown
+    /// document ahead of the landed one; the blend panel's target line
+    /// and the held mark's badge say the label the landed run's ids
+    /// were read in, which is the label the picture they describe was
+    /// drawn under.
     #[test]
     fn the_pick_path_says_the_landed_label_while_a_rename_has_not_landed() {
         let (mut driven, open) = gated();
@@ -5030,6 +5030,7 @@ mod properties_pane_tests {
             );
         }
     }
+
     /// **The selection's verdict speaks from the landed document, not
     /// the shown one**: the standing is asked of the landed run, so a
     /// picked face that no longer resolves names its minting node by

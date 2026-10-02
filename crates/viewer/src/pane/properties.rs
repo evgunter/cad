@@ -1909,7 +1909,8 @@ mod verdict_tests {
     /// **A picked entity's verdict says its nodes as the landed
     /// document holds them**: the failed arm's name and the
     /// indeterminate arm's standing each say the block by its label
-    /// over the document they were asked of, and by its tag with none.
+    /// over the document they were asked of, and by its tag with none;
+    /// a minting node that document no longer holds, by its tag.
     #[test]
     fn a_pick_verdict_says_its_nodes_from_the_landed_document() {
         let tol = pncad::tolerance::witness();
@@ -1937,9 +1938,14 @@ mod verdict_tests {
             resolution: Some(Box::new(resolution)),
         };
         let gone = face(Resolution::Failed(ResolutionFailure {
-            error: ResolveError::NodeGone {
+            error: ResolveError::Vanished {
                 name: name.clone(),
-                edit: RecipeEditRef::NodeDeleted { node: block },
+                diagnosis: editor_core::Diagnosis::PredicateFlip {
+                    predicate: "orient",
+                    from: pncad::geom_core::Sign::Positive,
+                    to: pncad::geom_core::Sign::Negative,
+                },
+                last_good: None,
             },
             offers: Vec::new(),
         }));
@@ -1967,6 +1973,32 @@ mod verdict_tests {
                 "the {arm} verdict says the block by its tag with nothing landed: {said}"
             );
         }
+
+        // A node the landed document no longer holds has no label to
+        // say: it is said by its tag over that document too.
+        let deleted = RecipeNodeId(test_utils::refusal::tagged(1));
+        assert!(doc.node(deleted).is_none(), "the fixture's id is absent");
+        let stranded = StableName {
+            kind: EntityKind::Face,
+            node: deleted,
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        };
+        let (over_doc, _) = drawn_over(
+            &face(Resolution::Failed(ResolutionFailure {
+                error: ResolveError::NodeGone {
+                    name: stranded,
+                    edit: RecipeEditRef::NodeDeleted { node: deleted },
+                },
+                offers: Vec::new(),
+            })),
+            Some(&doc),
+        );
+        let said = &find_opening(&over_doc, "this face is gone: ").text;
+        let deleted_by_tag = format!("node {}", test_utils::refusal::tag(deleted.0));
+        assert!(
+            said.contains(&deleted_by_tag),
+            "a deleted minting node is said by its tag over the landed document: {said}"
+        );
     }
 
     /// **A name that no longer resolves is a verdict to act on**, so

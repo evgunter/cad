@@ -901,10 +901,7 @@ since no later document holds it.
 `DocSession::standing` asks a picked entity's resolution of the landed
 run every frame, so `pane::properties::standing_verdict` says its
 `ResolveError`, and its `ResolveIndeterminate` through
-`app::indeterminate_wording`, from that run's document. A part's
-carried level and fault keep their tags, because no frame holds the
-resolved part their ids are spelled in
-(`work/emit/a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part.md`).
+`app::indeterminate_wording`, from that run's document.
 
 The landed document lags the committed one by a run. A sentence spoken
 from it says the label the landed run was read under, so a rename that
