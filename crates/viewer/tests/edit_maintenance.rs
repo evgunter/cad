@@ -26,8 +26,8 @@ use test_utils::refusal::tagged;
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
     Datum, Dimension, Doc, DocEdit, DocParam, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SpokenName,
-    SpokenNode, StepArg, cascade_delete_order,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode,
+    StepArg,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
