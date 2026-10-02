@@ -324,7 +324,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
         "tangent_arc_leg_matches_loopbuilder",
         &[
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [2.0, 0.0, 2.0, 1.0, 1.0000000000000002, 1.5707963267948966],
+            [2.0, 0.0, 2.0, 1.0, 1.0, 1.5707963267948968],
             [3.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[1],
@@ -454,9 +454,9 @@ fn sharp_arc_chain_matches_loopbuilder() {
 
 /// D3 — declared tangent leg: `.tangent().tangent_arc_to(p)` lowers to
 /// a joint declared tangent plus the arc whose sweep is 4·atan(X), X =
-/// tan(Δ/2), Δ the tangent-chord angle from atan2 — bit-identical to
-/// that closed form evaluated directly on the same inputs (the oracle
-/// below).
+/// tan(Δ/2) of the tangent-chord angle Δ spelled algebraically,
+/// `across / (|d| + along)` — bit-identical to that closed form
+/// evaluated directly on the same inputs (the oracle below).
 #[test]
 fn tangent_arc_leg_matches_loopbuilder() {
     let (a, b, c) = (
@@ -464,10 +464,9 @@ fn tangent_arc_leg_matches_loopbuilder() {
         Point2::new(2.0, 0.0),
         Point2::new(3.0, 1.0),
     );
-    // The unique tangent arc departing east from b to c: tangent-chord
-    // angle Δ = atan2(1, 1), X = tan(Δ/2) (the documented form).
-    let delta = 1.0_f64.atan2(1.0);
-    let expected_bulge = (delta / 2.0).tan();
+    // The unique tangent arc departing east from b to c: d = (1, 1),
+    // along = across = 1, X = 1 / (√2 + 1) (the documented form).
+    let expected_bulge = 1.0 / (2.0_f64.sqrt() + 1.0);
     let algebra = Open
         .at(a)
         .line_to(b, Tol::witness())
