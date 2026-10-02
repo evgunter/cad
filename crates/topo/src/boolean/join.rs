@@ -116,7 +116,9 @@ use super::{
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::euler::EulerOpError;
 use crate::face_normal::face_outward_normal;
+use crate::loop_winding::TornLoop;
 use crate::null::NullFacePair;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -1487,51 +1489,20 @@ fn choose_roles<T: Decide>(
 /// `face`'s outward normal: the orientation an island's new outer loop
 /// must have (the remainder ring anti-encloses iff the run encloses).
 ///
-/// Reified (issue #93): the functional is `n · Σ (pᵢ−p₀)×(pᵢ₊₁−p₀)` —
-/// the plane's Newell functional, twice the run's signed enclosed
-/// area — decided through the `bool_ring_run_winding` predicate in
-/// the k_stats funnel; `Indeterminate` escalates. Zero is a
-/// degenerate area-free run and a loud desync (the ring lane only
+/// Reified (issue #93): decided through the `bool_ring_run_winding`
+/// predicate by [`Body::planar_run_winding_decided`] — the one home of
+/// the sum, its dimension (`2A/P`, audit F4) and its orientation rule,
+/// `crate::loop_winding`'s module docs, which the merge's role assigner
+/// and `validate`'s tier-3 check 6 read for a stored loop. The normal
+/// handed to it is the face's OUTWARD normal, read through
+/// [`face_outward_normal`] with the sense folded in; the run's stored
+/// traversal carries the other sign. `Indeterminate` escalates. Zero is
+/// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
 /// merges). The ring lane is planar-scoped like
-/// [`super::solid_contain::point_in_solid`]'s
-/// F5 gate: a non-planar carrier refuses loudly.
-///
-/// # Dimension (audit F4, `docs/predicate-dimension-audit.md`)
-///
-/// The CANONICAL statement for this predicate's three sites (the other
-/// two — the merge's role assigner and `validate`'s tier-3 check 6 —
-/// share one statement, `crate::loop_winding`, which cross-references
-/// here): the Newell functional is an AREA (m²)
-/// and ε is a point deviation (D4), so the decided margin divides it by
-/// the run's boundary PERIMETER `P`. `2A/P` is the region's MEAN WIDTH
-/// — exactly the deviation the winding sign is about: it is the
-/// distance the boundary would have to move to sweep the enclosed
-/// region away, so a margin above ε says "this ring encloses material
-/// no ε-scale point perturbation can unwind", and one below it says the
-/// ring is thinner than the model's own resolution. Precedents:
-/// `validate`'s `positive_volume` (V/A) and `split_section_area`
-/// (2|A|/P, the same mean width in the splitter).
-///
-/// `P` is the closed region's own boundary: each run half-edge
-/// contributes its arc length (conics: `|Δ|·semi-major` — exact for a
-/// circle, an upper bound for an ellipse, and an over-large `P`
-/// understates the width, i.e. escalates rather than decides), and the
-/// closing chord `end(h2) → p₀` contributes its length. A run whose
-/// perimeter is exactly zero (every vertex coincident, no arcs) poisons
-/// `0/0` and escalates typed rather than reaching the `Zero` desync arm
-/// below — a refusal either way.
-///
-/// **Orientation (S10)**: the margin multiplies two differently-sourced
-/// signs and needs exactly ONE of them threaded. The Newell sum is
-/// winding — read off the run's STORED traversal order, which `revert`
-/// reverses — so it already flips with the sense bit and must not be
-/// touched. The normal is the face's OUTWARD normal, read through
-/// [`face_outward_normal`] with the sense folded in. Threading both
-/// would cancel (the classic double-count); threading neither leaves
-/// "CCW around the outward normal" meaning "CCW around the chart
-/// normal", the opposite statement on a reversed face — and this
-/// verdict is what picks an island's new outer boundary.
+/// [`super::solid_contain::point_in_solid`]'s F5 gate: a non-planar
+/// face refuses loudly, and so does a spiric or spline run edge, which
+/// the operand gate keeps out.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1543,109 +1514,39 @@ fn ring_run_ccw<T: Decide>(
     let normal = face_outward_normal(body, face)
         .ok_or(desync("ring-lane face has no planar carrier"))?
         .vec();
-    let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
-        let v = body
-            .get_half_edge(he)
-            .ok_or(desync("run half no longer resolves"))?
-            .start;
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or(desync("run vertex has no point"))
-    };
-    let end_point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
-        let v = body
-            .half_edge_end(he)
-            .ok_or(desync("run half no longer resolves"))?;
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or(desync("run vertex has no point"))
-    };
-    let p0 = point_of(h1)?;
-    let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-    // The metering lever (fn docs, audit F4): the closed region's own
-    // boundary length, accumulated edge by edge alongside the area.
-    let mut perimeter = T::zero();
-    let mut prev = p0;
-    let mut he = h1;
-    let mut steps = 0usize;
-    let cap = body.half_edges().count(); // hoisted: O(n) guard, not O(n²)
-    // Conic run edges add their BULGE term (M5 PR 9 fix pass, dev 4):
-    // the chord Newell sum alone reads a two-semicircle 2-gon as zero
-    // area — a structural degeneracy of the chord approximation, not
-    // of the region. Each arc contributes the closed-form vector area
-    // between itself and its chord, `axis · sa·sb·(Δ − sin Δ)` (twice
-    // the segment area, matching the cross-sum's 2A convention;
-    // signed by traversal, an odd function of Δ).
-    //
-    // The same walk yields the half-edge's own BOUNDARY LENGTH (the F4
-    // metering lever): a conic contributes its arc length, everything
-    // else its chord. One curve lookup, both terms.
-    let run_term = |he: HalfEdgeKey| -> Result<(geom_core::Vec3<T>, T), BooleanError> {
-        let zero = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-        let chord =
-            || -> Result<T, BooleanError> { Ok((end_point_of(he)? - point_of(he)?).norm()) };
-        let he_data = body
-            .get_half_edge(he)
-            .ok_or(desync("run half no longer resolves"))?;
-        let edge = body
-            .get_edge(he_data.edge)
-            .ok_or(desync("run edge no longer resolves"))?;
-        // The conic term has one home (`crate::loop_winding`); every
-        // other carrier, and a null-edge scaffold, is its chord.
-        match body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .and_then(|curve| crate::loop_winding::conic_segment_term(curve, edge.he_plus == he))
-        {
-            Some(term) => Ok(term),
-            None => Ok((zero, chord()?)),
-        }
-    };
-    loop {
-        let (bulge, len) = run_term(he)?;
-        newell = newell + bulge;
-        perimeter = perimeter + len;
-        if he != h1 {
-            let p = point_of(he)?;
-            newell = newell + (prev - p0).cross(p - p0);
-            prev = p;
-        }
-        if he == h2 {
-            break;
-        }
-        he = body
-            .get_half_edge(he)
-            .ok_or(desync("run half no longer resolves"))?
-            .next;
-        steps += 1;
-        if steps > cap {
-            return Err(desync("ring-run arc did not close"));
-        }
-    }
-    let end = end_point_of(h2)?;
-    newell = newell + (prev - p0).cross(end - p0);
-    // The chord that closes the region (fn docs): the run is open, the
-    // area it decides is not.
-    perimeter = perimeter + (end - p0).norm();
+    let wound = body
+        .planar_run_winding_decided(h1, h2, normal, band)
+        .map_err(|torn| match torn {
+            TornLoop::Dangling(what) => {
+                BooleanError::Join(SplitJoinError::Euler(EulerOpError::from(what)))
+            }
+            TornLoop::Unclaimed { he, edge } => {
+                BooleanError::Join(SplitJoinError::Euler(EulerOpError::UnclaimedHalfEdge {
+                    he,
+                    edge,
+                }))
+            }
+            TornLoop::Unclosed => desync("ring-run arc did not close"),
+        })?
+        // The operand gate refuses a spiric or spline carrier and no
+        // section lane mints one on a plane, so a run carrying one is
+        // the gate's invariant broken: the chord joiner's own reading
+        // of the same edge.
+        .ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
+            face,
+            what: "the ring lane reached a spiric or spline run edge (the operand gates refuse \
+                   the kinds)",
+        }))?;
     // A zero area is a degenerate run (below), so its in-band twin is
     // the kernel's too.
-    let escalate = |diag| BooleanError::Escalated {
+    let decided = wound.map_err(|diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::RingWinding),
         diag,
-    };
-    // `normal` carries the sense, `newell` carries the traversal: one
-    // factor each, never both (fn docs — the double-count hazard).
-    // `/ perimeter` is the F4 metering: 2A/P, the run's mean width.
-    match decide(
-        "bool_ring_run_winding",
-        Margin::over_lever(normal.dot(newell), perimeter),
-        band,
-    )
-    .map_err(escalate)?
-    {
-        geom_core::Sign::Positive => Ok(true),
-        geom_core::Sign::Negative => Ok(false),
-        geom_core::Sign::Zero => Err(desync(
+    })?;
+    match decided.sign {
+        Sign::Positive => Ok(true),
+        Sign::Negative => Ok(false),
+        Sign::Zero => Err(desync(
             "ring-run winding is degenerate (zero enclosed area)",
         )),
     }

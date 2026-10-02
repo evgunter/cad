@@ -6056,8 +6056,8 @@ pub(crate) fn tier3_local_checks_marked<
     // `bool_ring_run_winding` predicate (the same margin the boolean
     // join's ring lane and the merge role normalization decide on),
     // metered to a LENGTH by the loop's perimeter: 2A/P, the region's
-    // mean width (audit F4; derivation at `boolean::join::ring_run_ccw`,
-    // the same discipline as check 7's V/A below).
+    // mean width (audit F4; derivation at `crate::loop_winding`, the
+    // sum's one home, the same discipline as check 7's V/A below).
     // A role inversion passes every volume gate (they are
     // role-invariant) but silently corrupts tessellation/export;
     // this closes that class structurally.
