@@ -678,10 +678,9 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   finds the section circles and the (Plane, Sphere) germ arm
         //   joins them exactly.
         // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
-        //   cylinder-near-sphere, sphere×sphere overlap, tangency,
-        //   boundary-grazing circles, one group escaping through
-        //   NON-PARALLEL faces): typed refusal — the S12 silence
-        //   never re-opens.
+        //   sphere faces meeting, tangency, boundary-grazing circles,
+        //   one group escaping through NON-PARALLEL faces): typed
+        //   refusal — the S12 silence never re-opens.
         let recuts = sphere_extent_scan(a, b, band)?;
         if !recuts.is_empty() {
             if !recut {
@@ -895,11 +894,11 @@ pub(crate) enum SectionPath {
     /// The crossings path: every pair with a face that is not a plane.
     Crossings,
     /// The no-crossings fallback: every pair with a face that is not a
-    /// plane, except a sphere against a plane, a sphere, a cylinder or a
-    /// spline — those are the extent scan's ([`sphere_extent_scan`]),
-    /// which runs first and keeps its re-cut. A sphere against a torus
-    /// or a cone is certified here: neither is ever an escape face, so
-    /// the scan's only question of the pair is disjointness, and with no
+    /// plane, except a sphere against a plane, a sphere or a spline —
+    /// those are the extent scan's ([`sphere_extent_scan`]), which runs
+    /// first and keeps its re-cut. A sphere against a cylinder, a torus
+    /// or a cone is certified here: none is ever an escape face, so the
+    /// scan's only question of the pair is disjointness, and with no
     /// event anywhere "every component cleared" is disjointness.
     Fallback,
 }
@@ -909,7 +908,9 @@ impl SectionPath {
         use geom::Surface as S;
         let curved = |s: &geom::Surface<T>| !matches!(s, S::Plane { .. });
         let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
-        let passed = |s: &geom::Surface<T>| matches!(s, S::Torus { .. } | S::Cone { .. });
+        let passed = |s: &geom::Surface<T>| {
+            matches!(s, S::Cylinder { .. } | S::Torus { .. } | S::Cone { .. })
+        };
         let scanned = (sphere(x) && !passed(y)) || (sphere(y) && !passed(x));
         (curved(x) || curved(y)) && !(self == Self::Fallback && scanned)
     }
@@ -1033,8 +1034,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     evented: bool,
     charts: &mut ChartCache,
-) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError>
-{
+) -> Result<Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>, BooleanError> {
     use super::section_cert::{Refusal, Side, certify, classify};
     let (f_is, f_body, ff, sf, box_f) = f;
     let (g_is, g_body, fg, sg, box_g) = g;
@@ -2275,12 +2275,14 @@ struct SphereRecut<T: Real> {
 ///
 /// - **Sphere**: a closed group's true extent is `center ± r`, so the
 ///   pairs it can meet are enumerable exactly, and an escape through a
-///   plane face is repairable by a re-chart.
+///   plane face is repairable by a re-chart. Two spheres whose carriers
+///   cross are asked whether their FACES meet ([`sphere_faces_apart`]).
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
 ///   ([`section_extent_pass`]), which runs after this scan. A sphere's
-///   pairs with a torus or cone face are the pass's too: neither is an
-///   escape face, so disjointness is all the scan would ask of them.
+///   pairs with a cylinder, torus or cone face are the pass's too: none
+///   is an escape face, so disjointness is all the scan would ask of
+///   them.
 ///
 /// Determinism (D9): face-arena order throughout; the first escape's
 /// normal is the alignment target.
@@ -2367,6 +2369,18 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         match side {
                             // Clear of the whole carrier plane.
                             NonzeroSign::Negative => {}
+                            // A TRIMMED group's faces may never reach
+                            // the circle the carrier cuts: certified
+                            // apart from this face, they pose no escape
+                            // through it.
+                            NonzeroSign::Positive
+                                if group.is_none()
+                                    && sphere_faces_apart(
+                                        (x_is, x, fd.surface),
+                                        (y, yf),
+                                        band,
+                                        &mut section_charts,
+                                    )? => {}
                             NonzeroSign::Positive => {
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
@@ -2490,31 +2504,6 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             }
                         }
                     }
-                    Some(geom::Surface::Cylinder { .. }) => {
-                        // No exact sphere-vs-cylinder-face certificate
-                        // is wired: the cyl×sphere lane is PR 9c
-                        // deviation 1, and since M6-2 its blocker is
-                        // the unwired JOIN lane alone — the generic
-                        // lift and Pcurve::Fitted both landed there.
-                        // The exact DECLARED-coaxial classification
-                        // does not retire this and the message is
-                        // re-verified rather than moved: this scan asks
-                        // about NEARNESS between two arbitrary trimmed
-                        // faces, which no coaxial section answers, and
-                        // it has no declaration channel to reach one
-                        // through in any case. Certified boxes prove
-                        // separation, anything closer refuses typed.
-                        if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
-                            return Err(BooleanError::FallbackExtentUnsupported {
-                                operand: x_is,
-                                face,
-                                what: "the sphere's certified extent meets a cylinder \
-                                       face's box — the cyl×sphere seam lane is not \
-                                       wired (its fitted-chord window has no azimuth \
-                                       analog), so nearness cannot be classified",
-                            });
-                        }
-                    }
                     Some(&geom::Surface::Sphere {
                         center: c2,
                         radius: r2,
@@ -2563,8 +2552,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 )
                                 .map_err(esc(SphereQuestion::Nested))?;
                                 if let Some(verdict) = Refused::of(nested, band) {
-                                    let crossing =
-                                        matches!(verdict, Refused::Negative { .. });
+                                    let crossing = matches!(verdict, Refused::Negative { .. });
                                     if !(crossing
                                         && sphere_faces_apart(
                                             (x_is, x, fd.surface),
@@ -2590,10 +2578,15 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             face: yf,
                         });
                     }
-                    // A cone or torus face is never an escape plane, so
-                    // the pair's one question is disjointness, which the
-                    // section pass certifies (`SectionPath::Fallback`).
-                    Some(geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {}
+                    // A cylinder, cone or torus face is never an escape
+                    // plane, so the pair's one question is disjointness,
+                    // which the section pass certifies
+                    // (`SectionPath::Fallback`).
+                    Some(
+                        geom::Surface::Cylinder { .. }
+                        | geom::Surface::Cone { .. }
+                        | geom::Surface::Torus { .. },
+                    ) => {}
                     // `Approx` joins the no-wired-arm refusal, not the
                     // NURBS lane: the pair-scoped operand gate refuses
                     // it by kind before this scan runs.
@@ -2681,10 +2674,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// **Whether every face on `x`'s sphere `surface` is certified apart
-/// from `y`'s face `yf`**, a sphere whose carrier crosses that sphere's:
-/// each pair whose boxes overlap clears every component of its section
-/// by the section certificate's rule, on the no-event path. `false`
-/// when any pair does not clear.
+/// from `y`'s face `yf`**, whose carrier the sphere crosses: each pair
+/// whose boxes overlap clears every component of its section by the
+/// section certificate's rule, on the no-event path. `false` when any
+/// pair does not clear.
 ///
 /// # Errors
 ///

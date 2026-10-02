@@ -686,3 +686,35 @@ fn a_ball_inside_a_two_sphere_body_builds() {
         }
     }
 }
+
+/// **A lens beside a slab whose plane cuts only the lens's trimmed-away
+/// sphere.** The slab's facing plane crosses the CARRIER of one of the
+/// lens's sphere faces, in a circle wholly inside the plane face, on
+/// the part of that sphere the lens does not keep: the circle is not an
+/// escape of the trimmed group, the faces never meet, and every op
+/// builds — the two bodies are disjoint, so the oracle is the lens's
+/// two caps and the slab's box, in both operand orders.
+#[test]
+fn a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let v_lens = lens_volume(R1, R2, D);
+    for (label, (y0, y1)) in [("below", (-3.0, -0.5)), ("above", (1.6, 3.0))] {
+        let slab: Body<f64> =
+            sweep::test_support::brick((-2.0, 2.0), (y0, y1), (-2.0, 2.0), Tol::witness());
+        let v_slab = 16.0 * (y1 - y0);
+        for (op, x, y, want) in [
+            (BooleanOp::Union, &lens, &slab, v_lens + v_slab),
+            (BooleanOp::Union, &slab, &lens, v_lens + v_slab),
+            (BooleanOp::Intersect, &lens, &slab, 0.0),
+            (BooleanOp::Intersect, &slab, &lens, 0.0),
+            (BooleanOp::Subtract, &lens, &slab, v_lens),
+            (BooleanOp::Subtract, &slab, &lens, v_slab),
+        ] {
+            let name = format!("slab {label}: {op:?}");
+            match run_or_empty(op, x, y) {
+                Some(out) => assert_body(&name, &out, want),
+                None => assert!(want == 0.0, "{name}: empty against {want}"),
+            }
+        }
+    }
+}

@@ -20,15 +20,13 @@
 //!   lane now, so the pose reaches `boolean::join::cs_pair_frame`, which
 //!   names a frame only for a DECLARED-coaxial pair — coaxiality is
 //!   never inferred — and keeps `NoArm` for this undeclared one.
-//! - **A non-crossing coaxial pose — a ball wholly inside a wider
-//!   cylinder — refuses at `FallbackExtentUnsupported`** instead, the
-//!   containment fallback's curved-extent scan. It is reachable
-//!   precisely because no crossing is found first.
+//! - **A non-crossing pose — a ball wholly inside a wider cylinder —
+//!   builds**: no crossing is found, the containment fallback runs, and
+//!   the section pass certifies the sphere × wall pair apart.
 //!
-//! Every row below pins the refusal as a MEASUREMENT rather than as a
-//! target. What would move the first is a coaxiality declaration the
-//! frame can read (`work/wire/axis-shaped-identity-channel.md`); what
-//! would move the second is a cyl×sphere seam lane.
+//! The crossing rows pin the refusal as a MEASUREMENT rather than as a
+//! target. What would move them is a coaxiality declaration the frame
+//! can read (`work/wire/axis-shaped-identity-channel.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -161,33 +159,104 @@ fn a_transversal_pose_keeps_its_door_too() {
     }
 }
 
-/// **The second reachable door, and the row that refuted "a contained
-/// ball just answers".** A ball wholly inside a wider cylinder has no
-/// crossing at all, so the pipeline falls through to the containment
-/// fallback — and the fallback's curved-extent scan refuses
-/// `FallbackExtentUnsupported`, naming the cyl×sphere seam lane. It
-/// cannot answer even here, because the ball's certified extent meets
-/// the wall face's BOX and a box overlap is a MAY, not a DOES.
-///
-/// This is what makes the opening measurement a table rather than a
-/// single door: the crossing pose takes the germ frame and the
-/// non-crossing pose takes the scan.
+/// The boolean's volume, `None` for an empty result, after tiers 1–3;
+/// a refusal fails with the payload.
+fn built_volume(label: &str, op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<f64> {
+    let tol = Tol::witness();
+    let out = match op {
+        topo::BooleanOp::Union => topo::union(a, b, tol),
+        topo::BooleanOp::Intersect => topo::intersect(a, b, tol),
+        topo::BooleanOp::Subtract => topo::subtract(a, b, tol),
+    }
+    .unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+    let body = &out.body()?.body;
+    assert_eq!(topo::validate(body), Ok(()), "{label}: tier 1");
+    assert_eq!(topo::validate_closed(body), Ok(()), "{label}: tier 2");
+    assert_eq!(
+        topo::validate_geometric(body, tol),
+        Ok(()),
+        "{label}: tier 3"
+    );
+    Some(topo::mass_properties(body, tol).unwrap().volume)
+}
+
+/// **The non-crossing pose: a ball wholly inside a wider cylinder.**
+/// No crossing exists, so the containment fallback runs, and the
+/// sphere × cylinder pair is the section pass's: the ball's sphere and
+/// the wall's carrier have no section at all (centred on the axis, and
+/// off it), so the pass clears the pair and the vertex probe answers.
+/// Every op builds in both operand orders and both poses, against
+/// `π r² h` and `4πρ³/3`.
 #[test]
-fn a_contained_ball_refuses_at_the_curved_extent_scan() {
+fn a_contained_ball_builds_through_the_section_pass() {
+    use core::f64::consts::PI;
+    use topo::BooleanOp::{Intersect, Subtract, Union};
+    let (r, h, rho) = (2.0_f64, 4.0, 0.5_f64);
+    let (vc, vs) = (PI * r * r * h, 4.0 / 3.0 * PI * rho.powi(3));
+    let c = cyl(r, -2.0, 2.0);
+    for centre in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.9, 0.8, -1.2)] {
+        let s = ball_at(rho, centre);
+        for (pose, c, s) in [
+            ("direct", c.clone(), s.clone()),
+            ("re-posed twin", posed(&c), posed(&s)),
+        ] {
+            for (op, x, y, want) in [
+                (Union, &c, &s, Some(vc)),
+                (Union, &s, &c, Some(vc)),
+                (Intersect, &c, &s, Some(vs)),
+                (Intersect, &s, &c, Some(vs)),
+                (Subtract, &c, &s, Some(vc - vs)),
+                (Subtract, &s, &c, None),
+            ] {
+                let label = format!("{pose}, ball at {centre:?}, {op:?}");
+                let got = built_volume(&label, op, x, y);
+                match (got, want) {
+                    (Some(v), Some(w)) => {
+                        assert!((v - w).abs() <= 1e-9 * w, "{label}: {v} against {w}");
+                    }
+                    (None, None) => {}
+                    _ => panic!("{label}: {got:?} against {want:?}"),
+                }
+            }
+        }
+    }
+}
+
+/// **A ball scraping the wall from inside, in an oval interior to both
+/// faces.** Poled along z with its seam meridians in the plane
+/// `y = 1.8`, the ball centred at `(0, 1.8, 0)` pokes through the wall
+/// (`1.8 + 0.5 > 2`) without any edge of either body crossing a face:
+/// the seam stays inside the cylinder, the cylinder's seam line and
+/// rims stay clear of the ball. The section is one oval inside both
+/// faces, which the section pass certifies and refuses (R-loop), typed
+/// as the fallback's extent refusal. Were the pass not to take the pair
+/// up, the vertex probe would answer for it and count the lens wrong.
+#[test]
+fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
     let c = cyl(2.0, -2.0, 2.0);
-    let s = ball_at(0.5, Vec3::new(0.0, 0.0, 0.0));
-    for (label, c, s) in [
+    let poled_z = Affine3::translation(Vec3::new(0.0, 1.8, 0.0))
+        * Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(1.0, 0.0, 0.0),
+            core::f64::consts::FRAC_PI_2,
+        );
+    let s = topo::transform_rigid(
+        &ball_at(0.5, Vec3::new(0.0, 0.0, 0.0)),
+        &poled_z,
+        Tol::witness(),
+    )
+    .unwrap();
+    for (pose, c, s) in [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ] {
-        let err = topo::union(&c, &s, Tol::witness())
-            .expect_err("the contained pose cannot certify its nearness");
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("the oval is interior");
         let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-            panic!("{label}: expected the extent scan's refusal, got {err:?}");
+            panic!("{pose}: expected the section pass's refusal, got {err:?}");
         };
         assert!(
-            what.contains("cyl×sphere seam lane is not wired"),
-            "{label}: {what}"
+            what.contains("closed loop interior to both"),
+            "{pose}: {what}"
         );
     }
 }
