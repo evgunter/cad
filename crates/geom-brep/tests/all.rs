@@ -252,6 +252,8 @@ mod mesh11r2_probes;
 mod mesh12_saturated_span;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
+#[path = "pcert3812_r2_probes.rs"]
+mod pcert3812_r2_probes;
 
 #[path = "pcurve_spiric.rs"]
 mod pcurve_spiric;
