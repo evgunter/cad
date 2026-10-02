@@ -47,6 +47,11 @@ fn voided_rod() -> Body<f64> {
 /// reading (`props_rim_side`, the sign of `lo + hi − 2·level` on
 /// whichever rim the walk from `Cycle::first` meets first) and the
 /// iso-rectangle premises it rests on are not run on this body at all.
+/// What the Green form does run is its closure premise, which makes the
+/// sum anchor-free: every loop closes at each of its eight edge
+/// junctions (`props_loop_closed`), and each wall's loops wind the
+/// cylinder zero times (`props_chart_loops_closed`) — per-junction and
+/// per-face facts, whichever edge a walk starts at.
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = voided_rod();
@@ -65,8 +70,10 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
     let want: Vec<(String, usize)> = [
         ("chk_shell_volume_sign Negative", 1),
         ("chk_shell_volume_sign Positive", 1),
+        ("props_chart_loops_closed Zero", 2),
         ("props_circle_axis_class Positive", 4),
         ("props_face_extent Positive", 2),
+        ("props_loop_closed Zero", 8),
         ("props_meridian_axial Zero", 4),
         ("props_meridian_on_surface Zero", 4),
         ("props_rim_axis_parallel Zero", 4),
