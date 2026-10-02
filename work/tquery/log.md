@@ -44,3 +44,14 @@ way under these rows since they were filed):
   ruling) which also decides `rim-of-refuses-extruded-multi-arc-rims`;
   riders in the same file: `rim-of-flattens-a-dangling-curve-key`,
   `tquery-refusal-prose-outgrows-the-viewer`.
+- 2026-10-02 — `split-edge-cannot-carry-a-fitted-or-general-pcurve-row`
+  parked on PR 3759 (PCERT, "pcurve rows are mandatory at rest"),
+  which rewrites `crates/topo/src/pcurves.rs`'s carry (`split_cache`'s
+  home) and `tests/split_edge_pcurve_rows.rs`; building the
+  Fitted/General carry under it would race it.
+- 2026-10-02 — `curve-kind-placement-…` (the open ruling) sent to the
+  designer pair; blinding record on
+  `analysis/design-fork/tquery-curve-kind-placement`.
+- 2026-10-02 — `split-edges-key-retention-direction-is-pinned-by-no-row`
+  dispatched (`tquery/split-edge-retention`), orchestrator's-read tier:
+  a test-only row whose content is written in the item.
