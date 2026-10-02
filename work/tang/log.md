@@ -252,3 +252,18 @@ only red is the ε=1e-6 row, which is REACH's filed
 over it, annotated on the PR. A class finding from this unit:
 reviewers twice found a claim of mutant coverage that held only at
 function level. Briefs now ask for the mutant run, not the claim.
+
+## 2026-10-02 — second wave dispatched (TANG orchestrator)
+
+- **`torus-carrier-axis-margin-is-levered-by-one-not-the-ring`**
+  (`tang/torus-lever`). Review: single, FULL. It changes a verified
+  contract and re-measures the rows that pin bridged declarations. It
+  was held until PR 3747 landed, because both touch `rest.rs`.
+- **`loop-shape-keeps-three-classes-nothing-reads` and
+  `declared-tangency-docs-name-the-wrong-blockers`**, batched
+  (`tang/e-batch-docs-loopshape`). Review: the orchestrator's read. Both
+  are mechanical: the deletion of dead classes, plus docs.
+- **Held until PR 3752 lands:** the P0 transverse rim
+  (`a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`)
+  and `pi-seam-between-two-operands-has-no-declaration`. Both edit
+  `reduce.rs`'s cover rungs, which 3752's fix pass is changing.
