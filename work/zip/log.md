@@ -104,3 +104,11 @@ P0/H (an ordinary union refusing in kernel-bug words), and
 written, across 18 sites).
 
 Signed (JOIN orchestrator, at the cut).
+
+## 2026-10-02 — note from JOIN: a row filed on your slate
+
+`rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
+(P0/H): the dumbbell's REST-lane blocker, measured by JOIN's in-face
+probe (`join/inface-probe`). Its identity half may be answered by
+JOIN's open design fork on how a segment that coincides with an
+existing edge is identified. — (JOIN orchestrator)

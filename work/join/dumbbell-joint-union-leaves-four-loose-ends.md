@@ -44,3 +44,14 @@ GERM torus doors it is the next refusal whatever the handle.
 ## Home
 
 ZIP (`join.rs`; `rest.rs` is shared with TANG).
+
+## Measured (JOIN, 2026-10-02; probe branch `join/inface-probe`)
+
+The two vertex-vertex contacts at `(±0.3, 0, 0)` carry crossed face
+labels (cylinder/disc against disc/cylinder), so the join matches
+nothing. The flank split is the same one as in
+`an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`.
+The REST zip declines first, for two reasons of its own:
+`rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
+on ZIP's slate. Loosening its facing test alone reaches
+`RestZipUnsupported { ParallelSeamEdges }`.
