@@ -85,3 +85,17 @@ Class findings with no home of their own, recorded here:
 - "Exclude co-surface seams" has three spellings: snowman `waist`, `bodies.rs`
   `bud_rim`, and `rim_select.rs` `Seeds::TwoSided`. The TQUERY issue owns the
   sweep.
+
+## 2026-10-02 — snowman fix pass in; heat sink in review; wave 2 begins
+
+- **`snowman-cell` (PR 3787):** the fix pass is in, head `ec09704f9`, green.
+  - Every review finding is addressed.
+  - The off-axis poses are pinned by a test.
+  - The z-shift refusal is `SectionNotPolar` on the lane's build, which disagrees with the reviewer's reading. The PR body says so.
+  - It holds only on its frames.
+- **`heatsink-placedunion-base-union-unfinished` (PR 3793):** green, in single Opus review.
+  - The flush declared fins refuse at the count edit.
+  - The post-union fillet refuses on the rectangular fin-foot rings.
+  - Both are pinned as walls.
+  - The base is now rounded in-document, before the union.
+- **Wave 2 opens:** `projectbox-section-cuts-through-bores` is dispatched.
