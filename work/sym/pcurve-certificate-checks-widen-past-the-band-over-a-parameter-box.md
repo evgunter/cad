@@ -2,8 +2,10 @@
 id: pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box
 kind: issue
 title: the pcurve certificate's envelope and map-residual checks widen past the band over a parameter box, so a closing mint refuses where the body otherwise builds at the certified lanes
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-02
+pr: 3812
 ---
 
 Found by PCERT's `pcert/at-rest-rows-mandatory` (pcurve rows mandatory
@@ -169,3 +171,7 @@ bounded has come back:
   `pcurve_trim_containment`, at `[6.510e-7, 2.216e-7, 1.117e-7,
   6.751e-8]` of the study (pinned, naming
   `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin.md`).
+
+## Closed
+
+Closed by PCERT's PR 3812 (on main via 3759, 82b52c36c): the nine certified-lane reds this row named are green or re-pinned with their residue rowed. What stays is rowed on its own: the bracket and pad at M10-9 scale (`work/pcert/fillet-meridian-radius-term-is-registered-only`), the chain's wall (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`) and the shallow-arc Interval grid (`work/pctail/pcurve-envelope-escalates-at-interval-on-a-wide-arc`).
