@@ -439,7 +439,8 @@ which is what actually moves the number.
 | boolean/reduce.rs (`bool_circle_curved_clearance`'s ARC half) | bool_circle_curved_clearance | `geom_brep::circle_arc_residual_range`: a hull of `implicit_residual` samples (m) widened by the chord-dip charge `f2·h²/8`, `f2` in **m/rad²** and `h` in rad — a residual's second derivative with respect to an ANGLE, so the product is a length and the comparand stays a length | m | OK |
 | geom-brep/implicit.rs (`circle_residual_curvature_bound`, `circle_arc_residual_range`) | — (no funnel call; the comparand is built here and decided at the row above) | `f2` is `|(d²)″|/2r`: `(d²)″` is m²/rad² over the `2r` linearization, giving **m/rad²**; the returned range is m | m/rad² and m | OK |
 | boolean/circle_cylinder.rs (`circle_cylinder_roots`, the arm switch) | bool_circle_cylinder_tilt | `ρ·\|â × ŵ\|` — the carrier's tilt to the wall axis levered at its own radius, the height its points swing by | m | OK |
-| boolean/circle_cylinder.rs (square arm, through `circle_roots::first_harmonic_roots`) | bool_circle_cylinder_square_noise / _square_coaxial / _square_extreme / _square_root_slack | the harmonics are the `/2r` residual itself (`geom_brep::circle_cylinder_harmonics`): noise = rounding of the m² term bound over `2r`, plus the dropped second harmonic (m); `A₁`; the extremes `c₀ ∓ A₁`, and a constant residual's `c ∓ s` with its spread `s = A₁ + noise` (`constant_residual_roots`); the root's arc slack `ρ·noise/√(A₁² − c₀²)`, m·m/m | m | OK |
+| boolean/circle_cylinder.rs (square arm, through `circle_roots::first_harmonic_roots`) | bool_circle_cylinder_square_noise / _square_coaxial / _square_extreme / _square_root_slack | the harmonics are the `/2r` residual itself (`geom_brep::circle_cylinder_harmonics`): noise = rounding of the m² term bound over `2r`, plus the dropped second harmonic (m); `A₁`; the extremes `c₀ ∓ A₁`, and a constant residual's `c ∓ s` with its spread `s = A₁ + noise` (`constant_residual_roots`); the root's arc slack `ρ·(noise/√(A₁² − c₀²) + τ·NOISE_ULPS·u/2)`, m·(m/m + rad) | m | OK |
+| boolean/circle_sphere.rs (through `circle_roots::first_harmonic_roots`) | bool_circle_sphere_noise / _coaxial / _extreme / _root_slack | the extremes are the `/2r` residual's own (`geom_brep::circle_sphere_harmonic`): noise = the larger of the extremes' error bounds, each a running rounding bound plus the frame's orthonormality charge `(|e|² + ρ²)·‖GᵀG − I‖/2r` (m); `A₁ = (hi − lo)/2`; the factored extremes `(D∓ − r)(D∓ + r)/2r`, and a constant residual's `c ∓ s` with `s = A₁ + noise`; the root's arc slack `ρ·(δR/√(−lo·hi) + δφ + τ·NOISE_ULPS·u/2)`, `δR = (hi·δlo − lo·δhi)/(hi − lo)` (m) and `δφ` the phase's error (rad) | m | OK |
 | boolean/circle_cylinder.rs (tilted arm, through `circle_roots::half_angle_roots`) | bool_circle_cylinder_ladder_noise / _pole / _pole_conditioning / _ladder_root_slack | `noise / f_per_metre` with `F` the residual itself (`f_per_metre = 1`); the residual at the pole; `ρ·(\|F(pole)\| − κA)/A`, a radius times a ratio of residuals; `ρ·noise/\|F′\|` | m | OK |
 | boolean/circle_cylinder.rs (tilted arm's quartic, `solid_contain::depressed_quartic_roots`) | bool_circle_cylinder_disc / _shape / _depth / _odd / _split / _split_lead | the ladder's coefficients in the root variable `τ = 2ρ·t` (a length), each over the power of the lever `2ρ` that makes it a length (`Δ`/lever¹¹, `p`/lever, `D`/lever³, `q̂`/lever², factor discriminants/lever) | m | OK |
 | boolean/circle_torus.rs (coaxial arm, through `circle_roots::constant_residual_roots`) | bool_circle_torus_coaxial_residual | the torus `implicit_residual` at `θ = 0`, `(g² − r²)/2r`, `∓` its spread `2δ(g₀ + 2δ)/r` with `δ = offset + √2·tilt` (both m), a length times a ratio of lengths | m | OK |
@@ -974,6 +975,24 @@ Flagged, NOT fixed here (dispositions):
   quantity, same arms (`chart_u_arm`, `v_meter`), same dimension — the
   row two tables up covers it, and the population grows rather than
   splitting.
+
+- **F20** (added by PCERT's incidence-and-fidelity unit, PR 3812)
+  `geom-brep/src/pcurve_cache.rs` `schedule_residuals` under
+  `Record::CrossCheck`: check 3's samples on a `Harmonic` row,
+  `|S(P(tᵢ)) − C(tᵢ)|` in metres. The comparand is a length, so the
+  `Margin::of` door fits it dimensionally; what keeps it off the logged
+  doors is WHERE it runs. Since C4 (Ev, PR 3781) the envelope is the
+  whole certified statement on a harmonic row, and the schedule is its
+  cross-check, run on the witness lane (`f64`, `Sym<f64>`) and not at an
+  exact-witness scalar, whether a point or a box. The
+  driver replays a leaf at the point witness and at the box scalar and
+  compares the two verdict vectors row for row, so a logged
+  cross-check would put rows in the witness's vector that the leaf's
+  cannot have (measured: every probe refused). **Carried as
+  `k_stats::check_unlogged(.., "F20")`**, the same door as F18; a
+  sample over the band still refuses the certificate, and the witness
+  build with it. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
+  does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

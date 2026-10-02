@@ -4632,6 +4632,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "arc_loop_containment_unsupported",
             "band",
             "classification_invariant",
+            "coincident_shell",
             "contact_contradicted",
             "containment",
             "continuation_contradicted",
@@ -4963,6 +4964,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrusion_escalated",
             "oblique_extrusion",
             "op",
+            "pcurve",
             "side_plane",
             "sliver_join",
             "sliver_rim",
@@ -6235,7 +6237,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // these four rows say only that the sharing is deliberate.
     ("payload_doc_param_dimension", 2),
     ("payload_unknown_doc_param", 2),
-    ("pcurve", 5),
+    ("pcurve", 6),
     ("pcurves", 3),
     // One fact: a placement on an instance's frame did not evaluate —
     // the instance's own row, and why its checked offset went unchecked.
@@ -10204,4 +10206,59 @@ fn the_unplaced_tag_is_the_kernels_word() {
     ] {
         assert_eq!(crate::tags::unplaced_tag(&cause), cause.word(), "{cause:?}");
     }
+}
+
+/// **A split's node map reaches Python in document order**: the map is
+/// keyed by id, and the cut below is grown until its ids do not run in
+/// document order, so the map's own order is NOT the document's — the
+/// disorder is asserted, not assumed — and the list the helper hands
+/// Python follows the source document and the part alike.
+#[test]
+fn a_split_node_map_reaches_python_in_document_order() {
+    use pncad::document::{Datum, DocumentId, Node, ProfileDoc, RecipeNodeId, split};
+    let frame = |x: f64| {
+        Node::Datum(Datum::Frame {
+            origin: [len(x), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        })
+    };
+    let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
+    let (doc, cut) = (3..12u32)
+        .map(|n| {
+            (0..n).fold(
+                (
+                    ProfileDoc::empty_derived("place-node-map", Tol::witness()),
+                    Vec::new(),
+                ),
+                |(doc, mut cut), i| {
+                    let (doc, id) = insert(doc, frame(f64::from(i)));
+                    cut.push(id);
+                    (doc, cut)
+                },
+            )
+        })
+        .find(|(_, cut)| !ascending(cut))
+        .expect("some frame count puts the ids out of document order");
+    let out = split(
+        &doc,
+        &cut.iter().copied().collect(),
+        DocumentId::derive("place-node-map-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect("a cut of free frames splits");
+    let keyed: Vec<RecipeNodeId> = out.node_map.keys().copied().collect();
+    assert_ne!(keyed, cut, "the map's own order is not the document's");
+    let listed = crate::node_map::in_document_order(&out.node_map, &out.part);
+    assert_eq!(
+        listed.iter().map(|&(from, _)| from).collect::<Vec<_>>(),
+        cut,
+        "the sources, as the split document holds them"
+    );
+    assert_eq!(
+        listed.iter().map(|&(_, to)| to).collect::<Vec<_>>(),
+        out.part.order(),
+        "the targets, as the part holds them"
+    );
 }
