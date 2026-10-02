@@ -1591,6 +1591,14 @@ pub fn pick_face<T: Decide>(
     for target in targets {
         eval.usable(target.node)?;
     }
+    // One space: a ray is in one set of coordinates (A9, A11 (2)).
+    if let Some(first) = targets.first() {
+        for target in targets {
+            if let Some((group, cause)) = eval.across_spaces(first.node, target.node) {
+                return Err(HitTestError::AcrossSpaces { group, cause });
+            }
+        }
+    }
 
     // The survivors of the certified order: a candidate no other
     // candidate precedes (docs). Each one's identity rides along, so
@@ -3146,8 +3154,8 @@ mod tests {
             assert_eq!(span.t, 2.0, "triangle {i} answers the midpoint at t = 2");
             let at = ray.origin + ray.dir * span.t;
             assert_eq!(
-                [at.x, at.y, at.z].map(f64::to_bits),
-                [midpoint.x, midpoint.y, midpoint.z].map(f64::to_bits),
+                at.to_array().map(f64::to_bits),
+                midpoint.to_array().map(f64::to_bits),
                 "triangle {i}'s answer places the hit at the shared edge's midpoint"
             );
             assert!(

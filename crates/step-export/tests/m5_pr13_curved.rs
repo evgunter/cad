@@ -510,17 +510,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "CYLINDRICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [origin.x, origin.y, origin.z],
-                        "FRAME: {name} cylinder origin"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} cylinder axis");
-                    assert_eq!(
-                        x,
-                        [u_ref.x, u_ref.y, u_ref.z],
-                        "FRAME: {name} cylinder u_ref"
-                    );
+                    assert_eq!(l, origin.to_array(), "FRAME: {name} cylinder origin");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} cylinder axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} cylinder u_ref");
                     assert_eq!(real(&a[2]), radius, "FRAME: {name} cylinder radius");
                 }
                 Surface::Cone {
@@ -531,9 +523,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "CONICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(l, [apex.x, apex.y, apex.z], "FRAME: {name} cone apex");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} cone axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} cone u_ref");
+                    assert_eq!(l, apex.to_array(), "FRAME: {name} cone apex");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} cone axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} cone u_ref");
                     assert_eq!(real(&a[2]), 0.0, "FRAME: {name} cone radius at the apex");
                     assert_eq!(real(&a[3]), half_angle, "FRAME: {name} cone semi-angle");
                 }
@@ -545,13 +537,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "SPHERICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [center.x, center.y, center.z],
-                        "FRAME: {name} sphere centre"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} sphere axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} sphere u_ref");
+                    assert_eq!(l, center.to_array(), "FRAME: {name} sphere centre");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} sphere axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} sphere u_ref");
                     assert_eq!(real(&a[2]), radius, "FRAME: {name} sphere radius");
                 }
                 Surface::Torus {
@@ -563,13 +551,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "TOROIDAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [center.x, center.y, center.z],
-                        "FRAME: {name} torus centre"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} torus axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} torus u_ref");
+                    assert_eq!(l, center.to_array(), "FRAME: {name} torus centre");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} torus axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} torus u_ref");
                     assert_eq!(
                         real(&a[2]),
                         major_radius,
@@ -610,7 +594,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                     for (r, p) in control_refs.iter().zip(ns.control()) {
                         assert_eq!(
                             triple(&recs[r]),
-                            [p.x, p.y, p.z],
+                            p.to_array(),
                             "FRAME: {name}: control point bitwise"
                         );
                     }
@@ -661,7 +645,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             let (_, z, _) = place(&recs);
             assert_eq!(
                 z,
-                [chart.x, chart.y, chart.z],
+                chart.to_array(),
                 "CHART-AXIS: {name}: a .F. face must keep the chart axis, not negate it"
             );
         }
@@ -787,9 +771,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 } => {
                     assert_eq!(kw, "CIRCLE", "{name}");
                     let (l, z, x) = place();
-                    assert_eq!(l, [center.x, center.y, center.z], "{name} circle centre");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} circle axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} circle u_ref");
+                    assert_eq!(l, center.to_array(), "{name} circle centre");
+                    assert_eq!(z, axis.to_array(), "{name} circle axis");
+                    assert_eq!(x, u_ref.to_array(), "{name} circle u_ref");
                     assert_eq!(real(&a[2]), radius, "{name} circle radius");
                 }
                 Curve3::Ellipse {
@@ -802,9 +786,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     saw_ellipse = true;
                     assert_eq!(kw, "ELLIPSE", "{name}");
                     let (l, z, x) = place();
-                    assert_eq!(l, [center.x, center.y, center.z], "{name} ellipse centre");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} ellipse axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} ellipse u_ref");
+                    assert_eq!(l, center.to_array(), "{name} ellipse centre");
+                    assert_eq!(z, axis.to_array(), "{name} ellipse axis");
+                    assert_eq!(x, u_ref.to_array(), "{name} ellipse u_ref");
                     // semi_axis_1 along ref_direction is the MAJOR: the
                     // kernel's `u_ref` is the semi-major direction, and
                     // AP214's first semi-axis is measured along

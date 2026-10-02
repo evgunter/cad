@@ -87,6 +87,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "general_circle_octant_dual.rs"]
+mod general_circle_octant_dual;
 #[path = "lane1_r2_probes.rs"]
 mod lane1_r2_probes;
 #[path = "offb_r1_loft_probes.rs"]
@@ -166,6 +168,8 @@ mod verbs_shell;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
+#[path = "band_annulus_host_boundary.rs"]
+mod band_annulus_host_boundary;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -569,6 +573,8 @@ mod mate7a_r1_probes;
 mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "pi_seam_and_kiss_through_the_boolean.rs"]
+mod pi_seam_and_kiss_through_the_boolean;
 #[path = "snowman.rs"]
 mod snowman;
 
@@ -796,5 +802,11 @@ mod wire_loft_end_profile_lift;
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
 
+#[path = "review_3701_probes.rs"]
+mod review_3701_probes;
+
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;
+
+#[path = "witness_ladder.rs"]
+mod witness_ladder;

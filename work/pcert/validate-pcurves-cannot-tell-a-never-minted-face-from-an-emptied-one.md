@@ -2,12 +2,13 @@
 id: validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one
 kind: issue
 title: validate_pcurves reads a face a door emptied exactly as it reads one never minted, so a drop that re-charters a whole loop is indistinguishable from a body the pass has not run on
-status: open
+status: dispatched
 opened: 2026-09-14
 refs: [validate-pcurves-never-recertifies-a-face-it-finds-incomplete, S331, loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart]
 priority: P0
 cost: M
-design: true
+parent: S331
+branch: pcert/at-rest-rows-mandatory
 ---
 
 Found by both reviewers of PR 2549

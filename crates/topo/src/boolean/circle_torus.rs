@@ -838,8 +838,7 @@ mod tests {
     fn point(pose: Pose, theta: f64) -> Point3<f64> {
         let (n, u) = (v3::<f64>(pose.n), v3::<f64>(pose.u));
         let v = n.cross(u);
-        Point3::new(pose.c[0], pose.c[1], pose.c[2])
-            + (u * theta.cos() + v * theta.sin()) * pose.rho
+        Point3::from_array(pose.c) + (u * theta.cos() + v * theta.sin()) * pose.rho
     }
 
     /// The torus's own implicit `F` at a point — the oracle's function.
@@ -878,7 +877,7 @@ mod tests {
 
     fn door(pose: Pose, t0: f64, t1: f64) -> CircleTorusRoots<f64> {
         circle_torus_roots(
-            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
             v3(pose.u),
@@ -1214,7 +1213,7 @@ mod tests {
             // An in-band bump is a refusal either way: `Uncertain`, or
             // the band's own escalation when the margin lands in its gap.
             let got = circle_torus_roots(
-                Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+                Point3::from_array(pose.c),
                 v3(pose.n),
                 pose.rho,
                 v3(pose.u),
@@ -1346,7 +1345,7 @@ mod tests {
             u: [1.0, 0.0, 0.0],
         };
         let got = circle_torus_roots(
-            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
             v3(pose.u),
@@ -1437,7 +1436,7 @@ mod tests {
         // The dip is chosen against the default band, pinned: at a band
         // wider than 9.8e-8 m it is a graze the band calls touching.
         let got = circle_torus_roots(
-            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
             v3(pose.u),
@@ -1522,7 +1521,7 @@ mod tests {
                     );
                     let label = format!("ρ {rho}, α {alpha}, depth {depth}");
                     let got = circle_torus_roots(
-                        Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+                        Point3::from_array(pose.c),
                         v3(pose.n),
                         pose.rho,
                         v3(pose.u),
@@ -1594,7 +1593,7 @@ mod tests {
                 u: [1.0, 0.0, 0.0],
             };
             let got = circle_torus_roots(
-                Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+                Point3::from_array(pose.c),
                 v3(pose.n),
                 pose.rho,
                 v3(pose.u),

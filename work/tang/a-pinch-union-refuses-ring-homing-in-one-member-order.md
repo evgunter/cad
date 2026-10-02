@@ -4,6 +4,8 @@ kind: issue
 title: Two blocks meeting at a corner on a plate's top refuse RingHomingAmbiguous in one member order and publish in the others
 status: open
 opened: 2026-09-30
+priority: P1
+cost: M
 ---
 
 

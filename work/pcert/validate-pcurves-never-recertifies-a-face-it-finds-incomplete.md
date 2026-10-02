@@ -2,12 +2,13 @@
 id: validate-pcurves-never-recertifies-a-face-it-finds-incomplete
 kind: issue
 title: validate_pcurves skips its re-certification and continuity passes on any face missing a row, so a stale row on an incomplete face is never measured
-status: open
+status: dispatched
 opened: 2026-09-13
 refs: [S331]
 priority: P0
 cost: M
-design: true
+parent: S331
+branch: pcert/at-rest-rows-mandatory
 ---
 
 

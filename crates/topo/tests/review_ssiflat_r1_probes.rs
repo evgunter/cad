@@ -40,7 +40,9 @@ use geom_core::{Band, Point3, Real, Vec3};
 use crate::fixture::arc_chain;
 
 /// The interval lane's measured `ssi_hull_sup` bound for this fixture
-/// (the PR row's constant). Probe 3 uses it as a STRICT ceiling for
+/// (the arc's rung-3 chain against the sphere and the tilted plane;
+/// `review_ssiflat_r2_probes` reads the same number off its own
+/// escalations). Probe 3 uses it as a STRICT ceiling for
 /// the f64 lane's own bound; probe 1 uses it to pick the arm.
 /// **Re-measured when the C9 ring became a newtype over
 /// `interval-transcendentals`' `DInterval`**

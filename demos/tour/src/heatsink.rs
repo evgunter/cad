@@ -134,39 +134,39 @@ fn build_doc(tol: Tol) -> Recipe {
             v: [scl(0.0), scl(1.0), scl(0.0)],
         })
     };
-    let base_plane = insert(&mut doc, frame_at(0.0));
+    let base_plane = insert(&mut doc, Box::new(frame_at(0.0)));
     let base_p = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
+        Box::new(Node::Profile(ProfileProgram {
             plane: base_plane,
             loops: base_loops,
             ids: Vec::new(),
-        }),
+        })),
     );
     let base_e = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: base_p,
             distance: pe("250 mm"),
-        },
+        }),
     );
     // Fin sketch sits at z = 0.1875 — 1/16 INSIDE the 0.25-thick base:
     // its own plane, so its own frame.
-    let fin_plane = insert(&mut doc, frame_at(0.1875));
+    let fin_plane = insert(&mut doc, Box::new(frame_at(0.1875)));
     let fin_p = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
+        Box::new(Node::Profile(ProfileProgram {
             plane: fin_plane,
             loops: fin_loops,
             ids: Vec::new(),
-        }),
+        })),
     );
     let fin_e = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: fin_p,
             distance: pe("812.5 mm"),
-        },
+        }),
     );
     // The fin group: ONE node, ONE body out. `placed_union` is the
     // PARAMETRIC-rule constructor, so the count stays a structural slot
@@ -174,15 +174,17 @@ fn build_doc(tol: Tol) -> Recipe {
     // Pattern's.
     let group = insert(
         &mut doc,
-        Node::placed_union(
-            fin_e,
-            pe("5"),
-            PatternKind::Linear {
-                direction: [pe("1.0"), pe("0.0"), pe("0.0")],
-                spacing: pe("312.5 mm"),
-            },
-        )
-        .expect("a Linear rule is parametric, so it carries a count"),
+        Box::new(
+            Node::placed_union(
+                fin_e,
+                pe("5"),
+                PatternKind::Linear {
+                    direction: [pe("1.0"), pe("0.0"), pe("0.0")],
+                    spacing: pe("312.5 mm"),
+                },
+            )
+            .expect("a Linear rule is parametric, so it carries a count"),
+        ),
     );
     // ... and the fold into the base, in the document rather than
     // beside it. No declarations: the fins overlap the base by 1/16, so
@@ -190,12 +192,12 @@ fn build_doc(tol: Tol) -> Recipe {
     // why that overlap is a dodge and what retires it).
     let solid = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Union,
             a: base_e,
             b: group,
             declare: None,
-        },
+        }),
     );
     Recipe { doc, group, solid }
 }

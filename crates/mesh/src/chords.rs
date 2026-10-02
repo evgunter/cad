@@ -52,7 +52,6 @@
 //! polyline meeting at a vertex shares its mesh vertex id; interior
 //! points are `carrier(t₀ + (t₁−t₀)·i/n)` in `he_plus`-forward order.
 
-use geom_core::Bounds;
 use std::collections::HashMap;
 
 use geom::Curve3;
@@ -309,8 +308,8 @@ fn nurbs_chord_count(
 /// `[w_lo, w_hi]` computes exactly that, outward-rounded, and refuses
 /// if positivity was never proven). Recentring at the span's control
 /// centroid keeps the cross terms span-sized. The domain bound is the
-/// max over spans (hull of the squared enclosures), `next_up` after
-/// the final square root — a refusal flows to the caller's finite check.
+/// max over spans (hull of the squared enclosures), read from above
+/// off its root — a refusal flows to the caller's finite check.
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
@@ -484,13 +483,7 @@ fn rational_carrier_m_bound(
         });
     }
     // Same contract, same reason: a refused hull answers `NaN`.
-    Ok(sq_acc.map_or(f64::NAN, |s| {
-        if !s.is_certified() {
-            f64::NAN
-        } else {
-            s.hi().sqrt().next_up()
-        }
-    }))
+    Ok(sq_acc.map_or(f64::NAN, |s| s.sqrt().mag()))
 }
 
 /// The adjacent-NURBS chord tightening (module docs): for each
@@ -576,7 +569,7 @@ fn nurbs_tighten(
             Pcurve::Fitted(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
-                    note: "NURBS-face half-edge carries a FITTED (rung-3) pcurve — no \
+                    note: "NURBS-face half-edge carries a FITTED pcurve — no \
                            certified UV speed bound is wired for a fitted image's \
                            chord schedule; its first tessellation consumer is the \
                            edge×NURBS-face boolean layer (the cut-loft unit)",

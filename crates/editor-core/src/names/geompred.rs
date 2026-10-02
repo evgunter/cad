@@ -276,6 +276,15 @@ pub enum SelectRefusal {
         /// The funnel's own diagnostic (margin, band, recourse).
         source: geom_core::Indeterminate,
     },
+    /// The flush detector's two nodes live in different spaces (A9,
+    /// A11 (2)): one is in an unplaced group's own space, and nothing
+    /// outside an unplaced group is compared with it.
+    AcrossSpaces {
+        /// The unplaced group, by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
+    },
     /// The stated value expression did not evaluate.
     BadValue(crate::expr::EvalError),
     /// The ambiguity band itself could not be built from the ambient
@@ -391,6 +400,14 @@ impl core::fmt::Display for SelectRefusal {
                 f,
                 "select: the ambiguity band itself could not be built from the ambient \
                  tolerance, so no comparison below it can be trusted: {error}"
+            ),
+            Self::AcrossSpaces { group, cause } => write!(
+                f,
+                "select: the two nodes live in different spaces — one is in the own space of the \
+                 group rooted at node {}, unplaced because {cause}, and nothing outside an \
+                 unplaced group is compared with it. {}",
+                group,
+                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
         }
     }
@@ -576,6 +593,7 @@ mod census {
             NodeHasNoValue,
             NotALength,
             PairInBand,
+            AcrossSpaces,
             BadValue,
             Band,
         ];
@@ -633,6 +651,10 @@ mod census {
                 pair: Box::new((*name(), *name())),
                 predicate: "bool_plane_side_of",
                 source: in_band(),
+            },
+            SelectRefusal::AcrossSpaces {
+                group: RecipeNodeId(3),
+                cause: crate::mate::Unplaced::NoOffset,
             },
             SelectRefusal::BadValue(crate::expr::EvalError::ContinuousExprInCountEval {
                 found: Dimension::Length,

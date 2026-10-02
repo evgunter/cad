@@ -2258,6 +2258,16 @@ fn mint_faces<T: AtRestPolicy>(
                 error: PcurveCertifyError::UnsupportedCarrier { class, .. },
                 ..
             }) if class != UncoveredClass::SphereGeneralCircle => {}
+            // A scalar with NO fitted door (`AtRestPolicy::fitted_lane`
+            // answers `None`: a dual, DL1) certifies nothing fitted, so
+            // a face only the fitted lane can image is not owed rows
+            // there, and is left rowless rather than refused. The rule
+            // is the scalar's, not a class's: at every scalar that holds
+            // the door, a fitted refusal propagates.
+            Err(PcurveMintError::Certify {
+                error: PcurveCertifyError::FittedLaneUnsupported { .. },
+                ..
+            }) if T::fitted_lane().is_none() => {}
             Err(e) => return Err(e),
         }
     }

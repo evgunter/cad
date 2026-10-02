@@ -1191,11 +1191,24 @@ fn a_document_with_nothing_varying_refuses_up_front() {
 fn a_witness_that_does_not_build_refuses_up_front() {
     // A nominal extrusion depth INSIDE the ambiguity band: the f64
     // build itself cannot classify it.
-    let doc = slab(5.0 * eps(), eps());
+    let doc = crate::fixture::label_every_node(slab(5.0 * eps(), eps()), "slab");
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let err = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect_err("a sliver-thin nominal does not build");
-    assert!(matches!(err, DriveRefusal::WitnessDoesNotBuild { .. }));
+    let DriveRefusal::WitnessDoesNotBuild { node, cause } = &err else {
+        panic!("expected WitnessDoesNotBuild, got {err:?}");
+    };
+    assert_eq!(
+        *node,
+        doc.spoken(node.id()),
+        "spoken from the driven document"
+    );
+    assert!(node.to_string().contains("\"slab\""), "{node}");
+    assert!(
+        err.to_string()
+            .starts_with(&format!("the witness build refuses at {node}: {cause} — ")),
+        "{err}"
+    );
 }
 
 // ------------------------------------------------------------ the fence

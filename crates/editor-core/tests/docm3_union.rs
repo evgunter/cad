@@ -240,13 +240,15 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
     for node in shapes {
         let err = doc
             .apply(
-                &DocEdit::InsertNode { node: node.clone() },
+                &DocEdit::InsertNode {
+                    node: Box::new(node.clone()),
+                },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )
             .expect_err("a repeated input must refuse");
         assert!(
-            matches!(err, EditError::DuplicateInput { input, .. } if input == x),
+            matches!(&err, EditError::DuplicateInput { input, .. } if input.id() == x),
             "{node:?} refused with {err:?}"
         );
     }
@@ -268,7 +270,7 @@ fn set_members_refuses_a_duplicate_member() {
         )
         .expect_err("a duplicate member must refuse");
     assert!(
-        matches!(err, EditError::DuplicateInput { node, input } if node == u && input == boxes[0]),
+        matches!(&err, EditError::DuplicateInput { node, input } if node.id() == u && input.id() == boxes[0]),
         "{err:?}"
     );
 }
@@ -302,9 +304,18 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
     let err = corrupt(format!("{},{},{}", boxes[0].0, boxes[1].0, boxes[0].0))
         .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
+    let editor_core::PersistError::Snapshot(editor_core::SnapshotError::DuplicateInput {
+        node,
+        input,
+    }) = &err
+    else {
+        panic!("a repeated member is the load door's DuplicateInput, got {err:?}");
+    };
+    assert_eq!((node, input), (&doc.spoken(u), &doc.spoken(boxes[0])));
     assert!(
         said.contains("pairwise distinct")
-            && said.contains(&format!("node {}", test_utils::refusal::tag(u.0))),
+            && said.contains(&format!("Union {}: ", test_utils::refusal::tag(u.0)))
+            && said.contains(&format!("{input} is taken as an input twice")),
         "{said}"
     );
     // And a list left under two.
@@ -341,7 +352,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
         )
         .expect_err("a boolean carries no list");
     assert!(
-        matches!(err, EditError::SetMembersOnNonList { node } if node == pair),
+        matches!(&err, EditError::SetMembersOnNonList { node } if node.id() == pair),
         "{err:?}"
     );
 }
@@ -362,7 +373,7 @@ fn set_members_refuses_a_member_that_is_not_live() {
         )
         .expect_err("a dangling member must refuse");
     assert!(
-        matches!(err, EditError::UnresolvedInput { input } if input == ghost),
+        matches!(&err, EditError::UnresolvedInput { input } if input.id() == ghost),
         "{err:?}"
     );
 }
@@ -409,7 +420,7 @@ fn set_members_refuses_fewer_than_two() {
         )
         .expect_err("a union of one is its own input");
     assert!(
-        matches!(err, EditError::TooFewMembers { node, found } if node == u && found == 1),
+        matches!(&err, EditError::TooFewMembers { node, found } if node.id() == u && *found == 1),
         "{err:?}"
     );
 }
@@ -426,7 +437,9 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .order()
         .iter()
         .map(|id| DocEdit::InsertNode {
-            node: crate::fixture::as_authored(doc.node(*id).expect("an ordered node")),
+            node: Box::new(crate::fixture::as_authored(
+                doc.node(*id).expect("an ordered node"),
+            )),
         })
         .collect();
     edits.push(DocEdit::SetMembers {
@@ -441,8 +454,8 @@ fn a_union_and_a_set_members_replay_bit_identically() {
             .expect("the log replays")
             .doc;
     }
-    let text = editor_core::persist::save(&empty, &editor_core::LoggedEdit::bare_all(&edits), tol)
-        .expect("the document saves");
+    let text =
+        editor_core::persist::save(&empty, &edits.to_vec(), tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("the document loads");
     assert!(
         loaded.doc.bit_eq(&replayed),
@@ -1057,10 +1070,10 @@ fn a_one_section_loft_is_refused_at_the_insert_door() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Loft {
+                node: Box::new(Node::Loft {
                     profiles: vec![profiles[0]],
                     v_degree: editor_core::Expr::count(1),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1131,7 +1144,7 @@ fn set_members_refuses_an_unknown_node() {
         )
         .expect_err("a node the document does not hold cannot be re-membered");
     assert!(
-        matches!(err, EditError::UnknownNode { id } if id == RecipeNodeId(9999)),
+        matches!(&err, EditError::UnknownNode { id } if id.id() == RecipeNodeId(9999)),
         "{err:?}"
     );
 }

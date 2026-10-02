@@ -335,7 +335,7 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
     );
     let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
     let corner = |q: Point3<f64>| {
-        [q.x, q.y, q.z]
+        q.to_array()
             .iter()
             .all(|c| (c - 1.0).abs() < 1e-12 || (c - 3.0).abs() < 1e-12)
     };

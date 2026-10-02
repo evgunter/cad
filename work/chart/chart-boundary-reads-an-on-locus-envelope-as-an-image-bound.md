@@ -1,42 +1,49 @@
 ---
 id: chart-boundary-reads-an-on-locus-envelope-as-an-image-bound
 kind: issue
-title: chart_boundary widens a Fitted image's hull by an OnLocusHull envelope, which bounds the carrier's incidence, not the image
+title: chart_edge and the props quadrature lane read a fitted row's envelope as an image bound without reading its statement
 status: open
 opened: 2026-10-01
+priority: P3
+cost: E
 ---
 
 
-Found by `pcert/general-circle-fitted-route` (2026-10-01), which made
-it reachable at rest.
+Found by `pcert/general-circle-fitted-route` (PR 3733).
 
-`topo::pcurves::chart_edge` (the `Pcurve::Fitted(_) | Pcurve::General(_)`
-arm) describes a fitted image as its control hull widened by
-`slack: cache.certificate().envelope`, and `chart_bound::MetredBound`'s
-`hull` docs (`crates/topo/src/chart_bound.rs`, "a `Fitted`/`General`
-edge's certificate allows the true image `slack` metres outside its
-control hull") read that number as a bound on `|S(P(t)) − C(t)|`.
+Two readers take a fitted row's `certificate().envelope` as a bound on
+`sup |S(P(t)) − C(t)|`, the image's distance from its carrier, without
+reading `certificate().statement`:
 
-That holds for `EnvelopeStatement::MapResidualComposite` (a fitted image
-on a spline chart). It does not hold for
-`EnvelopeStatement::OnLocusHull`, the statement every fitted image on a
-periodic ANALYTIC chart carries: there the envelope bounds the
-CARRIER's distance from the chart surface, `sup |f_S(C(t))|`, and the
-image's own displacement is certified only at the `CERT_SAMPLES`
-schedule (`geom_brep::EnvelopeStatement::OnLocusHull`'s docs: "between
-the samples it is bounded by nothing this statement says"). So the
-metred hull a consumer cuts a carrier window to is not a certified
-statement about where the true chart image lies between samples.
+- `topo::pcurves::chart_edge` (the `Pcurve::Fitted(_) | Pcurve::General(_)`
+  arm) widens the image's control hull by `slack: envelope`, and
+  `chart_bound::MetredBound`'s `hull` docs (`crates/topo/src/chart_bound.rs`)
+  read that slack as the image's allowance outside its hull;
+- `topo::props::quad_lane` reads `envelope` as the map-residual boundary
+  defect.
 
-Reachable now: the oblique fillet trihedron's corner octants mint
-`Fitted` rows on their sphere charts, and `chart_boundary` returns `Ok`
-on four of them (`sweep`'s `m5_pr12_fix_pass::f4_...` exercises it).
-Before, those faces stored no rows and `chart_boundary` refused at the
-derivation.
+That reading is right for every statement but one. `MapResidualClosedForm`,
+`MapResidualComposite`, `MapResidualIsoHull` and `MapResidualHermite`
+bound exactly that quantity. `EnvelopeStatement::OnLocusHull` does not:
+it bounds the CARRIER's distance from the chart surface, and the image's
+own displacement is certified only at the `CERT_SAMPLES` schedule.
 
-Wanted: `chart_edge` reads `statement` before it reads `envelope`, and
-refuses (or takes a bound that holds) for an `OnLocusHull` image —
-e.g. the chart's Lipschitz bound times a certified sup of `P − ψ∘C`,
-which the fitted lane does not compute today. The practical gap is
-small (the image is interpolated at 8 spans per eighth of a turn), but the
-claim is a certificate's, and it is not one.
+**What PR 3733 made true.** The rows a construction mints on an analytic
+chart are now all image-bounded. A sphere's general circle (the oblique
+fillet corner's octant) stores a `Fitted` row with `MapResidualHermite`,
+a sound whole-span bound. Measured on the oblique trihedron's 10 rows:
+the dense residual (20 001 points per row) is at most 1.3e-14 m, under
+every envelope (at most 9.1e-11 m) and under the band at ε = 1e-9. So
+the four octant faces whose `chart_boundary` now returns `Ok` are
+described soundly.
+
+**What remains.** An `OnLocusHull` row is a fitted image over a RUNG-3
+carrier on an analytic chart. No kernel construction mints one (the
+cyl×sphere germ-chord lane is banked); one reaches rest only through
+`topo::Body::attach_pcurve`. Both readers would read its envelope as an
+image bound.
+
+Wanted: `chart_edge` and the quad lane read `statement` before
+`envelope`, and refuse typed for `OnLocusHull` until a bound on that
+image exists. CHART decides whether this row closes on that change or
+waits for the germ-chord lane's first `OnLocusHull` producer.

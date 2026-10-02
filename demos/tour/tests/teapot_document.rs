@@ -92,7 +92,9 @@ fn lid_meridian() -> LoopProgram {
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         tol,
         &pncad::document::RefusingReach,
     )

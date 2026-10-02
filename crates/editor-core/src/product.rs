@@ -195,6 +195,15 @@ pub enum ProductError {
     /// documents that are in this state, are
     /// [`ProductErrorKind::means_no_body`]'s.
     NoBodyRoots,
+    /// **No root in the world denotes a body, and the document's
+    /// material lives in the own spaces of unplaced groups** (A9,
+    /// A11 (2)): the world product is empty because nothing places that
+    /// material, which placing it repairs.
+    Unplaced {
+        /// Every unplaced group, by its root, with why nothing places
+        /// it, in root order.
+        groups: Vec<(RecipeNodeId, crate::mate::Unplaced)>,
+    },
     /// The kernel's disjoint-graft door refused a source body.
     Graft {
         /// The root whose body was being grafted.
@@ -356,6 +365,25 @@ impl Staged for ProductError {
                 "no product root denotes a body — this document \
                  has no body product",
             ),
+            Self::Unplaced { groups } => {
+                f.write_str(
+                    "no product root in the world denotes a body: the document's material \
+                     lives in the own spaces of unplaced groups —",
+                )?;
+                for (i, (group, cause)) in groups.iter().enumerate() {
+                    let sep = if i == 0 { "" } else { ";" };
+                    write!(
+                        f,
+                        "{sep} the group rooted at node {}, because {cause}",
+                        group
+                    )?;
+                }
+                write!(
+                    f,
+                    ". {}",
+                    crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
+                )
+            }
             // TWO SENTENCES BECAUSE `node` CARRIES TWO MEANINGS (the
             // arm's own doc): the root whose rows were being carried,
             // or — for a collision of the final narrowing, which happens
@@ -431,11 +459,12 @@ impl Staged for ProductError {
             }
             Self::ContactLineage { node, what } => write!(
                 f,
-                "root {}'s declared contact names a {what} the \
+                "root {}'s declared contact names {} {what} the \
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
-                node
+                node,
+                crate::sentence::article(what)
             ),
         }
     }
@@ -486,6 +515,8 @@ pub enum ProductErrorKind {
     Naming,
     /// [`ProductError::NoBodyRoots`].
     NoBodyRoots,
+    /// [`ProductError::Unplaced`].
+    Unplaced,
     /// [`ProductError::Graft`].
     Graft,
     /// [`ProductError::RootInvalid`].
@@ -533,7 +564,8 @@ impl ProductErrorKind {
     pub fn means_no_body(self) -> bool {
         match self {
             Self::NoBodyRoots => true,
-            Self::EvaluationOfAnotherDocument
+            Self::Unplaced
+            | Self::EvaluationOfAnotherDocument
             | Self::UnknownNode
             | Self::RootFailed
             | Self::RootPoisoned
@@ -568,6 +600,7 @@ impl ProductError {
             Self::PlacedUnderTwoRoots { .. } => ProductErrorKind::PlacedUnderTwoRoots,
             Self::Naming { .. } => ProductErrorKind::Naming,
             Self::NoBodyRoots => ProductErrorKind::NoBodyRoots,
+            Self::Unplaced { .. } => ProductErrorKind::Unplaced,
             Self::Graft { .. } => ProductErrorKind::Graft,
             Self::RootInvalid { .. } => ProductErrorKind::RootInvalid,
             Self::ProductInvalid { .. } => ProductErrorKind::ProductInvalid,
@@ -657,6 +690,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
@@ -695,7 +729,8 @@ pub fn gathers_on_this_thread() -> u64 {
 }
 
 /// The document's product: every body-denoting root's solids gathered,
-/// in root-list order, into one [`Body`] (module docs).
+/// in root-list order, into one [`Body`] (module docs). A root that
+/// lives in an unplaced group's own space is not part of it (A9).
 ///
 /// The result is a pure function of (`doc.roots()`, `evaluation`) — no
 /// ambient state, so two evaluations of a root-neutral edit yield the
@@ -788,6 +823,68 @@ pub struct Product<T: Decide> {
     /// health is what the outermost gate refuses over, and the gather
     /// is where it arrives.
     pub carried_unminted: Vec<crate::assembly::CarriedRefusal>,
+    /// **Each unplaced group's own space, gathered by itself** (A9,
+    /// A11 (2)), in root order: what the world leaves out, kept beside
+    /// it so the at-rest gate checks every space of the document from
+    /// the one product it is handed ([`crate::assemble_gathered`]).
+    /// Empty on a space's own gather, and on a document every group of
+    /// which is placed.
+    pub spaces: Vec<OwnSpace<T>>,
+}
+
+/// **One unplaced group's own space, gathered by itself** (A9,
+/// A11 (2)): the roots that live in it, gathered and minted with
+/// nothing outside the group.
+#[derive(Debug)]
+pub struct OwnSpace<T: Decide> {
+    /// The group, by its root.
+    pub group: RecipeNodeId,
+    /// Why nothing places it.
+    pub cause: crate::mate::Unplaced,
+    /// The space's gather, kept rather than raised: a space whose
+    /// roots denote no body ([`ProductError::NoBodyRoots`], an
+    /// instance only a measure in the group reads) holds nothing to
+    /// check, and any other refusal is the gate's to raise
+    /// ([`crate::AssemblyError::Space`]).
+    pub gather: Result<Box<Product<T>>, ProductError>,
+}
+
+/// **Every unplaced group's own space** in `evaluation`, each gathered
+/// by itself ([`OwnSpace`]), in root order: what [`product_recorded`]
+/// carries beside the world ([`Product::spaces`]).
+pub fn own_spaces<P, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+) -> Vec<OwnSpace<T>> {
+    unplaced_groups(evaluation)
+        .into_iter()
+        .map(|(group, cause)| OwnSpace {
+            group,
+            cause,
+            gather: product_in(
+                doc,
+                evaluation,
+                tol,
+                crate::mate::Space::Own { group, cause },
+            )
+            .map(Box::new),
+        })
+        .collect()
+}
+
+/// Every unplaced group in `evaluation`, by its root, with its cause,
+/// in root order.
+fn unplaced_groups<T: Decide>(
+    evaluation: &Evaluation<T>,
+) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
+    evaluation
+        .unplaced
+        .values()
+        .copied()
+        .collect::<std::collections::BTreeMap<_, _>>()
+        .into_iter()
+        .collect()
 }
 
 /// One gathered solid's origin: the root that contributed it, that
@@ -858,6 +955,26 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
+    product_in(doc, evaluation, tol, crate::mate::Space::World)
+}
+
+/// **The gather of one space** (A9, A11 (2)): the world's — the
+/// document's product — or the own space of an unplaced group, which
+/// the at-rest gate checks by itself ([`crate::assemble_gathered`]). A
+/// root gathers into the space its value lives in
+/// ([`Evaluation::space`]), and only the mates whose
+/// two members both live in this space are minted: nothing outside an
+/// unplaced group is compared with it.
+///
+/// # Errors
+///
+/// [`product_recorded`]'s.
+pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+    space: crate::mate::Space,
+) -> Result<Product<T>, ProductError> {
     #[cfg(debug_assertions)]
     GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
     // The pairing door (DI3), before the first root is read: this
@@ -881,6 +998,9 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_body_denoting = false;
     for &node in doc.roots() {
+        if evaluation.space(node) != space {
+            continue;
+        }
         let value = evaluation.usable(node).map_err(ProductError::Root)?;
         let Some(bodies) = sources_of(value) else {
             continue;
@@ -898,7 +1018,14 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         }));
     }
     if !any_body_denoting {
-        return Err(ProductError::NoBodyRoots);
+        let groups = unplaced_groups(evaluation);
+        return Err(
+            if space == crate::mate::Space::World && !groups.is_empty() {
+                ProductError::Unplaced { groups }
+            } else {
+                ProductError::NoBodyRoots
+            },
+        );
     }
 
     // Pass 2: the graft, one call per SOURCE BODY, in list order. A
@@ -993,7 +1120,11 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // the FINISHED name table, and the aggregate's own at-rest verdict
     // is about geometry, so a product that is not a body at all
     // refuses before any mate is read.
-    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts);
+    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts, space);
+    let spaces = match space {
+        crate::mate::Space::World => own_spaces(doc, evaluation, tol),
+        crate::mate::Space::Own { .. } => Vec::new(),
+    };
     Ok(Product {
         document: doc.id(),
         body: aggregate,
@@ -1004,6 +1135,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         unminted,
         carried,
         carried_unminted,
+        spaces,
     })
 }
 
@@ -1293,6 +1425,9 @@ mod tests {
                 }),
             },
             ProductError::NoBodyRoots,
+            ProductError::Unplaced {
+                groups: vec![(node, crate::mate::Unplaced::NoOffset)],
+            },
             ProductError::Graft {
                 node,
                 source: Box::new(topo::BooleanError::UnrepresentableResult),
@@ -1343,6 +1478,7 @@ mod tests {
                 ProductErrorKind::RootFailed => "RootFailed",
                 ProductErrorKind::RootPoisoned => "RootPoisoned",
                 ProductErrorKind::NoBodyRoots => "NoBodyRoots",
+                ProductErrorKind::Unplaced => "Unplaced",
                 ProductErrorKind::Graft => "Graft",
                 ProductErrorKind::RootInvalid => "RootInvalid",
                 ProductErrorKind::ProductInvalid => "ProductInvalid",
@@ -1358,6 +1494,7 @@ mod tests {
             "PlacedUnderTwoRoots",
             "Naming",
             "NoBodyRoots",
+            "Unplaced",
             "Graft",
             "RootInvalid",
             "ProductInvalid",

@@ -395,7 +395,7 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
 /// is this suite's own value, not the cavity's.
 fn block_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     edges_with_corners(body, |p: Point3<f64>| {
-        [p.x, p.y, p.z]
+        p.to_array()
             .iter()
             .all(|c| c.abs() < 1e-9 || (c - 4.0).abs() < 1e-9)
     })

@@ -445,8 +445,8 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
         ];
         for (got, want) in [(control[0], want[0]), (control[control.len() - 1], want[1])] {
             assert_eq!(
-                [got.x, got.y, got.z].map(f64::to_bits),
-                [want.x, want.y, want.z].map(f64::to_bits),
+                got.to_array().map(f64::to_bits),
+                want.to_array().map(f64::to_bits),
                 "section {i}: {got:?} vs {want:?}"
             );
         }

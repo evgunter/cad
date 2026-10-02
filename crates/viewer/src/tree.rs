@@ -5,8 +5,10 @@
 //! GQ2's ratified codomain is a per-node result — `Ok`, `Failed(e)`,
 //! `Poisoned { through }` — and the ratified error rule is that a
 //! failure is a typed value the GUI renders, never a string invented
-//! at the interaction layer. So a failing row's message is
-//! `NodeError`'s own `Display`, and nothing here composes a sentence
+//! at the interaction layer. So a failing row's message is the
+//! kernel's own rendering of the `NodeError`, its node spoken from the
+//! document the row is drawn over (`NodeError::spoken`), and nothing
+//! here composes a sentence
 //! about what went wrong. The two sentences this module writes ABOUT
 //! A FAILURE are a downstream row's pointer ([`downstream_wording`])
 //! and a failed row's link to the node to repair ([`link_wording`]),
@@ -200,8 +202,8 @@ pub struct CarriedLine {
     /// The document, by file name ([`PartFiles::name`]), or
     /// [`THIS_DOCUMENT`] for the tree's own.
     pub document: String,
-    /// The node's refusal exactly as its own tree draws it:
-    /// `NodeError`'s `Display` for that node and kind.
+    /// The node's refusal exactly as its own tree draws it
+    /// (`CarriedLevel::line_in`).
     pub line: String,
 }
 
@@ -217,7 +219,7 @@ pub enum RowStatus {
     /// The node's own operation failed. `message` is the typed
     /// error's own rendering, and `carried` the refusals it carries.
     Failed {
-        /// `NodeError`'s `Display`.
+        /// `NodeError::spoken` over the tree's document.
         message: String,
         /// **The refusals `message` points at and does not quote**, one
         /// per level ([`carried_lines`]): another node's refusal, with
@@ -633,6 +635,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Mate { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -829,6 +832,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -872,7 +876,8 @@ fn readout_of(
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_) => None,
+        | ValuePayload::Mate(_)
+        | ValuePayload::Gauge => None,
     }
 }
 
@@ -920,17 +925,21 @@ pub fn part_file(node: &Node<ProfileProgram>, files: &PartFiles) -> Option<Strin
 /// refusal — a part inside a part reads one level per document, and
 /// the last is the failing node's own refusal.
 ///
-/// Each line is that node's refusal exactly as its own tree draws it;
-/// the document it is in, whose numbering the line's node number is,
-/// is its label ([`CarriedLine::document`]).
-pub fn carried_lines(kind: &NodeErrorKind, files: &PartFiles) -> Vec<CarriedLine> {
+/// Each line is that node's refusal exactly as its own tree draws it,
+/// a node of `doc` spoken from it ([`pncad::document::CarriedLevel::line_in`]); the
+/// document it is in is its label ([`CarriedLine::document`]).
+pub fn carried_lines(
+    doc: &Doc<ProfileProgram>,
+    kind: &NodeErrorKind,
+    files: &PartFiles,
+) -> Vec<CarriedLine> {
     kind.carried_chain()
         .map(|level| CarriedLine {
             document: match level.document {
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
                 CarriedIn::Part(doc_ref) => files.name(doc_ref.id).to_owned(),
             },
-            line: level.line(),
+            line: level.line_in(doc),
         })
         .collect()
 }
@@ -986,8 +995,8 @@ fn status_of(
             message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
         Standing::Failed(error) => RowStatus::Failed {
-            message: error.to_string(),
-            carried: carried_lines(&error.kind, files),
+            message: error.spoken(doc),
+            carried: carried_lines(doc, &error.kind, files),
         },
     }
 }
@@ -1166,6 +1175,14 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
+        // The kernel's own words: "repair node {p}" — the gauge, or
+        // the root whose offset did not evaluate.
+        NodeErrorKind::PlacementRefused { node, .. } => Some(*node),
+        // Names the unplaced group's root as evidence of which space
+        // the node reached into. Either the reading node or the group
+        // is the repair — read within one space, or place the group —
+        // and one link would pick for the reader.
+        NodeErrorKind::Unplaced { .. } => None,
         // A payload that names a node does so as evidence: a name's
         // minting node, where the repair is the referring node's own
         // reference; an upstream table the naming pass found missing;
@@ -1259,6 +1276,9 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
+        // Sit on the instance whose offset is the statement, and name
+        // its root only as the group the solve placed it in.
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => None,
     }
 }
 
@@ -1293,8 +1313,9 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 /// that holds for an arm naming a node an author may repair is stated
 /// once, in the module header's second section.
 ///
-/// Two arms name none, and they get an arm each because they are not
-/// the same case: one reaches rows and one cannot reach any.
+/// Four arms name none: `Band` reaches every row, the mispairing
+/// reaches none, and the two checked-offset arms reach only the
+/// instance that states the offset.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -1314,6 +1335,9 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
+        // Name no mate: the fault is the instance's own checked
+        // offset, so the instance's row keeps its own `Failed`.
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
         // causes and the user picks which to relax.

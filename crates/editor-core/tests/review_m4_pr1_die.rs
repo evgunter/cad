@@ -145,34 +145,34 @@ fn author_theirs() -> Authored {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square-20mm")),
+            node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
         },
     );
     let (doc, cube) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap(),
                 distance: len(2.0 * HALF),
-            },
+            }),
         },
     );
     let (doc, pip_p) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("circle-2mm")),
+            node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
         },
     );
     let (mut doc, pip_e) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
                 distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
-            },
+            }),
         },
     );
     let pip_e = pip_e.unwrap();
@@ -183,14 +183,14 @@ fn author_theirs() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: transform_node(pip_e, &p),
+                node: Box::new(transform_node(pip_e, &p)),
             },
         );
         let (d3, cut) = step(
             d2,
             &mut log,
             TEdit::InsertNode {
-                node: subtract_node(body, placed.unwrap()),
+                node: Box::new(subtract_node(body, placed.unwrap())),
             },
         );
         doc = d3;
@@ -212,14 +212,14 @@ fn author_mine() -> Authored {
         TDoc::empty_derived("review_m4_pr1_die", Tol::witness()),
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square-20mm")),
+            node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
         },
     );
     let (doc, pip_p) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("circle-2mm")),
+            node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
         },
     );
     let (doc, _) = step(doc, &mut log, depth_param());
@@ -227,20 +227,20 @@ fn author_mine() -> Authored {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
                 distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
-            },
+            }),
         },
     );
     let (mut doc, cube) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap(),
                 distance: len(2.0 * HALF),
-            },
+            }),
         },
     );
     let pip_e = pip_e.unwrap();
@@ -250,7 +250,7 @@ fn author_mine() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: transform_node(pip_e, &p),
+                node: Box::new(transform_node(pip_e, &p)),
             },
         );
         doc = d2;
@@ -263,7 +263,7 @@ fn author_mine() -> Authored {
             doc,
             &mut log,
             TEdit::InsertNode {
-                node: subtract_node(body, t),
+                node: Box::new(subtract_node(body, t)),
             },
         );
         doc = d2;
@@ -315,21 +315,11 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // Replay identity holds for BOTH edit orders (PartialEq + the
     // stricter role-isomorphism check against self is implied).
     assert_eq!(
-        TDoc::replay(
-            theirs.doc.id(),
-            &editor_core::LoggedEdit::bare_all(&theirs.log),
-            Tol::witness()
-        )
-        .unwrap(),
+        TDoc::replay(theirs.doc.id(), &theirs.log.to_vec(), Tol::witness()).unwrap(),
         theirs.doc
     );
     assert_eq!(
-        TDoc::replay(
-            mine.doc.id(),
-            &editor_core::LoggedEdit::bare_all(&mine.log),
-            Tol::witness()
-        )
-        .unwrap(),
+        TDoc::replay(mine.doc.id(), &mine.log.to_vec(), Tol::witness()).unwrap(),
         mine.doc
     );
 

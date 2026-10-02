@@ -893,8 +893,8 @@ impl Cut {
 
     fn at(point: [f64; 3], normal: [f64; 3]) -> Self {
         Cut {
-            point: Point3::new(point[0], point[1], point[2]),
-            normal: Vec3::new(normal[0], normal[1], normal[2]).normalize(),
+            point: Point3::from_array(point),
+            normal: Vec3::from_array(normal).normalize(),
         }
     }
 
