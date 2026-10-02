@@ -20,7 +20,7 @@
 
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanBody, BooleanError};
+use pncad::topo::{Body, BooleanBody};
 
 use crate::booleans::{check, expect_seamed, try_intersect_declared};
 use crate::scalar::Scalar;
@@ -112,20 +112,15 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let az = build::<f64>(tol);
-    crate::walls::wall(
-        "az",
-        1,
-        "intersect the same declared letters in the other order, Z x A",
-        try_intersect_declared(&z_prism::<f64>(tol), &a_prism(tol), tol),
-        |e| {
-            matches!(
-                e,
-                BooleanError::JoinDesync {
-                    what: "every chord arc separates a loose scaffolding pair"
-                }
-            )
-        },
-        "drop this probe; the scene keeps A x Z, which reads the same either way",
+    // The intersect reads the same in either order.
+    expect_seamed(
+        "declared Z x A intersect",
+        check(
+            try_intersect_declared(&z_prism::<f64>(tol), &a_prism(tol), tol),
+            V_AZ,
+            tol,
+        ),
+        V_AZ,
     );
     vec![Stop {
         name: "az",
