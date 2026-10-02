@@ -39,11 +39,11 @@
 //! - **The ladder — `A₂` definite, or in the band's gap**: the five
 //!   harmonics go to the shared half-angle ladder under the
 //!   `bool_ellipse_*` rows. The carrier's speed `|C′|` lies in `[b, a]`,
-//!   which the ladder's frame carries as such; its lever is the
-//!   carrier's own `2a` — not clamped by the sphere's size, as the torus
-//!   door clamps by its extent, because the roots' variable is arc
-//!   length along the carrier, and two crossings a chord `2r` apart can
-//!   lie farther apart than that along it.
+//!   which the ladder's frame carries as such, so its root variable is
+//!   `τ = 2b·tan(φ/2)`; its lever is that variable's own scale `2b`, as
+//!   a circle's is `2ρ` on the cylinder door, and for the same reason it
+//!   is not clamped by the sphere's size: the roots spread along the
+//!   carrier, not across the surface.
 
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -162,7 +162,7 @@ pub(super) fn ellipse_roots<T: Decide>(
             t1,
             speed_lo: conic.minor,
             speed_hi: conic.major,
-            lever: two * conic.major,
+            lever: two * conic.minor,
             noise,
             f_per_metre: T::one(),
         },
