@@ -660,15 +660,15 @@ fn the_extrude_dispatch_is_the_extrude_door() {
     };
     assert_eq!(dump(&door.body), dump(&via.body));
     assert_eq!(
-        format!("{:?}", door.side_faces),
-        format!("{:?}", via.side_faces),
+        format!("{:?}", door.side_faces()),
+        format!("{:?}", via.side_faces()),
         "the birth record is carried across, not rebuilt"
     );
     assert_eq!(format!("{:?}", door.top), format!("{:?}", via.top));
     assert_eq!(format!("{:?}", door.bottom), format!("{:?}", via.bottom));
     assert_eq!(
-        format!("{:?}", door.strut_edges),
-        format!("{:?}", via.strut_edges)
+        format!("{:?}", door.strut_edges()),
+        format!("{:?}", via.strut_edges())
     );
     assert_eq!(format!("{:?}", door.solid), format!("{:?}", via.solid));
     assert_eq!(format!("{:?}", door.shell), format!("{:?}", via.shell));
@@ -692,8 +692,8 @@ fn the_revolve_dispatch_is_the_revolve_door() {
     };
     assert_eq!(dump(&door.body), dump(&via.body));
     assert_eq!(
-        format!("{:?}", door.walls),
-        format!("{:?}", via.walls),
+        format!("{:?}", door.walls()),
+        format!("{:?}", via.walls()),
         "the birth record is carried across, not rebuilt"
     );
     assert_eq!(format!("{:?}", door.rims), format!("{:?}", via.rims));
