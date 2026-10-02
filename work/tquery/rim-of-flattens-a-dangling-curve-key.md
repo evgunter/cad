@@ -2,11 +2,13 @@
 id: rim-of-flattens-a-dangling-curve-key
 kind: issue
 title: rim_of answers NotAnArc{kind:None} for a dangling curve key, the arm whose doc says null scaffold
-status: open
+status: review
 opened: 2026-09-14
 refs: [edge-carrier-kind-has-no-readback-door, 2587]
 priority: P3
 cost: E
+branch: tquery/rim-of-structural
+pr: 3773
 ---
 
 

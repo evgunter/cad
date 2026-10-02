@@ -2,10 +2,12 @@
 id: rim-of-refuses-extruded-multi-arc-rims
 kind: issue
 title: topo::query::rim_of refuses every multi-arc rim extrude mints: the arcs' carrier circles are not bit-identical
-status: open
+status: review
 opened: 2026-09-13
 priority: P0
 cost: H
+branch: tquery/rim-of-structural
+pr: 3773
 ---
 
 

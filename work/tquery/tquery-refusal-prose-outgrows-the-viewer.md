@@ -2,9 +2,11 @@
 id: tquery-refusal-prose-outgrows-the-viewer
 kind: issue
 title: topo: RimError::NotOneRim is over 50 words (Ev's concision request)
-status: open
+status: review
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+branch: tquery/rim-of-structural
+pr: 3773
 ---
 
 
