@@ -5,7 +5,6 @@ title: SessionOp::AddBoolean's doc promises a declaration vocabulary that no Doc
 status: closed
 branch: author/declared-union
 opened: 2026-09-15
-refs: [a-declared-union-has-no-one-pass-authoring-path]
 priority: P0
 cost: D
 closed: 2026-09-30
