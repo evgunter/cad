@@ -1810,10 +1810,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             .into_iter()
             .map(|p| {
                 let sb = SceneBody::plain(p.name, p.color, p.body);
-                // At 5e-3 the curved bodies' meshes fall about 1% (the
-                // lantern, the lens-section leaves) to 4.5% (the foot)
-                // short of their exact volumes, and the lofted blades,
-                // whose sections are straight, under 0.1%.
+                // The split is by SECTION. The lofted blades (`leaf_a`
+                // and the sepals) are lofted through straight-sided
+                // sections, and at 5e-3 their meshes are within 0.1% of
+                // exact volume. Every other body has a curved section
+                // (tubes, revolves, the lens-section swept leaves) and
+                // takes 2e-3. The names below are the lofted blades; a
+                // piece added, renamed or rebuilt with another section
+                // is placed by this rule, not by its name.
                 if p.name == "lily_leaf_a" || p.name.starts_with("lily_sepal") {
                     sb
                 } else {
@@ -3180,8 +3184,8 @@ mod review_probes {
         assert_eq!(props.volume_pad, 0.0, "every lantern face is closed-form");
     }
 
-    /// Finding 13 re-measured: one chord budget for the whole scene
-    /// spends wildly differently per body, and these are the numbers.
+    /// Finding 13 re-measured: one chord budget spends wildly
+    /// differently per body, and these are the numbers.
     ///
     /// The five analytic rows are the SAME counts the sketch-frame
     /// revolve produced — the tube door changed which parameters are

@@ -4,6 +4,8 @@ kind: issue
 title: A body meshes every face at one chordal delta, so a small arc on one face re-meshes the whole body
 status: open
 opened: 2026-10-02
+priority: P3
+cost: M
 ---
 
 
