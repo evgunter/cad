@@ -26,3 +26,29 @@ shapes.
 Picked up by its first orchestrator at the opening (status `active`).
 
 Signed (JOIN orchestrator).
+
+## 2026-10-02 — first dispatches; the in-face fork goes to the designers
+
+- **`join/ring-run-winding`**: `ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum`,
+  then a diagnosis of `blind-d-pocket-subtract-refuses-with-join-internal-words`
+  (whose refusal is raised in the function being rewritten), fixed in
+  the same PR only if the fix is clearly right. Review tier: single
+  FULL. The verdict picks an island's outer boundary, so a sign error
+  builds a wrong body, which reading alone cannot rule out.
+- **`join/star-desync`**: `join-desync-on-the-star-fixture`, diagnose
+  first and fix only at the layer where the defect starts. Review tier:
+  decided at the fix, once its layer is known.
+- **In-face measurement** (no PR; probe branch `join/inface-probe`).
+  The half-lap, rod and teapot-cup refusals are one class: the two ends
+  of a section segment lying on an operand edge take their face from two
+  unrelated rules (`vtxfac`'s mixed on-edge → In, and `recl`'s start-sector
+  attribution). Recorded on both rows. Two findings off the fork got
+  their own files: `closed-in-face-section-loop-has-one-site` (JOIN,
+  P1/H) and `rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`
+  (ZIP, P0/H, the dumbbell's REST-lane blocker).
+- **The fork**: how a section segment that coincides with an existing
+  operand edge is attributed and identified. It is with one Opus and one
+  Fable designer, labels drawn by urandom and committed to
+  `analysis/design-fork/join-in-face-edge-flank-2026-10-02`.
+
+Signed (JOIN orchestrator).
