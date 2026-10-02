@@ -3430,9 +3430,9 @@ fn a_short_branch_traces_at_the_callers_extent() {
     );
 }
 
-/// A flat bilinear wall in `y = 0`, `1 m` wide along `x` and `height`
+/// A flat bilinear wall in `y = 0`, `width` wide along `x` and `height`
 /// tall along `z`.
-fn flat_wall(height: f64) -> NurbsSurface<f64> {
+fn flat_wall(width: f64, height: f64) -> NurbsSurface<f64> {
     let knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     NurbsSurface::new(
         knots(),
@@ -3440,8 +3440,8 @@ fn flat_wall(height: f64) -> NurbsSurface<f64> {
         vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(0.0, 0.0, height),
-            Point3::new(1.0, 0.0, 0.0),
-            Point3::new(1.0, 0.0, height),
+            Point3::new(width, 0.0, 0.0),
+            Point3::new(width, 0.0, height),
         ],
         vec![1.0; 4],
     )
@@ -3449,42 +3449,95 @@ fn flat_wall(height: f64) -> NurbsSurface<f64> {
 }
 
 /// **A plane clipping a wall's corner traces the clip, however short.**
-/// The flat 1 m wall cut by the plane `x + z = d`: the branch is the
-/// segment from `(d, 0, 0)` to `(0, 0, d)`, `d·√2` long. From `d = 0.01`
-/// (1.4 cm) to `0.2` (28 cm) at extents of 1 m and 1.5 m, every clip
-/// certifies as one branch end to end, the shortest (to `d = 0.03` at
-/// 1 m, `0.05` at 1.5 m) through the short-branch re-march. A boolean
-/// meets clips like these routinely, and no one extent serves both them
-/// and the body they are cut from.
+/// A flat square wall of side `w` cut by the plane `x + z = d`: the
+/// branch is the segment from `(d, 0, 0)` to `(0, 0, d)`, `d·√2` long.
+///
+/// On the 1 m wall, from `d = 0.01` (1.4 cm) to `0.2` (28 cm) at extents
+/// of 1 m and 1.5 m, every clip certifies as one branch end to end, the
+/// shortest (to `d = 0.03` at 1 m, `0.05` at 1.5 m) through the
+/// short-branch re-march. A boolean meets clips like these routinely,
+/// and no one extent serves both them and the body they are cut from.
+///
+/// The 100 m wall at a 200 m extent is the row that holds the re-march's
+/// count odd at every ε: there the first trace ends a few ε short of the
+/// edge, so an even count (`length/32` or `/4`) walks a state from the
+/// mid-branch seed into the band of each end, and the open end
+/// escalates at the default ε.
 #[test]
 fn a_plane_clipping_a_walls_corner_traces_the_clip_however_short() {
-    let wall = flat_wall(1.0);
     let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    let mut rows = Vec::new();
     for d in [0.01, 0.02, 0.03, 0.05, 0.08, 0.1, 0.15, 0.2] {
+        for extent in [1.0, 1.5] {
+            rows.push((1.0, d, extent));
+        }
+    }
+    rows.extend([(100.0, 1.0, 200.0), (100.0, 2.5, 200.0)]);
+    for (w, d, extent) in rows {
         let clip = Surface::Plane {
             origin: Point3::new(d, 0.0, 0.0),
             normal: Vec3::new(s2, 0.0, s2),
             u_ref: Vec3::new(s2, 0.0, -s2),
         };
-        for extent in [1.0, 1.5] {
-            let dom = SsiDomain {
-                center: Point3::new(0.0, 0.0, 0.0),
-                half_extent: 2.0,
-                extent,
-                floor_scale: 1.0,
-            };
-            let at = format!("d = {d} at extent {extent} m, ε {:e}", band().zero());
-            let out = ssi::plane_nurbs_ssi(&clip, &wall, dom, band())
-                .unwrap_or_else(|e| panic!("{at}: the clip is not traced: {e}"));
-            assert_eq!(out.branches.len(), 1, "{at}");
-            let b = &out.branches[0];
-            let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
-            assert!(
-                (span - d * std::f64::consts::SQRT_2).abs() < 1.0e-6 * d,
-                "{at}: the carrier spans {span:e} m"
-            );
-        }
+        let dom = SsiDomain {
+            center: Point3::new(0.0, 0.0, 0.0),
+            half_extent: 2.0 * w,
+            extent,
+            floor_scale: 1.0,
+        };
+        let at = format!(
+            "d = {d} on the {w} m wall at extent {extent} m, ε {:e}",
+            band().zero()
+        );
+        let out = ssi::plane_nurbs_ssi(&clip, &flat_wall(w, w), dom, band())
+            .unwrap_or_else(|e| panic!("{at}: the clip is not traced: {e}"));
+        assert_eq!(out.branches.len(), 1, "{at}");
+        let b = &out.branches[0];
+        let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+        assert!(
+            (span - d * std::f64::consts::SQRT_2).abs() < 1.0e-6 * d,
+            "{at}: the carrier spans {span:e} m"
+        );
     }
+}
+
+/// **A plane through a wall's corner vertex refuses as the march's
+/// limit.** The flat 1 m wall cut by `x + z = 0` meets the plane at the
+/// corner `(0, 0, 0)` alone. The seed settles there and every step
+/// leaves the face, so the trace is the seed with no length: the march
+/// cannot tell a point contact from a branch below its resolution, and
+/// says so rather than handing the fit one sample.
+#[test]
+fn a_plane_through_a_walls_corner_vertex_refuses_as_the_marchs_limit() {
+    use geom_brep::recourse::Reading;
+
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    let touch = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(s2, 0.0, s2),
+        u_ref: Vec3::new(s2, 0.0, -s2),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let r = ssi::plane_nurbs_ssi(&touch, &flat_wall(1.0, 1.0), dom, band());
+    let Err(ref err @ SsiError::TraceUnresolved { step }) = r else {
+        panic!("the corner touch: expected the march's limit, got {r:?}");
+    };
+    assert_eq!(
+        step,
+        ssi::SSI_STEP_MAX,
+        "the first march's step at the 1 m extent"
+    );
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("they touch at a point")
+            && shown.contains("Recourse: if the surfaces meet along a curve here"),
+        "{shown}"
+    );
 }
 
 /// **A marched state within the band of the domain's boundary
@@ -3514,7 +3567,7 @@ fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
         extent: 1.0,
         floor_scale: 1.0,
     };
-    let wall = |delta: f64| flat_wall((31.0 / 32.0 + delta) * 256.0 / 255.0);
+    let wall = |delta: f64| flat_wall(1.0, (31.0 / 32.0 + delta) * 256.0 / 255.0);
     match ssi::plane_nurbs_ssi(&across, &wall(0.0), dom, band()) {
         Ok(out) => assert_eq!(out.branches.len(), 1, "on the edge"),
         Err(e) => panic!("a state on the edge does not certify: {e}"),

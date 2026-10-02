@@ -1049,16 +1049,23 @@ where
 /// The first march caps its steps at [`SSI_STEP_MAX`] of the caller's
 /// extent. This is the one place a whole branch is known, so it is also
 /// where a branch shorter than a few of those steps is caught: a trace
-/// with fewer samples than the cubic fit needs is marched once more,
-/// with its steps capped at its own polyline length over
+/// with fewer samples than the cubic fit needs, and a positive length,
+/// is marched once more with its steps capped at that length over
 /// [`SHORT_BRANCH_STEPS`]. The rule is fixed and taken at most once
-/// (D9). A trace with no length has none to cut, and goes to the fit as
-/// it is.
+/// (D9).
+///
+/// The re-march cannot come back short. Its steps are at most `L/5` of
+/// the first trace's polyline length `L`, and the branch it retraces
+/// from the same seed is at least `L` long, so the two halves hold at
+/// least `L/h − 2 ≥ 3` states strictly inside it besides the seed,
+/// even if both boundary ends are dropped: `SSI_FIT_DEGREE + 1`.
 ///
 /// # Errors
 ///
 /// As [`march`]; a refusal in either direction, on either march, is the
-/// operation's.
+/// operation's. [`SsiError::TraceUnresolved`] when the first trace has
+/// no length: there is no length to cut, and the march cannot tell a
+/// point contact from a branch below its resolution.
 pub(crate) fn march_both<const M: usize, const N: usize, S>(
     sys: &S,
     seed: [f64; N],
@@ -1075,8 +1082,12 @@ where
         return Ok(first);
     }
     let length = arc_length(sys, &first.states);
-    if length.is_nan() || length <= 0.0 {
+    if !length.is_finite() {
+        // Poisoned samples: the fit refuses them by name.
         return Ok(first);
+    }
+    if length <= 0.0 {
+        return Err(SsiError::TraceUnresolved { step: cap });
     }
     let short = length / SHORT_BRANCH_STEPS as f64;
     march_both_at::<M, N, S>(sys, seed, ctx, mode, band, Real::min(cap, short))
@@ -1254,7 +1265,7 @@ mod tests {
                 StepperMode::Idealized,
                 1.0,
                 band,
-                SSI_STEP_MAX,
+                SSI_STEP_MAX * unit_ctx(band).extent,
             );
             match r {
                 Err(SsiError::StepUnusable {
@@ -1428,7 +1439,7 @@ mod tests {
                 mode,
                 1.0,
                 band,
-                SSI_STEP_MAX,
+                SSI_STEP_MAX * unit_ctx(band).extent,
             ) {
                 Err(ref e @ SsiError::Escalated { decision, .. }) => {
                     assert_eq!(decision, guard, "the poisoned operand's guard");
@@ -1475,7 +1486,7 @@ mod tests {
                 StepperMode::Realized,
                 1.0,
                 band,
-                SSI_STEP_MAX,
+                SSI_STEP_MAX * unit_ctx(band).extent,
             );
             assert!(
                 !matches!(

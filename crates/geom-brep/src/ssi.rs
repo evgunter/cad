@@ -456,6 +456,16 @@ pub enum SsiError {
     },
     /// The fitting stack refused the marched polyline.
     Fit(FitError),
+    /// A trace found the surfaces meeting but no length along the meet:
+    /// it is the seed alone, or it has no length. Either the surfaces
+    /// touch at a point (a plane through a face's corner), or the branch
+    /// is shorter than the march's boundary search resolves at its step
+    /// (`SSI_BOUNDARY_BISECTIONS` halvings of it), so both ends were
+    /// dropped. A limit of the march, not a branch it can fit.
+    TraceUnresolved {
+        /// The first march's longest step, in metres.
+        step: f64,
+    },
     /// One branch's marched polyline exceeded
     /// [`SSI_MAX_FIT_SAMPLES`]. The tolerance and the operand
     /// curvature together demand more samples than the (cubic) fit can
@@ -728,7 +738,15 @@ impl core::fmt::Display for SsiError {
             ),
             Self::Fit(FitError::TooFewPoints { have, need }) => write!(
                 f,
-                "ssi: a traced branch yielded {have} samples, and the cubic fit needs {need}"
+                "ssi: a traced branch gave the fitting stack {have} sample{}, and it needs at \
+                 least {need}",
+                if *have == 1 { "" } else { "s" }
+            ),
+            Self::TraceUnresolved { step } => write!(
+                f,
+                "ssi: the surfaces meet at a traced point but the march found no length along \
+                 the meet: they touch at a point, or the branch is shorter than the march \
+                 resolves at its {step:e} m step"
             ),
             Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
             Self::FitSampleBudget { samples, budget } => write!(
@@ -867,10 +885,18 @@ impl SsiError {
                 "Recourse: loosen the tolerance until a branch needs at most {budget} samples, \
                  {KERNEL_LIMIT_LAST_RESORT}"
             ),
-            // `march_both` re-marches a trace too short for the cubic in
-            // steps cut from the branch's own length, so one still short
-            // is the kernel's: no tolerance makes it longer.
+            // `march_both` refuses a trace with no length and re-marches
+            // one with length in steps of a fifth of it, so one still
+            // short is the kernel's: no tolerance makes it longer.
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
+            // The extent sets the step a short branch is resolved at; a
+            // point contact has no decision yet, and no lever.
+            Self::TraceUnresolved { .. } => {
+                "Recourse: if the surfaces meet along a curve here, name a feature extent near \
+                 its length so the march's step resolves it; a point contact has no way through \
+                 yet, and this refusal may indicate a kernel bug worth reporting"
+                    .to_owned()
+            }
             // Decisions not yet given an ending
             // (`work/ssi/ssi-refusals-whose-decision-has-no-ending.md`).
             Self::ExhaustivenessInconclusive(_)
@@ -2332,9 +2358,10 @@ mod ending_tests {
     /// their in-band margin gives (`m/K`, here `K = 10`), never a
     /// declaration (the doors take none); the spent fit budget ends in
     /// the loosening clause and the last resort, within 50 words
-    /// rendered; and a trace too short for the cubic, which the march's
-    /// re-march rules out, ends as a kernel defect with no fit recourse
-    /// in its payload.
+    /// rendered; a trace with length too short for the cubic, which the
+    /// march's re-march rules out, ends as a kernel defect with no fit
+    /// recourse in its payload; and a trace with no length ends as the
+    /// march's limit, naming the extent as the lever for a short branch.
     #[test]
     fn each_ssi_ending_is_its_decisions() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -2354,8 +2381,22 @@ mod ending_tests {
             budget: SSI_MAX_FIT_SAMPLES,
         };
         let short = SsiError::Fit(geom::FitError::TooFewPoints { have: 3, need: 4 });
+        let single = SsiError::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 });
+        let unresolved = SsiError::TraceUnresolved { step: 3.125 };
+        assert!(
+            unresolved.to_string().contains("at its 3.125e0 m step"),
+            "{unresolved}"
+        );
+        assert!(single.to_string().contains(" 1 sample, "), "{single}");
         for (error, ending) in [
             (&short, KERNEL_DEFECT_ENDING.to_owned()),
+            (
+                &unresolved,
+                "Recourse: if the surfaces meet along a curve here, name a feature extent near \
+                 its length so the march's step resolves it; a point contact has no way \
+                 through yet, and this refusal may indicate a kernel bug worth reporting"
+                    .to_owned(),
+            ),
             (
                 &death,
                 format!(

@@ -126,14 +126,20 @@ finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
 (`StepCollapsed`) refuses naming the speed. The longest step is
 `SSI_STEP_MAX` of the caller's feature extent, and `march_both`, the
-one place a whole branch is known, marches once more any trace too
-short at that step for the cubic fit: its steps are then capped at the
-trace's own polyline length over the fewest odd count that gives the
-fit its samples (five), odd so that a seed near the branch's middle
-leaves each end half a step from a state. A branch shorter than the
-extent's step is traced, not refused; a trace still short after that is
-a kernel defect (`Fit(TooFewPoints)`). The extent keeps its other
-roles: the lever arm's clamp, the seeding floor and the tube ladder.
+one place a whole branch is known, marches once more any trace that
+has length but too few samples for the cubic fit: its steps are then
+capped at the trace's own polyline length over the fewest odd count
+that gives the fit its samples (five). The re-march cannot come back
+short, so a trace that does is a kernel defect (`Fit(TooFewPoints)`).
+The count is odd so that a seed near the branch's middle does not walk
+a state onto each end; that lowers the odds of a state landing in band
+of the boundary and guarantees nothing
+(`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
+A trace with no length — the seed alone, when the surfaces touch at a
+point or the branch is shorter than the boundary search resolves at
+the first step — has nothing to cut, and refuses as the march's limit
+(`SsiError::TraceUnresolved`). The extent keeps its other roles: the
+lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure), *accounted* (contained in a found branch's tube), or

@@ -37,7 +37,7 @@ check, not a ruling):
 | `Band(BandError)` | the band could not be built | the caller's knobs |
 
 `ChartSpeed`, `OperandNotFinite`, `DomainUnusable`, `FloorUnresolvable`, `SettlingUnresolvable`,
-`StepCollapsed`, `StepUnusable`, `FitSampleBudget`,
+`StepCollapsed`, `StepUnusable`, `FitSampleBudget`, `TraceUnresolved`,
 `TransversalityBand`, `PairTangent`, `SelfCrossingLocus`,
 `CertificateLimb`, `TubeStraddles`, `CertificateEscalated`, `Escalated`,
 `MarchTolMismatch` and `InvalidMarchTol` have endings.
