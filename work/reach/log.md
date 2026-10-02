@@ -307,7 +307,7 @@ public coincidence class, `Continuation`, every declaration site speaks.
   must be one the declaration door accepts. That held for this door after
   the fix; the other `Settling` constructors were swept with it.
 
-No pair here enters the tally. The dual-review row (DR-38) rides this
+No pair here enters the tally. The dual-review row (DR-39) rides this
 PR's last commit. — (REACH orchestrator)
 ## 2026-10-01 — the cone split closes (PR 3688)
 

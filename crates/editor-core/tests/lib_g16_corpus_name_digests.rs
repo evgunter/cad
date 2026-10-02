@@ -119,7 +119,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
 /// where the two nodes differ and the names must be disjoint.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x7086_0338_4c93_34b4),
+    ("die", 0x5357_3a07_25c8_58e0),
     ("corner_table", 0x9066_abb5_dca8_4e35),
     ("heat_sink", 0x9494_f2b0_e239_0d24),
     ("crossing_slots", 0xe678_8002_978e_e6cf),

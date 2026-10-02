@@ -118,7 +118,7 @@ fn sans_epsilon(t: &str) -> String {
 
 /// `(document, both-direction name digest, persisted-text digest)`.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0x4274_91ac_2352_4321, 0x9ab3_ac17_881d_261c),
+    ("die", 0x052f_5ebb_4401_fd2b, 0x9ab3_ac17_881d_261c),
     ("corner_table", 0xf97c_c313_eaf8_7597, 0x3bfb_5ee6_70e3_4734),
     ("heat_sink", 0xb031_55ad_d37a_ec57, 0xebaa_3df4_baac_405f),
     (

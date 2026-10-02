@@ -1498,7 +1498,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
             of: StableName {
                 kind: EntityKind::Face,
                 node: body,
-                path: vec![RoleSeg::Lateral(crate::fixture::no_piece())],
+                path: vec![RoleSeg::Lateral(crate::fixture::no_piece().into())],
             }
             .into(),
         }],

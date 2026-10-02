@@ -1041,7 +1041,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
             body.faces()
                 .map(|(k, fd)| {
                     let s = body.get_surface(fd.surface).ok_or_else(lost)?.clone();
-                    Ok((k, s, boxes::face_box(body, k, pad)?))
+                    Ok((k, s, boxes::face_box(body, k, pad, band)?))
                 })
                 .collect()
         };
@@ -2468,7 +2468,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // it has no declaration channel to reach one
                         // through in any case. Certified boxes prove
                         // separation, anything closer refuses typed.
-                        if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                        if boxes::face_box(y, yf, pad, band)?.overlaps(&ball_box) {
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,
                                 face,
@@ -2554,7 +2554,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // relevant here than it is at the operand
                         // gate. Only a face the ball may actually
                         // reach costs the operation its answer.
-                        if !boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                        if !boxes::face_box(y, yf, pad, band)?.overlaps(&ball_box) {
                             continue;
                         }
                         return Err(BooleanError::CurvedBooleanUnsupported {

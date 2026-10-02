@@ -338,8 +338,10 @@ fn mixed_list_classifies_each_pair_by_its_own_kind() {
     }
 }
 
-/// A prism whose y = 0 wall is split in two coplanar faces by a
-/// straight-angle vertex, and whose right end is two arcs of one
+/// A prism whose y = 0 wall is split in two coplanar faces at a
+/// straight-angle vertex (the extrude builds that run as ONE wall and
+/// keeps the vertex on both caps; a chord `mef` between the two copies
+/// splits it), and whose right end is two arcs of one
 /// circle (centre (2.25, 0.5), meeting the straight walls at 26.6°, so
 /// no joint is tangent). Returns the two wall keys (made distinct)
 /// and two keys of the one cylinder (made distinct).
@@ -365,9 +367,28 @@ fn d_prism_with_split_keys() -> (
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let mut body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let built = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let mut body = built.body;
+    let run = &built.walls[0][0];
+    assert_eq!(run.segments, vec![0, 1], "the y = 0 side is one run");
+    let station = |rims: &[topo::EdgeKey]| {
+        let ends = |e: topo::EdgeKey| {
+            let edge = body.get_edge(e).unwrap();
+            [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).unwrap().start)
+        };
+        let (a, b) = (ends(rims[0]), ends(rims[1]));
+        *a.iter().find(|v| b.contains(v)).unwrap()
+    };
+    let (bottom, top) = (station(&run.bottom_rims), station(&run.top_rims));
+    let leaving = |v: topo::VertexKey| {
+        body.half_edges()
+            .find(|(h, he)| he.start == v && body.face_of_half_edge(*h) == Some(run.face))
+            .unwrap()
+            .0
+    };
+    let (he1, he2) = (leaving(bottom), leaving(top));
+    body.mef_chord(topo::MefSite::Chords { he1, he2 }, Tol::witness())
+        .unwrap();
     let y0_walls: Vec<_> = body
         .faces()
         .filter(|(_, f)| match body.get_surface(f.surface) {

@@ -187,7 +187,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-        crate::query::DATUM_UNIT_NORM | join::BOOL_GERM_PLANE_NORMAL => {
+        crate::query::DATUM_UNIT_NORM | join::BOOL_GERM_PLANE_NORMAL | boxes::BOX_CYLINDER_AXIS => {
             geom_core::DIRECTION_LENGTH_SUBJECT
         }
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
@@ -2866,7 +2866,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         &declared,
         band,
         pad,
-        |body, face| boxes::face_box(body, face, pad),
+        |body, face| boxes::face_box(body, face, pad, band),
         |body, edge| boxes::edge_box(body, edge, pad),
     )?;
 

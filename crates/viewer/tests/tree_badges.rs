@@ -616,20 +616,33 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         ),
         other => panic!("the mate tool drops its one pick, got {other:?}"),
     }
-    match viewer::session::face_frame_seat(Some((doc, ev)), Some(&face)) {
-        Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::Standing(standing),
-        }) => assert_eq!(standing, post_a, "the sketch-on-face seat"),
+    // Each refusal carrying the standing whole says its nodes as the
+    // document holds them: post_a by its kind, never `node <tag>`.
+    let post_a_said = doc.spoken(bench.post_a).to_string();
+    let seat = viewer::session::face_frame_seat(Some((doc, ev)), Some(&face));
+    match &seat {
+        Err(
+            fault @ FaceFrameFault::Unresolved {
+                error: InterrogateError::Standing(standing),
+                ..
+            },
+        ) => {
+            assert_eq!(*standing, post_a, "the sketch-on-face seat");
+            assert!(
+                fault.to_string().contains(&post_a_said),
+                "the seat's refusal speaks post_a: {fault}"
+            );
+        }
         other => panic!("the seat refuses on the standing, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, bench.post_a, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, bench.post_a, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
         }
         other => panic!("the duplicate door refuses post_a, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(ev, boolean, tol) {
-        Err(DuplicateFault::NoValue(standing)) => {
+    match viewer::combine::duplicate_step(doc, ev, boolean, tol) {
+        Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, two_hop, "the duplicate door, the boolean");
         }
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),
@@ -638,7 +651,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         node: bench.post_a,
         body: 0,
     };
-    match BlendTool::new().load_all_edges(target, ev, &index) {
+    match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the blend loader");
         }
@@ -655,11 +668,19 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
             body: 0,
         },
     );
-    match both.proposal(doc, ev, common::asm::seat_choice()) {
-        Err(MateToolError::Frame {
-            error: InterrogateError::Standing(standing),
-            ..
-        }) => assert_eq!(standing, post_a, "the mate tool's frame read"),
+    match &both.proposal(doc, ev, common::asm::seat_choice()) {
+        Err(
+            refused @ MateToolError::Frame {
+                error: InterrogateError::Standing(standing),
+                ..
+            },
+        ) => {
+            assert_eq!(*standing, post_a, "the mate tool's frame read");
+            assert!(
+                refused.to_string().contains(&post_a_said),
+                "the mate tool's refusal speaks post_a: {refused}"
+            );
+        }
         other => panic!("the mate tool refuses the frame read, got {other:?}"),
     }
 
@@ -668,15 +689,15 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
         panic!("the index does not build over a root with no value");
     };
-    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), Some(ev))
+    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal badges");
     let detail = badge
         .detail()
         .expect("the badge defers its words to the tooltip");
     assert!(
         detail.contains(&format!(
-            "failure at node {}",
-            test_utils::refusal::tag(offender.0)
+            "failure at {}",
+            session.landed_pair().expect("landed").0.spoken(offender)
         )) && !detail.contains("ancestor"),
         "the pick index's tooltip names the offending mate: {detail}"
     );
