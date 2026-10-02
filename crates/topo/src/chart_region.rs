@@ -2394,6 +2394,10 @@ fn pcurve_entry<T: Decide + Bounds>(
         // cap can enter it, which is the props/tessellation frontier,
         // not a missing arm here.
         Pcurve::Spiric { .. } => Err("Spiric image is not a straight segment"),
+        // The tilted cone section's image is a genuine chart curve (its
+        // slant is a sinusoid, its azimuth a Kepler anomaly) — the
+        // cone's twin of the cylinder's tilted-cut sinusoid above.
+        Pcurve::ConeSection { .. } => Err("ConeSection image is not a straight segment"),
     }
 }
 
