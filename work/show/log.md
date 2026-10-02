@@ -257,3 +257,11 @@ The two PRs re-pin the same lines of `tools/tess-lint/tests/baseline_census.rs`.
 Two findings from the lane, not yet homed:
 - **"Chordal, inscribed" is wrong on saddle walls.** The tour's shared per-body line says the mesh is "chordal, inscribed". The twisted loft's saddle walls mesh to a volume ABOVE the exact one, so that sentence is false on saddle walls. It lives in demo-crate narration, so SHOW fixes it in the next unit that touches `main.rs`'s per-body line.
 - **Triangle count.** The twisted loft meshes to 42k triangles, against the prism's 8.9k.
+
+## 2026-10-02 — tiltedcut fixed; letterforms dispatched
+
+PR 3819's fix pass is in: head `bed4d1660`, green. ZIP's new row is P0/H with the full case list. Wall 2 is re-pinned to the U, and wall 3's pose is corrected. The lane filed `show/a-tour-scene-meshes-every-body-at-one-delta` (P3/M) on this slate, since the scene-wide `Stop::delta` is the tour's own door.
+
+Declined a follow-up: a lines-only oval nameplate on the section face. It builds for a square and for the T at only one offset. That is a pose lottery, not a door, so the scene keeps the cap.
+
+`letterforms-flush-declared` dispatched.
