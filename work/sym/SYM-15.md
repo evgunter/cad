@@ -2,7 +2,7 @@
 id: SYM-15
 kind: unit
 title: "the chain's wedge margin poisons: name what goes to NaN, and fix it or say it"
-status: dispatched
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
