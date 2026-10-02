@@ -113,7 +113,7 @@ use super::section_cert::Refusal as SectionRefusal;
 use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
-use super::zip::{SeamCorrespondence, survivor, zip_seam};
+use super::zip::{SeamCorrespondence, survivor, survivor_checked, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
     ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact, SideCode,
@@ -2198,6 +2198,9 @@ pub(super) struct Descendants {
     b_welds: Vec<(VertexKey, VertexKey)>,
     /// The zips' fusions in mint order, result keys.
     vertices: Vec<(VertexKey, VertexKey)>,
+    /// Merge absorption, absorbed face → the group's kept face: an
+    /// acyclic relation, since a kept face is never absorbed. A cycle
+    /// is a corrupt record, and [`Self::live_face`] refuses it typed.
     faces: std::collections::BTreeMap<FaceKey, FaceKey>,
     /// Every vertex that participated in a zip fusion (dead OR kept):
     /// its point rests were consumed into seam structure.
@@ -2232,18 +2235,27 @@ impl Descendants {
 
     /// Operand `side`'s vertex `v`, through its pinch welds, the key
     /// `view`, and the zips' fusions, if it is live.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] on a corrupt fusion list
+    /// ([`survivor_checked`]): it would chase `v` onto a dead key and
+    /// drop the record as consumed.
     fn live_vertex<T: Real>(
         &self,
         body: &Body<T>,
         (side, view): (Operand, &KeyView<'_>),
         v: VertexKey,
-    ) -> Option<VertexKey> {
+    ) -> Result<Option<VertexKey>, BooleanError> {
         let welds = match side {
             Operand::A => &self.a_welds,
             Operand::B => &self.b_welds,
         };
-        let k = survivor(&self.vertices, view.vertex(survivor(welds, v))?);
-        body.get_vertex(k).map(|_| k)
+        let Some(k) = view.vertex(survivor_checked(welds, v)?) else {
+            return Ok(None);
+        };
+        let k = survivor_checked(&self.vertices, k)?;
+        Ok(body.get_vertex(k).map(|_| k))
     }
 
     /// Chases a face key through the absorption rows until live:
@@ -2261,7 +2273,7 @@ impl Descendants {
         f: FaceKey,
     ) -> Result<Option<FaceKey>, BooleanError> {
         let live = |k| body.get_face(k).is_some();
-        let end = super::discard::fragment_root(f, self.faces.len(), |k| {
+        let end = super::discard::lineage_root(f, self.faces.len(), |k| {
             if live(k) {
                 None
             } else {
@@ -2315,8 +2327,8 @@ pub(super) fn remap_contacts<T: Real>(
     for c in &contacts.vv {
         // Two records whose ends fused into one pair are one record.
         if let (Some(a), Some(b)) = (
-            vert((Operand::A, &a_view), c.a),
-            vert((Operand::B, &b_view), c.b),
+            vert((Operand::A, &a_view), c.a)?,
+            vert((Operand::B, &b_view), c.b)?,
         ) && a != b
             && !out
                 .vv
@@ -2456,7 +2468,7 @@ pub(super) fn remap_carried<T: Real>(
         |view: &KeyView<'_>, f: FaceKey| view.face(f).map_or(Ok(None), |k| desc.live_face(body, k));
     let push_vv = |out: &mut ContactRecords, carried: &CarriedContacts, side| {
         for c in &carried.vv {
-            if let (Some(a), Some(b)) = (vert(side, c.pair.a), vert(side, c.pair.b))
+            if let (Some(a), Some(b)) = (vert(side, c.pair.a)?, vert(side, c.pair.b)?)
                 && a != b
                 && !out
                     .vv
@@ -2466,9 +2478,10 @@ pub(super) fn remap_carried<T: Real>(
                 out.vv.push(VvContact { a, b });
             }
         }
+        Ok::<_, BooleanError>(())
     };
-    push_vv(out, &decls.carried_a, (Operand::A, a_view));
-    push_vv(out, &decls.carried_b, (Operand::B, b_view));
+    push_vv(out, &decls.carried_a, (Operand::A, a_view))?;
+    push_vv(out, &decls.carried_b, (Operand::B, b_view))?;
     let dup_vf = |out: &ContactRecords, v: VertexKey, f: FaceKey| {
         out.a_on_b
             .iter()
@@ -3805,6 +3818,87 @@ mod tests {
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
     }
 
+    /// **A fusion list whose row keeps a key an earlier row killed
+    /// refuses; one that chases to a dead key drops the record.** Rows
+    /// `(a, b), (c, a)` fold `c` onto the dead `a`, so the chase would
+    /// read a corrupt list as "consumed". The refusal must hold in every
+    /// build: in one where `survivor`'s `debug_assert!` were the only
+    /// guard, this panics there instead of answering `Err`, and drops
+    /// the record silently where it compiles out.
+    #[test]
+    fn a_corrupt_fusion_list_refuses_where_a_dead_end_drops() {
+        use super::{Descendants, KeyView, remap_carried, remap_contacts};
+        use crate::boolean::{
+            BooleanDeclarations, CarriedContacts, CarriedVv, ContactClass, ContactRecords,
+            VvContact,
+        };
+        use crate::entity::VertexKey;
+
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let mut body = quad_prism(&square, 1.0, Tol::witness());
+        let keys: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
+        let (a, b, c, partner) = (keys[0], keys[1], keys[2], keys[3]);
+        body.vertices.remove(a);
+        body.vertices.remove(c);
+        let pair = VvContact { a: c, b: partner };
+        let contacts = ContactRecords {
+            vv: vec![pair],
+            ..ContactRecords::default()
+        };
+        let decls = BooleanDeclarations {
+            carried_a: CarriedContacts {
+                vv: vec![CarriedVv {
+                    pair,
+                    class: ContactClass::Rest,
+                }],
+                ..CarriedContacts::default()
+            },
+            ..BooleanDeclarations::default()
+        };
+        let remap = |desc: &Descendants| {
+            remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, desc)
+        };
+        let carry = |desc: &Descendants| {
+            let mut out = ContactRecords::default();
+            remap_carried(
+                &mut out,
+                &body,
+                &decls,
+                &KeyView::Direct,
+                &KeyView::Direct,
+                desc,
+            )
+            .map(|()| out)
+        };
+        let joined = |r: Result<ContactRecords, BooleanError>| match r {
+            Err(BooleanError::JoinDesync { what }) => what,
+            other => panic!("a corrupt fusion list must refuse JoinDesync, got {other:?}"),
+        };
+
+        // A well-ordered list that ends on a dead key: consumed, dropped.
+        let mut dead_end = Descendants::default();
+        dead_end.vertices.push((c, a));
+        let dropped = remap(&dead_end).expect("a well-ordered list is not corrupt");
+        assert!(dropped.vv.is_empty(), "dead end: {:?}", dropped.vv);
+        let carried = carry(&dead_end).expect("a well-ordered list is not corrupt");
+        assert!(carried.vv.is_empty(), "carried dead end: {:?}", carried.vv);
+
+        let mut corrupt = Descendants::default();
+        corrupt.vertices.push((a, b));
+        corrupt.vertices.push((c, a));
+        let what = "a fusion row names a key an earlier row killed";
+        assert_eq!(
+            joined(remap(&corrupt)),
+            what,
+            "remap_contacts on a corrupt list"
+        );
+        assert_eq!(
+            joined(carry(&corrupt)),
+            what,
+            "remap_carried on a corrupt list"
+        );
+    }
+
     /// **A cycle in the face absorption rows refuses; a chain that ends
     /// at a dead key drops the record.** The two dead faces name each
     /// other, so the chase never reaches a live face nor a key without
@@ -4057,7 +4151,8 @@ mod tests {
         desc.vertices.push((fused_in, bend));
         desc.fused.insert(bend);
         assert_eq!(
-            desc.live_vertex(&body, (Operand::A, &KeyView::Direct), bend),
+            desc.live_vertex(&body, (Operand::A, &KeyView::Direct), bend)
+                .unwrap(),
             None,
             "no survivor for {bend:?}"
         );
@@ -4072,7 +4167,8 @@ mod tests {
             remap_contacts(&body, c, KeyView::Direct, KeyView::Direct, &desc).unwrap()
         };
         assert_eq!(
-            desc.live_vertex(&body, (Operand::A, &KeyView::Direct), fused_in),
+            desc.live_vertex(&body, (Operand::A, &KeyView::Direct), fused_in)
+                .unwrap(),
             None,
             "the chase ends dead"
         );
