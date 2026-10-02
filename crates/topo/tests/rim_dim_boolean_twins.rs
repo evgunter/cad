@@ -248,7 +248,7 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
     // refactor stops one from firing, the pin goes vacuous — fail
     // loudly instead so the pin moves with the code.
     //
-    // `bool_ring_run_winding` (F4) and the two `volume_backstop*`
+    // `bool_ring_run_winding` (F4) and the three `volume_backstop*`
     // gates (F3) are on this list BECAUSE of this unit: their
     // presence here is what makes their absence from KNOWN_NONLINEAR
     // a claim rather than a silence — they fire, and they scale. So is
@@ -272,6 +272,7 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         "bool_ring_run_winding",
         "volume_backstop",
         "volume_backstop_operand",
+        "volume_backstop_violation",
         "bool_point_in_solid_denom",
         "bool_germ_plane_normal",
     ] {

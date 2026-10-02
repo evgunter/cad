@@ -2,7 +2,7 @@
 id: place
 kind: program
 title: PLACE — placement on a gauge: P2-split, the placement slate's remainder, and its seams
-status: ready
+status: active
 opened: 2026-10-02
 area: api
 prefix: place/

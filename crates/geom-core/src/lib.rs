@@ -25,6 +25,7 @@ pub mod linalg;
 pub mod predicate;
 pub mod readable;
 pub mod real;
+pub mod running;
 pub mod spline;
 pub mod sym;
 pub mod tolerance;
@@ -53,6 +54,7 @@ pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_finite_length,
     is_underflowed_length, is_zero_length,
 };
+pub use running::{Rounded, UNIT_ROUNDOFF};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
 pub use tolerance::{
