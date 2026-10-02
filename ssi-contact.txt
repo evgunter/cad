@@ -1,0 +1,4 @@
+fork: ssi point and edge contact (ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal)
+dispatched: 2026-10-02
+byte: 31
+mapping: A = Fable, B = Opus
