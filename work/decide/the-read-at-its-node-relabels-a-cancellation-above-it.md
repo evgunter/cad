@@ -16,7 +16,7 @@ wait for the node's parent. When two distinct nodes have equal early
 forms, the read shut mints them as ONE atom and their difference
 cancels: a theorem. With the read on, each node is read first, and the
 same zero is reached through the arms, so it counts `sign_gated`. That
-is the shape `docs/DECIDE-9-SPEC.md` suspected for the pad's and the
+is the shape `docs/DECIDE-9-SPEC.md` (deleted; `docs/doc-ledger/decide-9-spec.md`) suspected for the pad's and the
 bracket's 48. Those 48 turned out to be a different shape (a product
 with an ungated zero factor, fixed by DECIDE-9). This shape is real in
 the tier all the same.
@@ -46,7 +46,7 @@ read costs, other than the 48 that DECIDE-9 fixed. So no pin moves
 today. The class is open for the next document that spells one value
 two ways under a `min`/`max`/`Select`.
 
-**Candidate answers** (`docs/DECIDE-9-SPEC.md`, Phase 1 item 3; not
+**Candidate answers** (`docs/DECIDE-9-SPEC.md` (deleted; `docs/doc-ledger/decide-9-spec.md`), Phase 1 item 3; not
 measured on this shape):
 - **Settle read-free first.** Try the decision form read-free, and read
   only where that does not settle. This costs a read-free early walk

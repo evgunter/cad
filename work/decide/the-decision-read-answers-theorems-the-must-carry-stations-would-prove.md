@@ -2,11 +2,12 @@
 id: the-decision-read-answers-theorems-the-must-carry-stations-would-prove
 kind: issue
 title: The decision read answers 32 of the pad's and 16 of the bracket's decisions that are theorems with it shut
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
 refs: [rule-g-trades-sixteen-of-the-links-carrier-on-surface-2, 2468]
+closed: 2026-10-02
 ---
 
 ## What was measured (LINALG's merge of `main` into `props/sign-hull`, 2026-10-01)
@@ -341,3 +342,10 @@ FULL review: APPROVE-WITH-FIXES, no MAJOR.
   every combinator". It says where the walk drops the flag.
 - **The `Form::mul` item** now names the whole class: `Form::mul`,
   `powi_form` and `algebra::apply`.
+
+## Closed (DECIDE-9, PR #3807, 2026-10-02)
+
+Answered on the measured documents: the pad and the bracket read their
+read-shut theorem counts with the read on. The tier-wide form of the
+contract is not restored: `the-read-at-its-node-relabels-a-cancellation-above-it`
+carries it.
