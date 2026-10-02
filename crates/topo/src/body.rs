@@ -177,7 +177,10 @@ pub struct Body<T: Real> {
     // (`crate::pcurves`); planar faces store nothing (M2's
     // derive-on-demand status, C4 verbatim), so an all-planar body
     // carries an empty map. On every other chart a row is mandatory at
-    // rest, and the tier-3 pcurve pass reports one that is missing.
+    // rest, and the tier-3 pcurve pass reports one that is missing —
+    // except on a face whose rows are not owed (an uncovered class, or
+    // a fitted face at a scalar with no fitted door: C4's exemption,
+    // `crate::pcurves`' `not_owed`), which may store none.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
     // Null-face annotations (F9): typed loop-role attributes on null
     // (section-polygon) faces, parallel to the face arena like the
@@ -1578,7 +1581,11 @@ impl<T: Real> Body<T> {
     /// every other chart the row is mandatory at rest: every half-edge
     /// of the face stores its certified row once its producer has
     /// returned, and the tier-3 pcurve pass reports one that does not
-    /// ([`crate::pcurves::validate_pcurves`]).
+    /// ([`crate::pcurves::validate_pcurves`]). The exemption is a face
+    /// whose rows are not owed — one that meets an uncovered class, or a
+    /// fitted face at a scalar with no fitted door — which may store
+    /// none until its class's route lands (C4's exemption, named in
+    /// [`crate::pcurves::validate_pcurves`]' docs).
     pub fn pcurves(&self) -> impl Iterator<Item = (HalfEdgeKey, &PcurveCache<T>)> {
         self.pcurves.iter()
     }

@@ -260,3 +260,167 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
         "the boss wall has arc rows to widen: {cases} cases"
     );
 }
+
+/// A parallel of the torus through `p`, its axis tilted `tilt` off the
+/// torus's own: a covered class whose image derives, but whose
+/// certificate does not decide at a tilt inside the band's escalation
+/// zone.
+fn tilted_parallel_through(p: Point3<f64>, tilt: f64) -> Curve3<f64> {
+    let r = (p.x * p.x + p.z * p.z).sqrt();
+    Curve3::Circle {
+        center: Point3::new(0.0, p.y, 0.0),
+        axis: unit(Vec3::new(tilt, 1.0, 0.0)),
+        radius: r,
+        u_ref: Vec3::new(p.x / r, 0.0, p.z / r),
+    }
+}
+
+fn certificate_refused(e: &PcurveMintError) -> bool {
+    matches!(
+        e,
+        PcurveMintError::Certify {
+            error: PcurveCertifyError::Escalated { .. },
+            ..
+        }
+    )
+}
+
+/// **An uncovered strut masks no certificate either.** A covered strut
+/// whose refusal the band cannot decide — a parallel tilted off the
+/// torus's axis — stands on the same wall as the uncovered oblique
+/// strut. Tilted 2e-9, it refuses in its derivation (`ChartWinding`);
+/// tilted 1e-9 at the second corner, its image derives and only its
+/// certificate refuses (`Envelope`), which an excused face once left
+/// unread. The face is excused only when every refusal is not owed,
+/// and the covered strut's is one of its refusals, so tier 3 names it,
+/// the mint refuses with it, and the reversed body reads the same, in
+/// every order.
+#[test]
+fn an_uncovered_strut_masks_no_refused_certificate() {
+    let (f, _, _) = verdicts(None, None);
+    assert!(f.is_empty(), "the bare wall is clean: {f:?}");
+    for (g, c, tilt) in [(1, 0, 2e-9), (0, 1, 2e-9), (0, 1, 1e-9), (2, 1, 1e-9)] {
+        let mut body = torus_quarter();
+        let (wall, cycle) = torus_wall(&body);
+        let p = start_point(&body, cycle[c]);
+        arc_strut(&mut body, cycle[c], tilted_parallel_through(p, tilt), 0.2);
+        let alone = validate_pcurves(&body, band());
+        assert!(
+            matches!(alone.as_slice(), [e] if certificate_refused(e)),
+            "the control: the tilted parallel alone refuses its certificate: {alone:?}"
+        );
+        let p = start_point(&body, cycle[g]);
+        arc_strut(&mut body, cycle[g], oblique_circle_through(p), 0.2);
+        let f = validate_pcurves(&body, band());
+        assert!(
+            matches!(f.as_slice(), [e] if certificate_refused(e)),
+            "general at {g}, parallel tilted {tilt} at {c}: tier 3 names the certificate: {f:?}"
+        );
+        let mut minted = body.clone();
+        let m = topo::mint_pcurves_of(&mut minted, &[wall], tol());
+        assert!(
+            matches!(&m, Err(e) if certificate_refused(e)),
+            "general at {g}, parallel tilted {tilt} at {c}: the mint refuses with it: {m:?}"
+        );
+        let fr = validate_pcurves(&body.revert().unwrap(), band());
+        assert!(
+            matches!(fr.as_slice(), [e] if certificate_refused(e)),
+            "general at {g}, parallel tilted {tilt} at {c}: reversed, the same verdict: {fr:?}"
+        );
+    }
+}
+
+fn discontinuous(e: &PcurveMintError) -> bool {
+    matches!(
+        e,
+        PcurveMintError::LoopDiscontinuity { .. } | PcurveMintError::LoopNotClosed { .. }
+    )
+}
+
+/// **A single row restated a whole period over is refused at every
+/// cycle position, complete or half-minted, and reversed.** On the
+/// minted cylinder wall of a three-arc boss, one arc row is restated one
+/// period over, its interval and image shifted together, so its ends
+/// still evaluate to its edge's vertices (`RowInterval` reads it equal)
+/// and it certifies. Only the loop's one-branch continuity can see it.
+/// At every row, either shift, and every choice of one other detached
+/// row (or none), tier 3 names a discontinuity: the joint into the
+/// cycle's first half-edge — the wrap — is read as the closure whenever
+/// the chain reaches it, and a gap is carried by the image the mint
+/// would derive there. The reversed body (`Body::revert`) reads the
+/// same.
+///
+/// Adopted from the PCERT delta reviewer's probe on PR 3759, where the
+/// row at cycle position 0 with its successor detached read only the
+/// gap.
+#[test]
+fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
+    let base =
+        crate::common::operands::n_arc_boss::<f64>(geom_core::Point2::new(0.0, 0.0), 3, 0.0, 1.0);
+    let (wall, cycle) = base
+        .faces()
+        .find_map(|(fk, f)| {
+            if !matches!(
+                base.get_surface(f.surface).unwrap(),
+                Surface::Cylinder { .. }
+            ) {
+                return None;
+            }
+            let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
+            else {
+                return None;
+            };
+            Some((fk, base.loop_cycle(first).unwrap()))
+        })
+        .expect("the boss has a cylinder wall");
+    let surface = base
+        .get_surface(base.get_face(wall).unwrap().surface)
+        .unwrap()
+        .clone();
+    let tau = core::f64::consts::TAU;
+    let mut cases = 0;
+    for (i, &h1) in cycle.iter().enumerate() {
+        let edge = base.get_edge(base.get_half_edge(h1).unwrap().edge).unwrap();
+        let carrier = base
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .carrier()
+            .clone();
+        if !matches!(carrier, Curve3::Circle { .. }) {
+            continue;
+        }
+        let cache = base.pcurve(h1).unwrap().clone();
+        let (t0, t1) = cache.params();
+        for shift in [tau, -tau] {
+            let (lo, hi) = (t0 + shift, t1 + shift);
+            for (j, &h2) in cycle.iter().enumerate() {
+                let mut body = base.clone();
+                let image = cache.pcurve().clone();
+                let window = image.chart_box(lo, hi);
+                let row = PcurveCache::certify(image, lo, hi, &carrier, &surface, window, band())
+                    .expect("the row certifies one period over");
+                body.attach_pcurve(h1, row);
+                if j != i {
+                    body.detach_pcurve(h2);
+                }
+                let f = validate_pcurves(&body, band());
+                assert!(
+                    f.iter().any(discontinuous),
+                    "row {i} shifted {shift}, gap {j} (none where {j} = {i}): {f:?}"
+                );
+                let fr = validate_pcurves(&body.revert().unwrap(), band());
+                assert!(
+                    fr.iter().any(discontinuous),
+                    "row {i} shifted {shift}, gap {j}, reversed: {fr:?}"
+                );
+                cases += 1;
+            }
+        }
+    }
+    assert!(
+        cases >= 16,
+        "the boss wall has arc rows to shift: {cases} cases"
+    );
+}
