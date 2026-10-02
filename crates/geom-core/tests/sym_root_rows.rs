@@ -782,3 +782,36 @@ fn decide9_review_probes() {
 fn label_of(out: Result<Sign, geom_core::predicate::Indeterminate>, c: SymCounts) -> String {
     format!("{} {c:?}", label(out, c))
 }
+
+/// DECIDE-9 review probe: the spec's suspected shape, a read at a node
+/// ahead of a cancellation ABOVE it. `x + Z` and `x` are distinct nodes
+/// whose early forms are equal (`Z` is zero under rule A only), so with
+/// the read shut their `max` atoms are keyed alike and cancel; with it
+/// on, each `max` is read at its own node first.
+#[test]
+fn decide9_review_read_ahead_of_a_cancellation_above() {
+    fn z(x: Sym<Interval>) -> Sym<Interval> {
+        x.sqrt().powi(2) - x
+    }
+    type Probe = (&'static str, fn() -> Sym<Interval>);
+    let probes: [Probe; 3] = [
+        ("max(x + Z, 3) - max(x, 3)", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)) - x.max(lit(3.0))
+        }),
+        ("min(x + Z, 3) - min(x, 3)", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).min(lit(3.0)) - x.min(lit(3.0))
+        }),
+        ("max(x + Z, y) - max(x, y)", || {
+            let x = over("x", 1.0, 2.0);
+            let y = over("y", 3.0, 4.0);
+            (x + z(x)).max(y) - x.max(y)
+        }),
+    ];
+    for (what, build) in probes {
+        let on = row(what, how(SymRules::shipped(), build));
+        let off = row(what, how(SymRules::without_the_reads(), build));
+        println!("PROBE-ABOVE {what}: shipped={on} | read shut={off}");
+    }
+}
