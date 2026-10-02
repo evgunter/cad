@@ -2,12 +2,14 @@
 id: JOIN-1
 kind: unit
 title: A section germ names the cell it lies in (OnEdge or InFace) per operand, and the join matches on it
-status: spec
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
 branch: join/1-germ-locus
 refs: [an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired, blind-d-pocket-subtract-refuses-with-join-internal-words, closed-in-face-section-loop-has-one-site, dumbbell-joint-union-leaves-four-loose-ends]
+closed: 2026-10-02
+pr: 3790
 ---
 
 
@@ -114,3 +116,10 @@ scenes C and D, through the join.
 - **One home for the strut facing rule.** `insert::strut_facing` decides which half of a strut faces which germ, from the germs' own locus edges. Both strut minters, `insert`'s spike order and `vtxfac`'s pierce struts, read it. Germs that name opposite facings refuse with `ClassificationInvariant`.
 - **The interior-loop guard's event pairs** (`ops::event_pairs`) read the faces around a contact vertex together with its null-edge copies. Which copy keeps a face's corner is the scaffolding's choice. Without this, main's dome-on-rim rows, which the join now builds, had their sphere × disc pair misread as no event.
 - **One operand check for the suites:** `sweep::test_support::assert_legal_operand`.
+
+## Closed 2026-10-02 — PR 3790
+
+Merged after a dual review, three fix passes, two delta reviews and a
+narrow review (`work/join/log.md`). The single-site loop's surgery stays
+open on `closed-in-face-section-loop-has-one-site`, which refuses typed
+(`SingleSiteSectionLoop`) until it is built.
