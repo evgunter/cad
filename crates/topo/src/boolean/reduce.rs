@@ -4740,6 +4740,7 @@ mod clearance_rows {
     use core::f64::consts::FRAC_PI_2;
 
     use super::conic_clearance;
+    use crate::boolean::ellipse_roots::oracle::unit;
     use geom_core::{Band, Point3, Sign, Vec3};
     use test_utils::fuzz;
 
@@ -4796,19 +4797,6 @@ mod clearance_rows {
         );
     }
 
-    fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
-        loop {
-            let v = Vec3::new(
-                rng.range(-1.0, 1.0),
-                rng.range(-1.0, 1.0),
-                rng.range(-1.0, 1.0),
-            );
-            if v.norm() > 0.2 && v.norm() < 1.0 {
-                return v.normalize();
-            }
-        }
-    }
-
     /// **No certified clearance on a graze, through the rung.** Circles,
     /// and ellipses in all eight stored orders and signs (eccentricity
     /// up to 40), metre- or kilometre-sized, centred up to a metre, a
@@ -4853,7 +4841,7 @@ mod clearance_rows {
                 if !circle && combo & 4 != 0 {
                     minor = -minor;
                 }
-                let far = [1.0, 1e3, 1e6][usize::try_from(rng.below(3)).unwrap()];
+                let far = [1.0, 1e3, 1e6][rng.below(3)];
                 let center = Point3::new(
                     rng.range(-far, far),
                     rng.range(-far, far),

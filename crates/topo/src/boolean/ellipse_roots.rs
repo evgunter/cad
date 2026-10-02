@@ -74,7 +74,6 @@ const fn ladder_rows(decision: BooleanDecision) -> HalfAngleRows {
         pole: "bool_ellipse_pole",
         conditioning: "bool_ellipse_pole_conditioning",
         noise: "bool_ellipse_ladder_noise",
-        root_slack: "bool_ellipse_ladder_root_slack",
         quartic: QuarticRows {
             disc: "bool_ellipse_disc",
             shape: "bool_ellipse_shape",
@@ -187,6 +186,56 @@ pub(super) fn ellipse_roots<T: Decide>(
 }
 
 #[cfg(test)]
+pub(super) mod oracle {
+    //! The test oracles the boolean's conic rows share: a random unit
+    //! vector, the TRUE signed distance from a sphere or a wall, and the
+    //! sign changes along a sampled function.
+
+    use geom_core::{Point3, Vec3};
+    use test_utils::fuzz;
+
+    /// A uniformly drawn unit vector, away from the degenerate short
+    /// ones.
+    pub(in crate::boolean) fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
+        loop {
+            let v = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            if v.norm() > 0.2 && v.norm() < 1.0 {
+                return v.normalize();
+            }
+        }
+    }
+
+    /// The true signed distance of `p` from a sphere or a cylinder wall.
+    pub(in crate::boolean) fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
+        match *s {
+            geom::Surface::Sphere { center, radius, .. } => (p - center).norm() - radius,
+            geom::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => {
+                let w = p - origin;
+                (w - axis * w.dot(axis)).norm() - radius
+            }
+            _ => unreachable!("the oracle reads spheres and walls"),
+        }
+    }
+
+    /// How many times consecutive samples change sign.
+    pub(in crate::boolean) fn sign_changes(samples: &[f64]) -> usize {
+        samples
+            .windows(2)
+            .filter(|w| (w[0] < 0.0) != (w[1] < 0.0))
+            .count()
+    }
+}
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     //! Each pose is checked against the geometry, not the door's own
@@ -196,6 +245,7 @@ mod tests {
 
     use core::f64::consts::{PI, TAU};
 
+    use super::oracle::distance;
     use super::*;
     use geom_core::{Point3, Tol, Vec3};
 
@@ -233,23 +283,6 @@ mod tests {
             axis,
             radius: r,
             u_ref: (x - axis * x.dot(axis)).normalize(),
-        }
-    }
-
-    /// The true signed distance of `p` from the surface.
-    fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
-        match *s {
-            geom::Surface::Sphere { center, radius, .. } => (p - center).norm() - radius,
-            geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => {
-                let w = p - origin;
-                (w - axis * w.dot(axis)).norm() - radius
-            }
-            _ => unreachable!(),
         }
     }
 
@@ -609,38 +642,10 @@ mod fuzz_rows {
 
     use core::f64::consts::{PI, TAU};
 
+    use super::oracle::{distance, sign_changes, unit};
     use super::*;
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
-
-    fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
-        loop {
-            let v = Vec3::new(
-                rng.range(-1.0, 1.0),
-                rng.range(-1.0, 1.0),
-                rng.range(-1.0, 1.0),
-            );
-            if v.norm() > 0.2 && v.norm() < 1.0 {
-                return v.normalize();
-            }
-        }
-    }
-
-    fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
-        match *s {
-            geom::Surface::Sphere { center, radius, .. } => (p - center).norm() - radius,
-            geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => {
-                let w = p - origin;
-                (w - axis * w.dot(axis)).norm() - radius
-            }
-            _ => unreachable!(),
-        }
-    }
 
     /// **Every certified answer is true of the geometry.** For random
     /// ellipses (semi-axes 0.5–5 mm, eccentricity up to 25, any stored
@@ -732,10 +737,7 @@ mod fuzz_rows {
                 let samples: Vec<f64> = (0..=dense)
                     .map(|k| distance(&s, e.eval(mid - PI + TAU * f64::from(k) / f64::from(dense))))
                     .collect();
-                let changes = samples
-                    .windows(2)
-                    .filter(|w| w[0].signum() != w[1].signum())
-                    .count();
+                let changes = sign_changes(&samples);
                 let closest = samples.iter().fold(f64::INFINITY, |m, d| m.min(d.abs()));
                 let label = format!(
                     "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
@@ -782,23 +784,11 @@ mod graze_rows {
 
     use core::f64::consts::FRAC_PI_2;
 
+    use super::oracle::{distance, unit};
     use super::*;
     use crate::boolean::circle_cylinder::circle_cylinder_roots;
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
-
-    fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
-        loop {
-            let v = Vec3::new(
-                rng.range(-1.0, 1.0),
-                rng.range(-1.0, 1.0),
-                rng.range(-1.0, 1.0),
-            );
-            if v.norm() > 0.2 && v.norm() < 1.0 {
-                return v.normalize();
-            }
-        }
-    }
 
     /// **A negative `major` is charged at its magnitude, at a metre and a
     /// kilometre out.** The graze fuzz's counterexample on the signed
@@ -996,19 +986,7 @@ mod graze_rows {
                 } else {
                     ellipse_roots(&e, t0, t1, &s, band)
                 };
-                let distance = |q: Point3<f64>| match s {
-                    geom::Surface::Sphere { center, radius, .. } => (q - center).norm() - radius,
-                    geom::Surface::Cylinder {
-                        origin,
-                        axis,
-                        radius,
-                        ..
-                    } => {
-                        let w = q - origin;
-                        (w - axis * w.dot(axis)).norm() - radius
-                    }
-                    _ => unreachable!(),
-                };
+                let distance = |q: Point3<f64>| distance(&s, q);
                 let label = format!(
                     "ε {eps}, case {i}: gap {gap:e}, osculating {osculating}, {e:?} against {s:?} — {}",
                     fuzz::replay()

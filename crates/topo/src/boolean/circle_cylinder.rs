@@ -66,7 +66,6 @@ const CIRCLE_CYLINDER_LADDER_ROWS: HalfAngleRows = HalfAngleRows {
     pole: "bool_circle_cylinder_pole",
     conditioning: "bool_circle_cylinder_pole_conditioning",
     noise: "bool_circle_cylinder_ladder_noise",
-    root_slack: "bool_circle_cylinder_ladder_root_slack",
     quartic: QuarticRows {
         disc: "bool_circle_cylinder_disc",
         shape: "bool_circle_cylinder_shape",

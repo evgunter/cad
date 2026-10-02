@@ -55,3 +55,20 @@ assume `major ≥ minor` is owed either way.
 
 Track P. `crates/topo/src/validate.rs` (check 1); `crates/geom/src/curves.rs`
 is `props` ground.
+
+## Consumer sweep (REACH, PR 3805)
+
+The readers that took a stored semi-axis as ordered or signed now read
+magnitudes (`min(|major|, |minor|)` for a floor, `max` for a reach),
+which is `minor`/`major` exactly for a frame in the ordinary order:
+
+- `geom_brep::certify::edge_extent` (the second reader above) — fixed;
+- `geom_brep::certify`'s ellipse span meter (`InfSpeed::new(minor)`) and
+  `geom_brep::pcurve_cache::param_rate` — fixed;
+- `editor_core::eval::measure::curve_reach` (`from(center) + major`) —
+  fixed, with a row over every stored order and sign;
+- `topo::replace_face::pose_reach` and `geom_brep::implicit`'s harmonics
+  and bounds (`Conic::speed_lo`/`speed_hi`) — fixed earlier in the PR.
+
+The ordering itself is still decided only by the constructor; this
+item's question (whether tier 3 should decide it) is unchanged.

@@ -18,8 +18,9 @@
 //! (bicircular) torus pass. At most four crossings per turn.
 //!
 //! The ladder's rows here are `bool_circle_torus_pole`, `_conditioning`,
-//! `_noise`, `_root_slack` and the quartic's `bool_circle_torus_*`, and
-//! every in-band sign escalates as [`BooleanDecision::ArcTorusRoots`].
+//! `_noise` and the quartic's `bool_circle_torus_*`, and every in-band
+//! sign escalates as [`BooleanDecision::ArcTorusRoots`]; the answer is
+//! the certified subdivision's (`bool_circle_torus_sub_*`).
 //!
 //! # The noise meter's floor, and what it costs
 //!
@@ -36,12 +37,15 @@
 //! amplification, and the ladder's in-band answers are a known gap
 //! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 //!
-//! **What the meter costs, measured.** Against a torus `R = 1,
-//! r = 0.25` at the default band, grazing circles at `ρ = 10` are
-//! answered (the shallowest grazes refuse on their root slack), and from
-//! `ρ = 30` every one refuses — where the unmetered door certified
-//! misses on real dips and phantom pairs on clearances from `ρ = 100`.
-//! The threshold scales as `ρ⁴ ≲ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`.
+//! **What the noise costs.** Measured when the ladder answered: against
+//! a torus `R = 1, r = 0.25` at the default band, grazing circles at
+//! `ρ = 10` were answered and from `ρ = 30` every one refused — where
+//! the unmetered door had certified misses on real dips and phantom
+//! pairs on clearances from `ρ = 100`. The threshold scales as
+//! `ρ⁴ ≲ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`. The meter now only keeps the
+//! ladder from running past it; the subdivision charges the same noise
+//! to every Taylor term, so such a pose answers `Uncertain` there
+//! (`a_large_circles_dip_below_its_own_noise_is_not_certified_away`).
 //!
 //! # The lever
 //!
@@ -106,7 +110,6 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
     pole: "bool_circle_torus_pole",
     conditioning: "bool_circle_torus_pole_conditioning",
     noise: "bool_circle_torus_noise",
-    root_slack: "bool_circle_torus_root_slack",
     quartic: QuarticRows {
         disc: "bool_circle_torus_disc",
         shape: "bool_circle_torus_shape",

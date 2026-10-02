@@ -189,12 +189,9 @@ pub(super) struct HalfAngleRows {
     pub(super) pole: &'static str,
     /// The pole is well conditioned (module docs; metres).
     pub(super) conditioning: &'static str,
-    /// The harmonics' rounding, as a residual, is inside the band (the
-    /// noise meter; metres).
+    /// The harmonics' rounding, as a residual, is past the band, and the
+    /// ladder does not run (the noise meter; metres).
     pub(super) noise: &'static str,
-    /// Each root's position uncertainty, as arc length, is inside the
-    /// band (metres).
-    pub(super) root_slack: &'static str,
     /// The quartic ladder's own rows.
     pub(super) quartic: QuarticRows,
     /// The certified subdivision's rows ([`certified_subdivision`]).
@@ -275,9 +272,9 @@ pub(super) fn half_angle_roots<T: Decide>(
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
-/// (module docs, "The half-angle ladder, and the subdivision that answers"). Only its escalations (the
-/// `Err`) are returned; every answer it reaches — a count, roots, a
-/// `Miss`, `CountDisagrees` — is dropped, and [`certified_subdivision`]
+/// (module docs, "The half-angle ladder, and the subdivision that
+/// answers"). It answers nothing but an escalation (the `Err`): its
+/// quartic's count and roots are not read, and [`certified_subdivision`]
 /// decides the roots in the residual's own metres.
 #[allow(clippy::too_many_lines)] // the anchor search and the quartic, one walk
 fn ladder_roots<T: Decide>(
@@ -286,25 +283,26 @@ fn ladder_roots<T: Decide>(
     frame: &HalfAngleFrame<T>,
     rows: &HalfAngleRows,
     band: Band,
-) -> Result<CircleRoots<T>, BooleanError> {
+) -> Result<(), BooleanError> {
     let HalfAngleFrame {
         t0,
         t1,
         speed_lo,
-        speed_hi,
         lever,
         noise,
         f_per_metre,
+        ..
     } = *frame;
-    // **The noise meter** (module docs, "The harmonics' noise"): it bounds the harmonics'
-    // evaluation error, `noise`, a residual error of up to
-    // `noise / f_per_metre` metres everywhere on the carrier, and refuses
-    // when that is definitely past the band's escalation threshold. The
-    // stages after it (rotation, pole division, rescale, depression,
+    // **The noise meter** (module docs, "The harmonics' noise"): where
+    // the harmonics' evaluation error, `noise / f_per_metre` metres, is
+    // definitely past the band's escalation threshold, the ladder does
+    // not run, so it cannot escalate on its own rounding; the
+    // subdivision, which charges that noise, answers alone. The stages
+    // after it (rotation, pole division, rescale, depression,
     // discriminant) round again; those are left to the ladder's own band
     // decisions, which is the premise the module docs state.
     match decide(rows.noise, Margin::of(noise / f_per_metre), band) {
-        Ok(Sign::Positive) => return Ok(CircleRoots::Uncertain),
+        Ok(Sign::Positive) => return Ok(()),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
     }
     let two = T::from_f64(2.0);
@@ -370,51 +368,21 @@ fn ladder_roots<T: Decide>(
         let d1 = scale.powi(3) * a[1] / lead;
         let e0 = scale.powi(4) * a[0] / lead;
         // Depress by `τ = y − B/4`.
-        let shift_y = b3 / four;
         let p = c2m - T::from_f64(3.0) * b3.powi(2) / T::from_f64(8.0);
         let q = d1 - b3 * c2m / two + b3.powi(3) / T::from_f64(8.0);
         let s = e0 - b3 * d1 / four + b3.powi(2) * c2m / T::from_f64(16.0)
             - T::from_f64(3.0) * b3.powi(4) / T::from_f64(256.0);
-        return Ok(
-            match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band).map_err(|diag| {
-                BooleanError::Escalated {
-                    decision: rows.decision,
-                    diag,
-                }
-            })? {
-                TorusRoots::Miss => CircleRoots::Miss,
-                TorusRoots::Uncertain => CircleRoots::Uncertain,
-                TorusRoots::CountDisagrees => CircleRoots::CountDisagrees,
-                TorusRoots::Certified { count, ts: ys } => {
-                    let mut thetas = [T::zero(); 4];
-                    for (theta, y) in thetas.iter_mut().zip(ys).take(count) {
-                        // Reported within `π` of the arc's midpoint, so a
-                        // caller compares it with `[t0, t1]` directly.
-                        let raw = anchor + two * ((y - shift_y) / scale).atan();
-                        *theta = mid + (raw - mid).reduce_periodic_centred(T::tau());
-                        // **Where the root is, not just that it is.** The
-                        // true root lies within `noise / |F′|` radians of
-                        // the computed one; that arc length must be inside
-                        // the band, or the span and trim decisions a
-                        // caller makes on the point are on the wrong point.
-                        let (s1t, c1t) = theta.sin_cos();
-                        let (s2t, c2t) = (two * *theta).sin_cos();
-                        let slope = f.s1 * c1t - f.c1 * s1t + two * (f.s2 * c2t - f.c2 * s2t);
-                        match decide(
-                            rows.root_slack,
-                            Margin::of(speed_hi * noise / slope.abs()),
-                            band,
-                        ) {
-                            Ok(Sign::Positive) => return Ok(CircleRoots::Uncertain),
-                            Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
-                        }
-                    }
-                    CircleRoots::Certified { count, thetas }
-                }
-            },
-        );
+        // Its answer is not read (the subdivision answers); an in-band
+        // sign it meets is the door's escalation.
+        depressed_quartic_roots(p, q, s, lever, &rows.quartic, band).map_err(|diag| {
+            BooleanError::Escalated {
+                decision: rows.decision,
+                diag,
+            }
+        })?;
+        return Ok(());
     }
-    Ok(CircleRoots::Uncertain)
+    Ok(())
 }
 
 /// The pieces the whole turn is cut into before [`certified_subdivision`]
@@ -434,13 +402,16 @@ const SUBDIVISION_BUDGET: usize = 4096;
 /// was DECIDED, so any share in `(0, 1)` keeps the walk sound. The values
 /// are chosen for what they avoid and for what they bound:
 ///
-/// - **None is `1/2`, and the first is irrational.** A pose symmetric
-///   about the arc — a graze at a vertex, a wall square to an axis — puts
-///   its root or its tangency at the arc's midpoint, or a dyadic share of
-///   the turn from it: exactly where sixteenths from `mid − π` and halving
-///   splits would land, and where a sign reads in the band. The first
-///   share is `2√5 − 4 = 2/φ³ ≈ 0.4721`, irrational, so no point it
-///   places is a dyadic share of the turn from the midpoint. The rest are
+/// - **None is `1/2`, and the first is no short fraction.** A pose
+///   symmetric about the arc — a graze at a vertex, a wall square to an
+///   axis — puts its root or its tangency at the arc's midpoint, or a
+///   short dyadic share `j/2ᵐ` of the turn from it: exactly where
+///   sixteenths from `mid − π` and halving splits would land, and where
+///   a sign reads in the band. The first share is the `f64` nearest
+///   `2√5 − 4 = 2/φ³ ≈ 0.4721`. That number is irrational; the stored
+///   value is a dyadic rational like every `f64`, but one with a 53-bit
+///   denominator, so the points it places are no short dyadic share of
+///   the turn from the midpoint. The rest are
 ///   fallbacks, distinct and spread across the piece, so that a share
 ///   whose point reads in the band is followed by one away from it.
 /// - **Each lies in `[0.12, 0.88]`**, so a split leaves each part at most
@@ -800,10 +771,12 @@ mod subdivision_guard_rows {
     //! where that guard is the only thing between the walk and a wrong
     //! answer. The harmonics and the residual are given separately — the
     //! harmonics standing in for rounded ones, the residual for the true
-    //! one — because no physical pose the doors take puts the harmonics'
-    //! actual rounding, or a residual's resolution, near the band: the
-    //! guards hold the contract the noise charge and the residual
-    //! promise, and these rows are where that contract is exercised.
+    //! one. Physical poses do put the rounding near the band (metre-scale
+    //! carriers against micrometre balls at ε = 1e-12, which is why the
+    //! noise is charged at all), but none the graze fuzz drew made one of
+    //! these guards the ONLY thing deciding: there the charged noise
+    //! refuses first, or the residual's sign changes are clean. These
+    //! rows are where each guard is exercised alone.
 
     use core::f64::consts::PI;
 
@@ -844,16 +817,11 @@ mod subdivision_guard_rows {
     /// The residual's sign changes round the turn, read on a grid fine
     /// enough for the residuals below.
     fn sign_changes(residual: &impl Fn(f64) -> f64) -> usize {
-        let n = 200_000;
-        let at = |k: usize| {
-            residual(
-                -PI + 2.0 * PI * f64::from(u32::try_from(k).unwrap())
-                    / f64::from(u32::try_from(n).unwrap()),
-            )
-        };
-        (0..n)
-            .filter(|&k| (at(k) < 0.0) != (at(k + 1) < 0.0))
-            .count()
+        let n = 200_000_u32;
+        let samples: Vec<f64> = (0..=n)
+            .map(|k| residual(-PI + 2.0 * PI * f64::from(k) / f64::from(n)))
+            .collect();
+        crate::boolean::ellipse_roots::oracle::sign_changes(&samples)
     }
 
     fn sine(s1: f64) -> Harmonics<f64> {

@@ -588,10 +588,16 @@ fn arc_sample<T: Real>(t0: T, t1: T, k: usize) -> T {
 /// harmonic in `θ` — which is what makes every residual below a
 /// trigonometric polynomial against a plane, a sphere or a cylinder.
 ///
-/// **The stored semi-axes carry no order and no sign.** The mint
-/// certifies an ellipse stored with `minor > major`, and one with a
-/// negative `major` and its `u_ref` flipped (`loop_winding`'s conic
-/// term reads them the same way), so nothing here assumes either: the
+/// **The stored semi-axes carry no order and no sign.** Three doors
+/// speak of them, and only the first decides both: the constructor
+/// `geom::Curve3::ellipse` refuses unless `major > minor > 0`; tier 3
+/// (`geom::Curve3::representability_margins`) certifies each positive
+/// but not their order, so an ellipse stored with `minor > major`
+/// passes it; and a struct literal, or a carrier re-minted through
+/// `Body::set_edge_curve`, checks neither, so a negative semi-axis with
+/// its `u_ref` flipped (the same locus) reaches a reader too
+/// (`loop_winding`'s conic term reads them the same way). Nothing here
+/// assumes either: the
 /// harmonic algebra is sign-general (it reads the vectors `major·û` and
 /// `minor·v̂`), and every bound reads the MAGNITUDES through
 /// [`Conic::speed_lo`] and [`Conic::speed_hi`]:
