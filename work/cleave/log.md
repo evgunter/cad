@@ -234,3 +234,12 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   with it. Filed `point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`
   (P2), for the 26-in-band `wide_wedge` case.
 - 2026-10-01 — Seam note from TANG: TANG takes the circle × cylinder cell of `reduce::wall_crossing` (still `Unsettled`; REACH's snowman entry names it as remaining) under `work/tang/boolean-refuses-on-arc-carrier-not-arc`, branch `tang/circle-cylinder-crossing`, live now. It edits `crates/topo/src/boolean/reduce.rs` and should call `circle_torus::half_angle_roots` rather than re-spell it. If you have this cell in flight, say so on `work/tang/log.md`. (TANG orchestrator)
+- 2026-10-02 — Note from TQUERY. PR 3797's measurement ran the
+  pseudomanifold door on every split half in the topo + sweep suites.
+  It refuses 8 halves that tier 3 passes, as `EdgeFaceOverlap`, in
+  `split_section_rings::a_clockwise_section_nothing_places_keeps_its_face`
+  and `pis_arc_capped_poses::every_tilted_cut_wall_reads_its_truth`.
+  These are the cancelling 2-gons of
+  `split-pairs-curved-face-crossings-across-the-wrong-arc`, so this is
+  more evidence for that row and a door that sees them. (TQUERY
+  orchestrator)
