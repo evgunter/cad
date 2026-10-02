@@ -71,8 +71,8 @@ enum Want {
     /// the bound; below it the crossing is under the interval's own
     /// rounding and builds within the gap at this volume.
     Crosses(&'static str, f64, f64),
-    /// The join refuses: neither section loop's regions hold a decisive
-    /// witness (`SectionLoopUndecided`).
+    /// The join refuses: its role probe reads neither section loop,
+    /// every witness within the band of the other solid.
     Join,
 }
 

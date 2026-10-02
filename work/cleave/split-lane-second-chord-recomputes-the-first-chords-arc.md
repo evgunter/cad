@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-refs: [blind-d-pocket-subtract-refuses-with-join-internal-words, pierce-ring-has-no-join-arm]
+refs: [JOIN-3, pierce-ring-has-no-join-arm]
 ---
 
 

@@ -8,6 +8,23 @@ priority: P1
 cost: H
 branch: join/3-segment-curve
 refs: [JOIN-1, blind-d-pocket-subtract-refuses-with-join-internal-words]
+pr: 3895
 ---
 
 Spec: `docs/JOIN-3-SPEC.md`. Carries the second defect of `blind-d-pocket-subtract-refuses-with-join-internal-words`.
+
+## Built
+
+PR 3895. A boolean match computes its segment's chord curve once
+(`chord_join::SegmentCurve`, `ChordJoiner::segment_curve`), from the
+end and against the run the joiner's first chord is minted with; the
+joiner mints both chords on it (`Chords::Segment`), and the ring lane
+closes its run with it (`loop_winding::RunClosing`). The blind D pocket
+builds from both faces at `4 − 0.5·A_D` (`## Built (JOIN-3)` on the
+carried item). Halves either side of their segment's own edge are
+ordered structurally: either order mints the same one chord, a sliver
+no winding orients. The wall pierce rings' second chords no longer ask
+a window of an empty run, which moved TANG's ring door
+(`work/tang/pierce-ring-has-no-join-arm`, `## Measured (JOIN-3)`).
+The split lane keeps its per-chord computation
+(`work/cleave/split-lane-second-chord-recomputes-the-first-chords-arc`).

@@ -256,12 +256,18 @@ fn mint_directed<T: Decide>(
         let mate = body.mate(sectors[gf.0].he).ok_or_else(corrupt)?;
         let departure_he = body.get_half_edge(mate).ok_or_else(corrupt)?.next;
         let departure = body.get_half_edge(departure_he).ok_or_else(corrupt)?.edge;
-        strut_facing(
+        // A germ inside a face, or along a closed edge at its lone
+        // vertex, falls through to the angular reading below.
+        match strut_facing(
             arrival,
             departure,
             own_locus_edge(operand, gf.2),
             own_locus_edge(operand, gt.2),
-        )?
+        )? {
+            StrutFacing::PlusFirst => Some(true),
+            StrutFacing::MinusFirst => Some(false),
+            StrutFacing::Unnamed | StrutFacing::ClosedEdge => None,
+        }
     } else {
         None
     };
@@ -325,6 +331,23 @@ pub(super) fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeK
     }
 }
 
+/// What a strut's corner edges say about which half faces which germ
+/// ([`strut_facing`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum StrutFacing {
+    /// `he_plus` faces the first germ and `he_minus` the second.
+    PlusFirst,
+    /// `he_minus` faces the first germ and `he_plus` the second.
+    MinusFirst,
+    /// Neither germ runs along the corner's edges: the edges name no
+    /// facing.
+    Unnamed,
+    /// The corner's two edges are one closed edge (its lone vertex) and
+    /// a germ runs along it: the germ leaves along one end of that edge
+    /// and arrives along the other, so the edge key names no half.
+    ClosedEdge,
+}
+
 /// **Which half of a strut faces which germ, where a germ runs along an
 /// edge of its own solid.** A strut splices its halves
 /// `[he_plus, he_minus]` into its corner between the arrival half and
@@ -333,38 +356,44 @@ pub(super) fn own_locus_edge(operand: Operand, (_, loci): Cells) -> Option<EdgeK
 /// own locus edge is the half that faces it — an angular reading would
 /// meet such a germ exactly ON its comparison's bound.
 ///
-/// `Some(true)`: `he_plus` faces `first` and `he_minus` `second`;
-/// `Some(false)`: the reverse; `None`: no germ runs along the corner's
-/// edges, or the corner's two edges are one (a closed edge's lone
-/// vertex), so the edges tell the halves apart for neither germ, and the
-/// caller reads the facing another way. Two germs whose edges name
-/// opposite facings are no strut the classification mints: refused.
+/// Each germ along one of the two edges is a vote; the votes must
+/// agree, and two that name opposite facings are no strut the
+/// classification mints: refused. A germ inside a face casts none
+/// ([`StrutFacing::Unnamed`] when neither votes), and at a closed
+/// edge's lone vertex the edge key cannot say which end a germ along it
+/// runs from ([`StrutFacing::ClosedEdge`]); each caller states what it
+/// does then.
 pub(super) fn strut_facing(
     arrival: EdgeKey,
     departure: EdgeKey,
     first: Option<EdgeKey>,
     second: Option<EdgeKey>,
-) -> Result<Option<bool>, BooleanError> {
+) -> Result<StrutFacing, BooleanError> {
     if arrival == departure {
-        return Ok(None);
+        let along = first == Some(arrival) || second == Some(arrival);
+        return Ok(if along {
+            StrutFacing::ClosedEdge
+        } else {
+            StrutFacing::Unnamed
+        });
     }
     let mut votes = [
-        (first == Some(arrival)).then_some(true),
-        (first == Some(departure)).then_some(false),
-        (second == Some(departure)).then_some(true),
-        (second == Some(arrival)).then_some(false),
+        (first == Some(arrival)).then_some(StrutFacing::PlusFirst),
+        (first == Some(departure)).then_some(StrutFacing::MinusFirst),
+        (second == Some(departure)).then_some(StrutFacing::PlusFirst),
+        (second == Some(arrival)).then_some(StrutFacing::MinusFirst),
     ]
     .into_iter()
     .flatten();
     let Some(facing) = votes.next() else {
-        return Ok(None);
+        return Ok(StrutFacing::Unnamed);
     };
     if votes.any(|v| v != facing) {
         return Err(BooleanError::ClassificationInvariant {
             what: "a strut's germs run along its corner's edges in contradictory order",
         });
     }
-    Ok(Some(facing))
+    Ok(facing)
 }
 
 /// The unit direction of an orbit half-edge away from its start
@@ -691,6 +720,63 @@ fn mint_run<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **`strut_facing`'s vote table.** `he_plus` lies beside the
+    /// arrival edge and `he_minus` beside the departure edge, so each
+    /// germ along one of them votes for the facing that puts the half
+    /// beside it toward it; agreeing votes stand, a contradiction
+    /// refuses, no vote is `Unnamed`, and one closed edge on both sides
+    /// with a germ along it is `ClosedEdge`.
+    #[test]
+    fn strut_facing_reads_the_corner_edges() {
+        use StrutFacing::{ClosedEdge, MinusFirst, PlusFirst, Unnamed};
+        let mut keys = slotmap::SlotMap::<EdgeKey, ()>::with_key();
+        let (arr, dep, other) = (keys.insert(()), keys.insert(()), keys.insert(()));
+        let f = |first, second| strut_facing(arr, dep, first, second);
+        // Each single vote.
+        assert_eq!(
+            f(Some(arr), None).unwrap(),
+            PlusFirst,
+            "first along arrival"
+        );
+        assert_eq!(
+            f(Some(dep), None).unwrap(),
+            MinusFirst,
+            "first along departure"
+        );
+        assert_eq!(
+            f(None, Some(dep)).unwrap(),
+            PlusFirst,
+            "second along departure"
+        );
+        assert_eq!(
+            f(None, Some(arr)).unwrap(),
+            MinusFirst,
+            "second along arrival"
+        );
+        // Agreeing pairs.
+        assert_eq!(f(Some(arr), Some(dep)).unwrap(), PlusFirst);
+        assert_eq!(f(Some(dep), Some(arr)).unwrap(), MinusFirst);
+        // No vote: germs inside faces, or along an edge off the corner.
+        assert_eq!(f(None, None).unwrap(), Unnamed);
+        assert_eq!(f(Some(other), Some(other)).unwrap(), Unnamed);
+        // Contradictions refuse.
+        for (first, second) in [(Some(arr), Some(arr)), (Some(dep), Some(dep))] {
+            assert!(
+                matches!(
+                    f(first, second),
+                    Err(BooleanError::ClassificationInvariant { .. })
+                ),
+                "{first:?} {second:?}"
+            );
+        }
+        // A closed edge's lone vertex.
+        let closed = |first, second| strut_facing(arr, arr, first, second).unwrap();
+        assert_eq!(closed(Some(arr), None), ClosedEdge);
+        assert_eq!(closed(None, Some(arr)), ClosedEdge);
+        assert_eq!(closed(None, None), Unnamed);
+        assert_eq!(closed(Some(other), None), Unnamed);
+    }
 
     /// The survivor-validation invariants: odd counts and dirty codes
     /// refuse loudly (unit-level; the geometric paths are pinned by the

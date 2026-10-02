@@ -77,6 +77,8 @@ mod bool4r2_probes;
 mod boolean_covered;
 #[path = "boolean_discards.rs"]
 mod boolean_discards;
+#[path = "boolean_pinch_copies.rs"]
+mod boolean_pinch_copies;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
