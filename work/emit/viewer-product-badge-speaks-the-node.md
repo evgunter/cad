@@ -2,9 +2,10 @@
 id: viewer-product-badge-speaks-the-node
 kind: unit
 title: The product badge and the scene's NoProduct speak the gather's refusal from the session's document
-status: review
+status: closed
 pr: 3806
 opened: 2026-10-02
+closed: 2026-10-02
 priority: P3
 cost: E
 parent: node-labels-are-document-data

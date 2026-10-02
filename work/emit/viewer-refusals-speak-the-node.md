@@ -2,9 +2,10 @@
 id: viewer-refusals-speak-the-node
 kind: unit
 title: The viewer's own refusal types speak the node with its label, built where the frame owns the document
-status: review
+status: closed
 pr: 3806
 opened: 2026-10-01
+closed: 2026-10-02
 priority: P2
 cost: M
 parent: node-labels-are-document-data
