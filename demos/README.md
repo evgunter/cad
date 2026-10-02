@@ -59,6 +59,7 @@ page is mostly about.
 | `budfillet` | the *Calochortus* bud as a bored solid of revolution, with three arms of the coaxial curved-support family rolled in ONE `fillet_edges` call: sphere×cone at the mouth, cone×plane at the lip, cylinder×plane at the bore's base. Off the sheet on its own stated grounds — at montage scale the fillets barely move the silhouette, so the evidence is numbers a picture cannot fake |
 | `tiltedcut` | a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r); the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and the volume is a **certified quadrature enclosure** asserted to bracket πr²H/2 per half |
 | `bossplate` | a three-arc cylindrical boss unioned into a plate — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge, the claim no other scene makes |
+| `snowman` | **two coaxial balls of revolution under every boolean, and the union's waist rolled**: a 0.3 ball below and a 0.2 head above, centres 0.4 apart, each one `revolve` of a semicircle sketched in one plane. Four bodies in one cell under one camera: the union with its waist `fillet_edges`-rolled at r = 0.05 into an exact TORUS band (`BlendArm::SphereSphereTorus` — the ball rides at R + r from both centres, so the spine is a level circle), the plain union beside it, the bottom ball with the head subtracted (a spherical bite), and the lens they share. Every volume meets a closed form to a relative 1e-12 (the radii are a person's, so none is bit-exact): the two caps the radical plane cuts, and for the rolled union the band's ΔV by Pappus on its meridian section, `π∮ρ²dy` over three arcs. The waist is selected BY DESCRIPTION, and the description is ambiguous: `(Sphere, Sphere)` names the waist arcs and every seam meridian of both balls, and with no crease or convexity atom (GS-Q2) the scene separates them through `rim_of`'s `CoSurface` refusal — filed as `tquery/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam`. Coaxial is what a snowman is and what builds; the scene's tests pin the poses beside it under every op — a head moved 0.05 off the axis along x or z refuses `SectionNotPolar` (`reach/tilted-sphere-pair-section-refuses-at-the-polar-gate`), and one spun 0.9 rad about it refuses `SectionArcWindow { NoChartedRun }` (`tang/pierce-ring-has-no-join-arm`) |
 | `tube_along_arc` | **the tube door, with its intent parameters STORED rather than reconstructed**: a ring-torus tube built from spine centre / axis / reference direction / major radius / angular window / minor radius. A `revolve` reaches the same walls but RECONSTRUCTS the tube radius from the profile's bulge arcs; this door keeps what it was given, and the scene asserts `minor_radius.to_bits()` against the authored value on **both** half-tube walls. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census, sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀) |
 | `lofts` | **the first NURBS-walled render, and its minimal pair, in one cell**: three polyline quad sections — squares at the ends, a NON-AFFINE trapezoid between — skinned at v-degree 2, so the four walls are genuinely curved degree-1×2 NURBS patches. `loft_prism` (z = 0/1/2) is the corpus fixture verbatim (`step-export/tests/common/mod.rs::loft_prism`, `editor-core/tests/corpus/loft_prism.rs`, `sweep/tests/m6_loft_body.rs`); volume DERIVED exactly: V = 8 + 8d/3 = 9 m³ (d = 0.375). `nonuniform_loft` stands beside it as the minimal pair — the SAME sections, the SAME 2 m height, ONLY the middle placement moved to z = 0/0.15/2 (the corpus fixture keeps 0/1/3, whose bulge peaks at 48.8% of height with half-width 1.415 against the prism's 50%/1.375: the same silhouette rescaled, so the scene leads the corpus). The chord-length parameterization (t = 3√29/(3√29 + √5701) ≈ 0.1763) makes the degree-2 skin OVERSHOOT: bulge half-width 1.646 — wider than any authored section — at 32.6% of height; derived V = 8 + 0.25/(t(1−t)) = 9.7219 m³ exactly. **Why one cell and not two**: `compose_montage.py` trims and scales every cell independently, so as two panels the pair reads at two different scales and the silhouette comparison — the whole content of a minimal pair — is distorted by the composer. One frame gives them one camera and one scale; the second body is placed 4 m along +x, which is a rigid motion of the whole loft and leaves every derivation invariant |
 | `hollowring` | the one-call hollow ring — a holed profile fully revolved, two shells out of one `revolve` |
@@ -174,29 +175,42 @@ reproduce on any box. A locally-drawn frame carries this box's GL
 stack, **will** differ byte-wise, and must never be committed; the guard below and `check_render_provenance.py`
 enforce the commit side.
 
-**You do not need to render at all — CI does it and commits the result.**
-Every CI run on a pushed branch renders every lane (ci.yml's
-`renders` job calls `render.yml`), and a lane that no longer matches what
-the code renders is **re-baselined for you**:
+**You do not render locally — CI does it and commits the result.** A
+PR's CI run renders nothing (`ci.yml` calls no render lane; `nightly.yml`
+renders every lane over `main` and commits what drifted). A ready PR
+that moves frames asks for them with **`[render]` as a word of its head
+commit's subject line**:
 
 ```sh
-git push        # CI renders; a lane that differs posts a neutral ("!")
-                #   drift check naming the cells
-# merge the PR  # main's own run commits the new cells
-git pull        # on main, the frames are there
+git commit -m "scene: widen the bracket [render]"
+git push        # ci.yml's `render tag` step dispatches render.yml on the
+                #   branch; a lane that differs is committed back to it
+                #   with a neutral ("!") check naming the cells, and CI is
+                #   dispatched again on that new head, gating the PR's
+                #   merge with its base
+git pull        # the frames are on your branch: look at them
 ```
 
-**If the render is what you intended, the drift check is a pass.** It
-needs no re-run and no second commit. Re-run only if something *else* in
-the run failed. To see the cells before merging, take the run's artifact
-with `local-scripts/render-hosted.sh`.
+The tag counts only in the subject, delimited by whitespace, of the PR's
+head commit, read on a `pull_request` run: `[render]` in a commit body,
+or glued to other text, does not fire, and a later push without it
+renders nothing. A draft renders nothing; marking it ready re-reads the
+tag. Neither the bot's re-baseline commit nor the CI run dispatched on it
+can ask again. A PR from a fork cannot be rendered this way (its run's
+token can neither dispatch nor push to the fork); the step says so in a
+warning.
 
-**PRs report; `main` commits.** A bot commit onto a PR branch becomes the
-PR's head, and a `GITHUB_TOKEN` push triggers no run of its own — so the
-PR would show that one check and nothing else, with every green check
-stranded on the parent commit. The recursion guard and that blank slate
-are the same fact, so the commit happens on `main` instead. Same rule the
-rebuild-latency history follows.
+The head goes **red** rather than carrying only neutral checks when the
+render cannot vouch for it: a push to the branch while the render runs
+makes the lanes commit nothing and post a failing `render refused` check
+(push again with the tag), and lanes that did not all succeed after one
+committed, or a re-gate that could not be dispatched, post a failing
+`render re-gate` check.
+
+**If the render is what you intended, the neutral check is a pass.** It
+needs no re-run and no second commit. A drifting lane commits only when
+the run has a branch to write; a dispatch aimed at a bare SHA reports the
+drift instead.
 
 A re-baseline has two causes and they want different reactions — the
 geometry changed (these cells are the new truth; check they look like
@@ -211,24 +225,24 @@ succeeded, so a wedge is reported as a wedge and never as drift.
 
 `.github/workflows/render.yml` runs the render lanes on GitHub runners
 and hands each one back as a run artifact. It has **two entry points over
-one pipeline**: `workflow_call`, which is where your frames come from,
-and `workflow_dispatch`, for a tree CI has not seen or a re-render at a
-different scene budget.
+one pipeline**: `workflow_call`, the nightly's render of `main`, and
+`workflow_dispatch`, which the `[render]` tag fires and which
+`render-hosted.sh` fires where `gh` can dispatch.
 
 ```sh
-local-scripts/render-hosted.sh --on-demand            # a tree CI has not rendered
+local-scripts/render-hosted.sh                        # dispatch, wait, install
 local-scripts/render-hosted.sh --lane wild --verify   # prove the artifact path is byte-exact
 local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
 local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
-**Render on demand only when CI has not covered it** — an unpushed
-branch, no CI run yet, or a deliberate re-render at a different scene
-budget. Dispatching when CI has already rendered the same tree renders it
-twice, which is why it is a flag rather than the default. Those runs
-re-baseline too, so they also end in a `git pull`; the exception is a
-dispatch aimed at a bare SHA, which has no branch to commit to and
-reports the drift with the install command instead.
+The script dispatches on every call except `--run`, and needs a `gh`
+allowed to dispatch workflows; a token that cannot (an agent's
+integration token answers 403) uses the `[render]` tag instead. A branch
+the tag already rendered needs no second dispatch: `git pull` has the
+cells. Dispatched runs re-baseline, so they also end in a `git pull`;
+the exception is a dispatch aimed at a bare SHA, which has no branch to
+commit to and reports the drift with the install command instead.
 
 `render-hosted.sh` **refuses** if your local HEAD is not what
 `origin/<branch>` points at — the runner checks out the pushed tree and
