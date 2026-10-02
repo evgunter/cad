@@ -2,12 +2,13 @@
 id: plane-section-polygons-drop-their-arcs
 kind: issue
 title: plane_section reports a section polygon by its corners only, so an arc-edged section (a bore's circle: two corners) has no recoverable shape or area
-status: review
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
 branch: cleave/section-arcs
 pr: 3877
+closed: 2026-10-02
 ---
 
 
