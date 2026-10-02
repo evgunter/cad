@@ -58,7 +58,7 @@ use std::sync::Arc;
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Label,
-    LoggedEdit, LoopProgram, Maintenance, MaintenanceNet, Node, ParamName, PartReach, PartResolver,
+    LoopProgram, Maintenance, MaintenanceNet, Node, ParamName, PartReach, PartResolver,
     ProductError, ProfileProgram, RecipeNodeId, SlotId, StepId, Subject, apply, assemble_gathered,
     cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
@@ -234,7 +234,10 @@ fn driver_of(
     let row = props::slot_rows(doc, node)
         .into_iter()
         .find(|row| row.slot == slot)
-        .ok_or(Refusal::NoSuchSlot { node, slot })?;
+        .ok_or_else(|| Refusal::NoSuchSlot {
+            node: doc.spoken(node),
+            slot,
+        })?;
     Ok((row.driver, row.value.ok()))
 }
 
@@ -1302,7 +1305,7 @@ impl DocSession {
                 // `Assembly`, and a document with no gate to run never
                 // gave it away.
                 let (at_rest, body) = if assembly_shaped {
-                    let (verdict, kept) = badge(assemble_gathered(product, self.tol));
+                    let (verdict, kept) = badge(doc, assemble_gathered(product, self.tol));
                     (Some(verdict), kept)
                 } else {
                     (None, Some(Arc::new(product.body.into_body())))
@@ -1492,12 +1495,12 @@ impl DocSession {
                 class,
                 alignment,
             } => self.commit(DocEdit::InsertNode {
-                node: Node::Mate {
+                node: Box::new(Node::Mate {
                     a,
                     b,
                     class,
                     alignment,
-                },
+                }),
             }),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
@@ -1579,14 +1582,8 @@ impl DocSession {
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         match apply(self.history.doc(), &edit, self.tol, &reach) {
             Ok(applied) => {
-                self.history.extend_current(
-                    recorded,
-                    LoggedEdit {
-                        edit: edit.clone(),
-                        maintenance: applied.cluster_rows(),
-                    },
-                    applied.doc,
-                );
+                self.history
+                    .extend_current(recorded, edit.clone(), applied.doc);
                 outcome.committed.push(edit);
                 self.request_eval();
             }
@@ -1728,7 +1725,7 @@ impl DocSession {
             Err(refusal) => return OpOutcome::refused(refusal),
         };
         self.commit(DocEdit::InsertNode {
-            node: Node::instantiate_part(DocRef { id, pin }),
+            node: Box::new(Node::instantiate_part(DocRef { id, pin })),
         })
     }
 
@@ -2336,7 +2333,7 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: datum_node(datum),
+            node: Box::new(datum_node(datum)),
         })
     }
 
@@ -2369,11 +2366,11 @@ impl DocSession {
             ProfilePlane::NewXy => return self.add_profile_on_new_xy(loops),
         };
         self.commit(DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops,
                 ids: Vec::new(),
-            }),
+            })),
         })
     }
 
@@ -2395,10 +2392,10 @@ impl DocSession {
         let mut loops = Some(loops);
         self.commit_run(|minted| match minted {
             [] => Some(DocEdit::InsertNode {
-                node: frame.clone(),
+                node: Box::new(frame.clone()),
             }),
             [Some(plane)] => Some(DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: *plane,
                     // Loud, like the arm below: ending the run here
                     // instead would commit the lone frame, which is
@@ -2409,7 +2406,7 @@ impl DocSession {
                         .take()
                         .unwrap_or_else(|| unreachable!("the profile's position comes round once")),
                     ids: Vec::new(),
-                }),
+                })),
             }),
             [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
             _ => None,
@@ -2484,7 +2481,9 @@ impl DocSession {
         // person meant. Compared by value, so a unit rewrite since the
         // load does not refuse.
         if current != base {
-            return Err(Refusal::ProfileEditStale { node });
+            return Err(Refusal::ProfileEditStale {
+                node: doc.spoken(node),
+            });
         }
         let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
         let unchanged = sketch::is_committed(current, &loops, &ids);
@@ -2498,7 +2497,7 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Node::Extrude { profile, distance },
+            node: Box::new(Node::Extrude { profile, distance }),
         })
     }
 
@@ -2512,11 +2511,11 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Node::Revolve {
+            node: Box::new(Node::Revolve {
                 profile,
                 axis,
                 angle,
-            },
+            }),
         })
     }
 
@@ -2553,11 +2552,13 @@ impl DocSession {
             }))
         };
         let boolean = |declare| DocEdit::InsertNode {
-            node: Node::Boolean { op, a, b, declare },
+            node: Box::new(Node::Boolean { op, a, b, declare }),
         };
         let staged = self.stage_run(|minted| match (minted, &declaration) {
             ([], None) => Some(boolean(None)),
-            ([], Some(node)) => Some(DocEdit::InsertNode { node: node.clone() }),
+            ([], Some(node)) => Some(DocEdit::InsertNode {
+                node: Box::new(node.clone()),
+            }),
             ([Some(declared)], Some(_)) => Some(boolean(Some(*declared))),
             _ => None,
         });
@@ -2574,9 +2575,14 @@ impl DocSession {
         let resolver = self.run_resolver();
         let memo = self.memo_under(&resolver);
         let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
-        if let Some(refused) =
-            RefusedBoolean::read(&judged, node, (op, [a, b]), declare, self.generation)
-        {
+        if let Some(refused) = RefusedBoolean::read(
+            &staged.doc,
+            &judged,
+            node,
+            (op, [a, b]),
+            declare,
+            self.generation,
+        ) {
             return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
         }
         self.record_run(staged)
@@ -2592,7 +2598,7 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Node::Split { target, tool },
+            node: Box::new(Node::Split { target, tool }),
         })
     }
 
@@ -2611,14 +2617,14 @@ impl DocSession {
         // Total, as the other lowerings are: slot dimensions are the
         // edit door's question.
         self.commit(DocEdit::InsertNode {
-            node: Node::transform(
+            node: Box::new(Node::transform(
                 input,
                 pncad::document::Step::Rigid {
                     translation,
                     axis: rotation_axis,
                     angle: rotation_angle,
                 },
-            ),
+            )),
         })
     }
 
@@ -2649,7 +2655,9 @@ impl DocSession {
             PatternOutputChoice::Instances => combine::pattern_node(input, count, rule),
             PatternOutputChoice::Fused => combine::placed_union_node(input, count, rule),
         };
-        self.commit(DocEdit::InsertNode { node })
+        self.commit(DocEdit::InsertNode {
+            node: Box::new(node),
+        })
     }
 
     /// Insert one projection of a multi-body value
@@ -2670,7 +2678,7 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: combine::part_node(of, select),
+            node: Box::new(combine::part_node(of, select)),
         })
     }
 
@@ -2706,7 +2714,7 @@ impl DocSession {
         let step = match self.landed_pair() {
             None => Err(DuplicateFault::NotLanded),
             Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((_, eval)) => combine::duplicate_step(eval, input, self.tol),
+            Some((doc, eval)) => combine::duplicate_step(doc, eval, input, self.tol),
         };
         let step = match step {
             Ok(step) => step,
@@ -2724,13 +2732,16 @@ impl DocSession {
         // root by then, so it is APPENDED to the root list.
         self.commit_run(|minted| match minted.split_first() {
             None => Some(DocEdit::InsertNode {
-                node: pattern.clone(),
+                node: Box::new(pattern.clone()),
             }),
             Some((Some(pattern), projections)) => i64::try_from(projections.len())
                 .ok()
                 .filter(|index| *index < combine::DUPLICATE_COUNT)
                 .map(|index| DocEdit::InsertNode {
-                    node: combine::part_node(*pattern, PartSelectSpec::Instance(index)),
+                    node: Box::new(combine::part_node(
+                        *pattern,
+                        PartSelectSpec::Instance(index),
+                    )),
                 }),
             Some((None, _)) => {
                 unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)")
@@ -2768,7 +2779,9 @@ impl DocSession {
             BlendKindChoice::Fillet => Node::fillet(target, size, selection),
             BlendKindChoice::Chamfer => Node::chamfer(target, size, selection),
         };
-        self.commit(DocEdit::InsertNode { node })
+        self.commit(DocEdit::InsertNode {
+            node: Box::new(node),
+        })
     }
 
     /// The node-kind gate every creation seat shares: the named node
@@ -2776,10 +2789,14 @@ impl DocSession {
     /// wrong-kind refuse the same arm, because both mean "there is
     /// nothing of that kind there to consume".
     fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
-        if admits(self.committed_doc().node(node), wanted) {
+        let doc = self.committed_doc();
+        if admits(doc.node(node), wanted) {
             Ok(())
         } else {
-            Err(Refusal::WrongNodeKind { node, wanted })
+            Err(Refusal::WrongNodeKind {
+                node: doc.spoken(node),
+                wanted,
+            })
         }
     }
 
@@ -2849,7 +2866,11 @@ impl DocSession {
             | DocEdit::SetRoots { .. }
             | DocEdit::Rebind { .. }
             | DocEdit::UpdateReference { .. }
-            | DocEdit::SetPlacement { .. }
+            // An instance's offset, and the gauge an instance or a
+            // gauge sits on, are structure: which frame a group stands
+            // on, not a panel field's value.
+            | DocEdit::SetOffset { .. }
+            | DocEdit::SetGauge { .. }
             // The declaration doors that are not the value or the
             // notation half. `SetDocParam` is create-or-replace: a
             // redeclaration is an act — it is how a parameter's
@@ -2975,9 +2996,9 @@ impl DocSession {
         F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
     {
         // ONE reach for the whole action, over the session's own seam
-        // (the directory rule; `None` refuses typed): each edit's
-        // maintenance asks it only when a group's root moves, and
-        // what it decided rides the logged entry into the history.
+        // (the directory rule; `None` refuses typed): an inserted
+        // mate's clocking rider asks it, and nothing it decides is
+        // recorded — the edits are the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         // Threaded rather than cloned up front: the first `apply`
@@ -2985,7 +3006,7 @@ impl DocSession {
         // its predecessor's output, so a group of one costs exactly
         // what a single commit always cost.
         let mut produced: Option<Doc<ProfileProgram>> = None;
-        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::new();
+        let mut logged: Vec<DocEdit<ProfileProgram>> = Vec::new();
         let mut net = MaintenanceNet::new();
         let mut minted: Vec<Option<RecipeNodeId>> = Vec::new();
         while let Some(edit) = next(&minted) {
@@ -2995,10 +3016,7 @@ impl DocSession {
             };
             match attempt {
                 Ok(applied) => {
-                    logged.push(LoggedEdit {
-                        edit,
-                        maintenance: applied.cluster_rows(),
-                    });
+                    logged.push(edit);
                     minted.push(applied.record.minted);
                     net.push(&applied);
                     produced = Some(applied.doc);
@@ -3026,7 +3044,7 @@ impl DocSession {
             net,
             minted,
         } = staged;
-        let committed = logged.iter().map(|entry| entry.edit.clone()).collect();
+        let committed = logged.clone();
         // Net over the action: a row an earlier edit reported can be
         // made moot by a later one ([`MaintenanceNet`]).
         let maintenance = net.finish(&doc);
@@ -3081,8 +3099,8 @@ impl DocSession {
 struct StagedRun {
     /// The document the last edit produced.
     doc: Doc<ProfileProgram>,
-    /// Each edit with the maintenance it performed, for the history.
-    logged: Vec<LoggedEdit<ProfileProgram>>,
+    /// Each edit, for the history.
+    logged: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance, netted over the whole action.
     net: MaintenanceNet,
     /// What each edit minted, in the order the edits applied.
@@ -3110,6 +3128,8 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
         // Relates instances some other node put in the document.
         Node::Mate { .. } => false,
+        // A frame instances stand on; it puts nothing in.
+        Node::Gauge { .. } => false,
         // Declares contacts between faces of a consumer's operands,
         // and puts no body of its own in.
         Node::Declare { .. } => false,
@@ -3135,15 +3155,19 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 
 /// One A5 verdict as the badge that shows it — the gate's own
 /// vocabulary either way: a certification with its minted count, or
-/// the typed refusal rendered by its own `Display` — **and the
-/// aggregate the gate hands back with it**.
+/// the typed refusal with its nodes spoken from `doc`, the landed
+/// document the gate judged — **and the aggregate the gate hands back
+/// with it**.
 ///
 /// The gate CONSUMES the product it judges. A certification returns
 /// the same body on its `Assembly` and a refusal returns nothing, so
 /// the body is an `Option` here for the same reason
 /// [`Gathered::body`] is one, and this is the one place that fact is
 /// read off the gate's own result type.
-fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
+fn badge(
+    doc: &Doc<ProfileProgram>,
+    verdict: Result<Assembly<f64>, AssemblyError>,
+) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
     match verdict {
         Ok(assembly) => (
             AtRestBadge::Certified {
@@ -3153,7 +3177,7 @@ fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<
         ),
         Err(refusal) => (
             AtRestBadge::Refused {
-                message: refusal.to_string(),
+                message: refusal.spoken(doc),
             },
             None,
         ),

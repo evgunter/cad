@@ -109,6 +109,7 @@ use crate::eval::{BooleanValue, Evaluation, NodeStanding, NodeValue, SplitSide, 
 use crate::names::{CarriedRows, EntityKey, NameTable, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 use crate::sentence::{Labelled, Labels, Staged};
+use crate::spoken::{Said, Say, Speaker};
 use geom_core::Tol;
 
 /// Why [`product`] refused. Fail-loud and typed: a product is all of
@@ -195,6 +196,15 @@ pub enum ProductError {
     /// documents that are in this state, are
     /// [`ProductErrorKind::means_no_body`]'s.
     NoBodyRoots,
+    /// **No root in the world denotes a body, and the document's
+    /// material lives in the own spaces of unplaced groups** (A9,
+    /// A11 (2)): the world product is empty because nothing places that
+    /// material, which placing it repairs.
+    Unplaced {
+        /// Every unplaced group, by its root, with why nothing places
+        /// it, in root order.
+        groups: Vec<(RecipeNodeId, crate::mate::Unplaced)>,
+    },
     /// The kernel's disjoint-graft door refused a source body.
     Graft {
         /// The root whose body was being grafted.
@@ -277,11 +287,12 @@ pub struct SourceFinding {
 struct SourceLine<'a> {
     source: &'a SourceFinding,
     error: &'a ValidationError,
+    by: Speaker<'a>,
 }
 
 impl crate::finding::Finding for SourceLine<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "root {} output {}", self.source.node, self.source.output)
+        self.source.say(f, self.by)
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -293,6 +304,25 @@ impl crate::finding::Finding for SourceLine<'_> {
     }
 }
 
+/// The source as a finding's subject names it: its root and output.
+impl Say for SourceFinding {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} output {}",
+            by.node_as(self.node, "root"),
+            self.output
+        )
+    }
+}
+
+/// The source where no document is at hand: its root by tag.
+impl core::fmt::Display for SourceFinding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Say::say(self, f, Speaker::TAG)
+    }
+}
+
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM and FORWARDS its payload's own `Display` — the kernel's
 // refusals and validity findings both carry one, so no arm re-states
@@ -300,47 +330,93 @@ impl crate::finding::Finding for SourceLine<'_> {
 // one kernel finding per indented line through the finding sink
 // ([`crate::finding`]): the aggregate's bare findings through
 // `render_lines`, a per-root list through `render_list`, each line
-// composed with its root and output as the subject. Node ids render
-// plain, names as kind + minting node.
+// composed with its root and output as the subject. Every node the
+// sentence names is in the gathered document's ids, said by the
+// speaker; a name is said as its kind and minting node.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", Labelled(self, Labels::Kept))
     }
 }
 
+/// The refusal under its stage word, each node said by `by`.
+impl Say for ProductError {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        Labelled::<Self>::open(f, Labels::Kept)?;
+        self.fmt_said(f, Labels::Kept, by)
+    }
+}
+
 // The gather's labels are its stage word and the `root N output M`
 // subject each listed finding opens with, legitimate where the gather's
 // refusal is drawn under its own name. The sentence a carrier that
-// names the stage renders ([`crate::PartFault::PartProduct`]'s
-// `message`) carries neither, and names the roots in its header.
+// names the stage renders ([`crate::PartFault::PartProduct`]'s) carries
+// neither, and names the roots in its header.
 impl Staged for ProductError {
     const STAGE: &'static str = "product";
 
     fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+        self.fmt_said(f, labels, Speaker::TAG)
+    }
+}
+
+/// [`ProductError`]'s sentence without its labels, each node said by a
+/// speaker: what a carrier that names the stage draws.
+pub(crate) struct BareSentence<'a>(&'a ProductError, Speaker<'a>);
+
+impl core::fmt::Display for BareSentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt_said(f, Labels::Stripped, self.1)
+    }
+}
+
+impl ProductError {
+    /// The sentence without its labels, each node said by `by`.
+    pub(crate) fn bare_said<'a>(&'a self, by: Speaker<'a>) -> BareSentence<'a> {
+        BareSentence(self, by)
+    }
+
+    /// **The refusal as the frame holding the gathered document says
+    /// it**: each node as `doc` holds it now ([`crate::Doc::spoken`]).
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
+    }
+
+    /// The sentence at `labels`, after the stage word when they are
+    /// kept, each node said by `by`.
+    fn fmt_said(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        labels: Labels,
+        by: Speaker<'_>,
+    ) -> core::fmt::Result {
         let list = crate::finding::render_lines::<&ValidationError, _>;
+        let root = |id: RecipeNodeId| by.node_as(id, "root");
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
                 "the evaluation is of document {found}, not of \
                  document {expected}",
             ),
-            Self::Root(standing) => write!(f, "{}", standing.of_root()),
+            Self::Root(standing) => write!(f, "{}", Said(&standing.of_root(), by)),
             Self::PlacedUnderTwoRoots {
                 placed,
                 select,
                 first,
                 second,
             } => {
+                let placed = by.node(*placed);
                 let what = match select {
-                    None => format!("node {}'s body", placed),
+                    None => format!("{placed}'s body"),
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Above)) => {
-                        format!("the above half of node {}", placed)
+                        format!("the above half of {placed}")
                     }
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
-                        format!("the below half of node {}", placed)
+                        format!("the below half of {placed}")
                     }
                     Some(crate::node::PartSelect::Instance(i)) => {
-                        format!("instance `{}` of node {}", crate::expr::unparse(i), placed)
+                        format!("instance `{}` of {placed}", crate::expr::unparse(i))
                     }
                 };
                 write!(
@@ -349,13 +425,33 @@ impl Staged for ProductError {
                      a transform or part selection mints no name, so both \
                      would carry its names. Recourse: place it under one \
                      root, or union the two",
-                    first, second
+                    by.node(*first),
+                    by.node(*second)
                 )
             }
             Self::NoBodyRoots => f.write_str(
                 "no product root denotes a body — this document \
                  has no body product",
             ),
+            Self::Unplaced { groups } => {
+                f.write_str(
+                    "no product root in the world denotes a body: the document's material \
+                     lives in the own spaces of unplaced groups —",
+                )?;
+                for (i, (group, cause)) in groups.iter().enumerate() {
+                    let sep = if i == 0 { "" } else { ";" };
+                    write!(
+                        f,
+                        "{sep} the group rooted at {}, because {cause}",
+                        by.node(*group)
+                    )?;
+                }
+                write!(
+                    f,
+                    ". {}",
+                    crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
+                )
+            }
             // TWO SENTENCES BECAUSE `node` CARRIES TWO MEANINGS (the
             // arm's own doc): the root whose rows were being carried,
             // or — for a collision of the final narrowing, which happens
@@ -367,23 +463,19 @@ impl Staged for ProductError {
             // its own root's mint, and would be described correctly.
             Self::Naming { node, name } if *node != name.node => write!(
                 f,
-                "root {}'s {} name (minted by node {}) collides in the \
-                 product's name table",
-                node,
-                name.kind.noun(),
-                name.node
+                "{}'s {} collides in the product's name table",
+                root(*node),
+                by.name(name)
             ),
             Self::Naming { name, .. } => write!(
                 f,
-                "the {} name minted by node {} collides in the \
-                 product's name table",
-                name.kind.noun(),
-                name.node
+                "the {} collides in the product's name table",
+                by.name(name)
             ),
             Self::Graft { node, source } => write!(
                 f,
-                "the kernel could not graft root {}'s body: {source}",
-                node
+                "the kernel could not graft {}'s body: {source}",
+                root(*node)
             ),
             Self::RootInvalid { findings } => {
                 // Findings arrive in gather order, so one root's outputs
@@ -397,21 +489,22 @@ impl Staged for ProductError {
                         let lines: Vec<SourceLine<'_>> = findings
                             .iter()
                             .flat_map(|source| {
-                                source
-                                    .errors
-                                    .iter()
-                                    .map(move |error| SourceLine { source, error })
+                                source.errors.iter().map(move |error| SourceLine {
+                                    source,
+                                    error,
+                                    by,
+                                })
                             })
                             .collect();
                         crate::finding::render_list(f, &lines)
                     }
                     Labels::Stripped => {
-                        if let [root] = roots.as_slice() {
-                            write!(f, "root {} is not valid at rest:", root)?;
+                        if let [one] = roots.as_slice() {
+                            write!(f, "{} is not valid at rest:", root(*one))?;
                         } else {
                             let named: Vec<String> =
-                                roots.iter().map(ToString::to_string).collect();
-                            write!(f, "roots {} are not valid at rest:", named.join(", "))?;
+                                roots.iter().map(|id| root(*id).to_string()).collect();
+                            write!(f, "{} are not valid at rest:", named.join(", "))?;
                         }
                         crate::finding::render_lines(
                             f,
@@ -431,11 +524,12 @@ impl Staged for ProductError {
             }
             Self::ContactLineage { node, what } => write!(
                 f,
-                "root {}'s declared contact names a {what} the \
+                "{}'s declared contact names {} {what} the \
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
-                node
+                root(*node),
+                crate::sentence::article(what)
             ),
         }
     }
@@ -443,15 +537,30 @@ impl Staged for ProductError {
 
 impl core::error::Error for ProductError {}
 
+/// **A gather refusal, shared** ([`crate::Refusal`]): what
+/// [`crate::PartFault::PartProduct`] and [`crate::ChecksError::Product`]
+/// hold, its ids bare for the frame that hands it out to say.
+pub type ProductRefusal = crate::refusal::Refusal<ProductError>;
+
+impl ProductRefusal {
+    /// The refusal, as the gather typed it.
+    #[must_use]
+    pub fn error(&self) -> &ProductError {
+        self.get()
+    }
+
+    /// Which arm refused ([`ProductError::kind`]).
+    #[must_use]
+    pub fn kind(&self) -> ProductErrorKind {
+        self.get().kind()
+    }
+}
+
 /// Which arm of [`ProductError`] refused, without the payload.
 ///
-/// A [`ProductError`] is neither `Clone` nor `PartialEq` — it carries
-/// validity-finding lists and the kernel's own boolean refusal — so a
-/// consumer that must record, compare or hash the refusal has had only
-/// the rendered prose to substring-match. This projection drops exactly
-/// the part that cannot be cloned or compared, so the class rides where
-/// the error itself cannot: into a `Clone + PartialEq` refusal record,
-/// a hash key, a test assertion.
+/// A consumer that records or compares the refusal holds it whole, as
+/// a [`ProductRefusal`]; this projection is the class alone, for one
+/// that branches on it, hashes it or asserts it.
 ///
 /// One variant per [`ProductError`] arm, except [`ProductError::Root`],
 /// whose standing decides which refusal it is to a caller: one variant
@@ -486,6 +595,8 @@ pub enum ProductErrorKind {
     Naming,
     /// [`ProductError::NoBodyRoots`].
     NoBodyRoots,
+    /// [`ProductError::Unplaced`].
+    Unplaced,
     /// [`ProductError::Graft`].
     Graft,
     /// [`ProductError::RootInvalid`].
@@ -533,7 +644,8 @@ impl ProductErrorKind {
     pub fn means_no_body(self) -> bool {
         match self {
             Self::NoBodyRoots => true,
-            Self::EvaluationOfAnotherDocument
+            Self::Unplaced
+            | Self::EvaluationOfAnotherDocument
             | Self::UnknownNode
             | Self::RootFailed
             | Self::RootPoisoned
@@ -568,6 +680,7 @@ impl ProductError {
             Self::PlacedUnderTwoRoots { .. } => ProductErrorKind::PlacedUnderTwoRoots,
             Self::Naming { .. } => ProductErrorKind::Naming,
             Self::NoBodyRoots => ProductErrorKind::NoBodyRoots,
+            Self::Unplaced { .. } => ProductErrorKind::Unplaced,
             Self::Graft { .. } => ProductErrorKind::Graft,
             Self::RootInvalid { .. } => ProductErrorKind::RootInvalid,
             Self::ProductInvalid { .. } => ProductErrorKind::ProductInvalid,
@@ -657,6 +770,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
@@ -695,7 +809,8 @@ pub fn gathers_on_this_thread() -> u64 {
 }
 
 /// The document's product: every body-denoting root's solids gathered,
-/// in root-list order, into one [`Body`] (module docs).
+/// in root-list order, into one [`Body`] (module docs). A root that
+/// lives in an unplaced group's own space is not part of it (A9).
 ///
 /// The result is a pure function of (`doc.roots()`, `evaluation`) — no
 /// ambient state, so two evaluations of a root-neutral edit yield the
@@ -788,6 +903,68 @@ pub struct Product<T: Decide> {
     /// health is what the outermost gate refuses over, and the gather
     /// is where it arrives.
     pub carried_unminted: Vec<crate::assembly::CarriedRefusal>,
+    /// **Each unplaced group's own space, gathered by itself** (A9,
+    /// A11 (2)), in root order: what the world leaves out, kept beside
+    /// it so the at-rest gate checks every space of the document from
+    /// the one product it is handed ([`crate::assemble_gathered`]).
+    /// Empty on a space's own gather, and on a document every group of
+    /// which is placed.
+    pub spaces: Vec<OwnSpace<T>>,
+}
+
+/// **One unplaced group's own space, gathered by itself** (A9,
+/// A11 (2)): the roots that live in it, gathered and minted with
+/// nothing outside the group.
+#[derive(Debug)]
+pub struct OwnSpace<T: Decide> {
+    /// The group, by its root.
+    pub group: RecipeNodeId,
+    /// Why nothing places it.
+    pub cause: crate::mate::Unplaced,
+    /// The space's gather, kept rather than raised: a space whose
+    /// roots denote no body ([`ProductError::NoBodyRoots`], an
+    /// instance only a measure in the group reads) holds nothing to
+    /// check, and any other refusal is the gate's to raise
+    /// ([`crate::AssemblyError::Space`]).
+    pub gather: Result<Box<Product<T>>, ProductError>,
+}
+
+/// **Every unplaced group's own space** in `evaluation`, each gathered
+/// by itself ([`OwnSpace`]), in root order: what [`product_recorded`]
+/// carries beside the world ([`Product::spaces`]).
+pub fn own_spaces<P, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+) -> Vec<OwnSpace<T>> {
+    unplaced_groups(evaluation)
+        .into_iter()
+        .map(|(group, cause)| OwnSpace {
+            group,
+            cause,
+            gather: product_in(
+                doc,
+                evaluation,
+                tol,
+                crate::mate::Space::Own { group, cause },
+            )
+            .map(Box::new),
+        })
+        .collect()
+}
+
+/// Every unplaced group in `evaluation`, by its root, with its cause,
+/// in root order.
+fn unplaced_groups<T: Decide>(
+    evaluation: &Evaluation<T>,
+) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
+    evaluation
+        .unplaced
+        .values()
+        .copied()
+        .collect::<std::collections::BTreeMap<_, _>>()
+        .into_iter()
+        .collect()
 }
 
 /// One gathered solid's origin: the root that contributed it, that
@@ -858,6 +1035,26 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
+    product_in(doc, evaluation, tol, crate::mate::Space::World)
+}
+
+/// **The gather of one space** (A9, A11 (2)): the world's — the
+/// document's product — or the own space of an unplaced group, which
+/// the at-rest gate checks by itself ([`crate::assemble_gathered`]). A
+/// root gathers into the space its value lives in
+/// ([`Evaluation::space`]), and only the mates whose
+/// two members both live in this space are minted: nothing outside an
+/// unplaced group is compared with it.
+///
+/// # Errors
+///
+/// [`product_recorded`]'s.
+pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+    space: crate::mate::Space,
+) -> Result<Product<T>, ProductError> {
     #[cfg(debug_assertions)]
     GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
     // The pairing door (DI3), before the first root is read: this
@@ -881,6 +1078,9 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_body_denoting = false;
     for &node in doc.roots() {
+        if evaluation.space(node) != space {
+            continue;
+        }
         let value = evaluation.usable(node).map_err(ProductError::Root)?;
         let Some(bodies) = sources_of(value) else {
             continue;
@@ -898,7 +1098,14 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         }));
     }
     if !any_body_denoting {
-        return Err(ProductError::NoBodyRoots);
+        let groups = unplaced_groups(evaluation);
+        return Err(
+            if space == crate::mate::Space::World && !groups.is_empty() {
+                ProductError::Unplaced { groups }
+            } else {
+                ProductError::NoBodyRoots
+            },
+        );
     }
 
     // Pass 2: the graft, one call per SOURCE BODY, in list order. A
@@ -993,7 +1200,11 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // the FINISHED name table, and the aggregate's own at-rest verdict
     // is about geometry, so a product that is not a body at all
     // refuses before any mate is read.
-    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts);
+    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts, space);
+    let spaces = match space {
+        crate::mate::Space::World => own_spaces(doc, evaluation, tol),
+        crate::mate::Space::Own { .. } => Vec::new(),
+    };
     Ok(Product {
         document: doc.id(),
         body: aggregate,
@@ -1004,6 +1215,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         unminted,
         carried,
         carried_unminted,
+        spaces,
     })
 }
 
@@ -1293,6 +1505,9 @@ mod tests {
                 }),
             },
             ProductError::NoBodyRoots,
+            ProductError::Unplaced {
+                groups: vec![(node, crate::mate::Unplaced::NoOffset)],
+            },
             ProductError::Graft {
                 node,
                 source: Box::new(topo::BooleanError::UnrepresentableResult),
@@ -1343,6 +1558,7 @@ mod tests {
                 ProductErrorKind::RootFailed => "RootFailed",
                 ProductErrorKind::RootPoisoned => "RootPoisoned",
                 ProductErrorKind::NoBodyRoots => "NoBodyRoots",
+                ProductErrorKind::Unplaced => "Unplaced",
                 ProductErrorKind::Graft => "Graft",
                 ProductErrorKind::RootInvalid => "RootInvalid",
                 ProductErrorKind::ProductInvalid => "ProductInvalid",
@@ -1358,6 +1574,7 @@ mod tests {
             "PlacedUnderTwoRoots",
             "Naming",
             "NoBodyRoots",
+            "Unplaced",
             "Graft",
             "RootInvalid",
             "ProductInvalid",
@@ -1448,6 +1665,40 @@ mod tests {
         assert_eq!(
             ProductError::Root(standing).to_string(),
             format!("product: root {standing}")
+        );
+    }
+
+    /// **The bare sentence names every failing root in its header**,
+    /// each as a root, so a carrier that draws no per-line subject
+    /// still says which roots failed.
+    #[test]
+    fn the_bare_root_invalid_header_names_each_root() {
+        let source = |node: u64| SourceFinding {
+            node: RecipeNodeId(test_utils::refusal::tagged(node)),
+            output: 0,
+            errors: vec![topo::ValidationError::NegativeVolume {
+                solid: topo::SolidKey::default(),
+            }],
+        };
+        let two = ProductError::RootInvalid {
+            findings: vec![source(3), source(5)],
+        };
+        assert!(
+            two.sentence()
+                .to_string()
+                .starts_with("root 000000000003, root 000000000005 are not valid at rest:\n  "),
+            "{}",
+            two.sentence()
+        );
+        let one = ProductError::RootInvalid {
+            findings: vec![source(3)],
+        };
+        assert!(
+            one.sentence()
+                .to_string()
+                .starts_with("root 000000000003 is not valid at rest:\n  "),
+            "{}",
+            one.sentence()
         );
     }
 

@@ -20,15 +20,13 @@
 //!   lane now, so the pose reaches `boolean::join::cs_pair_frame`, which
 //!   names a frame only for a DECLARED-coaxial pair — coaxiality is
 //!   never inferred — and keeps `NoArm` for this undeclared one.
-//! - **A non-crossing coaxial pose — a ball wholly inside a wider
-//!   cylinder — refuses at `FallbackExtentUnsupported`** instead, the
-//!   containment fallback's curved-extent scan. It is reachable
-//!   precisely because no crossing is found first.
+//! - **A non-crossing pose — a ball wholly inside a wider cylinder —
+//!   builds**: no crossing is found, the containment fallback runs, and
+//!   the section pass certifies the sphere × wall pair apart.
 //!
-//! Every row below pins the refusal as a MEASUREMENT rather than as a
-//! target. What would move the first is a coaxiality declaration the
-//! frame can read (`work/wire/axis-shaped-identity-channel.md`); what
-//! would move the second is a cyl×sphere seam lane.
+//! The crossing rows pin the refusal as a MEASUREMENT rather than as a
+//! target. What would move them is a coaxiality declaration the frame
+//! can read (`work/wire/axis-shaped-identity-channel.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -112,10 +110,7 @@ fn the_coaxial_union_refuses_at_the_germ_frame() {
         };
         assert_eq!(
             (a_kind, b_kind),
-            (
-                geom_brep::SurfaceKind::Cylinder,
-                geom_brep::SurfaceKind::Sphere
-            ),
+            (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Sphere),
             "{label}: the germ pair is the cylinder's wall and the ball's sphere"
         );
     }
@@ -141,53 +136,133 @@ fn both_poses_take_the_same_door() {
     assert_eq!(doors[0], "GermFrameUnsupported", "{doors:?}");
 }
 
-/// **The non-coaxial transversal pose still marches** — the SSI lane is
-/// untouched by this unit, and the union's door for it is still the
-/// pierce door. That is the honest statement that the exact arm did not
-/// narrow anything it was not supposed to.
+/// **The non-coaxial transversal pose crosses and reaches the germ
+/// frame.** The crossing that used to keep the pierce door is certified
+/// now by the circle × cylinder root lane
+/// (`topo::boolean::circle_cylinder`), its pierce's sector side
+/// certifies, and the cylinder × sphere germ pair it mints has no frame
+/// off the coaxial declaration, in both poses.
 #[test]
-fn a_transversal_pose_keeps_its_door_too() {
+fn a_transversal_pose_reaches_the_germ_frame_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
     let s = ball_at(1.5, Vec3::new(0.6, 0.0, 0.0));
     for (label, c, s) in [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ] {
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no crossing lane");
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("no off-axis cyl×sphere frame");
         assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            matches!(
+                err,
+                BooleanError::GermFrameUnsupported {
+                    a_kind: geom::SurfaceKind::Cylinder,
+                    b_kind: geom::SurfaceKind::Sphere,
+                    ..
+                }
+            ),
             "{label}: {err:?}"
         );
     }
 }
 
-/// **The second reachable door, and the row that refuted "a contained
-/// ball just answers".** A ball wholly inside a wider cylinder has no
-/// crossing at all, so the pipeline falls through to the containment
-/// fallback — and the fallback's curved-extent scan refuses
-/// `FallbackExtentUnsupported`, naming the cyl×sphere seam lane. It
-/// cannot answer even here, because the ball's certified extent meets
-/// the wall face's BOX and a box overlap is a MAY, not a DOES.
-///
-/// This is what makes the opening measurement a table rather than a
-/// single door: the crossing pose takes the germ frame and the
-/// non-crossing pose takes the scan.
+/// The boolean's volume, `None` for an empty result, after tiers 1–3;
+/// a refusal fails with the payload.
+fn built_volume(label: &str, op: topo::BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<f64> {
+    let tol = Tol::witness();
+    let out = match op {
+        topo::BooleanOp::Union => topo::union(a, b, tol),
+        topo::BooleanOp::Intersect => topo::intersect(a, b, tol),
+        topo::BooleanOp::Subtract => topo::subtract(a, b, tol),
+    }
+    .unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+    let body = &out.body()?.body;
+    assert_eq!(topo::validate(body), Ok(()), "{label}: tier 1");
+    assert_eq!(topo::validate_closed(body), Ok(()), "{label}: tier 2");
+    assert_eq!(
+        topo::validate_geometric(body, tol),
+        Ok(()),
+        "{label}: tier 3"
+    );
+    Some(topo::mass_properties(body, tol).unwrap().volume)
+}
+
+/// **The non-crossing pose: a ball wholly inside a wider cylinder.**
+/// No crossing exists, so the containment fallback runs, and the
+/// sphere × cylinder pair is the section pass's: the ball's sphere and
+/// the wall's carrier have no section at all (centred on the axis, and
+/// off it), so the pass clears the pair and the vertex probe answers.
+/// Every op builds in both operand orders and both poses, against
+/// `π r² h` and `4πρ³/3`.
 #[test]
-fn a_contained_ball_refuses_at_the_curved_extent_scan() {
+fn a_contained_ball_builds_through_the_section_pass() {
+    use core::f64::consts::PI;
+    use topo::BooleanOp::{Intersect, Subtract, Union};
+    let (r, h, rho) = (2.0_f64, 4.0, 0.5_f64);
+    let (vc, vs) = (PI * r * r * h, 4.0 / 3.0 * PI * rho.powi(3));
+    let c = cyl(r, -2.0, 2.0);
+    for centre in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.9, 0.8, -1.2)] {
+        let s = ball_at(rho, centre);
+        for (pose, c, s) in [
+            ("direct", c.clone(), s.clone()),
+            ("re-posed twin", posed(&c), posed(&s)),
+        ] {
+            for (op, x, y, want) in [
+                (Union, &c, &s, Some(vc)),
+                (Union, &s, &c, Some(vc)),
+                (Intersect, &c, &s, Some(vs)),
+                (Intersect, &s, &c, Some(vs)),
+                (Subtract, &c, &s, Some(vc - vs)),
+                (Subtract, &s, &c, None),
+            ] {
+                let label = format!("{pose}, ball at {centre:?}, {op:?}");
+                let got = built_volume(&label, op, x, y);
+                match (got, want) {
+                    (Some(v), Some(w)) => {
+                        assert!((v - w).abs() <= 1e-9 * w, "{label}: {v} against {w}");
+                    }
+                    (None, None) => {}
+                    _ => panic!("{label}: {got:?} against {want:?}"),
+                }
+            }
+        }
+    }
+}
+
+/// **A ball scraping the wall from inside, in an oval interior to both
+/// faces.** Poled along z with its seam meridians in the plane
+/// `y = 1.8`, the ball centred at `(0, 1.8, 0)` pokes through the wall
+/// (`1.8 + 0.5 > 2`) without any edge of either body crossing a face:
+/// the seam stays inside the cylinder, the cylinder's seam line and
+/// rims stay clear of the ball. The section is one oval inside both
+/// faces, which the section pass certifies and refuses (R-loop), typed
+/// as the fallback's extent refusal. Were the pass not to take the pair
+/// up, the vertex probe would answer for it and count the lens wrong.
+#[test]
+fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
     let c = cyl(2.0, -2.0, 2.0);
-    let s = ball_at(0.5, Vec3::new(0.0, 0.0, 0.0));
-    for (label, c, s) in [
+    let poled_z = Affine3::translation(Vec3::new(0.0, 1.8, 0.0))
+        * Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(1.0, 0.0, 0.0),
+            core::f64::consts::FRAC_PI_2,
+        );
+    let s = topo::transform_rigid(
+        &ball_at(0.5, Vec3::new(0.0, 0.0, 0.0)),
+        &poled_z,
+        Tol::witness(),
+    )
+    .unwrap();
+    for (pose, c, s) in [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ] {
-        let err = topo::union(&c, &s, Tol::witness())
-            .expect_err("the contained pose cannot certify its nearness");
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("the oval is interior");
         let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-            panic!("{label}: expected the extent scan's refusal, got {err:?}");
+            panic!("{pose}: expected the section pass's refusal, got {err:?}");
         };
         assert!(
-            what.contains("cyl×sphere seam lane is not wired"),
-            "{label}: {what}"
+            what.contains("closed loop interior to both"),
+            "{pose}: {what}"
         );
     }
 }
@@ -197,11 +272,12 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
 /// cylinder×torus union is no longer the gate's to refuse. The
 /// cylinder's rim circles genuinely cross the tube (the ring passes
 /// through the cylinder's end caps at `(0, 0, ±2)`), and that
-/// circle×torus crossing has a root lane (`topo::boolean::circle_torus`)
-/// — so what refuses is the OTHER direction: a circle of the torus
-/// against the cylinder's wall, a circle×cylinder pair (a degree-2
-/// trigonometric residual) with no root lane, where the circle rung
-/// takes its typed frontier — never a body.
+/// circle×torus crossing has a root lane (`topo::boolean::circle_torus`),
+/// as the OTHER direction's does — a circle of the torus against the
+/// cylinder's wall, the circle × cylinder lane
+/// (`topo::boolean::circle_cylinder`). Their pierces' sector sides
+/// certify, and what refuses is the cylinder × torus germ pair, which
+/// has no frame — never a body.
 ///
 /// The pair gate's own sentence is pinned on a cone, the kind it still
 /// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
@@ -227,30 +303,45 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
             .unwrap()
             .body
     };
-    let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
-        .expect_err("a torus circle crosses the cylinder wall, with no root lane");
-    // The TORUS's circle edge (operand B) against the CYLINDER's wall.
-    let BooleanError::CurvedPierceUnsupported {
-        operand: topo::Operand::B,
-        face,
-        ..
-    } = err
-    else {
-        panic!("expected the circle rung's curved-pierce frontier on B's edge, got {err:?}");
-    };
     let a = cyl(1.0, -2.0, 2.0);
+    // The refusal names no edge, so the sweep's trace says which events
+    // it took: a circle of the torus (B) on the cylinder's wall (A).
+    let (_, ba) = topo::sweep_traces(
+        &a,
+        &torus,
+        topo::SweepStrategy::Realized,
+        None,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
+    let torus_circle_on_wall = ba.accepted.iter().any(|(e, f)| {
+        let circle = torus
+            .get_edge(*e)
+            .and_then(|e| torus.get_curve_geom(e.curve))
+            .and_then(topo::CurveGeom::certified)
+            .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle { .. }));
+        let wall = matches!(
+            a.get_face(*f).and_then(|f| a.get_surface(f.surface)),
+            Some(topo::Surface::Cylinder { .. })
+        );
+        circle && wall
+    });
+    assert!(
+        torus_circle_on_wall,
+        "a torus circle meets the cylinder's wall"
+    );
+    let err = topo::union(&a, &torus, Tol::witness())
+        .expect_err("a cylinder × torus germ pair has no frame");
     assert!(
         matches!(
-            a.get_face(face).and_then(|f| a.get_surface(f.surface)),
-            Some(geom::Surface::Cylinder { .. })
+            err,
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Torus,
+                ..
+            }
         ),
-        "against the cylinder's wall: {err:?}"
-    );
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("an edge of the second operand touches or crosses a curved face")
-            && msg.contains("Recourse:"),
-        "the refusal names the crossing and ends on its recourse: {msg}"
+        "expected the germ-frame door, got {err:?}"
     );
 }
 
@@ -299,7 +390,11 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         },
     )
     .unwrap();
-    let err = topo::union(&a, &b, Tol::witness())
+    // The coaxial walls left on one carrier are declared as what the
+    // detector finds them to be, so the op reaches its crossing layer.
+    let found = topo::flush::find_flush_candidates(&a, &b, Tol::witness()).unwrap();
+    let flush = topo::flush::declare_all(&found);
+    let err = topo::union_with(&a, &b, &flush, Tol::witness())
         .expect_err("a NURBS wall has no crossing layer in this build");
     assert!(
         matches!(err, BooleanError::CurvedBooleanUnsupported { .. }),

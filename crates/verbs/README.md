@@ -85,10 +85,12 @@ layer whose types it serves (`topo/src/query.rs`):
   `edge_carrier_matches`, `face_surface_matches`, `edge_adjacent_matches`
   and the kind reads under them. They read a carrier's enum TAG, go
   through no funnel and carry no margin, and answer an honest NO on a
-  missing carrier or a dangling key. `CurveKind` is defined here — the
-  mirror lives where it is used, beside the predicates that read it —
-  while `SurfaceKind` stays the workspace's one fieldless surface mirror
-  in `geom-brep` and is reused.
+  missing carrier or a dangling key. `CurveKind` and `SurfaceKind`
+  are the workspace's one fieldless mirror of `Curve3` and of `Surface`,
+  each defined in `geom` beside the enum it mirrors (`Curve3::kind`,
+  `Surface::kind`) and reused by every crate above it. This seat owns
+  the comparand sets `CurveKindSet` and `SurfaceKindSet`, their bit
+  numbering, and the predicates that read them.
 - The DECIDED atom is resolved: `datum_distance_sign` measures an
   entity's point against a passed-in `DatumValue` through the
   `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
@@ -108,12 +110,14 @@ layer whose types it serves (`topo/src/query.rs`):
   ask it, including the ones below this one.
 - **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** is a
   fourth EXACT door: the rim an arc belongs to, whole
-  (built by FILLET-RIM, PR 1821). It reads stored tags
-  and stored carrier fields bit for bit, no funnel and no margin — but it
-  returns a SET, so it refuses typed at every point a predicate would
-  answer NO: an empty set and a partial set are both answers a caller
-  would act on, and a rim handed back short is a fillet request that
-  stalls at a seam vertex. It adds no vocabulary beyond `RimError`.
+  (built by FILLET-RIM, PR 1821). It reads the seed carrier's tag and
+  then only keys — the edges between the seed's two surface keys,
+  chained through shared vertex keys — with no carrier value compared,
+  no funnel and no margin; but it returns a SET, so it refuses typed at
+  every point a predicate would answer NO: an empty set and a partial
+  set are both answers a caller would act on, and a rim handed back
+  short is a fillet request that stalls at a seam vertex. It adds no
+  vocabulary beyond `RimError` and its `RimBreak` payload.
 
 **S2 — `select_where` is a wrapper.** `editor-core`'s `geompred` keeps
 everything name-flavored — the `GeomPred` atom vocabulary whose datum is

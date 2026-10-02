@@ -25,9 +25,9 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, ContactClass, DeclareError, EvalOptions, FlushRung, Node,
-    NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal, ValuePayload,
-    declare, declare_all, evaluate, find_flush_candidates,
+    BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EvalOptions, FlushRung,
+    Node, NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal,
+    ValuePayload, declare, declare_all, evaluate, find_flush_candidates,
 };
 use topo::{PlaneRelation, mass_properties};
 
@@ -98,7 +98,7 @@ fn resting_contact_is_one_same_opposite_finding() {
     let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 1, "{findings:?}");
     let f = &findings[0];
-    assert_eq!(f.class, ContactClass::Rest);
+    assert_eq!(f.class, BooleanCoincidence::REST);
     assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite);
     assert_eq!(f.evidence.rung, FlushRung::DecidedCoincident);
     // Names, never keys — and each side names its OWN node's face,
@@ -110,7 +110,7 @@ fn resting_contact_is_one_same_opposite_finding() {
 
 /// Flush WALLS (corner-table shape): a post overlapping a slab with
 /// three shared outer wall planes plus the shared floor — every
-/// finding is the merge-stage flavor, `SameOriented`.
+/// finding is `SameOriented`, so every class is a continuation.
 #[test]
 fn flush_walls_are_same_oriented_findings() {
     let (doc, slab) = box_at(
@@ -126,7 +126,7 @@ fn flush_walls_are_same_oriented_findings() {
     // x = 0, y = 0, y = 1 walls, and the two z = 0 floors.
     assert_eq!(findings.len(), 4, "{findings:?}");
     for f in &findings {
-        assert_eq!(f.class, ContactClass::Rest);
+        assert_eq!(f.class, BooleanCoincidence::Continuation);
         assert_eq!(f.evidence.relation, PlaneRelation::SameOriented, "{f:?}");
     }
 }
@@ -201,7 +201,7 @@ fn detect_declare_boolean_round_trip() {
             // candidate declaration in the detector's own value shape,
             // built from what the raise site held (no re-detection on
             // the error path).
-            NodeErrorKind::UndeclaredContact { finding, diag, .. } => {
+            NodeErrorKind::UndeclaredCoincidence { finding, diag, .. } => {
                 // Exactly-on contact: the verifier's decided-zero
                 // encoding, on the verify door's own site.
                 assert!(diag.margin.is_invalid(), "{diag:?}");
@@ -316,8 +316,10 @@ fn declare_inserts_the_pair() {
 
 /// **The verification-arm falsifier** (adopted from the #304 review's
 /// planted-drift probe, then aimed both ways). Two resting pairs
-/// TILTED so their angular margins, levered at the SHARED
-/// verification arm, land just inside the ambiguity band's two ends:
+/// TILTED so their angular margins, levered at the pair's consumed
+/// extent — the ball enclosing both faces, about the base's 1 m × 1 m
+/// top centre out to its corner, `√2/2` m — land just inside the
+/// ambiguity band's two ends:
 /// at the correct arm BOTH refuse `PairInBand` at
 /// `bool_plane_parallel`. An arm drifted UP by ~2% turns the
 /// near-escalate tilt definite (silent empty result); an arm drifted
@@ -327,7 +329,8 @@ fn declare_inserts_the_pair() {
 #[test]
 fn tilted_in_band_pairs_pin_the_verification_arm() {
     let tol = geom_core::Tol::witness().get();
-    for theta in [1.01 * tol.eps, 0.99 * tol.k * tol.eps] {
+    let arm = 0.5f64.sqrt();
+    for theta in [1.01 * tol.eps / arm, 0.99 * tol.k * tol.eps / arm] {
         let (c, s) = (theta.cos(), theta.sin());
         let (doc, base) = box_at(
             ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),

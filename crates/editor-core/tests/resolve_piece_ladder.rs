@@ -81,12 +81,9 @@ fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: bar,
-        path: vec![RoleSeg::Lateral(crate::fixture::piece(
-            doc,
-            bar,
-            0,
-            segment as usize,
-        ))],
+        path: vec![RoleSeg::Lateral(
+            crate::fixture::piece(doc, bar, 0, segment as usize).into(),
+        )],
     }
 }
 
@@ -294,6 +291,8 @@ fn one_node_eval(
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
+        unplaced_below: Default::default(),
         document,
         prior_refused: None,
         order: vec![node],

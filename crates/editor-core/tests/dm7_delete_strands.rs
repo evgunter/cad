@@ -54,8 +54,8 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
     applied
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand { node, name } => Some((*node, name.clone())),
-            Maintenance::Cluster(_)
+            Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
+            Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::OrphanedDeclare { .. } => None,
         })
@@ -68,9 +68,9 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
     applied
         .iter()
         .filter_map(|row| match row {
-            Maintenance::StrandedAppearance { name } => Some(name.clone()),
+            Maintenance::StrandedAppearance { name } => Some(name.name().clone()),
             Maintenance::Strand { .. }
-            | Maintenance::Cluster(_)
+            | Maintenance::OffsetCleared { .. }
             | Maintenance::OrphanedDeclare { .. } => None,
         })
         .collect()
@@ -92,26 +92,19 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
     .doc
 }
 
-/// Delete one node, expecting the door to accept it. The documents
-/// these rows delete from hold no mated instance, so the reach is the
-/// refusing one; a row whose delete moves a cluster's gauge goes
-/// through [`delete_with`] and the store's reach.
+/// Delete one node, expecting the door to accept it: a delete asks no
+/// reach, so the reach is the refusing one.
 fn delete(
     doc: &editor_core::ProfileDoc,
     id: RecipeNodeId,
 ) -> editor_core::Applied<editor_core::ProfileProgram> {
-    delete_with(doc, id, &editor_core::RefusingReach)
-}
-
-/// [`delete`] through `reach` — the store's, where the delete moves a
-/// mated cluster's gauge and the maintenance solves for its frame.
-fn delete_with(
-    doc: &ProfileDoc,
-    id: RecipeNodeId,
-    reach: &dyn editor_core::MateReach,
-) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(doc, &DocEdit::DeleteNode { id }, Tol::witness(), reach)
-        .expect("a payload name is not a DAG edge, so the delete is legal")
+    apply(
+        doc,
+        &DocEdit::DeleteNode { id },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a payload name is not a DAG edge, so the delete is legal")
 }
 
 // ---------------------------------------------------------------------
@@ -501,10 +494,6 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
     let part = ProfileDoc::empty_derived("dm7_mate_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
-    // Deleting the gauge instance rewrites the pair's gauge, so the
-    // delete levers the parts through the store's reach.
-    let opts = fixture::resolver::with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_mate"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
@@ -526,25 +515,18 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
         },
     );
 
-    let applied = delete_with(&doc, ia, &reach);
+    let applied = delete(&doc, ia);
     assert_eq!(
         strands(&applied.maintenance),
         vec![(mate, head_a)],
         "the head is a name and is reported; the operand at the same id is not"
     );
-    let first_cluster = applied
-        .maintenance
-        .iter()
-        .position(|row| matches!(row, Maintenance::Cluster(_)));
-    if let Some(at) = first_cluster {
-        assert!(
-            applied.maintenance[..at]
-                .iter()
-                .all(|row| matches!(row, Maintenance::Strand { .. })),
-            "the strands are read at the door, before the registry reconciles: {:?}",
-            applied.maintenance
-        );
-    }
+    assert_eq!(
+        applied.maintenance.len(),
+        1,
+        "deleting a placed member records no frame: {:?}",
+        applied.maintenance
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -696,81 +678,90 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
         applied.maintenance,
         vec![
             Maintenance::Strand {
-                node: fillet,
-                name: carried,
+                node: doc.spoken(fillet),
+                name: doc.spoken_name(&carried),
             },
-            Maintenance::StrandedAppearance { name: painted },
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(&painted),
+            },
         ],
         "the payload carriers are walked before the store"
     );
 }
 
-/// **The appearance strand is inside the strand segment, ahead of the
-/// cluster acts** — the second boundary of `Applied::maintenance`'s
-/// order contract, for the second carrier.
+/// **A delete's report is its strands alone, payload then store; the
+/// only placement row an edit reports is the mate door's, on an
+/// insert** — the boundary main's
+/// `an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
+/// pinned, re-expressed for gauges.
 ///
-/// `a_mates_head_strands_and_its_read_site_does_not` holds that
-/// boundary for a PAYLOAD strand only: its fixture paints nothing, so
-/// a walk that appended the store's rows after `reconcile` passes it
-/// unchanged. This is the edit that produces all three kinds at once
-/// — a mate head stranded, a painted instance face stranded, and the
-/// registry act the deleted instance forced — so it is the row that
-/// reds when the store's pass moves behind the reconcile.
-///
-/// (Authored by the style review of this unit as
-/// `rv_an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
-/// and adopted here, because what it pins is a documented boundary
-/// rather than a mutant's residue.)
+/// That row held the strands ahead of the registry acts a delete
+/// forced. Under gauges a delete forces none: deleting a member leaves
+/// its group's offsets where they are (ASSEMBLY.md A11 (2)), so the
+/// one placement row left, [`Maintenance::OffsetCleared`], comes only
+/// from a mate's insert — and an insert strands nothing. The boundary
+/// therefore holds by construction, and this row pins both halves on
+/// the edit that used to produce all three kinds: the mate's insert
+/// reports its clear and no strand, and the delete of the painted,
+/// mated instance reports the payload strand, then the appearance
+/// strand, and nothing after them.
 #[test]
-fn an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete() {
+fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("dm7_app_order_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
-    // Deleting the gauge instance rewrites the pair's gauge, so the
-    // delete levers the parts through the store's reach.
-    let opts = fixture::resolver::with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, ib) = insert(doc, Node::instantiate_part(doc_ref));
     let head_a = instance_face(ia, part_body);
-    let (doc, mate) = insert(
-        doc,
-        Node::Mate {
-            a: crate::fixture::head(head_a.clone()),
-            b: crate::fixture::head(instance_face(ib, part_body)),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: mate_frame(),
-                b: mate_frame(),
-                primitive: MatePrimitive::Coaxial,
-                sense: AxisSense::Aligned,
-                clocking: Some(0.0),
-            },
+    let mated = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Mate {
+                a: crate::fixture::head(head_a.clone()),
+                b: crate::fixture::head(instance_face(ib, part_body)),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: mate_frame(),
+                    b: mate_frame(),
+                    primitive: MatePrimitive::Coaxial,
+                    sense: AxisSense::Aligned,
+                    clocking: Some(0.0),
+                },
+            }),
         },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the mate inserts");
+    assert!(
+        matches!(
+            mated.maintenance.as_slice(),
+            [Maintenance::OffsetCleared { instance, .. }] if instance.id() == ia
+        ),
+        "the mate's insert clears the mover's offset and strands nothing: {:?}",
+        mated.maintenance
     );
+    let mate = mated.record.minted.expect("the mate is minted");
+    let doc = mated.doc;
     let painted = instance_face(ia, part_body);
     let doc = paint(&doc, &painted);
 
-    let applied = delete_with(&doc, ia, &reach);
-    let cluster = applied
-        .maintenance
-        .iter()
-        .position(|row| matches!(row, Maintenance::Cluster(_)))
-        .expect("the deleted instance forces a registry act, so the row is not vacuous");
+    let applied = delete(&doc, ia);
     assert_eq!(
-        &applied.maintenance[..cluster],
-        &[
+        applied.maintenance,
+        vec![
             Maintenance::Strand {
-                node: mate,
-                name: head_a,
+                node: doc.spoken(mate),
+                name: doc.spoken_name(&head_a),
             },
-            Maintenance::StrandedAppearance { name: painted },
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(&painted),
+            },
         ],
-        "both strand kinds are read at the door, before the registry reconciles: {:?}",
-        applied.maintenance
+        "both strand kinds are read at the door, and the delete reports no placement row"
     );
 }
 
@@ -927,7 +918,9 @@ fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
     let none_left = delete(&one_left.doc, second);
     assert_eq!(
         none_left.maintenance,
-        vec![Maintenance::OrphanedDeclare { declare: decl }],
+        vec![Maintenance::OrphanedDeclare {
+            declare: one_left.doc.spoken(decl),
+        }],
         "the last consumer's delete is the transition, and reports it once"
     );
     let Some(Node::Declare { .. }) = none_left.doc.node(decl) else {
@@ -966,7 +959,9 @@ fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
         let none_left = delete(&one_left.doc, takes_the_last);
         assert_eq!(
             none_left.maintenance,
-            vec![Maintenance::OrphanedDeclare { declare: decl }],
+            vec![Maintenance::OrphanedDeclare {
+                declare: one_left.doc.spoken(decl),
+            }],
             "the last consumer is the last consumer whatever kind it is"
         );
     }
@@ -994,7 +989,9 @@ fn no_delete_can_report_two_orphans_today() {
     let applied = delete(&doc, union);
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::OrphanedDeclare { declare: decl }],
+        vec![Maintenance::OrphanedDeclare {
+            declare: doc.spoken(decl),
+        }],
         "one delete, one declare edge, one row"
     );
     assert!(
@@ -1105,6 +1102,7 @@ fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
         vec![union, decl],
         "the consumer goes first: the declare edge is a DAG input"
     );
+    let declare = doc.spoken(decl);
     let mut doc = doc;
     let mut per_step = Vec::new();
     for id in order {
@@ -1115,7 +1113,7 @@ fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
     assert_eq!(
         per_step,
         vec![
-            (union, vec![Maintenance::OrphanedDeclare { declare: decl }]),
+            (union, vec![Maintenance::OrphanedDeclare { declare }]),
             (decl, Vec::new()),
         ],
         "the union's step cannot tell this cascade from any other delete of the union"
@@ -1144,6 +1142,7 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
     let (doc, _union, decl) = declared_union(doc, &[a, b], pairs);
 
     let doomed = cascade_delete_order(&doc, decl);
+    let declare = doc.spoken(decl);
     let mut walked = doc;
     let mut rows: Vec<Maintenance> = Vec::new();
     let mut net = editor_core::MaintenanceNet::new();
@@ -1153,7 +1152,7 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
         rows.extend(applied.maintenance);
         walked = applied.doc;
     }
-    assert_eq!(rows, vec![Maintenance::OrphanedDeclare { declare: decl }]);
+    assert_eq!(rows, vec![Maintenance::OrphanedDeclare { declare }]);
     assert_eq!(
         net.finish(&walked),
         Vec::new(),
@@ -1184,7 +1183,9 @@ fn the_orphaned_declaration_is_re_rooted_by_the_same_delete() {
     let applied = delete(&doc, union);
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::OrphanedDeclare { declare: decl }]
+        vec![Maintenance::OrphanedDeclare {
+            declare: doc.spoken(decl)
+        }]
     );
     assert!(
         applied.doc.roots().contains(&decl),
@@ -1227,10 +1228,12 @@ fn an_orphaned_declare_follows_the_strands_of_the_same_delete() {
         applied.maintenance,
         vec![
             Maintenance::Strand {
-                node: fillet,
-                name: carried,
+                node: doc.spoken(fillet),
+                name: doc.spoken_name(&carried),
             },
-            Maintenance::OrphanedDeclare { declare: decl },
+            Maintenance::OrphanedDeclare {
+                declare: doc.spoken(decl),
+            },
         ],
         "the strands of a delete come before the declarations it left inert"
     );

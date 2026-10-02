@@ -191,7 +191,12 @@ where
         // puts the placer on the walk's chain.
         *a = crate::fixture::head_at(placer, (*a.name).clone());
     }
-    let (doc, mate) = step(doc, DocEdit::InsertNode { node });
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     (
         Scene {
             doc,
@@ -711,14 +716,14 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
     let refused = editor_core::apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Pattern {
+            node: Box::new(Node::Pattern {
                 input: legs,
                 count: Expr::count(2),
                 kind: PatternKind::Explicit(vec![
                     Frame::IDENTITY,
                     Frame::translation([2.0, 0.0, 0.0]),
                 ]),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -811,9 +816,9 @@ fn the_placement_axis_refuses_in_its_own_voice() {
         let frame = Frame::rotate_then_translate(axis, 0.5, [1.0, 2.0, 3.0], fixture::band())?;
         Ok(editor_core::apply(
             &doc,
-            &DocEdit::SetPlacement {
-                node: instance,
-                frame,
+            &DocEdit::SetOffset {
+                instance,
+                offset: Some(editor_core::Placement::literal(&frame)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

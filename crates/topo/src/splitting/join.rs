@@ -100,7 +100,7 @@ pub(super) fn split_connect<T: Decide>(
 ) -> Result<(Vec<CompletedSection>, FragmentRows), SplitJoinError> {
     let exact = order::exact_band().map_err(SplitJoinError::Band)?;
 
-    // The minted above-copy set (role resolution is key membership).
+    // The null edges' above ends (role resolution is key membership).
     let mut above_set: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
     for r in &red.null_edges {
         above_set.insert(r.attr.above_end, ());
@@ -124,7 +124,8 @@ pub(super) fn split_connect<T: Decide>(
         plane: red.plane,
         band,
         section: SectionCtx {
-            plane: red.plane,
+            origin: red.plane.origin,
+            normal: red.plane.normal,
             plane_key: None,
         },
     };
@@ -277,7 +278,7 @@ fn line_partners<T: Decide>(
         for p in &points {
             spread = spread.max((*p - points[0]).norm());
         }
-        let d = normal.cross(red.plane.normal);
+        let d = normal.cross(red.plane.normal.get());
         match decide(
             "split_join_face_line",
             Margin::levered(d.norm(), spread),
@@ -484,7 +485,7 @@ impl<T: Decide> Sweep<T> {
         for i in 0..points.len() {
             let a = points[i] - origin;
             let b = points[(i + 1) % points.len()] - origin;
-            twice_area = twice_area + a.cross(b).dot(self.plane.normal);
+            twice_area = twice_area + a.cross(b).dot(self.plane.normal.get());
             perimeter = perimeter + (b - a).norm();
         }
         // The conic excess pass (adds nothing for all-planar loops).
@@ -539,9 +540,11 @@ impl<T: Decide> Sweep<T> {
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
-            let excess = (c_e - origin).cross(b_pt - a_pt).dot(self.plane.normal)
-                + sa * sb * axis_e.dot(self.plane.normal) * dt_signed
-                - a.cross(b).dot(self.plane.normal);
+            let excess = (c_e - origin)
+                .cross(b_pt - a_pt)
+                .dot(self.plane.normal.get())
+                + sa * sb * axis_e.dot(self.plane.normal.get()) * dt_signed
+                - a.cross(b).dot(self.plane.normal.get());
             twice_area = twice_area + excess;
             perimeter = perimeter + (sa * span.abs() - (b - a).norm());
         }

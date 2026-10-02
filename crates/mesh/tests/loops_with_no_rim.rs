@@ -48,8 +48,9 @@ use crate::common;
 use common::witness_bodies::one_circle_cut;
 use common::{ball, sphere_wedge};
 use core::f64::consts::PI;
+use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, SurfaceKind};
+use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{Body, FaceSurface, MefSite, MevSite};
 
@@ -245,7 +246,7 @@ fn one_seam_cone() -> Body<f64> {
 /// `tessellate`'s fold answers for when several refuse.
 fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| SurfaceKind::of(body.get_surface(f.surface).unwrap()) == kind)
+        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
         .map(|(fk, _)| fk)
         .expect("the body carries a face of that kind")
 }
@@ -257,7 +258,7 @@ fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {
     let band = Band::linear(Tol::witness()).unwrap();
     let (_, f) = body
         .faces()
-        .find(|(_, f)| SurfaceKind::of(body.get_surface(f.surface).unwrap()) == kind)
+        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
         .expect("the body carries a face of that kind");
     let surface = body.get_surface(f.surface).unwrap();
     let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();

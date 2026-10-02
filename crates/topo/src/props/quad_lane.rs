@@ -134,10 +134,11 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 /// — the cylinder chart's closed-form lane plus the described-NURBS
 /// patch lane (M6-3), entered and left where the window says (the
 /// quadrature module's two levels); [`super::QuadLane`] holds this
-/// and reads it at either level. Cone/sphere/torus charts MINT
-/// stored pcurves since M6-3 (walk row 4) but their chart-normal
-/// flux algebra is not written — they refuse typed naming that true
-/// blocker.
+/// and reads it at either level. A cone face never arrives: the face
+/// walk routes it to its closed form
+/// ([`geom_brep::props::cone_face_closed_form`]). Sphere and torus
+/// charts mint stored pcurves but have no flux lane here, and refuse
+/// typed.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
@@ -161,10 +162,10 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
-            what: "conic trim on a cone/sphere/torus chart — those charts mint stored \
-                   pcurves, but this lane's chart-normal flux algebra is the \
-                   cylinder chart's; the other analytic charts' closed-form flux \
-                   has no lane",
+            what: "conic trim on a cone/sphere/torus chart — a cone face takes its \
+                   closed form before this lane (`cone_face_closed_form`); sphere and \
+                   torus charts mint stored pcurves, but this lane's chart-normal flux \
+                   algebra is the cylinder's",
         });
     };
     let eps = tol.eps();
@@ -179,22 +180,18 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         // The certified quadrature lane reads a chart image
-        // CHANNEL BY CHANNEL out of its closed form; a fitted
-        // (rung-3) image has no such form on an ANALYTIC chart's
-        // Green reduction. Typed refusal — the TRUE remaining
-        // blocker (M6-3 stale-claims sweep): no at-rest body mints
-        // a fitted pcurve on a cylinder chart today (the marched
-        // join windows and the edge×NURBS-face boolean layer are
-        // both banked past M6), and the fitted-boundary Green lane
-        // (`quad::bspline_green_integral`'s remaining consumer)
-        // lands WITH whichever of those first produces one.
+        // CHANNEL BY CHANNEL out of its closed form; a fitted image
+        // has no such form on an ANALYTIC chart's Green reduction.
+        // Typed refusal: the fitted-boundary Green lane
+        // (`quad::bspline_green_integral`'s remaining consumer) is not
+        // wired. A sphere's general circle mints one at rest (an
+        // oblique fillet corner's octant); the props door refuses that
+        // face's spherical triangle before this lane is asked.
         let Pcurve::Harmonic { p0, pa, pb, pl } = *cache.pcurve() else {
             return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries a FITTED (rung-3) pcurve on an \
-                       analytic chart — its Green-form boundary integral \
-                       (bspline_green_integral) wires up with the construction that \
-                       first mints one at rest (the banked join-window/edge×NURBS-face \
-                       boolean layers); nothing does today",
+                what: "curved-cut face half-edge carries a FITTED pcurve on an analytic \
+                       chart — its Green-form boundary integral (bspline_green_integral) \
+                       is not wired",
             });
         };
         let (t0, t1) = cache.params();
@@ -529,7 +526,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             }
             Pcurve::Fitted(_) => {
                 return Err(PropsError::QuadratureUnsupported {
-                    what: "a NURBS-face half-edge carries a FITTED (rung-3) pcurve — \
+                    what: "a NURBS-face half-edge carries a FITTED pcurve — \
                            the trimmed lane certifies the General class, whose \
                            agreement with its carrier is a measurement; nothing \
                            ships that mints a Fitted image on a spline chart",
@@ -553,6 +550,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "a NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
                            chart images live on its own cutting plane and its own \
                            torus, and this chart is a spline patch",
+                });
+            }
+            Pcurve::ConeSection { .. } => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face half-edge carries a CONE-SECTION pcurve — that \
+                           image certifies on a cone chart only, and this chart is a \
+                           spline patch",
                 });
             }
         };

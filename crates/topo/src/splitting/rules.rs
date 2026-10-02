@@ -46,19 +46,17 @@
 //! indistinguishably in the same array.) The entry goes where the
 //! material at the edge goes, and two facts decide that: the side `S`
 //! of its two neighbours, which are directions into the two flanking
-//! faces, and the edge's **convexity**. Convexity is
-//! [`geom_brep::enters_material`] of the direction into one flanking
-//! face, across the edge, against the other face's outward normal:
-//! `Enters` ⇒ convex (the material wedge at the edge is under 180°),
-//! `Exits` ⇒ reflex, `Tangent` ⇒ smooth. The lever arm is the larger
-//! of the two faces' [`face_extent`]s.
+//! faces, and the edge's wedge (`edge_wedge`): whether the two faces
+//! are tangent-continuous, read by [`geom_brep::classify_dihedral`],
+//! and otherwise whether the material wedge is under 180° (convex) or
+//! over it (reflex), read by [`geom_brep::enters_material`].
 //!
-//! | neighbours | edge | verdict |
+//! | neighbours | entry | verdict |
 //! |---|---|---|
-//! | `S`-ON-`S` | convex | `S` |
-//! | `S`-ON-`S` | reflex | opposite `S` |
-//! | `S`-ON-`S` | smooth | opposite `S` |
-//! | `S`-ON-`S` | a duplicate | opposite `S` |
+//! | `S`-ON-`S` | convex edge | `S` |
+//! | `S`-ON-`S` | reflex edge | opposite `S` |
+//! | `S`-ON-`S` | smooth edge | opposite `S` (a safety default) |
+//! | `S`-ON-`S` | a duplicate | opposite `S` (a safety default) |
 //! | `A`-ON-`B`, `B`-ON-`A` | any | `Below` |
 //! | | in the band | refused, [`SplitReduceError::SliverSector`] |
 //!
@@ -91,14 +89,24 @@
 //! touching through distinct entities rather than a shared-entity
 //! pinch (F2).
 //!
-//! **Smooth** — a tangent-continuous edge, the seam of a curved face
-//! lying along the plane. It has no dihedral to read and takes the
-//! reflex verdict, which hands the graze to the curved-tangency lane's
-//! downstream net (the join's zero-area refusal), where a seamless
-//! graze of the same face lands.
-//!
-//! **A duplicate** stands for a sector of one face wider than 180°,
-//! so its corner is reflex by construction.
+//! **Smooth edges and duplicates: a safety default, not a
+//! derivation.** Neither carries a corner to read. A smooth edge (a
+//! curved face's seam along the plane) is unsigned: the seam, the cusp
+//! and the slit all classify smooth. A duplicate stands inside a sector
+//! of one face of 180° or more, which includes the straight sector a
+//! root inserted on a cap's rim leaves where the plane grazes a
+//! cylinder's wall. Whether the material there lies on `S` alone (a
+//! convex graze) or on both sides (a round hole grazed from inside)
+//! is a second-order fact of the wall, which rule (b) does not read.
+//! Opposite `S` mints the null edge: a convex graze then refuses at the
+//! join's zero-area net, and a concave one is cut or refuses, but
+//! neither is answered wrongly. Sending the entry to `S` instead
+//! answers convex grazes and also puts a concave graze's hole on the
+//! wrong side, in closed halves (the guard:
+//! `sweep/tests/split_tangent_edge_curved.rs`,
+//! `a_concave_graze_never_answers_with_the_hole_on_the_wrong_side`).
+//! Answering convex grazes is
+//! `work/cleave/split-refuses-a-convex-graze-of-a-curved-wall.md`.
 //!
 //! **Mixed** neighbours are a free convention: either side yields
 //! manifold results; `Below` is kept for both witnesses' agreement and
@@ -154,7 +162,8 @@ pub(super) fn apply_rule_a<T: Decide>(
         // coplanar with the split plane, so a parallel local normal is
         // a **tangent contact** — C7 territory, refused typed (never
         // marched into); the arm for that pair moves at M5 PR 9.
-        let parallel_margin = Margin::levered(n_face.vec().cross(plane.normal).norm(), extent);
+        let parallel_margin =
+            Margin::levered(n_face.vec().cross(plane.normal.get()).norm(), extent);
         match decide("split_sector_coplanar", parallel_margin, band) {
             Ok(Sign::Zero) => {
                 if !is_plane {
@@ -210,7 +219,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         // sense to thread, which is why it travels as a bare vector in
         // the `dir` slot (likewise the parallelism margin above, which
         // is a magnitude in any case).
-        let class = match enters_material(plane.normal, n_face, extent, band) {
+        let class = match enters_material(plane.normal.get(), n_face, extent, band) {
             Ok(EntersMaterial::Exits) => PlaneSide::Below,
             Ok(EntersMaterial::Enters) => PlaneSide::Above,
             // Tangent after the parallelism gate is contradictory —
@@ -256,15 +265,20 @@ pub(super) fn apply_rule_b<T: Decide>(
         let next = entries[(k + 1) % n].class;
         entries[k].class = match (prev.class, next) {
             (side @ (PlaneSide::Below | PlaneSide::Above), next) if next == side => {
-                let convexity = match entries[k].kind {
-                    SectorEntryKind::WideBisector => Convexity::Reflex,
+                let convex = match entries[k].kind {
+                    // A duplicate stands inside one face's sector of
+                    // 180° or more, so it has no edge to read. Sending
+                    // it across is a safety default, not a derivation
+                    // (module docs, "Smooth edges and duplicates").
+                    SectorEntryKind::WideBisector => None,
                     SectorEntryKind::Edge => {
-                        edge_convexity(body, vertex, prev.he, entries[k].he, band)?
+                        edge_wedge(body, vertex, prev.he, entries[k].he, band)?
                     }
                 };
-                match convexity {
-                    Convexity::Convex => side,
-                    Convexity::Reflex | Convexity::Smooth => opposite(side),
+                if convex == Some(true) {
+                    side
+                } else {
+                    side.opposite()
                 }
             }
             _ => PlaneSide::Below,
@@ -273,53 +287,63 @@ pub(super) fn apply_rule_b<T: Decide>(
     Ok(())
 }
 
-/// The dihedral character of an in-plane edge at the base vertex.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Convexity {
-    /// The material wedge between the two faces is under 180°.
-    Convex,
-    /// The material wedge is over 180°.
-    Reflex,
-    /// The two faces meet tangent-continuously (a seam).
-    Smooth,
-}
-
-fn opposite(side: PlaneSide) -> PlaneSide {
-    match side {
-        PlaneSide::Below => PlaneSide::Above,
-        PlaneSide::Above => PlaneSide::Below,
-        PlaneSide::On => PlaneSide::On,
-    }
-}
-
-/// Convexity of the edge of orbit half-edge `he` at `vertex`, through
-/// [`enters_material`]: the direction into the mate's face, across the
-/// edge, against the outward normal of `he`'s own face. `prev` is the
-/// orbit half-edge before `he`, whose CW-after sector is `he`'s face.
-fn edge_convexity<T: Decide>(
+/// The wedge of the edge of orbit half-edge `he` at `vertex`: `None`
+/// where its two faces are tangent-continuous
+/// ([`geom_brep::DihedralClass::Smooth`]), else whether the material
+/// wedge is under 180°. `prev` is the orbit half-edge before `he`,
+/// whose CW-after sector is `he`'s own face.
+///
+/// Smooth or not is the dihedral classifier's own question, read
+/// through [`geom_brep::classify_dihedral`] with the edge's extent, as
+/// the tier-3 validator reads it, so the two cannot disagree on one
+/// edge. That classifier is unsigned, and which side of 180° a corner
+/// is on is not its question: that sign is [`enters_material`] of the
+/// direction into the mate's face, across the edge, against the own
+/// face's outward normal, metered over the same folded lever arm.
+fn edge_wedge<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     prev: HalfEdgeKey,
     he: HalfEdgeKey,
     band: Band,
-) -> Result<Convexity, SplitReduceError> {
+) -> Result<Option<bool>, SplitReduceError> {
+    let corrupt = || SplitReduceError::CorruptOperand { vertex };
     let (own_face, n_own, _) = sector_face(body, vertex, prev)?;
     let (mate_face, n_mate, _) = sector_face(body, vertex, he)?;
+    let sliver = |diag| SplitReduceError::SliverSector {
+        vertex,
+        face: mate_face,
+        diag,
+    };
+    let surface = |face: FaceKey| {
+        body.get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .ok_or_else(corrupt)
+    };
+    let (s_own, s_mate) = (surface(own_face)?, surface(mate_face)?);
+    let p = *body
+        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
+        .ok_or_else(corrupt)?;
     let (_, along, _) = chord(body, vertex, he)?;
+    let extent = along.norm();
+    match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
+        Ok(geom_brep::DihedralClass::Smooth) => return Ok(None),
+        Ok(geom_brep::DihedralClass::Transverse) => {}
+        Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+    }
     // The mate runs the edge backwards, so its face's interior lies at
     // `n_mate × (−along)` (interior-left, the orbit conventions in
     // `neighborhood`).
     let into_mate = along.cross(n_mate.vec());
-    let arm = face_extent(body, vertex, own_face)?.max(face_extent(body, vertex, mate_face)?);
+    let arm = geom_brep::folded_lever_arm(s_own, s_mate, p, extent);
     match enters_material(into_mate, n_own, arm, band) {
-        Ok(EntersMaterial::Enters) => Ok(Convexity::Convex),
-        Ok(EntersMaterial::Exits) => Ok(Convexity::Reflex),
-        Ok(EntersMaterial::Tangent) => Ok(Convexity::Smooth),
-        Err(geom_brep::LeverEscalation { diag, .. }) => Err(SplitReduceError::SliverSector {
-            vertex,
-            face: mate_face,
-            diag,
-        }),
+        Ok(EntersMaterial::Enters) => Ok(Some(true)),
+        Ok(EntersMaterial::Exits) => Ok(Some(false)),
+        // The same wedge over the same arm read transverse just above,
+        // so only the two normal reads' rounding can land here; it takes
+        // the smooth arm's safety default.
+        Ok(EntersMaterial::Tangent) => Ok(None),
+        Err(geom_brep::LeverEscalation { diag, .. }) => Err(sliver(diag)),
     }
 }
 
@@ -431,7 +455,7 @@ mod tests {
         apex: f64,
         normal: f64,
         context: PlaneSide,
-        convexity: Convexity,
+        convex: Option<bool>,
         verdict: PlaneSide,
     }
 
@@ -464,14 +488,15 @@ mod tests {
     ];
 
     /// The ON entry at `(x, 1, 0)` whose edge runs to `(x, 1, 1)`, its
-    /// neighbours' classes, its convexity, and its verdict.
-    fn classify_apex(row: &Row) -> (PlaneSide, PlaneSide, Convexity, PlaneSide) {
+    /// neighbours' classes, its wedge, and its verdict.
+    fn classify_apex(row: &Row) -> (PlaneSide, PlaneSide, Option<bool>, PlaneSide) {
         let tol = Tol::witness();
         let fx = crate::test_support_fixtures::prism::<f64>(row.profile, 1.0, tol);
-        let plane = SplitPlane {
-            origin: geom_core::Point3::new(0.0, 1.0, 0.0),
-            normal: geom_core::Vec3::new(0.0, row.normal, 0.0),
-        };
+        let plane = crate::test_support_fixtures::split_plane(
+            geom_core::Point3::new(0.0, 1.0, 0.0),
+            geom_core::Vec3::new(0.0, row.normal, 0.0),
+            tol,
+        );
         let at = |z: f64| {
             let i = row
                 .profile
@@ -493,8 +518,8 @@ mod tests {
             })
             .expect("the in-plane edge is in the orbit");
         let (prev, next) = (entries[(k + n - 1) % n], entries[(k + 1) % n]);
-        let convexity = edge_convexity(&fx.body, base, prev.he, entries[k].he, band).unwrap();
-        (prev.class, next.class, convexity, entries[k].class)
+        let convex = edge_wedge(&fx.body, base, prev.he, entries[k].he, band).unwrap();
+        (prev.class, next.class, convex, entries[k].class)
     }
 
     /// The derived rule (b) table (module docs), one fixture per row,
@@ -502,27 +527,28 @@ mod tests {
     /// neighbours, a reflex one to the opposite side.
     #[test]
     fn rule_b_derived_table() {
-        use Convexity::{Convex, Reflex};
+        const CONVEX: Option<bool> = Some(true);
+        const REFLEX: Option<bool> = Some(false);
         #[rustfmt::skip]
         let rows = [
-            Row { label: "wedge from above, +y", profile: APEX_DOWN, apex: 6.0, normal: 1.0, context: A, convexity: Convex, verdict: A },
-            Row { label: "wedge from above, -y", profile: APEX_DOWN, apex: 6.0, normal: -1.0, context: B, convexity: Convex, verdict: B },
-            Row { label: "wedge from below, +y", profile: APEX_UP, apex: 6.0, normal: 1.0, context: B, convexity: Convex, verdict: B },
-            Row { label: "wedge from below, -y", profile: APEX_UP, apex: 6.0, normal: -1.0, context: A, convexity: Convex, verdict: A },
-            Row { label: "leaning wedge, +y", profile: LEANING, apex: 6.0, normal: 1.0, context: A, convexity: Convex, verdict: A },
-            Row { label: "groove floor, +y", profile: GROOVE, apex: 4.0, normal: 1.0, context: A, convexity: Reflex, verdict: B },
-            Row { label: "groove floor, -y", profile: GROOVE, apex: 4.0, normal: -1.0, context: B, convexity: Reflex, verdict: A },
-            Row { label: "leaning groove floor, +y", profile: LEANING_GROOVE, apex: 4.0, normal: 1.0, context: A, convexity: Reflex, verdict: B },
+            Row { label: "wedge from above, +y", profile: APEX_DOWN, apex: 6.0, normal: 1.0, context: A, convex: CONVEX, verdict: A },
+            Row { label: "wedge from above, -y", profile: APEX_DOWN, apex: 6.0, normal: -1.0, context: B, convex: CONVEX, verdict: B },
+            Row { label: "wedge from below, +y", profile: APEX_UP, apex: 6.0, normal: 1.0, context: B, convex: CONVEX, verdict: B },
+            Row { label: "wedge from below, -y", profile: APEX_UP, apex: 6.0, normal: -1.0, context: A, convex: CONVEX, verdict: A },
+            Row { label: "leaning wedge, +y", profile: LEANING, apex: 6.0, normal: 1.0, context: A, convex: CONVEX, verdict: A },
+            Row { label: "groove floor, +y", profile: GROOVE, apex: 4.0, normal: 1.0, context: A, convex: REFLEX, verdict: B },
+            Row { label: "groove floor, -y", profile: GROOVE, apex: 4.0, normal: -1.0, context: B, convex: REFLEX, verdict: A },
+            Row { label: "leaning groove floor, +y", profile: LEANING_GROOVE, apex: 4.0, normal: 1.0, context: A, convex: REFLEX, verdict: B },
         ];
         for row in &rows {
-            let (prev, next, convexity, verdict) = classify_apex(row);
+            let (prev, next, convex, verdict) = classify_apex(row);
             assert_eq!(
                 (prev, next),
                 (row.context, row.context),
                 "{}: context",
                 row.label
             );
-            assert_eq!(convexity, row.convexity, "{}: convexity", row.label);
+            assert_eq!(convex, row.convex, "{}: wedge", row.label);
             assert_eq!(verdict, row.verdict, "{}: verdict", row.label);
         }
     }
@@ -548,10 +574,11 @@ mod tests {
         };
         let (base, far) = (at(0.0), at(1.0));
         for s in [1.0, -1.0] {
-            let plane = SplitPlane {
-                origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-                normal: geom_core::Vec3::new(0.0, s * h, -s * h),
-            };
+            let plane = crate::test_support_fixtures::split_plane(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, s * h, -s * h),
+                tol,
+            );
             let (sides, _) = crate::vertex_sides(&body, &plane, tol).unwrap();
             let entries =
                 super::super::classify_neighborhood(&body, &plane, &sides, base, band).unwrap();

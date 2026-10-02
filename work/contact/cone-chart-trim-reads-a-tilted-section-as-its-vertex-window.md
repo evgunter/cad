@@ -55,3 +55,59 @@ refusal the way `WallOutline::Unsupported` does.
 The trigger to do it is whichever lands first: the props lane gaining a
 cone conic-trim flux (which opens import), or a split/boolean cone arm.
 Each opens a door to this face.
+
+## 2026-10-01: both triggers fired, measured, and guarded
+
+The plane × cone split lane (`plane-cone-elliptic-section-split-refusal`,
+branch `reach/plane-cone-ellipse`) landed both doors at once: the split
+admits cones and mints the tilted `Ellipse`, and the props lane computes
+a cone face's flux and area in closed form, so a section-bounded cone
+face is now a valid body at rest.
+
+Measured before the guard: a frustum (radius 1 at `y = 0`, 1/2 at
+`y = 1`, revolved about `y`) split by the plane through `(0, 0.5, 0)`
+with normal `(0, cos 0.4, sin 0.4)` — a tilt about `x`, so the
+section's height peaks inside its arcs rather than at the seam
+vertices. On a 9×9×9 grid of points kept 0.02 clear of both surfaces,
+`point_in_solid` answered **34 of 1358 queries wrongly** (every one
+`In` for a point outside the half), the rest refusing. The same probe
+on a cylinder: 0 wrong, the CONTACT-3 fix holding.
+
+What landed with that lane is this item's own fallback arm, not its
+fix: `cone_window_premise` (`solid_contain.rs`), called first in
+`cone_chart_trim` and `cone_face_trim`, refuses `PartialConeFace` for
+a cone face with any edge that is neither a rim (`Circle`) nor a
+generator (`Line`). After it: 0 wrong, 1358 refused. The row is
+`sweep/tests/reach_cone_split.rs`
+`a_tilted_cone_cut_is_never_misread_by_containment` (red with the
+guard removed). What remains here is the fix proper: the section's
+side along each generator, the cylinder's `wall_outline` discipline,
+so those faces answer instead of refusing.
+
+### Narrowed in the same lane's fix pass
+
+The guard refused every query on a body carrying such a face, the
+point `(10, 10, 10)` included. The solid door now reads the face as
+`FaceGeo::PartialCone` (`solid_contain.rs`): the face lies within a
+ball about the apex (`partial_cone_reach`: vertex distances, and
+`|centre − apex| + semi-major` for an ellipse edge), and a query
+refuses only for `q` on the double cone inside that ball, or when every
+schedule ray meets the cone ahead of `q` inside it. A ray that does
+is set aside like a graze. The at-infinity side reads the face's
+closed-form volume, which the cone's closed form now supplies for a
+trimmed face too.
+
+Measured (fix-pass probe, 11³ grid over `[−3, 3]³`, both halves, four
+tilts each): narrowing frustum 10–22 refused of 2662 per tilt, widening
+2, upright cone 0, and **0 wrong** throughout. `cone_face_trim`, the
+face-scoped door, still refuses. The fix proper is unchanged: the
+section's side along each generator.
+
+**Two policies for one situation.** A ray meeting an unreadable face
+inside its ball is set aside on the cone (`FaceGeo::PartialCone`: the
+schedule tries the next ray, and the query refuses only when none
+clears), while the cylinder's `WallOutline::Unsupported { reach }`
+refuses the whole query at the first such hit (`wall_hit`). Both are
+sound; the cone's answers strictly more queries. One policy for both —
+likely the cone's, with the refusal named after the face that set the
+last ray aside — belongs with this item's fix.

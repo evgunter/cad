@@ -193,9 +193,11 @@ fn a_lone_multi_solid_source_is_named() {
         let (next, id) = insert(sub, Node::instantiate_part(p));
         let (next, _) = step(
             next,
-            DocEdit::SetPlacement {
-                node: id,
-                frame: Frame::translation([dx, 0.0, 0.0]),
+            DocEdit::SetOffset {
+                instance: id,
+                offset: Some(editor_core::Placement::literal(&Frame::translation([
+                    dx, 0.0, 0.0,
+                ]))),
             },
         );
         sub = next;

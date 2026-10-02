@@ -68,7 +68,7 @@ fn adv_mixed_convex_concave_hole() {
     // Equal-sagitta segments cancel: hole area exactly 4, volume 32.
     assert!((vol(&t.body) - 32.0).abs() < 1e-9, "vol {}", vol(&t.body));
     let mut seen = (0, 0, 0); // (false-cyl, true-cyl, true-plane)
-    for &f in &t.side_faces[1] {
+    for &f in &t.side_faces()[1] {
         let sk = t.body.get_face(f).unwrap().surface;
         match *t.body.get_surface(sk).unwrap() {
             Surface::Cylinder { origin, .. } => {
@@ -161,7 +161,7 @@ fn adv_eye_slot_outer_and_hole_senses() {
         topo::validate::validate_geometric(&t.body, Tol::witness()),
         Ok(())
     );
-    for &f in &t.side_faces[0] {
+    for &f in &t.side_faces()[0] {
         assert!(sense_of(&t.body, f), "outer vesica walls are all convex");
     }
     let v_outer = vol(&t.body);
@@ -182,7 +182,7 @@ fn adv_eye_slot_outer_and_hole_senses() {
         topo::validate::validate_geometric(&t.body, Tol::witness()),
         Ok(())
     );
-    for &f in &t.side_faces[1] {
+    for &f in &t.side_faces()[1] {
         assert!(!sense_of(&t.body, f), "every eye-slot hole wall is concave");
     }
     assert!(
@@ -238,7 +238,7 @@ fn adv_asymmetric_downward_invariance() {
     assert_all_tiers(&up.body);
     assert_all_tiers(&down.body);
     let carriers = |t: &sweep::Extruded<f64>| {
-        let mut v: Vec<((i64, i64, i64), bool)> = t.side_faces[0]
+        let mut v: Vec<((i64, i64, i64), bool)> = t.side_faces()[0]
             .iter()
             .map(|&f| {
                 let sk = t.body.get_face(f).unwrap().surface;
@@ -294,7 +294,7 @@ fn adv_reversed_authoring_revolve_same_senses() {
             Tol::witness(),
         )
         .unwrap();
-        let mut m: Vec<(String, bool)> = t.walls[0]
+        let mut m: Vec<(String, bool)> = t.walls()[0]
             .iter()
             .flatten()
             .map(|&f| {
@@ -349,7 +349,7 @@ fn adv_bore_groove_torus_band() {
     );
     // bottom annulus F, outer cyl T, top annulus T, bore upper F,
     // groove torus F, bore lower F.
-    let senses: Vec<Option<bool>> = t.walls[0]
+    let senses: Vec<Option<bool>> = t.walls()[0]
         .iter()
         .map(|w| w.map(|f| sense_of(&t.body, f)))
         .collect();
@@ -365,7 +365,7 @@ fn adv_bore_groove_torus_band() {
         ]
     );
     // The groove wall really is a torus.
-    let groove = t.walls[0][4].unwrap();
+    let groove = t.walls()[0][4].unwrap();
     let sk = t.body.get_face(groove).unwrap().surface;
     assert!(matches!(
         t.body.get_surface(sk).unwrap(),

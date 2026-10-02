@@ -154,7 +154,7 @@ names its raising site.
 | `vtxfac.rs` pierce normal: `face_outward_normal_at` → `Ok(None)` (`face_normal.rs` :217), refused at `vtxfac.rs` :136 | R | `CurvedBooleanUnsupported`, the pierced face a cone |
 | `sector_face.rs` `sector_face` (:209) | R | `SectorFaceError::Unsupported` |
 | `vtxfac.rs` :225 and :244, `recl.rs` `carrier_of` (:51), both through `rest::face_carrier` (:557) → `None` | R | `CurvedBooleanUnsupported` |
-| `sectors.rs` `tangent_lump` (:437), through `rest::tangent_locus` (:759) → `Unsupported` | R | `CurvedBooleanUnsupported` |
+| `sectors.rs` `tangent_lump` (:437), through `geom_brep::tangent_locus` → `Unsupported` | R | `CurvedBooleanUnsupported` |
 | `join.rs` germ-pair dispatch `(a_s, b_s) =>` (:456) | R | `CurvedBooleanUnsupported { kind: Cone }` (P5, P7). Every pair with a cone face, the plane × cone pair included. |
 | `join.rs` `pair_section_frame` `_ => NoArm` (:943) | R | `GermFrameUnsupported` |
 | `chord_join.rs` `bool_planar_chord_spec` wall `_ =>` (:1447) | R | `SectionInvariant`; unreachable behind the join |
@@ -811,12 +811,12 @@ rows, all four ops each, use the preview cone, `V = π/3`:
 
 - **Q1 ⚑ The join.** Does U8 (the axis-normal plane × cone join) belong
   to this item, or to its own? The tilted ellipse cut is the larger
-  question. `crates/geom-brep/README.md` C1 says "a generic-tilt
-  plane×cone routes to rung 3 permanently". The ellipse is IN the
-  inventory; the hyperbola and parabola are out by decision. Making the
-  tilted ellipse exact would amend ratified text, so it is Ev's call.
-  Until then, every cone face with an event refuses at the join, as the
-  torus's does.
+  question, and Ev ruled on it on 2026-10-01: the exact tilted ellipse
+  is permitted ("exact ellipses are certainly allowed there"). The
+  ellipse is in the inventory; the hyperbola and parabola are out by
+  decision. `crates/geom-brep/README.md` C1 and C5 route the tilted
+  plane×cone section to the exact `Ellipse` (rung 2), and a parabolic
+  or hyperbolic section refuses typed, naming its conic.
 - **Q2 The revert roster.** Should `Cone` go onto `revert_arm_exists` in
   U7, or wait behind `torus-onto-the-subtract-and-intersect-roster`? The
   probe put the cone on both rosters, and ∖ and ∩ reached the same doors

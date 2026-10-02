@@ -2,10 +2,11 @@
 id: split-strands-a-lone-below-bisector-as-loose-ends
 kind: issue
 title: split refuses UnpairedLooseEnds at a vertex whose real edges all sit above with only a wide sector's bisector below
-status: open
+status: closed
 opened: 2026-10-01
 priority: P0
 cost: M
+closed: 2026-10-02
 ---
 
 
@@ -64,3 +65,18 @@ block ∪ slab under the tangent plane y + z = 2 with normal
 
 CLEAVE `cleave-tangency`, measuring block ∪ slab for
 `split-cannot-declare-an-exact-tangency-with-its-target`.
+
+## Closed 2026-10-02 — a duplicate of JOIN's row, fixed by PR 3770
+
+This is the mechanism of
+`work/cleave/split-whole-orbit-run-mints-an-unlabelled-strut.md`: an
+Above run holding every real edge of the orbit, minted as a strut and
+recorded as a fan split. JOIN's PR 3770 (`join/star-desync`) records
+it as the dangling strut it is, with the Below copy at its tip.
+
+Measured after merging main (PR 3726's branch): both repros answer.
+- The no-in-plane-edge repro: −(0.1, 1, 1) gives 1.7612 above and
+  0.4388 below, the swap of the +n run.
+- Block ∪ slab under (0, −h, −h): 1.7625 / 0.4375, the swap of +n.
+
+`split_tangent_edge.rs` now pins both orientations as answers.

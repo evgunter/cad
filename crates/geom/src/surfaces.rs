@@ -91,14 +91,6 @@ pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
-// The variant roster the analytic-kind fixtures read
-// ([`crate::test_support`]; this crate's `test-support` feature,
-// test builds only).
-#[cfg_attr(
-    feature = "test-support",
-    derive(strum::EnumDiscriminants),
-    strum_discriminants(name(SurfaceVariant), derive(strum::EnumIter), doc(hidden))
-)]
 pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
     /// `v_ref = normal × u_ref`.
@@ -284,7 +276,103 @@ pub enum Surface<T: Real> {
     /// no other door), so unlike [`Surface::Nurbs`] there is no
     /// placeholder state in this variant: an `Approx` surface is always
     /// described.
+    ///
+    /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]): a table
+    /// indexed by kind decides what a claim about a surface means, and a
+    /// claim about an approximating surface is a claim about the fit,
+    /// not about the surface asked for.
     Approx(Arc<ApproxSurface<T>>),
+}
+
+/// Which [`Surface`] variant a surface is: the workspace's one
+/// fieldless mirror of the surface enum ([`Surface::kind`]).
+///
+/// Hand-written rather than derived so each variant's doc speaks of the
+/// tag, not of a payload it does not have. A variant added to
+/// [`Surface`] reds [`Surface::kind`]'s wildcard-free match until it
+/// has a kind here; [`Self::ALL`] is derived from this enum, so there
+/// is no roster to forget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, strum::VariantArray)]
+pub enum SurfaceKind {
+    /// A [`Surface::Plane`].
+    Plane,
+    /// A [`Surface::Cylinder`].
+    Cylinder,
+    /// A [`Surface::Cone`].
+    Cone,
+    /// A [`Surface::Sphere`].
+    Sphere,
+    /// A [`Surface::Torus`].
+    Torus,
+    /// A [`Surface::Nurbs`], described or the placeholder.
+    Nurbs,
+    /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`] — a
+    /// claim about an approximating surface is a claim about the fit,
+    /// not about the surface asked for.
+    Approx,
+}
+
+impl<T: Real> Surface<T> {
+    /// Which variant this surface is.
+    ///
+    /// **No wildcard arm**: a new [`Surface`] variant is a compile error
+    /// here until [`SurfaceKind`] names it.
+    #[must_use]
+    pub fn kind(&self) -> SurfaceKind {
+        match self {
+            Self::Plane { .. } => SurfaceKind::Plane,
+            Self::Cylinder { .. } => SurfaceKind::Cylinder,
+            Self::Cone { .. } => SurfaceKind::Cone,
+            Self::Sphere { .. } => SurfaceKind::Sphere,
+            Self::Torus { .. } => SurfaceKind::Torus,
+            Self::Nurbs(_) => SurfaceKind::Nurbs,
+            Self::Approx(_) => SurfaceKind::Approx,
+        }
+    }
+}
+
+impl SurfaceKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; <Self as strum::VariantArray>::VARIANTS.len()] =
+        match <Self as strum::VariantArray>::VARIANTS.first_chunk() {
+            Some(all) => *all,
+            None => unreachable!(),
+        };
+
+    /// The kind's name: one lower-case word, the spelling refusals and
+    /// tables print.
+    ///
+    /// **Also a persisted key.** `tools/tess-meter` writes it into its
+    /// CSV's `chart` column and `tools/tess-lint` joins committed
+    /// baselines on that column, so rewording a name re-keys every
+    /// baseline row that carries it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Plane => "plane",
+            Self::Cylinder => "cylinder",
+            Self::Cone => "cone",
+            Self::Sphere => "sphere",
+            Self::Torus => "torus",
+            Self::Nurbs => "nurbs",
+            Self::Approx => "approx",
+        }
+    }
+
+    /// The kind as an adjective for a face or its surface, for prose
+    /// ("a cylindrical face").
+    #[must_use]
+    pub const fn adjective(self) -> &'static str {
+        match self {
+            Self::Plane => "flat",
+            Self::Cylinder => "cylindrical",
+            Self::Cone => "conical",
+            Self::Sphere => "spherical",
+            Self::Torus => "toroidal",
+            Self::Nurbs => "spline",
+            Self::Approx => "fitted",
+        }
+    }
 }
 
 /// **The ring-torus convention's ring half, decided: its one home.**

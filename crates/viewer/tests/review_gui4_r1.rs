@@ -41,8 +41,8 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    ClassAdmission, DocEdit, DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    assemble, class_admission, parse_expr,
+    ClassAdmission, DocEdit, DocumentId, Frame, Node, PatternKind, Placement, ProfileDoc,
+    RecipeNodeId, assemble, class_admission, parse_expr,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::{ContactClass, face_frame};
@@ -98,18 +98,18 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let rot_post = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
     common::edit_into(
         &mut doc,
-        DocEdit::SetPlacement {
-            node: rot_post,
-            frame: rotated,
+        DocEdit::SetOffset {
+            instance: rot_post,
+            offset: Some(Placement::literal(&rotated)),
         },
         tol,
     );
     let rot_shelf = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
     common::edit_into(
         &mut doc,
-        DocEdit::SetPlacement {
-            node: rot_shelf,
-            frame: Frame::translation(asm::SHELF_AT),
+        DocEdit::SetOffset {
+            instance: rot_shelf,
+            offset: Some(Placement::literal(&Frame::translation(asm::SHELF_AT))),
         },
         tol,
     );
@@ -184,13 +184,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let pose_b =
         face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the underside has a pose");
     close(
-        [pose_a.origin.x, pose_a.origin.y, pose_a.origin.z],
-        [pose_b.origin.x, pose_b.origin.y, pose_b.origin.z],
+        pose_a.origin.to_array(),
+        pose_b.origin.to_array(),
         1e-9,
         "the picked faces' origins coincide once solved",
     );
     close(
-        [pose_a.axis.x, pose_a.axis.y, pose_a.axis.z],
+        pose_a.axis.to_array(),
         [-pose_b.axis.x, -pose_b.axis.y, -pose_b.axis.z],
         1e-9,
         "the picked faces' chart axes meet opposed once solved",
@@ -390,7 +390,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == bench.post_b && !mates.is_empty()
+                if instance.id() == bench.post_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -438,7 +438,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
                 instance,
                 mates,
             }))) => {
-                assert_eq!(instance, constrained);
+                assert_eq!(instance.id(), constrained);
                 assert!(!mates.is_empty(), "the refusal names its mates");
             }
             other => panic!("a mated instance must refuse the probe, got {other:?}"),
@@ -771,9 +771,9 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     assert_eq!(killed.instance, bench.post_b);
     assert!(
         matches!(
-            killed.cause,
-            AdmissionFault::MateConstrained { instance, ref mates }
-                if instance == bench.post_b && mates.len() == 1
+            &killed.cause,
+            AdmissionFault::MateConstrained { instance, mates }
+                if instance.id() == bench.post_b && mates.len() == 1
         ),
         "the cause is the landing mate, carried from the predicate that \
          decided rather than re-derived: {}",
@@ -831,7 +831,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let (doc, eval) = session.landed_pair().expect("landed");
     match tool.proposal(doc, eval, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
-            assert_eq!(head, bench.post_b);
+            assert_eq!(head.id(), bench.post_b);
         }
         other => panic!("a self-mate must refuse at the tool, got {other:?}"),
     }

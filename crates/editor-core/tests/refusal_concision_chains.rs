@@ -22,7 +22,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::NodeStanding;
-use editor_core::Staged;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -64,6 +63,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/Euler",
     "Split/Finish/NestingContradiction",
+    "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/NullScaffold",
@@ -90,9 +90,10 @@ const KERNEL_KEYED: &[&str] = &[
 /// has — each on the row namespace whose surface writes it. A label
 /// here is English the person reads, not a pipeline stage.
 pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
-    // The checks window's finding labels (`check separation: root 4
-    // output 0: …`): the check the person ran, named as the menu names
-    // it, and the root it ran on.
+    // A check finding's labels as its own `Display` says them, with no
+    // document at hand (`check separation: root 000000000004 output 0:
+    // …`): the check the person ran, named as the menu names it, and
+    // the root it ran on, by its tag.
     ("Check/", "check separation"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
@@ -206,7 +207,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Part/ReferenceCycle",
         span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+        filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
     },
 ];
 
@@ -1091,7 +1092,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FaceFrameNotPlanar",
             NodeErrorKind::FaceFrameNotPlanar {
-                carrier: geom_brep::SurfaceKind::Cylinder,
+                carrier: geom::SurfaceKind::Cylinder,
             },
         ),
         row(
@@ -1335,7 +1336,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "CurvedBooleanUnsupported",
             R::CurvedBooleanUnsupported {
                 face,
-                kind: geom_brep::SurfaceKind::Nurbs,
+                kind: geom::SurfaceKind::Nurbs,
             },
         ),
         ("CurvedEdgeUnsupported", R::CurvedEdgeUnsupported { edge }),
@@ -1500,6 +1501,15 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "NestingContradiction",
             F::NestingContradiction { hole: face },
+        ),
+        (
+            "ResultInvalid",
+            F::ResultInvalid {
+                side: topo::PlaneSide::Below,
+                errors: vec![topo::ValidationError::ScaffoldingEmptyLoop {
+                    loop_: topo::LoopKey::default(),
+                }],
+            },
         ),
     ]
     .map(|(n, e)| (format!("Finish/{n}"), SplitError::Finish(e)));
@@ -2227,6 +2237,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 face,
                 chain: sweep::blend::Convexity::Convex,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+                bounded: false,
             },
         ),
         (
@@ -3021,7 +3032,7 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, ContactClass, DirectionRefusal, EntityKind,
+        BifurcationKind, BooleanCoincidence, BranchMarginEvidence, DirectionRefusal, EntityKind,
         FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
         MeasureNodeFault, PartFault, SitedRef, WitnessAge, WitnessBifurcation,
     };
@@ -3035,7 +3046,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     };
     let finding = |relation| FlushFinding {
         pair: (sited(2), sited(3)),
-        class: ContactClass::Rest,
+        class: BooleanCoincidence::REST,
         evidence: FlushEvidence {
             relation,
             rung: FlushRung::DecidedCoincident,
@@ -3044,7 +3055,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let mut rows = vec![
         row(
             "UndeclaredContact(rest)",
-            NodeErrorKind::UndeclaredContact {
+            NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(finding(topo::PlaneRelation::SameOpposite)),
                 merged: Box::new((Vec::new(), Vec::new())),
                 diag: diag(),
@@ -3052,7 +3063,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row(
             "UndeclaredContact(flush, merged)",
-            NodeErrorKind::UndeclaredContact {
+            NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(finding(topo::PlaneRelation::SameOriented)),
                 merged: Box::new((vec![sited(2), sited(4)], Vec::new())),
                 diag: diag(),
@@ -3080,6 +3091,32 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                     at_solve: Vec::new(),
                 },
             }),
+        ),
+        row(
+            "Unplaced/NoOffset",
+            NodeErrorKind::Unplaced {
+                group: RecipeNodeId(6),
+                cause: editor_core::Unplaced::NoOffset,
+            },
+        ),
+        row(
+            "Unplaced/DeadGauge",
+            NodeErrorKind::Unplaced {
+                group: RecipeNodeId(6),
+                cause: editor_core::Unplaced::DeadGauge {
+                    gauge: RecipeNodeId(2),
+                },
+            },
+        ),
+        row(
+            "PlacementRefused",
+            NodeErrorKind::PlacementRefused {
+                node: RecipeNodeId(2),
+                error: NodeErrorKind::EmptyOperand {
+                    input: RecipeNodeId(1),
+                }
+                .into(),
+            },
         ),
         row(
             "CrossingUnverified",
@@ -3366,8 +3403,8 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 Some(NodeResult::Failed(error)) => match &error.kind {
                     NodeErrorKind::Part {
                         doc_ref,
-                        fault: fault @ PartFault::PartProduct { kind, .. },
-                    } if *kind == class => row(
+                        fault: fault @ PartFault::PartProduct { refusal },
+                    } if refusal.kind() == class => row(
                         name,
                         NodeErrorKind::Part {
                             doc_ref: *doc_ref,
@@ -3386,7 +3423,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
 /// forwards the kernel's own refusal, which no document reaches: a root
 /// the at-rest gate refuses, an aggregate it refuses, and a graft the
 /// kernel refuses. Each is built as the instance carries it, the
-/// gather's [`editor_core::ProductError::sentence`] beside its class.
+/// gather's refusal whole.
 fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{PartFault, ProductError, SourceFinding};
     let inside_out = || topo::ValidationError::NegativeVolume {
@@ -3427,8 +3464,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Part {
                 doc_ref: doc_ref(),
                 fault: PartFault::PartProduct {
-                    kind: error.kind(),
-                    message: error.sentence().to_string(),
+                    refusal: error.into(),
                 },
             },
         )
@@ -3563,6 +3599,36 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 }),
             },
         ),
+        (
+            "OffsetDisagrees",
+            M::OffsetDisagrees {
+                instance: n(7),
+                root: n(6),
+                predicate: "mate_member_translation_zero",
+                clash: Clash::Length { metres: 0.002 },
+            },
+        ),
+        (
+            "OffsetUnchecked/Placement",
+            M::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Placement {
+                    node: n(3),
+                    error: NodeErrorKind::EmptyOperand { input: n(2) }.into(),
+                }),
+            },
+        ),
+        (
+            "OffsetUnchecked/Unleverable",
+            M::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Unleverable(LeverRefusal::Reach {
+                    instance: n(7),
+                    part: doc_ref(),
+                    refusal: editor_core::ReachRefusal::NoExtent,
+                })),
+            },
+        ),
     ]
     .into_iter()
     .map(|(name, fault)| {
@@ -3642,7 +3708,7 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             "OpenFaceRingUnsupported",
             S::OpenFaceRingUnsupported {
                 face,
-                kind: geom_brep::SurfaceKind::Torus,
+                kind: geom::SurfaceKind::Torus,
             },
         ),
         (
@@ -4138,7 +4204,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             "KindUnsupported",
             PointInSolidError::KindUnsupported {
                 face,
-                kind: geom_brep::SurfaceKind::Nurbs,
+                kind: geom::SurfaceKind::Nurbs,
             },
         ),
         ("VolumeUncertified", PointInSolidError::VolumeUncertified),

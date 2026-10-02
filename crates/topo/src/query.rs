@@ -27,9 +27,9 @@
 //!
 //!   **[`rim_of`] is a fourth EXACT door and it does NOT answer NO.**
 //!   It reads stored data the same way the three predicates do — the
-//!   carrier's tag, then its `center`, `radius` and `axis` compared
-//!   BIT for bit, and side surface KEYS — with no funnel, no margin
-//!   and nothing decided. What it does differently is its answer
+//!   seed carrier's tag, then side surface KEYS and shared vertex
+//!   KEYS, never a carrier's values — with no funnel, no margin and
+//!   nothing decided. What it does differently is its answer
 //!   shape: a predicate returns a `bool`, so "the key dangles" and
 //!   "the kind is wrong" can both honestly be NO; a door that returns
 //!   a SET has no such spelling, because an empty set and a partial
@@ -92,86 +92,24 @@
 //! the point.
 
 use geom::Curve3;
-use geom_brep::{SurfaceKey, SurfaceKind};
+use geom_brep::SurfaceKey;
 use geom_core::k_stats::decide;
 use geom_core::{
-    Band, Bounds, Decide, Indeterminate, Margin, OrthoFrame, Point2, Point3, Real, Sign, UnitVec3,
-    Vec2, Vec3,
+    Band, Decide, Indeterminate, Margin, OrthoFrame, Point2, Point3, Real, Sign, UnitVec3, Vec2,
 };
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::null::CurveGeom;
 use crate::readback::{CarrierAbsence, DanglingRef};
 
-/// Which [`Curve3`] variant a carrier is: the fieldless mirror of the
-/// curve enum, and the edge-side twin of [`SurfaceKind`].
+/// The kinds, re-exported where their sets and predicates live.
 ///
-/// The mirror is hand-written and [`CurveKind::of`]'s match is
-/// EXHAUSTIVE with no wildcard arm, so adding a `Curve3` variant fails
-/// to compile here rather than silently classifying as something else
-/// — the same fail-loud tripwire the role-segment mirrors use.
-///
-/// (Placement, as this crate keeps it: the mirror lives where it is
-/// used — [`SurfaceKind`] beside the certify machinery in `geom-brep`,
-/// this one beside the query predicates that read it, [`CurveKindSet`]
-/// and its bit numbering included. The typed door that copies the tag
-/// out, [`crate::readback::edge_carrier_kind`], imports it from here,
-/// the way that module imports [`SurfaceKind`] from `geom-brep` for
-/// the face twin: a door names its answer type wherever the mirror is
-/// authored. `SurfaceKind` stays the workspace's ONE fieldless surface
-/// mirror; no second is minted here. Whether this is where the mirror
-/// BELONGS is open and not this crate's to settle — the ratified verb-seat
-/// design says it moves down beside [`Curve3`], and has said so since
-/// before SEAT-2 put it here; the question is
-/// `curve-kind-placement-disagrees-with-the-ratified-seat-clause`.)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CurveKind {
-    /// [`Curve3::Line`].
-    Line,
-    /// [`Curve3::Circle`].
-    Circle,
-    /// [`Curve3::Ellipse`].
-    Ellipse,
-    /// [`Curve3::Spiric`].
-    Spiric,
-    /// [`Curve3::Nurbs`].
-    Nurbs,
-}
-
-impl CurveKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 5] = [
-        Self::Line,
-        Self::Circle,
-        Self::Ellipse,
-        Self::Spiric,
-        Self::Nurbs,
-    ];
-
-    /// The kind of a carrier (exhaustive by construction — type docs).
-    #[must_use]
-    pub fn of<T: Real>(c: &Curve3<T>) -> Self {
-        match c {
-            Curve3::Line { .. } => Self::Line,
-            Curve3::Circle { .. } => Self::Circle,
-            Curve3::Ellipse { .. } => Self::Ellipse,
-            Curve3::Spiric { .. } => Self::Spiric,
-            Curve3::Nurbs(_) => Self::Nurbs,
-        }
-    }
-
-    /// This kind's bit position in a [`CurveKindSet`].
-    const fn bit(self) -> u8 {
-        match self {
-            Self::Line => 0,
-            Self::Circle => 1,
-            Self::Ellipse => 2,
-            Self::Spiric => 3,
-            Self::Nurbs => 4,
-        }
-    }
-}
+/// [`CurveKind`] and [`SurfaceKind`] are `geom`'s, beside the enums
+/// they mirror ([`Curve3::kind`], [`geom::Surface::kind`]), and every
+/// crate above reuses them. What this seat owns is the SETS over them
+/// — [`CurveKindSet`], [`SurfaceKindSet`] and their bit numbering — and
+/// the EXACT predicates that read them.
+pub use geom::{CurveKind, SurfaceKind};
 
 /// A SET of [`CurveKind`]s — the predicate's comparand, so "a line or
 /// an arc" is one predicate rather than a union of two selections.
@@ -187,7 +125,7 @@ impl CurveKindSet {
     /// (the same posture as an empty document-layer `Selector`).
     #[must_use]
     pub fn of(kinds: impl IntoIterator<Item = CurveKind>) -> Self {
-        Self(kinds.into_iter().fold(0, |acc, k| acc | (1 << k.bit())))
+        Self(kinds.into_iter().fold(0, |acc, k| acc | curve_bit(k)))
     }
 
     /// The singleton set — the common case.
@@ -199,7 +137,7 @@ impl CurveKindSet {
     /// Whether `kind` is a member.
     #[must_use]
     pub fn contains(self, kind: CurveKind) -> bool {
-        self.0 & (1 << kind.bit()) != 0
+        self.0 & curve_bit(kind) != 0
     }
 
     /// Whether the set is empty (matches nothing).
@@ -216,42 +154,6 @@ impl CurveKindSet {
     }
 }
 
-/// The [`SurfaceKind`] bit position in a [`SurfaceKindSet`].
-///
-/// EXHAUSTIVE with no wildcard arm: a new `SurfaceKind` variant fails
-/// to compile here, so the numbering cannot silently omit a kind. It
-/// does not pin `ALL_SURFACE_KINDS` below against the enum, and does
-/// not see a numbering that REPEATS a bit — the `census!` invocation
-/// and `kind_bits_are_distinct` in this file's test module are what
-/// hold those two.
-const fn surface_bit(kind: SurfaceKind) -> u8 {
-    match kind {
-        SurfaceKind::Plane => 0,
-        SurfaceKind::Cylinder => 1,
-        SurfaceKind::Cone => 2,
-        SurfaceKind::Sphere => 3,
-        SurfaceKind::Torus => 4,
-        SurfaceKind::Nurbs => 5,
-        SurfaceKind::Approx => 6,
-    }
-}
-
-/// Every [`SurfaceKind`], in declaration order — the iteration order of
-/// a [`SurfaceKindSet`].
-///
-/// Held against the enum, seat by seat, by the `census!` invocation in
-/// this file's test module: adding a variant reds there until this
-/// list carries it.
-pub const ALL_SURFACE_KINDS: [SurfaceKind; 7] = [
-    SurfaceKind::Plane,
-    SurfaceKind::Cylinder,
-    SurfaceKind::Cone,
-    SurfaceKind::Sphere,
-    SurfaceKind::Torus,
-    SurfaceKind::Nurbs,
-    SurfaceKind::Approx,
-];
-
 /// A SET of [`SurfaceKind`]s — [`CurveKindSet`]'s face-side twin, and
 /// the comparand of both [`face_surface_matches`] and each side of
 /// [`edge_adjacent_matches`].
@@ -262,11 +164,7 @@ impl SurfaceKindSet {
     /// The set of exactly these kinds. An EMPTY set matches nothing.
     #[must_use]
     pub fn of(kinds: impl IntoIterator<Item = SurfaceKind>) -> Self {
-        Self(
-            kinds
-                .into_iter()
-                .fold(0, |acc, k| acc | (1 << surface_bit(k))),
-        )
+        Self(kinds.into_iter().fold(0, |acc, k| acc | surface_bit(k)))
     }
 
     /// The singleton set — the common case.
@@ -278,7 +176,7 @@ impl SurfaceKindSet {
     /// Whether `kind` is a member.
     #[must_use]
     pub fn contains(self, kind: SurfaceKind) -> bool {
-        self.0 & (1 << surface_bit(kind)) != 0
+        self.0 & surface_bit(kind) != 0
     }
 
     /// Whether the set is empty (matches nothing).
@@ -287,12 +185,26 @@ impl SurfaceKindSet {
         self.0 == 0
     }
 
-    /// The members, in [`ALL_SURFACE_KINDS`] order.
+    /// The members, in [`SurfaceKind::ALL`] order.
     pub fn iter(self) -> impl Iterator<Item = SurfaceKind> {
-        ALL_SURFACE_KINDS
+        SurfaceKind::ALL
             .into_iter()
             .filter(move |k| self.contains(*k))
     }
+}
+
+/// A kind's bit in a [`CurveKindSet`]: its place in [`CurveKind::ALL`],
+/// which is declaration order.
+const fn curve_bit(kind: CurveKind) -> u8 {
+    const { assert!(CurveKind::ALL.len() <= u8::BITS as usize) };
+    1 << kind as u8
+}
+
+/// A kind's bit in a [`SurfaceKindSet`]: its place in
+/// [`SurfaceKind::ALL`], which is declaration order.
+const fn surface_bit(kind: SurfaceKind) -> u8 {
+    const { assert!(SurfaceKind::ALL.len() <= u8::BITS as usize) };
+    1 << kind as u8
 }
 
 // ---------------------------------------------------------------
@@ -340,12 +252,6 @@ pub fn face_surface_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<SurfaceK
     crate::readback::face_carrier_kind(body, f).ok()
 }
 
-/// The surface kind on one side of an edge, or `None` where the
-/// adjacency or its geometry is not there to read.
-fn face_kind_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<SurfaceKind> {
-    face_surface_kind(body, body.face_of_half_edge(he)?)
-}
-
 /// EXACT: whether the edge's certified carrier kind is a member of
 /// `kinds`. Total — a missing edge or carrier is an honest NO.
 #[must_use]
@@ -373,17 +279,16 @@ pub fn edge_adjacent_matches<T: Real>(
     a: SurfaceKindSet,
     b: SurfaceKindSet,
 ) -> bool {
-    body.get_edge(e).is_some_and(|edge| {
-        match (
-            face_kind_across(body, edge.he_plus),
-            face_kind_across(body, edge.he_minus),
-        ) {
-            (Some(p), Some(m)) => {
-                (a.contains(p) && b.contains(m)) || (a.contains(m) && b.contains(p))
-            }
-            (None, _) | (_, None) => false,
-        }
-    })
+    let Ok(sides) = crate::readback::edge_sides(body, e) else {
+        return false;
+    };
+    match (
+        face_surface_kind(body, sides.plus.face),
+        face_surface_kind(body, sides.minus.face),
+    ) {
+        (Some(p), Some(m)) => (a.contains(p) && b.contains(m)) || (a.contains(m) && b.contains(p)),
+        (None, _) | (_, None) => false,
+    }
 }
 
 // ---------------------------------------------------------------
@@ -557,8 +462,8 @@ pub fn datum_distance_sign<T: Decide>(
 
 // ---------------------------------------------------------------
 // The rim door: the whole closed rim one arc belongs to. EXACT —
-// stored tags and stored carriers, read bitwise; no funnel, no
-// margin, no sampled geometry.
+// surface keys and vertex keys, read off the topology; no carrier is
+// compared, no funnel, no margin, no sampled geometry.
 // ---------------------------------------------------------------
 
 /// Why [`rim_of`] could not name a rim — a closed enum (D4 ¶3): every
@@ -587,37 +492,34 @@ pub enum RimError {
         /// The one surface both its sides rest on.
         surface: SurfaceKey,
     },
-    /// **The arcs that matched the seed do not form one closed chain
-    /// on shared vertices**: the walk dangles at a vertex (a partial
-    /// revolve's open rim is the honest instance), it branches there,
-    /// or it closes leaving matched arcs unused. A partial set is
-    /// never returned.
-    ///
-    /// **What was tested, stated so the payload can be read.** The
-    /// arcs in `arcs` are the ones whose stored `center`, `radius` and
-    /// `axis` are bit-equal to the seed's and whose two sides rest on
-    /// the seed's two surfaces; the chain is walked over THOSE. So a
-    /// refusal has two quite different causes and the payload
-    /// distinguishes them: there is really a hole in the rim, or an
-    /// arc of the rim is stored on a carrier this door does not call
-    /// the same circle (a different `u_ref` is fine — it is not read —
-    /// but a fresh `center`, `radius` or `axis`, a negated axis
-    /// included, is not). A caller seeing `gap` at a parameter its
-    /// body has an edge across should look at carrier identity, not
-    /// for a missing edge.
+    /// **The edges between the seed's two surfaces do not close into
+    /// one chain through the seed**: at vertex `at` the chain dangles
+    /// (a partial revolve's open rim is the honest instance) or
+    /// branches. A partial set is never returned.
     NotOneRim {
-        /// Every arc that matched the seed, in arena order. The chain
-        /// was walked over exactly these.
-        arcs: Vec<EdgeKey>,
-        /// The seed carrier's parameter at the vertex the walk stopped
-        /// at — the lower end of the bracket at an enclosing scalar. A
-        /// report, not a comparand: nothing in this door branches on
-        /// it.
-        gap: f64,
+        /// The chain as walked from the seed up to `at`, in walk order.
+        walked: Vec<EdgeKey>,
+        /// The vertex the walk stopped at.
+        at: VertexKey,
+        /// Whether the chain dangles or branches there.
+        how: RimBreak,
     },
-    /// A dangling key or an unreadable reference on the way — the
-    /// `sweep::blend` `not_intact` shape.
-    NotIntact(EntityId),
+    /// A dangling reference on the way: a key the body does not hold,
+    /// or a geometry key a live entity names and the arena does not.
+    NotIntact(DanglingRef),
+}
+
+/// How a rim's chain fails to close at the vertex
+/// [`RimError::NotOneRim`] names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RimBreak {
+    /// One end of an edge between the seed's two surfaces is at the
+    /// vertex — the end the walk arrived on: the chain ends there.
+    Dangles,
+    /// Three or more ends of edges between the seed's two surfaces are
+    /// at the vertex (a closed edge's two ends both count), so it is no
+    /// single chain.
+    Branches,
 }
 
 impl core::fmt::Display for RimError {
@@ -626,18 +528,12 @@ impl core::fmt::Display for RimError {
             Self::NotAnArc { edge, kind } => {
                 // The kind is NAMED, not `Debug`-rendered: a payload
                 // reaching a message through `Debug` is what the prose
-                // census hunts, and words read better in a refusal. The
-                // match is exhaustive with no wildcard arm, so a new
-                // `CurveKind` fails to compile here; the circle arm is
-                // unreachable through the door and is stated rather
-                // than folded into a catch-all.
+                // census hunts, and words read better in a refusal.
                 let carries = match kind {
-                    None => "no certified carrier",
-                    Some(CurveKind::Line) => "a line",
-                    Some(CurveKind::Circle) => "a circle",
-                    Some(CurveKind::Ellipse) => "an ellipse",
-                    Some(CurveKind::Spiric) => "a spiric",
-                    Some(CurveKind::Nurbs) => "a NURBS curve",
+                    None => "no certified carrier".to_owned(),
+                    Some(kind) => {
+                        crate::validate::with_article(&format!("{} curve", kind.adjective()))
+                    }
                 };
                 write!(
                     f,
@@ -650,358 +546,213 @@ impl core::fmt::Display for RimError {
                 "edge {edge:?} has surface {surface:?} on both sides: a chart-seam \
                  meridian, and a rim's two sides are two surfaces"
             ),
-            Self::NotOneRim { arcs, gap } => write!(
-                f,
-                "the {} arcs stored on this arc's own circle, between its two \
-                 surfaces, do not form one closed chain: the walk stops at \
-                 carrier parameter {gap}. Either the rim really is open there, \
-                 or an arc of it is stored on a carrier this door does not call \
-                 the same circle",
-                arcs.len()
+            Self::NotOneRim {
+                how: RimBreak::Dangles,
+                ..
+            } => f.write_str(
+                "this edge names no closed rim: the edges between its two \
+                 surfaces stop at a vertex where none continues them. Select \
+                 the edges one by one instead",
             ),
-            Self::NotIntact(at) => write!(f, "the body is not intact at {at}"),
+            Self::NotOneRim {
+                how: RimBreak::Branches,
+                ..
+            } => f.write_str(
+                "this edge names no single rim: the edges between its two \
+                 surfaces end at one vertex more than twice. Select the edges \
+                 one by one instead",
+            ),
+            Self::NotIntact(DanglingRef::Entity(at)) => {
+                write!(f, "the body is not intact at {at}")
+            }
+            Self::NotIntact(DanglingRef::Geometry(at)) => write!(
+                f,
+                "the body is not intact: a live entity names {at}, which does \
+                 not resolve"
+            ),
         }
     }
 }
 
 impl std::error::Error for RimError {}
 
-/// A circle carrier's IDENTITY as a set of points: centre, axis and
-/// radius. `u_ref` is deliberately NOT part of it — it carries the
-/// seam (D2, conventional data), and one rim's arcs are minted one per
-/// chart with a seam each, so their `u_ref`s differ on every
-/// seam-split body in the corpus.
-struct CircleId<T: Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
+/// The refusal for a topological key that did not resolve.
+fn torn(id: EntityId) -> RimError {
+    RimError::NotIntact(DanglingRef::Entity(id))
 }
 
-/// Are the two scalars the SAME STORED VALUE, bit for bit? At an
-/// enclosing scalar both bracket ends must agree, so two enclosures
-/// that merely overlap are different values. This is the whole of the
-/// door's numeric comparison: no subtraction, no threshold, no funnel.
-fn same_bits<T: Bounds>(a: T, b: T) -> bool {
-    a.lo().to_bits() == b.lo().to_bits() && a.hi().to_bits() == b.hi().to_bits()
+/// An edge's two side surfaces, `he_plus` first, a dangling key
+/// renamed as the rim door's refusal.
+fn side_surfaces<T: Real>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<(SurfaceKey, SurfaceKey), RimError> {
+    Ok(crate::readback::edge_sides(body, e)
+        .map_err(RimError::NotIntact)?
+        .surfaces())
 }
 
-/// [`same_bits`] over a point.
-fn same_point_bits<T: Bounds>(a: Point3<T>, b: Point3<T>) -> bool {
-    same_bits(a.x, b.x) && same_bits(a.y, b.y) && same_bits(a.z, b.z)
-}
-
-/// [`same_bits`] over a vector.
-fn same_vec_bits<T: Bounds>(a: Vec3<T>, b: Vec3<T>) -> bool {
-    same_bits(a.x, b.x) && same_bits(a.y, b.y) && same_bits(a.z, b.z)
-}
-
-impl<T: Bounds> CircleId<T> {
-    /// The same circle: `center`, `radius` and `axis`, each bit-equal.
-    ///
-    /// **The axis is compared bit-for-bit and its NEGATION is not
-    /// admitted**, though `-axis` names the same point set. Admitting
-    /// it would cost the order contract: an arc stored on `-axis` runs
-    /// its `he_plus` the other way round the circle, so a rim carrying
-    /// one answers `[a, b, c]` from one seed and `[c, b, a]` from
-    /// another — a reversal, not the rotation
-    /// [`rim_of`] promises. Measurement is what makes the narrower rule
-    /// free: no producer in the corpus stores a rim's arcs on opposed
-    /// axes, so nothing that exists is refused by this. An arc that IS
-    /// stored opposed does not match, and the rim it belongs to refuses
-    /// [`RimError::NotOneRim`] — an honest refusal rather than an order
-    /// nobody can rely on.
-    fn same_circle(&self, other: &Self) -> bool {
-        same_point_bits(self.center, other.center)
-            && same_bits(self.radius, other.radius)
-            && same_vec_bits(self.axis, other.axis)
-    }
-}
-
-/// The circle a carrier is, or `None` for any other kind.
-fn circle_id<T: Real>(carrier: &Curve3<T>) -> Option<CircleId<T>> {
-    match carrier {
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => Some(CircleId {
-            center: *center,
-            axis: *axis,
-            radius: *radius,
-        }),
-        _ => None,
-    }
-}
-
-/// **Where on a circle a point sits**, as the carrier's own parameter:
-/// the four-quadrant angle of `p − center` in the stored frame,
-/// measured against the same two vectors [`Curve3::param_near`] takes
-/// at `near = 0` — the position `u_ref·radius` and the tangent
-/// `(axis × u_ref)·radius`.
-///
-/// **The radius factor is carried, not cancelled**, and that is the
-/// whole of what this had to get right. `atan2(y·r, x·r)` is
-/// `atan2(y, x)` for `r > 0` and `atan2(y, x) ± π` for `r < 0`, so
-/// dropping `r` — which a first cut did, calling it a folded constant
-/// — silently disagrees with the door above by half a turn on a
-/// carrier whose stored radius is negative. A negative radius is
-/// degenerate data the constructors reject and tier 3 refuses, but a
-/// refusal PAYLOAD is exactly where such a body still reaches a
-/// reader, and a payload that disagrees with the tree's own parameter
-/// door is worse than one that is merely surprising.
-///
-/// It differs from `param_near`'s circle arm only in reaching those
-/// two vectors directly instead of through `eval`/`deriv`: at `θ = 0`
-/// those evaluate `u_ref·cos 0 + v_ref·sin 0` and its derivative,
-/// whose `v_ref` terms are exact zeros. What that leaves is a
-/// signed-zero difference in a summand, which changes an answer only
-/// where the whole dot product is zero and `atan2` then reads the
-/// sign of a zero.
-///
-/// Spelled here rather than reached through that door because the door
-/// is generic over every carrier kind and so carries the NURBS arm's
-/// span-locate bound; taking it would make this door's bound compound,
-/// which is the shape `Bounds`' scope rule exists to catch. This one
-/// is arithmetic on a circle, and it feeds nothing but a refusal's
-/// report.
-fn circle_param<T: Real>(carrier: &Curve3<T>, p: Point3<T>) -> Option<T> {
-    let Curve3::Circle {
-        center,
-        axis,
-        radius,
-        u_ref,
-    } = carrier
-    else {
-        return None;
-    };
-    let w = p - *center;
-    let r_near = *u_ref * *radius;
-    let tau_near = axis.cross(*u_ref) * *radius;
-    Some(w.dot(tau_near).atan2(w.dot(r_near)))
-}
-
-/// The surface the face across `he` rests on, or the reference that
-/// could not be read.
-fn surface_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<SurfaceKey, EntityId> {
+/// A half-edge's start and end vertices.
+fn half_edge_ends<T: Real>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Result<(VertexKey, VertexKey), EntityId> {
     let h = body.get_half_edge(he).ok_or(EntityId::HalfEdge(he))?;
-    let l = body
-        .get_loop(h.parent_loop)
-        .ok_or(EntityId::Loop(h.parent_loop))?;
-    let face = body.get_face(l.face).ok_or(EntityId::Face(l.face))?;
-    Ok(face.surface)
-}
-
-/// An edge's two side surfaces, `he_plus` first.
-fn edge_sides<T: Real>(body: &Body<T>, e: EdgeKey) -> Result<(SurfaceKey, SurfaceKey), EntityId> {
-    let edge = body.get_edge(e).ok_or(EntityId::Edge(e))?;
-    Ok((
-        surface_across(body, edge.he_plus)?,
-        surface_across(body, edge.he_minus)?,
-    ))
-}
-
-/// An edge's two end vertices, in `he_plus`-forward order — start
-/// first, so the carrier's parameter increases from the first to the
-/// second (the `he_plus` forward contract).
-fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> Result<(VertexKey, VertexKey), EntityId> {
-    let edge = body.get_edge(e).ok_or(EntityId::Edge(e))?;
-    let h = body
-        .get_half_edge(edge.he_plus)
-        .ok_or(EntityId::HalfEdge(edge.he_plus))?;
-    let end = body
-        .half_edge_end(edge.he_plus)
-        .ok_or(EntityId::HalfEdge(edge.he_plus))?;
+    let end = body.half_edge_end(he).ok_or(EntityId::HalfEdge(he))?;
     Ok((h.start, end))
 }
 
-/// Whether two unordered surface pairs are the same pair.
-fn same_pair(a: (SurfaceKey, SurfaceKey), b: (SurfaceKey, SurfaceKey)) -> bool {
-    (a.0 == b.0 && a.1 == b.1) || (a.0 == b.1 && a.1 == b.0)
+/// An edge's two end vertices, in `he_plus`-forward order.
+fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> Result<(VertexKey, VertexKey), EntityId> {
+    let edge = body.get_edge(e).ok_or(EntityId::Edge(e))?;
+    half_edge_ends(body, edge.he_plus)
+}
+
+/// The seed's two surfaces as an unordered pair, stored lower key
+/// first — the arena order the walk's direction is fixed by.
+type SurfacePair = (SurfaceKey, SurfaceKey);
+
+/// Whether `sides` is `pair`, in either order.
+fn on_pair(sides: (SurfaceKey, SurfaceKey), pair: SurfacePair) -> bool {
+    (sides.0.min(sides.1), sides.0.max(sides.1)) == pair
+}
+
+/// **The seed gate: a rim is named by an arc of a circle.** The one
+/// carrier read the door makes, and only of the seed — the walk reads
+/// no edge's carrier and is kind-agnostic.
+///
+/// This precondition reflects today's consumers, not the door's
+/// shape: the fillet's closed-rim band reads a circle frame. It is
+/// expected to be lifted, so the door names any closed chain between
+/// two surfaces (an ellipse rim from a tilted plane through a
+/// cylinder), when a consumer needs non-circle rims.
+fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError> {
+    match crate::readback::edge_carrier_ref(body, edge) {
+        Ok(Curve3::Circle { .. }) => Ok(()),
+        Ok(other) => Err(RimError::NotAnArc {
+            edge,
+            kind: Some(other.kind()),
+        }),
+        Err(CarrierAbsence::Dangling(at)) => Err(RimError::NotIntact(at)),
+        Err(CarrierAbsence::NoCarrier) => Err(RimError::NotAnArc { edge, kind: None }),
+    }
 }
 
 /// **The rim an arc belongs to, whole.**
 ///
-/// A rim is named by any ONE of its arcs. `rim_of` returns every edge
-/// of `body` whose certified carrier is the SAME circle as `edge`'s and
-/// whose two sides lie on the SAME TWO SURFACES — surface keys, so
-/// several faces of one surface across chart seams count as one side —
-/// in carrier order starting at `edge` and running in the direction
-/// `edge`'s carrier parameter increases. The result is what a fillet
-/// verb's `&[EdgeKey]` wants: the rim entire, no more (a co-surface
-/// seam meridian can never match, because its two sides are one
-/// surface and a rim's are two) and no less (a strict subset is never
-/// returned — a matched set that does not close refuses).
+/// A rim is named by any ONE of its arcs. `rim_of` returns the closed
+/// chain through `edge`, on shared vertices, of the edges whose two
+/// sides lie on `edge`'s two surfaces — surface KEYS, so several faces
+/// of one surface across chart seams count as one side. The result is
+/// what a fillet verb's `&[EdgeKey]` wants: the rim entire, no more (a
+/// co-surface seam meridian is never on the pair, because its two
+/// sides are one surface and a rim's are two) and no less (a chain
+/// that does not close refuses).
 ///
-/// Same circle means the stored carriers' `center`, `radius` and
-/// `axis` are each bit-equal; `u_ref` is not read, because it carries
-/// the per-chart seam and a rim's arcs disagree on it. An axis stored
-/// NEGATED is a different circle to this door although it is the same
-/// point set — see [`CircleId::same_circle`] for why the narrower rule
-/// is the one that keeps the order contract. Same surfaces means equal
-/// [`SurfaceKey`]s. That is a total read of stored data — the EXACT
-/// class this module's header names, no funnel and no margin — and the
-/// corpus is what makes it honest: every producer a consumer holds a
-/// body from (revolve, `merge_coplanar_faces`, the boolean, extrude)
-/// stores one rim's arcs on bit-identical centres, radii and axes.
+/// **Membership is read off the topology; no carrier is compared.** A
+/// shared surface key is the producer's recorded decision that those
+/// faces lie on one surface. Two circles of one surface pair's
+/// intersection can cross (a bitangent plane cuts a torus in two), but
+/// at a crossing with all four arcs present the walk meets more than
+/// two edge ends and refuses [`RimBreak::Branches`]; a crossing where
+/// a third surface has removed two of the four arcs is reached by no
+/// public door known to this door. Edges on
+/// the same pair in another chain are another rim (a plane through a
+/// torus has two) and are not part of this answer.
 ///
-/// **What "closes" means, exactly**: the matched arcs form one closed
-/// chain on SHARED VERTICES, walked from `edge` and returning to it
-/// having used every matched arc. It is not a covering test. Arcs that
-/// cover part of the circle twice and another part not at all still
-/// chain, and this door answers them as a rim — the instance is issue
-/// `rim-door-admits-a-double-cover`, and what refuses such a body is
-/// tier 3's conventional specs, not this door.
+/// **What "closes" means, exactly**: every vertex the walk reaches,
+/// the seed's start included, meets exactly two ends of edges on the
+/// pair, and the walk returns to the seed. It is not a covering test.
+/// Arcs that cover part of the circle twice and another part not at
+/// all still chain, and this door answers them as a rim — the instance
+/// is issue `rim-door-admits-a-double-cover`, and what refuses such a
+/// body is tier 3's conventional specs, not this door.
 ///
-/// The order is deterministic (D9) and `rim_of(b)` is a rotation of
-/// `rim_of(a)` for any two arcs `a`, `b` of one rim — unconditionally,
-/// because every arc that matches shares the seed's stored `axis` and
-/// therefore winds the same way round the circle, so which arc a walk
-/// starts at is the only freedom left.
+/// **The seed must be a circle arc today.** The walk is kind-agnostic;
+/// the precondition ([`RimError::NotAnArc`]) reflects today's
+/// consumers, whose closed-rim band reads a circle frame, and is
+/// expected to be lifted to any closed chain between two surfaces when
+/// a consumer needs non-circle rims.
+///
+/// **Order.** The answer starts at `edge` and runs the way the
+/// half-edges on the pair's lower surface key (arena order) run: each
+/// face's loop has its face on one side, so every rim edge's half-edge
+/// on that surface winds the rim the same way. So the order is
+/// deterministic (D9) and `rim_of(b)` is a rotation of `rim_of(a)` for
+/// any two edges `a`, `b` of one rim, whatever winding each arc's
+/// carrier was stored with.
 ///
 /// # Errors
 ///
 /// [`RimError::NotAnArc`] when the seed carries no circle,
 /// [`RimError::CoSurface`] when its two sides are one surface,
-/// [`RimError::NotOneRim`] when the matched arcs do not form one closed
-/// chain, [`RimError::NotIntact`] on a dangling key or an unreadable
-/// reference.
-pub fn rim_of<T: Bounds>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
-    // The seed's carrier comes through the crate's one walk to it
-    // (`readback::edge_carrier_ref`), renamed here: this door's
-    // vocabulary is `RimError`, and the rename is exhaustive so a
-    // fourth way for that walk to come back empty cannot arrive
-    // silently.
-    let seed_carrier = match crate::readback::edge_carrier_ref(body, edge) {
-        Ok(carrier) => carrier.clone(),
-        Err(CarrierAbsence::Dangling(DanglingRef::Entity(id))) => {
-            return Err(RimError::NotIntact(id));
-        }
-        // A curve key a live edge names and the arena does not hold is
-        // NOT a null scaffold, and this door says the same thing about
-        // both: `NotIntact` carries an `EntityId`, and a curve key is
-        // not one. Telling them apart changes what a `RimError` arm
-        // means — the open issue is
-        // `rim-of-flattens-a-dangling-curve-key`.
-        Err(CarrierAbsence::Dangling(DanglingRef::Geometry(_)) | CarrierAbsence::NoCarrier) => {
-            return Err(RimError::NotAnArc { edge, kind: None });
-        }
-    };
-    let Some(seed_circle) = circle_id(&seed_carrier) else {
-        return Err(RimError::NotAnArc {
-            edge,
-            kind: Some(CurveKind::of(&seed_carrier)),
-        });
-    };
-    let seed_sides = edge_sides(body, edge).map_err(RimError::NotIntact)?;
-    if seed_sides.0 == seed_sides.1 {
+/// [`RimError::NotOneRim`] when the chain through it dangles or
+/// branches, [`RimError::NotIntact`] on a dangling reference.
+pub fn rim_of<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
+    seed_is_an_arc(body, edge)?;
+    let sides = crate::readback::edge_sides(body, edge).map_err(RimError::NotIntact)?;
+    let (plus, minus) = sides.surfaces();
+    if plus == minus {
         return Err(RimError::CoSurface {
             edge,
-            surface: seed_sides.0,
+            surface: plus,
         });
     }
-
-    // The matched set, in arena order (D9).
-    let mut matched: Vec<EdgeKey> = Vec::new();
-    for (k, e) in body.edges() {
-        let Some(circle) = body
-            .get_curve_geom(e.curve)
-            .and_then(CurveGeom::certified)
-            .and_then(|c| circle_id(c.carrier()))
-        else {
-            continue;
-        };
-        if !seed_circle.same_circle(&circle) {
-            continue;
+    let pair = (plus.min(minus), plus.max(minus));
+    let lower_side = if plus == pair.0 {
+        sides.plus.half_edge
+    } else {
+        sides.minus.half_edge
+    };
+    let (start, mut frontier) = half_edge_ends(body, lower_side).map_err(torn)?;
+    let mut walked = vec![edge];
+    loop {
+        let arrived = *walked.last().unwrap_or(&edge);
+        let next = continuation(body, pair, frontier, arrived, &walked)?;
+        if frontier == start {
+            return Ok(walked);
         }
-        // Only a carrier match reaches the adjacency, so an edge with
-        // no readable sides is a fault of this rim's neighbourhood and
-        // not of every unrelated edge in the arena.
-        let sides = edge_sides(body, k).map_err(RimError::NotIntact)?;
-        if same_pair(sides, seed_sides) {
-            matched.push(k);
-        }
+        walked.push(next);
+        let (a, b) = edge_ends(body, next).map_err(torn)?;
+        frontier = if a == frontier { b } else { a };
     }
-
-    order_rim(body, edge, &seed_carrier, matched)
 }
 
-/// The matched set as ONE closed chain starting at `edge`, or the
-/// typed refusal that names the vertex the walk stopped at.
-///
-/// **The test is a CLOSED CHAIN ON SHARED VERTICES, and that is all it
-/// is.** Consecutive arcs share a vertex — key equality, which is what
-/// makes the test exact — the walk starts at `edge` and it must return
-/// to `edge`'s start having consumed every matched arc. It is not a
-/// covering test: arcs that between them cover one part of the circle
-/// TWICE and another not at all still form a closed chain, and this
-/// door answers them as a rim (issue `rim-door-admits-a-double-cover`;
-/// only tier 3's conventional specs refuse such a body). The
-/// alternative is a parametric test, and the arcs of one rim are
-/// minted one per chart with a seam each, so their stored parameter
-/// intervals are each stated in their own frame — comparing them
-/// across arcs needs a decided comparison this door does not have.
-fn order_rim<T: Bounds>(
+/// The edge on `pair` that continues the chain at `at` from `arrived`,
+/// or the refusal naming `at`: exactly two ends of edges on the pair
+/// meet a chain vertex — a closed edge's two at its one vertex — so
+/// one end is a dangle and three or more a branch.
+fn continuation<T: Real>(
     body: &Body<T>,
-    edge: EdgeKey,
-    seed_carrier: &Curve3<T>,
-    matched: Vec<EdgeKey>,
-) -> Result<Vec<EdgeKey>, RimError> {
-    // The parameter the refusal reports, computed only when it refuses:
-    // where the walk stopped, in the seed's own frame. A vertex whose
-    // point cannot be read is an intactness fault and is refused as
-    // one — a NaN in the payload would be this door reporting a
-    // parameter it never computed.
-    let fail = |at: VertexKey, arcs: &[EdgeKey]| -> RimError {
-        let Ok(point) = crate::readback::vertex_point(body, at) else {
-            return RimError::NotIntact(EntityId::Vertex(at));
-        };
-        let Some(gap) = circle_param(seed_carrier, point) else {
-            // Unreachable: the seed's carrier is a circle by the time
-            // the walk runs. Stated rather than unwrapped.
-            return RimError::NotIntact(EntityId::Edge(edge));
-        };
-        RimError::NotOneRim {
-            arcs: arcs.to_vec(),
-            gap: gap.lo(),
-        }
+    pair: SurfacePair,
+    at: VertexKey,
+    arrived: EdgeKey,
+    walked: &[EdgeKey],
+) -> Result<EdgeKey, RimError> {
+    let refuse = |how| RimError::NotOneRim {
+        walked: walked.to_vec(),
+        at,
+        how,
     };
-
-    let (start, mut frontier) = edge_ends(body, edge).map_err(RimError::NotIntact)?;
-    let mut ordered = vec![edge];
-    loop {
-        if frontier == start {
-            // Closed. It is one rim exactly when the walk consumed
-            // every matched arc; anything left over is a second
-            // component on the same circle and support pair.
-            return if ordered.len() == matched.len() {
-                Ok(ordered)
-            } else {
-                Err(fail(frontier, &matched))
-            };
+    let mut ends = 0usize;
+    let mut next = None;
+    for k in body
+        .edges_of_vertex(at)
+        .ok_or_else(|| torn(EntityId::Vertex(at)))?
+    {
+        if !on_pair(side_surfaces(body, k)?, pair) {
+            continue;
         }
-        let mut next = None;
-        for k in &matched {
-            if ordered.contains(k) {
-                continue;
-            }
-            let (a, b) = edge_ends(body, *k).map_err(RimError::NotIntact)?;
-            if a == frontier || b == frontier {
-                if next.is_some() {
-                    // A branch: three arcs of one circle meeting at one
-                    // vertex is not a chain, and picking one would be
-                    // the guess this door refuses to make.
-                    return Err(fail(frontier, &matched));
-                }
-                next = Some((*k, if a == frontier { b } else { a }));
-            }
+        let (a, b) = edge_ends(body, k).map_err(torn)?;
+        ends += usize::from(a == at) + usize::from(b == at);
+        if k != arrived || a == b {
+            next = Some(k);
         }
-        let Some((k, beyond)) = next else {
-            // A dangling end — the partial revolve's open rim.
-            return Err(fail(frontier, &matched));
-        };
-        ordered.push(k);
-        frontier = beyond;
+    }
+    match (ends, next) {
+        (2, Some(k)) if k == walked[0] || !walked.contains(&k) => Ok(k),
+        (0..=1, _) => Err(refuse(RimBreak::Dangles)),
+        _ => Err(refuse(RimBreak::Branches)),
     }
 }
 
@@ -1014,7 +765,7 @@ fn order_rim<T: Bounds>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::{Tol, UnitVec3Error};
+    use geom_core::{Tol, UnitVec3Error, Vec3};
 
     use super::*;
     use crate::fixtures::{plane_surface, raw_prism};
@@ -1091,13 +842,13 @@ mod tests {
         assert!(!face_surface_matches(
             &body,
             f,
-            SurfaceKindSet::of(ALL_SURFACE_KINDS)
+            SurfaceKindSet::of(SurfaceKind::ALL)
         ));
         assert!(!edge_adjacent_matches(
             &body,
             e,
-            SurfaceKindSet::of(ALL_SURFACE_KINDS),
-            SurfaceKindSet::of(ALL_SURFACE_KINDS)
+            SurfaceKindSet::of(SurfaceKind::ALL),
+            SurfaceKindSet::of(SurfaceKind::ALL)
         ));
     }
 
@@ -1125,50 +876,58 @@ mod tests {
         );
     }
 
-    /// **[`circle_param`] agrees with [`Curve3::param_near`], including
-    /// on the carrier whose stored radius is NEGATIVE** — the case the
-    /// first cut of this function got wrong by half a turn, because it
-    /// cancelled the radius out of both `atan2` arguments and `atan2`
-    /// only ignores a POSITIVE common factor.
-    ///
-    /// Both doors are callable here: `param_near` needs `SpanLocate`
-    /// for its NURBS arm, and `f64` has it — it is `rim_of`'s own
-    /// signature that may not take that bound, not a test's.
+    /// [`RimError::NotAnArc`]'s text, both payloads: the kind reads in
+    /// the adjective register with its article (`an elliptical` is the
+    /// vowel case), and a missing carrier says so.
     #[test]
-    fn the_gap_parameter_agrees_with_the_curve_doors_own_reading() {
-        use core::f64::consts::{FRAC_PI_3, FRAC_PI_4, PI};
-        let frame = |radius: f64| Curve3::Circle {
-            center: Point3::new(0.25, -1.5, 0.75),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        for radius in [2.0_f64, -2.0] {
-            let c = frame(radius);
-            for theta in [0.0, FRAC_PI_4, FRAC_PI_3, 2.0, PI - 0.5, -1.25] {
-                let p = c.eval(theta);
-                let want = c.param_near(p, 0.0).expect("a circle locates");
-                let got = circle_param(&c, p).expect("and so does this one");
-                assert!(
-                    (got - want).abs() < 1e-12,
-                    "radius {radius}, theta {theta}: {got} vs the curve door's {want}"
-                );
-            }
-        }
-        // The claim is not vacuous: cancelling the radius would flip
-        // the negative-radius readings by exactly pi.
-        let c = frame(-2.0);
-        let p = c.eval(FRAC_PI_3);
-        let w = p - Point3::new(0.25, -1.5, 0.75);
-        let cancelled = w
-            .dot(Vec3::new(0.0, 0.0, 1.0).cross(Vec3::new(1.0, 0.0, 0.0)))
-            .atan2(w.dot(Vec3::new(1.0, 0.0, 0.0)));
-        let got = circle_param(&c, p).expect("locates");
-        assert!(
-            (got - cancelled).abs() > 1.0,
-            "the radius-cancelling reading really is the wrong one here: \
-             {cancelled} against {got}"
+    fn not_an_arc_names_the_curve_in_words() {
+        let edge = all_edges(&mixed())[0];
+        let text = |kind| RimError::NotAnArc { edge, kind }.to_string();
+        assert_eq!(
+            text(Some(CurveKind::Line)),
+            format!(
+                "edge {edge:?} carries a straight curve, and a rim is named by an arc of a circle"
+            )
         );
+        assert_eq!(
+            text(Some(CurveKind::Ellipse)),
+            format!(
+                "edge {edge:?} carries an elliptical curve, and a rim is named by an arc of a \
+                 circle"
+            )
+        );
+        assert_eq!(
+            text(None),
+            format!(
+                "edge {edge:?} carries no certified carrier, and a rim is named by an arc of a \
+                 circle"
+            )
+        );
+    }
+
+    /// **`NotOneRim` reads within the viewer's budget, and names only
+    /// what the walk saw** — under 50 words per arm, each arm saying
+    /// which of the two causes it is and the recourse.
+    #[test]
+    fn the_not_one_rim_text_is_short_and_says_which_break() {
+        for (how, says) in [
+            (RimBreak::Dangles, "stop at a vertex"),
+            (RimBreak::Branches, "more than twice"),
+        ] {
+            let text = RimError::NotOneRim {
+                walked: vec![EdgeKey::default()],
+                at: VertexKey::default(),
+                how,
+            }
+            .to_string();
+            let words = text.split_whitespace().count();
+            assert!(words < 50, "{how:?}: {words} words: {text}");
+            assert!(text.contains(says), "{how:?} names its own cause: {text}");
+            assert!(
+                text.contains("one by one"),
+                "{how:?} names the recourse: {text}"
+            );
+        }
     }
 
     #[test]
@@ -1180,7 +939,7 @@ mod tests {
                 &body,
                 e,
                 SurfaceKindSet::default(),
-                SurfaceKindSet::of(ALL_SURFACE_KINDS)
+                SurfaceKindSet::of(SurfaceKind::ALL)
             ));
         }
         for f in all_faces(&body) {
@@ -1193,8 +952,8 @@ mod tests {
         let body = mixed();
         let mut mixed_pair_hit = false;
         for e in all_edges(&body) {
-            for a in ALL_SURFACE_KINDS {
-                for b in ALL_SURFACE_KINDS {
+            for a in SurfaceKind::ALL {
+                for b in SurfaceKind::ALL {
                     let (sa, sb) = (SurfaceKindSet::just(a), SurfaceKindSet::just(b));
                     assert_eq!(
                         edge_adjacent_matches(&body, e, sa, sb),
@@ -1289,105 +1048,6 @@ mod tests {
                     "dv={dv}"
                 );
             }
-        }
-    }
-
-    // -----------------------------------------------------------
-    // The two mirrors' censuses, beside the lists they pin.
-    // -----------------------------------------------------------
-
-    /// **A hand-written list IS the enum, checked by the compiler.**
-    ///
-    /// Takes the enum, its list, and a roster of variants, and expands
-    /// to two halves that between them force the LIST to grow — not
-    /// merely a visit to this file:
-    ///
-    /// - `roster_covers_the_enum` is a match over the enum with one arm
-    ///   per ROSTER entry and no wildcard. A variant added to the enum
-    ///   has no arm, so `E0004` reds here and names it. The only way to
-    ///   silence it is to add that variant to the roster.
-    ///
-    /// - one `assert!` per roster entry, in a `const` block, saying the
-    ///   list holds that variant at that seat. Adding the roster entry
-    ///   the first half demanded therefore asserts `list[n]` for a seat
-    ///   the old list does not have — a const-eval error, out of bounds,
-    ///   until the list itself grows.
-    ///
-    /// So the two halves close on each other: the edit the compiler
-    /// forces is the same edit that reds against a list of the old
-    /// length. This is deliberately NOT the shared-total census idiom
-    /// used elsewhere in the tree (`all_is_the_whole_vocabulary` and
-    /// its two siblings), which reds when an entry is REMOVED but not
-    /// when a variant is ADDED: there, every arm names the same total,
-    /// only the scrutinee's arm is ever produced, and an author who
-    /// writes the honest new total in the one arm the compiler pointed
-    /// at leaves the other arms — and the assertion — reading the old
-    /// one. Measured, and filed on
-    /// `work/census/all-census-idiom-forces-the-visit-not-the-update`
-    /// with this macro offered as the instrument that closes it.
-    ///
-    /// The remaining ways to defeat this are edits that state something
-    /// false rather than copy something stale: deleting an arm's
-    /// assertion, or reordering the roster and the list together.
-    macro_rules! census {
-        ($ty:ident, $list:expr, [$($variant:ident),+ $(,)?]) => {
-            const _: () = {
-                #[allow(dead_code)]
-                fn roster_covers_the_enum(kind: $ty) {
-                    match kind {
-                        $($ty::$variant => (),)+
-                    }
-                }
-                let mut seat = 0;
-                $(
-                    assert!(
-                        matches!($list[seat], $ty::$variant),
-                        "the list has drifted from the enum: this seat \
-                         does not hold the kind the roster puts here"
-                    );
-                    seat += 1;
-                )+
-                assert!(
-                    seat == $list.len(),
-                    "the list is longer than the enum's roster"
-                );
-            };
-        };
-    }
-
-    census!(
-        SurfaceKind,
-        ALL_SURFACE_KINDS,
-        [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx]
-    );
-
-    census!(
-        CurveKind,
-        CurveKind::ALL,
-        [Line, Circle, Ellipse, Spiric, Nurbs]
-    );
-
-    /// **No two kinds share a bit position**, on either mirror: a
-    /// duplicated `surface_bit` / `CurveKind::bit` arm would make two
-    /// kinds indistinguishable inside a set, and the exhaustive match
-    /// that forces the arm to exist cannot see that its value collides.
-    /// A singleton set that iterates back to a DIFFERENT kind is what
-    /// that collision looks like from outside.
-    #[test]
-    fn kind_bits_are_distinct() {
-        for kind in ALL_SURFACE_KINDS {
-            assert_eq!(
-                SurfaceKindSet::just(kind).iter().next(),
-                Some(kind),
-                "{kind:?} shares a bit with an earlier surface kind"
-            );
-        }
-        for kind in CurveKind::ALL {
-            assert_eq!(
-                CurveKindSet::just(kind).iter().next(),
-                Some(kind),
-                "{kind:?} shares a bit with an earlier curve kind"
-            );
         }
     }
 }

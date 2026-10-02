@@ -64,7 +64,11 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// `n` instances of one part, the options that resolve them, the
-/// reference the reach is asked through, and the part's body.
+/// reference the reach is asked through, and the part's body. Only the
+/// first carries an offset — the rest sit where their mates put them —
+/// so the first roots every group the rows' mates make, whichever way
+/// round a mate is authored, and an inverted authored order inverts
+/// the pair the fold reads and nothing else.
 struct Rig {
     doc: ProfileDoc,
     ids: Vec<RecipeNodeId>,
@@ -78,9 +82,19 @@ fn rig(label: &str, n: usize) -> Rig {
     let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..n {
+    for i in 0..n {
         let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
         doc = next;
+        if i > 0 {
+            doc = crate::fixture::step(
+                doc,
+                editor_core::DocEdit::SetOffset {
+                    instance: id,
+                    offset: None,
+                },
+            )
+            .0;
+        }
         ids.push(id);
     }
     Rig {
@@ -140,7 +154,12 @@ fn mate(
 
 /// Inserts `node`, unwrapping the id every insert here mints.
 fn add(doc: ProfileDoc, node: Node<editor_core::ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(doc, DocEdit::InsertNode { node });
+    let (doc, id) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     (doc, id.expect("the insert minted an id"))
 }
 
@@ -933,14 +952,14 @@ fn c2_parallel_boundary_through_doors() {
         let first = al(
             MatePrimitive::PlanarRest { offset: 0.0 },
             AxisSense::Aligned,
-            frame([t, 0.0, 0.0], [raw1.x, raw1.y, raw1.z], [0.0, 1.0, 0.0]),
+            frame([t, 0.0, 0.0], raw1.to_array(), [0.0, 1.0, 0.0]),
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
         let second = al(
             MatePrimitive::PlanarRest { offset: 0.0 },
             AxisSense::Aligned,
-            frame([0.0, 0.0, 0.0], [raw2.x, raw2.y, raw2.z], [0.0, 1.0, 0.0]),
+            frame([0.0, 0.0, 0.0], raw2.to_array(), [0.0, 1.0, 0.0]),
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
@@ -1103,7 +1122,7 @@ fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
         let (next, id) = step(
             doc,
             DocEdit::InsertNode {
-                node: Node::instantiate_part(doc_ref),
+                node: Box::new(Node::instantiate_part(doc_ref)),
             },
         );
         doc = next;
@@ -1130,7 +1149,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
         let err = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: mate(
+                    node: Box::new(mate(
                         body,
                         ids[x],
                         ids[y],
@@ -1141,7 +1160,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
                             z_up_at([0.0, 0.0, 1.0]),
                             None,
                         ),
-                    ),
+                    )),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -1246,6 +1265,20 @@ fn c4_poses_of_another_document_reaches_no_row() {
             ),
         ),
     );
+    // The rig offsets only the first instance; the second group's
+    // root and the lone fifth instance take one back, so every
+    // instance places against its own document.
+    let mut doc = doc;
+    for &id in &[ids[2], ids[4]] {
+        doc = crate::fixture::step(
+            doc,
+            editor_core::DocEdit::SetOffset {
+                instance: id,
+                offset: Some(editor_core::Placement::IDENTITY),
+            },
+        )
+        .0;
+    }
     let tol = Tol::witness();
     let poses = solve(&doc, &r.o, tol);
     for &id in doc.order() {
@@ -1262,8 +1295,9 @@ fn c4_poses_of_another_document_reaches_no_row() {
     for &id in &ids {
         assert!(
             matches!(
-                poses.placement(&other, id).map_err(|e| *e),
-                Err(MateFault::PosesOfAnotherDocument { .. })
+                poses.placement(&other, id),
+                Err(editor_core::PoseRefusal::Mate(ref f))
+                    if matches!(**f, MateFault::PosesOfAnotherDocument { .. })
             ),
             "{id:?}"
         );

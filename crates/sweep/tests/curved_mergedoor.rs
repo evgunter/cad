@@ -6,10 +6,8 @@
 //! declaration it has no rung for, and the door RECORDS it as a
 //! `SkippedMerge` carrying `DeclaredCarrierUnsupported` — visible in
 //! `BooleanNaming::merge_skipped`, never an `InvalidDeclaration` refusal
-//! blaming the caller. Scenes C, D and F reach that record and ship an
-//! honest body; scenes A and B, freed of the false refusal, stop at the
-//! zip's own defect (`work/curved/rest-zip-seam-chord-on-cylinder-wall`);
-//! scene E stops at the reduction.
+//! blaming the caller. Scenes A, B, C, D and F reach that record and
+//! ship an honest body; scene E stops at the reduction.
 //!
 //! Scenes A–D are `mate2_common`'s; scene D's plate/peg builders are
 //! copied from `r1_probes_m9_3` (private there).
@@ -18,18 +16,18 @@
 
 use crate::common::operands::{plate6, plate6_cyl};
 use crate::mate2_common;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use mate2_common::{
-    assert_additive, body_of, boolean_body, collar, collar_at, peg_at, plane_face, volume,
-    wall_decls, walls_at,
+    assert_additive, body_of, boolean_body, collar, collar_at, continuations, peg_at, plane_face,
+    volume, wall_decls, walls_at,
 };
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass, FacePairDeclaration,
-    FaceSurface, MergeCoplanarError, Rechart, SkippedMerge, validate_closed, validate_geometric,
-    validate_pseudomanifold,
+    FaceSurface, MergeCoplanarError, Operand, Rechart, SkippedMerge, validate_closed,
+    validate_geometric, validate_pseudomanifold,
 };
 
 const BORE_R: f64 = 0.5;
@@ -79,7 +77,8 @@ fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
         )
         .unwrap(),
     );
-    let mut d = BooleanDeclarations::none();
+    // The plates' flush outer walls are continuations.
+    let mut d = continuations(&p, &q);
     d.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&p, 1.0, true),
         plane_face(&q, 1.0, false),
@@ -339,8 +338,10 @@ fn mixed_list_classifies_each_pair_by_its_own_kind() {
     }
 }
 
-/// A prism whose y = 0 wall is split in two coplanar faces by a
-/// straight-angle vertex, and whose right end is two arcs of one
+/// A prism whose y = 0 wall is split in two coplanar faces at a
+/// straight-angle vertex (the extrude builds that run as ONE wall and
+/// keeps the vertex on both caps; a chord `mef` between the two copies
+/// splits it), and whose right end is two arcs of one
 /// circle (centre (2.25, 0.5), meeting the straight walls at 26.6°, so
 /// no joint is tangent). Returns the two wall keys (made distinct)
 /// and two keys of the one cylinder (made distinct).
@@ -366,9 +367,28 @@ fn d_prism_with_split_keys() -> (
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let mut body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let built = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let mut body = built.body;
+    let run = &built.walls[0][0];
+    assert_eq!(run.segments, vec![0, 1], "the y = 0 side is one run");
+    let station = |rims: &[topo::EdgeKey]| {
+        let ends = |e: topo::EdgeKey| {
+            let edge = body.get_edge(e).unwrap();
+            [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).unwrap().start)
+        };
+        let (a, b) = (ends(rims[0]), ends(rims[1]));
+        *a.iter().find(|v| b.contains(v)).unwrap()
+    };
+    let (bottom, top) = (station(&run.bottom_rims), station(&run.top_rims));
+    let leaving = |v: topo::VertexKey| {
+        body.half_edges()
+            .find(|(h, he)| he.start == v && body.face_of_half_edge(*h) == Some(run.face))
+            .unwrap()
+            .0
+    };
+    let (he1, he2) = (leaving(bottom), leaving(top));
+    body.mef_chord(topo::MefSite::Chords { he1, he2 }, Tol::witness())
+        .unwrap();
     let y0_walls: Vec<_> = body
         .faces()
         .filter(|(_, f)| match body.get_surface(f.surface) {
@@ -591,7 +611,7 @@ fn axis_y() -> RevolveAxis<f64> {
 fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, topo::SurfaceKey) {
     let faces: Vec<_> = body
         .faces()
-        .filter(|(_, f)| body.get_surface(f.surface).map(SurfaceKind::of) == Some(kind))
+        .filter(|(_, f)| body.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect();
     assert!(faces.len() >= 2, "{kind:?}: need two faces, got {faces:?}");
@@ -641,30 +661,56 @@ fn sphere_and_torus_pairs_record_their_kind() {
     }
 }
 
-/// Row 2 (A, B) — RED-THE-DAY: freed of the false `InvalidDeclaration`,
-/// the floating and mid-bore pegs stop at the zip's own defect — a
-/// `Line` chord minted on the bore wall where a cap rim cuts it
-/// mid-height, reached by the output stage's seam-edge re-description
-/// and refused by its certification, reported as `JoinDesync` (the
-/// certification payload is dropped there). A typed refusal of a real
-/// defect where a false one stood. This row flips when
-/// `work/curved/rest-zip-seam-chord-on-cylinder-wall` lands; the
-/// honest outcome then is the one rows 1 and 3 pin.
+/// Row 2 (A, B): the floating and mid-bore pegs ship honest bodies —
+/// additive volume, tiers 2, 3 and 3′ — with the one cylinder pair
+/// recorded. Each peg rim cuts the bore wall mid-height, and the
+/// section loops' roles resolve on the rim arcs' own midpoints; the
+/// result holds the peg exactly where it is, read at points, which an
+/// additive volume alone does not pin.
 #[test]
-fn floating_and_mid_bore_pegs_refuse_at_the_zip_seam_chord_today() {
-    for (label, (a, b, d)) in [("A", scene_a()), ("B", scene_b())] {
-        let err = topo::union_with(&a, &b, &d, Tol::witness())
-            .err()
-            .unwrap_or_else(|| panic!("{label}: the zip's seam chord is fixed — re-pin this row"));
-        assert!(
-            matches!(
-                err,
-                BooleanError::JoinDesync {
-                    what: "minted-edge description failed certification"
-                }
-            ),
-            "{label}: {err:?}"
-        );
+fn floating_and_mid_bore_pegs_ship_honest_with_one_record() {
+    use topo::SolidContainment::{In, Out};
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    for (label, (a, b, d), pts) in [
+        (
+            "A",
+            scene_a(),
+            [
+                ((0.0, 0.0, 1.25), Out),
+                ((0.0, 0.0, 1.75), In),
+                ((0.0, 0.0, 2.25), In),
+                ((1.0, 0.0, 1.5), In),
+                ((1.0, 0.0, 2.25), Out),
+            ],
+        ),
+        (
+            "B",
+            scene_b(),
+            [
+                ((0.0, 0.0, 0.75), In),
+                ((0.0, 0.0, 1.25), In),
+                ((0.0, 0.0, 1.75), Out),
+                ((1.0, 0.0, 1.5), In),
+                ((1.0, 0.0, 0.75), Out),
+            ],
+        ),
+    ] {
+        let bb = union_honest(label, &a, &b, &d);
+        assert_cylinder_records(label, &bb);
+        assert_eq!(bb.body.solids().count(), 1, "{label}: one solid");
+        for ((x, y, z), want) in pts {
+            assert_eq!(
+                topo::point_in_solid(
+                    &bb.body,
+                    geom_core::Point3::new(x, y, z),
+                    band,
+                    Tol::witness()
+                )
+                .ok(),
+                Some(want),
+                "{label} at ({x}, {y}, {z})"
+            );
+        }
     }
 }
 
@@ -854,9 +900,12 @@ fn rendered_skip_names_the_door_not_the_declaration() {
     assert!(!text.to_lowercase().contains("invalid"), "{text}");
 }
 
-/// Row 7 (E, F): two equal pegs stacked end to end. With only the
-/// caps declared (E) the reduction refuses `CurvedPierceUnsupported`.
-/// With every wall pair declared too (F) the mate REACHES this door:
+/// Row 7 (E, F): two equal pegs stacked end to end, their walls one
+/// cylinder carried on across the caps — continuations. With only the
+/// caps declared (E) the reduction refuses the undeclared CURVED
+/// continuation, naming a wall pair and its aligned relation, as it
+/// refuses an undeclared planar one. With every wall pair declared a
+/// continuation too (F) the mate REACHES this door:
 /// the union is exact and honest, the nine wall pairs are recorded as
 /// one cylinder pair, and six wall faces survive — all of one sense,
 /// each lower sector meeting its upper across the z = 1 rim (three
@@ -877,16 +926,24 @@ fn stacked_equal_pegs_same_sense_walls() {
     let err = topo::union_with(&lo, &hi, &caps, Tol::witness())
         .err()
         .unwrap_or_else(|| panic!("E: the caps-only stacked pegs reach a new door — re-pin"));
+    let BooleanError::UndeclaredCoincidence {
+        pair: [(Operand::A, fa), (Operand::B, fb)],
+        relation: topo::PlaneRelation::SameOriented,
+        ..
+    } = err
+    else {
+        panic!("E caps only: an undeclared continuation, A then B: {err:?}");
+    };
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "E caps only: {err:?}"
+        walls_at(&lo, BORE_R).contains(&fa) && walls_at(&hi, BORE_R).contains(&fb),
+        "E: the refused pair is a wall pair, on the cylinder: {err:?}"
     );
 
     let mut both = caps.clone();
     for &fa in &walls_at(&lo, BORE_R) {
         for &fb in &walls_at(&hi, BORE_R) {
             both.coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
+                .push(FacePairDeclaration::continuation(fa, fb));
         }
     }
     let bb = union_honest("F", &lo, &hi, &both);

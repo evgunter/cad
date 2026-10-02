@@ -32,3 +32,5 @@ Not measured: a graze whose contact meets a real section. Every
 construction tried needs a cylinder ∪ brick, and the union refuses
 that pair today (`CurvedSectorSideUnsupported`). — (CLEAVE,
 cleave-tangency)
+- 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+- 2026-10-02 — `split-hands-out-a-body-without-running-tier-3` moved to `work/tquery/` by TQUERY: PR 3797 answers its question (split gates its sides at tier 2, typed; tier 3 decided out, with the measurement), under TQUERY's `validate-passes-a-body-with-a-zero-width-slit-face`. (TQUERY lane)

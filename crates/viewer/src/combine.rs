@@ -22,8 +22,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, Doc, Evaluation, Expr, Node, NodeStanding, PartSelect, PatternKind, ProfileProgram,
-    RecipeNodeId,
+    BooleanOp, Doc, Evaluation, Expr, HeldNodes, Node, NodeStanding, PartSelect, PatternKind,
+    ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::SplitHalf;
@@ -701,7 +701,13 @@ pub enum DuplicateFault {
     /// Its `through` may be a mate, which is not the DAG ancestor
     /// `NodeStanding` documents
     /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
-    NoValue(NodeStanding),
+    NoValue {
+        /// The input's standing, as the tree draws it.
+        standing: NodeStanding,
+        /// The nodes `standing` names, as the landed document held them
+        /// ([`held_by`]).
+        held: HeldNodes,
+    },
     /// The input's VALUE is several bodies. A pattern of two over it
     /// would index the flat list of those bodies, so its two
     /// projections would select two of the ORIGINAL bodies in place and
@@ -712,20 +718,20 @@ pub enum DuplicateFault {
     /// (`work/forms/body-seat-reads-through-the-placer-chain`); this
     /// door asks the value, which is the evaluator's own question.
     NotOneBody {
-        /// The node picked.
-        input: RecipeNodeId,
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
     },
     /// The measuring tessellation refused.
     Unmeasured {
-        /// The node picked.
-        input: RecipeNodeId,
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
         /// The tessellator's own refusal.
         error: pncad::mesh::TessellateError,
     },
     /// The body's mesh has no extent to step by.
     NoExtent {
-        /// The node picked.
-        input: RecipeNodeId,
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
     },
 }
 
@@ -740,20 +746,22 @@ impl core::fmt::Display for DuplicateFault {
                 "the picture is older than the document — wait for the latest edit to evaluate, \
                  so the copy's step is measured off the body as it now is",
             ),
-            Self::NoValue(standing) => write!(f, "there is no body to copy: {standing}"),
+            Self::NoValue { standing, held } => write!(
+                f,
+                "there is no body to copy: {}",
+                Said(standing, Speaker::held(held))
+            ),
             Self::NotOneBody { input } => write!(
                 f,
-                "node {}'s value is several bodies; a duplicate copies ONE — project the one \
-                 you mean first",
-                input
+                "{input}'s value is several bodies; a duplicate copies ONE — project the one \
+                 you mean first"
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
-                "node {}'s body could not be measured for the copy's step: {error}",
-                input
+                "{input}'s body could not be measured for the copy's step: {error}"
             ),
             Self::NoExtent { input } => {
-                write!(f, "node {}'s body has no width to step a copy by", input)
+                write!(f, "{input}'s body has no width to step a copy by")
             }
         }
     }
@@ -799,17 +807,24 @@ impl core::error::Error for DuplicateFault {}
 /// [`DuplicateFault::NoValue`], [`DuplicateFault::NotOneBody`],
 /// [`DuplicateFault::Unmeasured`], [`DuplicateFault::NoExtent`].
 pub fn duplicate_step(
+    doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,
     input: RecipeNodeId,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
     let value = eval.usable(input).map_err(|standing| {
-        DuplicateFault::NoValue(crate::tree::standing_as_drawn(standing, eval))
+        let standing = crate::tree::standing_as_drawn(standing, eval);
+        let held = held_by(&standing, doc);
+        DuplicateFault::NoValue { standing, held }
     })?;
-    let body = one_body(&value.payload).ok_or(DuplicateFault::NotOneBody { input })?;
+    let spoken = || doc.spoken(input);
+    let body =
+        one_body(&value.payload).ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {
-        pncad::mesh::tessellate(body, chord, tol)
-            .map_err(|error| DuplicateFault::Unmeasured { input, error })
+        pncad::mesh::tessellate(body, chord, tol).map_err(|error| DuplicateFault::Unmeasured {
+            input: spoken(),
+            error,
+        })
     };
     let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
     // The floor mesh's box diagonal: the body's size, read before a
@@ -820,14 +835,41 @@ pub fn duplicate_step(
     )
     .norm();
     if !(scale.is_finite() && scale > 0.0) {
-        return Err(DuplicateFault::NoExtent { input });
+        return Err(DuplicateFault::NoExtent { input: spoken() });
     }
     let chord = scale * MEASURE_CHORD;
     let mesh = measured(chord)?;
     let width = width_along(&mesh.positions, STEP_DIRECTION)
         .filter(|w| w.is_finite() && *w > 0.0)
-        .ok_or(DuplicateFault::NoExtent { input })?;
+        .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
     Ok((width + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP))
+}
+
+impl DuplicateFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| node.respoken(doc);
+        match self {
+            Self::NoValue { standing, held } => Self::NoValue {
+                standing,
+                held: held.respoken(doc),
+            },
+            Self::NotOneBody { input } => Self::NotOneBody {
+                input: again(input),
+            },
+            Self::Unmeasured { input, error } => Self::Unmeasured {
+                input: again(input),
+                error,
+            },
+            Self::NoExtent { input } => Self::NoExtent {
+                input: again(input),
+            },
+            unspoken @ (Self::NotLanded | Self::Stale) => unspoken,
+        }
+    }
 }
 
 /// How far `points` spread along `direction` (normalized here): the
@@ -960,6 +1002,8 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Pattern { .. }
         | Node::Declare { .. }
         | Node::Mate { .. }
+        // A frame other placements stand on; no body.
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
     }
