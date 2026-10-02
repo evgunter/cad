@@ -198,7 +198,7 @@ use topo::{
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary};
 use super::arms::EdgeBlend;
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::build::{Blended, face_cycle, fan_at};
+use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
 use super::open::planar::{BlankPlan, Corner, JointPlan, blank_phase, corner_plan, joint_plan};
 use super::open::ruled::{RuledPlan, ruled_phase};
@@ -1173,15 +1173,14 @@ fn resolve_rim<'a, T: Decide + Bounds>(
                 "a rim's curved support carries rings of its own",
             ));
         }
-        let on_boundary: Vec<EdgeKey> = face_cycle(body, s)
+        let on_boundary: Vec<EdgeKey> = face_cycle_edges(body, s)
             .ok_or_else(|| {
                 not_intact(
                     EntityId::Face(s),
                     "a rim's curved support has no boundary cycle that walks",
                 )
             })?
-            .iter()
-            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .into_iter()
             .filter(|e| chain_edges.contains(e))
             .collect();
         if on_boundary != [link.edge] {
@@ -1365,15 +1364,14 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
                 "a seam-split rim's support carries rings of its own",
             ));
         }
-        let carried: Vec<EdgeKey> = face_cycle(body, f)
+        let carried: Vec<EdgeKey> = face_cycle_edges(body, f)
             .ok_or_else(|| {
                 not_intact(
                     EntityId::Face(f),
                     "a rim arc's support has no boundary cycle that walks",
                 )
             })?
-            .iter()
-            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .into_iter()
             .filter(|e| chain_edges.contains(e))
             .collect();
         if carried != [link.edge] {
@@ -1418,15 +1416,14 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
             hosts.iter().all(|&h| h == host),
             "hostless routing admits one host face for the whole rim"
         );
-        let mut cycle: Vec<EdgeKey> = face_cycle(body, host)
+        let mut cycle: Vec<EdgeKey> = face_cycle_edges(body, host)
             .ok_or_else(|| {
                 not_intact(
                     EntityId::Face(host),
                     "a rim's host support has no outer cycle that walks",
                 )
             })?
-            .iter()
-            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .into_iter()
             .collect();
         cycle.sort_unstable();
         cycle.dedup();

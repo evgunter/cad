@@ -2149,43 +2149,24 @@ fn consumption_sweep<T: Decide + Bounds>(
             None => vec![e],
         }
     };
-    let touches = |a: EdgeKey, b: EdgeKey| -> bool {
-        let (ma, mb) = (members(a), members(b));
-        ma.iter()
-            .any(|x| mb.iter().any(|y| shares_vertex(body, *x, *y)))
+    let touches = |a: EdgeKey, b: EdgeKey| -> Result<bool, BlendError> {
+        touches_any(body, &members(a), &members(b))
     };
     for face in faces {
-        let Some(fa) = body.get_face(face) else {
-            continue;
-        };
-        let mut loops = vec![fa.outer];
-        loops.extend(fa.rings.iter().copied());
-        let mut boundary: Vec<(EdgeKey, Vec<Point3<T>>)> = Vec::new();
-        for lp in loops {
-            let Some(topo::LoopBoundary::Cycle { first }) = body.get_loop(lp).map(|l| l.boundary)
-            else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                let Some(h) = body.get_half_edge(he) else {
-                    continue;
-                };
-                let Some((c, t0, t1)) = carrier_of(body, h.edge) else {
-                    continue;
-                };
-                let pts = (0..CHAIN_SAMPLES)
-                    .map(|i| c.eval(chain_sample_at(t0, t1, i)))
-                    .collect();
-                boundary.push((h.edge, pts));
-            }
+        let fa = body.get_face(face).ok_or_else(|| {
+            not_intact(
+                EntityId::Face(face),
+                "a support face, for its boundary pairs",
+            )
+        })?;
+        let mut boundary: Vec<ScreenedEdge<T>> = Vec::new();
+        for lp in core::iter::once(fa.outer).chain(fa.rings.iter().copied()) {
+            boundary.extend(screened_loop(body, lp)?);
         }
         for i in 0..boundary.len() {
             for j in (i + 1)..boundary.len() {
-                let (ei, pi) = (&boundary[i].0, &boundary[i].1);
-                let (ej, pj) = (&boundary[j].0, &boundary[j].1);
+                let (ei, pi) = (&boundary[i].0, &boundary[i].2);
+                let (ej, pj) = (&boundary[j].0, &boundary[j].2);
                 // Adjacent boundary features TOUCH (gap 0 at the shared
                 // vertex) — their setbacks are judged by the corner
                 // and G1 predicates, not by this one, so the pair is
@@ -2194,27 +2175,19 @@ fn consumption_sweep<T: Decide + Bounds>(
                 if run(*ei).is_some() && run(*ei) == run(*ej) {
                     continue;
                 }
-                if touches(*ei, *ej) {
+                if touches(*ei, *ej)? {
                     continue;
                 }
-                // The closest approach of the two sampled boundaries.
-                // Seeded from the FIRST real pair, never from an
-                // infinite sentinel: at the certified scalar an
-                // infinity is the ill-formed interval (NaI), NaI
-                // absorbs through `min`, and every clearance margin
-                // downstream of it escalates `Invalid` — which is what
-                // kept the whole fillet op out of the Interval lane
-                // (and its `fillet3_*` family out of the K corpus)
-                // until the gate caught it. There is always a first
-                // pair here: both sample vectors are non-empty by
-                // construction (`CHAIN_SAMPLES` ≥ 1).
-                let mut pairs = pi
+                // The closest approach of the two sampled boundaries,
+                // seeded from a real pair (`CHAIN_SAMPLES` ≥ 1, asserted
+                // at compile time), never from an infinite sentinel: at
+                // the certified scalar an infinity is the ill-formed
+                // interval, which absorbs through `min` and would
+                // escalate every margin downstream of it.
+                let gap = pi
                     .iter()
-                    .flat_map(|a| pj.iter().map(move |b| (*b - *a).norm()));
-                let Some(first) = pairs.next() else {
-                    continue;
-                };
-                let gap = pairs.fold(first, T::min);
+                    .flat_map(|a| pj.iter().map(move |b| (*b - *a).norm()))
+                    .fold((pj[0] - pi[0]).norm(), T::min);
                 let cross_chain = match (chain_ix(*ei), chain_ix(*ej)) {
                     (Some(a), Some(b)) => a != b,
                     _ => false,
@@ -2253,28 +2226,19 @@ fn consumption_sweep<T: Decide + Bounds>(
                 .ok_or_else(|| not_intact(EntityId::Vertex(*v), "a joint's stored point"))?;
             let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
             let run_edges = members(link.edge);
-            for (e, _) in &boundary {
-                if run_edges.contains(e) || !run_edges.iter().any(|m| shares_vertex(body, *m, *e)) {
+            for (e, carrier, _) in &boundary {
+                if run_edges.contains(e) || !touches_any(body, &run_edges, &[*e])? {
                     continue;
                 }
                 // The run ends at a corner on this PLANE support, so the
                 // end edge is straight unless the corner's third support
                 // is curved — which no corner carves, and which refuses
                 // here as that rather than being sampled.
-                let (o, d) = match carrier_of(body, *e) {
-                    Some((Curve3::Line { origin, dir }, _, _)) => (origin, dir),
-                    Some(_) => {
-                        return Err(unbuilt_geometry(
-                            EntityId::Edge(*e),
-                            CORNER_SUPPORT_NOT_PLANAR,
-                        ));
-                    }
-                    None => {
-                        return Err(not_intact(
-                            EntityId::Edge(*e),
-                            "a joined run's end edge carrier",
-                        ));
-                    }
+                let Curve3::Line { origin: o, dir: d } = *carrier else {
+                    return Err(unbuilt_geometry(
+                        EntityId::Edge(*e),
+                        CORNER_SUPPORT_NOT_PLANAR,
+                    ));
                 };
                 let gap = (foot - o).cross(d).norm() / d.norm();
                 face_clearance(face, gap, T::zero(), look(*e, face), false, band)?;
@@ -2284,15 +2248,92 @@ fn consumption_sweep<T: Decide + Bounds>(
     Ok(())
 }
 
-fn shares_vertex<T: Decide>(body: &Body<T>, a: EdgeKey, b: EdgeKey) -> bool {
-    let ends = |e: EdgeKey| -> Option<(VertexKey, VertexKey)> {
-        let edge = body.get_edge(e)?;
-        let s = body.get_half_edge(edge.he_plus)?.start;
-        let t = body.half_edge_end(edge.he_plus)?;
-        Some((s, t))
+/// One boundary edge as predicate 2 reads it: its key, its certified
+/// carrier, and the [`CHAIN_SAMPLES`] points along its window.
+type ScreenedEdge<T> = (EdgeKey, Curve3<T>, [Point3<T>; CHAIN_SAMPLES as usize]);
+
+const _: () = assert!(
+    CHAIN_SAMPLES >= 1,
+    "predicate 2 seeds its gap from a real pair"
+);
+
+/// **One loop of a support face, read whole for predicate 2**: each
+/// boundary edge, in cycle order. Whatever the screen cannot read
+/// refuses here, typed — a feature left out of the pair sweep would
+/// let the screen report a face clear having metered nothing for it.
+fn screened_loop<T: Decide>(
+    body: &Body<T>,
+    lp: topo::LoopKey,
+) -> Result<Vec<ScreenedEdge<T>>, BlendError> {
+    let l = body
+        .get_loop(lp)
+        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support face's loop"))?;
+    let topo::LoopBoundary::Cycle { first } = l.boundary else {
+        return Err(unbuilt_geometry(
+            EntityId::Loop(lp),
+            "a support face carries a lone-vertex cycle, which the face-clearance screen does \
+             not cover",
+        ));
     };
-    match (ends(a), ends(b)) {
-        (Some((a0, a1)), Some((b0, b1))) => a0 == b0 || a0 == b1 || a1 == b0 || a1 == b1,
-        _ => false,
+    let cycle = body
+        .loop_cycle(first)
+        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support face's cycle"))?;
+    cycle
+        .into_iter()
+        .map(|he| {
+            let edge = body
+                .get_half_edge(he)
+                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a support face's boundary"))?
+                .edge;
+            let e = body.get_edge(edge).ok_or_else(|| {
+                not_intact(EntityId::Edge(edge), "a support face's boundary edge")
+            })?;
+            let c = body
+                .get_curve_geom(e.curve)
+                .ok_or_else(|| {
+                    not_intact(EntityId::Edge(edge), "a support boundary edge's curve row")
+                })?
+                .certified()
+                .ok_or_else(|| {
+                    unbuilt_geometry(
+                        EntityId::Edge(edge),
+                        "a support face's boundary edge carries no certified carrier",
+                    )
+                })?;
+            let (t0, t1) = c.params();
+            let pts = core::array::from_fn(|i| c.carrier().eval(chain_sample_at(t0, t1, i as u32)));
+            Ok((edge, c.carrier().clone(), pts))
+        })
+        .collect()
+}
+
+/// Whether any edge of `xs` shares an end vertex with any edge of
+/// `ys`. An edge whose ends do not resolve refuses rather than reading
+/// as "apart": apart is what puts a pair INTO the screen, but it is
+/// also what keeps a joint's neighbour OUT of the joint's meter.
+fn touches_any<T: Decide>(
+    body: &Body<T>,
+    xs: &[EdgeKey],
+    ys: &[EdgeKey],
+) -> Result<bool, BlendError> {
+    let ends = |e: EdgeKey| -> Result<[VertexKey; 2], BlendError> {
+        let he = body
+            .get_edge(e)
+            .ok_or_else(|| not_intact(EntityId::Edge(e), "a boundary edge, for its ends"))?
+            .he_plus;
+        body.get_half_edge(he)
+            .map(|h| h.start)
+            .zip(body.half_edge_end(he))
+            .map(|(s, t)| [s, t])
+            .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a boundary edge's ends"))
+    };
+    for x in xs {
+        let ex = ends(*x)?;
+        for y in ys {
+            if ends(*y)?.iter().any(|v| ex.contains(v)) {
+                return Ok(true);
+            }
+        }
     }
+    Ok(false)
 }

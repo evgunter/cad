@@ -170,6 +170,8 @@ mod verbs_shell;
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
+#[path = "band_clearance_screen_reads_every_feature.rs"]
+mod band_clearance_screen_reads_every_feature;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -449,6 +451,8 @@ mod seam_vertex_sites;
 mod run_walls_built;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_cylindrical_feature_box.rs"]
+mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]

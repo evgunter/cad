@@ -367,3 +367,15 @@ pass, plus a delta read. Filed: `swept-cocircular-arc-runs-build-one-wall`
 `swept-operand-merge-repairs-left-in-tests`, `swept-run-walls-style-residue`,
 SHELL's `cap-rim-refusal-order-follows-the-arena`. Merged over main's two
 filed reds (thread-count digest; the 1e-6 open-sign row).
+## 2026-10-02 — `face-clearance-screen-skips-boundary-edges-it-cannot-read` closed (PR #3786)
+
+Predicate 2's boundary-pair screen reads each support loop whole
+(`screened_loop`) and refuses what it cannot read instead of skipping it.
+Two arms are reachable on a tier-1-valid body through `fillet_edges`: a
+lone-vertex ring and an uncertified boundary carrier, both now
+`UnsupportedGeometry` naming the entity (each pinned by a row that reds on
+main). The other three (unresolved face, loop/cycle, half-edge) are torn-body
+states, refused `BodyNotIntact`. `touches_any` refuses an unresolved edge
+rather than reading it as apart, and the surgery's three
+`filter_map(get_half_edge)` member reads became its typed no-cycle refusal.
+Reviewed by the orchestrator's read (cost E).
