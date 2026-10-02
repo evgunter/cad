@@ -256,7 +256,7 @@ fn a_stale_wide_row_on_a_half_minted_face_escapes_the_faces_window() {
                         e,
                         PcurveMintError::Certify {
                             half_edge,
-                            error: PcurveCertifyError::TrimEscape { .. },
+                            error: PcurveCertifyError::TrimEscape,
                         } if *half_edge == h1
                     )),
                     "row {i} wide over [{lo}, {hi}], gap {j}: {f:?}"

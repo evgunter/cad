@@ -89,7 +89,7 @@ fn escapes(findings: &[PcurveMintError], he: HalfEdgeKey) -> bool {
             e,
             PcurveMintError::Certify {
                 half_edge,
-                error: PcurveCertifyError::TrimEscape { .. },
+                error: PcurveCertifyError::TrimEscape,
             } if *half_edge == he
         )
     })

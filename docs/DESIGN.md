@@ -486,9 +486,11 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
 
 - **(c) the fitted general-circle mint route** — `certify_fitted`'s
   Circle-carrier arm is reachable from no mint site, so the
-  oblique-trihedron octant faces stay legally uncached; the cone/torus
-  oblique classes have no ring-computable meters composite and refuse
-  with the class named.
+  oblique-trihedron octant faces stay uncached, excused by C4's
+  exemption until the route lands (PR 3733); the cone/torus oblique
+  classes have no ring-computable meters composite, refuse with the
+  class named, and are excused the same way, each class on its own
+  PCERT row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest; what is missing is
   the join window itself (`run_azimuth_window`/`chart_pcurve` have no
