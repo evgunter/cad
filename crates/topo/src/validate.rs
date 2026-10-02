@@ -2550,6 +2550,10 @@ fn certify_undecided(check: CertCheck) -> &'static str {
             "it is too short, for how its faces curve, to measure the angle between them at this \
              tolerance"
         }
+        CertCheck::TangentPlanes => {
+            "a face's tangent plane is undefined at a point of it, so there is no angle between \
+             its faces to measure there"
+        }
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
         }

@@ -8,7 +8,7 @@
 
 [profile.ci]
 fail-fast = false
-# 151 tests; the last measured total, under 817 s of test time on 4 vCPU,
+# 157 tests; the last measured total, under 817 s of test time on 4 vCPU,
 # was taken at 145.
 default-filter = """
 not (

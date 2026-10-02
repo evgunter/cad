@@ -2676,29 +2676,12 @@ pub(super) fn vertex_on_curved_face<T: Decide>(
         let Some(py) = y.get_point(vertex.point).copied() else {
             continue;
         };
-        match decide("bool_contact_vertex", Margin::norm3(px - py), band) {
-            Ok(Sign::Zero) => {
-                push_vv(contacts, x_is, vx, vy);
-                return Ok(Placement::Recorded);
-            }
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Negative) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::VertexOnVertex,
-                    diag: geom_core::Indeterminate {
-                        margin: geom_core::MarginDiag::INVALID,
-                        band,
-                        predicate: Some("bool_contact_vertex"),
-                        terminal_sliver: false,
-                    },
-                });
-            }
-            Err(diag) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::VertexOnVertex,
-                    diag,
-                });
-            }
+        if super::one_vertex(px, py, band).map_err(|diag| BooleanError::Escalated {
+            decision: BooleanDecision::VertexOnVertex,
+            diag,
+        })? {
+            push_vv(contacts, x_is, vx, vy);
+            return Ok(Placement::Recorded);
         }
     }
     // Only an ON-carrier `Out` is a certified absence. Every caller

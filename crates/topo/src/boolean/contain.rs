@@ -320,17 +320,8 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            let margin = Margin::norm3(q - *p);
-            match decide("bool_contact_vertex", margin, band) {
-                Ok(Sign::Zero) => return Ok(PrePass::On(FaceContainment::OnVertex(*v))),
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Negative) => {
-                    return Err(ContainError::Escalated(crate::invalid_margin::invalid(
-                        band,
-                        "bool_contact_vertex",
-                    )));
-                }
-                Err(diag) => return Err(ContainError::Escalated(diag)),
+            if super::one_vertex(q, *p, band).map_err(ContainError::Escalated)? {
+                return Ok(PrePass::On(FaceContainment::OnVertex(*v)));
             }
         }
     }

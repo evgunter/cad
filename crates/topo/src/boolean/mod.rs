@@ -934,6 +934,25 @@ pub struct PierceRingRecord {
     pub ring_vertex: VertexKey,
 }
 
+/// **Whether two points are one vertex** (`bool_contact_vertex`, the
+/// distance between them): `true` decided zero, `false` decided apart,
+/// the escalation when the band cannot say. A distance has no negative
+/// side, so a negative verdict is the codomain's contradiction and
+/// escalates as an invalid margin.
+pub(crate) fn one_vertex<T: Decide>(
+    p: Point3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    match crate::validate::decide("bool_contact_vertex", geom_core::Margin::norm3(p - q), band)? {
+        geom_core::Sign::Zero => Ok(true),
+        geom_core::Sign::Positive => Ok(false),
+        geom_core::Sign::Negative => {
+            Err(crate::invalid_margin::invalid(band, "bool_contact_vertex"))
+        }
+    }
+}
+
 /// The result of [`boolean_reduce`]: both operands' annotated clones
 /// plus every record the PR 5 joining step consumes.
 #[derive(Debug)]
