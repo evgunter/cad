@@ -136,7 +136,8 @@
 //!    the gate. It then stopped at the maximal-faces precondition on
 //!    the POT, whose full revolve split its planar walls in two; a full
 //!    revolve sweeps them whole now (BAND, one wall per run), and the
-//!    join reaches the curved pierce: `CurvedSectorSideUnsupported`,
+//!    join reaches the pot's sphere face meeting the handle's torus, a
+//!    meeting the Boolean cannot yet trace: `GermFrameUnsupported`,
 //!    pinned in wall 2.
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
@@ -154,8 +155,8 @@
 //!    Wall 3 pins the new variant and the note carries the payload.
 //!
 //!    Wall 2 is past the operand gate and past the maximal-faces
-//!    precondition, and stops where a handle edge pierces the curved
-//!    vessel without a decided material side. **Both refusals arrive through the
+//!    precondition, and stops where the vessel's sphere face meets the
+//!    handle's torus, which the Boolean cannot yet trace. **Both refusals arrive through the
 //!    DOCUMENT**: each join is a `Node::Boolean` that lowers to the
 //!    same kernel `union` and fails at `evaluate`, and what the note
 //!    quotes is that node's own carried refusal rather than a second
@@ -1357,16 +1358,16 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // it. The join used to stop one door on, at the maximal-faces
     // precondition, on the VESSEL, whose full revolve minted split
     // planar walls; it sweeps them whole now (BAND, one wall per run),
-    // so the request reaches the curved pierce and refuses there: where
-    // a handle edge pierces a curved face of the vessel, the material
-    // side at the sector's arm is not decided.
+    // so the request reaches the vessel's sphere face meeting the
+    // handle's torus and refuses there: the germ frame has no arm for
+    // that pair of kinds.
     crate::walls::wall(
         "teapot",
         2,
         "join the handle to the vessel (union; both roots driven 11.2 mm past the \
          belly's inner wall — a real overlap, not a tangency)",
         join_outcome(ev, r.handle_union),
-        |e| matches!(e, BooleanError::CurvedSectorSideUnsupported { .. }),
+        |e| matches!(e, BooleanError::GermFrameUnsupported { .. }),
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
          walls 2 and 3, re-state the montage caption (which currently says four solids), \
          and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \

@@ -3220,9 +3220,9 @@ class TestTeapot(unittest.TestCase):
         # handle union vessel: PAST the operand gate, because the
         # handle's torus is on the union's kind roster, and PAST the
         # maximal-faces precondition, since a full revolve sweeps the
-        # vessel's planar walls whole — and dead at the curved pierce,
-        # where a handle edge meets the curved vessel with no decided
-        # material side.
+        # vessel's planar walls whole — and dead where the vessel's
+        # sphere face meets the handle's torus, a meeting the Boolean
+        # cannot yet trace.
         self.assertFalse(ev.succeeded(handle_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(handle_join)
@@ -3231,7 +3231,7 @@ class TestTeapot(unittest.TestCase):
         text = str(refusal)
         self.assertRegex(
             text,
-            r"where an edge pierces a curved face, the Boolean cannot be sure which side",
+            r"cannot yet trace where the first operand's sphere face meets the second operand's torus face",
         )
 
         # spout union vessel: PAST the pair rung, because a loft's
