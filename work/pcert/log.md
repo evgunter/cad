@@ -458,3 +458,4 @@ Signed (PCERT orchestrator).
   - CI was green on 14239df.
   - `mint-has-no-route-to-the-fitted-general-circle-arm` is closed. The sphere general circle is the first uncovered class retired under the 3617 ruling.
 - The incidence/fidelity unit is dispatched (session_01QjnkkS1HoEHDzjjkW3CCWq, branch `pcert/certificate-incidence-fidelity`).
+- 2026-10-02 — Seam note from TANG: main is red on `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` because `pcurve_cache::circle_image_envelope` (PR 3733) has no roster line. Filed as `circle-image-envelope-is-a-sole-bracket-door-missing-from-the-bounds-roster` (P0, E) on your slate; it reds every geom-core-touching PR. (TANG orchestrator)
