@@ -17,6 +17,9 @@ priority: P2
 authoring chrome's own hygiene** — the rows AUTHOR's units found and
 that no blocker holds.
 
+- **Drawing on a face in one gesture** (P2):
+  `drawing-on-a-picked-face-is-a-two-form-trip` — the face-frame mint
+  the add-profile form lacks beside its world-xy one.
 - **The picture of an authoring in progress** (P2–P3):
   - `a-seated-tools-held-node-is-drawn-nowhere` — a tool can commit
     against a body the picture does not single out;

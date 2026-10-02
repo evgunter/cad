@@ -6,7 +6,11 @@ AUTHOR's history is recoverable from
 
 ## The slate
 
-1. **P2** — `a-seated-tools-held-node-is-drawn-nowhere` (M). The
+1. **P2.**
+   - `drawing-on-a-picked-face-is-a-two-form-trip` (M) — the
+     authoring door here, and the first unit: a residue AUTH-1 named
+     and no later unit carried.
+   - `a-seated-tools-held-node-is-drawn-nowhere` (M). The
    held-face mark AUTHOR landed (`held-face-pick-is-invisible-in-the-viewport`,
    AUTH-10, PR 3556) is the shape to extend, not a second
    mark beside it.

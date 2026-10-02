@@ -34,7 +34,8 @@ blocked on the kernel shape it will draw:
   refusal. Blocked on CLEAR's
   `clearance-refusal-names-one-face-twice-across-bodies`.
 
-Whoever picks this up when a blocker closes sets the program `ready`
-(or takes it straight to `active`). Charter and order: `plan.md`;
+Every row is `parked` on its blocker. Whoever picks this up when a
+blocker closes sets that row `open` and the program `ready` (or takes
+it straight to `active`). Charter and order: `plan.md`;
 AUTHOR's narrative is recoverable from
 `docs/doc-ledger/author-leaves-the-tracker.md`.

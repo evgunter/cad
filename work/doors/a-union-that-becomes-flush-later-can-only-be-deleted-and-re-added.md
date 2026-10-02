@@ -2,7 +2,7 @@
 id: a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added
 kind: issue
 title: A boolean that becomes flush after it is committed has no recourse but cascade delete and re-add
-status: open
+status: parked
 opened: 2026-09-30
 priority: P2
 cost: M

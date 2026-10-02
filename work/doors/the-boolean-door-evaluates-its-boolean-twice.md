@@ -2,7 +2,7 @@
 id: the-boolean-door-evaluates-its-boolean-twice
 kind: issue
 title: The boolean door evaluates the boolean it commits twice, once on the frame's thread
-status: open
+status: parked
 opened: 2026-09-30
 priority: P2
 cost: M

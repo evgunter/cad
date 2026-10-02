@@ -2,7 +2,7 @@
 id: face-pick-cannot-name-which-face
 kind: issue
 title: The add-datum form's face pick names a body scope, and no label in the tree can name WHICH face
-status: open
+status: parked
 opened: 2026-09-21
 priority: P1
 cost: D

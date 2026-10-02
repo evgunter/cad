@@ -2,7 +2,7 @@
 id: the-gui-has-no-clearance-consumer
 kind: issue
 title: the GUI has no clearance consumer: no verdict, no witness, no refusal
-status: open
+status: parked
 opened: 2026-09-30
 priority: P1
 cost: H
