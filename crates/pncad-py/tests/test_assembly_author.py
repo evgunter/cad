@@ -5,7 +5,7 @@ scene into a store and evaluates what it reads back; here nothing goes
 near disk that this file did not put there. Two part documents are
 authored, written into a workspace, instantiated into two assembly
 documents, mated, solved, gathered and gated — the whole of the audit's
-rows 46 and 47 through the public doors.
+row 44 through the public doors.
 
 THE SCENE IS `bench_scene.py`, AND THE ORACLE COMES FROM THE TOUR
 -----------------------------------------------------------------
@@ -169,7 +169,7 @@ SPELLINGS = {"pattern": Node.pattern, "placed_union": Node.placed_union}
 
 
 class TestBenchLayout(BenchWorkspace):
-    """Row 47: the flat-pack. The posts on their side and the shelf
+    """Row 44's flat-pack: The posts on their side and the shelf
     beside them, nothing touching — A5's disjoint half.
 
     The layout has no mates, so the group, the solve and the minted
@@ -455,7 +455,7 @@ class TestBenchLayout(BenchWorkspace):
 
 
 class TestBenchStand(BenchWorkspace):
-    """Row 46: the assembled bench. Two posts and a shelf, the shelf
+    """Row 44's assembled bench: Two posts and a shelf, the shelf
     SEATED on the posts by mates — only the root post keeps an offset,
     and the other two poses are solved."""
 

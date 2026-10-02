@@ -192,10 +192,9 @@ jobs:
               *) echo "cargo_scope=$CARGO_SCOPE" ;;
             esac
           } | tee -a "$GITHUB_OUTPUT"
-      # HEAD^2 of the test merge is the PR head. A GITHUB_TOKEN may start a
-      # `workflow_dispatch`, which is what render.yml's re-gate (its
-      # `ci-on-new-head` job) answers with; that dispatch never reaches this
-      # step, so the two cannot loop. A failed dispatch is an output, not a
+      # HEAD^2 of the test merge is the PR head. render.yml's own commits
+      # carry `[skip ci]`, and a dispatch never reaches this step, so the
+      # two cannot loop. A failed dispatch is an output, not a
       # failed step, so `gate ok` goes red without skipping the rows.
       - name: render tag
         id: render-tag
