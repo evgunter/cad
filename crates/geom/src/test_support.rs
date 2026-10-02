@@ -5,18 +5,14 @@
 //!
 //! Each kind is a builder over a flat scalar list, laid out in its
 //! variant's field order, beside the number of scalars it reads. The
-//! kinds are read off the variant rosters ([`SurfaceVariant`],
-//! [`Curve3Variant`]), so a variant added to [`Surface`] or [`Curve3`]
+//! kinds are read off the kind rosters ([`SurfaceKind::ALL`],
+//! [`CurveKind::ALL`]), so a variant added to [`Surface`] or [`Curve3`]
 //! fails this module until it is given a builder or declared as not
 //! read field by field.
 
-use geom_core::{Point3, Vec3};
-use strum::IntoEnumIterator;
-
-pub use crate::curves::Curve3Variant;
 use crate::datum::ANALYTIC_DATA_MAX;
-pub use crate::surfaces::SurfaceVariant;
-use crate::{Curve3, Surface};
+use crate::{Curve3, CurveKind, Surface, SurfaceKind};
+use geom_core::{Point3, Vec3};
 
 /// One analytic kind: a builder over a flat scalar list, and how many
 /// of the list's leading scalars it reads.
@@ -46,10 +42,11 @@ fn dir(x: &[f64]) -> Vec3<f64> {
 /// Every analytic surface kind, in declaration order.
 #[must_use]
 pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
-    SurfaceVariant::iter()
+    SurfaceKind::ALL
+        .into_iter()
         .filter_map(|kind| -> Option<AnalyticKind<Surface<f64>>> {
             Some(match kind {
-                SurfaceVariant::Plane => AnalyticKind {
+                SurfaceKind::Plane => AnalyticKind {
                     build: |x| Surface::Plane {
                         origin: pt(&x[0..3]),
                         normal: dir(&x[3..6]),
@@ -57,7 +54,7 @@ pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
                     },
                     scalars: 9,
                 },
-                SurfaceVariant::Cylinder => AnalyticKind {
+                SurfaceKind::Cylinder => AnalyticKind {
                     build: |x| Surface::Cylinder {
                         origin: pt(&x[0..3]),
                         axis: dir(&x[3..6]),
@@ -66,7 +63,7 @@ pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
                     },
                     scalars: 10,
                 },
-                SurfaceVariant::Cone => AnalyticKind {
+                SurfaceKind::Cone => AnalyticKind {
                     build: |x| Surface::Cone {
                         apex: pt(&x[0..3]),
                         axis: dir(&x[3..6]),
@@ -75,7 +72,7 @@ pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
                     },
                     scalars: 10,
                 },
-                SurfaceVariant::Sphere => AnalyticKind {
+                SurfaceKind::Sphere => AnalyticKind {
                     build: |x| Surface::Sphere {
                         center: pt(&x[0..3]),
                         radius: x[3],
@@ -84,7 +81,7 @@ pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
                     },
                     scalars: 10,
                 },
-                SurfaceVariant::Torus => AnalyticKind {
+                SurfaceKind::Torus => AnalyticKind {
                     build: |x| Surface::Torus {
                         center: pt(&x[0..3]),
                         axis: dir(&x[3..6]),
@@ -94,7 +91,7 @@ pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
                     },
                     scalars: 11,
                 },
-                SurfaceVariant::Nurbs | SurfaceVariant::Approx => return None,
+                SurfaceKind::Nurbs | SurfaceKind::Approx => return None,
             })
         })
         .collect()
@@ -103,17 +100,18 @@ pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
 /// Every analytic carrier kind, in declaration order.
 #[must_use]
 pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
-    Curve3Variant::iter()
+    CurveKind::ALL
+        .into_iter()
         .filter_map(|kind| -> Option<AnalyticKind<Curve3<f64>>> {
             Some(match kind {
-                Curve3Variant::Line => AnalyticKind {
+                CurveKind::Line => AnalyticKind {
                     build: |x| Curve3::Line {
                         origin: pt(&x[0..3]),
                         dir: dir(&x[3..6]),
                     },
                     scalars: 6,
                 },
-                Curve3Variant::Circle => AnalyticKind {
+                CurveKind::Circle => AnalyticKind {
                     build: |x| Curve3::Circle {
                         center: pt(&x[0..3]),
                         axis: dir(&x[3..6]),
@@ -122,7 +120,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
                     },
                     scalars: 10,
                 },
-                Curve3Variant::Ellipse => AnalyticKind {
+                CurveKind::Ellipse => AnalyticKind {
                     build: |x| Curve3::Ellipse {
                         center: pt(&x[0..3]),
                         axis: dir(&x[3..6]),
@@ -132,7 +130,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
                     },
                     scalars: 11,
                 },
-                Curve3Variant::Spiric => AnalyticKind {
+                CurveKind::Spiric => AnalyticKind {
                     build: |x| Curve3::Spiric {
                         center: pt(&x[0..3]),
                         axis: dir(&x[3..6]),
@@ -143,7 +141,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
                     },
                     scalars: 12,
                 },
-                Curve3Variant::Nurbs => return None,
+                CurveKind::Nurbs => return None,
             })
         })
         .collect()

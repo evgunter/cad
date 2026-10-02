@@ -458,7 +458,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
     use geom::ConventionEnd::{Lower, Upper};
     use geom::ConventionMeasure::{Length, Tilt, Value};
     use geom::SurfaceDatum as D;
-    use geom_brep::SurfaceKind as K;
+    use geom::SurfaceKind as K;
     enum Verdict {
         Poisoned,
         Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
@@ -909,11 +909,11 @@ fn pillow_with_carrier(
 /// rides after the datum's.)
 #[test]
 fn check_1_names_the_carrier_datum_that_describes_no_curve() {
-    use crate::query::CurveKind as K;
     use geom::ConventionEnd::{Lower, Upper};
     use geom::ConventionMeasure::{Length, Value};
     use geom::Curve3;
     use geom::CurveDatum as D;
+    use geom::CurveKind as K;
     let tol = Tol::witness();
     let pi = core::f64::consts::PI;
     let c = Point3::new(0.5, 0.0, 0.0);
@@ -2412,7 +2412,7 @@ fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
 /// One solid, three shells: the outer cube, a cavity wall inside it,
 /// and an island inside that cavity — the hollow-operand subtraction's
 /// shape
-/// (`work/zip/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
+/// (`work/fuse/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
 /// Two of those shells enclose definitely-positive volume.
 ///
 /// Four doors produce this state on purpose — `graft onto`, the

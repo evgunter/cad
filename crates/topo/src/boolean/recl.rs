@@ -27,7 +27,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::sectors::{BoolSector, PairRecord, side_code};
-use super::tables::{eq15_3_lump, resolve_verdict, table_ii};
+use super::tables::{eq15_3_lump, kept_copy, resolve_verdict, table_ii};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
@@ -49,7 +49,7 @@ fn carrier_of<T: Decide>(
         let kind = body
             .get_face(s.face)
             .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face: s.face,
@@ -93,7 +93,7 @@ pub(super) fn require_same<T: Decide>(
         let kind = body1
             .get_face(s1.face)
             .and_then(|f| body1.get_surface(f.surface))
-            .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand: o1,
             face: s1.face,
@@ -115,7 +115,7 @@ pub(super) fn require_same<T: Decide>(
         if let Some((operand, face, f, body)) = refusal {
             let kind = f
                 .and_then(|f| body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand,
                 face,
@@ -165,6 +165,11 @@ fn cancel_uniform(r: &mut PairRecord) {
 /// Program 15.10 (module docs). `records` are rewritten in place,
 /// sequentially, in creation (A-major) order — later coplanar pairs see
 /// propagated codes, as the book.
+///
+/// Each coincident pair whose lump keeps one copy of the region is
+/// pushed onto `covered` as `(A face, B face)`
+/// (`BooleanReduction::covered`), and each edge of the kept copy's face
+/// that runs into the dropped copy's onto `held`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_sectors<T: Decide>(
     records: &mut [PairRecord],
@@ -175,6 +180,8 @@ pub(super) fn recl_sectors<T: Decide>(
     op: BooleanOp,
     declared: &super::DeclaredPairs,
     band: Band,
+    covered: &mut Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
+    held: &mut Vec<super::HeldEdge>,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     for i in 0..records.len() {
@@ -287,6 +294,28 @@ pub(super) fn recl_sectors<T: Decide>(
             arm,
             band,
         )?;
+        if let Some(keeper) = kept_copy(op, rel) {
+            covered.push((sa.face, sb.face));
+            let (body, own, other, other_body) = match keeper {
+                Operand::A => (a_body, sa, sb, b_body),
+                Operand::B => (b_body, sb, sa, a_body),
+            };
+            let at = other_body.get_half_edge(other.he).map(|h| h.start).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "a covered sector's half-edge no longer resolves",
+                },
+            )?;
+            for (edge, dir) in super::sectors::bound_edges(body, own)? {
+                if super::sectors::runs_into(other, dir, arm, band)? {
+                    held.push(super::HeldEdge {
+                        holder: keeper,
+                        edge,
+                        face: other.face,
+                        at,
+                    });
+                }
+            }
+        }
         let (newsa, newsb) = (
             eq15_3_lump(op, Operand::A, rel),
             eq15_3_lump(op, Operand::B, rel),
@@ -393,7 +422,6 @@ fn flank_key<T: Decide>(
         bound,
         reach,
         ref_normal,
-        s.arm,
         super::sectors::NO_CURVATURE(),
         band,
     )
@@ -707,7 +735,6 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 w,
                 reach,
                 other_secs[oi].normal,
-                arm,
                 super::sectors::NO_CURVATURE(),
                 band,
             )? {
@@ -741,8 +768,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 .all(|&(body, face)| {
                                     body.get_face(face)
                                         .and_then(|f| body.get_surface(f.surface))
-                                        .map(geom_brep::SurfaceKind::of)
-                                        == Some(geom_brep::SurfaceKind::Plane)
+                                        .map(geom::Surface::kind)
+                                        == Some(geom::SurfaceKind::Plane)
                                 });
                             let which = if planar {
                                 Coincide::FlankSense

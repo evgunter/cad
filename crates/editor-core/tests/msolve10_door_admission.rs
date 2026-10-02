@@ -268,13 +268,16 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
         panic!("{err:?}");
     };
     let sentence = err.to_string();
+    let t = test_utils::refusal::tag(named.0);
     assert!(
         sentence.contains(&format!(
-            "Mate {} is refused by the solve",
-            test_utils::refusal::tag(named.0)
-        )) && sentence.contains(&fault.to_string()),
-        "{sentence}"
+            "Mate {t} is refused by the solve on its own datum: this mate contradicts itself"
+        )) && fault
+            .to_string()
+            .starts_with(&format!("mate {t} contradicts itself")),
+        "the door names the mate once, and the fault's own sentence names it: {sentence}"
     );
+    assert_eq!(sentence.matches(&t).count(), 1, "{sentence}");
 }
 
 /// **A rider inside the band is admitted, and the solve places the

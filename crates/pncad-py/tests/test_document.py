@@ -317,6 +317,7 @@ class TestEvaluation(unittest.TestCase):
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
         downstream = doc.insert(Node.boolean(BooleanOp.Union, cut, outer))
+        doc.apply(DocEdit.set_label(cut, "pocket"))
         ev = evaluate(doc)
         with self.assertRaises(EvaluationError) as caught:
             ev.value(downstream)
@@ -329,7 +330,13 @@ class TestEvaluation(unittest.TestCase):
         # belongs to the node that refused; here it is None (attributes
         # never go missing, LIB-DOORS F3).
         self.assertIsNone(caught.exception.finding)
-        self.assertIn("is poisoned by the failure at node", str(caught.exception))
+        # The standing speaks each node as the evaluated document holds
+        # it: kind, label and tag.
+        self.assertIn(
+            f'Boolean {tag(downstream)} is poisoned by the failure at Boolean "pocket" '
+            f"({tag(cut)})",
+            str(caught.exception),
+        )
 
 
 class TestDetectDeclareDoors(unittest.TestCase):
@@ -449,6 +456,22 @@ class TestDetectDeclareDoors(unittest.TestCase):
         self.assertEqual(caught.exception.reason, "node_has_no_value")
         self.assertIn(
             "is not a node of the document this evaluation ran over",
+            str(caught.exception),
+        )
+
+    def test_a_flush_refusal_speaks_the_labelled_node_that_has_no_value(self):
+        # The binding holds the evaluated document, so the standing in
+        # the message says the node's kind, label and tag.
+        doc = Doc()
+        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
+        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        doc.apply(DocEdit.set_label(cut, "pocket"))
+        with self.assertRaises(SelectRefusal) as caught:
+            evaluate(doc).find_flush_candidates(outer, cut)
+        self.assertEqual(caught.exception.reason, "node_has_no_value")
+        self.assertIn(
+            f'Boolean "pocket" ({tag(cut)}) failed, so it has no value',
             str(caught.exception),
         )
 
@@ -847,23 +870,25 @@ class TestStepExport(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "not_a_body")
         self.assertEqual(caught.exception.kind, "profile")
 
-    def test_the_export_refusal_names_the_node_as_a_bare_id(self):
-        """A node reaches prose as its number, not as a Rust wrapper.
+    def test_the_export_refusal_speaks_the_node_as_the_document_holds_it(self):
+        """A node reaches prose as its kind, label and tag, never as a
+        Rust wrapper.
 
         The one part of an export refusal a caller can act on is which
         node it is about. `RecipeNodeId`'s `Debug` spelling puts a Rust
-        type name in front of that number — a token with no meaning on
+        type name in front of its number — a token with no meaning on
         this side of the boundary.
         """
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
-        profile_node = doc.order()[0]
+        frame = doc.order()[0]
+        doc.apply(DocEdit.set_label(frame, "base sketch"))
         ev = evaluate(doc)
         with self.assertRaises(pncad.ExportError) as caught:
-            ev.step_string(profile_node)
+            ev.step_string(frame)
         message = str(caught.exception)
         self.assertNotIn("RecipeNodeId", message)
-        self.assertIn(f"node {tag(profile_node)} ", message)
+        self.assertIn(f'export: Datum frame "base sketch" ({tag(frame)}) evaluates', message)
 
     def test_every_step_option_reaches_the_written_file(self):
         """The whole `StepOptions` record is the door's keywords.

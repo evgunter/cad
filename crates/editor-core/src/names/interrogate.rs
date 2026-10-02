@@ -35,7 +35,7 @@
 //! This layer adds only the name resolution and the typed refusals
 //! that go with it.
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Decide;
 use topo::readback::{self, Pose, ReadbackError};
 use topo::{Body, CurveKind};
@@ -124,10 +124,14 @@ pub enum InterrogateError {
 // door: the door is its carrier's to prefix. So the `Standing` and
 // `Readback` arms forward their payload's own words. Kinds render
 // through `EntityKind::noun`, never `Debug`.
-impl core::fmt::Display for InterrogateError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for InterrogateError {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Standing(standing) => write!(f, "{standing}"),
+            Self::Standing(standing) => write!(f, "{}", crate::spoken::Said(standing, by)),
             Self::NoSuchName => f.write_str(
                 "nothing in this node answers to that name — the selection is \
                  stale (an upstream edit removed what it named) or the name belongs to another \
@@ -163,6 +167,23 @@ impl core::fmt::Display for InterrogateError {
             ),
             Self::Readback(error) => write!(f, "{error}"),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for InterrogateError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl InterrogateError {
+    /// **The refusal as the frame holding the evaluated document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
+    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 

@@ -169,7 +169,7 @@ fn close(got: f64, want: f64, what: &str) {
 fn refuses_as_the_interior_loop_guard(
     r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
     op: topo::BooleanOp,
-    kind: geom_brep::SurfaceKind,
+    kind: geom::SurfaceKind,
     what: &str,
 ) {
     refuses_at(r, topo::PairRefusalSite::InteriorLoopGuard, op, kind, what);
@@ -181,7 +181,7 @@ fn refuses_at(
     r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
     site: topo::PairRefusalSite,
     op: topo::BooleanOp,
-    kind: geom_brep::SurfaceKind,
+    kind: geom::SurfaceKind,
     what: &str,
 ) {
     match r {
@@ -213,7 +213,7 @@ fn refuses_at(
 fn a_torus_oval_refuses_every_op_at_the_guard() {
     use topo::BooleanOp as Op;
     let (h, c) = (half_donut(), torus_bracket());
-    let torus = geom_brep::SurfaceKind::Torus;
+    let torus = geom::SurfaceKind::Torus;
     for (op, r, what) in [
         (Op::Union, topo::union(&h, &c, Tol::witness()), "h ∪ c"),
         (
@@ -424,12 +424,7 @@ fn a_sphere_cap_behind_crossings_elsewhere_refuses_every_op() {
             topo::subtract(&c, &d, Tol::witness()),
         ),
     ] {
-        refuses_as_the_interior_loop_guard(
-            r,
-            op,
-            geom_brep::SurfaceKind::Sphere,
-            "dome and bracket",
-        );
+        refuses_as_the_interior_loop_guard(r, op, geom::SurfaceKind::Sphere, "dome and bracket");
     }
     assert!(
         verdicts(&d, &c).iter().any(|v| v == "Err(Loop)"),
@@ -545,8 +540,8 @@ fn the_oval_lens_is_well_above_the_rows_tolerance() {
 /// W4; the side faces cut `(0,1)` and `(1,0)` pairs, W2): the lens arcs
 /// are evidenced, and tracing them is the crossing layer's business.
 /// What keeps the result from being a body is downstream of the guard —
-/// the chord rule and the sagitta charge, where the reduction refuses
-/// today — and that is what this row pins.
+/// the join's germ frame, which has no torus × plane arm and is where
+/// every op refuses today — and that is what this row pins.
 #[test]
 fn the_corner_bar_never_comes_back_a_body() {
     let d = donut();
@@ -745,13 +740,15 @@ fn nurbs_clamp() -> Body<f64> {
 fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
     let kind = |x: &Body<f64>, f| {
         let fd = x.get_face(f).expect("a reported face resolves");
-        geom_brep::SurfaceKind::of(x.get_surface(fd.surface).expect("its surface resolves"))
+        x.get_surface(fd.surface)
+            .expect("its surface resolves")
+            .kind()
     };
     topo::test_support::section_report(topo::BooleanOp::Union, a, b, Tol::witness())
         .expect("the reduction runs")
         .into_iter()
         .map(|(fa, fb, v)| (kind(a, fa), kind(b, fb), v))
-        .filter(|(ka, kb, _)| [ka, kb].contains(&&geom_brep::SurfaceKind::Nurbs))
+        .filter(|(ka, kb, _)| [ka, kb].contains(&&geom::SurfaceKind::Nurbs))
         .map(|(ka, kb, v)| format!("{ka:?} × {kb:?}: {v}"))
         .collect()
 }
@@ -776,7 +773,7 @@ fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
 fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
     use topo::{BooleanOp as Op, PairRefusalSite as Site};
     let (a, b) = (nurbs_bump(), nurbs_clamp());
-    let nurbs = geom_brep::SurfaceKind::Nurbs;
+    let nurbs = geom::SurfaceKind::Nurbs;
     assert_eq!(
         nurbs_verdicts(&a, &b),
         vec!["Nurbs × Plane: Err(Reach)".to_string()],

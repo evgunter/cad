@@ -337,3 +337,15 @@ house pattern propagating, not one lane's invention, and the fix is a
 convention rather than a bug report. The mechanism question is this
 row's: whichever answer it picks (the discriminant walk reads best) is
 what these eleven should be converted to.
+
+## The `census!` macro's two sites are gone (2026-10-02, TQUERY `one-kind-mirror-per-geometry-enum`)
+
+The two invocations in `crates/topo/src/query.rs`'s test module, and
+the macro with them, were deleted when `CurveKind` and `SurfaceKind`
+moved down to `geom` as DERIVED mirrors (`strum::EnumDiscriminants`
+plus `strum::VariantArray`): `CurveKind::ALL` / `SurfaceKind::ALL` are
+now read off the derive, so there is no hand-written list left for a
+census to pin. The macro text above is still the worked instrument for
+the remaining hand-kept sites; it simply has no live site in the tree.
+For a closed fieldless enum that mirrors another enum, the derive is a
+fourth answer to this row's question: no list exists to forget.

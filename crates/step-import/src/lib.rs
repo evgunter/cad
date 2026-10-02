@@ -304,10 +304,13 @@ pub enum PromotedKind {
 
 impl core::fmt::Display for PromotedKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Plane => "plane",
-            Self::Cylinder => "cylinder",
-        })
+        f.write_str(
+            match self {
+                Self::Plane => geom::SurfaceKind::Plane,
+                Self::Cylinder => geom::SurfaceKind::Cylinder,
+            }
+            .name(),
+        )
     }
 }
 
@@ -431,10 +434,13 @@ pub enum PromotedCurveKind {
 
 impl core::fmt::Display for PromotedCurveKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Circle => "circle",
-            Self::Line => "line",
-        })
+        f.write_str(
+            match self {
+                Self::Circle => geom::CurveKind::Circle,
+                Self::Line => geom::CurveKind::Line,
+            }
+            .name(),
+        )
     }
 }
 

@@ -881,6 +881,7 @@ class TestAssemblyRefusals(BenchWorkspace):
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        doc.apply(DocEdit.set_label(post_i, "post"))
         face = self.instance_face(doc, post_i, CapEnd.End)
         # A pair is two instances; a self-mate constrains nothing and
         # is a recipe mistake — a fact about the mate alone, so the
@@ -893,6 +894,12 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(refusal.inner_variant, "mate_self")
         self.assertEqual(refusal.fault.variant, "mate_self")
         self.assertEqual(refusal.fault.instance, post_i)
+        # The fault's words speak the instance as the document held it
+        # when the door refused, and the refusal names the mate once;
+        # the getter crosses the id itself.
+        spoken = f'InstantiatePart "post" ({tag(post_i)})'
+        self.assertIn(f"this mate names one member on both sides (it stands on {spoken})", str(refusal))
+        self.assertIn(f"(it stands on {spoken})", str(refusal.fault))
         self.assertEqual(doc.roots, [post_i], "nothing entered")
 
     def test_a_mate_on_a_transformed_instance_is_read_at_the_transform(self):
@@ -976,6 +983,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, SEAT_A),
             )
         )
+        doc.apply(DocEdit.set_label(lifted, "lift"))
         solved = solve_document(doc, resolver=self.ws)
         fault = solved.fault(mate)
         self.assertEqual(fault.variant, "mate_placer_refused")
@@ -984,7 +992,9 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertIsNone(fault.head)
         # The fault names the placer and points; the placer's own
         # refusal is its typed cause, in the placer's own words.
-        self.assertIn(f"repair node {tag(lifted)}", str(fault))
+        # Spoken from the document the solve read: the placer by its
+        # kind, label and tag, the mate as the fault's own subject.
+        self.assertIn(f'repair Transform "lift" ({tag(lifted)})', str(fault))
         self.assertNotIn("transform rotation axis", str(fault))
         cause = fault.cause
         self.assertIsInstance(cause, pncad.EvaluationError)
@@ -995,6 +1005,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         # A raised `MateError` carries the same refusal as its cause.
         with self.assertRaises(pncad.MateError) as caught:
             solved.placement(doc, shelf_i)
+        self.assertIn(f'repair Transform "lift" ({tag(lifted)})', str(caught.exception))
         raised = caught.exception.__cause__
         self.assertIsInstance(raised, pncad.EvaluationError)
         self.assertEqual((raised.node, str(raised)), (cause.node, str(cause)))
@@ -1061,6 +1072,21 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertIn(
             pncad.NO_AT_REST_RECORD_RECOURSE, str(caught.exception)
         )
+
+    def test_the_gate_speaks_each_unminted_mate_from_the_document(self):
+        # The gate holds the document, so the message and each row's
+        # `str` say a mate by its kind, label and tag; `mate` keeps the
+        # id.
+        doc, _, (mate_1, mate_2) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
+        doc.apply(DocEdit.set_label(mate_1, "left seat"))
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(doc, evaluate(doc, resolver=self.ws))
+        rows = caught.exception.refusals
+        self.assertEqual([r.mate for r in rows], [mate_1, mate_2])
+        labelled = f'Mate "left seat" ({tag(mate_1)})\'s class'
+        self.assertTrue(str(rows[0]).startswith(labelled), str(rows[0]))
+        self.assertTrue(str(rows[1]).startswith(f"Mate {tag(mate_2)}'s class"), str(rows[1]))
+        self.assertIn(labelled, str(caught.exception))
 
     def test_the_admission_table_says_so_before_the_edit_lands(self):
         rest = pncad.class_admission(ContactClass.Rest)

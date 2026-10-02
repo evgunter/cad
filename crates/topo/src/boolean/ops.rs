@@ -85,16 +85,17 @@
 //!   non-star patch adjacency); and boundary-on-boundary
 //!   configurations that are not pure REST contacts (the original
 //!   `Join(UnpairedLooseEnds)` surfaces verbatim).
-//! - **Reflex-corner-vertex tilted crossings** (PR 5.5 review): a
-//!   seam through the VERTEX of a reflex boundary corner under a
-//!   tilted section plane (a 315°-corner pierced by a z-sheared
-//!   brick's cap) can refuse `SeamOrientation`. Root cause: the
-//!   angular strut spike order (`bool_strut_order`) is FORCED only on
-//!   sectors of width W ≤ π (which covers the whole crossing-minted
-//!   corpus class — edge-interior sites are exact half-planes);
-//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in
-//!   the unforced window. Face-interior and convex-corner crossings
-//!   of the same shape succeed exactly.
+//! - **Reflex-corner vertex–vertex sites under a tilted cap**: where a
+//!   vertex of the other operand coincides with a 315° reflex corner
+//!   and the caps meet at a tilt, the op can refuse
+//!   (`SeamOrientation`, `JoinDesync`, `Join(UnpairedLooseEnds)`;
+//!   `work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).
+//!   The cause is unmeasured. The angular strut spike order
+//!   (`bool_strut_order`) is forced only on sectors of width W ≤ π, so
+//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in an
+//!   unforced window, but no refusal has been traced to it. The
+//!   vertex-on-face form of the same corner (the corner piercing a
+//!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -252,6 +253,17 @@ pub struct BooleanNaming {
     /// bordered (`boolean::discard`, which says which paths record
     /// rows and why the others have none to record).
     pub discards: Vec<super::DiscardRow>,
+    /// Each pair `(A face, B face)` of coincident faces where the result
+    /// holds either face's region through the other: their materials lie
+    /// on one side, so the classification keeps one operand's copy of the
+    /// region they share and drops the other's (Eq. 15.3). The pair is
+    /// one fact whichever copy is kept. Clone keys, as
+    /// [`super::DiscardRow::face`]: chase `face_fragments_a`/`face_fragments_b`
+    /// for the operand faces. Read off the classification, so every path
+    /// that classifies records it — the section path, the containment
+    /// fallback and the declared-REST union — sorted and deduplicated;
+    /// a path that never classifies (disjoint boxes) has none.
+    pub covered: Vec<(FaceKey, FaceKey)>,
 }
 
 impl BooleanNaming {
@@ -521,7 +533,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
-    let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
+    let covered = red.covered.clone();
+    let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
     // do not each re-derive the whole body, and `gate` below — tier 1
@@ -588,6 +601,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_b: connected.b_fragments,
         reduction_contacts,
         discards: fin.discards,
+        covered,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -913,11 +927,11 @@ pub(crate) struct PairVerdict {
     /// The pair's face of A.
     pub a_face: FaceKey,
     /// Its kind.
-    pub a_kind: geom_brep::SurfaceKind,
+    pub a_kind: geom::SurfaceKind,
     /// The pair's face of B.
     pub b_face: FaceKey,
     /// Its kind.
-    pub b_kind: geom_brep::SurfaceKind,
+    pub b_kind: geom::SurfaceKind,
     /// A's face is one the path names in its refusal.
     pub a_named: bool,
     /// Each component's witness, or the pair's refusal.
@@ -932,9 +946,9 @@ impl PairVerdict {
     ) -> (
         Operand,
         FaceKey,
-        geom_brep::SurfaceKind,
+        geom::SurfaceKind,
         FaceKey,
-        geom_brep::SurfaceKind,
+        geom::SurfaceKind,
     ) {
         if self.a_named {
             (
@@ -1080,9 +1094,9 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: *fa,
-                a_kind: geom_brep::SurfaceKind::of(sa),
+                a_kind: sa.kind(),
                 b_face: *fb,
-                b_kind: geom_brep::SurfaceKind::of(sb),
+                b_kind: sb.kind(),
                 a_named: path.names(sa),
                 verdict,
             });
@@ -2545,11 +2559,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,
-                            kind: geom_brep::SurfaceKind::of(y.get_surface(yfd.surface).ok_or(
-                                BooleanError::ClassificationInvariant {
+                            kind: y
+                                .get_surface(yfd.surface)
+                                .ok_or(BooleanError::ClassificationInvariant {
                                     what: "extent scan: face surface lost",
-                                },
-                            )?),
+                                })?
+                                .kind(),
                         });
                     }
                     None => {
@@ -2809,27 +2824,11 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
         }
         (false, true) => {
             let body = carve_kept(&red.a, &a_keep)?;
-            finish_fallback(
-                op,
-                body,
-                &red.contacts,
-                decls,
-                BooleanResultKind::OperandA,
-                band,
-                tol,
-            )
+            finish_fallback(op, body, red, decls, BooleanResultKind::OperandA, band, tol)
         }
         (true, false) => {
             let body = carve_kept(&red.b, &b_keep)?;
-            finish_fallback(
-                op,
-                body,
-                &red.contacts,
-                decls,
-                BooleanResultKind::OperandB,
-                band,
-                tol,
-            )
+            finish_fallback(op, body, red, decls, BooleanResultKind::OperandB, band, tol)
         }
         (false, false) => {
             let mut body = carve_kept(&red.a, &a_keep)?;
@@ -2908,6 +2907,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 merge_groups: merge_rows(&merged),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
+                covered: red.covered.clone(),
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -2926,20 +2926,22 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
 fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
-    contacts: &ContactRecords,
+    red: &BooleanReduction<T>,
     decls: &BooleanDeclarations,
     kind: BooleanResultKind,
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
+    let (contacts, covered) = (&red.contacts, &red.covered);
     let reduction_contacts = contacts.clone();
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
         body = body.revert().map_err(BooleanError::Revert)?;
     }
-    // Cross-operand declared pairs are inapplicable here (one operand
-    // is absent from the result); the surviving operand's CARRIED
-    // records still apply.
+    // No cross-operand pair merges here: one operand is absent from the
+    // result. A declared pair that held the absent operand's region
+    // through the kept one is `covered`; the surviving operand's
+    // CARRIED records still apply.
     let merged = body
         .merge_coplanar_faces(tol)
         .map_err(BooleanError::Merge)?;
@@ -2960,6 +2962,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
             merge_groups: merge_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
+            covered: covered.to_vec(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -2969,6 +2972,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
             merge_groups: merge_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
+            covered: covered.to_vec(),
             ..BooleanNaming::default()
         },
     };
@@ -3190,7 +3194,7 @@ mod tests {
         // Door 1 — the placeholder is unbounded, so the pair is a
         // candidate and the crossing layer refuses it by kind.
         let BooleanError::CurvedBooleanUnsupported {
-            kind: geom_brep::SurfaceKind::Nurbs,
+            kind: geom::SurfaceKind::Nurbs,
             ..
         } = err
         else {

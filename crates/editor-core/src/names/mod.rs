@@ -60,7 +60,7 @@ pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
-    Fold as UnionFold, Member as UnionMember, collapse_name, collapse_table,
+    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_name, collapse_table,
     is_fold_qualified_member_edge, member_name, member_view, name_union,
 };
 pub use flush::{
@@ -69,8 +69,7 @@ pub use flush::{
     find_flush_candidates,
 };
 pub use geompred::{
-    ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,
-    SurfaceKindSet,
+    Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal, SurfaceKindSet,
 };
 pub(crate) use groups::Emitted;
 pub use groups::FragmentGroups;

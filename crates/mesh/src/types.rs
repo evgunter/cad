@@ -373,7 +373,7 @@ pub enum TessellateError {
         /// The offending face.
         face: FaceKey,
         /// The kind of surface the face lies on.
-        surface: geom_brep::SurfaceKind,
+        surface: geom::SurfaceKind,
     },
     /// A curved face's single boundary loop has **no rim traversal and
     /// opens every one of its iso sides on ONE edge**, so it stands on a
@@ -459,7 +459,7 @@ pub enum TessellateError {
         /// The offending face.
         face: FaceKey,
         /// The kind of surface the face lies on.
-        surface: geom_brep::SurfaceKind,
+        surface: geom::SurfaceKind,
     },
     /// The run's tolerance cannot form props' linear decision band —
     /// K·ε overflows. A configuration failure of the run rather than a
@@ -593,7 +593,7 @@ impl core::fmt::Display for TessellateError {
                  it",
             ),
             Self::MeridianFreeCurvedFace { surface, .. } => {
-                use geom_brep::SurfaceKind as K;
+                use geom::SurfaceKind as K;
                 let recourse = match *surface {
                     K::Sphere | K::Cone => {
                         "restate it in the seamed form — two half-faces, each bounded \
@@ -619,7 +619,7 @@ impl core::fmt::Display for TessellateError {
                 )
             }
             Self::SingleColumnCurvedFace { surface, .. } => {
-                use geom_brep::SurfaceKind as K;
+                use geom::SurfaceKind as K;
                 let recourse = match *surface {
                     K::Sphere | K::Cone => {
                         "restate it as a band bounded by two meridians on DIFFERENT \

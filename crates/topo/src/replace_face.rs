@@ -138,8 +138,9 @@
 
 use std::sync::Arc;
 
+use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfaceKind};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe};
 use geom_core::k_stats::decide;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
@@ -1886,8 +1887,8 @@ fn plan_edge<T: Decide>(
         {
             let other = if s1 == old_key { s2 } else { s1 };
             let other_surface = body.get_surface(other).ok_or(ReplaceFaceError::Corrupt)?;
-            let other_kind = SurfaceKind::of(other_surface);
-            let kind = SurfaceKind::of(new_surface);
+            let other_kind = other_surface.kind();
+            let kind = new_surface.kind();
             if !geom_brep::intersect::route(kind, other_kind).implemented {
                 return Err(ReplaceFaceError::NeighborPairUnroutable {
                     edge,

@@ -112,10 +112,7 @@ fn the_coaxial_union_refuses_at_the_germ_frame() {
         };
         assert_eq!(
             (a_kind, b_kind),
-            (
-                geom_brep::SurfaceKind::Cylinder,
-                geom_brep::SurfaceKind::Sphere
-            ),
+            (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Sphere),
             "{label}: the germ pair is the cylinder's wall and the ball's sphere"
         );
     }

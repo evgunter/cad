@@ -585,6 +585,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                     mate: n(9),
                     instance: n(6),
                 }),
+                held: Default::default(),
             },
         ),
         (
@@ -940,6 +941,7 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
             EditError::MateRefused {
                 node: s(9, "Mate"),
                 fault: Box::new(fault),
+                held: Default::default(),
             },
         ));
     }
@@ -961,15 +963,14 @@ const LABELS: &[(&str, &str)] = &[
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",
         "at corner",
     ),
-    ("Edit/MateRefused(", "mate 000000000009"),
 ];
 
 /// The rows that state no recourse — no `Recourse:`, no "There is no way
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/edit/edit-refusals-short-of-the-shape-guard.md, held for
-    // work/edit/placement-is-spelled-three-ways-node-registry-and-rule.md:
+    // work/recipe/edit-refusals-short-of-the-shape-guard.md, held for
+    // work/place/placement-is-spelled-three-ways-node-registry-and-rule.md:
     // the two placement-rule arms, which the gauge unit did not touch.
     "Edit/EmptyPlacementList",
     "Edit/PlacementRuleMismatch",
@@ -1051,16 +1052,16 @@ const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Edit/EvaluationOfAnotherDocument",
         span: "3e23e8160039594a33894f6564e1b134",
-        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+        filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
     },
     Admission {
         row: "Edit/EvaluationOfAnotherDocument",
         span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+        filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
     },
     Admission {
         row: "Edit/PinUnchanged",
         span: "9515831d455a13139e7a712b440337b3447c4b9f3b969d034020eacf0fd8a56d",
-        filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
+        filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
     },
 ];

@@ -1603,8 +1603,8 @@ FAMILIES: dict[str, str] = {
 #:   which holds names and never keys.
 #: - *Selector plumbing the audit already ruled on.* `TagPat` and
 #:   `Side` are Rust constructor plumbing covered by `SegPat.tag` /
-#:   `SegPat.group` / `SegPat.side`, and `CurveKindSet` /
-#:   `SurfaceKindSet` / `ALL_SURFACE_KINDS` cross as
+#:   `SegPat.group` / `SegPat.side`, and `CurveKindSet` and
+#:   `SurfaceKindSet` cross as
 #:   `kind | list[kind]` arguments to `GeomPred.curve_kind` and
 #:   `GeomPred.surface_kind`. That is the "deliberately NOT bound,
 #:   stated" clause of the audit's G13 row, restated here so the
@@ -2221,7 +2221,6 @@ FAMILIES: dict[str, str] = {
 #: to transliterate the parser's literal rule by hand.
 NOT_BOUND = {
     # --- different-shape ------------------------------------------
-    "ALL_SURFACE_KINDS": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,
@@ -2250,8 +2249,17 @@ NOT_BOUND = {
     # (`FullId`); and its kind word is `Doc.node_kind`, the snake_case
     # vocabulary `src/node_kind.rs` keeps apart from the chrome's noun.
     # A spoken name is the same: its sentence rides inside the error,
-    # and its machine spelling is the opaque name text.
+    # and its machine spelling is the opaque name text. The speaker a
+    # refusal holding bare ids is said by is the binding's own business:
+    # each door's message is spoken from the evaluated document, and a
+    # `MateFault` an edit door refused carries the nodes it kept.
     "FullId": SHAPE,
+    "HeldNodes": SHAPE,
+    "held_by": SHAPE,
+    "Said": SHAPE,
+    "Say": SHAPE,
+    "Speaker": SHAPE,
+    "spoken_by": SHAPE,
     "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     "node_kind_noun": SHAPE,

@@ -4,6 +4,8 @@ kind: issue
 title: A round tube standing on a plate refuses SeamOrientation in every member order
 status: open
 opened: 2026-09-30
+priority: P0
+cost: H
 ---
 
 
