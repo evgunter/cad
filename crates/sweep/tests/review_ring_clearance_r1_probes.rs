@@ -1,8 +1,9 @@
 //! **BLEND-6 review probes (lane r1).** What the unit's own rows do not
 //! reach: the material side of the boss's dome rim read off the BODY
 //! (a stored sense bit and the dome's own station, not an argument); a
-//! convex corner ARC of a mixed outer cycle, where the ladder walk's
-//! `max(external, containment)` clears on its EXTERNAL term; and an
+//! convex corner ARC of a mixed outer cycle, which the support-boundary
+//! walk clears over the arc's own window although its full circle
+//! would not contain the trim; and an
 //! off-axis ring — a BORE the extrude door mints, no boolean — that
 //! puts the exact containment backstop at the front door with a
 //! NEGATIVE `fillet3_ring_clearance` reading for each of the two new
@@ -194,16 +195,15 @@ fn dimpled_plate(rho: f64, a: f64, cx: f64, cy: f64) -> Body<f64> {
 }
 
 /// **A LADDER rim inside a MIXED outer cycle clears its convex corner
-/// arcs on the EXTERNAL term.** The plate's top face has an outer cycle
+/// arcs over their own windows.** The plate's top face has an outer cycle
 /// of four lines and four quarter-circle arcs of radius `rho = 0.3`
 /// centred at `(±0.7, ±0.7)`; the dimple ring at `(0.3, 0)` is a ladder
 /// rim whose widened trim circle (`si = √(a² + 2ar) ≈ 0.178`) is `0.806`
 /// from the nearest corner centre. That corner arc's FULL circle
 /// encloses nothing of the trim circle, so the containment term
 /// `rho − (d + si)` is negative on it and only the external term
-/// `d − si − rho ≈ +0.33` clears — the head carves. Metering the arc on
-/// the containment term alone refuses this body (measured: it is the
-/// one row in the tree that reds under that mutant).
+/// `d − si − rho ≈ +0.33` clears — the head carves. Metering the arc's
+/// full circle on the containment term refuses this body.
 #[test]
 fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     let body = dimpled_plate(0.3, 0.15, 0.3, 0.0);
@@ -267,11 +267,10 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
 /// radius `si = a + r = 0.19` (the ball rests in the material at depth
 /// `r`, touching the bore wall), so the containment margin against the
 /// outer boundary at radius 1 is `1 − (d + 0.19)`: `−0.01` at
-/// `d = 0.82`. The external term on the same pair is `≈ −0.37`, so the
-/// circle arm's `max` IS the containment reading — the negative side
-/// of that `max` the unit's own rows never reach. Sampled gap ≈ `0.095`
-/// against a setback of `0.03`: the screen passes. The carving side at
-/// `d = 0.80` carves. Reds under the circle arm's external-only mutant.
+/// `d = 0.82`; the support-boundary walk reads it as the boundary
+/// arcs' nearest approach to the trim centre, `1 − d`, less the trim
+/// radius (the external term on the same pair is `≈ −0.37`). Sampled gap ≈ `0.095` against a setback of `0.03`: the
+/// screen passes. The carving side at `d = 0.80` carves.
 #[test]
 fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_door() {
     let phi = 11.25f64.to_radians();

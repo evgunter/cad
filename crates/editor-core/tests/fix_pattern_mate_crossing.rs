@@ -141,14 +141,14 @@ fn four_legs(
         },
     );
     let (top_ref, top_body) = block_ref("fix-xs-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
-            ),
+            )),
         },
     );
     (doc, leg, pattern, top, mate.unwrap(), leg_body)
@@ -364,7 +364,19 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         },
     );
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    // The top sits on a gauge of its own, so once the cut side is read
+    // at the instance left behind — on the world — the mate still
+    // declares rather than starting to place (A4's refusal for that is
+    // `SplitError::WouldStartPlacing`).
+    let (doc, gauge) = insert(doc, Node::gauge(None, editor_core::Placement::IDENTITY));
+    let (doc, _) = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::SetGauge {
+            node: top,
+            gauge: Some(gauge),
+        },
+    );
     // The insert door refuses a head that resolves to no member, so
     // the mate is authored the way such a head arises after insert
     // (`insert_mate_with_stranded_head`).
@@ -429,7 +441,7 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     let (leg_ref, leg_body) = block_ref("fix-xs-st-leg");
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (top_ref, top_body) = block_ref("fix-xs-st-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let mut node = seat(
         in_part(leg, leg_body, CapEnd::End),
         in_part(top, top_body, CapEnd::Start),
@@ -440,7 +452,9 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     *a = crate::fixture::head_at(stranger, (*a.name).clone());
     let err = doc
         .apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )

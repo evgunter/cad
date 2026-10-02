@@ -218,6 +218,38 @@ pub struct CarriedDeclarations {
     pub minted: Vec<CarriedDeclaration>,
     /// The refusals, in the inner documents' own order.
     pub unminted: Vec<CarriedRefusal>,
+    /// The unplaced groups below, in the inner documents' own order.
+    pub unplaced: Vec<CarriedUnplaced>,
+}
+
+/// **An unplaced group in a document BELOW this one** (A9, A11 (2)),
+/// arriving across the instantiation seam. The part crosses as its
+/// world product, which leaves the group out; this row is how the
+/// document that instantiates it knows the group is there, so a door
+/// that writes one world (STEP export) refuses naming it rather than
+/// writing the part without it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CarriedUnplaced {
+    /// How it reached this document.
+    pub route: Route,
+    /// The group, by its root, in `route.of`'s id space.
+    pub group: RecipeNodeId,
+    /// Why nothing places it.
+    pub cause: crate::mate::Unplaced,
+}
+
+// A carried group as an author reads it: which document holds it, and
+// why it is unplaced. No recourse, for [`CarriedRefusal`]'s reason: the
+// repair is the same for every row, so the header that lists them
+// states it once.
+impl core::fmt::Display for CarriedUnplaced {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}: the group rooted at node {} is unplaced, because {}",
+            self.route, self.group, self.cause
+        )
+    }
 }
 
 /// What a kernel finding says about a declaration it names: the
@@ -582,6 +614,17 @@ impl core::fmt::Display for MintRefusal {
 pub enum AssemblyError {
     /// The gather itself refused.
     Product(Box<ProductError>),
+    /// **An unplaced group's own space did not gather** (A11 (2)):
+    /// the group checks inside its own space, and the gather of that
+    /// space refused, so it is not at rest there.
+    Space {
+        /// The group, by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
+        /// The space's gather refusal.
+        refusal: Box<ProductError>,
+    },
     /// Mates of THIS document whose declarations were not minted:
     /// ONE ROW PER MATE, saying why that mate did not mint — its
     /// reference named no product face, or its class mints no record
@@ -708,6 +751,16 @@ impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Product(e) => write!(f, "{e}"),
+            Self::Space {
+                group,
+                cause,
+                refusal,
+            } => write!(
+                f,
+                "the own space of the group rooted at node {}, unplaced because {cause}, does not \
+                 gather: {refusal}",
+                group
+            ),
             Self::Mint { refusals } => {
                 write!(
                     f,
@@ -809,14 +862,54 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
-    let product =
-        product_recorded(doc, evaluation, tol).map_err(|e| AssemblyError::Product(Box::new(e)))?;
-    assemble_gathered(product, tol)
+    match product_recorded(doc, evaluation, tol) {
+        Ok(product) => assemble_gathered(product, tol),
+        // A world with no body is no verdict on the spaces beside it: a
+        // document whose material is all unplaced still checks its
+        // groups inside their own spaces before the gather's refusal is
+        // raised. A world that refused for a fault of its own is
+        // answered first, as its verdict is when it gathers.
+        Err(refusal) => {
+            if matches!(
+                refusal.kind(),
+                crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::NoBodyRoots
+            ) {
+                gate_spaces(crate::product::own_spaces(doc, evaluation, tol), tol)?;
+            }
+            Err(AssemblyError::Product(Box::new(refusal)))
+        }
+    }
+}
+
+/// **Each unplaced group checks as usual inside its own space**, and
+/// against nothing outside it (A11 (2)): the gate over each
+/// [`crate::OwnSpace`] in turn, a space whose roots denote no body
+/// holding nothing to check.
+fn gate_spaces<T: Decide + AtRestPolicy>(
+    spaces: Vec<crate::OwnSpace<T>>,
+    tol: Tol,
+) -> Result<(), AssemblyError> {
+    for space in spaces {
+        match space.gather {
+            Ok(product) => verdict(&product, tol)?,
+            Err(refusal) if refusal.kind().means_no_body() => {}
+            Err(refusal) => {
+                return Err(AssemblyError::Space {
+                    group: space.group,
+                    cause: space.cause,
+                    refusal: Box::new(refusal),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// **The A5 gate over a product the caller already gathered** — the
 /// canonical door, and everything [`assemble`] is once its gather is
-/// done.
+/// done. It gates the world, then every unplaced group's own space the
+/// product carries ([`crate::Product::spaces`]), so a caller holding a
+/// product cannot check one space and skip the others.
 ///
 /// [`assemble`] is the wrapper for a caller with no product in hand;
 /// this is the one for a caller that has one, so a document is gathered
@@ -843,27 +936,38 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
     product: Product<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
+    verdict(&product, tol)?;
     let Product {
         body,
         names,
         contacts,
         minted,
-        unminted,
         carried,
-        carried_unminted,
+        spaces,
         ..
     } = product;
+    gate_spaces(spaces, tol)?;
+    Ok(Assembly {
+        body: body.into_body(),
+        names,
+        contacts,
+        minted,
+        carried,
+    })
+}
+
+/// **The gate's verdict over one gathered space** — the world, or one
+/// unplaced group's own ([`gate_spaces`]): the one copy of the gate's
+/// checks, their attributions and their refusal order.
+fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(), AssemblyError> {
     // Inner mint health, before this document's own: an outer assembly
     // is unusable while an inner part is broken, and the file the
     // author must open is the inner one. Verification still runs once
     // — nothing is re-decided here, the rows ARE the inner documents'
-    // own refusals.
-    //
-    // EVERY carried row, in gather order, moved out of a vector
-    // nothing reads afterwards.
-    if !carried_unminted.is_empty() {
+    // own refusals. EVERY carried row, in gather order.
+    if !product.carried_unminted.is_empty() {
         return Err(AssemblyError::CarriedMintRefusal {
-            refusals: carried_unminted,
+            refusals: product.carried_unminted.clone(),
         });
     }
     // The gather records what it could not mint; this door is where
@@ -874,48 +978,40 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
     // Every row, for the same reason the carried list is whole: a
     // document with two broken mates is two repairs, and reporting one
     // of them makes the second a second evaluation.
-    if !unminted.is_empty() {
-        return Err(AssemblyError::Mint { refusals: unminted });
+    if !product.unminted.is_empty() {
+        return Err(AssemblyError::Mint {
+            refusals: product.unminted.clone(),
+        });
     }
-    match T::gate_at_rest_declared(&body, &contacts, tol) {
-        Ok(_) => Ok(Assembly {
-            body: body.into_body(),
-            names,
-            contacts,
-            minted,
-            carried,
-        }),
-        Err(errors) => {
-            let findings: Vec<AtRestFinding> = errors
-                .into_iter()
-                .map(|error| AtRestFinding {
-                    attribution: attribute(&error, &minted, &carried),
-                    error,
-                })
-                .collect();
-            // The split is the whole point of the two arms: ONE
-            // finding against the document makes this a refusal of the
-            // document, however many declines ride with it. Only a
-            // refusal that is declines and nothing else is the
-            // frontier — and WHICH document authored the declined
-            // declaration does not enter, because the arm's claim is
-            // about what was decided, not about who to send the
-            // author to.
-            // (Non-empty because `Uncertified` promises at least one
-            // declined pair; the kernel never refuses with no finding.)
-            if !findings.is_empty()
-                && findings
-                    .iter()
-                    .all(|f| f.attribution.relation() == Some(Relation::Declined))
-            {
-                Err(AssemblyError::Uncertified {
-                    contacts: Box::new(contacts),
-                    findings,
-                })
-            } else {
-                Err(AssemblyError::AtRest { findings })
-            }
-        }
+    let Err(errors) = T::gate_at_rest_declared(&product.body, &product.contacts, tol) else {
+        return Ok(());
+    };
+    let findings: Vec<AtRestFinding> = errors
+        .into_iter()
+        .map(|error| AtRestFinding {
+            attribution: attribute(&error, &product.minted, &product.carried),
+            error,
+        })
+        .collect();
+    // The split is the whole point of the two arms: ONE finding against
+    // the document makes this a refusal of the document, however many
+    // declines ride with it. Only a refusal that is declines and
+    // nothing else is the frontier — and WHICH document authored the
+    // declined declaration does not enter, because the arm's claim is
+    // about what was decided, not about who to send the author to.
+    // (Non-empty because `Uncertified` promises at least one declined
+    // pair; the kernel never refuses with no finding.)
+    if !findings.is_empty()
+        && findings
+            .iter()
+            .all(|f| f.attribution.relation() == Some(Relation::Declined))
+    {
+        Err(AssemblyError::Uncertified {
+            contacts: Box::new(product.contacts.clone()),
+            findings,
+        })
+    } else {
+        Err(AssemblyError::AtRest { findings })
     }
 }
 
@@ -945,13 +1041,28 @@ pub(crate) fn mint<P, T: Decide>(
     evaluation: &Evaluation<T>,
     names: &NameTable,
     contacts: &mut ContactRecords,
+    space: crate::mate::Space,
 ) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
     let mut unminted = Vec::new();
+    // The space a member lives in: its instance's.
+    let space_of = |r: &crate::node::SitedFace| {
+        crate::mate::member_of(doc, r).map(|m| evaluation.space(m.instance))
+    };
     for &id in doc.order() {
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
         };
+        // Only a mate whose two members live in the gathered space
+        // states anything about it (A9): a mate across spaces compares
+        // nothing, and one in another space is that space's gather's.
+        // A head that resolves to no member is minted wherever it is
+        // asked, so its refusal is the gather's to raise, in the world.
+        match (space_of(a), space_of(b)) {
+            (Some(sa), Some(sb)) if sa == space && sb == space => {}
+            (None, _) | (_, None) if space == crate::mate::Space::World => {}
+            _ => continue,
+        }
         // A mate that is not a live value of this evaluation declares
         // nothing here (see the doc comment).
         if !evaluation

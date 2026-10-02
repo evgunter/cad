@@ -278,6 +278,24 @@ impl<P> Doc<P> {
     }
 }
 
+/// **A report renders only from the document it was taken of.** A
+/// node id is not document-scoped: another document can hold the same
+/// id as a different node, so speaking a report's ids from it would
+/// name nodes the report never measured.
+///
+/// # Panics
+///
+/// When `doc` is not the document `taken_of` names.
+pub(crate) fn assert_taken_of<P>(what: &str, taken_of: crate::DocumentId, doc: &Doc<P>) {
+    assert!(
+        doc.id() == taken_of,
+        "{what} was taken of document {:032x} and is rendered from document {:032x}; its \
+         node ids would name another document's nodes",
+        taken_of.0,
+        doc.id().0
+    );
+}
+
 /// **The kind noun of a recipe node** — the word a sentence, a feature
 /// tree row, a delete confirmation and a kind census all say.
 ///
@@ -313,6 +331,7 @@ pub fn node_kind_noun<P>(node: &Node<P>) -> &'static str {
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
+        Node::Gauge { .. } => "Gauge",
         Node::Mate { .. } => "Mate",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
@@ -355,7 +374,13 @@ mod tests {
         let node = test_support::xy_frame();
         let kind = node_kind_noun(&node);
         let doc = empty
-            .apply(&DocEdit::InsertNode { node }, tol, &RefusingReach)
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Box::new(node),
+                },
+                tol,
+                &RefusingReach,
+            )
             .expect("the frame inserts")
             .doc;
         let id = *doc.order().last().expect("the inserted frame");

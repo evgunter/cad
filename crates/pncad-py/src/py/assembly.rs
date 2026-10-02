@@ -108,6 +108,13 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         E::PlacedUnderTwoRoots { placed, .. } => (id(placed), none(), none()),
         // The document-mismatch arm names two DOCUMENTS, which this
         // node/node/name triple cannot carry; the message states both.
+        // The unplaced groups are every one in the message, each
+        // with its cause.
+        E::Unplaced { groups } => (
+            groups.first().map_or_else(none, |(group, _)| id(group)),
+            none(),
+            none(),
+        ),
         E::NoBodyRoots
         | E::ProductInvalid { .. }
         | E::ContactLineage { .. }
@@ -665,7 +672,16 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
     // still raises on THIS class — the door they called was the gate.
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let mut node = none();
     let (refusals, findings) = match err {
+        // The group is the subject; the space's own gather refusal is
+        // in the message.
+        E::Space { group, .. } => {
+            node = Py::new(py, NodeId(*group))
+                .map(|v| v.into_any())
+                .unwrap_or_else(|_| py.None());
+            (none(), none())
+        }
         // The carried arm carries FOREIGN mates, so every row carries
         // its own route: `of` is the document to open and `via` the
         // instances this document reached it through, and the row's
@@ -739,7 +755,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
                     .unbind()
                     .into_any(),
             ),
-            ("node", none()),
+            ("node", node),
             ("through", none()),
             ("of", none()),
             ("via", none()),
