@@ -2,10 +2,12 @@
 id: split-edges-key-retention-direction-is-pinned-by-no-row
 kind: issue
 title: topo: split_edge's key-retention DIRECTION is pinned by no row
-status: open
+status: review
 opened: 2026-09-13
 priority: P3
 cost: E
+branch: tquery/split-edge-retention
+pr: 3761
 ---
 
 
