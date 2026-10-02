@@ -390,7 +390,7 @@ fn only_line_walls_carry_the_admitted_tilt() {
     )
     .expect("an admitted tilt extrudes");
     let (mut cylinders, mut tilted_planes) = (0usize, 0usize);
-    for &face in built.side_faces.iter().flatten() {
+    for &face in built.side_faces().iter().flatten() {
         let surface = built
             .body
             .get_surface(built.body.get_face(face).unwrap().surface)

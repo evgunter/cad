@@ -99,9 +99,7 @@ fn frustum() -> Body<f64> {
 
 /// A quarter cone: the same triangle through a π/2 revolve. Its ONE
 /// cone face is azimuth-trimmed (window `[−π, −π/2]`, the quadrant
-/// `x > 0, z < 0`), and it is a legal boolean operand — a full
-/// revolve's base disc is two half-discs on ONE plane key, which the
-/// maximal-faces precondition refuses before containment is ever asked.
+/// `x > 0, z < 0`).
 fn quarter_cone() -> Body<f64> {
     revolve(
         &validated(vec![triangle()]),
@@ -451,13 +449,12 @@ fn the_azimuth_window_selects_the_swept_quadrant() {
 /// containment question then cannot be asked. With the arm the union
 /// assembles.
 ///
-/// The operand is the QUARTER cone: a full revolve's base disc is two
-/// half-discs sharing one plane key, which the maximal-faces
-/// precondition (F7) refuses before any containment door is reached —
-/// a planar precondition, nothing to do with this arm.
+/// The operand is the full cone as built: its base disc is one face
+/// (`crates/sweep/README.md`, "Walls: one per run"), so the
+/// maximal-faces precondition (F7) has nothing to refuse.
 #[test]
 fn a_disjoint_union_with_a_cone_face_now_assembles() {
-    let a = quarter_cone();
+    let a = cone();
     let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
