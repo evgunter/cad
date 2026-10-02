@@ -428,6 +428,10 @@ fn props_errors() -> Vec<PropsError> {
             what: "a trim edge that is not an iso-parameter line",
         },
         PropsError::NappeSpanning,
+        PropsError::SphereLoop {
+            what: "props_sphere_loop_closed",
+        },
+        PropsError::SenseContradicted,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",

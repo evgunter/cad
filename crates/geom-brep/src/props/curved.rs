@@ -223,6 +223,12 @@ pub fn boundary_material_sign<T: Decide>(
             axis,
             ..
         } => {
+            // A face bounded by a circle tilted against the chart is
+            // no iso rectangle; its loop encodes its side the way
+            // [`sphere_circle_loop_side`] reads it.
+            if let Some(tilted) = sphere_tilted_circle(center, radius, axis, outer, band)? {
+                return sphere_circle_loop_side(center, radius, axis, outer, tilted, band);
+            }
             let (b, meridian_axes) = sphere_boundary(center, radius, axis, outer, band)?;
             let (lo, hi) = min_max(&b.levels)?;
             // The rim-only cap: the levels carry no extent, so "which
@@ -2012,8 +2018,8 @@ fn sphere<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    if sphere_loop_has_tilted_circle(center, radius, axis, edges, band)? {
-        return sphere_circle_loop(center, radius, edges, sense, band);
+    if let Some(tilted) = sphere_tilted_circle(center, radius, axis, edges, band)? {
+        return sphere_circle_loop(center, radius, axis, edges, tilted, sense, band);
     }
     let (mut b, meridian_axes) = sphere_boundary(center, radius, axis, edges, band)?;
     // A boundary of rims alone can carry no extent of its own: every
@@ -2091,15 +2097,16 @@ fn sphere<T: Decide>(
 /// circle under `props_sphere_circle_tilt` (the axis tilt metered at
 /// the circle radius) and, for an axis perpendicular to the sphere
 /// axis, `props_sphere_circle_great` (the centre offset). Non-circle
-/// edges are left to [`sphere_boundary`]'s refusal.
-fn sphere_loop_has_tilted_circle<T: Decide>(
+/// edges are left to [`sphere_boundary`]'s refusal. The answer is the
+/// first such circle's index in the loop.
+fn sphere_tilted_circle<T: Decide>(
     center: Point3<T>,
     radius: T,
     axis: Vec3<T>,
     edges: &[LoopEdge<T>],
     band: Band,
-) -> Result<bool, PropsError> {
-    for e in edges {
+) -> Result<Option<usize>, PropsError> {
+    for (i, e) in edges.iter().enumerate() {
         let Curve3::Circle {
             center: c_c,
             axis: n_c,
@@ -2130,9 +2137,9 @@ fn sphere_loop_has_tilted_circle<T: Decide>(
         {
             continue;
         }
-        return Ok(true);
+        return Ok(Some(i));
     }
-    Ok(false)
+    Ok(None)
 }
 
 /// **A sphere face bounded by circle arcs of any tilt** — closed form,
@@ -2169,22 +2176,35 @@ fn sphere_loop_has_tilted_circle<T: Decide>(
 /// and its radius fitting (`props_rim_fit`) — each arc ends where the
 /// next begins (`props_sphere_loop_closed`: Gauss–Bonnet reads the loop
 /// as a closed curve, so its closure is checked here rather than
-/// trusted from the vertex tags), and the area lies
-/// strictly between 0 and the whole sphere (`props_sphere_loop_area`),
-/// which a loop whose traversal disagrees with the sense bit fails.
+/// trusted from the vertex tags), and the area is no degenerate one —
+/// strictly between 0 and the whole sphere (`props_sphere_loop_area`).
+/// That range check sees degeneracy only: a loop read under the wrong
+/// sense bit measures the complement `4πR² − A`, which is in range too.
+/// What reads the bit against the boundary is
+/// [`sphere_circle_loop_side`], first: where the loop encodes its side,
+/// a bit that contradicts it refuses.
 ///
 /// # Errors
 ///
-/// [`PropsError::NotIsoRectangle`] naming the failed premise,
+/// [`PropsError::SphereLoop`] naming the failed premise,
+/// [`PropsError::SenseContradicted`] for a bit the boundary contradicts,
 /// [`PropsError::Unimplemented`] for a spline or spiric edge,
 /// [`PropsError::Escalated`] in the band.
 fn sphere_circle_loop<T: Decide>(
     center: Point3<T>,
     radius: T,
+    axis: Vec3<T>,
     edges: &[LoopEdge<T>],
+    tilted: usize,
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    if let MaterialSign::Encoded(side) =
+        sphere_circle_loop_side(center, radius, axis, edges, tilted, band)?
+        && (side == Sign::Positive) != sense
+    {
+        return Err(PropsError::SenseContradicted);
+    }
     let outward = |p: Point3<T>| OutwardNormal::from_chart((p - center) / radius, sense).vec();
     let tau = T::pi() + T::pi();
     let mut turning = T::zero();
@@ -2201,19 +2221,19 @@ fn sphere_circle_loop<T: Decide>(
         else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
-                _ => PropsError::NotIsoRectangle {
+                _ => PropsError::SphereLoop {
                     what: "sphere boundary edge is not a circle",
                 },
             });
         };
         let w = c_c - center;
-        require_zero(
+        require_on_loop(
             "props_sphere_circle_on",
             Margin::of(w.cross(n_c).norm()),
             band,
         )?;
-        require_zero(
-            "props_rim_fit",
+        require_on_loop(
+            "props_sphere_circle_fit",
             Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
             band,
         )?;
@@ -2241,7 +2261,7 @@ fn sphere_circle_loop<T: Decide>(
     for (i, end) in ends.iter().enumerate() {
         let next = &ends[(i + 1) % ends.len()];
         let (arrive, at, depart) = (end.arrive, end.at, next.depart);
-        require_zero(
+        require_on_loop(
             "props_sphere_loop_closed",
             Margin::of((next.from - at).norm()),
             band,
@@ -2260,7 +2280,7 @@ fn sphere_circle_loop<T: Decide>(
     )? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(PropsError::NotIsoRectangle {
+            return Err(PropsError::SphereLoop {
                 what: "props_sphere_loop_area",
             });
         }
@@ -2269,6 +2289,235 @@ fn sphere_circle_loop<T: Decide>(
     let flux =
         SphereFluxSide::Sense(sense).signed(radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
+}
+
+/// Require a premise of [`sphere_circle_loop`] to read zero, refusing
+/// as [`PropsError::SphereLoop`] named by the predicate.
+fn require_on_loop<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    match classify(name, margin, band)? {
+        Sign::Zero => Ok(()),
+        Sign::Positive | Sign::Negative => Err(PropsError::SphereLoop { what: name }),
+    }
+}
+
+/// **Which side of its loop a sphere face bounded by a tilted circle
+/// lies on, read without its sense bit** — the boundary's own encoding
+/// of the side, for [`sphere_circle_loop`] and [`boundary_material_sign`]
+/// to hold the bit against.
+///
+/// A face of this kernel holds no chart singularity in its interior (a
+/// pole inside a face is a vertex of it), so the face is whichever side
+/// of its loop holds neither pole. Which side holds the north pole is
+/// read off the meridian through a point of the loop: walking down it
+/// from the pole, the FIRST crossing with the loop is where the walk
+/// leaves the pole's side, and at that crossing the loop's traversal
+/// says which side that is. `L` below is the side to the loop's left
+/// under the CHART normal — the face, if its bit is `true`.
+///
+/// 1. The meridian half-plane through a point of the `tilted` edge (a
+///    circle tilted against the chart crosses its own meridian there
+///    transversally unless the point is an azimuth extreme of it, so a
+///    fixed schedule of points is tried in order; a point at a pole is
+///    `props_sphere_side_meridian`).
+/// 2. Every edge's crossings with that half-plane, in closed form: a
+///    circle `C + ρ(cos t·û + sin t·v̂)` meets the plane `k·(p − c) = 0`
+///    where `a·cos t + b·sin t = −d`, `a = ρ k·û`, `b = ρ k·v̂`,
+///    `d = k·(C − c)` — none, a tangency, or two roots
+///    (`props_sphere_side_roots`, `√(a² + b²) − |d|` in metres). A
+///    circle in a plane parallel to the meridian's
+///    (`props_sphere_side_plane`) has none, or lies in it. Each root
+///    counts when it is inside the edge's stored span
+///    (`props_sphere_side_in_arc`, at the circle's radius) and on the
+///    half-plane's side of the axis (`props_sphere_side_half`).
+/// 3. The highest crossing (`props_sphere_side_order` between heights)
+///    and, at it, the sign of the loop's left direction against south
+///    (`props_sphere_side_enter`): entering `L` going south means the
+///    pole is not in `L`. The same from the south pole, going north.
+///
+/// The answer is `Encoded(Positive)` when the face is `L` (neither
+/// pole in it), `Encoded(Negative)` when it is the other side. A loop
+/// that passes through a pole, a crossing on a vertex or a tangency, a
+/// tie in height, an edge lying in the meridian plane, or two poles
+/// read on opposite sides answer `Unencoded`: the boundary does not say,
+/// as on the rimless band, and the bit stands alone there.
+///
+/// An in-band reading on one meridian leaves it unanswered and the
+/// next point is tried; none answering is `Unencoded`.
+///
+/// # Errors
+///
+/// [`PropsError::SphereLoop`] for a non-circle edge.
+fn sphere_circle_loop_side<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    tilted: usize,
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let Some(e) = edges.get(tilted) else {
+        return Ok(MaterialSign::Unencoded);
+    };
+    // A meridian through an azimuth extreme of the circle is tangent
+    // to it there, so the reading is tried at a fixed schedule of
+    // points along the edge and the first that answers is taken.
+    // An in-band reading leaves that meridian unanswered and never
+    // refuses the face: the side is a cross-check on the bit, and an
+    // unanswered one checks nothing.
+    for fraction in [0.5, 0.25, 0.75, 0.125, 0.875] {
+        let at = e.t0 + (e.t1 - e.t0) * T::from_f64(fraction);
+        match side_on_meridian(center, radius, axis, edges, e.carrier.eval(at), band) {
+            Ok(MaterialSign::Encoded(side)) => return Ok(MaterialSign::Encoded(side)),
+            Ok(MaterialSign::Unencoded) | Err(PropsError::Escalated { .. }) => {}
+            Err(other) => return Err(other),
+        }
+    }
+    Ok(MaterialSign::Unencoded)
+}
+
+/// [`sphere_circle_loop_side`] on the one meridian through `through`.
+fn side_on_meridian<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    through: Point3<T>,
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let tau = T::pi() + T::pi();
+    let up = axis / axis.norm();
+    let m = through - center;
+    let radial = m - up * m.dot(up);
+    if classify(
+        "props_sphere_side_meridian",
+        Margin::of(radial.norm()),
+        band,
+    )? != Sign::Positive
+    {
+        return Ok(MaterialSign::Unencoded);
+    }
+    let out = radial / radial.norm();
+    let k = up.cross(out);
+    // Every crossing of the loop with the half-plane: its height and
+    // the loop's unit traversal tangent there.
+    let mut crossings: Vec<(T, Point3<T>, Vec3<T>)> = Vec::new();
+    for e in edges {
+        let Curve3::Circle {
+            center: c_c,
+            axis: n_c,
+            radius: rho,
+            u_ref,
+        } = e.carrier
+        else {
+            return Err(PropsError::SphereLoop {
+                what: "sphere boundary edge is not a circle",
+            });
+        };
+        let v_ref = n_c.cross(u_ref);
+        let (a, b, d) = (k.dot(u_ref) * rho, k.dot(v_ref) * rho, k.dot(c_c - center));
+        let amp = (a.powi(2) + b.powi(2)).sqrt();
+        if classify("props_sphere_side_plane", Margin::of(amp), band)? == Sign::Zero {
+            if classify("props_sphere_side_plane", Margin::of(d), band)? == Sign::Zero {
+                return Ok(MaterialSign::Unencoded);
+            }
+            continue;
+        }
+        match classify("props_sphere_side_roots", Margin::of(amp - d.abs()), band)? {
+            Sign::Negative => continue,
+            Sign::Zero => return Ok(MaterialSign::Unencoded),
+            Sign::Positive => {}
+        }
+        let psi = b.atan2(a);
+        let w = (-(d / amp)).acos();
+        for t in [psi + w, psi - w] {
+            // Folded about the span's midpoint, so the fold's jump
+            // sits half a period from it and off the span.
+            let mid = (e.t0 + e.t1) * T::from_f64(0.5);
+            let s = mid + (t - mid).reduce_periodic_centred(tau);
+            let from_start = classify(
+                "props_sphere_side_in_arc",
+                Margin::levered(s - e.t0, rho),
+                band,
+            )?;
+            let to_end = classify(
+                "props_sphere_side_in_arc",
+                Margin::levered(e.t1 - s, rho),
+                band,
+            )?;
+            match (from_start, to_end) {
+                (Sign::Zero, _) | (_, Sign::Zero) => return Ok(MaterialSign::Unencoded),
+                (Sign::Negative, _) | (_, Sign::Negative) => continue,
+                (Sign::Positive, Sign::Positive) => {}
+            }
+            let p = e.carrier.eval(s);
+            match classify(
+                "props_sphere_side_half",
+                Margin::of((p - center).dot(out)),
+                band,
+            )? {
+                Sign::Negative => continue,
+                Sign::Zero => return Ok(MaterialSign::Unencoded),
+                Sign::Positive => {}
+            }
+            let d_t = n_c.cross(p - c_c);
+            let d_t = d_t / d_t.norm();
+            let tangent = if e.forward { d_t } else { -d_t };
+            crossings.push(((p - center).dot(up), p, tangent));
+        }
+    }
+    // From each pole: the crossing nearest it, and whether the walk
+    // away from the pole enters the loop's left side there.
+    let mut sides = [None, None];
+    for (slot, from_north) in [(0, true), (1, false)] {
+        let mut nearest: Option<&(T, Point3<T>, Vec3<T>)> = None;
+        for c in &crossings {
+            let Some(best) = nearest else {
+                nearest = Some(c);
+                continue;
+            };
+            let gap = if from_north {
+                c.0 - best.0
+            } else {
+                best.0 - c.0
+            };
+            match classify("props_sphere_side_order", Margin::of(gap), band)? {
+                Sign::Positive => nearest = Some(c),
+                Sign::Negative => {}
+                Sign::Zero => return Ok(MaterialSign::Unencoded),
+            }
+        }
+        let Some(&(_, p, tangent)) = nearest else {
+            continue;
+        };
+        let r_hat = (p - center) / radius;
+        let toward_pole = up - r_hat * r_hat.dot(up);
+        let away = if from_north {
+            -toward_pole
+        } else {
+            toward_pole
+        };
+        let left = r_hat.cross(tangent);
+        let enter = left.dot(away) / away.norm();
+        sides[slot] = match classify(
+            "props_sphere_side_enter",
+            Margin::levered(enter, radius),
+            band,
+        )? {
+            // Entering `L` away from the pole: the pole is not in `L`.
+            Sign::Positive => Some(Sign::Positive),
+            Sign::Negative => Some(Sign::Negative),
+            Sign::Zero => None,
+        };
+    }
+    Ok(match sides {
+        [Some(n), Some(s)] if n == s => MaterialSign::Encoded(n),
+        [Some(n), None] | [None, Some(n)] => MaterialSign::Encoded(n),
+        _ => MaterialSign::Unencoded,
+    })
 }
 
 /// One arc of a [`sphere_circle_loop`] boundary at its two traversal
@@ -2296,7 +2545,7 @@ fn require_cusp_free<T: Decide>(
         band,
     )? {
         Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => Err(PropsError::NotIsoRectangle {
+        Sign::Zero | Sign::Negative => Err(PropsError::SphereLoop {
             what: "props_sphere_loop_cusp",
         }),
     }

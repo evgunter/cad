@@ -109,8 +109,70 @@ fn a_cusp_is_refused() {
     cusp.push(back);
     assert_eq!(
         curved_face(&sphere(c), &cusp, true, band()).map(|_| ()),
-        Err(geom_brep::props::PropsError::NotIsoRectangle {
+        Err(geom_brep::props::PropsError::SphereLoop {
             what: "props_sphere_loop_cusp",
         })
+    );
+}
+
+/// **The bit against the boundary.** A cap `x > ½` on the `z`-poled
+/// sphere — one circle tilted against the chart, holding neither pole —
+/// is a face whose loop encodes its side: the arm measures it under
+/// the bit the loop agrees with (area `2πR·h`, `h = R − ½R`; centred,
+/// so the flux is `R·Area`), refuses it as `SenseContradicted` under
+/// the other, and `boundary_material_sign` reads the same side. The
+/// same circle traversed the other way bounds the complement, which
+/// holds both poles: the face is then the cap again, under the
+/// reversed bit.
+#[test]
+fn a_pole_free_tilted_cap_holds_its_sense_against_its_boundary() {
+    use geom_brep::props::{MaterialSign, PropsError, boundary_material_sign};
+    use geom_core::Sign;
+    let sphere = Surface::Sphere {
+        center: p3(0.0, 0.0, 0.0),
+        radius: R,
+        axis: v3(0.0, 0.0, 1.0),
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let rho = R * 0.75_f64.sqrt();
+    let rim = |a: f64, b: f64| {
+        edge(
+            Curve3::Circle {
+                center: p3(0.5 * R, 0.0, 0.0),
+                axis: v3(1.0, 0.0, 0.0),
+                radius: rho,
+                u_ref: v3(0.0, 1.0, 0.0),
+            },
+            a,
+            b,
+            0,
+            0,
+        )
+    };
+    let cap = vec![rim(0.0, 2.0 * PI)];
+    let area = 2.0 * PI * R * (0.5 * R);
+    let fc = curved_face(&sphere, &cap, true, band()).expect("the cap measures");
+    assert!((fc.area - area).abs() < 1e-12, "area {} != {area}", fc.area);
+    assert!((fc.flux - R * area).abs() < 1e-12, "flux {}", fc.flux);
+    assert_eq!(
+        boundary_material_sign(&sphere, &cap, band()),
+        Ok(MaterialSign::Encoded(Sign::Positive))
+    );
+    assert_eq!(
+        curved_face(&sphere, &cap, false, band()).map(|_| ()),
+        Err(PropsError::SenseContradicted),
+        "the flipped bit is refused, not measured as the complement"
+    );
+    let reversed = vec![rim(2.0 * PI, 0.0)];
+    assert_eq!(
+        boundary_material_sign(&sphere, &reversed, band()),
+        Ok(MaterialSign::Encoded(Sign::Negative))
+    );
+    let fc = curved_face(&sphere, &reversed, false, band()).expect("the cap, reversed");
+    assert!((fc.area - area).abs() < 1e-12, "area {} != {area}", fc.area);
+    assert!((fc.flux + R * area).abs() < 1e-12, "flux {}", fc.flux);
+    assert_eq!(
+        curved_face(&sphere, &reversed, true, band()).map(|_| ()),
+        Err(PropsError::SenseContradicted)
     );
 }

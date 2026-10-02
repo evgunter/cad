@@ -289,3 +289,54 @@ fn a_tilted_section_stops_at_the_pierce_ring_and_the_planar_side() {
         }
     }
 }
+
+/// **A flipped sense bit on a tilted face is named, not measured.** The
+/// faces a tilted cut leaves that hold neither pole — both faces of the
+/// equal pair's lens, and the bitten cap `A ∖ B` keeps on B's sphere —
+/// encode their side by their loop, so a lone flip of the bit reads as
+/// `CurvedSenseInverted` in tier 3 and as `SenseContradicted` in the
+/// mass properties, rather than as the complement's volume. (A face
+/// with a pole on its loop encodes no side; there the bit stands alone,
+/// as on the rimless band —
+/// `work/props/a-sphere-face-whose-boundary-encodes-no-side-is-measured-under-its-bit-alone.md`.)
+#[test]
+fn a_flipped_tilted_face_is_refused_by_name() {
+    let a = ball(1.0, BASE);
+    let b = ball(1.0, BASE + Vec3::new(1.4, 0.0, 0.0));
+    let b_centre = BASE + Vec3::new(1.4, 0.0, 0.0);
+    for (label, op, on_b_only) in [
+        ("A ∩ B", BooleanOp::Intersect, false),
+        ("A ∖ B", BooleanOp::Subtract, true),
+    ] {
+        let body = run(op, &a, &b).unwrap().body().unwrap().body.clone();
+        let mut flipped = 0;
+        for (k, f) in body.faces() {
+            let on_b = matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Sphere { center, .. })
+                    if (*center - geom_core::Point3::new(b_centre.x, b_centre.y, b_centre.z)).norm() < 1e-12
+            );
+            if on_b_only && !on_b {
+                continue;
+            }
+            let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
+            assert_eq!(
+                topo::validate_geometric(&inverted, Tol::witness()),
+                Err(vec![topo::ValidationError::CurvedSenseInverted { face: k }]),
+                "{label}: face {k:?} flipped"
+            );
+            assert!(
+                matches!(
+                    topo::mass_properties(&inverted, Tol::witness()),
+                    Err(topo::MassPropsError::Face {
+                        face,
+                        source: geom_brep::props::PropsError::SenseContradicted,
+                    }) if face == k
+                ),
+                "{label}: face {k:?} flipped is refused, not measured"
+            );
+            flipped += 1;
+        }
+        assert!(flipped > 0, "{label}: a tilted face to flip");
+    }
+}
