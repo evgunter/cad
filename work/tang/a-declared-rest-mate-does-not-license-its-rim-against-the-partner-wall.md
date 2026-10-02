@@ -81,3 +81,34 @@ carrier ladder. What remains is implementation: the circle × cylinder
 curved edge-edge coincidence event at the rim. The stacked
 same-carrier cylinder still needs `Continuation` on its walls;
 re-measure it declared so.
+
+## Outcome (2026-10-02, PR 3823)
+
+The transverse rim builds. A circle the root door decides lies on the
+partner's carrier (`SpanVerdict::LiesOn`), with every parent decided
+distinct by the carrier ladder, is an ON event. `reduce::lying_on`
+records its ends once its interior is certified to cross the face's
+boundary nowhere. There are two certificates: the boundary meets the
+arc's circle only at the paired end vertices, or the arc runs along a
+chain of the partner's own circle arcs. The declared-REST zip matches
+the rim's semicircles as arcs (`rest::arcs_along`).
+
+- The dome builds with its discs `Rest`: both orders, seams aligned or
+  turned, on an extruded or a revolved tube, at tier 3 and the
+  closed-form volume. A lens of two domes builds too.
+- Undeclared, the dome refuses on its value-coincident discs
+  (`UndeclaredCoincidence`), which is correct.
+- A rim in band of the partner's wall escalates.
+- The hemisphere still refuses at an edge leaving the rim (the graze,
+  `pi-seam-between-two-operands-has-no-declaration`).
+- The stacked cylinder still refuses, on its own rim, whose parent shares
+  the partner's carrier. `BooleanCoincidence::Continuation` is not in the
+  code, so it could not be measured declared so. Declared aligned `Rest`,
+  it builds (evidence on REACH's `cosurface-disjoint-curved-walls-refuse`).
+- The cone stops at the operand gate.
+- Side effects: the torus dumbbell, its cylinder control and the torus
+  peg-in-socket build, and their rows are re-pinned.
+- A tube ending on a ball, or on a torus latitude, now passes the
+  crossing layer and stops in the join. Filed as JOIN's
+  `a-tube-ending-on-a-ball-refuses-section-loop-mixed`, with evidence on
+  GERM's `c5-plane-torus-cone-cylinder-arms`.
