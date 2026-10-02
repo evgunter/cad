@@ -432,4 +432,3 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
         other => panic!("an uncertified side keeps the ball, got {other:?}"),
     }
 }
-
