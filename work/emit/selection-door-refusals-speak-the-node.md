@@ -40,11 +40,12 @@ So each is spoken by the frame that hands it out, the `NodeError::spoken` patter
 
 ## Built
 
-- `spoken.rs`: `Speaker` (`Tag`, or a document), `Say`, `Said` and `spoken_by`, plus `Speaker::node_as` for a sentence that names its node's kind in the tag form (`mate <tag>`).
+- `spoken.rs`, public and re-exported by `pncad::document`: `Speaker` (`Speaker::TAG`, or `Speaker::of(doc)`), `Say`, `Said` and `spoken_by`. `Speaker::node_as` keeps a sentence's own noun (`mate <tag>`) for a node said by tag or not held. pncad's `ExportError` is said by the same speaker.
 - `spoken(doc)` on `NodeStanding`, `NodePickError`, `NameLookupError`, `HitTestError`, `UnnamedEntity`, `SelectRefusal`, `InterrogateError`, `ResolveError`, `Diagnosis`, `ResolveIndeterminate`, `AssemblyError`, `MintRefusal`, `ChecksError` and pncad's `ExportError`. The inner clauses (`RecipeEditRef`, `UpstreamCause`, `GroupCutters`, the cutter and wall lists, `RefusedRef`, `Attribution`, `RootStanding`) are said by the same speaker.
 - `AssemblyError::spoken` says this document's rows from it. A carried row (`CarriedMintRefusal`, `Attribution::Carried`) is spelled in a part's ids, so it keeps its tags; so does `ExportError::UnplacedBelow`'s.
-- The Python frames speak from the document the evaluation is of (`Evaluation.doc`): `value`'s standing and poisoning messages, `NodePick.build`/`build_all`, `pick_face`, `patch_names`/`boundary_names`, `select_where`, `find_flush_candidates`, the read-back doors, `resolve`'s `detail`, `step_string`, `assemble` and `run_checks`. The payload fields keep the full id.
-- `ResolveError::NodeGone` now reads "the <kind> name minted by <node> is stranded: its minting node is no longer in the document (…)", since a spoken minting node no longer follows the word "node".
+- The Python frames speak from the document the evaluation is of (`Evaluation.doc`): `value`'s standing and poisoning messages, `NodePick.build`/`build_all`, `pick_face`, `patch_names`/`boundary_names`, `select_where`, `find_flush_candidates`, the read-back doors, `resolve`'s `detail`, `step_string`, `assemble` and `run_checks`. The payload fields keep the full id. The rows an `AssemblyError` hands out (`MintRefusal`, `AtRestFinding`, `Attribution`, `RefusedRef`) speak their `__str__` from the same document; a `CarriedRefusal` and the `MintRefusal` it carries keep the part's tags.
+- `ResolveError::NodeGone` now reads "the <kind> name minted by <node> is stranded: its minting node was deleted" (or "was never minted by this document"), saying the node once. The old "is no longer in the document (node … was never minted …)" contradicted itself on a foreign node.
+- `Diagnosis::StructuralParam` and `UpstreamCause::StructuralParam` read "slot <slot> of <node>", so a spoken node is not nested in parentheses.
 
 ## Filed
 

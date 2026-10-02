@@ -33,4 +33,4 @@ These values need a rendering that takes the speaker, the document of the frame 
 - `NodeStanding` rides inside `ProductError::Root` (so `PartFault`) and `ClearanceRefusal`. It has `spoken(doc)` too.
 - `MintRefusal` is memoized with a part's evaluation (`eval/parts.rs`, `PartValue::unminted`). It has `spoken(doc)`, which `AssemblyError::spoken` uses for this document's own rows. Carried rows keep their tags.
 
-`spoken::Speaker`, `Say` and `Said` (`spoken.rs`) are the shape this row's "Display adapter over (value, `&Doc`)" names. They are crate-private, and nothing in `NodeErrorKind` uses them yet.
+`spoken::Speaker`, `Say` and `Said` (`spoken.rs`) are the shape this row's "Display adapter over (value, `&Doc`)" names. They are public (pncad's `ExportError` is said by them too), and nothing in `NodeErrorKind` uses them yet.
