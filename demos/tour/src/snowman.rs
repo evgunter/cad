@@ -12,19 +12,21 @@
 //! outside both, at `Rᵢ + r` from each centre, so its spine is a level
 //! circle and the band is an exact torus.
 //!
-//! **What this pose is, and what it is not.** Coaxial is what a
-//! snowman is, and it is the pose that builds; `tests` pins the two
+//! **What this pose is, and the poses beside it.** Coaxial is what a
+//! snowman is, and it is the pose the scene draws; `tests` pins the
 //! poses beside it, under all three ops. A head moved OFF the shared
-//! axis — 0.05 along `x` or along `z` — tilts the radical plane
-//! against the spheres' polar axes, and the join refuses
-//! `SectionNotPolar`
-//! (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
-//! A head SPUN 0.9 rad about the shared axis, so the two revolves'
-//! seams are no longer coplanar, refuses `SectionArcWindow {
-//! NoChartedRun }` at the pierce-ring door
-//! (`work/tang/pierce-ring-has-no-join-arm.md`); sketching both
-//! semicircles in one plane, as here, is the natural spelling and
-//! never meets it.
+//! axis 0.05 along `x`, in the plane both semicircles are sketched in,
+//! tilts the radical plane against the spheres' polar axes. It BUILDS:
+//! the join selects the section's arc by the run's side
+//! (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`),
+//! the sphere faces it leaves are measured by Gauss–Bonnet, and every op
+//! passes tier 3 at the two-ball closed form. Moved 0.05 along `z`
+//! instead, the tilted section misses both seams and passes through the
+//! faces as a ring, so it refuses `SectionArcSide { NoCertifiedRun }`.
+//! A head SPUN 0.9 rad about the shared axis, so the two revolves' seams
+//! are no longer coplanar, refuses `SectionArcWindow { NoChartedRun }`.
+//! Both of those are the pierce ring (`work/tang/pierce-ring-has-no-join-arm.md`);
+//! sketching both semicircles in one plane, as here, never meets it.
 //!
 //! **The waist is selected by description, and the description is
 //! ambiguous.** `edge_adjacent_matches(Sphere, Sphere)` names the
@@ -133,8 +135,15 @@ fn waist_height() -> f64 {
 
 /// The lens the balls share: each one's cap beyond the radical plane.
 fn lens_volume() -> f64 {
-    let x = waist_height();
-    cap_volume(R1, R1 - x) + cap_volume(R2, R2 - (D - x))
+    lens_volume_at(D)
+}
+
+/// The lens two balls of radii [`R1`] and [`R2`] share with their
+/// centres `d` apart: each one's cap beyond the radical plane, which
+/// sits `(d² + R1² − R2²) / 2d` from the bottom centre.
+fn lens_volume_at(d: f64) -> f64 {
+    let x = (d * d + R1 * R1 - R2 * R2) / (2.0 * d);
+    cap_volume(R1, R1 - x) + cap_volume(R2, R2 - (d - x))
 }
 
 /// The rolling ball's centre in the meridian `(ρ, y)`: at `R1 + r`
@@ -334,9 +343,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              radical plane at y = {x:.6}; every volume meets the spherical-cap closed form, \
              and the rolled waist's meets it plus the band's Pappus ΔV = {dv:.4e} m³. The \
              band is a torus on BlendArm::SphereSphereTorus, its spine at {R1} + r and \
-             {R2} + r from the two centres. Coaxial is what builds: a head moved off the \
-             axis refuses SectionNotPolar (the tilted sphere pair), and one spun about it \
-             refuses at the pierce-ring door",
+             {R2} + r from the two centres. A head moved off the axis in the seam plane \
+             builds too, tilted section and all; one moved out of that plane, or spun about \
+             the axis, still stops at the pierce-ring door",
             x = waist_height()
         )),
         view: View {
@@ -365,23 +374,62 @@ mod tests {
         stops(Tol::witness());
     }
 
-    /// **The poses beside the snowman, which the narration names.** A
-    /// head moved 0.05 off the axis along `x` or `z` refuses at the
-    /// tilted-pair join, and a head spun 0.9 rad about the axis at the
-    /// pierce-ring door — under every op. A pose that starts building,
-    /// or refuses elsewhere, means the narration is stale.
+    /// **A head moved off the axis IN the balls' seam plane builds.**
+    /// Moved 0.05 along `x`, the head tilts the radical plane against
+    /// both balls' polar axes, and the section crosses the seams the two
+    /// revolves share. The run-side arc rule and the Gauss–Bonnet sphere
+    /// arm carry it (the tilted sphere pair). Every op passes tier 3 and
+    /// meets the two-ball closed form at the moved centre distance.
     #[test]
-    fn the_poses_off_the_coaxial_seam_refuse_where_the_narration_says() {
-        use pncad::topo::{ArcWindowCase, SplitJoinError};
+    fn a_head_moved_off_the_axis_in_the_seam_plane_builds_to_its_closed_form() {
         let tol = Tol::witness();
         let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
-        let not_polar = |e: &BooleanError| {
+        let moved =
+            pncad::topo::transform_rigid(&head, &Affine3::translation(v3(0.05, 0.0, 0.0)), tol)
+                .expect("a rigid pose");
+        let (va, vb, vl) = (
+            ball_volume(R1),
+            ball_volume(R2),
+            lens_volume_at(D.hypot(0.05)),
+        );
+        for (op, out, expected) in [
+            ("∪", pncad::topo::union(&bottom, &moved, tol), va + vb - vl),
+            ("∖", pncad::topo::subtract(&bottom, &moved, tol), va - vl),
+            ("∩", pncad::topo::intersect(&bottom, &moved, tol), vl),
+        ] {
+            let label = format!("head moved 0.05 along x, bottom {op} head");
+            let bb = seamed(&label, out);
+            pncad::topo::validate_geometric(&bb.body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3, {e:?}"));
+            assert_volume(&label, &bb.body, expected, tol);
+        }
+    }
+
+    /// **The poses whose section misses the seams stop at the pierce
+    /// ring**, under every op. Moved 0.05 along `z`, the tilted section
+    /// passes through the balls' faces without crossing either seam, so
+    /// the join has no run to read a side from
+    /// (`SectionArcSide { NoCertifiedRun }`). Spun 0.9 rad about the axis,
+    /// the head's seam leaves the bottom ball's plane, and the level
+    /// section is a ring on the head's face (`SectionArcWindow {
+    /// NoChartedRun }`). Both are `work/tang/pierce-ring-has-no-join-arm.md`.
+    /// A pose that starts building, or refuses elsewhere, means the
+    /// narration is stale.
+    #[test]
+    fn the_poses_whose_section_misses_the_seams_refuse_at_the_pierce_ring() {
+        use pncad::topo::{ArcSideCase, ArcWindowCase, SplitJoinError};
+        let tol = Tol::witness();
+        let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
+        let no_run = |e: &BooleanError| {
             matches!(
                 e,
-                BooleanError::Join(SplitJoinError::SectionNotPolar { .. })
+                BooleanError::Join(SplitJoinError::SectionArcSide {
+                    case: ArcSideCase::NoCertifiedRun,
+                    ..
+                })
             )
         };
-        let no_run = |e: &BooleanError| {
+        let no_charted_run = |e: &BooleanError| {
             matches!(
                 e,
                 BooleanError::Join(SplitJoinError::SectionArcWindow {
@@ -391,16 +439,11 @@ mod tests {
             )
         };
         type Pinned = fn(&BooleanError) -> bool;
-        let poses: [(&str, Affine3<f64>, Pinned); 3] = [
-            (
-                "moved 0.05 along x",
-                Affine3::translation(v3(0.05, 0.0, 0.0)),
-                not_polar,
-            ),
+        let poses: [(&str, Affine3<f64>, Pinned); 2] = [
             (
                 "moved 0.05 along z",
                 Affine3::translation(v3(0.0, 0.0, 0.05)),
-                not_polar,
+                no_run,
             ),
             (
                 "spun 0.9 rad about the axis",
@@ -409,7 +452,7 @@ mod tests {
                     v3(0.0, 1.0, 0.0),
                     0.9,
                 ),
-                no_run,
+                no_charted_run,
             ),
         ];
         for (what, pose, pinned) in poses {

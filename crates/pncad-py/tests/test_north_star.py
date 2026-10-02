@@ -1079,26 +1079,25 @@ class TestNonuniformLoft(unittest.TestCase):
         self.assertGreater(skewed_v, prism_v, "the crowded spacing overshoots")
 
 
-# The letterform silhouette family (demos/tour/src/letterforms.rs).
-# DECOUPLED variants: every cross-operand-coincident plane pair offset
-# by 1/16, which is the tour's own no-shared-carrier design rule.
-H_DECOUPLED = [
-    (0.0, 0.0), (0.5, 0.0), (0.5, 1.25), (1.5, 1.25), (1.5, 0.0625),
-    (2.0, 0.0625), (2.0, 2.9375), (1.5625, 2.9375), (1.5625, 1.75),
-    (0.4375, 1.75), (0.4375, 3.0), (0.0, 3.0),
+# The letterform silhouette family (demos/tour/src/letterforms.rs): three
+# letters drawn in one block, x in [0, 2], y in [0, 3], z in [0, 3],
+# meeting on shared planes that the scene DECLARES.
+H_LETTER = [
+    (0.0, 0.0), (0.5, 0.0), (0.5, 1.25), (1.5, 1.25), (1.5, 0.0),
+    (2.0, 0.0), (2.0, 3.0), (1.5, 3.0), (1.5, 1.75), (0.5, 1.75),
+    (0.5, 3.0), (0.0, 3.0),
 ]
-T_DECOUPLED = [
-    (1.1875, 0.125), (1.8125, 0.125), (1.8125, 2.625), (3.25, 2.625),
-    (3.25, 3.125), (-0.25, 3.125), (-0.25, 2.5625), (1.1875, 2.5625),
+T_LETTER = [
+    (1.25, 0.0), (1.75, 0.0), (1.75, 2.5), (3.0, 2.5),
+    (3.0, 3.0), (0.0, 3.0), (0.0, 2.5), (1.25, 2.5),
 ]
 # (z, x), counterclockwise; the right-opening notch makes the C.
 C_LETTER = [
-    (0.1875, -0.0625), (3.0625, -0.0625), (3.0625, 2.0625),
-    (2.4375, 2.0625), (2.4375, 0.375), (0.8125, 0.375),
-    (0.8125, 2.0625), (0.1875, 2.0625),
+    (0.0, 0.0), (3.0, 0.0), (3.0, 2.0), (2.5, 2.0),
+    (2.5, 0.5), (0.5, 0.5), (0.5, 2.0), (0.0, 2.0),
 ]
-V_2WAY = 4.5078125
-V_3WAY = 2.798095703125
+V_2WAY = 17 / 4
+V_3WAY = 11 / 4
 
 
 def letter(doc, poly, plane, distance):
@@ -1110,17 +1109,25 @@ def letter(doc, poly, plane, distance):
     return doc.insert(Node.extrude(sketch, Expr.length_in(distance, m)))
 
 
+def declared_intersect(doc, a, b):
+    """`a` ∩ `b` with every flush contact between them declared, the
+    detect/declare protocol the tour's `try_intersect_declared` spells:
+    evaluate, `find_flush_candidates`, `declare_all`, and wire the
+    Declare id into the boolean."""
+    findings = evaluate(doc).find_flush_candidates(a, b)
+    decl = doc.declare_all(findings)
+    return doc.insert(Node.boolean(BooleanOp.Intersect, a, b, declare=decl))
+
+
 def silhouette3(doc):
     """The 3-way solid, and the 2-way it is built from — ONE
-    construction, because the Rust scenes are one too."""
-    h = letter(doc, H_DECOUPLED, SketchPlane.from_frame(
-        (0 * m, 0 * m, -0.25 * m), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)), 3.5)
-    t = letter(doc, T_DECOUPLED, SketchPlane.from_frame(
-        (-0.25 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)), 2.5)
-    c = letter(doc, C_LETTER, SketchPlane.from_frame(
-        (0 * m, -0.5 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)), 4.0)
-    two = doc.insert(Node.boolean(BooleanOp.Intersect, h, t))
-    three = doc.insert(Node.boolean(BooleanOp.Intersect, two, c))
+    construction, because the Rust scenes are one too. The 3-way is
+    C ∩ (H x T), the order the scene builds."""
+    h = letter(doc, H_LETTER, SketchPlane.xy(), 3.0)
+    t = letter(doc, T_LETTER, SketchPlane.yz(), 2.0)
+    c = letter(doc, C_LETTER, SketchPlane.zx(), 3.0)
+    two = declared_intersect(doc, h, t)
+    three = declared_intersect(doc, c, two)
     return two, three
 
 
@@ -1310,11 +1317,11 @@ class TestPlate(unittest.TestCase):
 
 class TestAz(unittest.TestCase):
     """Tour scene `az` (demos/tour/src/az.rs, row 36): the A prism and
-    the Z prism intersected. The A's counter is a true inner loop, so
-    the scene needed multi-loop profiles; its yz/zx-style frames came
-    with G3.
+    the Z prism, drawn in one block, intersected with their flush
+    contacts declared. The A's counter is a true inner loop, so the
+    scene needed multi-loop profiles; its yz frame came with G3.
 
-    The scene's own exact oracle: 880383/327680."""
+    The scene's own exact oracle: 38627/14336."""
 
     A_OUTLINE: ClassVar = [
         (0.0, 0.0), (0.625, 0.0), (0.8125, 1.0), (1.1875, 1.0),
@@ -1322,39 +1329,33 @@ class TestAz(unittest.TestCase):
     ]
     A_COUNTER: ClassVar = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 2.0)]
     Z_OUTLINE: ClassVar = [
-        (-0.0625, 0.0), (2.5625, 0.0), (2.5625, 0.4375), (0.6875, 0.4375),
-        (2.5625, 1.5625), (2.5625, 2.0), (-0.0625, 2.0), (-0.0625, 1.5625),
-        (1.8125, 1.5625), (-0.0625, 0.4375),
+        (0.0, 0.0), (2.5, 0.0), (2.5, 0.4375), (0.75, 0.4375),
+        (2.5, 1.5625), (2.5, 2.0), (0.0, 2.0), (0.0, 1.5625),
+        (1.75, 1.5625), (0.0, 0.4375),
     ]
 
     def test_az_matches_the_scene_oracle(self):
         doc = Doc()
-        a_plane = SketchPlane.from_frame(
-            (0 * m, 0 * m, -0.0625 * m), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)
-        )
-        z_plane = SketchPlane.from_frame(
-            (-0.0625 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)
-        )
         a = doc.insert(
             Node.extrude(
                 doc.insert(
                     Node.profile(
                         [loop_of(self.A_OUTLINE), loop_of(self.A_COUNTER)],
-                        plane=doc.sketch_frame(plane=a_plane),
+                        plane=doc.sketch_frame(plane=SketchPlane.xy()),
                     )
                 ),
-                Expr.length_in(2.125, m),
+                Expr.length_in(2.0, m),
             )
         )
         z = doc.insert(
             Node.extrude(
-                doc.insert(Node.profile(loop_of(self.Z_OUTLINE), plane=doc.sketch_frame(plane=z_plane))),
-                Expr.length_in(2.125, m),
+                doc.insert(Node.profile(loop_of(self.Z_OUTLINE), plane=doc.sketch_frame(plane=SketchPlane.yz()))),
+                Expr.length_in(2.0, m),
             )
         )
-        az = doc.insert(Node.boolean(BooleanOp.Intersect, a, z))
+        az = declared_intersect(doc, a, z)
         # demos/tour/src/az.rs::V_AZ, at the scene's own 1e-9 gate.
-        self.assertAlmostEqual(volume_of(doc, az), 880383.0 / 327680.0, delta=1e-9)
+        self.assertAlmostEqual(volume_of(doc, az), 38627.0 / 14336.0, delta=1e-9)
 
 
 class TestDiefillet(unittest.TestCase):
@@ -3893,31 +3894,20 @@ class TestMeshCrossCheck(unittest.TestCase):
         self.assertLess(abs(measured - exact) / exact, 1e-4)
 
     def test_the_letterform_prism_meshes_exactly(self):
-        """Row 32's `T`: every face is planar, so the triangulation is
-        EXACT and the two measures agree at rounding level. The scene's
-        dyadic oracle is asserted of both."""
-        t_plane = SketchPlane.from_frame(
-            (-0.25 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)
-        )
-        letter = [
-            (1.1875, 0.125), (1.8125, 0.125), (1.8125, 2.625), (3.25, 2.625),
-            (3.25, 3.125), (-0.25, 3.125), (-0.25, 2.5625), (1.1875, 2.5625),
-        ]
+        """Row 32's `T` (`T_LETTER`): every face is planar, so the
+        triangulation is EXACT and the two measures agree at rounding
+        level. The prism's exact volume, (stem 0.5*2.5 + bar 3*0.5)
+        times the 2 extrusion = 5.5, is asserted of both."""
         doc = Doc()
-        sketch = doc.insert(
-            Node.polygon([(Expr.length_in(a, m), Expr.length_in(b, m)) for a, b in letter], plane=doc.sketch_frame(plane=t_plane))
-        )
-        prism = doc.insert(Node.extrude(sketch, Expr.length_in(2.5, m)))
+        prism = letter(doc, T_LETTER, SketchPlane.yz(), 2.0)
 
         body = evaluate(doc).value(prism).body()
         body.validate()
-        self.assertAlmostEqual(
-            body.mass_properties().volume, 8.505859375, delta=1e-12
-        )
+        self.assertAlmostEqual(body.mass_properties().volume, 5.5, delta=1e-12)
 
         mesh = body.tessellate(1 * mm)
         self.assertEqual(unmatched_half_edges(mesh), [])
-        self.assertLess(abs(mesh_signed_volume(mesh) - 8.505859375), 1e-12)
+        self.assertLess(abs(mesh_signed_volume(mesh) - 5.5), 1e-12)
 
     def test_the_mesh_and_the_stl_agree_facet_for_facet(self):
         """Step 6 for the mesh half: the binary file's declared facet
