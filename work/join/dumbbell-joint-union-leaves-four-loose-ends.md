@@ -76,3 +76,16 @@ matches the two segments. It stops further on, differently per handle:
   so JOIN-1 did not ship it.
 
 Re-pinned by the same test.
+
+## Builds (JOIN-1 fix pass, PR 3790)
+
+Both handles build, sound at tiers 2, 3 and 3′ and the at-rest
+certificate, at `vol(a) + vol(b)` (torus `14.697464134831966` against
+`…963`, cylinder `14.41991027997715` against `…152`). At the seam's
+edge-edge sites each half now folds the seam by its own membership,
+and each half's chord along it is a copy of its own semicircle, so
+neither the torus×plane section frame nor the germ's face pair is
+read. Undeclared, both still refuse `CurvedPierceUnsupported` at the
+circle rung. Re-pinned:
+`crates/sweep/tests/germ_torus_doors.rs`
+`the_torus_waisted_union_builds_like_the_cylinder_control`.

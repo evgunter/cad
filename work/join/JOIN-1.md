@@ -45,3 +45,38 @@ and the typed-refusal half of `closed-in-face-section-loop-has-one-site`.
   `VolumeUnmeasured` (`NotIsoRectangle { "props_rim_level" }`).
 - The blind D top pose still refuses `JoinDesync { "ring-run winding
   is degenerate (zero enclosed area)" }` (JOIN-3's ground).
+
+## Fix pass (dual review, PR 3790)
+
+- **The edge-edge fold is the one fold rule, per solid.** At an
+  edge-edge site each solid applies `fold_on_bound` /
+  `sectors::crossing_flank` to its OWN flankers' membership keys; the
+  germ's record is the pair of the two solids' transition flankers,
+  minted when `pair_search` met no such pair (`recl::place_germ`). The
+  A-alone / B-alone / orbit-order tiers are gone; a declared-`Tangent`
+  flank keeps the flanking record whose other bounds read Out on both
+  solids, or refuses.
+- **A segment along an edge of both solids** joins on
+  `JoinLane::AlongEdge`: each solid's chord is a copy of its own edge
+  (`chord_join::along_edge_spec`: lines straight, circles their own
+  arc), its frame is the edge's curve, and no section of the germ's
+  face pair (possibly one carrier) is read.
+- **A scaffold at rest is restated** by the boolean's description
+  pass (`describe_minted_edges`), as the split finish already did: the
+  minted chord ∪ keeps between two coplanar faces was left
+  `ScaffoldAtRest` — the review's MAJOR.
+- `locus_at_site` reads the whole null-edge site; `find_match` and
+  `loose_partners` share one criterion (`join::partners`); the boolean
+  lanes' dead `between_edge_is_section` arms and `JoinLane::Planar`'s
+  section plane are gone.
+
+## Measured (fix pass)
+
+Main 0abf909cb → fix-pass head, release, R1's and R2's batteries: no
+pose moves from a sound body to anything else and none to a wrong
+body. Hexagon ∪/∖/∩ box: 2796 refusals → sound; triangle 1164;
+diamond 3840; R2's random z-prism pairs (seeds 1–5, 1000 cases, 3 ops)
+342; the declared battery 6268; the reflex probe 128; the tube 102.
+The dumbbell builds (`dumbbell-joint-union-leaves-four-loose-ends`).
+Frontier refusals that became `JoinDesync`/`SeamOrientation` are filed
+(`locus-matching-moves-frontier-refusals-to-join-desync`).
