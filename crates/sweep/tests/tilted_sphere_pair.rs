@@ -151,7 +151,8 @@ fn sphere_pairs_tilted_against_both_charts_build_under_every_boolean() {
 /// **The equal pair at the `Interval` scalar**: enclosures throughout,
 /// the run-side rule's trileans and the Gauss–Bonnet turning angles on
 /// enclosures, and every body certifies with a volume bracket around
-/// the lens closed form.
+/// the lens closed form — at the default and the 1e-6 band; at 1e-12
+/// the pcurve mint escalates first, pinned below.
 #[test]
 fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
     use crate::common::interval::iv;
@@ -180,8 +181,26 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             BooleanOp::Union => topo::boolean::union(&a, &b, Tol::witness()),
             BooleanOp::Intersect => topo::boolean::intersect(&a, &b, Tol::witness()),
             BooleanOp::Subtract => topo::boolean::subtract(&a, &b, Tol::witness()),
+        };
+        // At ε 1e-12 the tilted arcs' fitted pcurve rows meet the loop's
+        // continuity check with enclosures wider than the band, and the
+        // mint escalates by name
+        // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
+        if Tol::witness().get().eps < 1e-10 {
+            let Err(topo::BooleanError::Pcurves {
+                source: topo::PcurveMintError::Escalated { cause, .. },
+            }) = &out
+            else {
+                panic!("Interval {op:?} at eps 1e-12: expected the mint's escalation, got {out:?}");
+            };
+            assert_eq!(
+                cause.predicate,
+                Some("pcurve_loop_continuity"),
+                "Interval {op:?}"
+            );
+            continue;
         }
-        .unwrap_or_else(|e| panic!("Interval {op:?} refused: {e:?}"));
+        let out = out.unwrap_or_else(|e| panic!("Interval {op:?} refused: {e:?}"));
         let body = &out
             .body()
             .unwrap_or_else(|| panic!("Interval {op:?} came back empty"))
