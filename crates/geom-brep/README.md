@@ -24,7 +24,7 @@ escalated typed refusal, never a raw comparison.
 | Decisions | Lives in |
 |---|---|
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
-| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system}.rs` |
+| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
 | C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
@@ -133,6 +133,11 @@ rectangle, against the plane, one side at a time
 wall, the same door the boolean's NURBS crossing layer reads). A side
 either lies in the plane (`Side`), or meets it at isolated crossings,
 each found to the sweep floor and decided transversal along the side.
+A side lies in the plane where its distance from it is within the band
+and the wall's slope across it is one-signed over a strip beside it; a
+side shorter than the band, which the plane crosses, is decided by its
+crossings, and the surfaces tangent along a side refuse toward C7, as
+the march's transversality does (`SsiError::BoundaryTangent`).
 A corner on the plane is classified by the plane distance's two inward
 partials over a corner cell. If both are one-signed and the locus
 leaves the domain there, the corner is a `Corner`; otherwise a branch
@@ -143,8 +148,14 @@ of the corner or side. Whether a vertex lies on a face stays the
 consumer's decision, and the exact empty answer stands outside the
 domain. The one refusal the pass keeps is a graze, the locus tangent to
 a side, and it names the side. The crossings are the only ends a
-branch has: a trace runs from one to the crossing on the side it
-leaves, its step capped at their distance over five. A branch shorter
+branch has on this lane: a trace runs from one to the crossing on the
+side it leaves, its step capped at a fifth of the distance to the
+nearest other crossing, so at most a fifth of the branch's. The
+plane's window must hold the wall's image, or the door refuses
+(`SsiError::WindowShortOfWall`), so a march ends only at the knot
+rectangle. The ℝ³ lane still ends an open branch at the caller's slab
+by its boundary search (`ssi_branch_open_end`), and the slab is not
+geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). A branch shorter
 than a fixed multiple of the band takes the Hermite cubic through its
 two certified ends and their tangents as its candidate instead of a
 march. Either way the certificate decides, and a short candidate it
@@ -152,7 +163,8 @@ refuses is a sized refusal in the branch's length. The extent keeps
 its other roles: the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
-zero by enclosure), *accounted* (contained in a found branch's tube,
+zero by enclosure, the boundary pass's mean-value enclosure of a strip
+or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
 or in a boundary contact's certified region), or refined to the named
 floor, where the op refuses
 `SsiError::ExhaustivenessInconclusive`. Each floor is minted once over

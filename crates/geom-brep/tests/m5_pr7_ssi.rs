@@ -3947,3 +3947,28 @@ fn a_step_budget_both_rungs_held_names_both_levers() {
         other => panic!("the zigzag wall trace: expected the step budget, got {other:?}"),
     }
 }
+
+/// **A branch whose last marched state lands a hair inside the wall
+/// certifies.** The plane `x = 0.5` across the flat wall of height
+/// `(31/32 + δ)·256/255`, which puts a marched state `δ` short of the
+/// top edge at the 1 m extent's step. The march ends at the crossing
+/// the boundary pass certified there, and a last state nearer that
+/// crossing than half its own step gives way to it, so the fit never
+/// reads a final chord far shorter than the steps before it. Every δ
+/// from 1e-11 m to 1e-3 m certifies, at every ε
+/// (`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
+#[test]
+fn a_branch_whose_last_state_lands_a_hair_inside_the_wall_certifies() {
+    let across = edge_plane(0.5);
+    for delta in [1e-11, 2e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-4, 1e-3] {
+        let h = (31.0 / 32.0 + delta) * 256.0 / 255.0;
+        let at = format!("δ = {delta:e} at ε {:e}", band().zero());
+        let out = ssi::plane_nurbs_ssi(&across, &flat_wall(1.0, h), wall_box(1.0, 1.0), band())
+            .unwrap_or_else(|e| panic!("{at}: {e}"));
+        let [b] = out.branches.as_slice() else {
+            panic!("{at}: expected one branch, got {}", out.branches.len());
+        };
+        let span = (b.carrier.eval(b.params.1) - b.carrier.eval(b.params.0)).norm();
+        assert!((span - h).abs() < 1.0e-6, "{at}: spans {span:e} of {h:e}");
+    }
+}
