@@ -150,7 +150,7 @@ pub(super) fn nest<T: Decide, O, H>(
         let q = ring_representative(body, inner).map_err(|_| Torn)?;
         Ok(matches!(
             point_in_carrier_loop(body, outer, normal, q, band),
-            Ok(Some(LoopContainment::In))
+            Ok(LoopContainment::In)
         ))
     };
     let loops: Vec<LoopKey> = outlines.iter().map(|&(_, l)| l).collect();

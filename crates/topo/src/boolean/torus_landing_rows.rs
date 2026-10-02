@@ -112,13 +112,20 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
         v
     };
     for (big_r, r) in [(2.0, 0.5), (0.8, 0.5), (1.0, 0.3)] {
-        // A prism side face relabelled a torus: its boundary is a
-        // walkable loop that lies nowhere near the tube, so the boundary
-        // pre-pass answers nothing and the placement reaches its carrier
-        // test — the step this row is about.
-        let prism = crate::fixtures::raw_prism(3, Tol::witness());
-        let face = prism.face_side[0];
-        let mut body = prism.body;
+        // A prism side face relabelled a torus: its boundary is a loop of
+        // chords a hundred metres from the tube, so the boundary pre-pass
+        // answers nothing and the placement reaches its carrier test —
+        // the step this row is about.
+        let mut body = crate::Body::<f64>::new();
+        let prism = crate::test_support_fixtures::prism_ops(
+            &mut body,
+            &[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+            (0.0, 1.0),
+            |x, y, z| Point3::new(x + 100.0, y + 100.0, z + 100.0),
+            crate::test_support_fixtures::FaceGeometry::Declined,
+            Tol::witness(),
+        );
+        let face = prism.sides[0].face;
         let surface = geom::Surface::Torus {
             center,
             axis,

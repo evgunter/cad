@@ -1422,7 +1422,8 @@ pub enum ValidationError {
     /// inside its face's outer loop could not be certified: no vertex
     /// of the ring was placed either way, and at least one query
     /// escalated (a margin of the parity walk), exhausted that walk's
-    /// schedule, or met topology it could not read. On an arc-bearing
+    /// schedule, met topology it could not read, or found no ray past
+    /// an outer edge the walk cannot cross. On an arc-bearing
     /// outer loop only the walk's point-level rows escalate — its
     /// ray-level ones retry the next ray — so most undecided pairs there
     /// arrive as an exhausted schedule, which names no predicate; on a
@@ -2855,21 +2856,28 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
 /// The refusal does not carry which of the walk's decisions it is.
 const OFF_BOUNDARY: &str = "Recourse: move the geometry clear of the boundary";
 
-fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
+fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
     match e {
         ContainError::Escalated(diag) => (
-            "a point of it lies too close to a boundary to place at this tolerance",
+            "a point of it lies too close to a boundary to place at this tolerance".into(),
             own_close(&diag.margin, OFF_BOUNDARY),
         ),
         ContainError::RayExhausted => (
-            "a point of it lies too close to a boundary to place at this tolerance",
+            "a point of it lies too close to a boundary to place at this tolerance".into(),
             OFF_BOUNDARY,
         ),
-        ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
-        ContainError::ArcLoopUnsupported { .. } => (
-            "its boundary has a spiric or spline edge near a point the check asked about, \
-             which the check cannot yet read across",
-            "Recourse: model the boundary with lines, circles or ellipses",
+        ContainError::Corrupt => ("its boundary could not be walked".into(), DEFECT),
+        // The edge is whatever the body's producer made — a shell's or a
+        // revolve's section of a torus as readily as a drawn spline — so
+        // the cause is the check's, and no redrawing is prescribed.
+        ContainError::Uncrossable(u) => (
+            format!(
+                "every test ray from a point the check asked about could meet a {} edge \
+                 of the boundary, which the check cannot yet cross",
+                u.carrier.word()
+            )
+            .into(),
+            NOT_YET,
         ),
     }
 }
@@ -2952,13 +2960,19 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     }
 }
 
-fn classify_census_cause(cause: &CensusUnsupportedCause) -> (&'static str, &'static str) {
+fn classify_census_cause(cause: &CensusUnsupportedCause) -> (Cow<'static, str>, &'static str) {
     match cause {
-        CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
-        CensusUnsupportedCause::ContactLane(e) => classify_contact_lane(e),
+        CensusUnsupportedCause::ChartRegion(e) => {
+            let (why, recourse) = classify_chart_region(e);
+            (why.into(), recourse)
+        }
+        CensusUnsupportedCause::ContactLane(e) => {
+            let (why, recourse) = classify_contact_lane(e);
+            (why.into(), recourse)
+        }
         CensusUnsupportedCause::Containment(e) => classify_contain(e),
         CensusUnsupportedCause::FaceUnboundable => (
-            "a face has no corner to bound it by (an empty or broken outer loop)",
+            "a face has no corner to bound it by (an empty or broken outer loop)".into(),
             DEFECT,
         ),
     }
@@ -6414,16 +6428,14 @@ pub(crate) fn tier3_local_checks_marked<
     // **What gates the arm is the face's SURFACE**, and nothing about
     // its outer loop: a face on a non-planar surface is silent — no
     // plane for the walk to run in — and every planar face is walked.
-    // Where the walk has no crossing row it says so itself rather than
+    // Where the walk has no crossing row it refuses rather than
     // answering: an outer loop carrying a `Spiric` or NURBS edge is
-    // answered `Out` only for a vertex definitely outside a ball
-    // holding the whole loop, which is a definite placement on any
-    // loop and reported like any other, and not at all inside that
-    // ball. A ring the walk placed at no vertex is silent. That is the
-    // arm's residue on a plane, and silence is its direction because
-    // here an `Out` REFUSES a body: answering from an instrument whose
-    // region may not be the loop's is the false-refusal direction this
-    // arm must never fail in.
+    // read only along rays that definitely miss a ball holding that
+    // edge, and a vertex from which none does is the walk's typed
+    // `Uncrossable`. A ring the walk placed at no vertex is then
+    // `RingNestingUndecided` — never `Outside`, which would answer
+    // from an instrument whose region may not be the loop's, and never
+    // nested, which would pass what the check could not read.
     //
     // One shape inside the gate the arm still does not catch,
     // enumerated rather than gestured at: **a ring that CROSSES its
@@ -7300,9 +7312,9 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
 /// otherwise no plane for the arms to run in. The outer loop's CLASS
 /// is not gated on: [`crate::splitting::containment::point_in_carrier_loop`] reads
 /// every edge on its own carrier and answers every class it has a
-/// crossing row for, and says so itself where it has none (`None`,
-/// read in [`ring_nesting`]), so the gate has nothing of its own to
-/// add about which loops are walkable.
+/// crossing row for, and refuses itself where it has none
+/// ([`crate::splitting::PointInLoopError::Uncrossable`]), so the gate
+/// has nothing of its own to add about which loops are walkable.
 ///
 /// The normal is handed over without `Face::sense` folded in: the
 /// walk's verdict is invariant under its sign.
@@ -7323,13 +7335,13 @@ fn plane_chart_normal<T: Real>(
 /// leaving the module.
 ///
 /// The three variants partition on ONE fact the walk records —
-/// whether any query ESCALATED — and the docs say so rather than
+/// whether any query REFUSED — and the docs say so rather than
 /// leaving a reader to find it in the walk.
 enum RingNestingVerdict {
     /// Nothing to report. Either a vertex of the ring was placed
     /// definitely inside the outer loop's region — it is a hole of
     /// that region, as a ring claims to be — or no vertex was placed
-    /// either way AND nothing escalated, which is the ring whose
+    /// either way AND no query refused, which is the ring whose
     /// every readable vertex came back `OnBoundary`.
     Inside,
     /// A named ring vertex is definitely OUTSIDE that region, so the
@@ -7339,7 +7351,7 @@ enum RingNestingVerdict {
         ring_vertex: VertexKey,
     },
     /// No vertex was placed either way and at least one query
-    /// ESCALATED — that escalation, kept. **Never read as
+    /// REFUSED — the first refusal, kept. **Never read as
     /// "inside"**: the same escalate-never-guess posture the contact
     /// half takes, one question over.
     Undecided(ContainError),
@@ -7373,11 +7385,11 @@ enum RingNestingVerdict {
 ///
 /// **What the walk cannot read**, and what that costs. An outer edge on
 /// a spiric or spline carrier has no crossing row: the walk answers
-/// such a loop `Out` only for a query definitely outside a ball holding
-/// the whole loop — a definite answer on any loop, reported like any
-/// other — and `None` inside that ball. A `None` settles nothing, so a
-/// ring none of whose vertices the walk placed is silent: check 9's
-/// banner lists it in the residue.
+/// only along rays that definitely miss a ball holding that edge, and
+/// refuses ([`crate::splitting::PointInLoopError::Uncrossable`]) a
+/// query from which none does. That refusal is read like an
+/// escalation: it settles nothing at its vertex, and a ring no vertex
+/// of which was placed is [`RingNestingVerdict::Undecided`].
 ///
 /// **One vertex speaks for the whole ring, and the premise that makes
 /// it so is that the two loops do not CROSS.** A ring disjoint from
@@ -7457,15 +7469,12 @@ fn ring_nesting<T: Decide>(
         // in-plane precondition; the off-boundary one is the contact
         // arms' where they can see the edge (the doc above).
         match crate::splitting::containment::point_in_carrier_loop(body, outer, normal, rp, band) {
-            Ok(Some(crate::splitting::LoopContainment::In)) => return RingNestingVerdict::Inside,
-            Ok(Some(crate::splitting::LoopContainment::Out)) => {
+            Ok(crate::splitting::LoopContainment::In) => return RingNestingVerdict::Inside,
+            Ok(crate::splitting::LoopContainment::Out) => {
                 return RingNestingVerdict::Outside { ring_vertex: rv };
             }
             // The contact half's question, not this one.
-            Ok(Some(crate::splitting::LoopContainment::OnBoundary)) => {}
-            // An edge the walk has no crossing row for, and `rp` inside
-            // the ball that holds it: no placement, and no escalation.
-            Ok(None) => {}
+            Ok(crate::splitting::LoopContainment::OnBoundary) => {}
             Err(source) => undecided = undecided.or(Some(source.into())),
         }
     }
@@ -11060,8 +11069,8 @@ mod tests {
                 crate::splitting::containment::point_in_carrier_loop(&body, outer, n, q, band)
                     .unwrap_or_else(|e| panic!("{name}: the walk refused: {e:?}"))
             };
-            assert_eq!(read(up), Some(want), "{name}: under +z");
-            assert_eq!(read(-up), Some(want), "{name}: under -z");
+            assert_eq!(read(up), want, "{name}: under +z");
+            assert_eq!(read(-up), want, "{name}: under -z");
         }
     }
 
@@ -11343,7 +11352,7 @@ mod tests {
                 &body, outer_loop, normal, q, band,
             );
             assert!(
-                matches!(got, Ok(Some(crate::splitting::LoopContainment::In))),
+                matches!(got, Ok(crate::splitting::LoopContainment::In)),
                 "δ = {delta:e}: a point ten metres inside the circle is In; got {got:?}"
             );
         }
@@ -11368,7 +11377,7 @@ mod tests {
                 &body, outer_loop, normal, q, band,
             );
             assert!(
-                matches!(got, Ok(Some(crate::splitting::LoopContainment::In))),
+                matches!(got, Ok(crate::splitting::LoopContainment::In)),
                 "δ = {delta:e}: a point ten metres inside the circle is In; got {got:?}"
             );
         }
@@ -11450,6 +11459,128 @@ mod tests {
                 ),
             };
             assert!(ok, "{name}: wrong verdict");
+        }
+    }
+
+    /// **A ring the walk cannot place is reported, not nested.** A
+    /// planar cap bounded by a spiric arc and its chord (the plane
+    /// `x = ½` through a torus, R = 2, r = 1), and a lone-vertex ring
+    /// planted at two points: just inside the spiric's midpoint, where
+    /// every scheduled ray could meet the ball the walk holds that arc
+    /// in, so check 9 names the spiric edge it could not cross; and far
+    /// outside, where a ray clears the ball and the walk answers. Before
+    /// this arm refused, the near ring read `Inside` and the body passed.
+    #[test]
+    fn a_ring_behind_an_uncrossable_edge_is_undecided_not_nested() {
+        use core::f64::consts::FRAC_PI_2;
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let spiric = geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: geom_core::Vec3::unit_z(),
+            u_ref: geom_core::Vec3::unit_x(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            offset: 0.5,
+        };
+        let (p0, p1) = (spiric.eval(-FRAC_PI_2), spiric.eval(FRAC_PI_2));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p0, true).expect("a seed");
+        let plane = body.add_surface(Surface::Plane {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            normal: geom_core::Vec3::unit_x(),
+            u_ref: geom_core::Vec3::unit_y(),
+        });
+        let torus = body.add_surface(Surface::Torus {
+            center: Point3::origin(),
+            axis: geom_core::Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            u_ref: geom_core::Vec3::unit_x(),
+        });
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p1,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        s1: torus,
+                        s2: plane,
+                        witness: spiric.eval(0.0),
+                    },
+                    carrier: spiric.clone(),
+                    param_start: -FRAC_PI_2,
+                    param_end: FRAC_PI_2,
+                },
+                tol,
+            )
+            .expect("the spiric arc");
+        let cap = body
+            .mef(
+                MefSite::Chords {
+                    he1: arc.he_minus,
+                    he2: arc.he_plus,
+                },
+                EdgeCurveSpec::line_between(p1, p0),
+                crate::euler::FaceSurface::Shared {
+                    key: plane,
+                    sense: true,
+                },
+                tol,
+            )
+            .expect("the chord closes the cap");
+        let face = cap.face;
+        let f = body.get_face(face).expect("the cap");
+        let normal = plane_chart_normal(&body, f.surface).expect("the gate opens");
+        let (mid, chord_mid) = (spiric.eval(0.0), p0 + (p1 - p0) * 0.5);
+        for (name, at) in [
+            ("near the spiric", mid + (chord_mid - mid) * 0.01),
+            ("far outside", Point3::new(0.5, 100.0, 100.0)),
+        ] {
+            let mut b = body.clone();
+            let point = b.add_point(at);
+            let vertex = b.vertices.insert(Vertex {
+                point,
+                emanating: None,
+            });
+            let lone = b.loops.insert(Loop {
+                boundary: LoopBoundary::Empty { vertex },
+                face,
+            });
+            b.faces.get_mut(face).unwrap().rings.push(lone);
+            let outer = b.get_face(face).unwrap().outer;
+            let verdict = ring_nesting(&b, outer, lone, normal, band);
+            let ok = match name {
+                "near the spiric" => matches!(
+                    verdict,
+                    RingNestingVerdict::Undecided(ContainError::Uncrossable(u))
+                        if u.r#loop == outer
+                            && u.edge == arc.edge
+                            && u.carrier == crate::splitting::UncrossableCarrier::Spiric
+                ),
+                _ => matches!(
+                    verdict,
+                    RingNestingVerdict::Outside { ring_vertex } if ring_vertex == vertex
+                ),
+            };
+            assert!(ok, "{name}: wrong verdict");
+            if name == "near the spiric" {
+                let words = check_9_words(&b, band, tol);
+                assert!(
+                    words.iter().any(|e| matches!(
+                        e,
+                        ValidationError::RingNestingUndecided {
+                            face: at_face,
+                            ring,
+                            source: ContainError::Uncrossable(_),
+                        } if *at_face == face && *ring == lone
+                    )),
+                    "check 9 reports the unplaced ring: {words:?}"
+                );
+            }
         }
     }
 

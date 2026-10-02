@@ -163,6 +163,12 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   - A step that `SetProgram` drops takes its id with it. A name on that step
     keeps its spelling and resolves `Vanished`, and DM7's report names it.
     Because the id is never minted again, no later program can draw it.
+  - A `SetProgram` that keeps a step can still leave one of its pieces
+    undrawn, when a piece it adds or moves earlier on the same carrier
+    takes the segment: a fillet inserted before a leg takes the leg's.
+    A name on that piece keeps its spelling and resolves `Vanished`, and
+    DM7's report names it, as it does for a dropped step. It comes back
+    only when a later program draws it again.
 - **The canonical numbering is not a name.** It is still the order in which
   the emitters, the loft's correspondence and the viewer's per-segment marks
   iterate (V3, DM8). When a profile's value is built, the naming anchor

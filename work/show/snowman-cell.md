@@ -2,11 +2,12 @@
 id: snowman-cell
 kind: unit
 title: a new montage cell: two coaxial balls under union, subtract and intersect, and the union's waist rolled into a torus band
-status: review
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
 pr: 3787
+closed: 2026-10-02
 ---
 
 ## What

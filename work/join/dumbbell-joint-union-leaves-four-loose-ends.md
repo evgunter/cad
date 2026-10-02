@@ -2,11 +2,13 @@
 id: dumbbell-joint-union-leaves-four-loose-ends
 kind: issue
 title: A dumbbell's two halves unioned across a declared joint disc refuse Join(UnpairedLooseEnds { count: 4 }), torus or cylinder handle alike
-status: open
+status: closed
 opened: 2026-09-25
 refs: [an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired]
 priority: P0
 cost: H
+closed: 2026-10-02
+pr: 3790
 ---
 
 ## What
@@ -102,3 +104,12 @@ arcs, so the joint circle's two semicircles are two seams
 (`boolean/arcs.rs`, `arcs_along`). JOIN-2's plan replaces
 `enumerate_segments` with the join's segments; this is the interim, and
 the rows in `germ_torus_doors.rs` are re-pinned to the bodies.
+
+## Closed 2026-10-02 — PR 3790 (JOIN-1)
+
+The declared dumbbell builds through the join with the torus and the
+cylinder handle alike, sound and exactly `vol(a) + vol(b)`
+(`germ_torus_doors.rs`). Undeclared, it refuses at the continuation scan
+(REACH PR 3657, Ev's ruling on PR 3613). The REST zip's own weakness
+(a vertex-pair identity) is JOIN-2's,
+`rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`.
