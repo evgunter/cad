@@ -2809,6 +2809,10 @@ fn support_boundary_clearance<T: Decide + Bounds>(
     Ok(())
 }
 
+/// A boundary piece built here rather than read off the body: a carrier
+/// and its window, as [`stored_piece`] reads them.
+type OwnedPiece<T> = (Curve3<T>, (T, T));
+
 /// **Where an outer-boundary edge requested in the same call bounds
 /// `face` once its own carve has run**: its trim on that face, as a
 /// piece the support-boundary meter reads in place of the stored one;
@@ -2831,7 +2835,7 @@ fn co_requested_trim<T: Decide>(
     (ta, tb): (T, T),
     opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
-) -> Result<Option<(Curve3<T>, (T, T))>, BlendError> {
+) -> Result<Option<OwnedPiece<T>>, BlendError> {
     let on_face = |l: &Link<T>| -> Option<Curve3<T>> {
         if l.face_a == face {
             Some(l.blend.trim_a.0.clone())
