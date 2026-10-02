@@ -893,3 +893,24 @@ answer that would move a decision's value.
 
 Spec `docs/DECIDE-9-SPEC.md`. Branch `decide/9-read-behind-theorems` from
 `props/sign-hull` at `494d477ef`.
+
+## 2026-10-02 — DECIDE-9 merged (#3807): the read's gate no longer leaks through a zero product
+
+The 48 decisions (32 pad, 16 bracket) were all `dihedral_wedge`:
+`sin θ · arm` at a tangent join, where `sin θ`'s early form is the zero
+polynomial and the arm is settled by the read at its own `min`. The
+early walk's zero product OR'd both factors' gates. Now a product is
+gated exactly when every zero factor is (`zero_factors_gate`), and
+`copysign(0, x)` likewise. Pad 925 / 2 / 148 / 1004, bracket
+1121 / 5 / 146 / 781; `numeric`, `registered` and `frozen` unchanged.
+One door answer moved, soundly (`(x·x − x)·min(x,3)` reads
+`registered`), pinned and said.
+
+The review (single FULL, APPROVE-WITH-FIXES, 0 MAJOR / 5 MINOR) showed
+the spec's suspected mechanism is real in the tier though absent from
+the measured documents: filed as
+`the-read-at-its-node-relabels-a-cancellation-above-it` (P2), pinned by
+`the_read_relabels_a_cancellation_above_its_node_filed_defect`; the
+read's doc now says "behind every value-free fold at its node". The
+`Form::mul` class row (P3) names `Form::mul`, `powi_form` and
+`algebra::apply`. Spec deleted (`docs/doc-ledger/decide-9-spec.md`).

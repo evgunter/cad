@@ -652,7 +652,12 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
         },
     )
     .unwrap();
-    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
+    // The bricks' flush walls are continuations, declared so the op
+    // reaches its crossing layer; the NURBS wall has no carrier the
+    // detector can compare, so it is in no finding.
+    let flush = flush_declarations(&a, &b, Tol::witness());
+    let err = match topo::boolean_reduce_declared(BooleanOp::Union, &a, &b, &flush, Tol::witness())
+    {
         Err(e) => e,
         Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
     };

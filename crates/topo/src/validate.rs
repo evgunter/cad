@@ -2550,6 +2550,10 @@ fn certify_undecided(check: CertCheck) -> &'static str {
             "it is too short, for how its faces curve, to measure the angle between them at this \
              tolerance"
         }
+        CertCheck::TangentPlanes => {
+            "a face's tangent plane is undefined at a point of it, so there is no angle between \
+             its faces to measure there"
+        }
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
         }
@@ -5555,7 +5559,7 @@ pub(crate) fn tier3_local_checks_marked<
         let adjacent = match curve.description() {
             geom_brep::EdgeDescription::Intersection { s1, s2, .. }
             | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                (*s1 == fs_plus && *s2 == fs_minus) || (*s1 == fs_minus && *s2 == fs_plus)
+                Body::<T>::cites_pair((*s1, *s2), fs_plus, fs_minus)
             }
             // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
             // described chart is ONE of the edge's two adjacent faces'

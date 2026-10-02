@@ -2003,7 +2003,7 @@ impl Node {
     /// `elevation` earns its keep because the kernel is fail-loud
     /// about coincidence: it never INFERS that two faces are the same
     /// face, so two solids merely touching on a shared plane are
-    /// refused (the `undeclared_contact` menu) until the author
+    /// refused (the `undeclared_coincidence` menu) until the author
     /// declares the contact. Authoring a genuine Boolean therefore
     /// needs solids that interpenetrate, which needs sketches at
     /// different heights — or the detect/declare protocol
@@ -2727,7 +2727,7 @@ impl Node {
     /// Without it the kernel never infers that two faces are the same
     /// face, so operands that merely touch refuse, and that refusal is
     /// the typed MENU: an
-    /// `EvaluationError` with `kind == "undeclared_contact"` whose
+    /// `EvaluationError` with `kind == "undeclared_coincidence"` whose
     /// `finding` attribute carries the candidate declaration. The
     /// protocol that fills this argument is
     /// `Evaluation.find_flush_candidates` → inspect → `Node.declare`
@@ -2763,7 +2763,7 @@ impl Node {
     /// in: the fold's steps are pairs, and a declared pair is fed at
     /// the step its two members meet at. Without one, members that
     /// merely TOUCH refuse (`EvaluationError`,
-    /// `kind == "undeclared_contact"`), exactly as a binary boolean's
+    /// `kind == "undeclared_coincidence"`), exactly as a binary boolean's
     /// operands do.
     ///
     /// Refuses at `Doc.insert`, of the list as stated: fewer than two
