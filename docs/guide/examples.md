@@ -37,7 +37,7 @@ bottom half of it.
 
 | If you want to… | read |
 |---|---|
-| author a profile with the PATHS algebra | `bodies.rs` (bracket), `paths.rs` |
+| author a profile with the PATHS algebra | `bracket.rs`, `paths.rs` |
 | see the whole fillet-corner taxonomy | `rocker.rs` |
 | do booleans on planar parts | `bool_bodies.rs`, `projectbox.rs` |
 | glue parts that *touch* (declared contact) | `crosslap.rs`, `booleans.rs` |
@@ -65,7 +65,8 @@ the PATHS lattice and so classifies every corner at authoring; raw
 
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
-| `bracket`, `plate`, `vase`, `sheave`, `chute` | `bodies.rs` | The four body ops on public API: polyline+fillet extrude, a genus-2 holed plate, full and partial revolves, plane+cylinder+cone+torus on one part | The bracket's inner corner is *constructive* (`fillet`), not a hand-rounded via point — the pre-#100 decimal sat inside the ε escalation band |
+| `bracket` | `bracket.rs` | A PATHS outline (polyline + constructive `fillet`) lifted into a recipe document by `LoopProgram::from_recorded` and extruded; `Node::Split` across both legs, its section chords named by their ends | The closed-form volume; the halves partition the body; chamfering the split half's chords by name refuses `UnsupportedRunOut` (a live wall) |
+| `plate`, `vase`, `sheave`, `chute` | `bodies.rs` | The body ops on public API: a genus-2 holed plate, full and partial revolves, plane+cylinder+cone+torus on one part | — |
 | `rocker` | `rocker.rs` | The complete fillet-corner taxonomy: arc×line, line×line, line×arc, arc×arc, through the PATHS fused fillet verbs (`fillet_arc`, `arc_fillet`, `arc_fillet_arc`, plus the plain line×line seam) | Not a corner typed by hand — every one is DERIVED from its two carriers; each declaration verified, `TangencyContradicted` on a lie. Branch choice read back with `ValidatedLoop::blend_arcs` |
 | `diefillet`, `diepips`, `diecomposed` | `diefillet.rs` | Rolling-ball `fillet_edges`; a 21-ball closed-group cut; M6 in-place composition surgery | Sequential pip cuts would present a trimmed sphere as an operand — refused typed. A tilted ball pole makes plane×sphere non-polar — refused typed |
 | `lily` (15 bodies) | `lily.rs` | `tube_along_arc` turtle chains, revolved sphere-zone lanterns, swept kite-section leaves | `wall_probes()` is a live record of kernel refusals (coincident-planar glue). Findings 9 and 13 named in place |

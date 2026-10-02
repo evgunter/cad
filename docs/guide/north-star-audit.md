@@ -108,11 +108,11 @@ unnecessary.
 Every YES row below is verified by executed Python in
 `crates/pncad-py/tests/test_north_star.py`, which rebuilds the scene
 and checks it against the *same exact volume oracle the Rust scene
-asserts*. Two of the four rows G1 unblocked are the honest exception:
-`bracket` and `vase` are scenes the Rust tour holds only to its
-generic ladder (validate, tessellate, mesh against mass properties)
-and gives no closed form, so their Python rows derive one, state the
-derivation, and assert it. The loft row is a third shape of the same
+asserts*. One of the four rows G1 unblocked is the honest exception:
+`vase` is a scene the Rust tour holds only to its generic ladder
+(validate, tessellate, mesh against mass properties) and gives no
+closed form, so its Python row derives one, states the derivation,
+and asserts it. The loft row is a second shape of the same
 honesty: the tour holds it to the generic ladder too, but its scene's
 note carries a closed-form DERIVATION PER BODY — the row is ONE scene
 carrying two (9 m³ for `loft_prism`; 8 + 0.25/(t(1−t)) with t the

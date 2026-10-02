@@ -51,6 +51,7 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod bossplate;
+mod bracket;
 mod bud;
 mod chain;
 mod chaintol;
