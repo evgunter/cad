@@ -1,16 +1,18 @@
-//! **What tier 3's pcurve pass measures on a stored row** (C4): every
-//! stored row is re-certified against the window the face's own
-//! derivation hulls out to, on a complete face and a half-minted one
-//! alike — so a row stated over a part of the chart the face does not
-//! reach (another branch of the azimuth) escapes it either way, and a
-//! stale row on a half-minted face is measured beside the gap.
+//! **What tier 3's pcurve pass measures on a stored row** (C4), on a
+//! complete face and a half-minted one alike: every stored row must
+//! state its edge's interval, and is re-certified against the window
+//! its face's stored rows hull out to. A loop's rows standing a whole
+//! period over from a fresh walk are the same face (the re-statement
+//! `Body::revert` makes), so they read clean either way; a row stated
+//! over more of its carrier than its edge spans is refused either way;
+//! and a stale row on a half-minted face is measured beside the gap.
 //!
 //! The fixture is a minted cylinder wall sheet (`cyl_wall_sheet`), tier-3
 //! clean as built.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError};
+use geom_brep::{ChartWindow, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Tol};
 use topo::pcurves::validate_pcurves;
 use topo::test_support::{CylFrame, cyl_wall_sheet};
@@ -83,47 +85,16 @@ fn wrong_branch_row(body: &Body<f64>, face: FaceKey, he: HalfEdgeKey) -> PcurveC
     PcurveCache::certify(shifted, t0, t1, curve.carrier(), surface, window, band()).unwrap()
 }
 
-fn escapes(findings: &[PcurveMintError], he: HalfEdgeKey) -> bool {
-    findings.iter().any(|e| {
-        matches!(
-            e,
-            PcurveMintError::Certify {
-                half_edge,
-                error: PcurveCertifyError::TrimEscape,
-            } if *half_edge == he
-        )
-    })
-}
-
-/// **A wrong-branch row escapes the face's window on a half-minted
-/// face**, where no continuity joint can see it (both its neighbours
-/// miss their rows): only the window derived from the FACE can. Kills
-/// the mutant that hulls a half-minted face's window from its own
-/// stored rows. (Adopted from PCERT reviewer R1's probe p5 on PR 3759.)
+/// **A loop's rows a whole period over are the same face**, complete
+/// or half-minted. Every row moved one period over, consistently, so
+/// every joint still meets and the loop still closes: tier 3 reads the
+/// complete face clean, and the half-minted one (a row detached) reads
+/// only its gap — the two alike. This is the re-statement
+/// `Body::revert` makes, so a fresh walk's branch is no reference for a
+/// stored row. (R1's probes p5/p6 on PR 3759 found the two faces read
+/// differently against a derived window.)
 #[test]
-fn a_wrong_branch_row_on_a_half_minted_face_escapes_the_faces_window() {
-    let (mut body, face) = sheet();
-    let hs = halves(&body, face);
-    let moved = wrong_branch_row(&body, face, hs[0]);
-    body.attach_pcurve(hs[0], moved);
-    body.detach_pcurve(hs[1]).unwrap();
-    body.detach_pcurve(hs[3]).unwrap();
-    let f = validate_pcurves(&body, band());
-    assert!(
-        f.contains(&PcurveMintError::MissingCache { half_edge: hs[1] })
-            && f.contains(&PcurveMintError::MissingCache { half_edge: hs[3] }),
-        "the gaps are reported: {f:?}"
-    );
-    assert!(escapes(&f, hs[0]), "the wrong-branch row escapes: {f:?}");
-}
-
-/// **And on a complete face too.** Every row moved one period over,
-/// consistently, so every joint still meets and the loop still closes:
-/// a window hulled from the stored rows holds them by construction,
-/// and only the face's derived window refuses them — one escape per
-/// row. (R1's probe p6 on PR 3759, which read clean.)
-#[test]
-fn wrong_branch_rows_on_a_complete_face_escape_the_faces_window() {
+fn a_loop_moved_a_whole_period_reads_the_same_complete_or_half_minted() {
     let (mut body, face) = sheet();
     let hs = halves(&body, face);
     let moved: Vec<_> = hs
@@ -133,10 +104,50 @@ fn wrong_branch_rows_on_a_complete_face_escape_the_faces_window() {
     for (&he, row) in hs.iter().zip(moved) {
         body.attach_pcurve(he, row);
     }
+    assert_eq!(validate_pcurves(&body, band()), vec![], "complete");
+    body.detach_pcurve(hs[1]).unwrap();
+    assert_eq!(
+        validate_pcurves(&body, band()),
+        vec![PcurveMintError::MissingCache { half_edge: hs[1] }],
+        "half-minted: the gap and nothing else"
+    );
+}
+
+/// **A row stated over more of its carrier than its edge spans is
+/// refused**, complete or half-minted — a row from before a split, say,
+/// certified over its own wider window. It certifies against the
+/// stored rows' hull (it widens that hull), so what refuses it is its
+/// interval against its edge's: `RowInterval`, on both faces.
+#[test]
+fn a_row_wider_than_its_edge_is_refused_complete_or_half_minted() {
+    let (mut body, face) = sheet();
+    let hs = halves(&body, face);
+    let cache = body.pcurve(hs[0]).unwrap().clone();
+    let (t0, t1) = cache.params();
+    let edge = body.get_half_edge(hs[0]).unwrap().edge;
+    let curve = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap();
+    let surface = body
+        .get_surface(body.get_face(face).unwrap().surface)
+        .unwrap()
+        .clone();
+    let (lo, hi) = (t0, t1 + 0.4 * (t1 - t0));
+    let wide = cache.pcurve().clone();
+    let window = wide.chart_box(lo, hi);
+    let row = PcurveCache::certify(wide, lo, hi, curve.carrier(), &surface, window, band())
+        .expect("the carrier's own image certifies over a longer span");
+    body.attach_pcurve(hs[0], row);
+    let refused = PcurveMintError::RowInterval { half_edge: hs[0] };
     let f = validate_pcurves(&body, band());
-    for &he in &hs {
-        assert!(escapes(&f, he), "{he:?} escapes the face's window: {f:?}");
-    }
+    assert!(f.contains(&refused), "complete: {f:?}");
+    body.detach_pcurve(hs[2]).unwrap();
+    let f = validate_pcurves(&body, band());
+    assert!(
+        f.contains(&refused) && f.contains(&PcurveMintError::MissingCache { half_edge: hs[2] }),
+        "half-minted: the wide row and the gap: {f:?}"
+    );
 }
 
 /// **A stale row on a half-minted face is measured beside the gap.** A
@@ -156,9 +167,11 @@ fn a_stale_row_on_a_half_minted_face_is_measured() {
         "{f:?}"
     );
     assert!(
-        f.iter().any(
-            |e| matches!(e, PcurveMintError::Certify { half_edge, .. } if *half_edge == hs[1])
-        ),
-        "the stale row is re-certified and refused: {f:?}"
+        f.iter().any(|e| matches!(
+            e,
+            PcurveMintError::Certify { half_edge, .. } | PcurveMintError::RowInterval { half_edge }
+                if *half_edge == hs[1]
+        )),
+        "the stale row is measured and refused: {f:?}"
     );
 }

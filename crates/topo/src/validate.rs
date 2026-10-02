@@ -2792,7 +2792,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         | M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
         | M::SingularChartJoint { .. }
-        | M::MissingCache { .. } => (WRONG, DEFECT),
+        | M::MissingCache { .. }
+        | M::RowInterval { .. } => (WRONG, DEFECT),
         // Every row derives and certifies; the producer did not mint.
         M::Unminted { .. } => (
             "a curved face stores no certified boundary description",

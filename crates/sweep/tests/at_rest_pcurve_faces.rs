@@ -2,7 +2,7 @@
 //! only when every refusal its edges meet is one whose rows are not
 //! owed (an uncovered class), whatever order the walk meets them in; and
 //! a stored row stated over more of its carrier than the edge spans is
-//! refused against the face's own window on a half-minted face.
+//! refused, on a complete face and a half-minted one alike.
 //!
 //! The excuse rows run on a quarter revolve of `dome_profile`, whose
 //! sphere wall is minted, with struts added to that wall:
@@ -191,16 +191,14 @@ fn an_uncovered_strut_masks_no_off_chart_strut_in_any_cycle_order() {
     }
 }
 
-/// **A stale wide row on a half-minted face escapes the face's
-/// window.** On a minted cylinder wall, one row is re-certified over
-/// 0.4 rad more of its carrier than the edge spans (a row from before a
-/// split, say), at either end, and a different half-edge's row is
-/// detached: at every choice of the gap and the end, tier 3 refuses the
-/// wide row `TrimEscape` against the window the face's derivation hulls
-/// out to. Kills the mutant that hulls a half-minted face's window from
-/// its own stored rows.
+/// **A stale wide row is refused, complete or half-minted.** On a
+/// minted cylinder wall, one row is re-certified over 0.4 rad more of
+/// its carrier than the edge spans (a row from before a split, say), at
+/// either end, with the face left complete or a different half-edge's
+/// row detached: at every choice of the end and the gap, tier 3 refuses
+/// the wide row `RowInterval` — its interval is not its edge's.
 #[test]
-fn a_stale_wide_row_on_a_half_minted_face_escapes_the_faces_window() {
+fn a_stale_wide_row_is_refused_complete_or_half_minted() {
     let base =
         crate::common::operands::n_arc_boss::<f64>(geom_core::Point2::new(0.0, 0.0), 3, 0.0, 1.0);
     let (wall, cycle) = base
@@ -240,26 +238,19 @@ fn a_stale_wide_row_on_a_half_minted_face_escapes_the_faces_window() {
         let (t0, t1) = cache.params();
         for (lo, hi) in [(t0, t1 + 0.4), (t0 - 0.4, t1)] {
             for (j, &h2) in cycle.iter().enumerate() {
-                if j == i {
-                    continue;
-                }
                 let mut body = base.clone();
                 let wide = cache.pcurve().clone();
                 let window = wide.chart_box(lo, hi);
                 let row = PcurveCache::certify(wide, lo, hi, &carrier, &surface, window, band())
                     .expect("the carrier's own image certifies over a longer span");
                 body.attach_pcurve(h1, row);
-                body.detach_pcurve(h2);
+                if j != i {
+                    body.detach_pcurve(h2);
+                }
                 let f = validate_pcurves(&body, band());
                 assert!(
-                    f.iter().any(|e| matches!(
-                        e,
-                        PcurveMintError::Certify {
-                            half_edge,
-                            error: PcurveCertifyError::TrimEscape,
-                        } if *half_edge == h1
-                    )),
-                    "row {i} wide over [{lo}, {hi}], gap {j}: {f:?}"
+                    f.contains(&PcurveMintError::RowInterval { half_edge: h1 }),
+                    "row {i} wide over [{lo}, {hi}], gap {j} (none where {j} = {i}): {f:?}"
                 );
                 cases += 1;
             }
