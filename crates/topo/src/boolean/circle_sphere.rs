@@ -24,7 +24,10 @@
 //! distances from the sphere's centre to the circle's nearest and
 //! farthest points, each with a running bound on its rounding, so a
 //! shallow crossing is placed as well as its near extreme is evaluated
-//! rather than as well as the harmonics' m² terms are. Its constant-
+//! rather than as well as the harmonics' m² terms are. A frame that is
+//! not orthonormal moves the circle it evaluates off that form, and its
+//! defect is charged to both extremes too
+//! (`geom_brep::CircleSphereHarmonic::frame_error`). Its constant-
 //! residual answer is the coaxial circle's: every circle whose axis
 //! passes through the sphere's centre has one, and lies ON the sphere
 //! when it is zero.
@@ -286,10 +289,10 @@ mod tests {
     /// least the noise (`|R′| ≤ ρ` there, so `ρ·noise/|R′| ≥ noise`), so a
     /// crossing pose cannot tell the two meters apart. A MISS can: it
     /// returns before the slack is read. A unit circle against a unit
-    /// sphere far away is a definite miss whose harmonics are built from
-    /// terms of order `|e|²`: at 2·10⁵ m their rounding is definitely past
-    /// the band (`Positive`), at 2000 m it lies in the band's escalation
-    /// gap (`Err`). Either reading refuses; without its arm, each pose
+    /// sphere far away is a definite miss whose far extreme is evaluated
+    /// as a product of lengths of order `|e|` over `2r`: at 2·10⁵ m its
+    /// rounding is definitely past the band (`Positive`), at 2000 m it
+    /// lies in the band's escalation gap (`Err`). Either reading refuses; without its arm, each pose
     /// answers `Miss`.
     #[test]
     fn the_noise_meter_refuses_a_definite_and_an_unreadable_reading() {

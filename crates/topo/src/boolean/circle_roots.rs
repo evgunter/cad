@@ -12,43 +12,45 @@
 //!
 //! A residual `R(θ) = c₀ + A₁ cos(θ − φ)` — a circle against a sphere,
 //! or against a cylinder wall it is square to — has the EXACT range
-//! `[c₀ − A₁, c₀ + A₁]`, and its roots are `θ = φ ± acos(−c₀/A₁)`.
-//! [`first_harmonic_roots`] decides on that range, all in residual
-//! metres, under the caller's rows:
+//! `[lo, hi] = [c₀ − A₁, c₀ + A₁]`, and its roots are
+//! `θ = φ ± acos(−c₀/A₁)`. A door hands [`first_harmonic_roots`] the
+//! extremes themselves, each with a bound on its error, and the phase's
+//! components with theirs; `c₀` and `A₁` are read off the extremes. It
+//! decides on that range, all in residual metres, under the caller's
+//! rows:
 //!
-//! - **noise** — the harmonics' evaluation error ([`NOISE_ULPS`]
-//!   half-ulps of the terms' magnitudes, in residual metres) definitely
-//!   past the escalation threshold, or not readable at all, refuses: the
-//!   representation cannot resolve what the band asks of it. A rounding
-//!   estimate on `f64`, run on every scalar: the `Interval` lane carries
-//!   its own enclosure and needs no meter to be sound, but the meter
-//!   still reads there and can refuse a pose the enclosures alone would
+//! - **noise** — the larger of the extremes' error bounds definitely
+//!   past the escalation threshold, or not readable at all, refuses:
+//!   every decision below reads the extremes, and the representation
+//!   cannot resolve what the band asks of them. A rounding estimate on
+//!   `f64`, run on every scalar: the `Interval` lane carries its own
+//!   enclosure and needs no meter to be sound, but the meter still
+//!   reads there and can refuse a pose the enclosures alone would
 //!   answer.
 //! - **coaxial** — the swing `A₁` in the zero band: the residual is
-//!   constant to within `A₁` plus the harmonics' `noise`, and
+//!   constant to within `A₁` plus that error, and
 //!   [`constant_residual_roots`] decides it.
-//! - **extreme**, on `c₀ − A₁` and `c₀ + A₁` — definitely one-signed is a
-//!   miss, definitely straddling is two roots, and either extreme in the
-//!   zero band is a tangency, which is not a crossing at any order this
-//!   lane sees and answers [`CircleRoots::Uncertain`].
-//! - **root slack** — the roots are read off the extremes `lo`, `hi` and
-//!   the phase `φ`, each with the error bound its door supplies. At
-//!   either root the extremes' errors move the residual by
-//!   `δR = (hi·δlo − lo·δhi)/(hi − lo)` — the NEAR extreme's error, plus
-//!   only a share `|near|/(hi − lo)` of the far one's — so the root moves
-//!   by `δR / |R′|`, `|R′| = √(−lo·hi)` at both roots; the phase's error
-//!   moves it by itself, and the angle arithmetic rounds by
-//!   [`NOISE_ULPS`] half-ulps of a turn. That arc length must be
-//!   definitely inside the band, or the span and trim decisions the
+//! - **extreme**, on `lo` and `hi` — definitely one-signed is a miss,
+//!   definitely straddling is two roots, and either extreme in the zero
+//!   band is a tangency, which is not a crossing at any order this lane
+//!   sees and answers [`CircleRoots::Uncertain`].
+//! - **root slack** — at either root the extremes' errors move the
+//!   residual by `δR = (hi·δlo − lo·δhi)/(hi − lo)` — the NEAR extreme's
+//!   error, plus only a share `|near|/(hi − lo)` of the far one's — so
+//!   the root moves by `δR / |R′|`, `|R′| = √(−lo·hi)` at both roots;
+//!   the phase's error moves it by itself, and the angle arithmetic
+//!   rounds by [`NOISE_ULPS`] half-ulps of a turn. That arc length must
+//!   be definitely inside the band, or the span and trim decisions the
 //!   caller makes on the point are made on the wrong point. An
 //!   unreadable reading refuses here too. A door whose only account is
-//!   `noise` charges it to both extremes and nothing to the phase, and
-//!   the slack is then `noise / |R′|`.
+//!   one uniform `noise` charges it to both extremes and nothing to the
+//!   phase, and the slack is then `noise / |R′|` plus the angle charge.
 //!
 //! The half-chord is measured from the extreme nearer zero,
 //! `2·asin(√(|near|/(hi − lo)))` past it, which reads the near extreme
-//! to its own relative precision: `acos(−c₀/A₁)` near a tangency
-//! amplifies the ratio's rounding by `1/√(1 − (c₀/A₁)²)`.
+//! to its own relative precision: `acos(−c₀/A₁)`, or the same `asin`
+//! read from the far extreme, near a tangency amplifies its argument's
+//! rounding by `1/√(1 − (c₀/A₁)²)`.
 //!
 //! Two DISTINCT certified roots therefore certify that the carrier does
 //! not lie on the surface — the fact the reduction's `(Zero, Zero)`
@@ -255,8 +257,10 @@ pub(super) struct HalfAngleFrame<T> {
 /// count with room. It is a ROUNDING estimate, the `f64` lane's
 /// contract, not an enclosure: the `Interval` lane carries the
 /// enclosure itself through every coefficient and the ladder decides on
-/// it, so it needs no meter to be sound. The first-harmonic door charges the same count: its
-/// chains are shorter, so the count holds there with more room.
+/// it, so it needs no meter to be sound. The circle × cylinder square
+/// arm charges its first harmonic the same count, its chains being
+/// shorter; the circle × sphere door charges its extremes their own
+/// running bounds instead (`geom_brep::CircleSphereHarmonic`).
 pub(super) const NOISE_ULPS: f64 = 16.0;
 
 /// The rounding charged against a term bound `terms`: [`NOISE_ULPS`]
