@@ -77,8 +77,7 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     let (a, b, c) = (ids[0], ids[1], ids[2]);
     let mut name_sets = Vec::new();
     for order in [[b, c, a], [c, b, a]] {
-        let (docx, union) =
-            declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (docx, union) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),

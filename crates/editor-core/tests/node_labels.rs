@@ -712,19 +712,25 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
 }
 
-/// A document holding a Declare whose `b` side was rebound onto the
-/// wall of a block inserted after it, labelled `late block`: the
-/// rebound name and that block's extrude.
+/// A document holding a union whose declared pair's `b` side was
+/// rebound onto the wall of a block inserted after the union, labelled
+/// `late block`: the rebound name and that block's extrude.
 fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, [_, _, a]) = block(doc, 0.0);
     let (doc, [_, _, b]) = block(doc, 0.5);
     let (wa, wb) = (fixture::wall(&doc, a, 0), fixture::wall(&doc, b, 0));
     let early = fixture::fname(b, wb);
-    let _ = editor_core::declare_rest(vec![(
-        SitedRef::new(a, fixture::fname(a, wa)),
-        SitedRef::new(b, early.clone()),
-    )]);
+    let (doc, _union) = insert(
+        doc,
+        Node::Union {
+            members: vec![a, b],
+            declare: editor_core::declare_rest(vec![(
+                SitedRef::new(a, fixture::fname(a, wa)),
+                SitedRef::new(b, early.clone()),
+            )]),
+        },
+    );
     let (doc, [_, _, c]) = block(doc, 0.5);
     let late = fixture::fname(c, fixture::wall(&doc, c, 0));
     let (doc, _) = step(

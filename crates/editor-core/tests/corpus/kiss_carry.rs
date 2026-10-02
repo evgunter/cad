@@ -128,7 +128,7 @@ pub fn document() -> CorpusDoc {
 
     CorpusDoc {
         name: "kiss_carry",
-        about: "corner-kiss assembly; the surviving v-v record re-entered by Declare",
+        about: "corner-kiss assembly; the surviving v-v record re-entered by a declared pair",
         edits: r.edits,
         doc: r.doc,
         result: Some(u2),

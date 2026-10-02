@@ -266,12 +266,12 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
         corpus::failures(&widened)
     );
     assert_parts_are_their_bodies(&widened, &doc, "widened");
-    // The frame, the profile, the tool plane and the declaration read
-    // no parameter and are served from the memo; the box and everything
-    // that reads it — the split, the halves, the union, the pattern,
-    // the instance, its placement — recompute.
-    assert_eq!(widened.reused, 4, "the four parameter-free leaves");
-    assert_eq!(widened.recomputed, doc.len() - 4);
+    // The frame, the profile and the tool plane read no parameter and
+    // are served from the memo; the box and everything that reads it —
+    // the split, the halves, the union, the pattern, the instance, its
+    // placement — recompute.
+    assert_eq!(widened.reused, 3, "the three parameter-free leaves");
+    assert_eq!(widened.recomputed, doc.len() - 3);
     // The widened box reaches the halves: the above half's top cap
     // carries the width.
     let split = *doc

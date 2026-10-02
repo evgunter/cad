@@ -760,7 +760,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     }
 }
 
-// ---- Declare pairs resolve against the real tables (D6). ----
+// ---- Declared pairs resolve against the real tables (D6). ----
 
 #[test]
 fn declare_pairs_resolve_in_the_named_nodes_tables() {
@@ -774,7 +774,6 @@ fn declare_pairs_resolve_in_the_named_nodes_tables() {
         SitedRef::new(a, minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(b, minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Start))),
     );
-    let _decl = editor_core::declare_rest(vec![pair.clone()]);
     let ev = run(&doc);
     for r in [&pair.0, &pair.1] {
         let name = &r.name;

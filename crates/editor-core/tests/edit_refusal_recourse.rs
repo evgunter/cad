@@ -173,17 +173,24 @@ fn a_count_a_slot_reads_refuses_the_redeclaration_with_a_recourse_that_gets_thro
     .expect("with no slot reading it, the count redeclares continuous");
 }
 
-/// A document holding a Declare whose `b` side was rebound onto a node
-/// inserted after it, and that node's wall name before the rebind.
+/// A document holding a union whose declared pair's `b` side was
+/// rebound onto a node inserted after the union, and that node's wall
+/// name before the rebind.
 fn forward_declare() -> (ProfileDoc, editor_core::StableName, editor_core::StableName) {
     let doc = ProfileDoc::empty_derived("recourse_split_forward", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (wa, wb) = (wall(&doc, a, 0), wall(&doc, b, 0));
-    let _declare = editor_core::declare_rest(vec![(
-        SitedRef::new(a, fname(a, wa)),
-        SitedRef::new(b, fname(b, wb.clone())),
-    )]);
+    let (doc, _union) = insert(
+        doc,
+        Node::Union {
+            members: vec![a, b],
+            declare: editor_core::declare_rest(vec![(
+                SitedRef::new(a, fname(a, wa)),
+                SitedRef::new(b, fname(b, wb.clone())),
+            )]),
+        },
+    );
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
     let (from, to) = (fname(b, wb), fname(c, wc));
@@ -199,7 +206,7 @@ fn forward_declare() -> (ProfileDoc, editor_core::StableName, editor_core::Stabl
 
 /// **A split that cannot rebuild a forward reference says what to
 /// rebind, not what to edit.** The part is rebuilt in document order,
-/// so a Declare rebound onto a later node names a node the part does
+/// so a declared pair rebound onto a later node names a node the part does
 /// not hold yet. The user never wrote that insert: the sentence states
 /// the split's recourse, and the recourse, followed, splits.
 #[test]

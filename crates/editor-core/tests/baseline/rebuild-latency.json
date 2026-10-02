@@ -12,12 +12,12 @@
     },
     "corner_table": {
       "about": "corner-aligned four-leg table (declared flush contacts)",
-      "nodes": 23,
+      "nodes": 19,
       "cone": 5
     },
     "crossing_slots": {
       "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
-      "nodes": 12,
+      "nodes": 11,
       "cone": 3
     },
     "cut_cylinder": {
@@ -77,7 +77,7 @@
     },
     "part_select": {
       "about": "DOCM-2: a split's two halves and a pattern's middle instance as bodies (Node::Part)",
-      "nodes": 12,
+      "nodes": 11,
       "cone": 5
     },
     "heat_sink": {
@@ -111,13 +111,13 @@
       "cone": 1
     },
     "kiss_carry": {
-      "about": "corner-kiss assembly; the surviving v-v record re-entered by Declare",
-      "nodes": 12,
+      "about": "corner-kiss assembly; the surviving v-v record re-entered by a declared pair",
+      "nodes": 11,
       "cone": 2
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
-      "nodes": 19,
+      "nodes": 18,
       "cone": 2
     },
     "loft_prism": {
