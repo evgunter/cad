@@ -82,3 +82,19 @@ where it can next cross, so the residual at any interior point of the
 arc between the pierce and the next root has the side's sign exactly.
 That is a second-order-free reading that an arc lane could use, beside
 the `enters_material_order2` recourse this row already names.
+
+## Evidence (2026-10-02, the ellipse-rim lane): crossings of a cut rim
+
+With the ellipse × sphere / × cylinder root lane, and the cylinder wall
+placement reading a wall bounded by a planar section, crossings of the
+tilted drum cut's ellipse rim reach this site
+(`crates/sweep/tests/conic_edge_curved_face.rs`, the drum: radius 0.5,
+height 1, plane through `(0, 0, 0.5)` at 0.3 rad, its lower part). A
+ball of radius 0.2 at `(0.5, 0, 0.35)` straddling the rim refuses
+`CurvedSectorSideUnsupported { Negative }` (margin −4.9e-3) under ∪, ∩
+and ∖; so do rods standing across the rim — radius 0.2 at `(0.5, 0)`,
+`z ∈ [0.2, 0.45]` (−5.9e-3), radius 0.1 at `(±0.45, 0)` (−8.8e-3), and
+radius 0.1 at `(0, 0.48)` (−0.24). Before it the ball stopped at the
+pierce door on the rim and the rods on their own rim circle's landing
+on the cut wall. Pinned by `a_rim_crossing_reaches_the_sector_side`,
+which flips when this row lands.

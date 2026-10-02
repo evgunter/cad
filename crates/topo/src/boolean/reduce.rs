@@ -1099,7 +1099,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// except an uncovered conic's against one of those three kinds, where
 /// the certified roots decide what the enclosures could not. Spiric and
 /// NURBS carriers have no enclosure and take the frontier door before
-/// any clearance test. Never a silent fallback.
+/// any clearance test (behind the operand gate, which refuses them
+/// first). Never a silent fallback.
 ///
 /// **The carrier-identity rung** comes before any enclosure on a
 /// CIRCLE carrier: an edge whose parent face is `Rest`-declared against
@@ -1493,11 +1494,13 @@ pub(super) fn curved_face_arm<T: Decide>(
                 }
             }
         }
-        // A `Spiric` or `Nurbs` carrier: no enclosure of its residual
-        // along an arc exists here (the sampled one needs a bound on the
-        // carrier's speed and acceleration over the span), so nothing
-        // clears it and the frontier door stands
-        // (`work/reach/spiric-and-nurbs-edges-have-no-curved-face-clearance.md`).
+        // A `Spiric` or `Nurbs` carrier. The operand gate refuses both
+        // first (`gate_operand_edges`), so the pipeline never reaches
+        // here with one; the arm keeps its typed door rather than lean
+        // on that nesting. No enclosure of its residual along an arc
+        // exists here — the sampled one needs bounds on the carrier's
+        // speed and acceleration over the span
+        // (`work/cleave/boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule.md`).
         _ => return Err(frontier()),
     }
     let side = |p: Point3<T>| {

@@ -63,3 +63,19 @@ alone. Which to build is a design choice for whoever specs this.
   `work/reach/slab-cut-cylinder-refuses-sector-side.md`, one door
   earlier. Re-charting a free ball along the centre line would move
   this pose too.
+
+## Evidence (2026-10-02, the ellipse-rim lane): a plane face through a ball
+
+The plane × sphere join reaches the same refusal when the plane is an
+OPERAND face rather than a radical plane. The lower part of the tilted
+drum cut (`crates/sweep/tests/conic_edge_curved_face.rs`: radius 0.5,
+height 1, cut by the plane through `(0, 0, 0.5)` at 0.3 rad) against a
+ball of radius 0.3 at `(0, 0, 0.5)` charted about `y`: once the rim's
+ellipse clears the sphere, ∪, ∩ and ∖ refuse
+`Join(SectionNotPolar { face: FaceKey(6v1) })` — the cut face's
+section of the ball is not a latitude circle of the ball's chart. The
+same ball charted about the cut's normal passes the join (and stops at
+`work/contact/at-infinity-probe-measures-in-closed-form-only.md`). So
+the free-ball re-chart this row names would cover this pose too: the
+ball is free, and its one escape plane fixes the alignment. Pinned by
+`a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream`.

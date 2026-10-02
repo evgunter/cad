@@ -883,12 +883,14 @@ pub enum BooleanError {
     /// edge cannot be cleared against a curved face, and the curved
     /// PIERCE door cannot take it. That door takes a LINE or a CIRCLE
     /// carrier definitely crossing a cylinder wall, a sphere or a torus,
-    /// whose crossing parameters come from the certified root lanes
-    /// (the line quadratics and quartic, `boolean::circle_roots`' doors)
-    /// and whose landing point the chart trim places. What this variant
-    /// reports is the rest: a tangency (not a crossing at any order the
-    /// lanes see), a cone face or a circle against one, an undeclared
-    /// on-carrier edge or circle, a root the band cannot place, or a
+    /// and an ELLIPSE crossing a cylinder wall or a sphere, whose
+    /// crossing parameters come from the certified root lanes (the line
+    /// quadratics and quartic, `boolean::circle_roots`' doors and
+    /// `boolean::ellipse_roots`) and whose landing point the chart trim
+    /// places. What this variant reports is the rest: a tangency (not a
+    /// crossing at any order the lanes see), a cone face or a conic
+    /// against one, an ellipse near a torus, an undeclared on-carrier
+    /// edge or conic, a root the band cannot place, or a
     /// trim the chart door declines to express (the M5 envelope's
     /// frontier; the C5 table routes the SECTIONS, this is the crossing
     /// layer). The

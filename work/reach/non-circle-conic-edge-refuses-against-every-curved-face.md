@@ -2,9 +2,10 @@
 id: non-circle-conic-edge-refuses-against-every-curved-face
 kind: issue
 title: An ellipse (or spiric, or NURBS) edge refuses against a curved face it does not even meet - no clearance or root lane for the carrier
-status: open
+status: review
 opened: 2026-10-01
 refs: [line-edge-crossing-a-sphere-face-has-no-root-lane, sphere-union-sphere-refuses-though-the-section-is-closed-form]
+branch: reach/conic-edge-curved-face
 ---
 
 Found by the `reach-snowman` lane's sweep of the crossing layer's
@@ -49,3 +50,37 @@ the sphere, so a clearance verdict alone would let it through.
 
 Spiric (`spiric_rim`) and NURBS edges take the same line of code; they
 are not measured here against a real shape.
+
+## Outcome (2026-10-02, branch `reach/conic-edge-curved-face`)
+
+The conic rung is the ellipse's too. `geom_brep::Conic` (a circle is its
+`major = minor` instance) carries the residual algebra: the sphere and
+cylinder residuals along it are exact degree-2 trigonometric
+polynomials (`ConicHarmonics`, one home for both kinds and both
+carriers), the arc's sampled enclosure reads its curvature bound off
+the harmonics, and the torus arm's bound is stated at the semi-major
+axis (`|C′|, |C″| ≤ a`). `reduce::curved_face_arm` takes `Circle |
+Ellipse` through one rung, and `boolean::ellipse_roots` answers the
+ellipse × sphere and ellipse × cylinder cells on the shared root cores
+(first-harmonic arm when the second harmonic is in the zero band — the
+ellipse whose projection off the wall's axis is a circle, a constant
+residual — the half-angle ladder otherwise).
+
+Measured on the two rows above, after: the rim crosses or clears
+exactly, and each op stops at the next door — the ball straddling the
+rim at the sector side
+(`work/reach/slab-cut-cylinder-refuses-sector-side.md`), the ball
+through the cut face at `SectionNotPolar`
+(`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`)
+or, charted about the cut normal, at the at-infinity probe
+(`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+What builds: a ball or a rod held inside the drum within reach of the
+rim's box (`crates/sweep/tests/conic_edge_curved_face.rs`), which also
+needed the extent scan's cylinder arm to read the wall's carrier
+(residue: `sphere-straddling-a-cylinder-carrier-refuses-at-the-extent-scan`).
+Rods across the rim needed the wall placement to read a wall bounded by
+a planar section. Residue filed: `ellipse-edge-crossing-a-torus-has-no-root-lane`,
+`conic-quadric-doors-choose-their-first-harmonic-arm-two-ways`; the
+spiric and NURBS half is CLEAVE's
+`boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (the
+operand gate refuses them first).
