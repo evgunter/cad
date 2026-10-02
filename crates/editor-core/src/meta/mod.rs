@@ -99,15 +99,25 @@ impl<C> core::ops::Deref for Nested<C> {
     }
 }
 
+/// The children alone: the nesting is a function of them.
 impl<C: core::fmt::Debug> core::fmt::Debug for Nested<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.children.fmt(f)
+        let Self {
+            children,
+            nesting: _,
+        } = self;
+        children.fmt(f)
     }
 }
 
+/// The children alone: the nesting is a function of them.
 impl<C: PartialEq> PartialEq for Nested<C> {
     fn eq(&self, other: &Self) -> bool {
-        self.children == other.children
+        let Self {
+            children,
+            nesting: _,
+        } = self;
+        *children == other.children
     }
 }
 
