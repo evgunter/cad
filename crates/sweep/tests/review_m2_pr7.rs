@@ -321,8 +321,8 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
         Tol::witness(),
     )
     .unwrap();
+    let wall = t.walls()[0][1].expect("outer wall face");
     let mut body = t.body;
-    let wall = t.walls[0][1].expect("outer wall face");
     let outer = body.get_face(wall).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("wall loop must be a cycle");

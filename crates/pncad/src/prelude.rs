@@ -379,10 +379,13 @@ pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
 // `Node.revolve` whose answer is a body — so there is nothing here to
 // split or pin, the `BlendError` reading on a value rather than a
 // refusal.
+// `SideWall` and `BandWall` are `Extruded::walls` and `Revolved::bands`
+// — the one wall per run of pieces each verb builds — so a caller
+// reading those handles can name their element type.
 pub use sweep::{
-    ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
-    Revolved, RevolvedKind, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body,
-    tube_along_arc, tube_along_arc_hollow,
+    BandWall, ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis,
+    RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude, loft_body,
+    revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
@@ -751,7 +754,7 @@ pub use crate::select::{
     CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact, Denotation, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, Pose, ProfileEdgeRef,
+    NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose, ProfileEdgeRef,
     ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
     SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, StepId,
     SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare,

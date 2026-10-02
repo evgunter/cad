@@ -1803,17 +1803,22 @@ pub(super) mod tests {
             vec![
                 R::OutputBody,
                 R::Cap(CapEnd::Start),
-                R::Lateral(e),
+                R::Lateral(e.into()),
                 R::RimEdge(CapEnd::End, e2),
                 R::LateralEdge(v),
                 R::CapVertex(CapEnd::Start, v),
                 R::LoftWall(vec![e, e2]),
                 R::LoftSeam(vec![v]),
-                R::Band(e),
+                R::Band(e.into()),
                 R::BandRim(v),
                 R::BandRimPi(v),
-                R::BandPi(e),
-                R::Meridian(MeridianEnd::Seam, e),
+                R::BandPi(e.into()),
+                R::Meridian(MeridianEnd::Seam, e.into()),
+                // Runs of several pieces, in every role that holds one.
+                R::Lateral(PieceRun::new(vec![e, e2]).unwrap()),
+                R::Band(PieceRun::new(vec![e2, e]).unwrap()),
+                R::BandPi(PieceRun::new(vec![e, e2, e]).unwrap()),
+                R::Meridian(MeridianEnd::Pi, PieceRun::new(vec![e, e2]).unwrap()),
                 R::MeridianVertex(MeridianEnd::Pi, v),
                 R::RevolveCap(MeridianEnd::End),
                 R::Pole(v),
@@ -1946,8 +1951,8 @@ pub(super) mod tests {
     /// The names under test, built by the corpus.
     mod ours {
         pub(super) use super::super::super::role::{
-            CapEnd, EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, ProfileVertexRef,
-            Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName,
+            CapEnd, EntityKind, MeridianEnd, NameRef, PieceRole, PieceRun, ProfileEdgeRef,
+            ProfileVertexRef, Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName,
         };
         use crate::node::{RecipeNodeId, StepId};
 
@@ -2265,10 +2270,13 @@ pub(super) mod tests {
             let piece = named(
                 EntityKind::Face,
                 3,
-                vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                    step: StepId(7),
-                    role: PieceRole::Leg,
-                })],
+                vec![RoleSeg::Lateral(
+                    ProfileEdgeRef::Piece {
+                        step: StepId(7),
+                        role: PieceRole::Leg,
+                    }
+                    .into(),
+                )],
             );
             let copy = |r: NameRef| RoleSeg::Instance { i: 1, of: r };
             assert_eq!(
@@ -2310,10 +2318,13 @@ pub(super) mod tests {
             named(
                 EntityKind::Face,
                 1,
-                vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                    step: StepId(i as u64),
-                    role: PieceRole::Leg,
-                })],
+                vec![RoleSeg::Lateral(
+                    ProfileEdgeRef::Piece {
+                        step: StepId(i as u64),
+                        role: PieceRole::Leg,
+                    }
+                    .into(),
+                )],
             )
         };
         let member = |i: usize| {
