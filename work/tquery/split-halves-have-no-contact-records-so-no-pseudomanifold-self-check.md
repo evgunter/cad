@@ -2,11 +2,14 @@
 id: split-halves-have-no-contact-records-so-no-pseudomanifold-self-check
 kind: issue
 title: split returns pinch halves with no ContactRecords for their touching vertex copies, so no pseudomanifold self-check of its outputs can pass a designed pinch half
-status: spec
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
 refs: [validate-passes-a-body-with-a-zero-width-slit-face, 3797]
+branch: tquery/split-pinch-shared-point
+pr: 3856
+closed: 2026-10-02
 ---
 
 
@@ -80,3 +83,7 @@ DESIGN.md D1 tier 3′ carries the rule:
   so no write goes through a shared point in place.
 - Re-baseline what moves: the iso point counts, and the euler
   null-edge rows that become key-identical.
+
+## Closed (2026-10-02, PR 3856)
+
+An op's copies of one vertex keep its `PointKey`; the census clears a same-point pair as rung 1 after measuring it; `Body::move_vertex` mints and the offset doors move per shared point. All 37 designed pinch halves pass the pseudomanifold door with no records. Residue: CLEAVE's band-made pinch (P1, the guard belongs at split's ON verdict) and the STEP round trip of a shared point.
