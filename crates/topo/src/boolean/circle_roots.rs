@@ -262,7 +262,7 @@ pub(super) const NOISE_ULPS: f64 = 16.0;
 /// The rounding charged against a term bound `terms`: [`NOISE_ULPS`]
 /// half-ulps of it — the meters' one spelling of the charge.
 pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
-    T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms
+    T::from_f64(NOISE_ULPS * geom_core::UNIT_ROUNDOFF) * terms
 }
 
 /// The conditioning floor `κ` (module docs): the pole's `|F|` must be at
@@ -449,25 +449,24 @@ pub(super) fn constant_residual_roots<T: Decide>(
 }
 
 /// A residual `c₀ + A₁ cos(θ − φ)` along a circle, `φ = atan2(sin_part, cos_part)`,
-/// in metres of residual, with `noise` the metres its harmonics may be
-/// off by (their rounding, and any term the caller dropped to reach
-/// this form).
+/// in metres of residual, given by its extremes `lo = c₀ − A₁` and
+/// `hi = c₀ + A₁` — the one spelling of the range the door decides on,
+/// `c₀` and `A₁` read off it — and the phase's two components.
 ///
-/// The roots are read off the extremes `lo = c₀ − A₁` and `hi = c₀ + A₁`
-/// and the phase, each as the door evaluates it with a bound on its
-/// error: `lo_noise` and `hi_noise` in metres of residual, `phase_noise`
-/// in the units of `(cos_part, sin_part)`. A door with no sharper
-/// account passes `c₀ ∓ A₁` with `noise` on each and no phase charge —
-/// `noise` bounds the residual's error at every `θ`, the phase's share
-/// included.
+/// Each comes with a bound on its error as the door evaluated it:
+/// `lo_noise` and `hi_noise` in metres of residual (their rounding, and
+/// any term the caller dropped to reach this form, which must bound the
+/// residual's error at every `θ` where it is not specific to one
+/// extreme), and `phase_noise` in the units of `(cos_part, sin_part)`.
+/// A door whose only account is one uniform `noise` passes it as both
+/// extremes' and no phase charge: a residual error bounded at every `θ`
+/// already moves the roots by no more than that over `|R′|`, the
+/// phase's share included.
 pub(super) struct FirstHarmonic<T> {
-    pub(super) c0: T,
-    pub(super) a1: T,
-    pub(super) cos_part: T,
-    pub(super) sin_part: T,
-    pub(super) noise: T,
     pub(super) lo: T,
     pub(super) hi: T,
+    pub(super) cos_part: T,
+    pub(super) sin_part: T,
     pub(super) lo_noise: T,
     pub(super) hi_noise: T,
     pub(super) phase_noise: T,
@@ -513,21 +512,23 @@ pub(super) fn first_harmonic_roots<T: Decide>(
         })
     };
     let FirstHarmonic {
-        c0,
-        a1,
-        cos_part,
-        sin_part,
-        noise,
         lo: lo_value,
         hi: hi_value,
+        cos_part,
+        sin_part,
         lo_noise,
         hi_noise,
         phase_noise,
     } = *h;
+    let two = T::from_f64(2.0);
+    // The extremes are what every decision below reads, so their error
+    // is what the representation must resolve.
+    let noise = lo_noise.max(hi_noise);
     match decide(rows.noise, Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
     }
+    let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
         return constant_residual_roots(c0, a1 + noise, rows.extreme, band).map_err(|diag| {
             BooleanError::Escalated {
@@ -560,7 +561,6 @@ pub(super) fn first_harmonic_roots<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
     }
-    let two = T::from_f64(2.0);
     let phi = sin_part.atan2(cos_part);
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
     // zero (module docs).

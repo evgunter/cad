@@ -31,9 +31,7 @@
 
 use geom_core::{Band, Decide};
 
-use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, first_harmonic_roots, rounding_charge,
-};
+use super::circle_roots::{CircleRoots, FirstHarmonic, FirstHarmonicRows, first_harmonic_roots};
 use super::{BooleanDecision, BooleanError};
 
 const CIRCLE_SPHERE_ROWS: FirstHarmonicRows = FirstHarmonicRows {
@@ -82,15 +80,12 @@ pub(super) fn circle_sphere_roots<T: Decide>(
     let h = geom_brep::circle_sphere_harmonic(center, axis, radius, u_ref, s_center, s_radius);
     first_harmonic_roots(
         &FirstHarmonic {
-            c0: h.c0,
-            a1: h.a1,
-            cos_part: h.e_u,
-            sin_part: h.e_v,
-            noise: rounding_charge(h.terms) / (T::from_f64(2.0) * s_radius),
             lo: h.lo,
             hi: h.hi,
-            lo_noise: h.lo_error,
-            hi_noise: h.hi_error,
+            cos_part: h.e_u,
+            sin_part: h.e_v,
+            lo_noise: h.lo_error + h.frame_error,
+            hi_noise: h.hi_error + h.frame_error,
             phase_noise: h.phase_error,
         },
         radius,
