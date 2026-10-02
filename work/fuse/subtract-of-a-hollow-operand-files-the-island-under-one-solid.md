@@ -7,6 +7,8 @@ opened: 2026-09-08
 priority: P0
 cost: H
 branch: fuse/hollow-island
+needs_ev: true
+design: true
 ---
 
 
