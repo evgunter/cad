@@ -80,3 +80,20 @@ configurations). It is not a selection:
 
 So the scene stays on the description, with `rim_of`'s refusal doing
 the filter's work, and this row records the gap.
+
+## Measured at the document door (2026-10-02)
+
+`crates/pncad-py/tests/test_north_star.py::TestSnowman` builds the
+scene as a recipe (two `Node.revolve` balls, `Node.boolean`) and the
+census is the kernel's: `select_where(adjacent_kinds(Sphere, Sphere))`
+answers all six of the union's edges, and `Node.fillet` on those six
+refuses `tangential_edge`. Python has no `rim_of`, so the audit row
+(`docs/guide/north-star-audit.md`, `snowman`) is graded YES\* on this
+gap: the waist is picked by a `datum_distance` bracket between the two
+balls' centre planes, which the scene never states.
+
+One correction to the bullet above: at the document door the boolean's
+seam IS reachable. `Selector.of(NamePat.of_kind(Edge).seg(SegPat.tag(SegTag.Seam)))`
+names exactly the two waist arcs. That is the same op-record reading
+argued against above, spelled as a structural selector, so the
+argument stands but its second bullet does not.
