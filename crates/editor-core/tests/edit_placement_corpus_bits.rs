@@ -18,7 +18,7 @@ use editor_core::Node;
 /// holds, in registry then document order — taken on `569540027`, and
 /// the same at the default, `1e-6` and `1e-12` ε rows. The digest feeds
 /// the node id, so a re-minted id moves the word with no geometry
-/// moving.
+/// moving; so does a point landing in another arena slot.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 8228204478696989143, 0x638d9883d28755ce),
     ("die", 17061346926331576421, 0xb12689d9d6bb51f3),
@@ -46,7 +46,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("heat_sink", 12184786657845624742, 0x2503ab5e5ce94396),
     ("heat_sink", 17536180939684637166, 0x23ff8b267714897e),
     ("heat_sink", 1277121435761408711, 0x56d859c6f87fe8ab),
-    ("kitchen_sink", 16425910021445123081, 0x93d1c126848a5354),
+    ("kitchen_sink", 16425910021445123081, 0x719b43295d39e7e8),
     ("die_pips", 2033039845984006919, 0xc6134ff6662bf60b),
     ("part_select", 1775943491813408770, 0x47178339ad862e3d),
     ("die_composed", 2033039845984006919, 0xc6134ff6662bf60b),

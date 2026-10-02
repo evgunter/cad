@@ -631,11 +631,12 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
     assert_eq!(
         text,
         format!(
-            "split: the cut severs the edge from Extrude \"base plate\" ({}) to its input \
-             Profile \"sketch\" ({}). The consumer is kept and the input is cut, but a cut \
-             must be closed under inputs and consumers",
-            tag(extrude.0),
-            tag(profile.0)
+            "split: the cut severs the edge from Extrude \"base plate\" ({e}) to its input \
+             Profile \"sketch\" ({p}). The consumer is kept and the input is cut, but a cut \
+             must be closed under inputs and consumers. Recourse: add Extrude \"base plate\" \
+             ({e}) to the cut, or leave Profile \"sketch\" ({p}) out of it",
+            e = tag(extrude.0),
+            p = tag(profile.0)
         )
     );
     for id in [extrude, profile] {
@@ -793,10 +794,12 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     assert_eq!(
         refused.to_string(),
         format!(
-            "inline: InstantiatePart \"left bracket\" ({}) is consumed by Transform \"offset\" \
-             ({}) — the recipe cannot rewire a consumer onto a spliced product",
-            tag(inst.0),
-            tag(by.0)
+            "inline: InstantiatePart \"left bracket\" ({i}) is consumed by Transform \"offset\" \
+             ({b}), and the recipe cannot rewire a consumer onto a spliced product. Recourse: \
+             delete Transform \"offset\" ({b}), or re-author it without InstantiatePart \
+             \"left bracket\" ({i}), then inline",
+            i = tag(inst.0),
+            b = tag(by.0)
         )
     );
 }
