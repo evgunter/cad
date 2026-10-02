@@ -123,13 +123,11 @@ pub enum ArcWindowCase {
     /// degenerate relative to the chord (an ill-conditioned operand, or
     /// a run that does not actually co-bound the face with this chord).
     ///
-    /// An asymmetric wall pierce was measured here once (an off-centre
-    /// bar through a pipe). The x₁ rows below say which of the two
-    /// readings that was — a run that does not end where its chord
-    /// starts is the PAIRING one — and #1291 carries the fixture debt:
-    /// the pose now stops one layer earlier, at the sector-side
-    /// curvature charge, so the question is parked with its evidence
-    /// rather than answered.
+    /// An asymmetric wall pierce lands here (an off-centre bar through
+    /// a pipe, a rod through a three-face wall). The x₁ rows below say
+    /// which of the two readings that is — a run that does not end
+    /// where its chord starts is the PAIRING one — and #1291 holds the
+    /// question with those fixtures.
     NeitherContained,
     /// BOTH candidates lie inside the window: the window spans at least
     /// one full period, so containment does not distinguish the arcs.
@@ -267,14 +265,13 @@ pub enum SplitJoinError {
     /// the joining invariant (heads join heads, tails join tails)
     /// failed (kernel bug, loudly).
     ///
-    /// **A reachable source that was not a join bug**: a box driven
-    /// through a cylinder CAP arrived here while `point_in_solid`'s
-    /// planar arm read an arc-bounded cap as the polygon through its
-    /// vertices — the join's role probe then saw the cap as transparent
-    /// and the section loop came back mixed. That arm now crosses arcs
-    /// on their circles and the cap pierce joins. `work/tang/`'s
-    /// pierce-ring row records the other measured arrival (an engraving
-    /// pose) and that its cause is unmeasured against this one.
+    /// The join's role probe reads each copy's side through
+    /// `point_in_solid`, so a misread there arrives here too: a planar
+    /// arm that took an arc-bounded cap for the polygon through its
+    /// vertices would see the cap as transparent and return a mixed
+    /// loop. A box driven through a cylinder cap and a pocket engraved
+    /// in one (`editor-core/tests/pierce_ring_engraving.rs`) are the
+    /// poses that pin that arm's arc crossing.
     SectionLoopMixed {
         /// The offending null face.
         face: FaceKey,
@@ -1628,11 +1625,11 @@ pub(crate) enum SegmentEdge {
 
 /// The adjacency skip, for both chords of a `join`: an already-adjacent
 /// pair whose between edge IS the section segment needs no chord. On
-/// the split lane that is an edge lying in the plane (M3); a belly conic
-/// between them is not a section segment and its chord MUST be minted
-/// (M1 fix), and an escalated in-plane verdict refuses typed rather
-/// than guessing either way. On the boolean lanes it is structural: the
-/// between edge is the edge the segment's locus names.
+/// the split lane that is an edge lying in the plane
+/// ([`between_edge_is_section`]); any other between edge needs its chord
+/// minted, and an escalated verdict refuses typed rather than guessing
+/// either way. On the boolean lanes it is structural: the between edge
+/// is the edge the segment's locus names.
 fn skip_adjacent_chord<T: Decide>(
     body: &Body<T>,
     lane: &JoinLane<'_, T>,
@@ -1648,31 +1645,29 @@ fn skip_adjacent_chord<T: Decide>(
                 .ok_or_else(|| corrupt_he(between))?;
             Ok(edge == Some(between.edge))
         }
-        SegmentEdge::InPlane => match between_edge_in_plane(body, lane, between, band)? {
+        SegmentEdge::InPlane => match between_edge_is_section(body, lane, between, band)? {
             Some(in_plane) => Ok(in_plane),
             None => Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "in-plane classification of the join-adjacent edge escalated",
+                what: "section classification of the join-adjacent edge escalated",
             }),
         },
     }
 }
 
-/// Whether the (real) edge under `he` lies IN the split plane over its
-/// whole span — the adjacency-skip guard's question (M1 fix pass):
-/// `None` = escalated. Lines and null scaffolding answer `true` with
-/// NO predicate evaluation (the M3 path, bit-identical: a line whose
-/// join-adjacent role puts it between two ON copies is the in-plane
-/// section edge); conics ask the named trilean
-/// `split_conic_inplane_mid` of the lane's section plane — margin the
-/// mid-parameter plane distance (meters). A conic not lying in the
-/// plane meets it in at most two points, and both endpoints are ON, so
-/// the interior is sign-constant: a Zero midpoint pins the whole arc
-/// in-plane; a definite midpoint is a belly arc — the skipped chord
-/// MUST be minted or the section face inherits an off-plane boundary
-/// edge. It is the split lane's question ([`SegmentEdge::InPlane`]);
-/// the boolean lanes read the segment's locus.
-fn between_edge_in_plane<T: Decide>(
+/// Whether the (real) edge under `he` IS the section segment over its
+/// whole span, the split lane's adjacency-skip question
+/// ([`SegmentEdge::InPlane`]): `None` = escalated. Null scaffolding
+/// answers `true`. A line answers `true` with NO predicate evaluation,
+/// since a line between two ON copies lies in the plane. A conic asks
+/// the trilean `split_conic_inplane_mid`, margin its mid-parameter plane
+/// distance (metres): a conic not lying in the plane meets it in at most
+/// two points and both endpoints are ON, so the interior is
+/// sign-constant. Zero pins the whole arc in-plane; a definite midpoint
+/// is a belly arc, whose chord MUST be minted or the section face
+/// inherits an off-plane boundary edge. The boolean lanes read the
+/// segment's locus instead and never ask this.
+fn between_edge_is_section<T: Decide>(
     body: &Body<T>,
     lane: &JoinLane<'_, T>,
     he: HalfEdgeKey,
@@ -1693,7 +1688,10 @@ fn between_edge_in_plane<T: Decide>(
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
-        geom::Curve3::Line { .. } => Ok(Some(true)),
+        geom::Curve3::Line { .. } => match lane {
+            JoinLane::Planar { .. } | JoinLane::Split(_) => Ok(Some(true)),
+            JoinLane::BoolPlanar { .. } => Err(bool_planar_asked(owning_face()?)),
+        },
         // The join lanes are fenced against the spiric and the spline
         // (both operand gates refuse the kinds), so a run edge carrying
         // one is an invariant break, never assumed ON.
@@ -1715,15 +1713,19 @@ fn between_edge_in_plane<T: Decide>(
                         Err(_) => Ok(None),
                     }
                 }
-                // The boolean lanes read the segment's locus instead
-                // ([`SegmentEdge::Is`]); the split lane never runs here.
-                JoinLane::BoolPlanar { .. } => Err(SplitJoinError::SectionInvariant {
-                    face: owning_face()?,
-                    what: "the in-plane skip test was asked on the boolean planar-side lane, \
-                           whose skip reads the segment's locus",
-                }),
+                JoinLane::BoolPlanar { .. } => Err(bool_planar_asked(owning_face()?)),
             }
         }
+    }
+}
+
+/// The in-plane skip test asked on the boolean planar-side lane, whose
+/// skip reads the segment's locus ([`SegmentEdge::Is`]): no caller does.
+fn bool_planar_asked(face: FaceKey) -> SplitJoinError {
+    SplitJoinError::SectionInvariant {
+        face,
+        what: "the in-plane skip test was asked on the boolean planar-side lane, whose skip \
+               reads the segment's locus",
     }
 }
 
@@ -2707,12 +2709,12 @@ mod tests {
                 origin: Point3::origin(),
                 normal,
             };
-            let planar = between_edge_in_plane(&body, &JoinLane::Planar { plane }, rim, band);
+            let planar = between_edge_is_section(&body, &JoinLane::Planar { plane }, rim, band);
             let mut ctx = SectionCtx {
                 plane,
                 plane_key: None,
             };
-            let split = between_edge_in_plane(&body, &JoinLane::Split(&mut ctx), rim, band);
+            let split = between_edge_is_section(&body, &JoinLane::Split(&mut ctx), rim, band);
             (planar.unwrap(), split.unwrap())
         };
         // A section plane through the rim's two ends and the cap's

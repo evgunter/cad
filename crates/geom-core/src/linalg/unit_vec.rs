@@ -30,6 +30,10 @@
 //!   construction rather than by decision — they exist so
 //!   [`OrthoFrame`](super::OrthoFrame) can build the world frames and
 //!   its own third axis, and they are documented on their own doors.
+//! - `UnitVec3::embed` and `UnitVec3::pin` — the exact crossings
+//!   between `f64` and the other scalars, as
+//!   [`OrthoFrame`](super::OrthoFrame)'s module docs state them: an
+//!   embedded direction witnesses the `f64` decision, carried.
 //!
 //! The deciding ladders in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto

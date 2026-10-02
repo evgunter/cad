@@ -387,17 +387,20 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     box_in(session, plane, size).1
 }
 
-/// One node's row status out of a tree render — the lookup five
-/// suites had written out by hand.
+/// **One node's row out of a tree render.**
 ///
 /// Panics rather than answering `None`: every id these rows pass is
 /// one the document holds, so a missing row is the failure, not a
 /// case to handle.
-pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+pub fn row_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> &viewer::tree::TreeRow {
     rows.iter()
         .find(|row| row.id == id)
-        .map(|row| row.status.clone())
         .unwrap_or_else(|| panic!("node {id:?} has a row"))
+}
+
+/// One node's row status out of a tree render ([`row_of`]).
+pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+    row_of(rows, id).status.clone()
 }
 
 /// `got` and `want` agree to one part in 10⁹, relatively.

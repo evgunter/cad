@@ -2,13 +2,15 @@
 id: S90-impl
 kind: unit
 title: Pin the blend's dual tangents — the doors stay generic under DL5 (Ev, 2026-10-01); a sweep row and a stack-up row that differentiate through a 3D blend
-status: open
+status: closed
 opened: 2026-08-21
 track: M
-pr: 883
+pr: 3764
 refs: [867, 886]
 priority: P1
 cost: M
+closed: 2026-10-02
+branch: band/dual-blend-tangent-pins
 ---
 
 ## What
@@ -187,3 +189,38 @@ remains on this row is the pin: a `sweep` row asserting a fillet's and a
 chamfer's `Dual64` volume tangent against central differences (and the
 closed form for the filleted cube), and an `editor-core` stack-up row
 whose measure differentiates through a 3D blend.
+
+## Closed
+
+The pin the ruling owed is in, as two rows that read the tangent and
+not the value channel.
+
+- `crates/sweep/tests/blend_dual_tangent.rs`: the unit cube filleted
+  and chamfered on all twelve edges at `Dual64`, the volume read
+  through `topo::mass_properties_structural`. Seeded on the blend
+  size (r = 0.1, 0.15, 0.3), the volume tangent matches central
+  differences of the `f64` build (h = 1e-6, tolerance 1e-7 absolute;
+  measured disagreement at most 2.6e-10) for both verbs, and the
+  fillet's matches the closed form
+  `dV/dr = −12(1−π/4)(2r−6r²) − 24(1−π/6)r²` to 1e-12 (measured
+  9e-16). Seeded upstream on the cube's side through the profile and
+  the extrusion distance, the tangent matches central differences for
+  both verbs and the fillet's closed form `3c² + 12rc + 3πr²`,
+  `c = L − 2r`.
+- `crates/editor-core/tests/blend_dual_sensitivity.rs`:
+  `stackup::sensitivities` over a document whose extrude depth and
+  fillet radius are continuous parameters and whose measure is the
+  distance between two vertices the fillet mints; both entries match
+  central differences of the `f64` evaluation and the closed form
+  `∂m/∂r = −4(1 − 2r)/m`, `∂m/∂d = d/m`.
+
+Mutants, each run and reverted: reading the surgery's radius through
+`lo()` into an `f64` and back (`blend/surgery.rs`, `let radius =
+verdict.size`) reds the fillet size rows in `sweep` and the radius
+entry in `editor-core` (tangent 0 vs −2.06); the same at the chamfer
+strip's distance (`battery::classify_arm`) reds the chamfer size row
+(tangent 0); freezing the arm's edge point `p` in `classify_arm` reds
+the upstream row for both verbs and leaves the size rows green. The
+`editor-core` row does not see the frozen `p` (its vertices are minted
+from the supports, not the arm), which is why the upstream seed is
+pinned on volume in `sweep`.

@@ -10,9 +10,8 @@
 //!   neighbour; today every op refuses `UndeclaredCoincidence`);
 //! - a donut revolved with its seam parallels at the equators, the box
 //!   top in the equator plane holding an arc of the outer equator (the
-//!   neighbours are the two torus faces; today ∪ refuses
-//!   `CurvedSectorSideUnsupported` and ∖, ∩ refuse the torus at their
-//!   roster, `CurvedPairUnsupported`);
+//!   neighbours are the two torus faces; today every op refuses at the
+//!   join's germ frame, which has no torus × plane arm);
 //! - a tube whose outer wall is two faces meeting in a circle, the box
 //!   top in that circle's plane holding an arc of it, or all of it
 //!   (today every op refuses at the join);

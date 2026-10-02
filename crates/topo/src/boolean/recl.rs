@@ -433,7 +433,6 @@ fn flank_key<T: Decide>(
         bound,
         reach,
         ref_normal,
-        s.arm,
         super::sectors::NO_CURVATURE(),
         band,
     )
@@ -747,7 +746,6 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 w,
                 reach,
                 other_secs[oi].normal,
-                arm,
                 super::sectors::NO_CURVATURE(),
                 band,
             )? {
