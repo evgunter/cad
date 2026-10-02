@@ -10,9 +10,13 @@
 //! to each outer half-edge comes from the null-pair vertex map built
 //! by `setopfinish` — never from geometric point matching. The two
 //! cycles must be **antiparallel** (A's kept loop and B's kept loop
-//! run in opposite senses — the book's crossover carried through);
-//! that is *asserted structurally* before any surgery
-//! ([`BooleanError::SeamOrientation`]) rather than assumed.
+//! run in opposite senses — the book's crossover carried through):
+//! the outer half-edge `a → a'` matches the ring half-edge running
+//! from a correspondent of `a'` to one of `a`, so a vertex the seam
+//! meets twice (a welded pinch, with one correspondent per meeting)
+//! is told apart by the run's other end. A ring that runs the same
+//! sense is refused before any surgery
+//! ([`BooleanError::SeamOrientation`]) rather than zipped.
 //!
 //! Scaffolding carriers use the canonical full-period self-loop spec
 //! ([`EdgeCurveSpec::self_loop_circle_at`]), whose endpoint-pin
@@ -22,8 +26,9 @@
 //! pierce point bitwise); anything less refuses loudly at
 //! certification, never zips approximately.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use geom_core::Decide;
-use slotmap::SecondaryMap;
 
 use super::BooleanError;
 use crate::body::Body;
@@ -32,6 +37,19 @@ use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
+
+/// The seam vertex correspondence: each A-side vertex → its B-side
+/// correspondents. One each, except a welded pinch, which a seam meets
+/// once per pierce it fused.
+pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
+
+/// The vertex `v` survives as through the fusions `(dead, kept)`,
+/// in the order they were made.
+pub(super) fn survivor(merges: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
+    merges
+        .iter()
+        .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
+}
 
 /// What one seam zip did to the arena — the F9-style record the op
 /// stage consumes (M3 PR 6a): every vertex fusion (dead key → kept
@@ -58,7 +76,7 @@ pub(super) fn zip_seam<T: Decide>(
     body: &mut Body<T>,
     a_face: FaceKey,
     b_face: FaceKey,
-    vmap: &SecondaryMap<VertexKey, VertexKey>,
+    vmap: &SeamCorrespondence,
     tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
@@ -90,44 +108,44 @@ pub(super) fn zip_seam<T: Decide>(
         return Err(corr("seam cycles differ in length"));
     }
 
-    // ---- Record-keyed alignment: rs[j] starts at vmap[start(ob[j])]. ----
+    // ---- Record-keyed alignment, antiparallel: ob[j] runs a_j →
+    // a_{j+1}, so rs[j] runs from a correspondent of a_j to one of
+    // a_{j−1}. ----
     let start_of = |body: &Body<T>, he| -> Result<VertexKey, BooleanError> {
         Ok(body
             .get_half_edge(he)
             .ok_or_else(|| corr("seam half-edge no longer resolves"))?
             .start)
     };
-    let mut rs = Vec::with_capacity(n);
-    for &b_he in &ob {
-        let a_v = start_of(body, b_he)?;
-        let b_v = *vmap
-            .get(a_v)
-            .ok_or_else(|| corr("outer seam vertex has no recorded B correspondent"))?;
-        let matched = {
-            let mut found = None;
-            for &rhe in &ring_cycle {
-                if start_of(body, rhe)? == b_v {
-                    found = Some(rhe);
-                    break;
-                }
-            }
-            found.ok_or_else(|| corr("corresponding ring half-edge missing"))?
-        };
-        rs.push(matched);
-    }
-
-    // ---- Antiparallelism, asserted structurally: ring he at b_j must
-    // run b_j → b_{j−1} (the outer runs a_j → a_{j+1}). ----
+    let correspondents = |v: VertexKey| {
+        vmap.get(&v)
+            .ok_or_else(|| corr("outer seam vertex has no recorded B correspondent"))
+    };
+    let mut rs: Vec<HalfEdgeKey> = Vec::with_capacity(n);
     for j in 0..n {
-        let prev_a = start_of(body, ob[(j + n - 1) % n])?;
-        let expect_end = *vmap
-            .get(prev_a)
-            .ok_or_else(|| corr("outer seam vertex has no recorded B correspondent"))?;
-        let end = body
-            .half_edge_end(rs[j])
-            .ok_or_else(|| corr("ring half-edge has no end"))?;
-        if end != expect_end {
-            return Err(BooleanError::SeamOrientation { a_face, b_face });
+        let from = correspondents(start_of(body, ob[j])?)?;
+        let to = correspondents(start_of(body, ob[(j + n - 1) % n])?)?;
+        let mut leaves = false;
+        let mut matched = None;
+        for &rhe in &ring_cycle {
+            if !from.contains(&start_of(body, rhe)?) {
+                continue;
+            }
+            leaves = true;
+            let end = body
+                .half_edge_end(rhe)
+                .ok_or_else(|| corr("ring half-edge has no end"))?;
+            if to.contains(&end) && matched.replace(rhe).is_some() {
+                return Err(corr("a seam half-edge has two ring matches"));
+            }
+        }
+        match matched {
+            Some(rhe) if rs.contains(&rhe) => {
+                return Err(corr("a ring half-edge matches two seam half-edges"));
+            }
+            Some(rhe) => rs.push(rhe),
+            None if leaves => return Err(BooleanError::SeamOrientation { a_face, b_face }),
+            None => return Err(corr("corresponding ring half-edge missing")),
         }
     }
 

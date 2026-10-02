@@ -240,16 +240,18 @@ pub enum SplitJoinError {
     },
     /// Ring re-homing could not decide (escalation or exhaustion).
     RingHoming(PointInLoopError),
-    /// Every vertex of a ring landed ON the run dividing its face off —
-    /// containment is ambiguous (ill-conditioned operand).
+    /// Every vertex of a ring landed ON the run dividing its face off,
+    /// so no vertex says which side the ring is on: a ring an
+    /// ill-conditioned operand put on the run, or a pierce's strut at a
+    /// pinch, every vertex of which is the pinch point.
     RingHomingAmbiguous {
         /// The undecidable ring.
         ring: LoopKey,
     },
     /// The divided face's outer loop carries an edge the containment
     /// walk has no crossing row for (a spiric, a spline), and the ray
-    /// schedule from the ring's representative ran out with at least
-    /// one ray abandoned because it could meet that edge.
+    /// schedule from the first ring vertex off the run ran out with at
+    /// least one ray abandoned because it could meet that edge.
     RingHomingUncrossable {
         /// The unplaced ring.
         ring: LoopKey,
@@ -457,8 +459,8 @@ impl SplitJoinError {
             },
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
-                "a hole loop sits on the divided face's outer boundary, so which piece \
-                 holds it cannot be decided. Recourse: {recourse}"
+                "every vertex of a hole loop lies on the boundary of the piece being \
+                 divided off, so which piece holds it cannot be decided. Recourse: {recourse}"
             ),
             Self::RingHomingUncrossable { .. } => write!(
                 f,

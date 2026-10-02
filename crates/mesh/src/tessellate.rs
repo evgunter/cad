@@ -594,7 +594,7 @@ fn tessellate_impl(
         debug_assert!(
             bad.is_none(),
             "chord segment {:?} is an edge of {} face triangles; a watertight \
-             emission uses every chord segment exactly 2 times. The census counts \
+             emission uses every chord segment 2 times per chord carrying it. The census counts \
              and cannot say why. Known causes: the faces meeting on that edge \
              emitted the segment under different ids, a face there emitted no \
              triangle along it, or a patch used it more than once (issue 897)",
@@ -606,14 +606,18 @@ fn tessellate_impl(
     Ok((mesh, keys))
 }
 
-/// The chord segment that is NOT used by exactly two face triangles,
-/// if any — the cross-face identification re-derivation (issue 897).
+/// The chord segment that is NOT used by exactly two face triangles
+/// per chord carrying it, if any — the cross-face identification
+/// re-derivation (issue 897).
 ///
 /// Every edge of the body carries a chord polyline whose segments the
 /// two faces meeting on that edge both insert as CDT constraints, so
 /// in a watertight emission each segment is a triangle edge exactly
 /// twice: once per side, or twice within one patch where a `Seam` edge
-/// is traversed both ways by the same face. A count of 1 is the class
+/// is traversed both ways by the same face. Two coincident edges
+/// between the same two vertices (two solids touching along a line,
+/// whose contact ends at one vertex each way) carry one id pair twice,
+/// and its four faces use it four times. A count of 1 is the class
 /// this guard exists for — the two sides emitted the segment under
 /// DIFFERENT ids, so neither copy pairs up. It is not the only state
 /// the count catches: a face that emits no triangle along the segment
@@ -672,10 +676,11 @@ fn unpaired_chord_segment(
     patch_triangles: &[&[[u32; 3]]],
     shared_below: u32,
 ) -> Option<((u32, u32), usize)> {
-    let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+    // Per segment: (chords carrying it, triangle uses).
+    let mut uses: HashMap<(u32, u32), (usize, usize)> = HashMap::new();
     for ids in polylines {
         for w in ids.windows(2) {
-            uses.insert(crate::walk::edge_key(w[0], w[1]), 0);
+            uses.entry(crate::walk::edge_key(w[0], w[1])).or_default().0 += 1;
         }
     }
     for t in patch_triangles.iter().copied().flatten() {
@@ -683,13 +688,15 @@ fn unpaired_chord_segment(
             let (a, b) = (t[k], t[(k + 1) % 3]);
             if a < shared_below
                 && b < shared_below
-                && let Some(n) = uses.get_mut(&crate::walk::edge_key(a, b))
+                && let Some((_, n)) = uses.get_mut(&crate::walk::edge_key(a, b))
             {
                 *n += 1;
             }
         }
     }
-    uses.iter().find(|&(_, &n)| n != 2).map(|(&e, &n)| (e, n))
+    uses.iter()
+        .find(|&(_, &(chords, n))| n != 2 * chords)
+        .map(|(&e, &(_, n))| (e, n))
 }
 
 // GATED ON THE GUARD IT TESTS: every row here calls
@@ -733,6 +740,21 @@ mod tests {
             unpaired_chord_segment(&poly, &[&tris], 3),
             None,
             "two faces that identified the boundary leave every segment at two uses"
+        );
+    }
+
+    #[test]
+    fn two_coincident_chords_on_one_id_pair_pair_up_at_four_uses() {
+        // Two straight edges between vertices 0 and 1 (solids touching
+        // along a line): four faces, one use each. Three is a face that
+        // emitted nothing along it.
+        let poly: [&[u32]; 2] = [&[0, 1], &[0, 1]];
+        let tris = [[0, 1, 9], [1, 0, 10], [0, 1, 11], [1, 0, 12]];
+        assert_eq!(unpaired_chord_segment(&poly, &[&tris], 2), None);
+        assert_eq!(
+            unpaired_chord_segment(&poly, &[&tris[..3]], 2),
+            Some(((0, 1), 3)),
+            "a face missing along a doubled chord is caught"
         );
     }
 
