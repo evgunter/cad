@@ -68,9 +68,10 @@ residual — the half-angle ladder otherwise).
 
 Measured on the two rows above, after: the rim crosses or clears
 exactly, and each op stops at the next door — the ball straddling the
-rim at the sector side
-(`work/reach/slab-cut-cylinder-refuses-sector-side.md`), the ball
-through the cut face at `SectionNotPolar`
+rim, past the crossing layer and the sector side, at the join's
+cylinder × sphere germ frame
+(`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), the
+ball through the cut face at `SectionNotPolar`
 (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`)
 or, charted about the cut normal, at the at-infinity probe
 (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
@@ -79,7 +80,9 @@ rim's box (`crates/sweep/tests/conic_edge_curved_face.rs`), which also
 needed the extent scan's cylinder arm to read the wall's carrier
 (residue: `sphere-straddling-a-cylinder-carrier-refuses-at-the-extent-scan`).
 Rods across the rim needed the wall placement to read a wall bounded by
-a planar section. Residue filed: `ellipse-edge-crossing-a-torus-has-no-root-lane`,
+a planar section; they now stop at the join too (a wide rod's parallel
+walls: `work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`; a
+narrow rod's ring: `work/tang/pierce-ring-has-no-join-arm.md`). Residue filed: `ellipse-edge-crossing-a-torus-has-no-root-lane`,
 `conic-quadric-doors-choose-their-first-harmonic-arm-two-ways`; the
 spiric and NURBS half is CLEAVE's
 `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (the

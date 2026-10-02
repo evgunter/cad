@@ -274,29 +274,74 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<topo::BooleanError> {
         .collect()
 }
 
-/// **The rim CROSSES**: a ball straddling it, and rods standing across
+/// **The rim CROSSES**: balls straddling it, and rods standing across
 /// it. The rim's pairs are accepted (its certified roots split it), the
-/// crossing layer completes, and every op stops at the sector side, the
-/// frontier `work/reach/slab-cut-cylinder-refuses-sector-side.md` holds
-/// — the first door past the crossing layer. On the base the ball and
-/// the rods refused `CurvedPierceUnsupported` there: the ball on the
-/// rim, the rods on their own rim circle, whose root on the drum wall
-/// the wall's chart trim (bounded by the rim's arcs) could not place.
+/// crossing layer and the sector side pass, and every op stops at the
+/// join, at the door that pose's germ pairs reach: a ball's wall ×
+/// sphere pair has no section frame
+/// (`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`), a
+/// wide rod's parallel wall pair no join arm
+/// (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`), and a
+/// narrow rod's pierce ring in the drum's wall no join arm either
+/// (`work/tang/pierce-ring-has-no-join-arm.md`). On the base the balls
+/// refused `CurvedPierceUnsupported` on the rim, and the rods on their
+/// own rim circle, whose root on the drum wall the wall's chart trim
+/// (bounded by the rim's arcs) could not place.
 #[test]
-fn a_rim_crossing_reaches_the_sector_side() {
+fn a_rim_crossing_reaches_the_join() {
+    use topo::BooleanError as E;
     let a = drum_lower();
-    for (label, b) in [
-        ("ball r 0.2 at (0.5, 0, 0.35)", ball(0.2, [0.5, 0.0, 0.35])),
-        ("rod r 0.2 at (0.5, 0)", rod(0.2, 0.5, 0.0, 0.2, 0.25)),
-        ("rod r 0.1 at (-0.45, 0)", rod(0.1, -0.45, 0.0, 0.5, 0.3)),
-    ] {
+    let no_frame = |e: &E| matches!(e, E::GermFrameUnsupported { .. });
+    let no_arm = |e: &E| {
+        matches!(
+            e,
+            E::CurvedBooleanUnsupported {
+                kind: geom::SurfaceKind::Cylinder,
+                ..
+            }
+        )
+    };
+    let ring = |e: &E| {
+        matches!(
+            e,
+            E::Join(topo::SplitJoinError::SectionArcWindow {
+                case: topo::ArcWindowCase::NoChartedRun,
+                ..
+            })
+        )
+    };
+    let poses: [(&str, Body<f64>, &dyn Fn(&E) -> bool); 5] = [
+        (
+            "ball r 0.2 at (0.5, 0, 0.35)",
+            ball(0.2, [0.5, 0.0, 0.35]),
+            &no_frame,
+        ),
+        (
+            "ball r 0.1 at (0.45, 0, 0.3)",
+            ball(0.1, [0.45, 0.0, 0.3]),
+            &no_frame,
+        ),
+        (
+            "rod r 0.2 at (0.5, 0)",
+            rod(0.2, 0.5, 0.0, 0.2, 0.25),
+            &no_arm,
+        ),
+        (
+            "rod r 0.1 at (-0.45, 0)",
+            rod(0.1, -0.45, 0.0, 0.5, 0.3),
+            &ring,
+        ),
+        (
+            "rod r 0.1 at (0, 0.48)",
+            rod(0.1, 0.0, 0.48, 0.3, 0.4),
+            &ring,
+        ),
+    ];
+    for (label, b, at_the_door) in poses {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
         for e in refusals(&a, &b) {
-            assert!(
-                matches!(e, topo::BooleanError::CurvedSectorSideUnsupported { .. }),
-                "{label}: the sector side, got {e:?}"
-            );
+            assert!(at_the_door(&e), "{label}: got {e:?}");
         }
     }
 }
