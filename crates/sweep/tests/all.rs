@@ -467,6 +467,8 @@ mod split_cylindrical_feature_box;
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
+#[path = "split_tangent_edge_curved.rs"]
+mod split_tangent_edge_curved;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]

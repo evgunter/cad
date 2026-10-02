@@ -322,5 +322,5 @@ mod certified_enclosure_impl_census;
 mod cleave_mint_doors;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
-#[path = "split_tangent_spur.rs"]
-mod split_tangent_spur;
+#[path = "split_tangent_edge.rs"]
+mod split_tangent_edge;
