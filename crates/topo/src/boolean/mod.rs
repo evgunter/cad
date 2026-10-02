@@ -2475,15 +2475,16 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
 /// the realized and idealized sweeps record the same contacts and make
 /// the same splits, which a trace of examined pairs alone cannot show
 /// (a face-free record is attributed to every face on its carrier). Runs
-/// the undeclared posture, as [`sweep_traces`] does.
+/// the undeclared posture, as [`sweep_traces`] does, at the recording
+/// scalar only: the comparison is of keys and counts, not of brackets.
 ///
 /// # Errors
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
-pub fn sweep_records<T: Decide + Bounds>(
-    a_operand: &Body<T>,
-    b_operand: &Body<T>,
+pub fn sweep_records(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<(ContactRecords, [usize; 4]), BooleanError> {

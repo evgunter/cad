@@ -226,7 +226,7 @@ pub enum BooleanDecision {
     ArcSphereRoots,
     /// Where an arc crosses a cylinder wall: the circle × cylinder lane's
     /// certified roots (`circle_cylinder`) — on a circle square to the
-    /// wall's axis the sphere lane's extremes, otherwise the half-angle
+    /// wall's axis the square arm's extremes, otherwise the half-angle
     /// quartic's rows.
     ArcCylinderRoots,
     /// Whether an edge leaves a curved face steeply enough, against the

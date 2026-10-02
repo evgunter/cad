@@ -8,7 +8,7 @@
 //!   side the wall face does not cover, and the certified roots place
 //!   both crossings outside its trim — no event, where the crossing
 //!   layer used to keep its pierce door. Square to the axes (the lane's
-//!   first-harmonic arm) and with the prism tilted (its half-angle
+//!   square arm) and with the prism tilted (its half-angle
 //!   arm), every boolean builds and meters at the closed form.
 //! - **A genuine pierce reaches the sector side.** Two parallel
 //!   equal-radius cylinders staggered in height: each rim circle pierces
@@ -145,7 +145,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 /// `A`'s rim circles cross the prism's wall CARRIER at `x < d`, beside
 /// the flat, which the wall face does not cover: the root lane places
 /// both crossings outside its trim. Square to the axes that is the
-/// lane's first-harmonic arm, tilted its half-angle quartic.
+/// lane's square arm, tilted its half-angle quartic.
 #[test]
 fn a_d_prism_beside_a_cylinder_builds_under_every_boolean() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
@@ -263,33 +263,38 @@ fn a_tilted_rod_through_a_rim_stops_at_the_sector_side() {
     }
 }
 
-/// **A rim circle TANGENT to a parallel wall escalates on the square
-/// arm.** Two parallel unit cylinders exactly 2 apart, staggered: each
-/// rim circle touches the other wall at one point. The square arm puts
-/// the extreme in the zero band and the crossing layer keeps its door,
-/// naming a rim circle; the half-angle ladder, which does not decide on
-/// the residual's range, can read the same tangency as a miss
-/// (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
-/// So this row is what goes red if circles square to the axis are routed
+/// **A rim circle TANGENT to a parallel wall, or crossing or clearing
+/// it by less than the zero band, keeps the pierce door.** Two parallel
+/// unit cylinders `2 + δ` apart, staggered, `|δ|` at most half the zero
+/// band: each rim circle's extreme residual against the other wall is
+/// `δ`. The square arm decides on that exact extreme, puts it in the
+/// zero band and escalates to `Uncertain`, and the crossing layer keeps
+/// its door, naming a rim circle. The half-angle ladder does not decide
+/// on the residual's range and can certify an in-band configuration as a
+/// miss (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`),
+/// so this row is what goes red if circles square to the axis are routed
 /// to the ladder.
 #[test]
-fn a_rim_circle_tangent_to_a_parallel_wall_keeps_the_pierce_door() {
+fn a_rim_circle_within_the_band_of_a_parallel_wall_keeps_the_pierce_door() {
+    let half_zero = geom_core::Band::linear(Tol::witness()).unwrap().zero() / 2.0;
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let b = cyl(2.0, 0.0, 1.0, 0.5, 2.5);
-    for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-        let err = run(op, &a, &b).expect_err("a tangency is not a crossing");
-        let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = &err else {
-            panic!("{op:?}: expected the curved pierce door, got {err:?}");
-        };
-        let body = if *operand == topo::Operand::A { &a } else { &b };
-        let carrier = body
-            .get_edge(*edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(topo::CurveGeom::certified)
-            .map(|c| c.carrier().clone());
-        assert!(
-            matches!(carrier, Some(topo::Curve3::Circle { .. })),
-            "{op:?}: the refusing edge is a rim circle: {carrier:?}"
-        );
+    for delta in [0.0, -half_zero, half_zero] {
+        let b = cyl(2.0 + delta, 0.0, 1.0, 0.5, 2.5);
+        for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
+            let err = run(op, &a, &b).expect_err("an in-band contact is not a crossing");
+            let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = &err else {
+                panic!("δ {delta}, {op:?}: expected the curved pierce door, got {err:?}");
+            };
+            let body = if *operand == topo::Operand::A { &a } else { &b };
+            let carrier = body
+                .get_edge(*edge)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(topo::CurveGeom::certified)
+                .map(|c| c.carrier().clone());
+            assert!(
+                matches!(carrier, Some(topo::Curve3::Circle { .. })),
+                "δ {delta}, {op:?}: the refusing edge is a rim circle: {carrier:?}"
+            );
+        }
     }
 }

@@ -1177,7 +1177,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// quartic in the tangent half-angle, and the ray lane's certified
 /// ladder answers it ([`super::circle_torus`],
 /// [`super::circle_cylinder`]; a circle square to the wall's axis is a
-/// first harmonic again, and takes the sphere's extremes). It reaches
+/// first harmonic again, and takes the square arm, the first-harmonic door). It reaches
 /// those arms only from the
 /// circle rung, after the enclosures failed to clear the arc, and never
 /// through a declared-cover arm — those rest on a line's separation
