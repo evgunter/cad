@@ -1031,15 +1031,26 @@ impl CellNet {
             return f64::NAN;
         }
         let floor = Interval::point(w.lo());
+        let pts = self.s_vertices(&[&terms]);
         terms
             .iter()
-            .flat_map(|t| {
-                self.pts
-                    .iter()
-                    .map(move |&p| norm_sup(&t.at(p).map(|c| c / floor)))
-            })
+            .flat_map(|t| pts.iter().map(move |&p| norm_sup(&t.at(p).map(|c| c / floor))))
             .reduce(max_bound)
             .unwrap_or(f64::NAN)
+    }
+
+    /// The points `S` must range over for `terms`: every point of the
+    /// block, or only the first when no term reads `S` at all (every
+    /// weight step an exact zero, as on a polynomial net, and every
+    /// point certified, so no refusal is skipped).
+    fn s_vertices(&self, terms: &[&[PairTerm]]) -> &[[Interval; 3]] {
+        let flat = terms.iter().flat_map(|t| t.iter()).all(|t| {
+            t.dw.is_certified() && t.dw.lo() == 0.0 && t.dw.hi() == 0.0
+        }) && self.pts.iter().flatten().all(|c| c.is_certified());
+        match self.pts.split_first() {
+            Some((first, _)) if flat => core::slice::from_ref(first),
+            _ => &self.pts,
+        }
     }
 
     /// The chart probe's two readings along the chart direction
@@ -1069,7 +1080,7 @@ impl CellNet {
         let floor = Interval::point(w.lo());
         let mut along: Option<Interval> = None;
         let mut norm: Option<f64> = None;
-        for &p in &self.pts {
+        for &p in self.s_vertices(&[&tu, &tv]) {
             let av: Vec<[Interval; 3]> = tu.iter().map(|t| t.at(p).map(|c| c * ex)).collect();
             let bv: Vec<[Interval; 3]> = tv.iter().map(|t| t.at(p).map(|c| c * ey)).collect();
             // `n·` is linear, so its range over the pairs `(a, b)` is the
