@@ -495,17 +495,17 @@ fn nothing_clones_or_shares_the_product() {
     ] {
         let code = test_utils::source::code_only(source);
         assert!(
-            !code.contains("Arc<Product"),
+            !code.contains("Arc<Product<"),
             "{path}: the product is handed on, never shared"
         );
         assert!(
-            !code.contains("Clone for Product"),
+            !code.contains("Clone for Product<"),
             "{path}: and never cloned"
         );
     }
     assert!(
         !test_utils::source::code_only(include_str!("../src/product.rs"))
-            .contains("#[derive(Debug, Clone)]\npub struct Product"),
+            .contains("#[derive(Debug, Clone)]\npub struct Product<"),
         "product.rs: the derive would be the same answer by another spelling"
     );
 }

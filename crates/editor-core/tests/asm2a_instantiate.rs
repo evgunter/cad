@@ -1363,8 +1363,11 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     let kind_of = |fault: &PartFault| match fault {
         PartFault::PartProduct { refusal } => {
             let said = fault.to_string();
+            let sentence = said
+                .strip_prefix("the part has no product: ")
+                .unwrap_or_else(|| panic!("the part's own header: {said}"));
             assert!(
-                !said.contains("product: "),
+                !sentence.starts_with("product"),
                 "the part says the gather's sentence without the gather's stage word: {said}"
             );
             refusal.kind()
