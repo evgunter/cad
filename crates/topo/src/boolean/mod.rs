@@ -2852,13 +2852,25 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
     plant: Option<PlantedDegradation>,
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
+    sweep_traces_with_pad(
+        a_operand,
+        b_operand,
+        &BooleanDeclarations::none(),
+        strategy,
+        plant,
+        None,
+        tol,
+    )
 }
 
 /// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
 /// proves a too-small pad (e.g. `Some(0.0)`) LOSES accepted pairs and
 /// the superset comparator catches it. A deliberately breakable knob —
 /// `sweep-testing` only, never production surface.
+///
+/// `decls` are verified as the boolean verifies them, so a covered pair
+/// reaches the settle stage and its accepted pairs reach the traces;
+/// [`sweep_traces`] passes none, the undeclared posture.
 ///
 /// # Errors
 ///
@@ -2867,16 +2879,16 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
 pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
+    decls: &BooleanDeclarations,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear(tol)?;
-    // The suite's door takes no declarations: the traced sweep runs
-    // the undeclared posture, where the frontier doors are verbatim —
-    // and so, therefore, is the operand gate's covered-pair rung.
-    let declared = DeclaredPairs::default();
+    validate_declarations(a_operand, b_operand, decls)?;
+    let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
@@ -2896,28 +2908,15 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
         plant: None,
         pad_override,
     };
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &ab_knobs,
-        Some(&mut ab),
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &ba_knobs,
-        Some(&mut ba),
+        [&ab_knobs, &ba_knobs],
+        [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
     Ok((ab, ba))
@@ -2952,28 +2951,15 @@ pub fn sweep_records(
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let sizes = [
@@ -3061,31 +3047,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut a = carved_a.begin_surgery();
     let mut b = carved_b.begin_surgery();
 
-    // Reduction sweep, both directions (A's edges first — D9 order).
+    // Reduction sweep, both directions (A's edges first — D9 order),
+    // then the touches deferred for both directions' splits.
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let contacts = acc.finish();
