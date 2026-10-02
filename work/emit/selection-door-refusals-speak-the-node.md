@@ -4,6 +4,7 @@ kind: unit
 title: The resolve, pick, naming, standing, assembly and export refusals speak the node with its label where a door holds the document
 status: review
 branch: emit/selection-speak
+pr: 3760
 opened: 2026-10-01
 priority: P2
 cost: H
