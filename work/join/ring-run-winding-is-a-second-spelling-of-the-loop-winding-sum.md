@@ -2,12 +2,14 @@
 id: ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum
 kind: issue
 title: The join's ring_run_ccw spells the loop-winding sum a second time, and winds a spline or spiric run edge by its chord where Body::planar_loop_winding answers Unsupported
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [verbs-1031b-assigner-checker-divergence, blind-d-pocket-subtract-refuses-with-join-internal-words, unclaimed-half-edge-read-as-a-minus-half-in-zip]
 branch: join/ring-run-winding
+closed: 2026-10-02
+pr: 3771
 ---
 
 
@@ -68,3 +70,12 @@ The sweep's third spelling, `splitting/join.rs`
 `split-section-area-spells-the-planar-winding-sum-a-third-time`.
 `blind-d-pocket-subtract-refuses-with-join-internal-words` is
 diagnosed, not fixed, in its own `## Diagnosed` section.
+
+## Closed 2026-10-02 — PR 3771
+
+One home for the sum, built as above. The review found the run spelling's
+conic arm unguarded, and the fix pass pinned it
+(`a_run_on_arcs_is_decided_by_its_bulge`), with the ring lane's real
+shape (`a_run_between_two_null_halves_is_the_region_they_bracket`). The
+remaining spellings of the planar winding functional are a class on
+REACH's re-titled row.
