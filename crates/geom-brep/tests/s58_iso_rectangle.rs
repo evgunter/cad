@@ -478,34 +478,32 @@ fn rotations(edges: &[LoopEdge<f64>]) -> Vec<Vec<LoopEdge<f64>>> {
         .collect()
 }
 
-/// **The material-side gate refuses a plus domain.**
+/// **The material-side gate answers a plus domain with ONE side, at
+/// every rotation.**
 ///
-/// `boundary_material_sign` re-runs the flux lanes' boundary parse and reads
-/// the side off the FIRST rim, through `lo + hi − 2v` — *which extreme
-/// is this rim at*. On a plus domain the question has no answer and the
-/// test returned a definite ±1 anyway. This geometry puts the arms HIGH
-/// in the extent (interior levels 0.016 and 0.018 against extremes 0.0
-/// and 0.020, midpoint 0.010), so an interior rim reads "interior
-/// toward `lo`" while its arm's material is toward `hi`: measured on
-/// this branch's parent, rotation 0 answered `Encoded(Positive)` and
-/// rotation 2 answered `Encoded(Negative)` for **the same face**.
+/// The gate used to read the side off the FIRST rim, through
+/// `lo + hi − 2v` — *which extreme is this rim at*. On a plus domain
+/// that question has no answer: with the arms HIGH in the extent
+/// (interior levels 0.016 and 0.018 against extremes 0.0 and 0.020),
+/// rotation 0 answered `Encoded(Positive)` and rotation 2
+/// `Encoded(Negative)` for the same face, so the gate was made to
+/// refuse it. The cylinder arm now reads the sign of the chart Green
+/// form's area, the flux's own reading, which is a fact about the
+/// region and not about where the walk starts: every rotation answers,
+/// and answers `+` (CCW about the outward normal).
 ///
-/// Goes red if the premise stops running on this path: without it every
-/// rotation answers `Ok(Encoded(_))` again.
+/// Goes red if the side is read off one rim again (two rotations
+/// disagree) or if the gate refuses the face it now measures.
 #[test]
-fn the_material_side_gate_refuses_a_plus_domain_at_every_rotation() {
+fn the_material_side_gate_answers_a_plus_domain_with_one_side() {
     let r = 0.010;
     let (s, rim, mer) = cylinder_kit(r);
     let band = band();
     let edges = plus_loop(&rim, &mer, 0.0, 0.016, 0.018, 0.020, UC, UO);
     for (k, rot) in rotations(&edges).into_iter().enumerate() {
         match boundary_material_sign(&s, &rot, band) {
-            Err(PropsError::NotIsoRectangle {
-                what: "props_rim_level",
-            }) => {}
-            other => {
-                panic!("rotation {k}: the material-side gate answered on a plus domain: {other:?}")
-            }
+            Ok(MaterialSign::Encoded(Sign::Positive)) => {}
+            other => panic!("rotation {k}: the plus domain's side was not `+`: {other:?}"),
         }
     }
 }

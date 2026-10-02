@@ -142,24 +142,29 @@ pub enum MaterialSign {
 /// traversal** says the material lies on — the boundary's own encoding
 /// of the orientation fact `Face::sense` (M5 S10) also encodes. Tier
 /// 3's curved check-6 arm compares the two encodings; this fn re-runs
-/// the exact sub-derivations the flux lanes consume
-/// ([`linear_rim_side`] for cylinder/cone/rim-bearing sphere,
-/// anchor-rim traversal × chart orientation for the torus) — and with
-/// each of them **the iso-rectangle premise it rests on, on all four
-/// kinds**. The torus is not exempt: its side cancels the anchor-end
-/// choice against `dv/dt` only when the two rims FLANKING the anchor
-/// meridian carry opposite `d_u`, which every corner of a rectangle
-/// gives and a reflex corner does not. All four go through the same
-/// already-length-metered
-/// named decides (`props_rim_side`, `props_rim_level`,
-/// `props_circle_axis_class`, `props_meridian_orient`, …) — no new
-/// comparand, no new margin.
+/// the exact sub-derivations the flux lanes consume:
 ///
-/// **This refuses faces it used to answer for**, and that is the
-/// point: on a domain that is not an iso-rectangle the linearly-
-/// leveled derivation returns a definite ±1 that depends on where the
-/// loop flattening started, not on the face. Gating callers treat an
-/// error as exempt, so what they get instead is an exemption.
+/// - **cylinder**: the sign of the chart Green form's area
+///   ([`cylinder_chart`], the flux's own reading), over whatever loops
+///   the caller hands in — [`boundary_material_sign_loops`] takes a
+///   face's rings too. No iso-rectangle premise: a notched or ringed
+///   wall encodes its side like a rectangle does;
+/// - **cone and rim-bearing sphere**: [`linear_rim_side`];
+/// - **torus**: anchor-rim traversal × chart orientation.
+///
+/// The last two carry **the iso-rectangle premise they rest on**. The
+/// torus is not exempt: its side cancels the anchor-end choice against
+/// `dv/dt` only when the two rims FLANKING the anchor meridian carry
+/// opposite `d_u`, which every corner of a rectangle gives and a reflex
+/// corner does not. All go through already-length-metered named decides
+/// (`props_chart_area_side`, `props_rim_side`, `props_rim_level`,
+/// `props_circle_axis_class`, `props_meridian_orient`, …).
+///
+/// **The iso arms refuse faces they used to answer for**, and that is
+/// the point: on a domain that is not an iso-rectangle the
+/// linearly-leveled derivation returns a definite ±1 that depends on
+/// where the loop flattening started, not on the face. Gating callers
+/// treat an error as exempt, so what they get instead is an exemption.
 ///
 /// The derivation is chart-generic: with `n_chart = ∂u × ∂v`, the
 /// interior-left rule makes "traversal direction on the extreme rim"
@@ -189,11 +194,7 @@ pub fn boundary_material_sign<T: Decide>(
             axis,
             radius,
             ..
-        } => {
-            let b = cylinder_boundary(origin, axis, radius, outer, band)?;
-            let (lo, hi) = min_max(&b.levels)?;
-            Ok(MaterialSign::Encoded(linear_rim_side(&b, (lo, hi), band)?))
-        }
+        } => cylinder_material_sign(origin, axis, radius, &[outer], band),
         Surface::Cone {
             apex,
             axis,
@@ -278,6 +279,37 @@ pub fn boundary_material_sign<T: Decide>(
         // As `curved_face`: no closed-form rim inventory for a spline
         // or for an offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+    }
+}
+
+/// [`boundary_material_sign`] over a face's outer loop AND its rings: a
+/// cylinder face reads its side off every loop's chart Green form, as
+/// its flux does ([`curved_face_loops`]); every other kind reads one
+/// loop, and a ringed face of another kind refuses, exempt at a gating
+/// caller.
+///
+/// # Errors
+///
+/// As [`boundary_material_sign`].
+pub fn boundary_material_sign_loops<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    match (surface, loops) {
+        (
+            &Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            },
+            _,
+        ) => cylinder_material_sign(origin, axis, radius, loops, band),
+        (_, [outer]) => boundary_material_sign(surface, outer, band),
+        _ => Err(PropsError::NotIsoRectangle {
+            what: "a ringed curved face other than a cylinder encodes no side here",
+        }),
     }
 }
 
@@ -1475,10 +1507,8 @@ fn rim_offset_margin<T: Real>(
 // Cylinder
 // ---------------------------------------------------------------------
 
-/// Cylinder face: rims are circles of the cylinder's radius centered
-/// on the axis; meridians are axial lines. `v = (p − origin)·axis`
-/// (meters), `Area = r·Δu·(v_hi − v_lo)`,
-/// `∮(p−o)·n_chart dA = r·Area` ⇒ flux `= s_f·r·Area + o·A⃗`.
+/// Cylinder face from its outer loop alone: [`cylinder_face`] over one
+/// loop.
 fn cylinder<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
@@ -1490,23 +1520,12 @@ fn cylinder<T: Decide>(
 }
 
 /// **A cylinder face's flux and area over ALL its loops**, in closed
-/// form, by Green's theorem on the chart.
+/// form, by Green's theorem on the chart ([`cylinder_chart`]).
 ///
-/// `v du` is a global 1-form on the cylinder (the azimuth is periodic,
-/// its differential is not), so the face's signed chart area is
-/// `A = −Σ_loops ∮ v du` whatever the region's shape: a notched wall, a
-/// wall with holes, a full-period band bounded by two whole rims. A
-/// rim at level `v` traversed through `Δu` contributes `−v·Δu`; a ruling
-/// has no `du` and contributes nothing. The stored traversal is
-/// interior-left about the outward normal and the chart is right-handed
-/// about the outward radial (`∂u × ∂v = R·r̂`), so `A` is positive
-/// exactly when the outward normal is `+r̂`: `p·n = R` on the face, and
-/// the flux is `R·(R·A) + origin·A⃗` with no sense bit read, the area
-/// `R·|A|`.
-///
-/// Every edge is admitted by [`cylinder_boundary`]'s decisions (an
-/// axial line on the surface, a rim on it); the level extent must be
-/// definite, and a face with no rim at all bounds no area.
+/// `p·n = R` on the face and the chart's area element is `R du dv`, so
+/// with `A` the signed chart area the flux is `R·(R·A) + origin·A⃗` and
+/// the area `R·|A|` — `R²·(−Σ∮ v du) + origin·A⃗`, each ring summed with
+/// its own winding, no sense bit read (the traversal carries the side).
 fn cylinder_face<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
@@ -1514,36 +1533,129 @@ fn cylinder_face<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let mut a_chart = T::zero();
-    let mut levels = Vec::new();
-    let mut any_rim = false;
+    let chart = cylinder_chart(origin, axis, radius, loops, band)?;
     let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
     for edges in loops {
+        va = va + loop_vector_area(edges, origin)?;
+    }
+    let flux = radius.powi(2) * chart.area + (origin - Point3::origin()).dot(va);
+    Ok(FaceContribution {
+        flux,
+        area: radius * chart.area.abs(),
+    })
+}
+
+/// A cylinder face's signed chart area and boundary length
+/// ([`cylinder_chart`]).
+struct CylinderChart<T> {
+    /// `A = −Σ∮ v du`, in rad·m: positive exactly when the stored
+    /// traversal winds the region about the chart normal `+r̂`.
+    area: T,
+    /// The boundary's length in metres: `R·|Δu|` per rim, the length of
+    /// each ruling.
+    length: T,
+}
+
+/// **The one home of a cylinder face's chart Green form.**
+///
+/// `v du` is a global 1-form on the cylinder (the azimuth is periodic,
+/// its differential is not), so the face's signed chart area is
+/// `A = −Σ_loops ∮ v du` whatever the region's shape: a notched wall, a
+/// wall with holes, a full-period band bounded by two whole rims. A
+/// rim at level `v` traversed through `Δu` contributes `−v·Δu`; a
+/// ruling has no `du` and contributes nothing. The stored traversal is
+/// interior-left about the outward normal and the chart is right-handed
+/// about the outward radial (`∂u × ∂v = R·r̂`), so `A` is positive
+/// exactly when the outward normal is `+r̂`.
+///
+/// **Closure is checked, not assumed.** Each loop must close (every
+/// traversal end meets the next edge's start, `props_loop_closed`), and
+/// the face's loops together must wind the cylinder zero times
+/// (`Σ∮ du = 0`, `props_chart_loops_closed`): a closed face's boundary
+/// bounds it. That second fact is what makes the sum anchor-free, and
+/// the sum is formed against the anchor `v_m` at the middle of the
+/// face's level range — `−Σ (v − v_m)·Δu`, equal to `−Σ v·Δu` in exact
+/// arithmetic — so a short face far along the axis keeps the
+/// conditioning of `Δu·(v₁ − v₀)` instead of cancelling `v₀·Δu`
+/// against `v₁·Δu`.
+///
+/// Every edge is admitted by [`cylinder_boundary`]'s decisions (an
+/// axial line on the surface, a rim on it); the level extent must be
+/// definite, and a face with no rim bounds no area.
+fn cylinder_chart<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<CylinderChart<T>, PropsError> {
+    let mut rims = Vec::new();
+    let mut levels = Vec::new();
+    let mut length = T::zero();
+    for edges in loops {
+        // The carriers first: an edge off the surface, or one this
+        // closed form has no arm for, refuses as itself.
         let b = cylinder_boundary(origin, axis, radius, edges, band)?;
+        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
+            require_zero(
+                "props_loop_closed",
+                Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
+                band,
+            )?;
+            if let Curve3::Line { .. } = e.carrier {
+                length = length + (e.p1() - e.p0()).norm();
+            }
+        }
         for rim in &b.rims {
             let RimLevel::Length(v) = rim.level else {
                 return Err(PropsError::NotIsoRectangle {
                     what: "a cylinder rim carried a non-length level",
                 });
             };
-            any_rim = true;
-            a_chart = a_chart - v * t_sign::<T>(rim.d_u_sign) * rim.dt;
+            rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt));
         }
         levels.extend(b.levels);
-        va = va + loop_vector_area(edges, origin)?;
     }
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
-    if !any_rim {
+    if rims.is_empty() {
         return Err(PropsError::NotIsoRectangle {
             what: "curved face without a rim (non-sphere)",
         });
     }
-    let flux = radius.powi(2) * a_chart + (origin - Point3::origin()).dot(va);
-    Ok(FaceContribution {
-        flux,
-        area: radius * a_chart.abs(),
-    })
+    let winding = rims.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
+    require_zero(
+        "props_chart_loops_closed",
+        Margin::levered(winding, radius),
+        band,
+    )?;
+    let anchor = lo + (hi - lo) * T::from_f64(0.5);
+    let mut area = T::zero();
+    for &(v, du) in &rims {
+        area = area - (v - anchor) * du;
+        length = length + radius * du.abs();
+    }
+    Ok(CylinderChart { area, length })
+}
+
+/// The material side a cylinder face's loops encode: the sign of its
+/// chart area ([`cylinder_chart`]), metered as the mean width `2·R·A/P`.
+fn cylinder_material_sign<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let chart = cylinder_chart(origin, axis, radius, loops, band)?;
+    match classify(
+        "props_chart_area_side",
+        Margin::over_lever(radius * chart.area * T::from_f64(2.0), chart.length),
+        band,
+    )? {
+        Sign::Zero => Err(PropsError::DegenerateFace),
+        side => Ok(MaterialSign::Encoded(side)),
+    }
 }
 
 /// [`curved_face`] over a face's outer loop AND its rings. A cylinder

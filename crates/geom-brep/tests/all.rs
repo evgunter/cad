@@ -79,6 +79,8 @@ mod chart_box_span;
 
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
+#[path = "cylinder_green_conditioning.rs"]
+mod cylinder_green_conditioning;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
