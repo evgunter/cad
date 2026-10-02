@@ -17,10 +17,10 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanOp, EdgeKey, FaceKey, SweepStrategy, sweep_traces};
+use topo::{Body, BooleanOp, DATUM_UNIT_NORM, EdgeKey, FaceKey, SweepStrategy, sweep_traces};
 
 const DRUM_RADIUS: f64 = 0.5;
 const TILT: f64 = 0.3;
@@ -36,7 +36,12 @@ fn drum_lower() -> Body<f64> {
     );
     let plane = topo::splitting::SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::new(TILT.sin(), 0.0, TILT.cos()),
+        normal: UnitVec3::new(
+            Vec3::new(TILT.sin(), 0.0, TILT.cos()),
+            DATUM_UNIT_NORM,
+            Band::linear(tol).expect("the witness tolerance forms a band"),
+        )
+        .expect("a cut normal has a length"),
     };
     let result = topo::splitting::split(&cylinder, &plane, tol).expect("the tilted cut splits");
     let topo::splitting::SplitPart::Body(below) = result.below else {
@@ -399,7 +404,7 @@ fn a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream() {
 #[test]
 fn the_cut_wall_places_points_against_the_rim() {
     let a = drum_lower();
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let walls = faces_where(&a, |s| matches!(s, geom::Surface::Cylinder { .. }));
     assert_eq!(walls.len(), 2, "two wall faces");
     let mut placed = [0usize; 2];
