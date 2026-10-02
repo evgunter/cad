@@ -42,13 +42,15 @@
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
 //! `(Out,·,Out) → Out`, mixed → `In`, the one fold rule
 //! ([`super::sectors::fold_on_bound`]) the vertex-vertex attribution
-//! shares. This deliberately DIVERGES from the split lane's F4 table
+//! shares. The split lane's F4 table agrees for a convex edge and
+//! deliberately DIVERGES for a reflex one
 //! (`BOB → ABOVE`): the split must mint copies to keep the two pieces'
 //! fans representable, but a boolean tangential contact is a *legal 3′
 //! touching* (edge-on-face, both flanking faces the same side) already
 //! carried by the declared contact records — TOG Table II rows 5/9
 //! (`(In,In)`/`(Out,Out)` ⇒ no intersection) confirm no crossing is
-//! recorded.
+//! recorded. Mixed keeps the In side (both witnesses' choice for the
+//! split analogue).
 
 use geom_core::{Band, Decide, Margin, Sign};
 

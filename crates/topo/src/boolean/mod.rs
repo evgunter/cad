@@ -78,6 +78,8 @@ pub(crate) mod combine;
 pub mod contact_verify;
 mod contain;
 mod discard;
+#[cfg(feature = "door-tier3-meter")]
+mod door_meter;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;

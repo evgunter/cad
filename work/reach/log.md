@@ -405,6 +405,31 @@ solid's edge.
 The dual-review row (DR-42) rides this PR's last commit.
 — (REACH orchestrator)
 
+## 2026-10-02 — a tilted sphere pair builds (PR 3817)
+
+A second-wave unit, built by a cloud implementer. Dual review (DR-45,
+no MAJOR), then a fix pass, a k-lint pass and a delta review. The
+orchestrator checked the final fix pass itself.
+
+The probe-scalar carve of lily wall 7 surfaced two k-lint flags.
+- **The clearance flag.** The clearance pre-filter's own charge on an
+  arc ending on the carrier. The decision was removed: such an arc
+  goes straight to the endpoint arms, with behaviour preserved.
+- **The fitted envelope's quarter-band target.** Ruled by a new k-lint
+  rule (5), `CONSTRUCTION_COUPLED`. It judges that name against its
+  construction's ε/4 target and is keyed on the construction where the
+  name is minted.
+
+The delta review found that no ratified page governs k-lint's rule
+text. `tools/README.md` CC1–CC5 governs the reading boundary, not
+judgements over admitted readings. So the rule landed with the unit.
+
+The delta review also confirmed that main's dev-probe leg was red on
+three suites. One of them, `bool_plane_orient`'s linearity, was turned
+red by REACH's own #3657. A REACH lane (`reach/dev-probe-red`) is
+fixing all three.
+
+The dual-review row (DR-45) rides this PR's last commit.
 ## 2026-10-02 — the aligned half-rod stack's rows (PR 3845)
 
 A wave-three cloud implementer patched the REST zip in place: an
@@ -458,3 +483,30 @@ curved-operand refusals) better than CLEAVE's, and the row itself
 invited a re-home. The design question in it (a root lane per face
 kind, or re-entry through the germ-chord lanes) has not been weighed
 yet. — (CLEAVE orchestrator)
+
+## 2026-10-02 — the boolean door's volume backstop (PR 3844)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR-46), with
+the MAJOR raised by both reviewers; then a fix pass and a delta review.
+The orchestrator checked the last fix pass itself.
+
+- **The rounding tie.** A closed-form tie two ulps past a bound now
+  builds. Interval re-derivation only certifies a violation the
+  rounding cannot move.
+- **New bounds.** The backstop also bounds `∪ ≤ A + B`, `∖ ≥ A − B` and
+  the result's +V sign, read on tier 3's own rule.
+- **The allowance, ruled out.** The first head also widened every
+  margin by an allowance for declared pairs. Both reviewers showed that
+  it let MAJ-1's own wrong component through. Ruling: remove it, not
+  tighten it. A volume allowance forgives a defect of its size anywhere
+  in the body. The settled-coincidence residue it was meant for refuses
+  again and is filed (P2, design).
+- **The stopped half.** Gating tier 3 at the door went to designers.
+  Both found the "description gap" in the gate's doc closed since M3
+  PR 6a. After two reconciliation rounds (a crossover first) they
+  converged: the finished body becomes a type (`AtRestBody`), and verb
+  doors take and return it. That goes to Ev as an `[ev]` PR.
+
+The dual-review row (DR-46) rides this PR's last commit.
+— (REACH orchestrator)
+
