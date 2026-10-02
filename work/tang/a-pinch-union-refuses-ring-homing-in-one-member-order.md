@@ -67,3 +67,26 @@ All six orders now build F 19, E 49, V 32, tier-3 valid, at volume
 - `three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`
   (TANG)
 - `a-pinch-vertexs-name-depends-on-the-unions-member-order` (WIRE)
+
+**Fix pass (2026-10-02).** On review, the first weld regressed bodies
+main built correctly. It took its site from the first face around the
+pierce that held both copies, and that could be a section face. Its seam
+map also assumed one correspondent per seam. With a slab `X` that holds
+the contact against the plate, all six ops refused, including
+`plate − X` and both unions, which main builds.
+- The weld site now comes from lineage: the pierced face's chord-mef
+  fragments, section faces aside.
+- The zip matches each run of a seam by both of its ends, so a seam that
+  meets a welded pinch twice, on either side, zips.
+- The tessellator's census expects two uses per chord that carries a
+  segment.
+- Now `plate − X` and both unions build main's body, identical by
+  geometry, and `X − plate` and both intersections build and tessellate.
+  Main built those three but could not tessellate them.
+- Blocks through the plate and a third block making a second pinch
+  build one body in every member order. On main both refused in some
+  orders, and in others built bodies that did not tessellate.
+
+Holes touching at a corner still refuse when the blocks fold first: the
+pinch's strut ring has every vertex on the run. Filed:
+`a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run` (TANG).
