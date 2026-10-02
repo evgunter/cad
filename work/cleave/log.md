@@ -257,3 +257,10 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
     −n should answer once `cleave/tangency` merges main. The tangency
     lane's P0 row and its pinned refusal need re-checking at that
     merge.
+- Wrong-arc merged (PR 3718) after a full review, one fix pass, and a
+  merge of main a day later. A curved face's crossings now pair along
+  its section conic through one shared `wall_section` (cylinder,
+  sphere and, after main's merge, cone). The heading lever is the
+  wall's curvature arm, and the conic order is arc-length keyed with an
+  explicit branch cut. The section-rings fallback no longer fires on
+  the tilted-cut poses; a guard row pins that.

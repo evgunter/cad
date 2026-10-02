@@ -87,11 +87,34 @@ def slab(doc, x, y, z):
     return doc.insert(Node.extrude(profile, Expr.length_in(z[1] - z[0], m)))
 
 
+# The projectbox's values, mirrored from demos/tour/src/projectbox.rs
+# (`BOSS_AXES`, `BOSS_R`, `BOSS_Z`, `BORE_R`) and cutaway.rs (`THROUGH`,
+# `NORMAL`): a mirror, so a change there is made here by hand.
+PROJECTBOX_BOSS_AXES = [(0.625, 0.625), (0.625, 1.375), (2.375, 0.625), (2.375, 1.375)]
+PROJECTBOX_BOSS_R = 0.1875
+PROJECTBOX_BOSS_Z = (0.1875, 0.875)
+PROJECTBOX_BORE_R = 0.09375
+PROJECTBOX_CUT_THROUGH = (2.375, 1.0, 0.53)
+PROJECTBOX_CUT_NORMAL = (0.75, 0.1875, 1.0)
+
+
+def rod(doc, cx, cy, r, z):
+    """The vertical cylinder of radius `r` about `(cx, cy)`, `z[0]` to `z[1]`."""
+    sketch = doc.insert(
+        Node.profile(
+            [circle((cx * m, cy * m), r * m)],
+            plane=doc.sketch_frame(elevation=Expr.length_in(z[0], m)),
+        )
+    )
+    return doc.insert(Node.extrude(sketch, Expr.length_in(z[1] - z[0], m)))
+
+
 def projectbox(doc):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
-    over 16 boxes — cavity, six vent slots, four bosses, four pilot
-    pockets. Shared by the volume-oracle row and the `cutaway` row,
-    which splits exactly this body."""
+    — cavity, six vent slots, four round bosses, and a through-bore
+    down each boss and out through the floor. Shared by the
+    volume-oracle row and the `cutaway` row, which splits exactly
+    this body."""
     body = slab(doc, (0, 3), (0, 2), (0, 1.5))
     body = doc.insert(
         Node.boolean(BooleanOp.Subtract, body, slab(doc, (0.25, 2.75), (0.25, 1.75), (0.25, 2.0)))
@@ -101,20 +124,12 @@ def projectbox(doc):
             body = doc.insert(
                 Node.boolean(BooleanOp.Subtract, body, slab(doc, x, y, (0.5, 1.25)))
             )
-    bx = [(0.4375, 0.8125), (2.1875, 2.5625)]
-    by = [(0.4375, 0.8125), (1.1875, 1.5625)]
-    for x in bx:
-        for y in by:
-            body = doc.insert(
-                Node.boolean(BooleanOp.Union, body, slab(doc, x, y, (0.1875, 0.875)))
-            )
-    for x in bx:
-        for y in by:
-            px = (x[0] + 0.09375, x[1] - 0.09375)
-            py = (y[0] + 0.09375, y[1] - 0.09375)
-            body = doc.insert(
-                Node.boolean(BooleanOp.Subtract, body, slab(doc, px, py, (0.5625, 1.0625)))
-            )
+    for cx, cy in PROJECTBOX_BOSS_AXES:
+        boss = rod(doc, cx, cy, PROJECTBOX_BOSS_R, PROJECTBOX_BOSS_Z)
+        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss))
+    for cx, cy in PROJECTBOX_BOSS_AXES:
+        bore = rod(doc, cx, cy, PROJECTBOX_BORE_R, (-0.125, PROJECTBOX_BOSS_Z[1] + 0.25))
+        body = doc.insert(Node.boolean(BooleanOp.Subtract, body, bore))
     return body
 
 
@@ -192,29 +207,28 @@ class TestDie(unittest.TestCase):
 
 class TestProjectbox(unittest.TestCase):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): the
-    longest boolean chain in the tour, 15 ops over 16 boxes. Its own
+    longest boolean chain in the tour, 15 ops. Its own
     design rule — no two operand planes coincide anywhere in the chain,
     every offset in 1/16 steps — is exactly what makes it authorable
     without a declaration door."""
 
-    def test_projectbox_matches_the_exact_dyadic_oracle(self):
+    def test_projectbox_matches_the_closed_form_oracle(self):
         doc = Doc()
         body = projectbox(doc)
 
         # The scene's own running oracle, term for term:
         #   9 - 2.5*1.5*1.25                     the cavity
         #   - 6 * 0.375*0.25*0.75                the vent slots
-        #   + 4 * 0.375*0.375*0.625              the bosses
-        #   - 4 * 0.1875*0.1875*0.3125           the pilot pockets
+        #   + 4 * pi*R^2*0.625                   the bosses, above the floor top
+        #   - 4 * pi*r^2*0.875                   the bores, floor to boss top
         expected = (
             9.0
             - 2.5 * 1.5 * 1.25
             - 6 * 0.375 * 0.25 * 0.75
-            + 4 * 0.375 * 0.375 * 0.625
-            - 4 * 0.1875 * 0.1875 * 0.3125
+            + 4 * math.pi * PROJECTBOX_BOSS_R**2 * 0.625
+            - 4 * math.pi * PROJECTBOX_BORE_R**2 * 0.875
         )
-        self.assertEqual(expected, 4.1982421875)
-        self.assertAlmostEqual(volume_of(doc, body), expected, delta=1e-12)
+        self.assertAlmostEqual(volume_of(doc, body), expected, delta=1e-9)
 
 
 class TestHeatsink(unittest.TestCase):
@@ -4605,7 +4619,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
         The scene runs `topo::split` KERNEL-level on the 15-op boolean
         project box with a tilted plane (normal (0.75, 0.1875, 1) — no
-        axis alignment, crossing cavity floor, bosses and vents), then
+        axis alignment, through two bored bosses), then
         moves the halves apart. The geometry always worked; what did
         not exist was the DOCUMENT spelling, because `Node.split` on
         that boolean refused at name emission. Here is that spelling,
@@ -4613,15 +4627,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         doc = Doc()
         box = projectbox(doc)
         tool = doc.insert(
-            Node.datum_plane((
-                Expr.length_in(1.5, m),
-                Expr.length_in(1.0, m),
-                Expr.length_in(0.75, m),
-            ), (
-                Expr.literal(0.75),
-                Expr.literal(0.1875),
-                Expr.literal(1.0),
-            ))
+            Node.datum_plane(
+                tuple(Expr.length_in(c, m) for c in PROJECTBOX_CUT_THROUGH),
+                tuple(Expr.literal(c) for c in PROJECTBOX_CUT_NORMAL),
+            )
         )
         cut = doc.insert(Node.split(box, tool))
 
@@ -4639,17 +4648,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             )
 
         self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
-        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 8)
+        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 14)
         def pieces(kind, tag):
             pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
             return len(ev.select(cut, Selector.of(pat)))
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.
-        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 20)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 40)
         self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
-        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 32)
-        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 48)
+        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 50)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 68)
 
     def test_the_rocker_outline_is_authorable(self):
         """G12, CLOSED — the flip of the absence this test used to pin.
