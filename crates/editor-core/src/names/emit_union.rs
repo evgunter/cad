@@ -1197,7 +1197,15 @@ impl Parents {
             }
         }
         // What the fold merged does not link: a finished face whose member
-        // faces are of several parents has no one parent to take.
+        // faces are of several parents has no one parent to take. A
+        // bug, not a recipe: a fold step merges two member faces only
+        // where they meet on a plane under a declaration or a shared
+        // source. A union only adds material, so they meet there in
+        // their own pair's union too, whose boxes therefore meet and
+        // which is judged under the same declarations. That judgement
+        // merges or covers them. A curved run the pair leaves unmerged
+        // (`merge_skipped`), the fold, holding no fewer of its faces,
+        // leaves unmerged too.
         for (_, from) in &rows {
             let mut roots = from.iter().map(|&m| link.root(m));
             let first = roots.next();

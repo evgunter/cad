@@ -732,8 +732,11 @@ pub struct BooleanReduction<T: Real> {
     /// a region they share and drops the other, so the result holds
     /// either face's region through the other (`BooleanNaming::covered`).
     pub covered: Vec<(FaceKey, FaceKey)>,
-    /// For each covered pair, every edge of either face that runs into
-    /// the other face ([`HeldEdge`]), sorted and deduplicated.
+    /// For each covered pair met at a vertex both operands hold, the
+    /// kept copy's edges that run into the dropped face and bound the
+    /// held region from outside ([`HeldEdge`]), sorted and
+    /// deduplicated. A vertex-on-face contact records none: the face
+    /// holds no vertex there for a fragment to be told by.
     pub held: Vec<HeldEdge>,
 }
 
