@@ -53,8 +53,9 @@
 //!
 //! The module also hosts the three **pre-sweep gates**, which refuse an
 //! operand pair before any edge is split: the operand gate
-//! ([`gate_operand_pairs`]: a kind with no wired arm may not enter an
-//! undeclared pair), the maximal-faces gate ([`gate_maximal_faces`]:
+//! ([`gate_operand_pairs`]: each operand passes tier 2, and a kind
+//! with no wired arm may not enter an undeclared pair), the
+//! maximal-faces gate ([`gate_maximal_faces`]:
 //! no operand carries two coplanar neighbours), and the
 //! undeclared-continuation scan ([`refuse_undeclared_continuations`]:
 //! no aligned one-carrier pair meets without a declaration).
@@ -352,7 +353,12 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// **The operand gate, pair-scoped** (M5 PR 9, C12.1 — the F5
 /// planar-only gate retires PER C5 TABLE ARM, never wholesale).
 ///
-/// Two rules, and they have different scopes on purpose:
+/// First, each operand is a closed solid at rest, by the validator's
+/// own verdict ([`crate::validate_closed`]): a tier-1 finding refuses
+/// as [`BooleanError::CorruptOperand`], and tier-2 scaffolding — a
+/// strut, an empty loop, a null edge, a split shell — as
+/// [`BooleanError::ScaffoldingOperand`], each carrying the findings.
+/// Then two rules, with different scopes on purpose:
 ///
 /// - **Faces**: a kind with no wired arm ([`boolean_arm_exists`])
 ///   disqualifies the operation only through a PAIR it could enter
@@ -370,9 +376,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::CurvedPairUnsupported`] for a germ pair with no
-/// arm; [`BooleanError::CurvedEdgeUnsupported`] /
-/// [`BooleanError::ScaffoldingOperand`] per operand;
+/// [`BooleanError::CorruptOperand`] / [`BooleanError::ScaffoldingOperand`]
+/// for an operand tier 1 / tier 2 refuses; [`BooleanError::CurvedPairUnsupported`] for a germ pair
+/// with no arm; [`BooleanError::CurvedEdgeUnsupported`] per operand;
 /// [`BooleanError::CurvedBooleanUnsupported`] for a face whose
 /// surface key does not resolve.
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
@@ -382,6 +388,19 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
+        let (broken, scaffolding) = crate::validate::closed_by_tier(body);
+        if !broken.is_empty() {
+            return Err(BooleanError::CorruptOperand {
+                operand,
+                corruption: super::Corruption::Structure { errors: broken },
+            });
+        }
+        if !scaffolding.is_empty() {
+            return Err(BooleanError::ScaffoldingOperand {
+                operand,
+                errors: scaffolding,
+            });
+        }
         gate_operand_edges(body, operand)?;
     }
     // A pair is covered by the certificate its consumer reads: the
@@ -422,23 +441,15 @@ fn surface_of<'a, T: Decide>(
 /// The BODY-scoped half of [`gate_operand_pairs`]: the edge carriers.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
-        match body.get_curve_geom(edge.curve) {
-            Some(CurveGeom::Certified(curve)) => match curve.carrier() {
-                geom::Curve3::Line { .. }
-                | geom::Curve3::Circle { .. }
-                | geom::Curve3::Ellipse { .. } => {}
-                // The boolean fence: no join, section or pierce arm
-                // reads a spiric, so an operand carrying one refuses
-                // here, at the gate, as a spline does.
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                    return Err(BooleanError::CurvedEdgeUnsupported {
-                        operand,
-                        edge: edge_key,
-                    });
-                }
-            },
-            _ => {
-                return Err(BooleanError::ScaffoldingOperand {
+        match certified(body.get_curve_geom(edge.curve))?.carrier() {
+            geom::Curve3::Line { .. }
+            | geom::Curve3::Circle { .. }
+            | geom::Curve3::Ellipse { .. } => {}
+            // The boolean fence: no join, section or pierce arm
+            // reads a spiric, so an operand carrying one refuses
+            // here, at the gate, as a spline does.
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                return Err(BooleanError::CurvedEdgeUnsupported {
                     operand,
                     edge: edge_key,
                 });
@@ -446,6 +457,19 @@ fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(),
         }
     }
     Ok(())
+}
+
+/// An operand edge's certified carrier. Tier 2 refuses a null edge and
+/// tier 1 an unresolvable curve key at the operand gate, and the
+/// sweep's only surgery (`split_edge`) mints certified pieces, so a
+/// miss past the gate is a kernel invariant, not the operand's fault.
+fn certified<T: geom_core::Real>(
+    geom: Option<&CurveGeom<T>>,
+) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
+    geom.and_then(CurveGeom::certified)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "an operand edge past the tier-1/2 gate has no certified carrier",
+        })
 }
 
 /// The recipe source of a face's surface description, if the recipe
@@ -1125,15 +1149,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // plane the roots still decide, so a touch in the middle of
             // the edge keeps their typed refusal.
             {
-                let curve = match x.get_curve_geom(edge.curve) {
-                    Some(CurveGeom::Certified(c)) => c.clone(),
-                    _ => {
-                        return Err(BooleanError::ScaffoldingOperand {
-                            operand: x_is,
-                            edge: edge_key,
-                        });
-                    }
-                };
+                let curve = certified(x.get_curve_geom(edge.curve))?.clone();
                 let (t0, t1) = curve.params();
                 let one_sided = [
                     x.face_of_half_edge(edge.he_plus),
@@ -1315,15 +1331,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and
                     // classify it against the face.
-                    let curve = match x.get_curve_geom(edge.curve) {
-                        Some(CurveGeom::Certified(c)) => c.clone(),
-                        _ => {
-                            return Err(BooleanError::ScaffoldingOperand {
-                                operand: x_is,
-                                edge: edge_key,
-                            });
-                        }
-                    };
+                    let curve = certified(x.get_curve_geom(edge.curve))?.clone();
                     let (t0, t1) = curve.params();
                     let d1 = (pu - plane.origin).dot(plane.normal);
                     let d2 = (pv - plane.origin).dot(plane.normal);
@@ -1801,15 +1809,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             kind,
         });
     }
-    let curve = match x.get_curve_geom(edge.curve) {
-        Some(CurveGeom::Certified(c)) => c.clone(),
-        _ => {
-            return Err(BooleanError::ScaffoldingOperand {
-                operand: x_is,
-                edge: edge_key,
-            });
-        }
-    };
+    let curve = certified(x.get_curve_geom(edge.curve))?.clone();
     // Conic carriers: a CIRCLE carrier gets a definite-miss verdict in
     // closed form, and the verdict is the edge's ARC, not the carrier
     // it rides. Two enclosures of the residual are folded, and the
@@ -3430,10 +3430,7 @@ pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
         ContainError::ArcLoopUnsupported { r#loop } => {
             BooleanError::ArcLoopContainmentUnsupported { operand, r#loop }
         }
-        ContainError::Corrupt => BooleanError::CorruptOperand {
-            operand,
-            vertex: VertexKey::default(),
-        },
+        ContainError::Corrupt => BooleanError::corrupt_at(operand, VertexKey::default()),
     }
 }
 
@@ -3537,15 +3534,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<VertexKey, BooleanError> {
-    let curve = match y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)) {
-        Some(CurveGeom::Certified(c)) => c.clone(),
-        _ => {
-            return Err(BooleanError::ScaffoldingOperand {
-                operand: y_is,
-                edge,
-            });
-        }
-    };
+    let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
     let (t0, t1) = curve.params();
     // The circle's two preconditions, both of them this site's and
     // neither of them the shared arithmetic's.
@@ -5023,5 +5012,38 @@ mod lying_on_rows {
             reach((Point3::origin(), Vec3::unit_z(), 1.0)),
             "and on the sheet's own circle the chain runs through"
         );
+    }
+}
+
+/// **The operand gate answers a broken body as broken.** A tier-1
+/// finding is not scaffolding an edit left behind, so it refuses as
+/// [`BooleanError::CorruptOperand`] carrying tier 1's findings, never
+/// as [`BooleanError::ScaffoldingOperand`]. No public door tears a
+/// body, so the row tears one in-crate.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod operand_gate_rows {
+    use crate::boolean::{BooleanError, BooleanOp, Corruption, Operand, boolean_reduce};
+    use crate::test_support_fixtures::brick;
+    use geom_core::Tol;
+
+    #[test]
+    fn a_tier_one_broken_operand_refuses_as_corrupt() {
+        let tol = Tol::witness();
+        let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
+        let vertex = b.vertices().next().expect("a vertex").0;
+        b.vertex_provenance.remove(vertex);
+        let want = crate::validate::validate(&b).expect_err("the tear breaks tier 1");
+        let got = boolean_reduce(BooleanOp::Union, &a, &b, tol);
+        let Err(BooleanError::CorruptOperand {
+            operand,
+            corruption: Corruption::Structure { errors },
+        }) = got
+        else {
+            panic!("want CorruptOperand with tier 1's findings, got {got:?}");
+        };
+        assert_eq!(operand, Operand::B, "the refusal names the torn operand");
+        assert_eq!(errors, want, "the payload is tier 1's own verdict");
     }
 }

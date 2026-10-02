@@ -2,10 +2,12 @@
 id: declared-opposite-orientation-refusal-is-unreached-by-any-row
 kind: issue
 title: three planar-door consumers are reached by no row with a reversed planar face — merge_faces's declared-pair rung, join's ring_run_ccw, rest's face_carrier — so dropping the sense at the door survives the suites there
-status: dispatched
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: E
+closed: 2026-10-02
+pr: 3884
 branch: fuse/opposite-sense-rows
 ---
 
@@ -90,3 +92,30 @@ those consumers, not of the at-rest validator. It sat on ATREST's slate
 from TOPO's cut, where the planar door it names
 (`face_normal::plane_outward_normal`) was the anchor; the door is fine,
 its downstream readers are what go unexercised.
+
+## Rows (FUSE, 2026-10-02)
+
+Each instance now has a row reached from a reversed planar face on a
+body, and each row was checked red under a mutant that drops the sense
+at that consumer alone:
+
+1. `merge_faces.rs` `planes_declared_equal`:
+   `m3_pr1_surgery::a_declared_pair_with_opposite_senses_refuses_as_opposite_orientation`
+   (a hand-reversed twin, declared: the variant fires) and
+   `m3_pr1_surgery::a_declared_pair_on_opposite_charts_with_opposite_senses_glues`
+   (the twin on the reversed chart with `sense: false`: glues); through
+   the Boolean's merge stage,
+   `m3_pr5_boolean_ops::stacked_union_merges_a_side_wall_reversed_onto_its_opposite_chart`.
+2. `boolean/join.rs` `ring_run_ccw`:
+   `m3_pr5_boolean_ops::pocket_subtract_into_a_top_reversed_onto_its_opposite_chart`.
+   The second producer the fix pass lacked is the describing door,
+   `Body::set_face_surfaces_describing`, re-charting a brick face onto
+   its plane's reversal.
+3. `boolean/rest.rs` `face_carrier`:
+   `m3_pr5_boolean_ops::stacked_union_rests_on_a_contact_face_reversed_onto_its_opposite_chart`
+   (both the flush detector's class and the declaration door's rest
+   verification read it).
+
+The per-site sweep over the door's other consumers is filed as
+`planar-door-consumers-survive-the-sense-dropping-mutant-at-topo`.
+
