@@ -749,6 +749,32 @@ fn analytic_derive<T: AtRestPolicy>(
     }
 }
 
+/// The points of `half_edge`'s edge's vertices, in its `he_plus`
+/// order: where the carrier's certified interval starts and ends.
+fn edge_vertex_points<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<(geom_core::Point3<T>, geom_core::Point3<T>), PcurveMintError> {
+    let he = body
+        .get_half_edge(half_edge)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let edge = body.get_edge(he.edge).ok_or(PcurveMintError::Corrupt)?;
+    let plus = body
+        .get_half_edge(edge.he_plus)
+        .ok_or(PcurveMintError::Corrupt)?;
+    let point = |v| {
+        body.get_vertex(v)
+            .and_then(|v| body.get_point(v.point))
+            .copied()
+            .ok_or(PcurveMintError::Corrupt)
+    };
+    let end = body
+        .get_half_edge(edge.he_minus)
+        .ok_or(PcurveMintError::Corrupt)?
+        .start;
+    Ok((point(plus.start)?, point(end)?))
+}
+
 /// The certified carrier and parameter interval of `half_edge`'s edge.
 fn half_edge_carrier<T: Decide>(
     body: &Body<T>,
@@ -3805,7 +3831,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 let Some(cache) = body.pcurve(he) else {
                     continue;
                 };
-                let (carrier, t0, t1) = match half_edge_carrier(body, he) {
+                let (carrier, _, _) = match half_edge_carrier(body, he) {
                     Ok(found) => found,
                     Err(e) => {
                         findings.push(e);
@@ -3815,10 +3841,31 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 // A row states its edge's whole interval, copied from
                 // the edge at the mint and at a split; one stated over
                 // more or less of the carrier is about another edge.
+                // Measured where the edge's own endpoint pinning is
+                // (certification's check 3): the carrier at the row's
+                // ends against the edge's vertices, in metres. A row
+                // that copied its edge's interval evaluates exactly what
+                // that check did, so it reads that check's verdict; a
+                // parameter difference instead would be radians against
+                // a band in metres, and at an interval scalar would
+                // carry the copy's own width twice.
                 let (r0, r1) = cache.params();
-                match [r0 - t0, r1 - t1]
+                let ends = match edge_vertex_points(body, he) {
+                    Ok(ends) => ends,
+                    Err(e) => {
+                        findings.push(e);
+                        continue;
+                    }
+                };
+                match [(r0, ends.0), (r1, ends.1)]
                     .into_iter()
-                    .map(|d| decide("pcurve_row_interval", Margin::of(d), band))
+                    .map(|(r, p)| {
+                        decide(
+                            "pcurve_row_interval",
+                            Margin::of(carrier.eval(r).distance(p)),
+                            band,
+                        )
+                    })
                     .find(|v| !matches!(v, Ok(Sign::Zero)))
                 {
                     None => {}
