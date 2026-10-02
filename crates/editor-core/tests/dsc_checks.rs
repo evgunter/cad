@@ -882,6 +882,7 @@ fn chart_coherence_off_is_a_skipped_check_and_nothing_else() {
 #[test]
 fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
     let could_not_look = ChecksReport {
+        document: editor_core::DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::ChartCoherence,
             root: RecipeNodeId(tagged(3)),
@@ -899,6 +900,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
         skipped: Vec::new(),
     };
     let chose_not_to = ChecksReport {
+        document: editor_core::DocumentId(1),
         findings: Vec::new(),
         skipped: vec![CheckId::ChartCoherence],
     };

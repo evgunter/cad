@@ -440,25 +440,13 @@ pub enum Refusal {
 impl Refusal {
     /// **This refusal with every node it names spoken again from
     /// `doc`** — a later version of the document it was raised in, so
-    /// a label changed since the raise is the one it says.
-    ///
-    /// **Within one document's history an id names one node.** An id
-    /// is the head of the document's mint chain at the insert that
-    /// minted it (`editor_core::mint`), and the chain is a digest of
-    /// every minting edit before it: two versions that part from one
-    /// value — an undo, then a different insert — mint different ids
-    /// from there on, so an id one version holds is either the same
-    /// node in a later version or absent from it (`node <tag>`). That
-    /// is what makes re-speaking from a later version sound, and it is
-    /// why a document an `Open` or a `New` replaced is never `doc`
-    /// here: another document's chain says nothing about these ids.
-    ///
-    /// [`Self::Edit`] is the kernel door's sentence, spoken at that
-    /// door ([`EditError`] holds its nodes spoken), and stays as the
-    /// door said it (`work/emit/edit-error-respeaks-from-a-later-version.md`).
+    /// a label changed since the raise is the one it says. The rule
+    /// and why it is sound are [`SpokenNode::respoken`]'s; it is why a
+    /// document an `Open` or a `New` replaced is never `doc` here
+    /// (`frame::batch_refusal`).
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
-        let again = |node: SpokenNode| doc.spoken(node.id());
+        let again = |node: SpokenNode| node.respoken(doc);
         match self {
             Self::NoSuchSlot { node, slot } => Self::NoSuchSlot {
                 node: again(node),
@@ -473,12 +461,12 @@ impl Refusal {
             Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
             Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
+            Self::Edit(error) => Self::Edit(Box::new(error.respoken(doc))),
             unspoken @ (Self::DrivenByExpression { .. }
             | Self::NoSuchParam(_)
             | Self::ParamNotANumber { .. }
             | Self::ParamExists { .. }
             | Self::EmptyName
-            | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
             | Self::NoGesture
@@ -732,9 +720,12 @@ impl Refusal {
     /// The declare-offer question, and its one home — shown over the
     /// pairs the offer declares, in the boolean tool.
     pub fn declare_question(offer: &DeclareOffer) -> String {
-        let what = match offer.findings.len() {
-            1 => "this contact",
-            _ => "these contacts",
+        let contacts = offer.findings.iter().all(|f| f.class.contact().is_some());
+        let what = match (offer.findings.len(), contacts) {
+            (1, true) => "this contact",
+            (_, true) => "these contacts",
+            (1, false) => "this pair",
+            (_, false) => "these pairs",
         };
         format!("declare {what} and commit the boolean?")
     }
@@ -752,16 +743,21 @@ impl Refusal {
 
     /// **One pair an offer declares, as the panel names it**: each
     /// side's operand through the chrome's one spelling of a node, and
-    /// the class the declaration asserts. The face within each operand
-    /// has no prose name (`work/doors/face-pick-cannot-name-which-face.md`),
-    /// so the line says "a face of" rather than inventing one.
+    /// the class the declaration asserts: a contact's class, or a
+    /// continuation (one surface carried on, which is not a contact).
+    /// The face within each operand has no prose name
+    /// (`work/doors/face-pick-cannot-name-which-face.md`), so the line
+    /// says "a face of" rather than inventing one.
     pub fn declare_pair_wording(doc: &Doc<ProfileProgram>, finding: &FlushFinding) -> String {
         let (one, other) = &finding.pair;
+        let what = match finding.class.contact() {
+            Some(class) => format!("{} contact", class.name()),
+            None => "a continuation".to_owned(),
+        };
         format!(
-            "a face of {} against a face of {} — {} contact",
+            "a face of {} against a face of {} — {what}",
             doc.spoken(one.at),
             doc.spoken(other.at),
-            finding.class.name()
         )
     }
 }
@@ -873,7 +869,7 @@ pub struct RefusedBoolean {
     b: RecipeNodeId,
     declared: Vec<FlushFinding>,
     at: Generation,
-    /// Always the kernel's `NodeErrorKind::UndeclaredContact`: the one
+    /// Always the kernel's `NodeErrorKind::UndeclaredCoincidence`: the one
     /// constructor admits nothing else.
     refused: NodeErrorKind,
     /// The nodes `refused` names, as the document the boolean was
@@ -919,7 +915,7 @@ impl RefusedBoolean {
         declared: Vec<FlushFinding>,
         at: Generation,
     ) -> Option<Self> {
-        let NodeErrorKind::UndeclaredContact {
+        let NodeErrorKind::UndeclaredCoincidence {
             finding,
             merged,
             diag,
@@ -936,7 +932,7 @@ impl RefusedBoolean {
             b,
             declared,
             at,
-            refused: NodeErrorKind::UndeclaredContact {
+            refused: NodeErrorKind::UndeclaredCoincidence {
                 finding: finding.clone(),
                 merged: merged.clone(),
                 diag: *diag,
@@ -950,7 +946,7 @@ impl RefusedBoolean {
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         Self {
-            held: held_by(&self.refused, doc),
+            held: self.held.respoken(doc),
             ..self
         }
     }
@@ -958,7 +954,7 @@ impl RefusedBoolean {
     /// The finding the kernel refused: the pair and the class a
     /// declaration of it asserts.
     pub fn finding(&self) -> &FlushFinding {
-        let NodeErrorKind::UndeclaredContact { finding, .. } = &self.refused else {
+        let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &self.refused else {
             unreachable!("`RefusedBoolean::read` admits only an undeclared contact")
         };
         finding
@@ -1198,12 +1194,12 @@ impl FaceFrameFault {
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         match self {
             Self::NotOneBody { at } => Self::NotOneBody {
-                at: doc.spoken(at.id()),
+                at: at.respoken(doc),
             },
-            Self::Unresolved { error, .. } => {
-                let held = held_by(&error, doc);
-                Self::Unresolved { error, held }
-            }
+            Self::Unresolved { error, held } => Self::Unresolved {
+                error,
+                held: held.respoken(doc),
+            },
             unspoken @ (Self::NoFace
             | Self::NotLanded
             | Self::NotPlanar { .. }
@@ -1484,7 +1480,7 @@ mod refused_boolean {
     #[test]
     fn a_same_operand_pair_is_not_offered() {
         with_refusal(|doc, kind, operands| {
-            let NodeErrorKind::UndeclaredContact {
+            let NodeErrorKind::UndeclaredCoincidence {
                 finding,
                 merged,
                 diag,
@@ -1494,7 +1490,7 @@ mod refused_boolean {
             };
             let mut same = (**finding).clone();
             same.pair.1.at = same.pair.0.at;
-            let one_operand = NodeErrorKind::UndeclaredContact {
+            let one_operand = NodeErrorKind::UndeclaredCoincidence {
                 finding: Box::new(same),
                 merged: merged.clone(),
                 diag: *diag,
