@@ -440,8 +440,7 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
 /// The stranded name's minting node is the one the delete removed, so
 /// only the document before the edit still holds its label: a row
 /// spoken from the document the edit leaves would say `node <tag>`.
-/// The surviving carrier and an orphaned declaration are spoken the
-/// same way, label and all.
+/// The surviving carrier is spoken the same way, label and all.
 #[test]
 fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let doc = ProfileDoc::empty_derived("node-labels-strand", Tol::witness());

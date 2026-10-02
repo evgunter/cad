@@ -1,10 +1,9 @@
 //! **What an accepted edit did that the user did not ask for, carried
 //! to the chrome** (`crates/editor-core/REFERENCES.md` DM7).
 //!
-//! The edit door reports a stranded payload name, a stranded
-//! appearance key and a declaration left with no consumer on
-//! `Applied::maintenance`, and a mate that joined two groups reports the
-//! offset it cleared; a value edit reports nothing, because a
+//! The edit door reports a stranded payload name and a stranded
+//! appearance key on `Applied::maintenance`, and a mate that joined
+//! two groups reports the offset it cleared; a value edit reports nothing, because a
 //! profile's names are its minted steps and no value moves one. The log
 //! keeps only the edits, because replay re-derives every row, so the
 //! session's outcome is the one road the rows have to a user.

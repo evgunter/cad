@@ -95,7 +95,7 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 //   and full body fingerprint, split sides and pattern instances
 //   included, over the 14-node `rich_doc` (diamond, circular pattern,
 //   revolve, split, and a poisoned subgraph — a wider node vocabulary
-//   than the die's Profile/Extrude/Transform/Declare/Subtract).
+//   than the die's Profile/Extrude/Transform/Subtract).
 //   Memo-after-an-EDIT bit-identity is separately owned by
 //   `review_m4_pr2::edit_back_restores_bit_identical_bodies` (edit,
 //   re-evaluate, edit back against the stale memo, final body must be

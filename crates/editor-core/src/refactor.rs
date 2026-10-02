@@ -76,7 +76,7 @@
 //! # Names re-anchor across the seam (the bridge, both directions)
 //!
 //! Split rewrites every remainder-side reference to a cut entity —
-//! Declare pairs, fillet selections, appearance keys — from its local
+//! declared pairs, fillet selections, appearance keys — from its local
 //! name to the `InPart`-wrapped name at the new instance (a recorded
 //! [`DocEdit::Rebind`] per name), which is exactly how "every stable
 //! name that resolved before resolves after, through the instance
@@ -222,7 +222,7 @@ impl InlineError {
 /// same re-statement, with no solve.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
-/// come is a FORWARD reference (a Declare or a blend selection rebound
+/// come is a FORWARD reference (a declared pair or a blend selection rebound
 /// onto a later node): no order of inserts satisfies it, and it refuses
 /// as the insert door would, [`EditError::DeclareNamesMissingNode`],
 /// spelled in `source`'s ids and so spoken from `source` (see
@@ -598,7 +598,7 @@ pub enum SplitError {
     },
     /// Replaying the constructed part-side edits refused — a
     /// construction bug in this module or a document state its edit
-    /// vocabulary cannot re-author (e.g. a Declare rebound to a node
+    /// vocabulary cannot re-author (e.g. a declared pair rebound to a node
     /// inserted after it, which no insertion order can satisfy).
     /// Surfaced typed, never absorbed.
     PartEdit {
@@ -1324,7 +1324,7 @@ impl core::fmt::Display for ReplayTail<'_> {
         let Self(error, replay) = *self;
         match error {
             // A payload name on a node inserted AFTER the one carrying
-            // it — a Declare or a blend selection rebound forward. The
+            // it — a declared pair or a blend selection rebound forward. The
             // replay inserts in document order, so no order satisfies
             // it. The remainder inserts one instance, whose names the
             // replay wrote itself.

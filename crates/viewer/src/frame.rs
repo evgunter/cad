@@ -1480,8 +1480,7 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// between notices is the one no sentence can carry ([`Message::new`]).
 ///
 /// **Every arm DM7 makes the door report is worded**: a stranded
-/// payload name, a stranded appearance key, and a declaration left
-/// with no consumer.
+/// payload name and a stranded appearance key.
 ///
 /// **The mate door's offset clear is not**: it is what inserting the
 /// mate means, and where the joined group now sits is what the picture

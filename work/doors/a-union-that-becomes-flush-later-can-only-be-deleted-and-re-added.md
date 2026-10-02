@@ -104,3 +104,5 @@ re-added union builds at the closed-form volume of 7 fins, recomputing
 under a new id. That scene's subject is one edit recomputing only what
 is downstream of it, so it keeps its fins sunk 1/16 into the plate
 instead and waits on `declared-pairs-are-a-booleans-own-payload`.
+
+PR 3902 deleted `Node::Declare` and renamed `declare_node` to `declared_pairs`: the pairs are a boolean's or union's `declare` payload, set on a live node by `DocEdit::SetDeclare`.

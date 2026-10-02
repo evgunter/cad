@@ -4987,8 +4987,9 @@ where
         // different payloads, so a shared key would serve one's geometry
         // for the other out of the memo.
         Node::Datum(Datum::AxisInPlane { .. }) => 30,
-        // The n-ary union's tag. It does NOT share the pair union's 8: the two nodes carry different payloads (a list
-        // against two named operands and a `declare` slot) and mint
+        // The n-ary union's tag. It does NOT share the pair union's 8:
+        // both carry declared pairs, but their operands differ (a
+        // member list against two named operands) and they mint
         // different names, so a shared key would serve one's geometry
         // and table for the other out of the memo. The member list
         // itself is not written here — members are input EDGES, and

@@ -2760,9 +2760,9 @@ impl core::fmt::Display for Maintenance {
 /// it stands there are no transients to cancel: a payload name points
 /// at a producer UPSTREAM of its carrier and a cascade deletes
 /// dependents first, so a doomed carrier is always gone before the
-/// node it names (`rv_dm7_probes`'s
-/// `rv_a_sited_declaration_strands_nothing_inside_a_cascade` states
-/// the argument and measures the declaration case).
+/// node it names (`dm7_delete_strands`'s
+/// `a_carrier_deleted_with_the_node_it_names_reports_nothing`
+/// measures it).
 fn stranded_references<P>(
     before: &Doc<P>,
     doc: &Doc<P>,

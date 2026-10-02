@@ -1565,14 +1565,13 @@ pub struct OpOutcome {
     /// The log keeps the edits alone (replay re-applies them, and each
     /// re-derives its rows), so this is the one place the rows —
     /// a name stranded or rewritten in place, an appearance key
-    /// stranded, a declaration left with no consumer — leave the
-    /// session. The chrome words them through
+    /// stranded — leave the session. The chrome words them through
     /// [`crate::frame::outcome_notices`].
     ///
     /// **Net over the action, not per edit.** One action can apply
     /// several edits (a cascade delete, a profile on a new frame), and
     /// a row an earlier edit reported can be made moot by a later one — a strand the action went on to repair or whose
-    /// carrier it deleted, an orphan it consumed again, a name it moved
+    /// carrier it deleted, a name it moved
     /// twice. The rows are folded through
     /// `pncad::document::MaintenanceNet`, which states which survive,
     /// so this holds what is true of the document the action ended at.
