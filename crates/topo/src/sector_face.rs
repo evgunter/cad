@@ -18,7 +18,8 @@
 //!    face is a local quantity: a plane hands back its stored normal, a
 //!    cylinder its chart-outward radial at the vertex point, a sphere
 //!    the radial from its centre, a torus the offset from the vertex's
-//!    foot on its core circle.
+//!    foot on its core circle, a cone its chart normal off the
+//!    generator through the vertex.
 //!
 //! **Every arm folds in the face's `sense` bit** (S10) by minting an
 //! [`OutwardNormal`]: each reads a CHART normal and returns it as the
@@ -84,6 +85,9 @@ pub(crate) enum SectorCarrier {
     /// A ring torus: the normal is the point minus its foot on the
     /// core circle.
     Torus,
+    /// A cone: the normal is the chart-outward one off the generator
+    /// through the vertex, on that vertex's nappe.
+    Cone,
 }
 
 /// The resolved sector face.
@@ -205,6 +209,14 @@ pub(crate) fn resolve<T: Decide>(
         s @ geom::Surface::Torus { .. } => charted(
             geom_brep::implicit_gradient(s, point()?).normalize(),
             SectorCarrier::Torus,
+        ),
+        // A cone's implicit gradient IS its chart normal, nappe sign
+        // included. It poisons on the axis — at the apex, where no
+        // tangent plane exists — and the poison escalates typed at the
+        // first decide that reads it.
+        s @ geom::Surface::Cone { .. } => charted(
+            geom_brep::implicit_gradient(s, point()?).normalize(),
+            SectorCarrier::Cone,
         ),
         // The planar arm returned above; anything else has no arm.
         s => Err(SectorFaceError::Unsupported {
