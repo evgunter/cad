@@ -590,9 +590,12 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         other => panic!("expected SeveredEdge, got {other:?}"),
     }
     // And the cut that closes over the edge is accepted: the whole
-    // document moves, so nothing is severed and nothing is orphaned.
+    // document moves, so nothing is severed. Deleting the union
+    // before its declaration orphans the declaration for one edit;
+    // the declaration's own delete takes that back, so the split
+    // reports nothing.
     let everything: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
-    split(
+    let out = split(
         &doc,
         &everything,
         DocumentId::derive("n3-all"),
@@ -600,6 +603,11 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         None,
     )
     .expect("a cut closed under the DAG is accepted");
+    assert_eq!(
+        out.remainder_maintenance,
+        Vec::new(),
+        "no transient orphan survives the split's own deletes"
+    );
 }
 
 /// Row 3b — a cut node referencing a parameter a kept node also

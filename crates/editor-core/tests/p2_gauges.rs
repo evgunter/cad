@@ -1538,22 +1538,39 @@ fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
     );
 }
 
-/// **The carry's edit lists replay to its documents without a solve**:
-/// the part from the empty document and the host from the document
-/// inlined into, each with no reach, and each holding the checked
-/// offset.
-#[test]
-fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
-    let (p, doc, ids, checked) = checked_pair_beside_a_base("p2-carry-replay");
-    let part_id = DocumentId::derive("p2-carry-replay-part");
-    let out = split_all_four(&p, &doc, ids, part_id);
+/// `inline(split(d))` over a verbatim cut of all of `doc`: the split
+/// and the inline each keep every source offset through their node
+/// maps (the inline's through the composed map), report no
+/// `OffsetCleared`, and replay with no reach to their documents.
+fn round_trip_keeps_every_offset(
+    p: &Parts,
+    doc: &ProfileDoc,
+    label: &str,
+) -> (editor_core::SplitOutcome, editor_core::InlineOutcome) {
+    let part_id = DocumentId::derive(&format!("{label}-part"));
+    let out = editor_core::split(
+        doc,
+        &doc.order().iter().copied().collect(),
+        part_id,
+        Tol::witness(),
+        p.opts().resolver.as_ref(),
+    )
+    .expect("a cut of whole groups moves verbatim");
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY),
+        "the move is verbatim, not a hoist"
+    );
+    for (source, part) in offsets_through(doc, |id| out.node_map[&id], &out.part) {
+        assert_eq!(part, source, "the part holds exactly the source's offsets");
+    }
+    assert_eq!(
+        cleared(&out.part_maintenance),
+        Vec::<&Maintenance>::new(),
+        "split: no OffsetCleared for a carried node survives"
+    );
     let part = replay(&ProfileDoc::empty(part_id, Tol::witness()), &out.part_edits);
     assert!(part.bit_eq(&out.part), "the part's edit list is the part");
-    assert_eq!(
-        offset_of(&part, out.node_map[&ids[1]]),
-        checked,
-        "the replayed part holds the checked offset"
-    );
 
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
@@ -1564,11 +1581,88 @@ fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
         Tol::witness(),
     )
     .expect("the empty offset lands the content verbatim");
+    let through = |id: RecipeNodeId| back.node_map[&out.node_map[&id]];
+    for (source, host) in offsets_through(doc, through, &back.doc) {
+        assert_eq!(host, source, "inline(split(d)) holds exactly d's offsets");
+    }
+    assert_eq!(
+        cleared(&back.maintenance),
+        Vec::<&Maintenance>::new(),
+        "inline: no OffsetCleared for a carried node survives"
+    );
     let host = replay(&out.remainder, &back.edits);
     assert!(host.bit_eq(&back.doc), "the inline's edit list is the host");
+    (out, back)
+}
+
+/// **The carry's edit lists replay to its documents without a solve**:
+/// the part from the empty document and the host from the document
+/// inlined into, each with no reach, and every source offset comes
+/// back through the composed map.
+#[test]
+fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
+    let (p, doc, ids, checked) = checked_pair_beside_a_base("p2-carry-replay");
+    let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-replay");
     assert_eq!(
-        offset_of(&host, back.node_map[&out.node_map[&ids[1]]]),
+        offset_of(&back.doc, back.node_map[&out.node_map[&ids[1]]]),
         checked,
-        "the replayed host holds the checked offset"
+        "the round trip holds the checked offset"
     );
+}
+
+/// **The re-statement waits for the last carried node, covers roots,
+/// and states nothing the source does not.** T is inserted first and X
+/// seated on T (clearing X); T is then seated on a placed base B,
+/// which clears T's whole group; T and X are given their solved poses,
+/// so T roots the group. A second group, Y seated on a placed base G,
+/// keeps Y at no offset. A carry that re-stated right after each
+/// insert would lose X and T to the second mate's clear; one that
+/// skipped each group's first member would lose T; one that wrote the
+/// empty chain for a missing offset would give Y one.
+#[test]
+fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
+    let p = parts("p2-carry-chain");
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-carry-chain"), Tol::witness());
+    let (doc, t) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, x) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, _) = insert(
+        doc,
+        seat_on(
+            head(p.top_cap(x)),
+            head(p.top_upper_cap(t)),
+            [1.0, 1.0, TOP_HEIGHT],
+        ),
+    );
+    assert_eq!(offset_of(&doc, x), None, "the first mate cleared X");
+    let (doc, b) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, b, Some(literal([4.0, 0.0, 0.0])));
+    let (doc, _) = insert(doc, seat(head(p.top_cap(t)), head(p.base_cap(b))));
+    assert_eq!(offset_of(&doc, t), None, "the second mate cleared T");
+    let poses = solve(&doc, &p.opts(), Tol::witness());
+    let pose = |i| {
+        Some(Placement::literal(
+            &poses.placement(&doc, i).expect("placed"),
+        ))
+    };
+    let (t_pose, x_pose) = (pose(t), pose(x));
+    let doc = set_offset(doc, t, t_pose.clone());
+    let doc = set_offset(doc, x, x_pose.clone());
+    assert_eq!(root_of(&doc, x), t, "T roots its group");
+    let (doc, g) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, g, Some(literal([0.0, 9.0, 0.0])));
+    let (doc, y) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, _) = insert(doc, seat(head(p.top_cap(y)), head(p.base_cap(g))));
+    assert_eq!(offset_of(&doc, y), None, "Y sits at no offset");
+    assert_eq!(doc.order().len(), 8, "eight nodes, all cut");
+
+    let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-chain");
+    let host = |i: RecipeNodeId| back.node_map[&out.node_map[&i]];
+    for (what, i, want) in [("T", t, t_pose), ("X", x, x_pose), ("Y", y, None)] {
+        assert_eq!(
+            offset_of(&out.part, out.node_map[&i]),
+            want,
+            "{what} in the part"
+        );
+        assert_eq!(offset_of(&back.doc, host(i)), want, "{what} in the host");
+    }
 }

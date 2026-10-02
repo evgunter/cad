@@ -7,10 +7,12 @@
 //! recipe into the host and deletes the instance. Both are PURE
 //! functions returning new document values, the ordinary recorded
 //! [`DocEdit`]s that produce them, and the [`crate::Maintenance`]
-//! those edits reported — the payload names a departing cut node
-//! stranded, and the offset a spliced mate's door cleared. The input
-//! documents are untouched,
-//! so undo is this layer's undo everywhere else: keeping the prior
+//! those edits reported, net of what a later edit in the same
+//! refactoring took back ([`crate::MaintenanceNet`]): the payload
+//! names a departing cut node stranded. An offset a carried mate's
+//! insert clears is re-stated by a later edit, so none is reported.
+//! The input documents are untouched, so undo is this layer's undo
+//! everywhere else: keeping the prior
 //! value. There is no compound edit arm; atomicity is purity (no
 //! partially-refactored document is ever observable).
 //!
@@ -267,10 +269,6 @@ fn carry<E>(
             Err(other) => return Err(miss(old, other)),
         };
         settle(old, &mut carried);
-        let offset = match &carried {
-            Node::InstantiatePart { offset, .. } => Some(offset.clone()),
-            _ => None,
-        };
         let new = target
             .apply(
                 DocEdit::InsertNode {
@@ -282,8 +280,8 @@ fn carry<E>(
             .map_err(&edit)?
             .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
         node_map.insert(old, new);
-        if let Some(offset) = offset {
-            stated.push((new, offset));
+        if let Some(Node::InstantiatePart { offset, .. }) = target.doc.node(new) {
+            stated.push((new, offset.clone()));
         }
         if let Some(label) = source.label(old) {
             target
@@ -317,9 +315,13 @@ fn carry<E>(
         }
     }
     for (instance, offset) in stated {
-        if matches!(target.doc.node(instance),
-            Some(Node::InstantiatePart { offset: held, .. }) if *held != offset)
-        {
+        let Some(Node::InstantiatePart { offset: held, .. }) = target.doc.node(instance) else {
+            unreachable!(
+                "the carry only inserts and labels, so every instance it inserted is live and \
+                 still an instance"
+            );
+        };
+        if *held != offset {
             target
                 .apply(DocEdit::SetOffset { instance, offset }, tol, reach)
                 .map_err(&edit)?;
@@ -1450,7 +1452,8 @@ impl core::fmt::Display for ReplayTail<'_> {
 /// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
 /// caller's id, the remainder's from the input document), and the
-/// [`crate::Maintenance`] each edit list performed. Undo of the
+/// [`crate::Maintenance`] each edit list performed, net of what a later
+/// edit in the same list took back. Undo of the
 /// refactoring is the caller keeping the input value — the input is
 /// untouched.
 #[derive(Debug, Clone)]
@@ -1462,21 +1465,22 @@ pub struct SplitOutcome {
     pub part: ProfileDoc,
     /// The recorded edits producing `remainder` from the input.
     pub remainder_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `remainder_edits` reported that survives
-    /// against `remainder` ([`MaintenanceNet`]), in edit order: every
-    /// payload name a departing cut node stranded behind it (DM7).
-    /// An accepted edit travels whole, so the
-    /// outcome carries what its edits DID beside what they produced: a
-    /// caller holding a document with the maintenance of its last
-    /// accepted edit swaps `remainder` and this in together.
+    /// The maintenance `remainder_edits` reported, net of what a later
+    /// edit in the list took back ([`MaintenanceNet`]), in edit order:
+    /// a payload name a departing cut node stranded behind it (DM7)
+    /// that `remainder` still carries. A refactoring is one action, so
+    /// the outcome carries what the action did beside what it
+    /// produced: a caller holding a document with the maintenance of
+    /// its last accepted action swaps `remainder` and this in together.
     pub remainder_maintenance: Vec<Maintenance>,
     /// The recorded edits producing `part` from
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `part_edits` reported that survives against
-    /// `part` ([`MaintenanceNet`]), in edit order. The carry re-states
-    /// every offset a carried mate's insert cleared, so no
-    /// [`Maintenance::OffsetCleared`] for a carried node survives.
+    /// The maintenance `part_edits` reported, net of what a later edit
+    /// in the list took back ([`MaintenanceNet`]), in edit order. The
+    /// carry re-states every offset a carried mate's insert cleared,
+    /// so no [`Maintenance::OffsetCleared`] for a carried node
+    /// survives.
     pub part_maintenance: Vec<Maintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
@@ -1490,7 +1494,8 @@ pub struct SplitOutcome {
 
 /// What [`inline`] produced: the host with the referenced document's
 /// recipe spliced in and the instance gone, plus the recorded edits
-/// that produce it and the maintenance they performed.
+/// that produce it and the maintenance they performed, net of what a
+/// later edit in the list took back.
 /// Undo is the caller keeping the input value.
 #[derive(Debug, Clone)]
 pub struct InlineOutcome {
@@ -1498,12 +1503,12 @@ pub struct InlineOutcome {
     pub doc: ProfileDoc,
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `edits` reported that survives against `doc`
-    /// ([`MaintenanceNet`]), in edit order. The carry re-states every
-    /// offset a spliced mate's insert cleared, so no
-    /// [`Maintenance::OffsetCleared`] for a carried node survives.
-    /// An accepted edit travels whole; a caller holding
-    /// a document with the maintenance of its last accepted edit swaps
+    /// The maintenance `edits` reported, net of what a later edit in
+    /// the list took back ([`MaintenanceNet`]), in edit order. The
+    /// carry re-states every offset a spliced mate's insert cleared,
+    /// so no [`Maintenance::OffsetCleared`] for a carried node
+    /// survives. A refactoring is one action; a caller holding a
+    /// document with the maintenance of its last accepted action swaps
     /// `doc` and this in together.
     pub maintenance: Vec<Maintenance>,
     /// Part-document node ids → their host ids (minted in the part's
@@ -1516,14 +1521,14 @@ pub struct InlineOutcome {
 
 /// A document under reconstruction by recorded edits: the value so
 /// far, the edits that produce it, and the maintenance those edits
-/// performed. The ONE place a refactoring takes an
-/// accepted edit up, which is what keeps each [`apply`] result's
-/// document and maintenance together — the record's minted id goes
-/// back to the caller, and its `structural` bit is a fact of the edit
-/// already in the list — so an outcome built from one reports what
-/// its edits did, never only what they produced. A refactoring is one
-/// action of several edits, so what it reports is their maintenance
-/// net of what a later edit in the list took back ([`MaintenanceNet`]).
+/// performed, folded into a [`MaintenanceNet`]. The ONE place a
+/// refactoring takes an accepted edit up, which is what keeps each
+/// [`apply`] result's document and maintenance together — the
+/// record's minted id goes back to the caller, and its `structural`
+/// bit is a fact of the edit already in the list. A refactoring is one
+/// action of several edits, so an outcome built from one reports what
+/// the action did, net of what a later edit in the list took back,
+/// beside what it produced.
 struct Recording {
     doc: ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
