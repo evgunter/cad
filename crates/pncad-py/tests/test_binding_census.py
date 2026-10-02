@@ -1332,6 +1332,9 @@ BOUND_AS = {
     "ReachRefusal": "MateFault",
     "declare": "Doc.declare",
     "declare_all": "Doc.declare_all",
+    # A finding's pair and class become a declared pair at the
+    # `declare=` seat; the list is the argument, not a value of its own.
+    "declared_pairs": "Node.boolean",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
     "tube_along_arc": "Node.tube",
@@ -2238,6 +2241,13 @@ NOT_BOUND = {
     "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
+    # A declared pair is a pair of SITED names and a class. Python
+    # holds names as opaque text, so it declares from the finding that
+    # carries both (`FlushFinding`, at `declare=`); the two builders
+    # over raw sited pairs have no Python spelling for the same reason.
+    "DeclaredPair": SHAPE,
+    "declare_rest": SHAPE,
+    "declare_continuation": SHAPE,
     "Dimension": SHAPE,
     # How a sentence names a node. Python reads a node's sentence inside
     # the error a door raises, already spoken; its machine spelling is

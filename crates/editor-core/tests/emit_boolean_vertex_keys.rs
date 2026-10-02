@@ -427,7 +427,7 @@ fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, m1) = place(doc, 0.0);
     let (doc, m2) = place(doc, 0.5);
     let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
-    let (doc, bar, _) = declared_union(doc, &[m1, m2], pairs);
+    let (doc, bar) = declared_union(doc, &[m1, m2], pairs);
     // The tip's frame: normal (1, 1, -1)/sqrt3 pointing into the bar.
     let s3 = 3f64.sqrt();
     let n = [1.0 / s3, 1.0 / s3, -1.0 / s3];

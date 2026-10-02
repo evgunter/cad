@@ -57,8 +57,7 @@
 
 use editor_core::{
     BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, RoleSeg, SlotId,
-    declared_pairs,
-    evaluate, find_flush_candidates,
+    declared_pairs, evaluate, find_flush_candidates,
 };
 use topo::PlaneRelation;
 

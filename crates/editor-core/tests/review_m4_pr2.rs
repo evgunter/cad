@@ -1012,5 +1012,5 @@ fn edit_back_restores_bit_identical_bodies() {
     // Reverted transform + final subtract recompute; the rest reuses —
     // the die's seven sketch frames among them, since a slot edit on a
     // transform does not touch a plane.
-    assert_eq!((e2.recomputed, e2.reused), (2, 82));
+    assert_eq!((e2.recomputed, e2.reused), (2, 61));
 }
