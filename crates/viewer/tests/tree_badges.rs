@@ -1673,7 +1673,11 @@ fn a_mate_row_reads_whether_it_placed_its_child() {
             .iter()
             .find(|row| row.id == mate)
             .expect("every node has a row");
-        assert_eq!(row.status, RowStatus::Ok, "{mate:?}: the loop is consistent");
+        assert_eq!(
+            row.status,
+            RowStatus::Ok,
+            "{mate:?}: the loop is consistent"
+        );
         assert_eq!(
             row.readout,
             Some(Readout::Role(role)),
