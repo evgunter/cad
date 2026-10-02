@@ -440,7 +440,7 @@ fn sym_9_what_each_retry_recovers() {
 /// over to the form (`sign_gated` up). The ladder still recovers the
 /// bracket's six, and the link's retries fall 24 → 14 (`[683, 0, 130,
 /// 729]` with it): the ten that went were the certificate's schedule.
-
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and

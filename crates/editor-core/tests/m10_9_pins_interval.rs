@@ -627,7 +627,9 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
             t0.elapsed().as_secs_f64()
         );
         assert!(
-            refusal.as_deref().is_some_and(|r| r.contains("pcurve_envelope")),
+            refusal
+                .as_deref()
+                .is_some_and(|r| r.contains("pcurve_envelope")),
             "{label}: the pad refuses at `pcurve_envelope` at this scale \
              (`Study::refused_by`): {refusal:?}"
         );

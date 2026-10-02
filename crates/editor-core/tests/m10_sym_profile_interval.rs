@@ -438,7 +438,6 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   normalisations and the invariants are new forms in every walk.
 ///   Calls and freezes do not move: the twin is the same frame on this
 ///   plate's literal charts, so no decision is added or lost.
-
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1127 forms 16429 frozen 696 digest f0075c185b84ceaa1e6776fef010ba7a\n\
      Plain/Assertion calls 666 forms 4051 frozen 372 digest 2d8a3120e46d4f5e79adece7f2080b4f\n\
