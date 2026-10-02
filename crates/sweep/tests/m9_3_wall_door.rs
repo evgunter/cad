@@ -110,12 +110,10 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
     // The carrier ladder's declared cylinder reading ran — the declared
     // descent executed rather than being skipped past (telemetry from
     // birth).
-    for name in ["carrier_cyl_reach"] {
-        assert!(
-            v.iter().any(|x| x.predicate == name),
-            "{name} never reached the funnel — the declared descent did not run"
-        );
-    }
+    assert!(
+        v.iter().any(|x| x.predicate == "carrier_cyl_reach"),
+        "carrier_cyl_reach never reached the funnel — the declared descent did not run"
+    );
     match out {
         Ok(BooleanResult::Body(b)) => {
             // Exactly additive against the closed-form oracle: the peg

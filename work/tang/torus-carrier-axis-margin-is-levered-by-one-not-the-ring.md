@@ -89,3 +89,21 @@ Red-then-green rows: `rest::lever_rows` (torus, cylinder),
 `work/hone/a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces.md`),
 and `offer_rows`' `tangent_screen_of_a_tilted_block` quotes its tilt at
 the pair's `1.5·√2` m lever.
+
+## Fix pass (2026-10-02)
+
+The review found the ladder still decided the offset and the tilt as
+separate margins (a bridge of about 2·Kε) and read an upper bound past
+the band as a definite contradiction. A declared pair is now read as
+ONE displacement over its consumed extent (`carrier_eq::declared_reading`):
+an upper bound at every point of the ball (position datum + tilt ×
+reach + radius differences, summed) bridges when in band; a lower bound
+(a reading across the ball, and each face's boundary vertices, the
+points known to be consumed) contradicts when past the band; between
+them the declaration is `CarrierEqError::Unsettled`. The extent is a
+`ConsumedExtent` (ball + witnesses) every ladder takes. An unreadable
+extent is a typed outcome (`rest::PairUnread::Extent`) refused at every
+caller. Rows: `contact9_side_codes`' wedge pose and sweep,
+`rest::lever_rows::an_offset_and_a_tilt_in_band_each_do_not_bridge_their_sum`.
+Filed: `the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op.md`,
+`lever-a-declared-pair-by-its-contact-patch-not-both-whole-faces.md`.

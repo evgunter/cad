@@ -226,7 +226,8 @@ impl core::error::Error for FlushRefusal {}
 /// the door's relation and deciding rung), `Ok(None)` = definitely not
 /// a candidate (a face kind outside the `Rest` ladder's inventory, or
 /// definitely distinct carriers), `Err` = the door could not decide
-/// definitively (in-band, escalated, or poisoned).
+/// definitively (in-band, escalated, or poisoned), or had no extent to
+/// read a face over ([`EXTENT_UNREAD`]).
 ///
 /// This is the rung both seats delegate to: the body seat's
 /// [`find_flush_candidates`] enumerates over it, and the document

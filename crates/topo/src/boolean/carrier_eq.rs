@@ -996,7 +996,7 @@ fn distance_to<T: geom_core::Real>(c: &CarrierDesc<T>, v: Point3<T>) -> T {
             let d = v - center;
             let height = d.dot(axis);
             let ring = perpendicular(d, axis).norm() - major_radius;
-            ((ring * ring + height * height).sqrt() - minor_radius).abs()
+            ((ring.powi(2) + height.powi(2)).sqrt() - minor_radius).abs()
         }
     }
 }
