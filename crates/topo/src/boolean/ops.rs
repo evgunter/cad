@@ -927,11 +927,11 @@ pub(crate) struct PairVerdict {
     /// The pair's face of A.
     pub a_face: FaceKey,
     /// Its kind.
-    pub a_kind: geom_brep::SurfaceKind,
+    pub a_kind: geom::SurfaceKind,
     /// The pair's face of B.
     pub b_face: FaceKey,
     /// Its kind.
-    pub b_kind: geom_brep::SurfaceKind,
+    pub b_kind: geom::SurfaceKind,
     /// A's face is one the path names in its refusal.
     pub a_named: bool,
     /// Each component's witness, or the pair's refusal.
@@ -946,9 +946,9 @@ impl PairVerdict {
     ) -> (
         Operand,
         FaceKey,
-        geom_brep::SurfaceKind,
+        geom::SurfaceKind,
         FaceKey,
-        geom_brep::SurfaceKind,
+        geom::SurfaceKind,
     ) {
         if self.a_named {
             (
@@ -1041,7 +1041,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
             body.faces()
                 .map(|(k, fd)| {
                     let s = body.get_surface(fd.surface).ok_or_else(lost)?.clone();
-                    Ok((k, s, boxes::face_box(body, k, pad)?))
+                    Ok((k, s, boxes::face_box(body, k, pad, band)?))
                 })
                 .collect()
         };
@@ -1094,9 +1094,9 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: *fa,
-                a_kind: geom_brep::SurfaceKind::of(sa),
+                a_kind: sa.kind(),
                 b_face: *fb,
-                b_kind: geom_brep::SurfaceKind::of(sb),
+                b_kind: sb.kind(),
                 a_named: path.names(sa),
                 verdict,
             });
@@ -2472,7 +2472,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // it has no declaration channel to reach one
                         // through in any case. Certified boxes prove
                         // separation, anything closer refuses typed.
-                        if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                        if boxes::face_box(y, yf, pad, band)?.overlaps(&ball_box) {
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,
                                 face,
@@ -2558,17 +2558,18 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // relevant here than it is at the operand
                         // gate. Only a face the ball may actually
                         // reach costs the operation its answer.
-                        if !boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                        if !boxes::face_box(y, yf, pad, band)?.overlaps(&ball_box) {
                             continue;
                         }
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,
-                            kind: geom_brep::SurfaceKind::of(y.get_surface(yfd.surface).ok_or(
-                                BooleanError::ClassificationInvariant {
+                            kind: y
+                                .get_surface(yfd.surface)
+                                .ok_or(BooleanError::ClassificationInvariant {
                                     what: "extent scan: face surface lost",
-                                },
-                            )?),
+                                })?
+                                .kind(),
                         });
                     }
                     None => {
@@ -3198,7 +3199,7 @@ mod tests {
         // Door 1 — the placeholder is unbounded, so the pair is a
         // candidate and the crossing layer refuses it by kind.
         let BooleanError::CurvedBooleanUnsupported {
-            kind: geom_brep::SurfaceKind::Nurbs,
+            kind: geom::SurfaceKind::Nurbs,
             ..
         } = err
         else {

@@ -13,7 +13,7 @@ use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
-use topo::splitting::{SplitPlane, split};
+use topo::splitting::split;
 
 fn rect(w: f64, h: f64) -> ProfileLoop<f64> {
     bulge_loop(
@@ -213,10 +213,11 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
     let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let parts = split(&body, &plane, Tol::witness()).expect("split at x=0");
     let mut below = parts.below.body().expect("below").clone();
     let out = below
@@ -254,10 +255,11 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
-    let plane = SplitPlane {
-        origin: Point3::new(0.2, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.2, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let parts = split(&body, &plane, Tol::witness()).expect("split");
     let below = parts.below.body().expect("below").clone(); // NOT merged
     let vol_below = topo::mass_properties(&below, Tol::witness())

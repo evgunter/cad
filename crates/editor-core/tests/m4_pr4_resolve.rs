@@ -769,7 +769,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let bogus = minted(
         EntityKind::Face,
         a,
-        RoleSeg::Lateral(crate::fixture::no_piece()),
+        RoleSeg::Lateral(crate::fixture::no_piece().into()),
     );
     let err = apply_with_names(
         &doc,

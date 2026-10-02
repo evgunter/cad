@@ -1215,11 +1215,13 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
             "partial"
         }
         RevolvedKind::Full {
+            wire,
             meridians,
             pi_walls,
             pi_meridians,
             pi_rims,
         } => {
+            named::<bool>(*wire);
             named::<&Vec<Vec<Option<EdgeKey>>>>(meridians);
             named::<&Vec<Option<FaceKey>>>(pi_walls);
             named::<&Vec<Option<EdgeKey>>>(pi_meridians);
@@ -2635,7 +2637,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
                 pncad::select::EntityKind::Face,
             )),
             &[pncad::select::GeomPred::SurfaceKind(
-                pncad::select::SurfaceKindSet::just(pncad::geom_brep::SurfaceKind::Cylinder),
+                pncad::select::SurfaceKindSet::just(pncad::prelude::SurfaceKind::Cylinder),
             )],
             &doc.param_env::<f64>(),
             Tol::witness(),

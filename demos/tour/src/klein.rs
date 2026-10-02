@@ -225,8 +225,8 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point3, Tol};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};

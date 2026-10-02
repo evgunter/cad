@@ -126,7 +126,7 @@
 use bvh::Aabb;
 use geom::Surface;
 use geom::surfaces::nurbs::NurbsSurface;
-use geom_core::{Band, Bounds, Decide, Point3, Real, Vec3};
+use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 
 use super::BooleanError;
 use crate::body::Body;
@@ -157,6 +157,13 @@ use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey, VertexKey};
 pub(crate) fn sweep_pad(band: Band) -> f64 {
     band.escalate() + 2.0 * band.zero()
 }
+
+/// The K funnel name of a cylinder face's axis-length decision, taken
+/// where [`face_box_rule`] reads the carrier: the slab reads the axis
+/// as a unit direction, and a carrier's axis is unit only by the
+/// surfaces' at-rest convention. Its comparand is the axis's norm
+/// through the plain [`Margin::norm3`](geom_core::Margin::norm3) door.
+pub(crate) const BOX_CYLINDER_AXIS: &str = "bool_box_cylinder_axis";
 
 fn corrupt(what: &'static str) -> BooleanError {
     BooleanError::ClassificationInvariant { what }
@@ -291,6 +298,34 @@ impl<T: Real> SpanBox<T> {
             y: Span::exact(v.y),
             z: Span::exact(v.z),
         }
+    }
+}
+
+/// The enclosure of a DECIDED unit direction: the [`SpanBox`] of a
+/// [`UnitVec3`], minted only from one, so an extent that takes it
+/// reads a unit axis by type. The census lane takes the witness at its
+/// own scalar ([`UnitSpanBox::exact`]), the bracket lane takes its
+/// `f64` bracket ([`UnitSpanBox::bracketed`]); either way the box
+/// encloses a vector whose length was decided and divided out.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct UnitSpanBox<T>(SpanBox<T>);
+
+impl<T: Real> UnitSpanBox<T> {
+    /// The witness as three degenerate spans.
+    pub(crate) fn exact(u: UnitVec3<T>) -> Self {
+        Self(SpanBox::vector(u.get()))
+    }
+
+    /// The enclosure itself.
+    pub(crate) fn get(&self) -> &SpanBox<T> {
+        &self.0
+    }
+}
+
+impl UnitSpanBox<f64> {
+    /// The witness's `f64` bracket ([`bracket_vector`]).
+    pub(crate) fn bracketed<T: Bounds>(u: UnitVec3<T>) -> Self {
+        Self(bracket_vector(u.get()))
     }
 }
 
@@ -463,19 +498,15 @@ pub(crate) fn edge_axial_span<T: Real>(
 /// bracket that does not pin the direction reads as more
 /// perpendicular room, never less, and a poisoned one poisons the box.
 ///
-/// **The premise is a UNIT axis**, which is what [`Surface`]'s own
-/// conic descriptions promise and what `h` is a length in. It is a
-/// premise of the CONSTRUCTION, not of the widening: with `|axis| ≠ 1`
-/// the axis segment `origin + h·axis` is off by `|axis|²` before any
-/// radius is added, so nothing here could rescue such a description
-/// and this arm does not pretend to. State the premise if you add a
-/// constructor that does not hold it.
+/// The axis is a [`UnitSpanBox`], so `h` is a length along it: the
+/// reader decides the carrier axis's length ([`BOX_CYLINDER_AXIS`]).
 pub(crate) fn slab_extent<T: Real>(
     origin: &SpanBox<T>,
-    axis: &SpanBox<T>,
+    axis: &UnitSpanBox<T>,
     h: Span<T>,
     radius: T,
 ) -> SpanBox<T> {
+    let axis = axis.get();
     SpanBox {
         x: origin
             .x
@@ -525,7 +556,8 @@ fn perp_room<T: Real>(a: Span<T>) -> T {
 /// `h0` is the point of the window nearest the apex —
 /// `clamp(0, h.lo, h.hi)`, which IS an end when the window does not
 /// straddle the apex, so the kink candidate costs nothing and needs
-/// no sign decision. Same UNIT-axis premise as [`slab_extent`].
+/// no sign decision. The axis is read as UNIT, `h` a length along it:
+/// a premise of the cone carrier's at-rest convention, undecided here.
 pub(crate) fn cone_frustum_extent<T: Real>(
     apex: &SpanBox<T>,
     axis: &SpanBox<T>,
@@ -561,9 +593,10 @@ pub(crate) fn ball_extent<T: Real>(center: &SpanBox<T>, radius: T) -> SpanBox<T>
 /// `(R + r)·√(1 − axis_i²) + r·|axis_i|` from the centre — the
 /// perpendicular room of [`slab_extent`] for the in-plane part plus
 /// the tube's own reach along the axis. For an axis-aligned torus
-/// that is exactly the true box. Same UNIT-axis premise as
-/// [`slab_extent`], and here it is the widening's own: `|axis| > 1`
-/// would claim less perpendicular room than a unit `û` can take.
+/// that is exactly the true box. The axis is read as UNIT — a premise
+/// of the torus carrier's at-rest convention, undecided here — and it
+/// is the widening's own: `|axis| > 1` would claim less perpendicular
+/// room than a unit `û` can take.
 pub(crate) fn torus_extent<T: Real>(
     center: &SpanBox<T>,
     axis: &SpanBox<T>,
@@ -616,7 +649,7 @@ pub(crate) fn torus_extent<T: Real>(
 ///
 /// # Rounding, per step
 ///
-/// Same UNIT-AXIS premise as [`slab_extent`] and [`torus_extent`]:
+/// The UNIT-AXIS premise of [`torus_extent`]:
 /// [`perp_room`] bounds one coordinate of a unit vector perpendicular
 /// to a unit axis, and the samples place `r·sin v` along `axis` as a
 /// length. A description whose axis is not unit is off before any
@@ -875,14 +908,17 @@ impl<T: Real> TorusChartWindow<T> {
         self.net = Some((T::zero(), T::zero()));
     }
 
-    /// One half-edge of the open loop.
+    /// One half-edge of the open loop. A torus chart's closed-form
+    /// images are harmonic (a cone-section image certifies on a cone
+    /// only), so any other image abandons the window — which widens the
+    /// box to the whole tube, never narrows it.
     pub(crate) fn step(&mut self, step: WindowStep<'_, T>) {
         let Some((cache, forward)) = step else {
             self.ok = false;
             return;
         };
         let (t0, t1) = cache.params();
-        let Some(b) = cache.pcurve().harmonic_span_box(t0, t1) else {
+        let Some(b) = cache.pcurve().closed_form_span_box(t0, t1) else {
             self.ok = false;
             return;
         };
@@ -1166,8 +1202,8 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
     CylinderSlab {
         /// The `v = 0` point on the axis.
         origin: Point3<T>,
-        /// The unit axis direction.
-        axis: Vec3<T>,
+        /// The carrier's axis, its length decided at the read.
+        axis: UnitVec3<T>,
         /// The cylinder's radius.
         radius: T,
     },
@@ -1225,8 +1261,22 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
 /// by falling through a wildcard in some consumer. Takes a RESOLVED
 /// surface: a missing one is corruption, which is the caller's to
 /// report and not a rule.
-pub(crate) fn face_box_rule<T: Real>(surface: &Surface<T>) -> FaceBoxRule<'_, T> {
-    match surface {
+///
+/// The cylinder's axis is decided here, under [`BOX_CYLINDER_AXIS`]:
+/// [`slab_extent`] reads it as a unit direction and a carrier's axis is
+/// unit only by the surfaces' at-rest convention, which no tier
+/// certifies.
+///
+/// # Errors
+///
+/// The [`UnitVec3Error`](geom_core::UnitVec3Error) of a cylinder axis
+/// with no decided length — a broken cylinder carrier, which each lane
+/// answers in its own fail-loud direction.
+pub(crate) fn face_box_rule<T: Decide>(
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<FaceBoxRule<'_, T>, geom_core::UnitVec3Error> {
+    Ok(match surface {
         Surface::Plane { .. } => FaceBoxRule::BoundaryHull,
         Surface::Cylinder {
             origin,
@@ -1235,7 +1285,7 @@ pub(crate) fn face_box_rule<T: Real>(surface: &Surface<T>) -> FaceBoxRule<'_, T>
             ..
         } => FaceBoxRule::CylinderSlab {
             origin: *origin,
-            axis: *axis,
+            axis: UnitVec3::new(*axis, BOX_CYLINDER_AXIS, band)?,
             radius: *radius,
         },
         Surface::Sphere { center, radius, .. } => FaceBoxRule::WholeBall {
@@ -1272,7 +1322,7 @@ pub(crate) fn face_box_rule<T: Real>(surface: &Surface<T>) -> FaceBoxRule<'_, T>
             minor_radius: *minor_radius,
             u_ref: *u_ref,
         },
-    }
+    })
 }
 
 /// The face's certified box, padded — [`FaceBoxRule`]'s
@@ -1290,11 +1340,14 @@ pub(crate) fn face_box_rule<T: Real>(surface: &Surface<T>) -> FaceBoxRule<'_, T>
 /// [`BooleanError::ClassificationInvariant`] when the face's topology
 /// is corrupt (a lost entity, an unwalkable loop). A face whose
 /// surface key does not resolve is corruption, NOT a kind without a
-/// box — the two are separate answers here.
+/// box — the two are separate answers here. So is a cylinder whose
+/// axis has no decided length under `band` ([`face_box_rule`]): a
+/// broken carrier.
 pub(crate) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     pad: f64,
+    band: Band,
 ) -> Result<Aabb, BooleanError> {
     let f = body.get_face(face).ok_or(corrupt("face box: face lost"))?;
     let surface = body
@@ -1410,7 +1463,10 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             )
         }))
     };
-    let boxed = match face_box_rule(surface) {
+    let rule = face_box_rule(surface, band).map_err(|_| {
+        corrupt("face box: a cylinder's axis has no decided length (a broken cylinder carrier)")
+    })?;
+    let boxed = match rule {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
         FaceBoxRule::WholeBall { center, radius } => {
             aabb_of(ball_extent(&bracket_point(center), radius.hi()))
@@ -1455,12 +1511,12 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             axis,
             radius,
         } => {
-            let Some(h) = axial_window(axis, origin)? else {
+            let Some(h) = axial_window(axis.get(), origin)? else {
                 return Ok(Aabb::poison());
             };
             let slab = aabb_of(slab_extent(
                 &bracket_point(origin),
-                &bracket_vector(axis),
+                &UnitSpanBox::bracketed(axis),
                 h,
                 radius.hi(),
             ));
@@ -2013,8 +2069,12 @@ pub(crate) mod tests {
 
     /// The pad every row boxes with — the sweep's own, so a row that
     /// only passes because of a generous pad would have to say so.
+    fn witness_band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
     fn pad() -> f64 {
-        sweep_pad(Band::linear(Tol::witness()).unwrap())
+        sweep_pad(witness_band())
     }
 
     /// `p` is inside `b` — the containment the contract promises.
@@ -2209,7 +2269,7 @@ pub(crate) mod tests {
                 for phi_deg in [0.0_f64, 45.0, 137.0] {
                     let span = span_deg.to_radians();
                     let (body, face) = arc_sector_from(r, span, phi_deg.to_radians());
-                    let b = face_box(&body, face, pad()).unwrap();
+                    let b = face_box(&body, face, pad(), witness_band()).unwrap();
                     // The locus is the convex hull of its boundary and
                     // the box is convex, so sampling the boundary
                     // settles it.
@@ -2237,7 +2297,7 @@ pub(crate) mod tests {
     fn the_boxs_reach_beyond_the_vertex_hull_is_the_whole_bulge() {
         let r = 2.0;
         let (body, face) = arc_sector(r, core::f64::consts::PI);
-        let b = face_box(&body, face, pad()).unwrap();
+        let b = face_box(&body, face, pad(), witness_band()).unwrap();
         // Both boundary vertices and the sector's centre are at y ≤ 0;
         // the rim reaches y = r.
         assert!(
@@ -2392,7 +2452,7 @@ pub(crate) mod tests {
                 let span = span_deg.to_radians();
                 let (z0, z1) = (-0.25 * r, 0.75 * r);
                 let (body, face) = cyl_wall(r, 0.0, span, z0, z1);
-                let b = face_box(&body, face, pad()).unwrap();
+                let b = face_box(&body, face, pad(), witness_band()).unwrap();
                 for i in 0..=64 {
                     let u = span * f64::from(i) / 64.0;
                     for j in 0..=8 {
@@ -2433,7 +2493,7 @@ pub(crate) mod tests {
                 Tol::witness(),
             )
             .unwrap();
-            let b = face_box(&body, face, pad()).unwrap();
+            let b = face_box(&body, face, pad(), witness_band()).unwrap();
             for i in 0..=32 {
                 let theta = core::f64::consts::PI * f64::from(i) / 32.0;
                 for j in 0..=32 {
@@ -2506,7 +2566,7 @@ pub(crate) mod tests {
             surface.eval(0.0, 0.5).z.abs() < 1e-15,
             "the fixture's boundary must lie in z = 0"
         );
-        let b = face_box(&body, face, pad()).unwrap();
+        let b = face_box(&body, face, pad(), witness_band()).unwrap();
         assert!(
             holds(&b, mid),
             "the patch's own interior point left its box: {b:?}"
@@ -2580,7 +2640,7 @@ pub(crate) mod tests {
                     let phi = phi_deg.to_radians();
                     let span = span_deg.to_radians();
                     let (body, face) = arc_sector_from(r, span, phi);
-                    let b = face_box(&body, face, pad).unwrap();
+                    let b = face_box(&body, face, pad, witness_band()).unwrap();
                     // World angles, NOT `u_ref`-relative: the fixture's
                     // φ renames the carrier's reference direction and
                     // leaves the sector where it is, which is the whole
@@ -2667,7 +2727,7 @@ pub(crate) mod tests {
                 let (z0, z1) = (-0.25 * r, 0.75 * r);
                 let span = span_deg.to_radians();
                 let (body, face) = cyl_wall(r, 0.0, span, z0, z1);
-                let b = face_box(&body, face, pad).unwrap();
+                let b = face_box(&body, face, pad, witness_band()).unwrap();
                 let (cos_lo, cos_hi) = arc_extremes(span, &f64::cos, &[core::f64::consts::PI]);
                 let (sin_lo, sin_hi) = arc_extremes(
                     span,
@@ -2694,6 +2754,65 @@ pub(crate) mod tests {
                 );
             }
         }
+    }
+
+    /// **The slab reads a decided axis, never the carrier's bare one.**
+    /// A cylinder carrier whose axis is `2ẑ` describes the same point
+    /// set as the unit one; read bare, the axial window would be twice
+    /// the face's and the slab would place it twice again along the
+    /// axis — a box four times the wall's height. Both lanes box it as
+    /// the unit-axis wall. An axis with no decided length is a broken
+    /// carrier: the bracket lane refuses it, the census lane claims
+    /// nothing.
+    #[test]
+    fn a_cylinder_axis_is_decided_unit_before_the_slab_reads_it() {
+        let (z0, z1) = (-0.25, 0.75);
+        let (unit, face) = cyl_wall(1.0, 0.0, 2.0, z0, z1);
+        let with_axis = |axis: Vec3<f64>| {
+            let mut body = unit.clone();
+            let key = body.get_face(face).unwrap().surface;
+            let Surface::Cylinder { axis: a, .. } = &mut body.surfaces[key] else {
+                panic!("cyl_wall's face carries a cylinder")
+            };
+            *a = axis;
+            body
+        };
+        let want = face_box(&unit, face, pad(), witness_band()).unwrap();
+        let long = with_axis(Vec3::new(0.0, 0.0, 2.0));
+        let got = face_box(&long, face, pad(), witness_band()).unwrap();
+        for (what, w, g) in [
+            ("min z", want.min_z, got.min_z),
+            ("max z", want.max_z, got.max_z),
+            ("min x", want.min_x, got.min_x),
+            ("max x", want.max_x, got.max_x),
+        ] {
+            assert!(
+                (w - g).abs() <= 1e-12,
+                "the bracket lane must box a 2ẑ-axis wall as the unit one ({what}): \
+                 {g} vs {w}"
+            );
+        }
+        let (lo, hi) = crate::census::face_reach(&long, face, witness_band())
+            .expect("the census lane claims the 2ẑ-axis wall");
+        assert!(
+            (lo.z - z0).abs() <= 1e-12 && (hi.z - z1).abs() <= 1e-12,
+            "the census lane must box a 2ẑ-axis wall's height as [{z0}, {z1}], got \
+             [{}, {}]",
+            lo.z,
+            hi.z
+        );
+        let broken = with_axis(Vec3::new(0.0, 0.0, 0.0));
+        assert!(
+            matches!(
+                face_box(&broken, face, pad(), witness_band()),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "a cylinder axis with no decided length must refuse the bracket lane's box"
+        );
+        assert!(
+            crate::census::face_reach(&broken, face, witness_band()).is_none(),
+            "a cylinder axis with no decided length must claim nothing in the census lane"
+        );
     }
 
     /// The exact range of `f` over the arc `[0, span]`: the endpoints,
@@ -2744,7 +2863,7 @@ pub(crate) mod tests {
         let (r, z0, z1) = (0.5, 0.0, 1.0);
         let pad = pad();
         let (body, face) = cyl_wall(r, 0.0, core::f64::consts::PI, z0, z1);
-        let b = face_box(&body, face, pad).unwrap();
+        let b = face_box(&body, face, pad, witness_band()).unwrap();
         assert!(
             b.min_z > z0 - r && b.max_z < z1 + r,
             "the slab must not claim the radius along its own axis: {b:?}"
@@ -2786,7 +2905,7 @@ pub(crate) mod tests {
                 Tol::witness(),
             )
             .unwrap();
-            let b = face_box(&body, face, pad).unwrap();
+            let b = face_box(&body, face, pad, witness_band()).unwrap();
             agrees_with_the_rule(
                 &b,
                 &Aabb {
@@ -2811,7 +2930,7 @@ pub(crate) mod tests {
     fn the_nurbs_arms_box_is_exactly_the_construction_its_rule_states() {
         let pad = pad();
         let (body, face, net) = nurbs_bulge_face();
-        let b = face_box(&body, face, pad).unwrap();
+        let b = face_box(&body, face, pad, witness_band()).unwrap();
         agrees_with_the_rule(
             &b,
             &Aabb {
@@ -3008,7 +3127,7 @@ pub(crate) mod tests {
             },
         ];
         for s in kinds {
-            let kind = geom_brep::SurfaceKind::of(&s);
+            let kind = s.kind();
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
             body.set_face_surfaces_describing(
                 vec![crate::Rechart::new(s, face, true)],
@@ -3016,7 +3135,7 @@ pub(crate) mod tests {
                 Tol::witness(),
             )
             .unwrap();
-            let b = face_box(&body, face, pad()).unwrap();
+            let b = face_box(&body, face, pad(), witness_band()).unwrap();
             assert!(
                 !b.min_x.is_nan(),
                 "{kind:?} must have a box, got poison: {b:?}"
@@ -3281,7 +3400,7 @@ pub(crate) mod tests {
                     let span = span_deg.to_radians();
                     let (z0, z1) = (0.4 * scale, 1.0 * scale);
                     let (body, face) = cone_wall(alpha, 0.0, span, z0, z1);
-                    let b = face_box(&body, face, pad()).unwrap();
+                    let b = face_box(&body, face, pad(), witness_band()).unwrap();
                     for i in 0..=64 {
                         let u = span * f64::from(i) / 64.0;
                         for j in 0..=8 {
@@ -3320,7 +3439,7 @@ pub(crate) mod tests {
                     let (z0, z1) = (0.4 * scale, 1.0 * scale);
                     let radius = z1 * alpha.tan();
                     let (body, face) = cone_wall(alpha, 0.0, span_deg.to_radians(), z0, z1);
-                    let b = face_box(&body, face, pad).unwrap();
+                    let b = face_box(&body, face, pad, witness_band()).unwrap();
                     agrees_with_the_rule(
                         &b,
                         &Aabb {
@@ -3369,7 +3488,7 @@ pub(crate) mod tests {
                     Tol::witness(),
                 )
                 .unwrap();
-                let b = face_box(&body, face, pad()).unwrap();
+                let b = face_box(&body, face, pad(), witness_band()).unwrap();
                 for i in 0..=48 {
                     let theta = 2.0 * core::f64::consts::PI * f64::from(i) / 48.0;
                     let radial = u_ref * theta.cos() + v_ref * theta.sin();
@@ -3582,7 +3701,7 @@ pub(crate) mod tests {
                 "the RING guard alone must refuse it as TWO — a second loop can be \
                  pinned on another branch, and the hull would bound neither"
             );
-            let b = face_box(&body, face, pad()).unwrap();
+            let b = face_box(&body, face, pad(), witness_band()).unwrap();
             let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
             agrees_with_the_rule(
                 &b,
@@ -3649,7 +3768,7 @@ pub(crate) mod tests {
             "a face with a MIX of cached and uncached half-edges must abandon the window, \
              not narrow to {full:?}"
         );
-        let b = face_box(&body, face, pad()).unwrap();
+        let b = face_box(&body, face, pad(), witness_band()).unwrap();
         let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
         agrees_with_the_rule(
             &b,
@@ -3712,7 +3831,7 @@ pub(crate) mod tests {
         let v_ref = axis.cross(u_ref);
         let (u, v) = ((0.0, 22.0_f64.to_radians()), (-1.1, 2.4));
         let (body, face) = torus_wall(center, axis, u_ref, major, minor, u, v);
-        let b = face_box(&body, face, 0.0).unwrap();
+        let b = face_box(&body, face, 0.0, witness_band()).unwrap();
         for i in 0..=80 {
             let uu = u.0 + (u.1 - u.0) * f64::from(i) / 80.0;
             let radial = u_ref * uu.cos() + v_ref * uu.sin();
@@ -4069,7 +4188,7 @@ pub(crate) mod tests {
                     Tol::witness(),
                 )
                 .unwrap();
-                let b = face_box(&body, face, pad).unwrap();
+                let b = face_box(&body, face, pad, witness_band()).unwrap();
                 let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
                 let (rx, ry, rz) = (reach(axis.x), reach(axis.y), reach(axis.z));
                 agrees_with_the_rule(
@@ -4088,7 +4207,7 @@ pub(crate) mod tests {
 
                 let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
                 let (body, face) = torus_wall(c, axis, u_ref, major, minor, u, v);
-                let b = face_box(&body, face, pad).unwrap();
+                let b = face_box(&body, face, pad, witness_band()).unwrap();
                 // The window comes from the fixture's own caches (the
                 // fidelity row is what pins it to `[u0, u1] × [v0, v1]`);
                 // the CONSTRUCTION is restated here rather than called,
@@ -4231,8 +4350,8 @@ pub(crate) mod tests {
             ("nurbs", (nurbs_body, nurbs_face), 0.0),
         ];
         for (what, (body, face), charge) in cases {
-            let boxed = face_box(&body, face, 0.0).unwrap();
-            let (lo, hi) = crate::census::face_reach(&body, face)
+            let boxed = face_box(&body, face, 0.0, witness_band()).unwrap();
+            let (lo, hi) = crate::census::face_reach(&body, face, witness_band())
                 .unwrap_or_else(|| panic!("{what}: the census lane claims nothing"));
             // `outer − inner` per side: the census box must contain the
             // boolean box, by no more than the charge.
@@ -4304,7 +4423,9 @@ pub(crate) mod tests {
         };
         let slab = slab_extent(
             &SpanBox::point(Point3::<f64>::origin()),
-            &SpanBox::vector(Vec3::<f64>::unit_z()),
+            &UnitSpanBox::exact(
+                UnitVec3::new(Vec3::<f64>::unit_z(), BOX_CYLINDER_AXIS, witness_band()).unwrap(),
+            ),
             poison_h,
             1.0,
         );
@@ -4392,8 +4513,22 @@ pub(crate) mod tests {
             h.hi
         );
         // Perpendicular room: `axis.z` is not certainly ±1, so the z
-        // coordinate takes the room `√(1 − 0.8²) = 0.6` of the radius.
-        let slab = slab_extent(&origin, &axis, Span::exact(0.0), 1.0);
+        // coordinate takes at least the room `√(1 − 0.8²) = 0.6` of the
+        // radius. The slab reads the bracket's decided direction, which
+        // the normalizing divide only widens.
+        let iv = geom_core::Interval::from_bounds;
+        let unit = UnitVec3::new(
+            Vec3::new(iv(0.0, 0.6), iv(0.0, 0.0), iv(0.8, 1.0)),
+            BOX_CYLINDER_AXIS,
+            witness_band(),
+        )
+        .unwrap();
+        let slab = slab_extent(
+            &origin,
+            &UnitSpanBox::bracketed(unit),
+            Span::exact(0.0),
+            1.0,
+        );
         assert!(
             slab.z.hi >= 0.6 - 1e-12,
             "an axis coordinate bracketed away from ±1 must keep its perpendicular \
@@ -4508,7 +4643,7 @@ pub(crate) mod tests {
             .and_then(crate::null::CurveGeom::certified)
             .unwrap();
         let b = edge_box(&body, edge, 0.0).unwrap();
-        let (lo, hi) = crate::census::face_reach(&body, face).unwrap();
+        let (lo, hi) = crate::census::face_reach(&body, face, witness_band()).unwrap();
         for i in 0..=20_000 {
             let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
             let p = curve.carrier().eval(t);
@@ -4813,7 +4948,7 @@ pub(crate) mod tests {
         let (r, u0, u1, z0, z1) = (2.0, 5.9, 6.7, -0.25, 0.75);
         let (body, face) = cyl_wall(r, u0, u1, z0, z1);
         let pad = pad();
-        let b = face_box(&body, face, pad).unwrap();
+        let b = face_box(&body, face, pad, witness_band()).unwrap();
         // Soundness: dense wall samples inside.
         for i in 0..=400 {
             for j in 0..=40 {
@@ -4839,8 +4974,9 @@ pub(crate) mod tests {
         // subdivided, so it contains this lane's box by at most the
         // subdivision charge (the two-lanes row's contract).
         let charge = subdivision_charge(r, (u1 - u0) / ARC_SAMPLES as f64);
-        let (lo, hi) = crate::census::face_reach(&body, face).expect("census claims the wall");
-        let b0 = face_box(&body, face, 0.0).unwrap();
+        let (lo, hi) =
+            crate::census::face_reach(&body, face, witness_band()).expect("census claims the wall");
+        let b0 = face_box(&body, face, 0.0, witness_band()).unwrap();
         for (name, gap, scale) in [
             ("min_x", b0.min_x - lo.x, lo.x),
             ("min_y", b0.min_y - lo.y, lo.y),

@@ -13,10 +13,10 @@
 //! The pose refused `SectionLoopMixed` while `point_in_solid`'s planar
 //! arm read the arc-bounded cap as the polygon through its vertices; the
 //! rows here hold it to the closed form at every tier. The same tool
-//! slid until it crosses the rim is a different door — the cylinder's
-//! rim circle meets the tool's arc wall, a circle × cylinder pair the
-//! curved pierce arm has no root lane for — pinned by kind so it reds
-//! when that lane lands.
+//! slid until it crosses the rim is a different door: the circle ×
+//! cylinder root lane certifies where the rim meets the tool's arc
+//! wall, and the result's notched wall has no volume measurement —
+//! pinned by kind so it reds when that measurement lands.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -170,41 +170,33 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
 }
 
 /// Slid to `x = 0.035`, the letter crosses the rim: the cylinder's rim
-/// CIRCLE meets the tool's arc wall, a CYLINDER, and the curved pierce
-/// arm has no circle × cylinder root lane. Pinned by kind and by the
-/// carriers it names, so it reds when that lane lands.
+/// CIRCLE meets the tool's arc wall, a CYLINDER, and the circle ×
+/// cylinder root lane certifies the crossing. The cut builds as far as
+/// the volume backstop, which cannot measure the result's cylinder
+/// wall: notched by the pocket along rulings and an arc, it is no
+/// iso-rectangle (`work/props/a-notched-cylinder-wall-has-no-volume-measurement.md`).
+/// Pinned by kind and by the props rule that refuses, so it reds when
+/// that wall measures.
 #[test]
-fn a_pocket_across_the_rim_stops_at_the_circle_cylinder_pierce() {
-    let (ev, [cylinder, _, lifted, cut]) = engrave(letter(), 0.035);
+fn a_pocket_across_the_rim_stops_at_the_notched_walls_volume() {
+    let (ev, [_, _, _, cut]) = engrave(letter(), 0.035);
     let Some(NodeResult::Failed(e)) = ev.nodes.get(&cut) else {
         panic!("the rim-crossing pocket built; this row's door has moved");
     };
-    let NodeErrorKind::Boolean(topo::BooleanError::CurvedPierceUnsupported {
-        operand: topo::Operand::A,
-        face,
-        edge,
-        ..
-    }) = e.kind
-    else {
-        panic!("expected the cylinder's edge to stop at the curved pierce arm: {e}");
-    };
-    let a = body_of(&ev, cylinder);
-    let b = body_of(&ev, lifted);
-    let carrier = a
-        .get_edge(edge)
-        .and_then(|e| a.get_curve_geom(e.curve))
-        .and_then(topo::CurveGeom::certified)
-        .map(|c| c.carrier().clone());
     assert!(
-        matches!(carrier, Some(topo::Curve3::Circle { .. })),
-        "the refusing edge is the cylinder's rim circle: {carrier:?}"
-    );
-    let surface = b
-        .get_face(face)
-        .and_then(|f| b.get_surface(f.surface))
-        .cloned();
-    assert!(
-        matches!(surface, Some(geom::Surface::Cylinder { .. })),
-        "the pierced face is one of the tool's arc walls: {surface:?}"
+        matches!(
+            &e.kind,
+            NodeErrorKind::Boolean(topo::BooleanError::VolumeUnmeasured {
+                operand: None,
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::NotIsoRectangle {
+                        what: "props_rim_level"
+                    },
+                    ..
+                },
+            })
+        ),
+        "expected the result's notched wall to stop the volume backstop: {:?}",
+        e.kind
     );
 }

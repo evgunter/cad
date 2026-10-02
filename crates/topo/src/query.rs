@@ -92,7 +92,7 @@
 //! the point.
 
 use geom::Curve3;
-use geom_brep::{SurfaceKey, SurfaceKind};
+use geom_brep::SurfaceKey;
 use geom_core::k_stats::decide;
 use geom_core::{
     Band, Decide, Indeterminate, Margin, OrthoFrame, Point2, Point3, Real, Sign, UnitVec3, Vec2,
@@ -102,74 +102,14 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::readback::{CarrierAbsence, DanglingRef};
 
-/// Which [`Curve3`] variant a carrier is: the fieldless mirror of the
-/// curve enum, and the edge-side twin of [`SurfaceKind`].
+/// The kinds, re-exported where their sets and predicates live.
 ///
-/// The mirror is hand-written and [`CurveKind::of`]'s match is
-/// EXHAUSTIVE with no wildcard arm, so adding a `Curve3` variant fails
-/// to compile here rather than silently classifying as something else
-/// — the same fail-loud tripwire the role-segment mirrors use.
-///
-/// (Placement, as this crate keeps it: the mirror lives where it is
-/// used — [`SurfaceKind`] beside the certify machinery in `geom-brep`,
-/// this one beside the query predicates that read it, [`CurveKindSet`]
-/// and its bit numbering included. The typed door that copies the tag
-/// out, [`crate::readback::edge_carrier_kind`], imports it from here,
-/// the way that module imports [`SurfaceKind`] from `geom-brep` for
-/// the face twin: a door names its answer type wherever the mirror is
-/// authored. `SurfaceKind` stays the workspace's ONE fieldless surface
-/// mirror; no second is minted here. Whether this is where the mirror
-/// BELONGS is open and not this crate's to settle — the ratified verb-seat
-/// design says it moves down beside [`Curve3`], and has said so since
-/// before SEAT-2 put it here; the question is
-/// `curve-kind-placement-disagrees-with-the-ratified-seat-clause`.)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CurveKind {
-    /// [`Curve3::Line`].
-    Line,
-    /// [`Curve3::Circle`].
-    Circle,
-    /// [`Curve3::Ellipse`].
-    Ellipse,
-    /// [`Curve3::Spiric`].
-    Spiric,
-    /// [`Curve3::Nurbs`].
-    Nurbs,
-}
-
-impl CurveKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 5] = [
-        Self::Line,
-        Self::Circle,
-        Self::Ellipse,
-        Self::Spiric,
-        Self::Nurbs,
-    ];
-
-    /// The kind of a carrier (exhaustive by construction — type docs).
-    #[must_use]
-    pub fn of<T: Real>(c: &Curve3<T>) -> Self {
-        match c {
-            Curve3::Line { .. } => Self::Line,
-            Curve3::Circle { .. } => Self::Circle,
-            Curve3::Ellipse { .. } => Self::Ellipse,
-            Curve3::Spiric { .. } => Self::Spiric,
-            Curve3::Nurbs(_) => Self::Nurbs,
-        }
-    }
-
-    /// This kind's bit position in a [`CurveKindSet`].
-    const fn bit(self) -> u8 {
-        match self {
-            Self::Line => 0,
-            Self::Circle => 1,
-            Self::Ellipse => 2,
-            Self::Spiric => 3,
-            Self::Nurbs => 4,
-        }
-    }
-}
+/// [`CurveKind`] and [`SurfaceKind`] are `geom`'s, beside the enums
+/// they mirror ([`Curve3::kind`], [`geom::Surface::kind`]), and every
+/// crate above reuses them. What this seat owns is the SETS over them
+/// — [`CurveKindSet`], [`SurfaceKindSet`] and their bit numbering — and
+/// the EXACT predicates that read them.
+pub use geom::{CurveKind, SurfaceKind};
 
 /// A SET of [`CurveKind`]s — the predicate's comparand, so "a line or
 /// an arc" is one predicate rather than a union of two selections.
@@ -185,7 +125,7 @@ impl CurveKindSet {
     /// (the same posture as an empty document-layer `Selector`).
     #[must_use]
     pub fn of(kinds: impl IntoIterator<Item = CurveKind>) -> Self {
-        Self(kinds.into_iter().fold(0, |acc, k| acc | (1 << k.bit())))
+        Self(kinds.into_iter().fold(0, |acc, k| acc | curve_bit(k)))
     }
 
     /// The singleton set — the common case.
@@ -197,7 +137,7 @@ impl CurveKindSet {
     /// Whether `kind` is a member.
     #[must_use]
     pub fn contains(self, kind: CurveKind) -> bool {
-        self.0 & (1 << kind.bit()) != 0
+        self.0 & curve_bit(kind) != 0
     }
 
     /// Whether the set is empty (matches nothing).
@@ -214,42 +154,6 @@ impl CurveKindSet {
     }
 }
 
-/// The [`SurfaceKind`] bit position in a [`SurfaceKindSet`].
-///
-/// EXHAUSTIVE with no wildcard arm: a new `SurfaceKind` variant fails
-/// to compile here, so the numbering cannot silently omit a kind. It
-/// does not pin `ALL_SURFACE_KINDS` below against the enum, and does
-/// not see a numbering that REPEATS a bit — the `census!` invocation
-/// and `kind_bits_are_distinct` in this file's test module are what
-/// hold those two.
-const fn surface_bit(kind: SurfaceKind) -> u8 {
-    match kind {
-        SurfaceKind::Plane => 0,
-        SurfaceKind::Cylinder => 1,
-        SurfaceKind::Cone => 2,
-        SurfaceKind::Sphere => 3,
-        SurfaceKind::Torus => 4,
-        SurfaceKind::Nurbs => 5,
-        SurfaceKind::Approx => 6,
-    }
-}
-
-/// Every [`SurfaceKind`], in declaration order — the iteration order of
-/// a [`SurfaceKindSet`].
-///
-/// Held against the enum, seat by seat, by the `census!` invocation in
-/// this file's test module: adding a variant reds there until this
-/// list carries it.
-pub const ALL_SURFACE_KINDS: [SurfaceKind; 7] = [
-    SurfaceKind::Plane,
-    SurfaceKind::Cylinder,
-    SurfaceKind::Cone,
-    SurfaceKind::Sphere,
-    SurfaceKind::Torus,
-    SurfaceKind::Nurbs,
-    SurfaceKind::Approx,
-];
-
 /// A SET of [`SurfaceKind`]s — [`CurveKindSet`]'s face-side twin, and
 /// the comparand of both [`face_surface_matches`] and each side of
 /// [`edge_adjacent_matches`].
@@ -260,11 +164,7 @@ impl SurfaceKindSet {
     /// The set of exactly these kinds. An EMPTY set matches nothing.
     #[must_use]
     pub fn of(kinds: impl IntoIterator<Item = SurfaceKind>) -> Self {
-        Self(
-            kinds
-                .into_iter()
-                .fold(0, |acc, k| acc | (1 << surface_bit(k))),
-        )
+        Self(kinds.into_iter().fold(0, |acc, k| acc | surface_bit(k)))
     }
 
     /// The singleton set — the common case.
@@ -276,7 +176,7 @@ impl SurfaceKindSet {
     /// Whether `kind` is a member.
     #[must_use]
     pub fn contains(self, kind: SurfaceKind) -> bool {
-        self.0 & (1 << surface_bit(kind)) != 0
+        self.0 & surface_bit(kind) != 0
     }
 
     /// Whether the set is empty (matches nothing).
@@ -285,12 +185,26 @@ impl SurfaceKindSet {
         self.0 == 0
     }
 
-    /// The members, in [`ALL_SURFACE_KINDS`] order.
+    /// The members, in [`SurfaceKind::ALL`] order.
     pub fn iter(self) -> impl Iterator<Item = SurfaceKind> {
-        ALL_SURFACE_KINDS
+        SurfaceKind::ALL
             .into_iter()
             .filter(move |k| self.contains(*k))
     }
+}
+
+/// A kind's bit in a [`CurveKindSet`]: its place in [`CurveKind::ALL`],
+/// which is declaration order.
+const fn curve_bit(kind: CurveKind) -> u8 {
+    const { assert!(CurveKind::ALL.len() <= u8::BITS as usize) };
+    1 << kind as u8
+}
+
+/// A kind's bit in a [`SurfaceKindSet`]: its place in
+/// [`SurfaceKind::ALL`], which is declaration order.
+const fn surface_bit(kind: SurfaceKind) -> u8 {
+    const { assert!(SurfaceKind::ALL.len() <= u8::BITS as usize) };
+    1 << kind as u8
 }
 
 // ---------------------------------------------------------------
@@ -621,18 +535,12 @@ impl core::fmt::Display for RimError {
             Self::NotAnArc { edge, kind } => {
                 // The kind is NAMED, not `Debug`-rendered: a payload
                 // reaching a message through `Debug` is what the prose
-                // census hunts, and words read better in a refusal. The
-                // match is exhaustive with no wildcard arm, so a new
-                // `CurveKind` fails to compile here; the circle arm is
-                // unreachable through the door and is stated rather
-                // than folded into a catch-all.
+                // census hunts, and words read better in a refusal.
                 let carries = match kind {
-                    None => "no certified carrier",
-                    Some(CurveKind::Line) => "a line",
-                    Some(CurveKind::Circle) => "a circle",
-                    Some(CurveKind::Ellipse) => "an ellipse",
-                    Some(CurveKind::Spiric) => "a spiric",
-                    Some(CurveKind::Nurbs) => "a NURBS curve",
+                    None => "no certified carrier".to_owned(),
+                    Some(kind) => {
+                        crate::validate::with_article(&format!("{} curve", kind.adjective()))
+                    }
                 };
                 write!(
                     f,
@@ -739,7 +647,7 @@ fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError
         Ok(Curve3::Circle { .. }) => Ok(()),
         Ok(other) => Err(RimError::NotAnArc {
             edge,
-            kind: Some(CurveKind::of(other)),
+            kind: Some(other.kind()),
         }),
         Err(CarrierAbsence::Dangling(at)) => Err(RimError::NotIntact(at)),
         Err(CarrierAbsence::NoCarrier) => Err(RimError::NotAnArc { edge, kind: None }),
@@ -953,13 +861,13 @@ mod tests {
         assert!(!face_surface_matches(
             &body,
             f,
-            SurfaceKindSet::of(ALL_SURFACE_KINDS)
+            SurfaceKindSet::of(SurfaceKind::ALL)
         ));
         assert!(!edge_adjacent_matches(
             &body,
             e,
-            SurfaceKindSet::of(ALL_SURFACE_KINDS),
-            SurfaceKindSet::of(ALL_SURFACE_KINDS)
+            SurfaceKindSet::of(SurfaceKind::ALL),
+            SurfaceKindSet::of(SurfaceKind::ALL)
         ));
     }
 
@@ -984,6 +892,35 @@ mod tests {
                 edge: e,
                 kind: None
             })
+        );
+    }
+
+    /// [`RimError::NotAnArc`]'s text, both payloads: the kind reads in
+    /// the adjective register with its article (`an elliptical` is the
+    /// vowel case), and a missing carrier says so.
+    #[test]
+    fn not_an_arc_names_the_curve_in_words() {
+        let edge = all_edges(&mixed())[0];
+        let text = |kind| RimError::NotAnArc { edge, kind }.to_string();
+        assert_eq!(
+            text(Some(CurveKind::Line)),
+            format!(
+                "edge {edge:?} carries a straight curve, and a rim is named by an arc of a circle"
+            )
+        );
+        assert_eq!(
+            text(Some(CurveKind::Ellipse)),
+            format!(
+                "edge {edge:?} carries an elliptical curve, and a rim is named by an arc of a \
+                 circle"
+            )
+        );
+        assert_eq!(
+            text(None),
+            format!(
+                "edge {edge:?} carries no certified carrier, and a rim is named by an arc of a \
+                 circle"
+            )
         );
     }
 
@@ -1021,7 +958,7 @@ mod tests {
                 &body,
                 e,
                 SurfaceKindSet::default(),
-                SurfaceKindSet::of(ALL_SURFACE_KINDS)
+                SurfaceKindSet::of(SurfaceKind::ALL)
             ));
         }
         for f in all_faces(&body) {
@@ -1034,8 +971,8 @@ mod tests {
         let body = mixed();
         let mut mixed_pair_hit = false;
         for e in all_edges(&body) {
-            for a in ALL_SURFACE_KINDS {
-                for b in ALL_SURFACE_KINDS {
+            for a in SurfaceKind::ALL {
+                for b in SurfaceKind::ALL {
                     let (sa, sb) = (SurfaceKindSet::just(a), SurfaceKindSet::just(b));
                     assert_eq!(
                         edge_adjacent_matches(&body, e, sa, sb),
@@ -1130,105 +1067,6 @@ mod tests {
                     "dv={dv}"
                 );
             }
-        }
-    }
-
-    // -----------------------------------------------------------
-    // The two mirrors' censuses, beside the lists they pin.
-    // -----------------------------------------------------------
-
-    /// **A hand-written list IS the enum, checked by the compiler.**
-    ///
-    /// Takes the enum, its list, and a roster of variants, and expands
-    /// to two halves that between them force the LIST to grow — not
-    /// merely a visit to this file:
-    ///
-    /// - `roster_covers_the_enum` is a match over the enum with one arm
-    ///   per ROSTER entry and no wildcard. A variant added to the enum
-    ///   has no arm, so `E0004` reds here and names it. The only way to
-    ///   silence it is to add that variant to the roster.
-    ///
-    /// - one `assert!` per roster entry, in a `const` block, saying the
-    ///   list holds that variant at that seat. Adding the roster entry
-    ///   the first half demanded therefore asserts `list[n]` for a seat
-    ///   the old list does not have — a const-eval error, out of bounds,
-    ///   until the list itself grows.
-    ///
-    /// So the two halves close on each other: the edit the compiler
-    /// forces is the same edit that reds against a list of the old
-    /// length. This is deliberately NOT the shared-total census idiom
-    /// used elsewhere in the tree (`all_is_the_whole_vocabulary` and
-    /// its two siblings), which reds when an entry is REMOVED but not
-    /// when a variant is ADDED: there, every arm names the same total,
-    /// only the scrutinee's arm is ever produced, and an author who
-    /// writes the honest new total in the one arm the compiler pointed
-    /// at leaves the other arms — and the assertion — reading the old
-    /// one. Measured, and filed on
-    /// `work/census/all-census-idiom-forces-the-visit-not-the-update`
-    /// with this macro offered as the instrument that closes it.
-    ///
-    /// The remaining ways to defeat this are edits that state something
-    /// false rather than copy something stale: deleting an arm's
-    /// assertion, or reordering the roster and the list together.
-    macro_rules! census {
-        ($ty:ident, $list:expr, [$($variant:ident),+ $(,)?]) => {
-            const _: () = {
-                #[allow(dead_code)]
-                fn roster_covers_the_enum(kind: $ty) {
-                    match kind {
-                        $($ty::$variant => (),)+
-                    }
-                }
-                let mut seat = 0;
-                $(
-                    assert!(
-                        matches!($list[seat], $ty::$variant),
-                        "the list has drifted from the enum: this seat \
-                         does not hold the kind the roster puts here"
-                    );
-                    seat += 1;
-                )+
-                assert!(
-                    seat == $list.len(),
-                    "the list is longer than the enum's roster"
-                );
-            };
-        };
-    }
-
-    census!(
-        SurfaceKind,
-        ALL_SURFACE_KINDS,
-        [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx]
-    );
-
-    census!(
-        CurveKind,
-        CurveKind::ALL,
-        [Line, Circle, Ellipse, Spiric, Nurbs]
-    );
-
-    /// **No two kinds share a bit position**, on either mirror: a
-    /// duplicated `surface_bit` / `CurveKind::bit` arm would make two
-    /// kinds indistinguishable inside a set, and the exhaustive match
-    /// that forces the arm to exist cannot see that its value collides.
-    /// A singleton set that iterates back to a DIFFERENT kind is what
-    /// that collision looks like from outside.
-    #[test]
-    fn kind_bits_are_distinct() {
-        for kind in ALL_SURFACE_KINDS {
-            assert_eq!(
-                SurfaceKindSet::just(kind).iter().next(),
-                Some(kind),
-                "{kind:?} shares a bit with an earlier surface kind"
-            );
-        }
-        for kind in CurveKind::ALL {
-            assert_eq!(
-                CurveKindSet::just(kind).iter().next(),
-                Some(kind),
-                "{kind:?} shares a bit with an earlier curve kind"
-            );
         }
     }
 }

@@ -87,6 +87,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "general_circle_octant_dual.rs"]
+mod general_circle_octant_dual;
 #[path = "lane1_r2_probes.rs"]
 mod lane1_r2_probes;
 #[path = "offb_r1_loft_probes.rs"]
@@ -168,6 +170,8 @@ mod verbs_shell;
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
+#[path = "band_clearance_screen_reads_every_feature.rs"]
+mod band_clearance_screen_reads_every_feature;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -328,6 +332,8 @@ mod r1_probes_issue1362_donut;
 mod r2_sense_fold_probes;
 #[path = "ray_wall_margin_twins.rs"]
 mod ray_wall_margin_twins;
+#[path = "reach_cone_split.rs"]
+mod reach_cone_split;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]
@@ -444,8 +450,15 @@ mod s16_box_soundness;
 mod s393_start_frame_door;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "seam_vertex_sites.rs"]
+mod seam_vertex_sites;
+
+#[path = "run_walls_built.rs"]
+mod run_walls_built;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_cylindrical_feature_box.rs"]
+mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]
@@ -591,6 +604,8 @@ mod mate7a_torus_rest;
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "snowman.rs"]
 mod snowman;
+#[path = "tang_circle_cylinder.rs"]
+mod tang_circle_cylinder;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

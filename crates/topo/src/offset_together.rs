@@ -205,7 +205,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             let Surface::Plane { origin, normal, .. } = surface else {
                 return Err(ReplaceFaceError::TogetherNonPlanar {
                     face,
-                    kind: geom_brep::SurfaceKind::of(surface),
+                    kind: surface.kind(),
                 });
             };
             let delta = *normal * m.distance;

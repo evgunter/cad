@@ -25,10 +25,11 @@ fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
 /// arithmetic; the sort happens in a genuinely rotated frame.
 fn tilted<T: geom_core::Decide>() -> SplitPlane<T> {
     let s = std::f64::consts::FRAC_1_SQRT_2;
-    SplitPlane {
-        origin: Point3::new(T::from_f64(2.0), T::from_f64(0.0), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(s), T::from_f64(s), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(2.0), T::from_f64(0.0), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(s), T::from_f64(s), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
 }
 
 #[test]
@@ -101,9 +102,12 @@ fn orientation_flip_swaps_sides_only() {
         1.0,
         Tol::witness(),
     );
-    let plane = |sy: f64| SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, sy, 0.0),
+    let plane = |sy: f64| {
+        topo::test_support::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, sy, 0.0),
+            geom_core::Tol::witness(),
+        )
     };
     let r1 = split(&fx.body, &plane(1.0), Tol::witness()).unwrap();
     let r2 = split(&fx.body, &plane(-1.0), Tol::witness()).unwrap();

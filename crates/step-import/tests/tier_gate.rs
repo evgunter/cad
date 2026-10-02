@@ -778,7 +778,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "../step-export/tests/fixtures/cone.step",
-        Pass(1, 1, 4, 6, 4),
+        Pass(1, 1, 3, 4, 3),
     ),
     (
         "../step-export/tests/fixtures/cube.step",
@@ -815,7 +815,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "../step-export/tests/fixtures/lily_lantern.step",
-        Pass(1, 1, 8, 14, 8),
+        Pass(1, 1, 6, 10, 6),
     ),
     (
         "../step-export/tests/fixtures/loft_prism.step",

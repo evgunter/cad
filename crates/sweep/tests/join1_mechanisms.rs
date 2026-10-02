@@ -15,9 +15,9 @@
 //!   neighbours read Out (`sectors::fold_on_bound`). Folding mixed
 //!   bounds Out instead turns the dumbbell row
 //!   (`germ_torus_doors::the_torus_waisted_union_builds_like_the_cylinder_control`)
-//!   and the teapot cup row
-//!   (`verbs_1031b_arcwind::the_boolean_after_the_merge_passes_the_join`)
-//!   red, which the other two mutations leave green; it also turns
+//!   and two `review_m3_pr55` rows (`g_stacked_full_on_edge_germ_dump`,
+//!   `g_boundary_on_boundary_refusals_sharp`) red, which the other two
+//!   mutations leave green; it also turns
 //!   [`matching_reads_the_germs_loci`] red.
 //!
 //! Each row asserts the body that builds: tiers 2 and 3′, the at-rest

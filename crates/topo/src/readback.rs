@@ -53,12 +53,12 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
-use crate::query::CurveKind;
+use geom::CurveKind;
 
 /// **A frame read off stored geometry**: an origin plus the carrier's
 /// own reference directions, verbatim.
@@ -397,7 +397,7 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 /// has a kind.
 ///
 /// ```
-/// use geom_brep::SurfaceKind;
+/// use geom::SurfaceKind;
 /// use geom_core::{Point3, Vec3};
 /// use topo::readback::face_carrier_kind;
 /// use topo::{Body, FaceSurface, Surface};
@@ -424,7 +424,7 @@ pub fn face_carrier_kind<T: Real>(
     face: FaceKey,
 ) -> Result<SurfaceKind, ReadbackError> {
     let (surface, _sense) = carrier_surface(body, face)?;
-    Ok(SurfaceKind::of(surface))
+    Ok(surface.kind())
 }
 
 /// **A vertex's position** — the stored point, copied out. The
@@ -555,7 +555,7 @@ pub fn edge_carrier_kind<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Result<CurveKind, ReadbackError> {
-    Ok(CurveKind::of(edge_carrier_ref(body, edge)?))
+    Ok(edge_carrier_ref(body, edge)?.kind())
 }
 
 /// **An edge's carrier frame** — the certified carrier's own stored
