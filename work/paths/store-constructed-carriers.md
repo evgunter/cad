@@ -117,3 +117,39 @@ The design is in D1's Profile-format clause as merged:
 Order: 5a, then the shared type, then 5b. The register-equal allowlist
 gains the shared type's site; it was named on the PR and approved with
 it.
+
+## After 5a (#3527, merged 2026-10-02)
+
+**Done by 5a; not this unit's any more:**
+- the stored bulge (`ProfileLoop.bulges`, `ValidatedSegment.bulge`) and
+  the bulge accessor are gone; the loop stores (vertex, `Segment`) pairs
+  through `ProfileLoop::from_chain`;
+- `map_scalar`, `reversed`, `ValidatedSegment::lift` and `lift_onto` copy
+  the stored fields; `lift::chain_form` writes `ArcTo(Center)`;
+- `build_seg`'s readers (margin, sagitta, apex), `anchor::derive_naming`,
+  `signed_area`, the `stackup` digest and `viewer::flatten` read the
+  stored carrier;
+- the validate-time consistency checks (`arc_start_on_carrier`,
+  `arc_landing`, `arc_sweep_range`, with the scene-resolution refusal),
+  decided for tables and held by construction for a `ConstructedLoop`;
+- `Arc2::register_endpoints` (called by `lower_arc`) and the sweep's
+  rigidity-only registrations.
+
+**What remains:**
+1. The emission layer still lowers every arc through a bulge: each arc
+   mode computes a bulge and `Core::finish` re-derives the carrier from
+   the chord (`lower_chain`). Each construction stores the `Arc2` it
+   builds instead, spelled per D1: the radius as authored, Δθ as one
+   `4·atan(X)` with X algebraic, never `atan2`. A `Center` arc stores the
+   authored centre. Each construction registers only the endpoint facts
+   its algebra proves.
+2. The bulge→carrier hand copies left after 5a: `path.rs::arc_carrier`
+   (and `family.rs::bulge_carrier` through it), the tangent arc's
+   `atan2` delta, `sugar::bulge_from_center` / `bulge_from_via` as
+   lowering steps, `verbs.rs`'s `(signed/4).tan()`, and
+   `geom-brep/tests/shared/arc.rs::lowered_arc`.
+3. The `geom-brep` boundary: `sweep::skin::segment_curve` trusts
+   `arc.radius` and reads the start angle by endpoint `atan2`.
+4. Re-check `FilletArcFlattenedInStorage` and
+   `profile-fillet-radius-off-at-eps-1e-6`, and whether 3 resolves
+   `sketch-segment-eval-could-be-exact-at-both-ends`.
