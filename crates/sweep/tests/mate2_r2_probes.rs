@@ -225,8 +225,7 @@ fn r2_full_period_bore_unions() {
 }
 
 /// The mirror: arc-split collar against a FULL-REVOLVE peg, held to
-/// the same
-/// `never_silent` checks as the bore row.
+/// the same `never_silent` checks as the bore row.
 #[test]
 fn r2_full_period_peg_unions() {
     // The collar along Y, arc-split (extruded on the peg's plane).
