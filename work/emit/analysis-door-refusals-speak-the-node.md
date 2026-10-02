@@ -2,8 +2,9 @@
 id: analysis-door-refusals-speak-the-node
 kind: unit
 title: The analysis doors' refusals (range, drive, mc, stackup, clearance, report, product) speak the node with its label
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-02
 pr: 3749
 priority: P2
 cost: M
