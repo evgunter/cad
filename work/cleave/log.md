@@ -264,3 +264,4 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   wall's curvature arm, and the conic order is arc-length keyed with an
   explicit branch cut. The section-rings fallback no longer fires on
   the tilted-cut poses; a guard row pins that.
+- Wrong-arc merged (PR 3718). Wave 4 dispatched: `cleave/carrier-walk` (P1; it may also take the spiric/spline crossing-row P2; single full review) and `cleave/strut-gate` (P2/E; orchestrator's read or style review). `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, `design: true`, filed by another program) waits for a designer pair.
