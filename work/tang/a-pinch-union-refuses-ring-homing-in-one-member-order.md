@@ -90,3 +90,24 @@ the contact against the plate, all six ops refused, including
 Holes touching at a corner still refuse when the blocks fold first: the
 pinch's strut ring has every vertex on the run. Filed:
 `a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run` (TANG).
+
+**Fix pass 2 (2026-10-02).**
+- Both operands' weld fusions are now recorded where the contact remap
+  and the naming read them (`BooleanNaming::weld_merges_b`, B-clone
+  keys).
+- Every merge chain is read by one fold, `zip::survivor`.
+- **What stays divergent, filed:**
+  - The pinch union's contact record and its 3′ verdict follow the
+    member folded last. The two orders that fold the plate last publish
+    no v-v record and fail 3′.
+    - The cause is not the weld. A boolean drops its operands' own
+      contact records.
+    - Main does the same at topo level.
+    - Main refused `[p2, p1, plate]` loudly; this branch publishes that
+      order's body, which fails 3′ silently.
+    - Filed as `work/wire/a-boolean-drops-its-operands-own-contact-records.md`.
+  - X ∩ P and P ∩ X mesh a doubled edge as one segment of four
+    triangles, which `check_mesh` refuses. Filed as
+    `work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`.
+- `union_pinch_member_order.rs` asserts both divergences, citing the two
+  rows.

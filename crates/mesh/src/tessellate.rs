@@ -125,7 +125,10 @@ impl Patch {
 }
 
 /// Tessellates a closed body into a watertight [`Mesh`] within the
-/// chordal tolerance `chordal` (δ, meters) of its exact surfaces.
+/// chordal tolerance `chordal` (δ, meters) of its exact surfaces —
+/// watertight as [`crate::validate::check_mesh`] reads it, which a body
+/// with two coincident edges between one vertex pair does not yet meet
+/// (`work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
 ///
 /// δ is a per-call display/export parameter, deliberately not the
 /// kernel ε — see the crate docs for the distinction, the
@@ -578,7 +581,7 @@ fn tessellate_impl(
     // classes. This census reads the chord segments and nothing else,
     // so its footprint IS the class:
     // an unidentified shared boundary makes each side's copy a
-    // one-use edge, which is what `n != 2` catches. The narrower guard
+    // one-use segment, short of two uses per chord. The narrower guard
     // is not a second copy of the oracle; it is the class's own
     // question, and `check_mesh` remains available to a caller.
     #[cfg(debug_assertions)]
@@ -593,9 +596,8 @@ fn tessellate_impl(
         let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below as u32);
         debug_assert!(
             bad.is_none(),
-            "chord segment {:?} is an edge of {} face triangles; a watertight \
-             emission uses every chord segment 2 times per chord carrying it. The census counts \
-             and cannot say why. Known causes: the faces meeting on that edge \
+            "chord segment {:?} is an edge of {} face triangles, not two per chord \
+             carrying it. The census counts and cannot say why. Known causes: the faces meeting on that edge \
              emitted the segment under different ids, a face there emitted no \
              triangle along it, or a patch used it more than once (issue 897)",
             bad.map(|(e, _)| e),
@@ -612,19 +614,28 @@ fn tessellate_impl(
 ///
 /// Every edge of the body carries a chord polyline whose segments the
 /// two faces meeting on that edge both insert as CDT constraints, so
-/// in a watertight emission each segment is a triangle edge exactly
-/// twice: once per side, or twice within one patch where a `Seam` edge
-/// is traversed both ways by the same face. Two coincident edges
+/// each segment is a triangle edge twice per chord carrying it: once
+/// per side, or twice within one patch where a `Seam` edge is traversed
+/// both ways by the same face.
+///
+/// **That is chord pairing, not watertightness.** Watertight is
+/// [`crate::validate::check_mesh`]'s question, every edge of exactly two
+/// triangles, and the two differ on one body: two coincident edges
 /// between the same two vertices (two solids touching along a line,
-/// whose contact ends at one vertex each way) carry one id pair twice,
-/// and its four faces use it four times. A count of 1 is the class
-/// this guard exists for — the two sides emitted the segment under
-/// DIFFERENT ids, so neither copy pairs up. It is not the only state
-/// the count catches: a face that emits no triangle along the segment
-/// leaves 1 (its neighbour's) or 0, and a patch that uses a segment
-/// more than once pushes it past 2. The count cannot tell causes
-/// apart, so the report states the count, the expected 2, and the
-/// causes known — without claiming the list is complete.
+/// whose contact ends at one vertex each way). Their chords are one id
+/// pair twice, which their four faces use four times; this census
+/// counts that as paired, and `check_mesh` refuses it as
+/// `NonManifoldEdge`
+/// (`work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+///
+/// A count of 1 on a single chord is the class this guard exists for —
+/// the two sides emitted the segment under DIFFERENT ids, so neither
+/// copy pairs up. It is not the only state the count catches: a face
+/// that emits no triangle along the segment leaves 1 (its neighbour's)
+/// or 0, and a patch that uses a segment more than once pushes it past
+/// two per chord. The count cannot tell causes apart, so the report
+/// states the count, the expected two per chord, and the causes known —
+/// without claiming the list is complete.
 ///
 /// `shared_below` is the first id minted after the chord pass. Ids are
 /// minted topology-vertices-then-chords-then-per-face-grid (D9's

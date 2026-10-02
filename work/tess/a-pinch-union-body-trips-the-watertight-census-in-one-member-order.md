@@ -38,5 +38,7 @@ other orders. The census tripped on that face. Branch
 `tang/pinch-union-order` welds the two pierces into one vertex and two
 faces (`crates/topo/src/boolean/finish.rs`, `weld_pinches`). The order now
 tessellates, and `crates/editor-core/tests/union_pinch_member_order.rs`
-tessellates every order's result. Nothing is left for the tessellator;
-the row closes with that branch.
+tessellates every order's result. Nothing is left for the tessellator from
+this row, which closes with that branch. The census change the branch
+made, two uses per chord carrying a segment, admits a body `check_mesh`
+refuses: `two-coincident-edges-between-one-vertex-pair-mesh-non-manifold`.

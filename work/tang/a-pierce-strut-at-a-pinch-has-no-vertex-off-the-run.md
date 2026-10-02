@@ -56,3 +56,24 @@ and shared with the split sweep, so they never reach `rehome_rings`.
 
 Either is a change to the join's contract, not to the homing test, so it
 was left out of the PR that fixed the coincident-pierce weld.
+
+## A second witness: the 3N staircase (TANG review, 2026-10-02)
+
+- X = `block((-1,4),(-1,3),0.5,2.5)` less three cuts:
+  - `((1,1.5),(-2,1),0.3,2)`
+  - `((1.5,2),(1,1.5),0.27,1.73)`
+  - `((2,2.5),(1.5,4),0.31,1.5)`
+- Each consecutive pair of cuts touches along a line that pierces the
+  plate `[0,3] × [0,2] × [0,1]`'s top.
+- Measured at topo level (`topo::{subtract, union, intersect}` over
+  `test_support::brick`) on `tang/pinch-union-order`:
+  - X − P, X ∪ P and X ∩ P refuse `Join(RingHomingAmbiguous)`.
+  - P − X, P ∪ X and P ∩ X build: F/E/V 20/48/30, 28/74/50 and
+    20/48/28.
+- **The asymmetry.** X ∪ P refuses while P ∪ X builds. The union is
+  symmetric, so the refusal follows which side the slab is on, not the
+  op. Same mechanism: the second pierce's strut is homed against a run
+  through the first.
+- P ∩ X passes 3′. P − X and P ∪ X fail 3′ only by the contacts X's own
+  record held, which no boolean carries into its result
+  (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
