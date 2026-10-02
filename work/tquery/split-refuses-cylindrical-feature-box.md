@@ -2,12 +2,14 @@
 id: split-refuses-cylindrical-feature-box
 kind: issue
 title: topo::split refuses a box with one cylindrical feature in both orientations — and the second refusal reports CircularAxes where the closed form gives a-b = 0.049 m
-status: open
+status: review
 opened: 2026-09-01
 github: 1437
 refs: [91]
 priority: P0
 cost: H
+branch: tquery/split-cyl-feature
+pr: 3768
 ---
 
 ## From GitHub issue 1437
