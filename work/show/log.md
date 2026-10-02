@@ -99,3 +99,20 @@ Class findings with no home of their own, recorded here:
   - Both are pinned as walls.
   - The base is now rounded in-document, before the union.
 - **Wave 2 opens:** `projectbox-section-cuts-through-bores` is dispatched.
+
+## 2026-10-02 — heat sink reviewed (MERGE WITH FIXES)
+
+Single Opus review of PR 3793. The oracle checks out against the Steiner
+rounded-box form: Δ = 0 at 0, 5, 7 and 9 fins. The counters were
+mutation-checked. Rulings:
+- **Fins stay sunk.** The reviewer showed flush fins build today by deleting and
+  re-adding the union (four edits per step, and the union gets a new id). That
+  is the parked `doors/a-union-that-becomes-flush-later-...` deficiency. Taking
+  it would muddy the scene's one-edit subject, so the scene narrates the door as
+  measured and keeps sunk fins.
+- **Wall 1 pins designed fail-loud behaviour, not a gap.** It is re-spelled to
+  pin the gap, or demoted to narration.
+- **The r = 1/16 trimline refusal gets a file.**
+- **One rounded-box closed form serves `diefillet` and `heatsink`.**
+- **Wall matchers are tightened, and their `contains(...)` looseness is swept
+  tour-wide.**
