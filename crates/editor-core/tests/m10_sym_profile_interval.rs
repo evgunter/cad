@@ -405,13 +405,13 @@ const PLATE_MAX_TERMS: usize = 252;
 /// leaves blocked are rendered by the shape report (the `Report`
 /// lines, which build no form).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1285 forms 21283 frozen 1128 digest af4496b66255c69cb45f6b887ce5ab8c\n\
+     Plain/Decision calls 1141 forms 16247 frozen 696 digest 573b8e0fa96077718008a2a354e43a83\n\
      Plain/Assertion calls 612 forms 3237 frozen 372 digest 49f508b5049fd030a6e26e85287db3c5\n\
-     Plain/Report calls 186 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 570 forms 14227 frozen 8 digest 5bfc27fe8c7c2c88aee4d1c85f2917b8\n\
-     Early/Assertion calls 612 forms 4148 frozen 0 digest 9ca30f2fdebcc6410168bf06ef8e70f7\n\
-     Early/Report calls 186 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 702 forms 18834 frozen 0 digest ea0bd53e87154b0a57a65e855e456b52\n\
+     Plain/Report calls 62 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 426 forms 9125 frozen 8 digest 19086dd924ceff962890e6006fa1b3a2\n\
+     Early/Assertion calls 612 forms 4166 frozen 0 digest 5ee10d3572655392d9dabfaba4c6db6f\n\
+     Early/Report calls 62 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Door/Decision calls 558 forms 13722 frozen 0 digest dd070de1f4361f75c912822b1cabb245\n\
      Door/Assertion calls 356 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

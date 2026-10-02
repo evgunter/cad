@@ -24,17 +24,16 @@
 //! through the DOOR — rule D makes the two spellings' trig meet at
 //! every sample, and the rim identity `‖q − c‖ = r` the registrant
 //! states is what closes it, so the count is `registered`; and
-//! `pcurve_map_residual` on the rims (56 registered of 180) through the
-//! door too, once rule D's
+//! `pcurve_map_residual` (36 → 0) through the door too, once rule D's
 //! A1 folds take the chart's phase — `atan2(0, r²/sqrt(r²))` from the
 //! cylinder chart derivation is `atan2` of the zero form over a form
 //! non-negative BY SYNTAX, so it is the zero form (no sign read: the
 //! `r² = 0` box is one clause 1 refuses), and on the negative frame
 //! the `+ π` the branch-stabilized azimuth adds leaves `cos π = −1`
 //! outright. With the extrude closing on the pcurve mint, its wall rows'
-//! certificate (`pcurve_envelope`, and the `pcurve_map_residual`
-//! samples the door does not state) bounds the plate's whole-certifying
-//! ceiling at `4.8077e2·ε` under every rule set, below the assertion
+//! certificate (`pcurve_envelope`: the azimuth fidelity of the rows the
+//! loop walk shifted) bounds the plate's whole-certifying ceiling at
+//! `4.8077e2·ε` under every rule set, below the assertion
 //! the algebra used to reach — the dependency widening of the
 //! document's own web margin, affine and positive over the whole box
 //! (`m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first`;
@@ -205,7 +204,7 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     assert_eq!(row(&off, "carrier_matches_mapped_source"), [180, 0, 16, 56]);
     assert_eq!(row(&off, "carrier_on_surface_2"), [108, 0, 0, 72]);
     assert_eq!(row(&off, "witness_on_surface_2"), [12, 0, 0, 8]);
-    assert_eq!(row(&off, "pcurve_map_residual"), [0, 0, 0, 180]);
+    assert_eq!(row(&off, "pcurve_map_residual"), [0, 0, 0, 36]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
@@ -225,12 +224,10 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),
-        [0, 0, 56, 124],
+        [0, 0, 36, 0],
         "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
-         on the negative frame to −1; the rim identity the door states closes the rim rows' \
-         samples, so 56 are REGISTERED — and the 124 of the extrude's closing mint the door \
-         does not state stay numeric \
-         (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`)"
+         on the negative frame to −1; the rim identity the door states closes the rest, \
+         so every one of the 36 is REGISTERED"
     );
     assert_eq!(
         row(&on, "line_span"),
@@ -309,8 +306,10 @@ fn m10_10_the_closing_mints_certificate_bounds_the_plate_under_every_set() {
 /// At `s ≈ 0.2632`, where `assert_bound`'s enclosure — dependency
 /// widening of ~6e-5 on each side of a margin positive everywhere —
 /// used to bound the whole-certifying ceiling, the replay now stops at
-/// the extrude: its closing pcurve mint's `pcurve_map_residual` is over
-/// the band there, so `assert_bound` is never asked
+/// the extrude: its closing pcurve mint's `pcurve_envelope` is over the
+/// band there (the walked rows' azimuth fidelity,
+/// `work/pcert/loop-walk-branch-is-an-opaque-floor-atom.md`), so
+/// `assert_bound` is never asked
 /// (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
 /// The arithmetic half holds; the enclosure half is masked, and a fix
 /// to that row reds this one.
@@ -331,7 +330,7 @@ fn m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first() {
     let over: Vec<&str> = over_band_set(&shapes).iter().map(|e| e.predicate).collect();
     assert_eq!(
         over,
-        vec!["pcurve_map_residual"],
+        vec!["pcurve_envelope"],
         "the closing mint's certificate refuses, and `assert_bound` is not reached"
     );
 }

@@ -421,14 +421,14 @@ fn sym_9_what_each_retry_recovers() {
 ///
 /// Every document moved UP when the extrude began closing with the
 /// pcurve mint: its wall rows' certificate is decided too. Without the
-/// ladder the plate reads `[939, 0, 160, 798]`, the annulus
-/// `[432, 24, 160, 545]`, the boss `[453, 20, 115, 481]`, the bracket
-/// `[1236, 51, 166, 1205]` and the link `[673, 0, 120, 853]`; the
-/// ladder still recovers the bracket's six, and the link's retries go
-/// 14 → 23 (`[675, 0, 141, 830]` with it), the nine more being the
-/// certificate's. Check 4 re-derives each row's image, so the
-/// derivation's decisions are taken twice, and its envelope is a
-/// theorem where the door used to register it.
+/// ladder the plate reads `[939, 0, 140, 674]`, the annulus
+/// `[432, 24, 140, 421]`, the boss `[453, 20, 96, 392]`, the bracket
+/// `[1236, 51, 146, 1045]` and the link `[673, 0, 110, 719]`; the
+/// ladder still recovers the bracket's six, and the link's retries
+/// stay 14 (`[675, 0, 122, 705]` with it). Check 4 re-derives each
+/// row's image, so the derivation's decisions are taken twice, and its
+/// envelope is a theorem; a harmonic row's schedule is not run over the
+/// box.
 ///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
@@ -449,21 +449,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [939, 0, 160, 798], [939, 0, 160, 798], 0),
-        ("r1_annulus", [432, 24, 160, 545], [432, 24, 160, 545], 0),
-        (
-            "r1_segment_boss",
-            [453, 20, 115, 481],
-            [453, 20, 115, 481],
-            0,
-        ),
+        ("two_hole_plate", [939, 0, 140, 674], [939, 0, 140, 674], 0),
+        ("r1_annulus", [432, 24, 140, 421], [432, 24, 140, 421], 0),
+        ("r1_segment_boss", [453, 20, 96, 392], [453, 20, 96, 392], 0),
         (
             "r2_filleted_bracket",
-            [1236, 51, 166, 1205],
-            [1236, 51, 172, 1199],
+            [1236, 51, 146, 1045],
+            [1236, 51, 152, 1039],
             6,
         ),
-        ("r2_link", [673, 0, 120, 853], [675, 0, 141, 830], 23),
+        ("r2_link", [673, 0, 110, 719], [675, 0, 122, 705], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -533,7 +528,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// the six as discharges a second attempt reached, not as a clause of
 /// `registered`'s. Without the ladder neither appears and the line is
 /// the one a drive wrote before the ladder existed. The six themselves
-/// are the rule-A attempt's, and they are `registered` (166 → 172).
+/// are the rule-A attempt's, and they are `registered` (146 → 152).
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -575,11 +570,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1236, 51, 172, 1199, 6],
+        [1236, 51, 152, 1039, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=172 retried=6\n"),
+        line.contains("registered=152 retried=6\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -595,7 +590,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1236, 51, 166, 1205, 0]
+        [1236, 51, 146, 1045, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

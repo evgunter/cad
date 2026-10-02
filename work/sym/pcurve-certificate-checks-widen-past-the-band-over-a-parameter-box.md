@@ -120,3 +120,14 @@ two-parameter plate reaches `3.57e-2` (bounded by `dihedral_wedge`), the
 four-widths drive and both `m10_3_driver` and M10-4 rows certify, and
 the tour's tolerance study passes. `sym11`'s stadium builds at every ε
 row. `chaintol` does not move.
+
+**With check 3 off the box certificate as built** (Ev on PR 3781: a
+`Harmonic` row's schedule runs only at a point scalar, unlogged through
+`k_stats::decide_cross_check`), every number above stands. The plate is
+still `4.8077e2·ε`, bounded by `pcurve_envelope`. The four-widths drive
+still reads 8 / 680 / 0 / 0. `m10_3_driver`, M10-4, `sym11` and the tour
+do not move. The walked rows' azimuth fidelity refuses first in every
+case. With that one term dropped on top (scratch, unsound), every one
+of them returns, as in the paragraph above. The plate's nominal split
+is main's again (`pcurve_map_residual` `[0, 0, 36, 0]`), and the link's
+retries are back to 14.

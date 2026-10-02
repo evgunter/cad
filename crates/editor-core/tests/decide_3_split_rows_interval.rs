@@ -79,7 +79,7 @@ fn decide_3_no_predicate_loses_a_decision() {
                 if a == *b { "" } else { "  <- moved" }
             );
             let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
-            // **THREE predicates are re-baselined, at their numbers, with
+            // **TWO predicates are re-baselined, at their numbers, with
             // their reasons**, all on R2's link. It is a re-baseline and
             // not an exemption: the numbers are asserted on both sides,
             // so any further drift reds and says which.
@@ -121,11 +121,6 @@ fn decide_3_no_predicate_loses_a_decision() {
                 ("r2_link", "carrier_matches_mapped_source") => {
                     Some(([108, 0, 60, 12], [108, 0, 50, 22]))
                 }
-                // The extrude's closing pcurve mint certifies the link's
-                // wall rows, so the certificate's sampled check joins the
-                // split, and rule G trades the door for numeric on a few
-                // of its samples the way it does on `carrier_on_surface_2`.
-                ("r2_link", "pcurve_map_residual") => Some(([0, 0, 37, 125], [0, 0, 28, 134])),
                 _ => None,
             };
             if let Some(expected) = rebaselined {
