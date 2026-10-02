@@ -2,10 +2,12 @@
 id: face-clearance-screen-skips-boundary-edges-it-cannot-read
 kind: issue
 title: blend: predicate 2's boundary-pair screen silently skips a face, a lone-vertex loop or an edge whose carrier does not certify
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: E
+pr: 3786
+closed: 2026-10-02
 ---
 
 
