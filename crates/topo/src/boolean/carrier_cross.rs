@@ -90,8 +90,25 @@ pub(super) fn boundary_crossing<T: Decide>(
         })?;
     let mut candidates: Vec<Point3<T>> = Vec::new();
     for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        let Some(LoopBoundary::Cycle { first }) = y.get_loop(lk).map(|l| l.boundary) else {
-            continue;
+        let first = match y.get_loop(lk).map(|l| l.boundary) {
+            Some(LoopBoundary::Cycle { first }) => first,
+            // A lone vertex is boundary too, and a candidate like any
+            // other.
+            Some(LoopBoundary::Empty { vertex }) => {
+                let p = y
+                    .get_vertex(vertex)
+                    .and_then(|v| y.get_point(v.point))
+                    .ok_or(BooleanError::ClassificationInvariant {
+                        what: "on-carrier crossing: ring vertex lost",
+                    })?;
+                candidates.push(*p);
+                continue;
+            }
+            None => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "on-carrier crossing: boundary loop lost",
+                });
+            }
         };
         let cycle = y
             .loop_cycle(first)
@@ -244,7 +261,7 @@ fn meetings<T: Decide>(
             if !transverse(s, T::one(), band)? {
                 return Ok(Some(Vec::new()));
             }
-            let t = (o2 - o1).cross(d2).dot(n) / (s * s);
+            let t = (o2 - o1).cross(d2).dot(n) / s.powi(2);
             vec![o1 + d1 * t]
         }
         (
@@ -272,12 +289,12 @@ fn meetings<T: Decide>(
             // meetings with the circle.
             let (h1, h2) = (n1.dot(c1 - Point3::origin()), n2.dot(c2 - Point3::origin()));
             let c = n1.dot(n2);
-            let k = s * s;
+            let k = s.powi(2);
             let p0 = Point3::origin() + (n1 * ((h1 - h2 * c) / k) + n2 * ((h2 - h1 * c) / k));
             let u = m * (T::one() / s);
             let w = p0 - c1;
             let b = w.dot(u);
-            let disc = b * b - (w.dot(w) - r1 * r1);
+            let disc = b.powi(2) - (w.dot(w) - r1.powi(2));
             match decide(
                 "bool_carrier_cross_disc",
                 Margin::levered_inv(disc, r1 + r1),
@@ -337,12 +354,12 @@ fn parallel_circles<T: Decide>(
         return Ok(Vec::new());
     }
     let e = w * (T::one() / d);
-    let a = (d * d + r1 * r1 - r2 * r2) / (d + d);
+    let a = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d + d);
     let foot = c1 + e * a;
     if apart == Sign::Zero || nested == Sign::Zero {
         return Ok(vec![foot]);
     }
-    let h = (r1 * r1 - a * a).sqrt();
+    let h = (r1.powi(2) - a.powi(2)).sqrt();
     let f = n1.cross(e);
     Ok(vec![foot + f * h, foot - f * h])
 }

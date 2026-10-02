@@ -31,7 +31,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, mass_properties};
+use topo::{Body, BooleanOp, BooleanResult, mass_properties};
 
 /// The collar's bore and outer radii and its span in `y`.
 const BORE: f64 = 0.5;
@@ -165,13 +165,7 @@ fn intersect_and_differences_answer_the_closed_form_or_refuse() {
             let tag = format!("azimuth {deg}, {span}");
             let ab = wall_decls(&c, &p);
             let ba = wall_decls(&p, &c);
-            let rows: [(
-                BooleanOp,
-                &Body<f64>,
-                &Body<f64>,
-                &BooleanDeclarations,
-                Option<f64>,
-            ); 3] = [
+            let rows = [
                 (BooleanOp::Intersect, &c, &p, &ab, None),
                 (BooleanOp::Subtract, &c, &p, &ab, Some(collar_volume())),
                 (BooleanOp::Subtract, &p, &c, &ba, Some(shaft_volume(h))),
