@@ -18,6 +18,7 @@
 use k_lint::{
     CONSTRUCTION_CEILING_FACTOR, CONSTRUCTION_COUPLED, Reason, construction_ceiling, lint_sample,
 };
+use test_utils::source;
 
 const HERMITE: &str = "pcurve_envelope_hermite";
 
@@ -110,23 +111,28 @@ fn a_closed_form_envelope_stays_under_the_metre_rules() {
 
 #[test]
 fn the_rostered_target_is_the_lanes_own() {
+    const PATH: &str = "crates/geom-brep/src/pcurve_cache.rs";
     const CACHE: &str = include_str!("../../../crates/geom-brep/src/pcurve_cache.rs");
+    // The shared lexer's views, blanked in place so offsets agree: the
+    // code view locates the lane's item, the literal view reads the
+    // name and the target, and neither answers to a mention in prose.
+    let code = source::blanked(source::code_only, PATH, CACHE);
+    let lits = source::blanked(source::code_and_literals, PATH, CACHE);
     assert_eq!(CONSTRUCTION_COUPLED.len(), 1);
     let (name, target, _) = CONSTRUCTION_COUPLED[0];
     assert_eq!(name, HERMITE);
     assert!(
-        CACHE.contains(&format!("\"{name}\"")),
-        "geom-brep's pcurve_cache.rs no longer mints {name:?}: rule (5)'s roster names nothing"
+        lits.contains(&format!("\"{name}\"")),
+        "{PATH} no longer mints {name:?}: rule (5)'s roster names nothing"
     );
-    let lane = CACHE
-        .split("fn sphere_circle_image_lane")
-        .nth(1)
-        .expect("sphere_circle_image_lane is gone from pcurve_cache.rs")
-        .split("\nfn ")
-        .next()
-        .unwrap();
+    let head = code
+        .find("fn sphere_circle_image_lane")
+        .unwrap_or_else(|| panic!("sphere_circle_image_lane is gone from {PATH}"));
+    let source::ItemBody::Body(body) = source::item_body(&code, head) else {
+        panic!("sphere_circle_image_lane in {PATH} has no body");
+    };
     assert!(
-        lane.contains(&format!("{target} * band.zero()")),
+        lits[body].contains(&format!("{target} * band.zero()")),
         "sphere_circle_image_lane no longer refines to {target} * band.zero(): rule (5)'s \
          target for {name:?} is stale"
     );
