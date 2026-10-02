@@ -897,6 +897,12 @@ between the two lands another document. `BlendEvent::TargetLost`
 names its node as the document spoke it when the target was picked,
 since no later document holds it.
 
+**The selection's verdict is spoken from the landed document too.**
+`DocSession::standing` asks a picked entity's resolution of the landed
+run every frame, so `pane::properties::standing_verdict` says its
+`ResolveError`, and its `ResolveIndeterminate` through
+`app::indeterminate_wording`, from that run's document.
+
 The landed document lags the committed one by a run. A sentence spoken
 from it says the label the landed run was read under, so a rename that
 has not landed yet reaches a badge at the next landing, and a line
