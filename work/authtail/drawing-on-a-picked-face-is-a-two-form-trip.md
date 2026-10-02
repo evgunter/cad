@@ -40,4 +40,4 @@ needs; the new arm reads them rather than restating them (every AUTHOR
 unit minted such a copy). AUTH-1's spec weighed and kept the two forms
 apart on the old "one submit, one committed edit" premise, which
 `commit_action` retired ("one submit, one undo" is the invariant);
-recover it with `git show <recovery-sha>:docs/AUTH-1-SPEC.md`.
+recover it with `git show RECOVERSHA:docs/AUTH-1-SPEC.md`.

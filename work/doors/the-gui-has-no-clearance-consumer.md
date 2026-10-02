@@ -38,5 +38,5 @@ What a consumer would show, and what it would have to decide first:
 
 Seams: CLEAR owns the engine (`crates/editor-core/src/clearance.rs`)
 and its refusals' words. The session seam is shared with CHROME,
-VSEAM and VGEOM (`work/author/program.md` keep_out). Weigh it with
+VSEAM and VGEOM (AUTHOR's `keep_out`, now DOORS's `work/doors/program.md`). Weigh it with
 designers before a lane builds it.

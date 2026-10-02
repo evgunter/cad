@@ -65,7 +65,7 @@ cancellation, also answers case 2.
 
 ## One question with its sibling (2026-09-30)
 
-Two designers weighed this row and reached the same final state after one reconciliation round. It is the same question as `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added`, and it is answered there. The evidence is in `work/author/log.md` (2026-09-30, "boolean-judge fork").
+Two designers weighed this row and reached the same final state after one reconciliation round. It is the same question as `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added`, and it is answered there. The evidence is in AUTHOR's log (`git show RECOVERSHA:work/author/log.md`) (2026-09-30, "boolean-judge fork").
 
 **The judge at the door is a workaround.** The door evaluates a boolean before recording it only because a committed boolean cannot be given a declaration afterwards. Once a committed boolean can be given one, nothing needs judging before the commit. The door then becomes a plain commit, the seam evaluates the boolean once (off the frame thread, cancellable), and every cost case above disappears by construction.
 
