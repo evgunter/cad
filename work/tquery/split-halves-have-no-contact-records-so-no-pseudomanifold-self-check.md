@@ -2,13 +2,11 @@
 id: split-halves-have-no-contact-records-so-no-pseudomanifold-self-check
 kind: issue
 title: split returns pinch halves with no ContactRecords for their touching vertex copies, so no pseudomanifold self-check of its outputs can pass a designed pinch half
-status: open
+status: spec
 opened: 2026-10-02
 priority: P3
 cost: M
-design: true
 refs: [validate-passes-a-body-with-a-zero-width-slit-face, 3797]
-needs_ev: true
 ---
 
 
@@ -56,3 +54,29 @@ The deciding question: when an op mints two vertices from one, is their
 coincidence an identity inside the body, or a placement the op asserts
 and the census verifies? The `[ev]` PR carries both, and DESIGN.md
 tier 3′ is edited to the recommended answer.
+
+## Ruled (2026-10-02, PR 3813)
+
+Ev, after asking whether `Transform` works either way. It does: a
+split's halves are separate carved bodies, and the pinch sits inside
+one half. Ev's words: "i think a shared vertex, rather than two
+identically located ones, is good then".
+
+This is the shared-point answer: one `PointKey` referenced by each
+prong's own vertex, not one vertex shared by both prongs. The
+orchestrator confirmed the vocabulary on the PR.
+
+DESIGN.md D1 tier 3′ carries the rule:
+- "structural sharing (same surface or point key)";
+- (ii) "or from an op's copies of one vertex, which share its point".
+
+**The build:**
+- `mev_null` hands each copy the original's `PointKey`, in both lanes.
+- The census's vertex–vertex pass and the bound rungs
+  (`ee_bound_backed`) back a pair of distinct vertices on one point as
+  rung-1 structural. They still find such a pair and clear it, never
+  skip it. Distinct points at one position stay `UndeclaredContact`.
+- One crate-internal "move a vertex" door always mints a fresh point,
+  so no write goes through a shared point in place.
+- Re-baseline what moves: the iso point counts, and the euler
+  null-edge rows that become key-identical.
