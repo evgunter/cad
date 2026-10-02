@@ -644,7 +644,8 @@ mod fuzz_rows {
 
     /// **Every certified answer is true of the geometry.** For random
     /// ellipses (semi-axes 0.5–5 mm, eccentricity up to 25, any stored
-    /// order) against random walls and spheres posed to cross them:
+    /// order and sign) against random walls and spheres posed to cross
+    /// them:
     ///
     /// - every certified root lies on the surface, its TRUE distance
     ///   inside the zero band;
@@ -688,6 +689,11 @@ mod fuzz_rows {
                 } else {
                     (small, big)
                 };
+                // Either semi-axis stored negative, on a cycle of the case
+                // number rather than a draw, so the pinned seed's draws
+                // are the ones it was pinned on.
+                let major = if i % 3 == 1 { -major } else { major };
+                let minor = if i % 5 >= 3 { -minor } else { minor };
                 let e = geom::Curve3::Ellipse {
                     center: Point3::new(0.0, 0.0, 0.0),
                     axis: n,
@@ -791,6 +797,72 @@ mod graze_rows {
             if v.norm() > 0.2 && v.norm() < 1.0 {
                 return v.normalize();
             }
+        }
+    }
+
+    /// **A negative `major` is charged at its magnitude, at a metre and a
+    /// kilometre out.** The graze fuzz's counterexample on the signed
+    /// charge, pinned: an ellipse of `major = −3.41 m`, `minor = −0.18 m`
+    /// crossing a 17 µm ball by 1.8e-11 m at ε = 1e-12, and the same pose
+    /// carried 1 km out. The harmonics' rounding charged at the signed
+    /// `major` came to `(|C₀ − o| − 3.41)²` — near zero at the metre pose,
+    /// ~180× short at the kilometre one — and both read a certified
+    /// `Miss`.
+    #[test]
+    fn a_negative_major_is_charged_its_magnitude() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let axis = Vec3::new(
+            0.784_321_624_695_285_9,
+            -0.311_122_040_118_748_94,
+            0.536_696_064_069_501_7,
+        );
+        let u_ref = Vec3::new(
+            0.620_298_357_327_510_8,
+            0.404_949_218_494_292_5,
+            -0.671_748_523_137_679_4,
+        );
+        let center = Point3::new(
+            0.617_664_175_002_875_5,
+            -0.050_650_563_273_673_79,
+            0.736_877_021_230_139_7,
+        );
+        let hub = Point3::new(
+            2.735_196_927_577_549,
+            1.331_737_803_810_837_2,
+            -1.556_292_842_004_988_2,
+        );
+        for out in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1000.0, -700.0, 400.0)] {
+            let e = geom::Curve3::Ellipse {
+                center: center + out,
+                axis,
+                major: -3.413_716_003_510_488,
+                minor: -0.175_755_441_781_259_68,
+                u_ref,
+            };
+            let s = geom::Surface::Sphere {
+                center: hub + out,
+                radius: 1.664_235_542_121_884e-5,
+                axis,
+                u_ref: Vec3::new(
+                    0.620_354_405_993_338,
+                    0.393_355_381_418_971_8,
+                    -0.678_551_364_948_437_9,
+                ),
+            };
+            let vertex = (0..4)
+                .map(|k| FRAC_PI_2 * f64::from(k))
+                .min_by(|&a, &b| {
+                    let d = |t: f64| {
+                        ((e.eval(t) - (hub + out)).norm() - 1.664_235_542_121_884e-5).abs()
+                    };
+                    d(a).total_cmp(&d(b))
+                })
+                .unwrap();
+            let got = ellipse_roots(&e, vertex - 0.5, vertex + 0.5, &s, band);
+            assert!(
+                !matches!(got, Ok(CircleRoots::Miss)),
+                "{out:?} out: a certified Miss for a crossing 1.8e-11 m deep"
+            );
         }
     }
 
