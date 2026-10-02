@@ -12,9 +12,10 @@
 //! apex (`geom_core::Arc2::apex`); a cap-plane change that makes a
 //! flat arc refuse where it certified shows up as a count moving out of
 //! `ok`. Nine of the extrude refusals at 1e-12 predate the apex. The
-//! rest are the extrude's closing pcurve mint: the widest arcs' wall
-//! rows escalate at the certificate's `Envelope` check at this scalar
-//! (`work/pctail/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`).
+//! other three are the extrude's closing pcurve mint at `off = 1000`,
+//! whose wall rows escalate at the certificate's `MapResidual` samples
+//! at this scalar
+//! (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Interval, Point2, Real, Tol};
@@ -66,8 +67,8 @@ fn the_shallow_arc_grid_census_is_mains_at_every_eps_row() {
     // (certifies, profile refuses, extrude refuses, geometry refuses)
     let want: (usize, usize, usize, usize) = match eps {
         1e-6 => (51, 9, 0, 0),
-        1e-9 => (51, 6, 3, 0),
-        1e-12 => (24, 22, 14, 0),
+        1e-9 => (54, 6, 0, 0),
+        1e-12 => (26, 22, 12, 0),
         _ => return,
     };
     let mut got = (0, 0, 0, 0);
