@@ -418,8 +418,8 @@ fn the_sphere_capped_tube_refuses_undeclared_and_under_every_other_class() {
 /// normals definitely apart (`contact_tangent_parallel`) and the seam
 /// is contradicted, in both orders and under every op. The 45° cone
 /// frustum is refused earlier, at the declaration inventory, on its
-/// kind; and the ball seated in a bore of its own radius shares no rim
-/// with it and has no closed-form locus, so the class is refused.
+/// kind. (The ball seated in its bore, which has no locus to verify a
+/// seam along, is `a_ball_seated_in_its_own_bore_refuses_declared_or_not`.)
 #[test]
 fn a_seam_declared_on_a_transverse_pair_is_contradicted() {
     let tol = Tol::witness();
@@ -816,50 +816,339 @@ fn the_stadiums_plane_cylinder_seam_is_contradicted_as_a_tangent() {
             "the seam's outward normals agree, which the witness lane reads as \
              containment: {e}"
         );
-    } // Declared a `Seam`, the same lane verifies it along the ruling with
-    // the sense bit reversed. Undeclared, the rod's end discs are flush
-    // continuations of the slab's sides; declared, the union stops at
-    // the curved coplanar-lump site, whose second-order arm reads a
-    // `Tangent` pair only (filed:
-    // `a-declared-line-seam-stops-at-the-curved-lump-site`).
-    let ends = |b: &Body<f64>| -> Vec<(FaceKey, f64)> {
-        b.faces()
-            .filter_map(|(k, f)| match b.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) if normal.y.abs() > 0.5 => {
-                    Some((k, origin.y))
-                }
-                _ => None,
-            })
-            .collect()
-    };
-    for (x, y, fx, fy) in [(&slab, &rod, &flats, &walls), (&rod, &slab, &walls, &flats)] {
-        let mut d = declared(fx, fy, BooleanCoincidence::Seam);
-        for (ex, yx) in ends(x) {
-            for (ey, yy) in ends(y) {
-                if (yx - yy).abs() < 1e-12 {
-                    d.coincident_faces
-                        .push(FacePairDeclaration::continuation(ex, ey));
-                }
+    }
+    // Declared a `Seam`, the lane finds the outward normals aligned,
+    // and then that the rod's wall face lies on BOTH sides of the
+    // ruling: half of it runs inside the slab. The two faces do not
+    // leave the line on opposite sides, so this is no seam.
+    for e in union_both_orders(&slab, &rod, &flats, &walls, Some(BooleanCoincidence::Seam)) {
+        let BooleanError::SeamContradicted { margin, .. } = &e else {
+            panic!("declared Seam: contradicted: {e:?}");
+        };
+        assert_eq!(margin.predicate, Some("seam_line_side"), "{e}");
+    }
+}
+
+/// The planar faces of `b` with their origin and OUTWARD normal.
+fn planar_faces(b: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
+    b.faces()
+        .filter_map(|(k, f)| match b.get_surface(f.surface) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some((k, *origin, *normal * if f.sense { 1.0 } else { -1.0 }))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Every coplanar planar face pair across `x` and `y`, declared `Rest`
+/// where the outward normals oppose and a continuation where they agree.
+fn coplanar_pairs(x: &Body<f64>, y: &Body<f64>) -> Vec<FacePairDeclaration> {
+    let mut out = Vec::new();
+    for (fa, oa, na) in planar_faces(x) {
+        for (fb, ob, nb) in planar_faces(y) {
+            if na.cross(nb).norm() < 1e-9 && (ob - oa).dot(na).abs() < 1e-9 {
+                out.push(if na.dot(nb) > 0.0 {
+                    FacePairDeclaration::continuation(fa, fb)
+                } else {
+                    FacePairDeclaration::rest(fa, fb)
+                });
             }
         }
+    }
+    out
+}
+
+/// **A line seam that IS one: the D-bar on the slab.** The half-rod
+/// whose flat lies on the slab's side face (`Rest`) and whose wall
+/// starts at the slab's top and bottom edges leaves each tangent ruling
+/// on the side away from the slab, so its walls declared a `Seam`
+/// against the slab's top and bottom verify in both orders. The union
+/// then stops in the declared-`Rest` zip, which has no arm for the two
+/// parallel seam edges (filed:
+/// `a-declared-line-seam-stops-at-the-rest-zip`).
+#[test]
+fn a_d_bar_on_the_slab_verifies_its_line_seams_and_stops_at_the_zip() {
+    let tol = Tol::witness();
+    let slab: Body<f64> = brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol);
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 0.0),
+    ]);
+    let plane = profile::SketchPlane::new(Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::unit_x(),
+        -PI / 2.0,
+    ));
+    let p = profile::Profile::new(plane, vec![lp])
+        .validate(tol)
+        .unwrap();
+    let dbar = extrude(&p, Extrusion::Distance(1.0), tol).unwrap().body;
+    let half_rod = PI * 0.25 / 2.0;
+    let v = topo::mass_properties(&dbar, tol).unwrap().volume;
+    assert!(
+        (v - half_rod).abs() <= 1e-12,
+        "the half rod: {v} vs {half_rod}"
+    );
+    let flats = |b: &Body<f64>| {
+        let mut f = planes_at_z(b, 0.5);
+        f.extend(planes_at_z(b, -0.5));
+        f
+    };
+    for (x, y) in [(&slab, &dbar), (&dbar, &slab)] {
+        let mut d = declared(
+            &flats(x),
+            &faces_of(y, SurfaceKind::Cylinder),
+            BooleanCoincidence::Seam,
+        );
+        d.coincident_faces.extend(
+            declared(
+                &faces_of(x, SurfaceKind::Cylinder),
+                &flats(y),
+                BooleanCoincidence::Seam,
+            )
+            .coincident_faces,
+        );
+        d.coincident_faces.extend(coplanar_pairs(x, y));
         assert_eq!(
             d.coincident_faces.len(),
-            6,
-            "two flats by two walls, two flush ends"
+            5,
+            "two seams, the flat, two flush ends"
         );
         let r = topo::union_with(x, y, &d, tol);
-        // The rod-first order escalates on the contact-vertex margin
-        // the undeclared row's does, at an ε-dependent band.
         assert!(
             matches!(
                 r,
-                Err(BooleanError::CurvedBooleanUnsupported {
-                    kind: SurfaceKind::Cylinder,
-                    ..
-                } | BooleanError::Escalated { .. })
+                Err(BooleanError::RestZipUnsupported {
+                    what: topo::RestZipFrontier::ParallelSeamEdges
+                })
             ),
-            "declared Seam: verified, then the curved lump site: {r:?}"
+            "verified, then the zip: {r:?}"
         );
+    }
+}
+
+/// **The same rim, the same aligned normals, and no seam: a cusp.** A
+/// lower half ball hanging in the tube's mouth (the bowl), and a whole
+/// ball split at its equator on the rim, each meet the tube's wall G1
+/// along the rim with outward normals aligned. But the bowl and the
+/// ball's lower half leave the rim DOWNWARD, as the tube's wall does,
+/// so both materials lie on one side: a nested touch, wedge 0, not the
+/// π seam. Declared a `Seam` each is contradicted (`seam_rim_cusp`), in
+/// both orders. Declared `Tangent`, the bowl is contradicted by its
+/// aligned senses without a steer, since no declaration fits it
+/// (`contact_tangent_rim_nested`).
+#[test]
+fn a_bowl_or_a_split_ball_in_the_tubes_mouth_is_a_cusp_not_a_seam() {
+    let tol = Tol::witness();
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    let tube = rod_z(R, 0.0, H);
+    let bowl = cap_on_the_tube(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(0.0, -R), q),
+        (Point2::new(R, 0.0), 0.0),
+    ]);
+    let split = cap_on_the_tube(vec![
+        (Point2::new(0.0, -R), q),
+        (Point2::new(R, 0.0), q),
+        (Point2::new(0.0, R), 0.0),
+    ]);
+    let half_ball = 2.0 / 3.0 * PI * R.powi(3);
+    for (label, cap, want, faces) in [
+        ("bowl", &bowl, half_ball, 3),
+        ("split", &split, 2.0 * half_ball, 4),
+    ] {
+        let v = topo::mass_properties(cap, tol).unwrap().volume;
+        assert!((v - want).abs() <= 1e-12 * want, "{label}: {v} vs {want}");
+        assert_eq!(census(cap).0, faces, "{label}: its faces");
+    }
+    let walls = |b: &Body<f64>| {
+        let mut f = faces_of(b, SurfaceKind::Cylinder);
+        f.extend(faces_of(b, SurfaceKind::Sphere));
+        f
+    };
+    for (label, cap) in [("bowl", &bowl), ("split", &split)] {
+        for (x, y) in [(&tube, cap), (cap, &tube)] {
+            let run = |class| {
+                let mut d = declared(&walls(x), &walls(y), class);
+                d.coincident_faces.extend(coplanar_pairs(x, y));
+                topo::union_with(x, y, &d, tol)
+            };
+            let r = run(BooleanCoincidence::Seam);
+            let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
+                panic!("{label}: declared Seam, contradicted: {r:?}");
+            };
+            assert_eq!(margin.predicate, Some("seam_rim_cusp"), "{label}");
+            if label == "bowl" {
+                let r = run(BooleanCoincidence::TANGENT);
+                let Err(BooleanError::ContactContradicted { margin, steer, .. }) = &r else {
+                    panic!("bowl: declared Tangent, contradicted: {r:?}");
+                };
+                assert_eq!(margin.predicate, Some("contact_tangent_rim_nested"));
+                assert_eq!(*steer, None, "no declaration fits a nested touch");
+            }
+        }
+    }
+}
+
+/// **A seam lets a rim lying on the partner's carrier reach its lane.**
+/// A puck of radius `a`, height `r`, and the quarter-disc ring revolved
+/// round it, of minor radius `r`: the puck's top meets the ring's torus
+/// G1 along its top circle (`Seam`), the walls are one cylinder
+/// (`Rest`), the bottoms one plane (continuation). The puck's rim
+/// lies identically on the torus, an ON event the circle root door
+/// places (`LiesOn`); the seam's cover must not read it as a touch
+/// first. The union is the rounded puck: census (3, 4, 3, 1) and the
+/// Pappus volume, in both orders.
+#[test]
+fn a_puck_and_its_rounding_ring_build_with_the_top_declared_a_seam() {
+    let tol = Tol::witness();
+    let (a, r) = (1.0_f64, 0.25_f64);
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    let ring = revolved_about_y(
+        vec![
+            (Point2::new(a, 0.0), 0.0),
+            (Point2::new(a + r, 0.0), q),
+            (Point2::new(a, r), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
+    let mut ring = topo::transform_rigid(&ring, &turn, tol).unwrap();
+    ring.merge_coplanar_faces(tol).unwrap();
+    let puck = rod_z(a, 0.0, r);
+    let want =
+        PI * a * a * r + (PI * r * r / 4.0) * core::f64::consts::TAU * (a + 4.0 * r / (3.0 * PI));
+    for (label, x, y) in [("puck ∪ ring", &puck, &ring), ("ring ∪ puck", &ring, &puck)] {
+        let mut d = declared(
+            &planes_at_z(x, r),
+            &faces_of(y, SurfaceKind::Torus),
+            BooleanCoincidence::Seam,
+        );
+        d.coincident_faces.extend(
+            declared(
+                &faces_of(x, SurfaceKind::Torus),
+                &planes_at_z(y, r),
+                BooleanCoincidence::Seam,
+            )
+            .coincident_faces,
+        );
+        d.coincident_faces.extend(
+            declared(
+                &faces_of(x, SurfaceKind::Cylinder),
+                &faces_of(y, SurfaceKind::Cylinder),
+                ContactClass::Rest,
+            )
+            .coincident_faces,
+        );
+        d.coincident_faces.extend(coplanar_pairs(x, y));
+        let (v, c, _) = built(label, topo::union_with(x, y, &d, tol));
+        assert!(
+            (v - want).abs() <= 1e-12 * want,
+            "{label}: {v} vs Pappus {want}"
+        );
+        assert_eq!(c, (3, 4, 3, 1), "{label}: top disc, torus, floor");
+    }
+}
+
+/// **A cover admits an off-carrier end only on its certified side.** A
+/// rod of radius 0.5 seated in the bore of radius 1 of a revolved tube,
+/// touching along a ruling and declared `Tangent`, at thirty turns of
+/// the touching ruling. The rod's carrier lies inside the bore's
+/// (certified Negative), so its end arcs' off-carrier ends are admitted
+/// there, and the bore's lies outside the rod's. Pinned per refusal.
+#[test]
+fn a_rod_in_a_bore_declared_tangent_is_admitted_only_on_its_side() {
+    let tol = Tol::witness();
+    let tube = revolved_about_y(
+        vec![
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 0.0),
+            (Point2::new(2.0, 2.0), 0.0),
+            (Point2::new(1.0, 2.0), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
+    let tube = topo::transform_rigid(&tube, &turn, tol).unwrap();
+    let bore: Vec<FaceKey> = faces_of(&tube, SurfaceKind::Cylinder)
+        .into_iter()
+        .filter(|&f| {
+            matches!(
+                tube.get_surface(tube.get_face(f).unwrap().surface),
+                Some(geom::Surface::Cylinder { radius, .. }) if (*radius - 1.0).abs() < 1e-12
+            )
+        })
+        .collect();
+    let mut kinds: std::collections::BTreeMap<String, usize> = Default::default();
+    for k in 0..30 {
+        let th = f64::from(k) * core::f64::consts::TAU / 30.0;
+        let at = Affine3::translation(Vec3::new(0.5 * th.cos(), 0.5 * th.sin(), 0.0));
+        let rod = topo::transform_rigid(&rod_z(0.5, -0.5, 1.0), &at, tol).unwrap();
+        let d = declared(
+            &bore,
+            &faces_of(&rod, SurfaceKind::Cylinder),
+            ContactClass::Tangent,
+        );
+        let key = match topo::union_with(&tube, &rod, &d, tol) {
+            Ok(_) => "built".to_owned(),
+            Err(e) => format!("{:?}", e.kind()),
+        };
+        *kinds.entry(key).or_default() += 1;
+    }
+    assert_eq!(
+        kinds,
+        [
+            ("CurvedBooleanUnsupported".to_owned(), 1),
+            ("CurvedPierceUnsupported".to_owned(), 29)
+        ]
+        .into_iter()
+        .collect(),
+    );
+}
+
+/// **The seam's own refusals.** Two stacked rods of one radius share
+/// one carrier: a seam declared on their walls is contradicted as
+/// conformal (`seam_conformal`), and the label names what failed, not
+/// the axis rung that passed. A rod hovering a clear gap above a slab
+/// has no tangency: the closed-form locus finds the gap
+/// (`tangent_locus_gap`).
+#[test]
+fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
+    let tol = Tol::witness();
+    let (low, high) = (rod_z(R, 0.0, H), rod_z(R, H, H));
+    let cyl = |b: &Body<f64>| faces_of(b, SurfaceKind::Cylinder);
+    for (x, y) in [(&low, &high), (&high, &low)] {
+        let mut d = declared(&cyl(x), &cyl(y), BooleanCoincidence::Seam);
+        d.coincident_faces.extend(coplanar_pairs(x, y));
+        let r = topo::union_with(x, y, &d, tol);
+        let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
+            panic!("stacked rods: contradicted: {r:?}");
+        };
+        assert_eq!(margin.predicate, Some("seam_conformal"), "{r:?}");
+    }
+    let slab: Body<f64> = brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol);
+    let lp = profile::circle(Point2::new(2.0, -1.5), 0.5, tol).unwrap();
+    let plane = profile::SketchPlane::new(Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::unit_x(),
+        -PI / 2.0,
+    ));
+    let p = profile::Profile::new(plane, vec![lp.into()])
+        .validate(tol)
+        .unwrap();
+    let rod = extrude(&p, Extrusion::Distance(1.0), tol).unwrap().body;
+    for (x, y, fx, fy) in [
+        (&slab, &rod, planes_at_z(&slab, 0.5), cyl(&rod)),
+        (&rod, &slab, cyl(&rod), planes_at_z(&slab, 0.5)),
+    ] {
+        let r = topo::union_with(x, y, &declared(&fx, &fy, BooleanCoincidence::Seam), tol);
+        let Err(BooleanError::SeamContradicted { margin, .. }) = &r else {
+            panic!("a rod above the slab: contradicted: {r:?}");
+        };
+        assert_eq!(margin.predicate, Some("tangent_locus_gap"), "{r:?}");
     }
 }
 

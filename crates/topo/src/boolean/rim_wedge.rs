@@ -5,10 +5,11 @@
 //! physically different situations wearing one description, and which
 //! one a rim is decides what the boolean owes it:
 //!
-//! - **wedge π** — the outward normals agree across the rim, the
+//! - **wedge π** — the outward normals agree across the rim and the
+//!   two faces leave it on opposite sides ([`departures_opposed`]): the
 //!   composed material is smooth through it, and the rim is a SEAM of
-//!   one composite wall. Nothing is declared and nothing is verified:
-//!   the join's job there is structural.
+//!   one composite wall. Between two operands it is declared a `Seam`
+//!   and verified (C4); inside one body it is structural.
 //! - **wedge 0 or 2π** — the normals oppose, the material pinches to a
 //!   knife edge or opens to a circular slit. That is the declared-cusp
 //!   family, DEFINED AND UNBUILT: the pair reaching this routing has no
@@ -136,29 +137,7 @@ pub(crate) fn shared_rim<T: Decide>(
 ) -> Result<Option<Rim<T>>, Indeterminate> {
     for ra in face_boundary_circles(a, fa) {
         for rb in face_boundary_circles(b, fb) {
-            // Radius and centre first, angle last: the two LENGTH data
-            // separate almost every non-rim pair definitely and cheaply,
-            // so ordering them ahead of the angular row keeps the sliver
-            // band from being consulted at all on pairs that are not
-            // candidates.
-            let mut same = true;
-            for (name, margin) in [
-                ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-                ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
-                (
-                    "rim_circle_axis_parallel",
-                    Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
-                ),
-            ] {
-                match crate::validate::decide(name, margin, band)? {
-                    geom_core::Sign::Zero => {}
-                    geom_core::Sign::Positive | geom_core::Sign::Negative => {
-                        same = false;
-                        break;
-                    }
-                }
-            }
-            if same {
+            if same_circle(ra, rb, band)? {
                 return Ok(Some(ra));
             }
         }
@@ -166,8 +145,122 @@ pub(crate) fn shared_rim<T: Decide>(
     Ok(None)
 }
 
-/// The circle carriers of a face's boundary edges.
-fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
+/// Whether two circles are one, on their own data at `band`: radius and
+/// centre first, angle last — the two LENGTH data separate almost every
+/// non-rim pair definitely and cheaply, so ordering them ahead of the
+/// angular row keeps the sliver band from being consulted at all on
+/// pairs that are not candidates. [`shared_rim`]'s docs carry the rest.
+fn same_circle<T: Decide>(ra: Rim<T>, rb: Rim<T>, band: Band) -> Result<bool, Indeterminate> {
+    for (name, margin) in [
+        ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
+        ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
+        (
+            "rim_circle_axis_parallel",
+            Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+        ),
+    ] {
+        match crate::validate::decide(name, margin, band)? {
+            geom_core::Sign::Zero => {}
+            geom_core::Sign::Positive | geom_core::Sign::Negative => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
+/// **Which way the two faces leave the rim** — the half of the wedge a
+/// pair of operands can get wrong and a body's edge cannot.
+///
+/// A face's interior lies to the LEFT of each of its half-edges about
+/// its outward normal (outer loops counterclockwise, rings clockwise:
+/// `entity`'s convention), so at a rim point the direction a face
+/// leaves along is `n × t`, with `t` its boundary's direction there.
+/// For two faces whose outward normals are ALIGNED along the rim, which
+/// is what both callers have already verified, those departures are
+/// opposite exactly when the two boundaries run the rim in opposite
+/// directions: `(n × t_a)·(n × t_b) = (t_a·t_b)` for a unit normal
+/// orthogonal to both. Opposite departures are the π wedge, the seam;
+/// the same departure (a bowl hanging in a tube's mouth, both faces
+/// leaving the rim downward) puts both materials on one side, which is
+/// a cusp, not a seam.
+///
+/// Inside one body the question never arises: an edge's two half-edges
+/// run it in opposite directions by construction.
+///
+/// `Ok(true)` for opposite departures, `Ok(false)` for the same one.
+///
+/// # Errors
+///
+/// [`Indeterminate`] naming `seam_rim_traversal` when a face's
+/// boundary runs the rim both ways or not at all, or the deciding
+/// predicate when a traversal sign does not decide.
+pub(crate) fn departures_opposed<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    rim: Rim<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    Ok(rim_traversal(a, fa, rim, band)? != rim_traversal(b, fb, rim, band)?)
+}
+
+/// The direction `face`'s boundary runs along `rim`: `Positive` with
+/// the rim's own tangent `axis × (p − centre)`, `Negative` against it,
+/// read at the midpoint of each boundary half-edge riding the rim and
+/// required to agree.
+fn rim_traversal<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    rim: Rim<T>,
+    band: Band,
+) -> Result<geom_core::Sign, Indeterminate> {
+    let unread = Indeterminate {
+        margin: geom_core::MarginDiag::INVALID,
+        band,
+        predicate: Some("seam_rim_traversal"),
+        terminal_sliver: false,
+    };
+    let mut seen: Option<geom_core::Sign> = None;
+    for (he, curve) in face_boundary_arcs(body, face) {
+        let geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = *curve.carrier()
+        else {
+            continue;
+        };
+        let arc = Rim {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        if !same_circle(arc, rim, band)? {
+            continue;
+        }
+        let (t0, t1) = curve.params();
+        let mid = (t0 + t1) * T::from_f64(0.5);
+        let p = curve.carrier().eval(mid);
+        let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
+        let tangent = rim.axis.cross(p - rim.center);
+        let cos = along.dot(tangent) / (along.norm() * tangent.norm());
+        let sign = crate::validate::decide("seam_rim_traversal", Margin::of(cos), band)?;
+        if sign == geom_core::Sign::Zero || seen.is_some_and(|s| s != sign) {
+            return Err(unread);
+        }
+        seen = Some(sign);
+    }
+    seen.ok_or(unread)
+}
+
+/// Each boundary half-edge of `face` with a certified curve: whether it
+/// is its edge's `he_plus` (so runs the curve forward), and the curve.
+pub(crate) fn face_boundary_arcs<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Vec<(bool, &geom_brep::EdgeCurve<T>)> {
     let mut out = Vec::new();
     let Some(f) = body.get_face(face) else {
         return out;
@@ -187,24 +280,77 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
             let Some(e) = body.get_edge(h.edge) else {
                 continue;
             };
-            if let Some(crate::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve)
-                && let geom::Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                } = *c.carrier()
+            if let Some(c) = body
+                .get_curve_geom(e.curve)
+                .and_then(crate::CurveGeom::certified)
             {
-                out.push(Rim {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                });
+                out.push((e.he_plus == he, c));
             }
         }
     }
     out
+}
+
+/// **Which side of a LINE locus a face lies on**, in the common tangent
+/// plane: the sign of each boundary vertex's and each boundary arc
+/// midpoint's offset along `across` (the in-plane normal to the line),
+/// required to agree. `Positive` or `Negative` for a face on one side,
+/// `Zero` for one that reaches both or neither.
+///
+/// It reads the boundary, not the face: a face whose boundary keeps to
+/// one side but whose interior bulges across the line between boundary
+/// points is not seen. For the faces a line locus is derived for
+/// (planes, and cylinder walls bounded by rulings and circle arcs) the
+/// arc midpoints are where such a bulge would show.
+pub(crate) fn line_side<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    origin: Point3<T>,
+    across: Vec3<T>,
+    band: Band,
+) -> Result<geom_core::Sign, Indeterminate> {
+    let (mut pos, mut neg) = (false, false);
+    for (_, curve) in face_boundary_arcs(body, face) {
+        let (t0, t1) = curve.params();
+        for t in [t0, (t0 + t1) * T::from_f64(0.5), t1] {
+            let p = curve.carrier().eval(t);
+            match crate::validate::decide(
+                "seam_line_side",
+                Margin::of((p - origin).dot(across)),
+                band,
+            )? {
+                geom_core::Sign::Positive => pos = true,
+                geom_core::Sign::Negative => neg = true,
+                geom_core::Sign::Zero => {}
+            }
+        }
+    }
+    Ok(match (pos, neg) {
+        (true, false) => geom_core::Sign::Positive,
+        (false, true) => geom_core::Sign::Negative,
+        _ => geom_core::Sign::Zero,
+    })
+}
+
+/// The circle carriers of a face's boundary edges.
+fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
+    face_boundary_arcs(body, face)
+        .into_iter()
+        .filter_map(|(_, c)| match *c.carrier() {
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Some(Rim {
+                center,
+                axis,
+                radius,
+                u_ref,
+            }),
+            _ => None,
+        })
+        .collect()
 }
 
 /// **The routing itself**: the wedge the two faces' material subtends

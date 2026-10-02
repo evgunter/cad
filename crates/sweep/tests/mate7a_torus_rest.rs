@@ -859,7 +859,7 @@ fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
 
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("a seam takes no declaration, and the join wiring is not built");
+        .expect_err("aligned senses contradict a Tangent claim");
     assert!(
         is_tangent_on_a_seam(&err),
         "with one side reversed the kissing rim's normals AGREE: wedge π, not the slit: {err:?}"

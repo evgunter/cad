@@ -354,16 +354,10 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// the PR's own G1 chain fixture, counting definite verdicts per
 /// predicate.
 ///
-/// **RE-MEASURED at the fix pass, and the number moved: 34 → 53.** This
-/// probe was written against the pre-fix routing, which reached the
-/// material arm with no first-order screen in front of it — the MAJOR
-/// defect. Importing the screen that arm is only defined behind costs
-/// one `classify_dihedral` per station, and that call meters two rows
-/// (`dihedral_arm`, `dihedral_wedge`), so nine stations add 18. The
-/// screen is what makes the answer TRUE; 18 rows is what truth costs
-/// here. No baseline is a target to preserve — the number moved and the
-/// question is whether the new behaviour is right, not how to get the
-/// old number back.
+/// The first-order screen costs one `classify_dihedral` per station,
+/// two rows each (`dihedral_arm`, `dihedral_wedge`). The departure read
+/// that tells a seam from a nested touch costs the rim comparison of
+/// each face's boundary arcs and one traversal reading per face.
 ///
 /// The whole current price:
 ///
@@ -371,9 +365,11 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// - **27 material arm** — 9 × (`material_wedge_side`,
 ///   `tangent_second_order`, `material_cusp_side`);
 /// - **6 rim identification** — `rim_circle_radius` ×3,
-///   `rim_circle_center` ×2, `rim_circle_axis_parallel` ×1 (the fix
-///   pass put the two LENGTH data ahead of the angular one, so radius
-///   now leads and short-circuits more pairs);
+///   `rim_circle_center` ×2, `rim_circle_axis_parallel` ×1 (the two
+///   LENGTH data lead, so radius short-circuits most pairs);
+/// - **16 departure read** — the rim comparison of each face's boundary
+///   arcs (`rim_circle_radius` ×8, `rim_circle_center` ×4,
+///   `rim_circle_axis_parallel` ×2) and `seam_rim_traversal` ×2;
 /// - **2 conformal screen** — `carrier_torus_axis_parallel`,
 ///   `carrier_torus_center`.
 ///
@@ -387,7 +383,7 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// meets them, so the same claim on the kissing fixture counts
 /// differently. That is why the PR body reports the price per fixture.
 #[test]
-fn p2_the_g1_chain_price_is_the_measured_53_rows() {
+fn p2_the_g1_chain_price_is_the_measured_69_rows() {
     // The PR's fixtures, verbatim from `mate7a_torus_rest.rs`.
     let seg_a = stem();
     let seg_b = {
@@ -454,10 +450,15 @@ fn p2_the_g1_chain_price_is_the_measured_53_rows() {
         ("tangent_second_order", n),
         ("material_cusp_side", n),
         // Fixture-specific: how many boundary circles this face pair
-        // carries, and the order the scan meets them.
-        ("rim_circle_radius", 3),
-        ("rim_circle_center", 2),
-        ("rim_circle_axis_parallel", 1),
+        // carries, and the order the scan meets them — the rim scan
+        // (3, 2, 1), then the departure read, which compares each
+        // face's boundary arcs with the rim (8, 4, 2).
+        ("rim_circle_radius", 11),
+        ("rim_circle_center", 6),
+        ("rim_circle_axis_parallel", 3),
+        // One traversal reading per face: the wedge-π rim's two faces
+        // leave it on opposite sides, so the steer names the seam.
+        ("seam_rim_traversal", 2),
         ("carrier_torus_axis_parallel", 1),
         ("carrier_torus_center", 1),
     ] {

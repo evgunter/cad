@@ -1126,14 +1126,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                 };
                 let (t0, t1) = curve.params();
-                let one_sided = [
-                    x.face_of_half_edge(edge.he_plus),
-                    x.face_of_half_edge(edge.he_minus),
-                ]
-                .into_iter()
-                .flatten()
-                .any(|f| declared.one_sided(x_is, f, x_is.other(), face));
-                let touch_at_end = if one_sided {
+                let covers = edge_covers(x, x_is, &edge, face, declared);
+                let touch_at_end = if covers.is_empty() {
+                    None
+                } else {
                     let read =
                         edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
                     let side = |p: Point3<T>| {
@@ -1147,9 +1143,23 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         })
                     };
                     let (s1, s2) = (side(pu)?, side(pv)?);
-                    ((s1 == Sign::Zero) != (s2 == Sign::Zero)).then_some(s1 == Sign::Zero)
-                } else {
-                    None
+                    // The off end must lie where a parent's cover puts
+                    // it, read against the carrier's own residual (the
+                    // sign the cover's side is stated in).
+                    let off_end_admitted = || {
+                        let off = if s1 == Sign::Zero { pv } else { pu };
+                        let carrier = y.get_face(face).and_then(|f| y.get_surface(f.surface));
+                        carrier.is_some_and(|surface| {
+                            decide(
+                                "bool_vertex_face_side",
+                                Margin::of(geom_brep::implicit_residual(surface, off)),
+                                band,
+                            )
+                            .is_ok_and(|sign| covers.iter().any(|c| c.admits(sign)))
+                        })
+                    };
+                    ((s1 == Sign::Zero) != (s2 == Sign::Zero) && off_end_admitted())
+                        .then_some(s1 == Sign::Zero)
                 };
                 match crate::splitting::conic_plane_crossing_roots(
                     curve.carrier(),
@@ -1518,6 +1528,25 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// both of which live in [`sweep_direction`], so the crossing is
 /// REPORTED here and performed there rather than the body being
 /// threaded in for one branch.
+/// The one-sided covers an edge's parent faces hold against `face`
+/// ([`super::DeclaredPairs::cover`]), one per covering parent.
+fn edge_covers<T: Decide>(
+    x: &Body<T>,
+    x_is: Operand,
+    edge: &crate::entity::Edge,
+    face: FaceKey,
+    declared: &super::DeclaredPairs<T>,
+) -> Vec<super::CoverSide> {
+    [
+        x.face_of_half_edge(edge.he_plus),
+        x.face_of_half_edge(edge.he_minus),
+    ]
+    .into_iter()
+    .flatten()
+    .filter_map(|f| declared.cover(x_is, f, x_is.other(), face))
+    .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
     x: &Body<T>,
@@ -1555,13 +1584,11 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
     // then certify each incidence. `read` is what each question below
     // reads of the parent faces' declaration against `face`: none of
     // them is one a declaration settles.
-    let covered = [
-        x.face_of_half_edge(edge.he_plus),
-        x.face_of_half_edge(edge.he_minus),
-    ]
-    .into_iter()
-    .flatten()
-    .any(|f| declared.one_sided(x_is, f, x_is.other(), face));
+    let covers = edge_covers(x, x_is, edge, face, declared);
+    let covered = !covers.is_empty();
+    // Whether a point of the edge whose residual against `face`'s
+    // carrier decided `sign` lies where some parent's cover certifies it.
+    let admitted = |sign| covers.iter().any(|c| c.admits(sign));
     let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
@@ -1656,6 +1683,32 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             // certificate first is what lets a coincident pair reach
             // the one-sided cover rung at all.
             let on_carrier = on_declared_shared_carrier(x, x_is, edge, face, declared);
+            // **A covered arc lying on a carrier its parents are all
+            // decided distinct from is an ON event first**, the
+            // uncovered `(Zero, Zero)` arm's `LiesOn` lane: a seam's
+            // rim lies on the partner's carrier, and the cover must not
+            // pre-empt the lane that places it. The sampled clearance
+            // below reads an identically-zero residual as definitely
+            // negative, which under a cover is the frontier, and the
+            // roots that answer `LiesOn` sit behind the uncovered arm.
+            if covered && !on_carrier {
+                let (t0, t1) = curve.params();
+                if let Ok(SpanVerdict::LiesOn) =
+                    wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)
+                    && parents_distinct_from(x, edge, y, face, band)
+                {
+                    let arc = ArcOnCarrier {
+                        x,
+                        x_is,
+                        edge_key,
+                        ends: [(u, pu), (v, pv)],
+                        face,
+                        band,
+                        tol,
+                    };
+                    return lying_on(&arc, y, contacts)?.ok_or_else(frontier);
+                }
+            }
             let clearance = if on_carrier {
                 Ok(Sign::Zero)
             } else {
@@ -1669,11 +1722,10 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 // each endpoint's own side decides its treatment
                 // (existing row): ON the carrier ⇒ boundary
                 // containment (which must decide, or the frontier
-                // stands); definitely off ⇒ no event at that end (a
-                // covered circle touches the carrier where it meets it
-                // — an off endpoint is honestly eventless), unless the
-                // two ends are off on opposite sides, which only a
-                // crossing reaches. An interior-only touch (no endpoint on the
+                // stands); definitely off on the side the cover
+                // certifies ⇒ no event at that end (a covered circle
+                // touches the carrier where it meets it); off on the
+                // other side ⇒ the frontier. An interior-only touch (no endpoint on the
                 // carrier) keeps the frontier door. Uncovered keeps
                 // both doors verbatim.
                 //
@@ -1733,7 +1785,6 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                         )
                     };
                     let mut ends = [None, None];
-                    let mut off = None;
                     for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
                         match side(pw).map_err(|diag| {
                             let which = Coincide::VertexOnCoveredFace;
@@ -1747,18 +1798,11 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                             // Definitely off at this end, on the side the
                             // certificate puts the parent: honestly
                             // eventless, and not an endpoint the rule
-                            // below weighs either way. The cover's side
-                            // is either one (a seam's cap lies inside
-                            // the tube's carrier, a tangent strut
-                            // outside its plate's), so the sign alone
-                            // is no crossing; two ends definitely off on
-                            // OPPOSITE sides are, and contradict the
-                            // certificate.
-                            sign @ (Sign::Positive | Sign::Negative) => {
-                                if off.replace(sign).is_some_and(|other| other != sign) {
-                                    return Err(frontier());
-                                }
-                            }
+                            // below weighs either way. Off on the OTHER
+                            // side is a crossing the certificate rules
+                            // out, and keeps the door.
+                            sign if admitted(sign) => {}
+                            Sign::Positive | Sign::Negative => return Err(frontier()),
                         }
                     }
                     return Placement::declared(ends, inside.clear()).ok_or_else(frontier);
@@ -1867,13 +1911,13 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         // Both ends on the carrier. Where the carrier identity puts the
         // line ON it (a parent face verified as `face`'s carrier), its
         // interior is asked before its ends; a `Tangent`-covered line has
-        // no such certificate and keeps the ends-only rule. No pose reds
-        // this gate forced open: a covered line with both ends on a curved
-        // carrier IS one of its rulings (a `Tangent` cover's line lies in
-        // the tangent plane, which meets a cylinder or a cone only along
-        // that ruling), so the boundary question would be well-posed
-        // without the certificate too. The gate asks for the certificate
-        // anyway, rather than reading "on the carrier" off a pair of ends.
+        // no such certificate and keeps the ends-only rule. The ends-only
+        // rule rests on the cover, not on the line's shape: the line lies
+        // on its parent's carrier, which the certificate holds in one
+        // closed side of `face`'s, so its residual is one-signed and its
+        // interior touches the carrier nowhere it crosses it. (It need
+        // not be a ruling: under a plane × torus seam a chord of the
+        // tangent circle ends on the torus and runs inside the circle.)
         (Sign::Zero, Sign::Zero) if covered => {
             debug_assert!(
                 on_line,
@@ -1888,7 +1932,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             Placement::declared([Some(hu), Some(hv)], inside.clear()).ok_or_else(frontier)
         }
-        (Sign::Zero, Sign::Positive) if covered => {
+        (Sign::Zero, Sign::Positive) if admitted(Sign::Positive) => {
             debug_assert!(
                 on_line,
                 "a covered circle keeps the frontier at the circle rung"
@@ -1896,7 +1940,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             let h = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             Placement::declared([Some(h), None], false).ok_or_else(frontier)
         }
-        (Sign::Positive, Sign::Zero) if covered => {
+        (Sign::Positive, Sign::Zero) if admitted(Sign::Positive) => {
             debug_assert!(
                 on_line,
                 "a covered circle keeps the frontier at the circle rung"

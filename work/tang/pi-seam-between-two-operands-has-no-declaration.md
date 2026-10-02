@@ -80,6 +80,6 @@ Outcomes:
   `a-torus-meridian-lying-on-a-torus-is-unsettled`.
 
 Also filed:
-- `a-declared-line-seam-stops-at-the-curved-lump-site`;
+- `a-declared-line-seam-stops-at-the-rest-zip`;
 - `a-declared-seam-subtract-and-intersect-stop-at-the-fallback-extent`;
 - bind's `python-has-no-door-to-declare-a-seam`.
