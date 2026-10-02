@@ -277,7 +277,9 @@ pub enum SplitJoinError {
         /// The completed null face.
         face: FaceKey,
     },
-    /// Ring re-homing could not decide (escalation or exhaustion).
+    /// Ring re-homing could not decide: the walk escalated, exhausted
+    /// its schedule, or met an edge of the divided face's outline it
+    /// cannot cross ([`PointInLoopError::Uncrossable`]).
     RingHoming(PointInLoopError),
     /// Every vertex of a ring landed ON the run dividing its face off,
     /// so no vertex says which side the ring is on: a ring an
@@ -285,14 +287,6 @@ pub enum SplitJoinError {
     /// pinch, every vertex of which is the pinch point.
     RingHomingAmbiguous {
         /// The undecidable ring.
-        ring: LoopKey,
-    },
-    /// The divided face's outer loop carries an edge the containment
-    /// walk has no crossing row for (a spiric, a spline), and the ray
-    /// schedule from the first ring vertex off the run ran out with at
-    /// least one ray abandoned because it could meet that edge.
-    RingHomingUncrossable {
-        /// The unplaced ring.
         ring: LoopKey,
     },
     /// Loose ends survived the sweep — the null-edge set does not
@@ -510,17 +504,15 @@ impl SplitJoinError {
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {
                     write!(f, "re-homing a hole loop refused: {e}")
                 }
+                crate::splitting::PointInLoopError::Uncrossable(u) => write!(
+                    f,
+                    "which piece holds a hole loop cannot be read: {u}. Recourse: {recourse}"
+                ),
             },
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
                 "every vertex of a hole loop lies on the boundary of the piece being \
                  divided off, so which piece holds it cannot be decided. Recourse: {recourse}"
-            ),
-            Self::RingHomingUncrossable { .. } => write!(
-                f,
-                "which piece holds a hole loop cannot be read: no test ray got past a \
-                 curved edge of the divided face's boundary that it could meet. Recourse: \
-                 {recourse}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
@@ -2911,9 +2903,8 @@ fn ring_side<T: Decide>(
     for v in vertices {
         let p = vertex_point(body, v)?;
         match point_in_carrier_loop(body, run, normal, p, band)? {
-            Some(LoopContainment::OnBoundary) => {}
-            Some(side) => return Ok(side),
-            None => return Err(SplitJoinError::RingHomingUncrossable { ring }),
+            LoopContainment::OnBoundary => {}
+            side => return Ok(side),
         }
     }
     Ok(LoopContainment::OnBoundary)

@@ -474,7 +474,7 @@ impl CensusTrace {
 /// no positional content at all; and a vertex coplanar with a face
 /// whose region walk refuses or escalates though the vertex is
 /// nowhere near the face (`contfp`'s `RayExhausted` refusal, its
-/// ray-walk escalations, and its `ArcLoopUnsupported` refusal anywhere
+/// ray-walk escalations, and its `Uncrossable` refusal anywhere
 /// inside the reach of a spiric or spline edge, which can be far wider
 /// than the face). The exact sweep
 /// escalates or refuses those — it asked a carrier question and could
@@ -1419,9 +1419,7 @@ fn contain<T: Decide>(
         // arm must be routed here deliberately rather than default
         // into the wrong half.
         Err(
-            e @ (ContainError::ArcLoopUnsupported { .. }
-            | ContainError::RayExhausted
-            | ContainError::Corrupt),
+            e @ (ContainError::Uncrossable(_) | ContainError::RayExhausted | ContainError::Corrupt),
         ) => {
             errors.push(ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(f.key)),
@@ -7650,7 +7648,7 @@ mod tests {
             .expect("the cap");
         let got = crate::boolean::contfp(&body, cap, Vec3::unit_x(), q, band());
         assert!(
-            matches!(got, Err(ContainError::ArcLoopUnsupported { .. })),
+            matches!(got, Err(ContainError::Uncrossable(_))),
             "just past the arc's end, inside its ball, the cap refuses: {got:?}"
         );
     }
@@ -7659,7 +7657,7 @@ mod tests {
     /// spiric cap's plane inside the ball its spiric arc is held in, so
     /// every scheduled ray from it could meet that arc. The census
     /// carries the door's own refusal — `CensusUnsupported` about the
-    /// FACE, cause `Containment(ArcLoopUnsupported)` — and no
+    /// FACE, cause `Containment(Uncrossable)` — and no
     /// `CensusEscalated` over a margin nothing metred.
     #[test]
     fn a_spiric_caps_refusal_reaches_the_census_as_itself() {
@@ -7679,9 +7677,7 @@ mod tests {
                     e,
                     ValidationError::CensusUnsupported {
                         subject: CensusSubject::Entity(EntityId::Face(_)),
-                        cause: CensusUnsupportedCause::Containment(
-                            ContainError::ArcLoopUnsupported { .. }
-                        ),
+                        cause: CensusUnsupportedCause::Containment(ContainError::Uncrossable(_)),
                     }
                 )
             })
