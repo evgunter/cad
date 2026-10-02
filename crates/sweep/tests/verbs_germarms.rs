@@ -54,18 +54,10 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
 /// each — and every one of them is strictly inside a wall face, on no
 /// boundary of either operand.
 ///
-/// **The bar is short on purpose**, and the reason is the sector-side
-/// curvature charge rather than the crossing lane: a pierce vertex's
-/// sector arms are the split edge's two fragments, and a fragment
-/// LONGER than the wall's radius makes the sagitta bound exceed any
-/// first-order displacement, so no tangent-plane verdict there is
-/// certifiable (`a_long_armed_bar_cannot_certify_its_sector_sides`
-/// below is that pose, pinned). At `x = ±1.1` against `r = 1` the near
-/// fragment is 0.146 m and the verdict stands. Before this unit the first of them
-/// refused at the crossing layer with `CurvedPierceUnsupported`; the
-/// door it refuses at now is the JOIN's, which is the measurement that
-/// says the crossings were found, the edges split and the rings
-/// inserted.
+/// Before the ring lane, the first of them refused at the crossing
+/// layer with `CurvedPierceUnsupported`; the door it refuses at now is
+/// the JOIN's, which is the measurement that says the crossings were
+/// found, the edges split and the rings inserted.
 ///
 /// The site is asserted, not just the variant: `NoChartedRun` is the
 /// pierce ring's own signature — the run carries only null scaffolding,
@@ -201,28 +193,29 @@ fn a_bar_grazing_the_wall_keeps_the_pierce_door() {
     );
 }
 
-/// **The curvature charge's planted red, on a real body.** The same
-/// bar made LONG: at `x = ±3` against a wall of radius 1, the pierce
-/// vertex's shorter edge fragment is 1.9 m, so the sagitta bound
-/// `arm²/lever = 3.6 m` exceeds any first-order displacement the
-/// sector can offer (which is at most `arm` itself). No tangent-plane
-/// verdict about the material side is certifiable there, and the lane
-/// refuses instead of answering one — the wrong answer it would
-/// otherwise give is a wrong TOPOLOGY, not a conservative refusal
-/// (`boolean::sectors::side_code` carries the witness).
-///
-/// This is the row that makes the short bar above a measurement rather
-/// than a lucky pose: the two differ only in the bar's length, and they
-/// land on different doors for a stated reason.
+/// **The bar's length does not move the door.** The same bar made
+/// LONG: at `x = ±3` against a wall of radius 1 the pierce vertex's
+/// shorter edge fragment is 1.9 m, nearly twice the radius, so the
+/// edge re-crosses nothing but runs far past where the wall's sagitta
+/// outgrows its first-order departure. The sector side is a statement
+/// about the bound near the vertex, and the curvature charge certifies
+/// it at the distance where it is largest (`slope·r/2`), so the long
+/// bar reaches the same join door as the short one.
 #[test]
-fn a_long_armed_bar_cannot_certify_its_sector_sides() {
+fn a_long_armed_bar_reaches_the_same_join_door() {
     let err = union_err(
         &pipe(),
         &brick((-3.0, 3.0), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
     );
     assert!(
-        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
-        "a sector arm past the wall's radius is not first-order decidable: {err:?}"
+        matches!(
+            err,
+            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                case: topo::ArcWindowCase::NoChartedRun,
+                ..
+            })
+        ),
+        "an edge fragment longer than the wall's radius still certifies its side: {err:?}"
     );
 }
 

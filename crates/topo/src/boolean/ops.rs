@@ -85,16 +85,17 @@
 //!   non-star patch adjacency); and boundary-on-boundary
 //!   configurations that are not pure REST contacts (the original
 //!   `Join(UnpairedLooseEnds)` surfaces verbatim).
-//! - **Reflex-corner-vertex tilted crossings** (PR 5.5 review): a
-//!   seam through the VERTEX of a reflex boundary corner under a
-//!   tilted section plane (a 315°-corner pierced by a z-sheared
-//!   brick's cap) can refuse `SeamOrientation`. Root cause: the
-//!   angular strut spike order (`bool_strut_order`) is FORCED only on
-//!   sectors of width W ≤ π (which covers the whole crossing-minted
-//!   corpus class — edge-interior sites are exact half-planes);
-//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in
-//!   the unforced window. Face-interior and convex-corner crossings
-//!   of the same shape succeed exactly.
+//! - **Reflex-corner vertex–vertex sites under a tilted cap**: where a
+//!   vertex of the other operand coincides with a 315° reflex corner
+//!   and the caps meet at a tilt, the op can refuse
+//!   (`SeamOrientation`, `JoinDesync`, `Join(UnpairedLooseEnds)`;
+//!   `work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).
+//!   The cause is unmeasured. The angular strut spike order
+//!   (`bool_strut_order`) is forced only on sectors of width W ≤ π, so
+//!   reflex corners W > 3π/2 with germ angle θ ∈ (π/2, W−π) sit in an
+//!   unforced window, but no refusal has been traced to it. The
+//!   vertex-on-face form of the same corner (the corner piercing a
+//!   cap's interior) is a whole-orbit pierce run and answers exactly.
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 

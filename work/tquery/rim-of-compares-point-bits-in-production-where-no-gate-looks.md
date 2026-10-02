@@ -2,12 +2,14 @@
 id: rim-of-compares-point-bits-in-production-where-no-gate-looks
 kind: issue
 title: rim_of decides one rim by a production bit compare of points and scalars, which no bit-identity gate can see
-status: dispatched
+status: closed
 opened: 2026-09-24
 refs: [rim-of-refuses-extruded-multi-arc-rims, the-re-basing-gate-refuses-m7-8-where-nothing-moves]
 priority: P2
 cost: M
 branch: tquery/rim-of-structural
+pr: 3773
+closed: 2026-10-02
 ---
 
 
@@ -148,3 +150,7 @@ On the seed circle gate (`NotAnArc`), after the pros and cons (PR 3767
 comments): keep it for now, "as long as it's explicitly noted in the
 code that we expect to extend this to non-circles, so it doesn't get
 read as a permanent decision". The build is `tquery/rim-of-structural`.
+
+## Closed (2026-10-02, PR 3773)
+
+`rim_of` reads one rim from structure (the seed's two surface keys, chained on shared vertex keys, oriented by the lower-key side) and compares no carrier; see the PR body and the reviewer's 43-body oracle `rim_of_structural_review_probes`.

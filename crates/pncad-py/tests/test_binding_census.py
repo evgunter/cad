@@ -2251,8 +2251,11 @@ NOT_BOUND = {
     # A spoken name is the same: its sentence rides inside the error,
     # and its machine spelling is the opaque name text. The speaker a
     # refusal holding bare ids is said by is the binding's own business:
-    # each door's message is spoken from the evaluated document.
+    # each door's message is spoken from the evaluated document, and a
+    # `MateFault` an edit door refused carries the nodes it kept.
     "FullId": SHAPE,
+    "HeldNodes": SHAPE,
+    "held_by": SHAPE,
     "Said": SHAPE,
     "Say": SHAPE,
     "Speaker": SHAPE,

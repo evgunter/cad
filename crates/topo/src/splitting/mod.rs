@@ -150,11 +150,12 @@ pub struct NullEdgeRecord {
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
-    /// The F9 side attribute (`below_end` = old vertex, `above_end` =
-    /// the minted copy holding the ABOVE run) — orientation as data.
+    /// The F9 side attribute (`above_end` = the end holding the ABOVE
+    /// run: the minted copy, save for a whole-orbit run, where the old
+    /// vertex keeps it) — orientation as data.
     pub attr: NullEdge,
     /// True for a dangling null edge (a wide same-side sector whose
-    /// bisector crossed — the strut case).
+    /// bisector crossed — the strut case, either way round).
     pub dangling: bool,
 }
 
