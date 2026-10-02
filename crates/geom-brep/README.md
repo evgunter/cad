@@ -400,7 +400,10 @@ harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. (8) In-house SVD and
+`QuadratureBudget`, never a silent Gaussian. A sphere face whose
+boundary circles are tilted against its chart has no conic or spline
+trim and is on the closed-form lane, measured by Gauss–Bonnet over its
+circle arcs (`props/curved.rs`, `sphere_circle_loop`). (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
