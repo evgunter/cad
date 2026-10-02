@@ -160,10 +160,15 @@ pub enum ArcSideCase {
     /// tangent to the face boundary there, and neither candidate is on
     /// a definite side.
     TangentToRun,
-    /// The run's two ends name different candidates — a run end at a
-    /// reflex corner of the divided face, where leaving on the run's
-    /// left does not decide the face's sector.
+    /// The run's two ends name different candidates: no candidate
+    /// leaves both ends on the run's left, so neither arc bounds a
+    /// region with the run — the run does not co-bound the divided face
+    /// with this chord.
     EndsDisagree,
+    /// A run end is a reflex corner or a cusp of the divided face,
+    /// where leaving on the run's left does not put an arc inside the
+    /// face's sector there.
+    ReflexRunEnd,
 }
 
 impl core::fmt::Display for ArcSideCase {
@@ -179,8 +184,13 @@ impl core::fmt::Display for ArcSideCase {
             ),
             Self::EndsDisagree => write!(
                 f,
-                "the joined run's two ends put different arcs on the face's side (a reflex \
-                 corner at a run end)"
+                "the joined run's two ends put different arcs on the face's side, so neither \
+                 arc bounds a region with the run"
+            ),
+            Self::ReflexRunEnd => write!(
+                f,
+                "an end of the joined run is a reflex corner or a cusp of the divided face, \
+                 where the run's side does not decide the arc"
             ),
         }
     }
@@ -600,7 +610,11 @@ impl SplitJoinError {
                 band.escalate(),
                 match case {
                     ArcSideCase::TangentToRun => recourse,
-                    ArcSideCase::NoCertifiedRun | ArcSideCase::EndsDisagree => "move the geometry",
+                    ArcSideCase::NoCertifiedRun => {
+                        "the section pierces this face as a ring, which has no join arm yet; \
+                         move the geometry so the section crosses the face's boundary"
+                    }
+                    ArcSideCase::EndsDisagree | ArcSideCase::ReflexRunEnd => "move the geometry",
                 },
             ),
         }
@@ -822,6 +836,23 @@ struct SectionConic<T: Real> {
     /// and its arc is selected by the run's side instead
     /// ([`select_arc_by_run_side`]).
     azimuth_monotone: bool,
+}
+
+impl<T: Real> SectionConic<T> {
+    /// The conic parameter of a point on the conic: its angle in the
+    /// frame `(major/sa, (normal × major)/sb)`.
+    fn theta_of(&self, p: Point3<T>) -> T {
+        let d = p - self.center;
+        let v = self.normal.cross(self.major);
+        (d.dot(v) / self.sb).atan2(d.dot(self.major) / self.sa)
+    }
+
+    /// The conic's derivative at parameter `th`, the direction the ccw
+    /// candidate runs there.
+    fn tangent_at(&self, th: T) -> Vec3<T> {
+        let v = self.normal.cross(self.major);
+        self.major * (-(th.sin() * self.sa)) + v * (th.cos() * self.sb)
+    }
 }
 
 /// What the C5 table made of `plane × wall` for a chord that has to
@@ -1109,14 +1140,9 @@ fn select_arc<T: Decide>(
     p1: Point3<T>,
     p2: Point3<T>,
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
-    let v_e = conic.normal.cross(conic.major);
     // Exact conic parameters of the (on-locus) endpoints.
-    let theta_of = |p: Point3<T>| -> T {
-        let d = p - conic.center;
-        (d.dot(v_e) / conic.sb).atan2(d.dot(conic.major) / conic.sa)
-    };
-    let th1 = theta_of(p1);
-    let th2 = theta_of(p2);
+    let th1 = conic.theta_of(p1);
+    let th2 = conic.theta_of(p2);
     let (w_min, w_max) = window;
     let width = w_max - w_min;
     // The chord's endpoints in the SAME chart frame the window lives
@@ -1347,53 +1373,73 @@ fn oriented_arc<T: Real>(
     }
 }
 
-/// One end of a run, as the run-side rule reads it: the point, and the
-/// run's unit tangent there in its direction of travel.
-struct RunEnd<T: Real> {
-    at: Point3<T>,
-    travel: Vec3<T>,
-    /// Whether this is the run's start (else its end).
-    is_start: bool,
+/// A half-edge's point and unit tangent, in its own direction of
+/// travel, at its start (`at_start`) or its end; `None` for null
+/// scaffolding, which is zero-length and has no tangent.
+fn half_end<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+    at_start: bool,
+) -> Result<Option<(Point3<T>, Vec3<T>)>, SplitJoinError> {
+    let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+    let edge = body
+        .get_edge(he_data.edge)
+        .ok_or_else(|| corrupt_edge(he_data.edge))?;
+    let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+        return Ok(None);
+    };
+    let (t0, t1) = curve.params();
+    // A minus half runs its carrier backwards: it starts at `t1`.
+    let (t, sign) = match (edge.he_plus == he, at_start) {
+        (true, true) => (t0, T::one()),
+        (true, false) => (t1, T::one()),
+        (false, true) => (t1, -T::one()),
+        (false, false) => (t0, -T::one()),
+    };
+    let d = curve.carrier().deriv(t) * sign;
+    Ok(Some((curve.carrier().eval(t), d / d.norm())))
 }
 
-/// The run's two ends: where its first certified half-edge starts and
-/// where its last one ends, each with its tangent in travel direction.
-/// Null scaffolding is zero-length, so stepping over it moves neither
-/// end. `None` for a run with no certified half-edge.
-fn run_ends<T: Decide>(
+/// The run's certified half-edges in order — the one walk of the run
+/// the run-side rule reads its ends, its corners and its coincidence
+/// from. Null scaffolding is stepped over.
+fn certified_run<T: Decide>(
     body: &Body<T>,
     run: &[HalfEdgeKey],
-) -> Result<Option<[RunEnd<T>; 2]>, SplitJoinError> {
+) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
     let mut real = Vec::with_capacity(run.len());
     for &he in run {
         let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
         let edge = body
             .get_edge(he_data.edge)
             .ok_or_else(|| corrupt_edge(he_data.edge))?;
-        if let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) {
-            real.push((edge.he_plus == he, curve));
+        if let Some(CurveGeom::Certified(_)) = body.get_curve_geom(edge.curve) {
+            real.push(he);
         }
     }
-    let end = |(plus, curve): (bool, &geom_brep::EdgeCurve<T>), at_start: bool| {
-        let (t0, t1) = curve.params();
-        // A minus half runs its carrier backwards: it starts at `t1`.
-        let (t, sign) = match (plus, at_start) {
-            (true, true) => (t0, T::one()),
-            (true, false) => (t1, T::one()),
-            (false, true) => (t1, -T::one()),
-            (false, false) => (t0, -T::one()),
-        };
-        let d = curve.carrier().deriv(t) * sign;
-        RunEnd {
-            at: curve.carrier().eval(t),
-            travel: d / d.norm(),
-            is_start: at_start,
+    Ok(real)
+}
+
+/// The tangent of the divided face's boundary just beside a run end,
+/// off the run: the first certified half-edge reached from `he` by
+/// walking the loop backwards (`at_start`, the half arriving at the
+/// run's start) or forwards (the half leaving its end). `None` when the
+/// loop holds nothing certified but the run's own halves' scaffolding.
+fn beside_run<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+    at_start: bool,
+) -> Result<Option<Vec3<T>>, SplitJoinError> {
+    let cycle_len = body.loop_cycle(he).ok_or_else(|| corrupt_he(he))?.len();
+    let mut at = he;
+    for _ in 0..cycle_len {
+        let data = body.get_half_edge(at).ok_or_else(|| corrupt_he(at))?;
+        at = if at_start { data.prev } else { data.next };
+        if let Some((_, tangent)) = half_end(body, at, !at_start)? {
+            return Ok(Some(tangent));
         }
-    };
-    Ok(match (real.first(), real.last()) {
-        (Some(&first), Some(&last)) => Some([end(first, true), end(last, false)]),
-        _ => None,
-    })
+    }
+    Ok(None)
 }
 
 /// Whether the run is one certified edge lying on the section conic:
@@ -1408,22 +1454,16 @@ fn run_is_section_arc<T: Decide>(
     band: Band,
     face: FaceKey,
     conic: &SectionConic<T>,
-    run: &[HalfEdgeKey],
+    real: &[HalfEdgeKey],
 ) -> Result<bool, SplitJoinError> {
-    let mut real = None;
-    for &he in run {
-        let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-        let edge = body
-            .get_edge(he_data.edge)
-            .ok_or_else(|| corrupt_edge(he_data.edge))?;
-        if let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) {
-            if real.is_some() {
-                return Ok(false);
-            }
-            real = Some(curve);
-        }
-    }
-    let Some(curve) = real else {
+    let [he] = real else {
+        return Ok(false);
+    };
+    let edge = body
+        .get_half_edge(*he)
+        .and_then(|h| body.get_edge(h.edge))
+        .ok_or_else(|| corrupt_he(*he))?;
+    let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
         return Ok(false);
     };
     if !matches!(
@@ -1454,6 +1494,35 @@ fn run_is_section_arc<T: Decide>(
     Ok(on_conic == Sign::Zero)
 }
 
+/// Whether a corner of a face's boundary — arriving along `arrive`,
+/// leaving along `depart`, both unit, the face to the left under the
+/// outward `normal` — is smooth or convex: the face's sector there is
+/// at most a half-turn. A left turn about the normal is convex
+/// (`split_arc_run_corner` positive), none is smooth unless the boundary
+/// reverses (a cusp, `split_arc_run_cusp`), and a right turn is reflex.
+/// Metered as angle × `lever`.
+fn run_corner_opens<T: Decide>(
+    normal: Vec3<T>,
+    arrive: Vec3<T>,
+    depart: Vec3<T>,
+    lever: T,
+    band: Band,
+) -> Result<bool, geom_core::Indeterminate> {
+    match decide(
+        "split_arc_run_corner",
+        Margin::levered(normal.dot(arrive.cross(depart)), lever),
+        band,
+    )? {
+        Sign::Positive => Ok(true),
+        Sign::Negative => Ok(false),
+        Sign::Zero => Ok(decide(
+            "split_arc_run_cusp",
+            Margin::levered(arrive.dot(depart), lever),
+            band,
+        )? == Sign::Positive),
+    }
+}
+
 /// **The arc-side rule where azimuth is not monotone along the
 /// section** — a sphere section tilted against the face's chart polar
 /// axis, whose chart image doubles back, so no azimuth window says
@@ -1470,16 +1539,21 @@ fn run_is_section_arc<T: Decide>(
 /// Exactly one candidate leaves on the left at a run end that is a
 /// smooth boundary point or a convex corner of the divided face, since
 /// there the face's sector at that end is at most a half-turn and the
-/// two candidates leave in opposite directions. Both ends must name
-/// the same candidate; anything else refuses typed, never broken by
-/// convention.
+/// two candidates leave in opposite directions — so that is checked at
+/// each end before its reading counts: the turn from the boundary
+/// arriving at the end to the boundary leaving it, about the outward
+/// normal, must be a left turn or none (`split_arc_run_corner`; a turn
+/// of none that reverses is a cusp, `split_arc_run_cusp`). A reflex
+/// corner refuses typed. Both ends must name the same candidate;
+/// anything else refuses typed, never broken by convention.
 ///
 /// # Errors
 ///
 /// [`SplitJoinError::SectionArcSide`] when the run has no certified
-/// edge, when the section is tangent to the run at an end, or when the
+/// edge, when the section is tangent to the run at an end, when a run
+/// end is a reflex corner or a cusp of the divided face, or when the
 /// two ends name different candidates; [`SplitJoinError::Escalated`] on
-/// an in-band side or end match.
+/// an in-band side, corner or end match.
 #[allow(clippy::too_many_arguments)] // one internal rule, each argument a named duty
 fn select_arc_by_run_side<T: Decide>(
     body: &Body<T>,
@@ -1492,21 +1566,19 @@ fn select_arc_by_run_side<T: Decide>(
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
     let refuse = |case| SplitJoinError::SectionArcSide { face, case, band };
     let escalated = |diag| SplitJoinError::Escalated { face, diag };
-    let Some(ends) = run_ends(body, run)? else {
+    let real = certified_run(body, run)?;
+    let (Some(&first), Some(&last)) = (real.first(), real.last()) else {
         return Err(refuse(ArcSideCase::NoCertifiedRun));
     };
-    let v_e = conic.normal.cross(conic.major);
-    let theta_of = |p: Point3<T>| -> T {
-        let d = p - conic.center;
-        (d.dot(v_e) / conic.sb).atan2(d.dot(conic.major) / conic.sa)
-    };
-    let tangent = |th: T| conic.major * (-(th.sin() * conic.sa)) + v_e * (th.cos() * conic.sb);
-    let (th1, th2) = (theta_of(p1), theta_of(p2));
+    let (th1, th2) = (conic.theta_of(p1), conic.theta_of(p2));
     let mut ccw: Option<bool> = None;
-    for end in ends {
+    for (he, is_start) in [(first, true), (last, false)] {
+        let Some((at, travel)) = half_end(body, he, is_start)? else {
+            return Err(refuse(ArcSideCase::NoCertifiedRun));
+        };
         let at_p1 = match decide(
             "split_arc_run_end",
-            Margin::of((end.at - p2).norm() - (end.at - p1).norm()),
+            Margin::of((at - p2).norm() - (at - p1).norm()),
             band,
         )
         .map_err(escalated)?
@@ -1523,8 +1595,12 @@ fn select_arc_by_run_side<T: Decide>(
         };
         // The ccw candidate runs p1 → p2 with θ increasing: it leaves
         // p1 along +C′(θ₁) and leaves p2, walked back, along −C′(θ₂).
-        let leave = if at_p1 { tangent(th1) } else { -tangent(th2) };
-        let normal = match face_normal::face_outward_normal_at(body, face, end.at, band) {
+        let leave = if at_p1 {
+            conic.tangent_at(th1)
+        } else {
+            -conic.tangent_at(th2)
+        };
+        let normal = match face_normal::face_outward_normal_at(body, face, at, band) {
             Ok(Some(n)) => n.vec(),
             Ok(None) => return Err(corrupt_face(face)),
             Err(face_normal::NormalAtError::Escalated { diag, .. }) => {
@@ -1540,13 +1616,26 @@ fn select_arc_by_run_side<T: Decide>(
         // Sign-blind extraction is sound here: the side is read against
         // the STORED loop traversal, which `revert` reverses with the
         // sense bit (`OutwardNormal::vec`).
-        let left = normal.cross(end.travel);
+        let left = normal.cross(travel);
         let side = left.dot(leave) / (left.norm() * leave.norm());
-        let here = match decide("split_arc_run_side", Margin::levered(side, conic.sa), band)
-            .map_err(escalated)?
-        {
-            Sign::Positive => true,
-            Sign::Negative => false,
+        let reading = decide("split_arc_run_side", Margin::levered(side, conic.sa), band)
+            .map_err(escalated)?;
+        let here = match reading {
+            Sign::Positive | Sign::Negative => {
+                // The reading counts only at a smooth or convex corner
+                // of the divided face (fn docs).
+                let beside =
+                    beside_run(body, he, is_start)?.ok_or(refuse(ArcSideCase::NoCertifiedRun))?;
+                let (arrive, depart) = if is_start {
+                    (beside, travel)
+                } else {
+                    (travel, beside)
+                };
+                if !run_corner_opens(normal, arrive, depart, conic.sa, band).map_err(escalated)? {
+                    return Err(refuse(ArcSideCase::ReflexRunEnd));
+                }
+                reading == Sign::Positive
+            }
             // The divided face's corner at this end has no opening: the
             // chord would run along the run. That is the sliver the
             // join's second chord bounds against its first — its run IS
@@ -1555,10 +1644,10 @@ fn select_arc_by_run_side<T: Decide>(
             // run's start and back along it at the run's end. Any other
             // tangency is refused.
             Sign::Zero => {
-                if !run_is_section_arc(body, band, face, conic, run)? {
+                if !run_is_section_arc(body, band, face, conic, &real)? {
                     return Err(refuse(ArcSideCase::TangentToRun));
                 }
-                let along = end.travel.dot(leave) / leave.norm();
+                let along = travel.dot(leave) / leave.norm();
                 let forward = match decide(
                     "split_arc_run_along",
                     Margin::levered(along, conic.sa),
@@ -1570,7 +1659,7 @@ fn select_arc_by_run_side<T: Decide>(
                     Sign::Negative => false,
                     Sign::Zero => return Err(refuse(ArcSideCase::TangentToRun)),
                 };
-                forward == end.is_start
+                forward == is_start
             }
         };
         match ccw {
@@ -3660,6 +3749,25 @@ mod tests {
         assert!(!msg.contains("declare"), "{msg}");
     }
 
+    /// **The run-side rule reads a run end only where the divided face's
+    /// corner opens at most a half-turn.** Walking a boundary with the
+    /// face on the left under `+z`: a left turn is convex, straight on
+    /// is smooth, a right turn is reflex, and a reversal is a cusp — the
+    /// last two refused, since there the run's left side does not put
+    /// an arc inside the face.
+    #[test]
+    fn a_run_end_reads_only_at_a_smooth_or_convex_corner() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let opens = |arrive, depart| run_corner_opens(z, arrive, depart, 1.0, band).unwrap();
+        assert!(opens(x, y), "a left turn is a convex corner");
+        assert!(opens(x, x), "straight on is a smooth boundary point");
+        assert!(!opens(x, -y), "a right turn is a reflex corner");
+        assert!(!opens(x, -x), "a reversal is a cusp");
+    }
+
     /// **The anti-re-fork row for the arc-side rule.** Each of the
     /// rungs the two chord lanes share is decided in exactly ONE
     /// place in this crate — counted, not merely located, because the
@@ -3697,6 +3805,8 @@ mod tests {
             "arc_run_along",
             "arc_run_on_section_plane",
             "arc_run_on_section_conic",
+            "arc_run_corner",
+            "arc_run_cusp",
         ]
         .map(|rung| format!("\"split_{rung}\""));
         let home = crate::source_walk::src_root().join("chord_join.rs");

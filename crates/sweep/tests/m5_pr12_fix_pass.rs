@@ -174,7 +174,8 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// check 6 must stay silent on them: the refusal is not a sense
 /// disagreement. A raise there would fail tier 3 here.
 ///
-/// The volume is held to a bracket that reads nothing of the kernel's
+/// Each corner patch is held to Girard's spherical-triangle area, and
+/// the volume to a bracket that reads nothing of the kernel's
 /// fillet: rounding a convex edge of length `ℓ` and interior angle `θ`
 /// at radius `r` removes `r²·(cot(θ/2) − (π − θ)/2)·ℓ` at most (less
 /// where blends meet at corners), which is under `r²·ℓ` for every
@@ -259,6 +260,41 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     );
 
     let band = Band::linear(Tol::witness()).unwrap();
+    // Each corner patch is a geodesic triangle on its ball — three
+    // great-circle arcs, the balls' contact circles with the three
+    // fillet cylinders, whose axes pass through the ball's centre — so
+    // its area is Girard's: `r²·E`, with the excess `E` of the triangle
+    // on the unit vectors from the centre to its three vertices, read
+    // off nothing the flux arm reads.
+    for &corner in &f.corner_faces {
+        let face = f.body.get_face(corner).expect("the corner face resolves");
+        let Some(&geom::Surface::Sphere { center, radius, .. }) = f.body.get_surface(face.surface)
+        else {
+            panic!("corner face {corner:?} is a sphere patch");
+        };
+        let (outer, _) = topo::props::loop_edges(&f.body, face.outer).expect("its loop");
+        assert_eq!(outer.len(), 3, "corner face {corner:?} is a triangle");
+        let u: Vec<Vec3<f64>> = outer
+            .iter()
+            .map(|e| {
+                let t = if e.forward { e.t0 } else { e.t1 };
+                (e.carrier.eval(t) - center) / radius
+            })
+            .collect();
+        let excess = 2.0
+            * (u[0].dot(u[1].cross(u[2])).abs()
+                / (1.0 + u[0].dot(u[1]) + u[1].dot(u[2]) + u[2].dot(u[0])))
+            .atan();
+        let surface = f.body.get_surface(face.surface).unwrap();
+        let area = geom_brep::props::curved_face(surface, &outer, face.sense, band)
+            .expect("the patch measures")
+            .area;
+        let want = radius * radius * excess;
+        assert!(
+            (area - want).abs() <= 1e-12 * radius * radius,
+            "corner face {corner:?}: area {area} against Girard's {want}"
+        );
+    }
     let mut fitted = 0;
     for &corner in &f.corner_faces {
         let face = f.body.get_face(corner).expect("the corner face resolves");
