@@ -381,14 +381,18 @@ pub(super) fn sweep_loop<T: Decide>(
     tol: Tol,
 ) -> Result<LoopSwept, RevolveError> {
     let n = segs.len();
-    let walled = |j: usize| cls.walls[j].kind().is_some();
 
     // Cosurface run structure, decided up front for the whole loop —
     // including the wrap pair — before any wall is minted (the PR 4
     // SHOULD-1 lesson). Pairs across a pinned (on-axis) segment are
     // structurally false: the run is broken by the axis contact.
     let pair = loop_pairs(segs, cls, loop_index, band)?;
-    let runs = crate::swept::wall_runs(segs, &pair, walled);
+    // A partial revolve builds cocircular arcs one wall each: a run's
+    // sphere or torus wall would carry each wedge cap's meridian in
+    // pieces, which the props meridian fold (by split lineage) does not
+    // take (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
+    let joins = crate::swept::joins(segs, &pair, crate::swept::CurvedRuns::Split);
+    let runs = crate::swept::wall_runs(&joins);
     let lead = crate::swept::run_leads(&runs, n);
 
     // Struts: one latitude arc per off-axis vertex that leads a run, in
@@ -449,14 +453,14 @@ pub(super) fn sweep_loop<T: Decide>(
             let WallClass::Wall { kind, sense } = cls.walls[j] else {
                 return Ok(None);
             };
-            // Sharing shape (PR 4 SHOULD-1's precompute), for cocircular
-            // arcs (`swept::shared_wall`). A wall whose material lies
+            // Cocircular arcs share one key across their walls
+            // (`swept::shared_wall`). A wall whose material lies
             // against its revolution surface's chart normal (bore
             // cylinder, inward cone, under-side plane annulus, concave
             // sphere/torus band) states `sense: false`, classified from
             // the profile's stored winding structure
             // (`WallClass::Wall::sense`).
-            let surface = match crate::swept::shared_wall(&pair, faces, j, origin) {
+            let surface = match crate::swept::shared_wall(&joins, faces, j, origin) {
                 Some(f) => FaceSurface::Shared {
                     key: face_surface_key(body, f)?,
                     sense,

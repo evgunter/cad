@@ -20,8 +20,8 @@
 //!    face is immediately consumed by a same-shell `kfmrh` demoting the
 //!    disc loop into the bottom cap. Genus rises by one per hole.
 //! 3. **Sweep.** Per loop of the seed face (outer, then rings in
-//!    canonical hole order), one wall per RUN of collinear segments
-//!    (crate README, "Walls: one per run"): one strut `mev` per run's
+//!    canonical hole order), one wall per RUN of segments on one
+//!    carrier (crate README, "Walls: one per run"): one strut `mev` per run's
 //!    leading vertex (the `he1 == he2` case — swept vertex,
 //!    `ExtrudedPoint` description), then per run a `mev` chain laying
 //!    the top rim of every segment but the last (minting each
@@ -971,7 +971,8 @@ fn sweep_loop<T: Decide>(
             source,
         },
     )?;
-    let runs = swept::wall_runs(segs, &pair, |_| true);
+    let joins = swept::joins(segs, &pair, swept::CurvedRuns::Whole);
+    let runs = swept::wall_runs(&joins);
 
     // Struts: one swept vertex per run's leading vertex. A station
     // inside a run has none — its top vertex is minted by the run's
@@ -1012,7 +1013,7 @@ fn sweep_loop<T: Decide>(
         },
         |body, run, faces| {
             let surface = side_surface(
-                body, loop_index, segs, &pair, faces, run, origin, qs, place, normal, w, band, tol,
+                body, loop_index, segs, &joins, faces, run, origin, qs, place, normal, w, band, tol,
             )?;
             let last = (run.first + run.len - 1) % n;
             let end = run.end(n);
@@ -1056,7 +1057,7 @@ fn sweep_loop<T: Decide>(
             })?;
         if k_prev == k_next {
             // ONE surface on both sides: a conventional locus the
-            // surfaces under-determine (a cocircular split, or the
+            // surfaces under-determine (a circle's canonical cut, or the
             // meridian where a closed wall's chart wraps). It was
             // minted through the scaffolding door because the wall did
             // not exist yet; now it does, so the edge is described
@@ -1258,27 +1259,25 @@ struct LoopSwept {
     top_rims: Vec<EdgeKey>,
 }
 
-/// The surface spec of the wall over `run`, from the precomputed
-/// cosurface verdicts `pair` (see [`sweep_loop`]) and the walls minted
+/// The surface spec of the wall over `run`, from the loop's precomputed
+/// [`swept::Join`]s (see [`sweep_loop`]) and the walls minted
 /// so far (`faces`, per segment; walls are minted in run order from the
 /// run that leads at `origin`). A line run is one wall on a freshly
 /// built plane (Newell over the run's quad corners in loop order —
-/// outward by the orientation contract). An arc's wall is `Shared` with
-/// the previous wall when it continues that wall's carrier, `Shared`
-/// with the first-minted wall when it starts (or continues into) a run
-/// of cocircular arcs that reaches `origin` through the wrap join — so
-/// such a run crossing the start resolves to ONE key, whose `u_ref`
-/// comes from its first segment in sweep order — and otherwise a fresh
-/// cylinder (turn-signed axis, crate docs). Every arm states the run's
-/// [`WallSeg::wall_sense`]: a concave arc's wall has its material
-/// outside the carrier cylinder, against the outward-radial chart
-/// normal.
+/// outward by the orientation contract). An arc run is one wall on a
+/// fresh cylinder (turn-signed axis, crate docs) whose `u_ref` aims at
+/// the run's leading vertex — except across a circle's canonical cut
+/// ([`swept::Join::Cut`]), where each wall after the first shares its
+/// key ([`swept::shared_wall`]). Every arm
+/// states the run's [`WallSeg::wall_sense`]: a concave arc's wall has
+/// its material outside the carrier cylinder, against the
+/// outward-radial chart normal.
 #[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
 fn side_surface<T: Decide>(
     body: &Body<T>,
     loop_index: usize,
     segs: &[WallSeg<T>],
-    pair: &[bool],
+    joins: &[swept::Join],
     faces: &[Option<FaceKey>],
     run: swept::Run,
     origin: usize,
@@ -1292,7 +1291,7 @@ fn side_surface<T: Decide>(
     let n = segs.len();
     let j = run.first;
     let sense = segs[j].wall_sense;
-    if let Some(f) = swept::shared_wall(pair, faces, j, origin) {
+    if let Some(f) = swept::shared_wall(joins, faces, j, origin) {
         let key = face_surface_key(body, f)?;
         return Ok(FaceSurface::Shared { key, sense });
     }

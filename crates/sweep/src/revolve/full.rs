@@ -32,7 +32,7 @@
 //! that separates its inner circle (an annulus).
 //!
 //! **Runs** (crate README, "Walls: one per run"): both cases build from
-//! the loop with each run of collinear segments collapsed to one
+//! the loop with each run of segments on one carrier collapsed to one
 //! ([`Collapsed`]), so a station inside a run has no entity here; the
 //! handles map each run's wall and meridians back onto every canonical
 //! segment it holds.
@@ -47,8 +47,8 @@ use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
-use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
+use crate::swept::{face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
@@ -432,18 +432,10 @@ fn build_wire<T: Decide>(
     // ---- Phase 2: band 1 — sweep the wire by +π (struts are
     // half-period rims at interior vertices; walls carry the FULL
     // revolution surfaces; the mef edges are the angle-π meridian
-    // copies). Cosurface pairs precomputed; no wrap on an open chain.
+    // copies). The runs are collapsed (`collapse_runs`), so no two
+    // adjacent wire walls continue one carrier: each takes its own
+    // surface.
     let axis_c = turn_axis(Sign::Positive, frame.a3);
-    let mut pair = vec![false; k];
-    for i in 1..k {
-        pair[i] = cosurface(&segs[wseg(i - 1)], &segs[wseg(i)], WALL_COSURFACE, band).map_err(
-            |source| RevolveError::CosurfaceEscalated {
-                loop_index: 0,
-                vertex_index: segs[wseg(i)].canonical_vertex,
-                source,
-            },
-        )?;
-    }
     let mut struts: Vec<Option<topo::MevCreated>> = vec![None];
     for i in 1..k {
         let m = body.mev(
@@ -489,17 +481,13 @@ fn build_wire<T: Decide>(
         };
         // The wall states its classified sense — see
         // `partial::sweep_loop`.
-        let surface = match (pair[i], i, cls.walls[wseg(i)]) {
-            (true, 1.., WallClass::Wall { sense, .. }) => FaceSurface::Shared {
-                key: face_surface_key(&body, faces[i - 1])?,
-                sense,
-            },
-            (_, _, WallClass::Wall { kind, sense }) => FaceSurface::New {
+        let surface = match cls.walls[wseg(i)] {
+            WallClass::Wall { kind, sense } => FaceSurface::New {
                 surface: wall_surface(&kind, &segs[wseg(i)], frame),
                 sense,
             },
             // Unreachable: wire segments are off-axis by construction.
-            (_, _, WallClass::OnAxis) => FaceSurface::Inherit,
+            WallClass::OnAxis => FaceSurface::Inherit,
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
@@ -821,8 +809,9 @@ fn unslit_plane_wall<T: Decide>(
 /// A full revolve's loop with each wall run collapsed to one segment
 /// (crate README, "Walls: one per run": a station inside a run has no
 /// entity in a full revolve, so the builders never see it). The run's
-/// segment is its first one carried to the run's end, classified as
-/// the first one was — the run is one carrier by the cosurface verdict.
+/// segment is its first one carried to the run's end (an arc's sweep
+/// summed over the run), classified as the first one was — the run is
+/// one carrier by the cosurface verdict.
 pub(super) struct Collapsed<T: Real> {
     /// The collapsed swept segments, in run order.
     pub(super) segs: Vec<SweptSeg<T>>,
@@ -845,9 +834,9 @@ pub(super) fn collapse_runs<T: Decide>(
     band: Band,
 ) -> Result<Collapsed<T>, RevolveError> {
     let n = segs.len();
-    let walled = |j: usize| cls.walls[j].kind().is_some();
     let pair = super::partial::loop_pairs(segs, cls, loop_index, band)?;
-    let runs = crate::swept::wall_runs(segs, &pair, walled);
+    let joins = crate::swept::joins(segs, &pair, crate::swept::CurvedRuns::Whole);
+    let runs = crate::swept::wall_runs(&joins);
     let mut out = Collapsed {
         segs: Vec::with_capacity(runs.len()),
         cls: LoopClasses {
@@ -859,8 +848,13 @@ pub(super) fn collapse_runs<T: Decide>(
     };
     for run in runs {
         let last = (run.first + run.len - 1) % n;
+        let kind = run
+            .segments(n)
+            .skip(1)
+            .fold(segs[run.first].kind, |kind, s| kind.continued(segs[s].kind));
         out.segs.push(SweptSeg {
             b: segs[last].b,
+            kind,
             ..segs[run.first]
         });
         out.cls.verts.push(cls.verts[run.first]);

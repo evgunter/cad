@@ -778,11 +778,11 @@ fn survives_collinear_lines_sweep_one_wall() {
 }
 
 /// The notched circle: a same-carrier arc–arc pair meeting at the
-/// canonical start vertex, shared via the WRAP join (prev join is
-/// mixed-kind there): one cylinder key across the wrap, conventional
-/// strut at vertex 0.
+/// canonical start vertex, joined through the WRAP join (the previous
+/// join there is mixed-kind): ONE cylinder wall over the run {3, 0},
+/// the start vertex a station with no strut, kept on both caps.
 #[test]
-fn survives_notched_circle_wrap_join_shares_the_key() {
+fn survives_notched_circle_wrap_join_builds_one_wall() {
     let q = FRAC_PI_8.tan(); // quarter-arc bulge
     // (−1,0) → arc(quarter) → (0,−1) → line → (1,0) → line → (0,1)
     // → arc(quarter) → close. Carrier: unit circle at the origin.
@@ -797,45 +797,40 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
     assert_eq!(vp.loops()[0].vertices()[0].x, -1.0);
     let t = extrude(&vp, Extrusion::Distance(0.5), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    // Walls: [arc, line, line, arc]; the wrap join (segment 3 → 0)
-    // shares faces[0]'s cylinder.
-    let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
-    let k3 = t.body.get_face(t.side_faces()[0][3]).unwrap().surface;
-    assert_eq!(k0, k3, "wrap-join same-carrier arcs share one cylinder");
-    // 2 caps + 1 cylinder + 2 planes.
+    // Walls: [arc, line, line, arc]; the run {3, 0} is one wall.
+    let sides = &t.side_faces()[0];
+    assert_eq!(sides[0], sides[3], "the wrap-joined arcs sweep one wall");
+    assert_eq!(
+        t.walls[0].len(),
+        3,
+        "one wall per run: the arc run and two lines"
+    );
+    // 2 caps + 1 cylinder + 2 planes, one face each.
     assert_eq!(t.body.surfaces().count(), 5);
-    // Strut 0 (the wrap join) stays conventional — the shared cylinder
-    // under-determines its locus, so it is an image in that chart
-    // declared by the profile vertex; the line corners upgrade.
-    assert_declared_image_in(&t.body, t.strut_edges()[0][0].unwrap(), k0);
+    assert_eq!(t.body.faces().count(), 5);
+    let struts = &t.strut_edges()[0];
+    assert_eq!(
+        struts[0], None,
+        "the start vertex is a station inside the run"
+    );
     for j in [1usize, 2, 3] {
         assert!(matches!(
-            description(&t.body, t.strut_edges()[0][j].unwrap()),
+            description(&t.body, struts[j].unwrap()),
             EdgeDescription::Intersection { .. }
         ));
     }
     assert!(signed_volume(&t.body) > 0.0);
 }
 
-/// FIXED (was `finding_wrap_cosurface_run_split_into_two_keys`,
-/// SHOULD-1): prev-join precedence used to SHORT-CIRCUIT the wrap
-/// join, so a same-carrier run of ≥ 3 arcs crossing the canonical
-/// start vertex was split into TWO surface keys for ONE
-/// identical-by-construction cylinder — falsifying the crate-doc claim
-/// that smooth joins on the identical-by-construction surface "share
-/// the surface key" (and M2-PLAN PR 6's "the surface KEY is shared
-/// when identical-by-construction").
-///
-/// Profile: unit circle cut by one chord, arcs split so the carrier
-/// run is [seg 2, seg 3, seg 0] across the wrap. The fix: all of a
-/// loop's consecutive-pair cosurface decisions (including the wrap
-/// pair) are made BEFORE any wall is minted, so a segment whose
-/// forward chain reaches segment 0 through the wrap shares `faces[0]`'s
-/// key at mint time — no re-keying, no reconciliation, and the run's
-/// `u_ref` stays with its first segment in sweep order (segment 0).
-/// The whole run now resolves to ONE cylinder key.
+/// A same-carrier run of three arcs crossing the canonical start vertex
+/// — profile: unit circle cut by one chord, the run [seg 2, seg 3,
+/// seg 0] across the wrap — sweeps ONE wall on one cylinder, decided
+/// from all of a loop's cosurface verdicts (the wrap pair among them)
+/// before any wall is minted. Its `u_ref` aims at the run's leading
+/// vertex (vertex 2, the run's first segment in sweep order), and the
+/// two vertices inside the run are stations with no strut.
 #[test]
-fn fixed_wrap_cosurface_run_shares_one_key() {
+fn wrap_crossing_arc_run_builds_one_wall() {
     let sixth = (PI / 12.0).tan(); // 60° arc bulge = tan(60°/4)
     let quarter = FRAC_PI_8.tan();
     let (c60, s60) = (0.5, 3.0f64.sqrt() / 2.0);
@@ -852,28 +847,39 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
     assert_eq!(vp.loops()[0].vertices()[0].x, -1.0);
     let t = extrude(&vp, Extrusion::Distance(0.5), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    let key = |j: usize| t.body.get_face(t.side_faces()[0][j]).unwrap().surface;
-    // The whole wrap-crossing run {2, 3, 0} shares ONE key…
-    assert_eq!(key(2), key(3));
-    assert_eq!(key(0), key(2), "the wrap-crossing run must share one key");
-    // …which is one cylinder (u_ref from segment 0, the run's first
-    // segment in sweep order: it points at the canonical start vertex).
-    let Surface::Cylinder { origin, radius, .. } = *t.body.get_surface(key(0)).unwrap() else {
+    let sides = &t.side_faces()[0];
+    assert_eq!(sides[2], sides[3]);
+    assert_eq!(sides[0], sides[2], "the wrap-crossing run is one wall");
+    let run = t.walls[0]
+        .iter()
+        .find(|w| w.face == sides[0])
+        .expect("the run's wall");
+    assert_eq!(run.segments, vec![2, 3, 0], "the run, in sweep order");
+    let key = t.body.get_face(sides[0]).unwrap().surface;
+    let Surface::Cylinder {
+        origin,
+        radius,
+        u_ref,
+        ..
+    } = *t.body.get_surface(key).unwrap()
+    else {
         panic!("arc walls are cylinders");
     };
     assert!(origin.x.abs() < 1e-12 && origin.y.abs() < 1e-12);
     assert!((radius - 1.0).abs() < 1e-12);
-    // 2 caps + 1 plane + ONE cylinder key for the run's carrier.
+    assert!(
+        (u_ref.x - c60).abs() < 1e-12 && (u_ref.y - s60).abs() < 1e-12,
+        "u_ref aims at the run's leading vertex: {u_ref:?}"
+    );
+    // 2 caps + 1 plane + ONE cylinder, one face each.
     assert_eq!(t.body.surfaces().count(), 4);
-    // The in-run struts (walls 3|0 at vertex 0, walls 2|3 at vertex 3)
-    // are same-key smooth joins and stay conventional — images in the
-    // run's ONE cylinder chart, declared by their profile vertices;
-    // the chord's two corners upgrade.
-    assert_declared_image_in(&t.body, t.strut_edges()[0][0].unwrap(), key(0));
-    assert_declared_image_in(&t.body, t.strut_edges()[0][3].unwrap(), key(0));
+    assert_eq!(t.body.faces().count(), 4);
+    let struts = &t.strut_edges()[0];
+    assert_eq!(struts[0], None, "vertex 0 is a station");
+    assert_eq!(struts[3], None, "vertex 3 is a station");
     for j in [1usize, 2] {
         assert!(matches!(
-            description(&t.body, t.strut_edges()[0][j].unwrap()),
+            description(&t.body, struts[j].unwrap()),
             EdgeDescription::Intersection { .. }
         ));
     }
@@ -1132,15 +1138,15 @@ fn survives_far_offset_profiles_honest() {
 fn survives_sub_eps_oblique_vector_used_as_given() {
     let dx = 0.5 * eps();
     let v = Vec3::new(dx, 0.0, 1.0);
-    // Use a D whose arc is two cocircular quarters: their join keeps
-    // strut 1 as a conventional ExtrudedPoint image in the one shared
-    // cylinder (corner struts get re-described as Intersection,
-    // discarding the vec payload), so the stored vector is observable.
-    let q = FRAC_PI_8.tan(); // quarter-arc bulge
+    // Use a circle cut into two semicircles: it keeps its canonical
+    // cut (`crates/sweep/README.md`, "Walls: one per run"), so strut 1
+    // between the two walls stays a conventional ExtrudedPoint image
+    // in the one shared cylinder (corner struts get re-described as
+    // Intersection, discarding the vec payload, and a station inside a
+    // run has no strut), so the stored vector is observable.
     let lp = bulge_loop(vec![
-        (Point2::new(0.0, -1.0), q),
-        (Point2::new(1.0, 0.0), q),
-        (Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 1.0),
     ]);
     let t = extrude(&validated(vec![lp]), Extrusion::Vector(v), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -1157,7 +1163,7 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
     let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
         authority(&t.body, t.strut_edges()[0][1].unwrap())
     else {
-        panic!("the cocircular join's strut keeps its declaring pushforward");
+        panic!("the circle's cut strut keeps its declaring pushforward");
     };
     assert_eq!(vec.x.to_bits(), v.x.to_bits());
     assert_eq!(vec.y.to_bits(), v.y.to_bits());

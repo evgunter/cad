@@ -43,3 +43,32 @@ admits it; what the ruling's README text (`crates/sweep/README.md`,
   and the cocircular-D in `review_m2_pr4::survives_sub_eps_oblique_vector_used_as_given`.
   The plane and line-wall latitude rings already moved to hand-cut
   fixtures (`latitude_seam::ring_on_cap`, `ring_on_wall`).
+
+## Findings (implementer lane, 2026-10-02)
+
+- **Built**: extrude and the full revolve build one wall per run of
+  cocircular arcs (`swept::wall_runs` with `CurvedRuns::Whole`;
+  `revolve/full.rs::collapse_runs` sums an arc run's sweep through
+  `Traversed::continued`).
+- **The whole-loop run keeps today's split, not one wall with one strut.**
+  C12.5's canonical form is the cut-carrying half-walls
+  (`topo/src/boolean/reduce.rs`: "two half-walls sharing one cylinder key
+  across a meridian strut are exactly what a maximal-faced curved operand
+  looks like"; `merge_faces.rs` refuses to close a curved run's full
+  period, "the kept-cut seam form is not integrable"), and the designers'
+  text names "the two-piece `circle`" as the case that keeps it. So a
+  circle cut into k arcs is k runs on one key, exactly as before; this
+  row's "one run starting at the loop's start vertex, its strut the cut"
+  would have made every circle in the corpus one seam-form face.
+  `wall_runs` no longer `unreachable!`s on an all-joined loop.
+- **The partial revolve keeps one wall per arc**
+  (`CurvedRuns::Split`): built whole, every such body fails tier 3 in
+  mass properties (a meridian in pieces). Filed as
+  `partial-revolve-arc-runs-wait-on-the-meridian-fold`.
+- **Fixtures**: `latitude_seam::two_arc_sphere` now cuts its latitude
+  through the Euler door as the revolve declares one
+  (`latitude_on_full_wall`); `full_turn_wall`'s zone, `curved_mergedoor`'s
+  cylinder pair and `review_m2_pr4`'s wrap / sub-ε rows moved to hand-cut
+  bodies or the circle's cut. `revert_periodic_wrap::two_arc_torus` and
+  the partial two-arc lune are unchanged (a whole circle; a partial
+  revolve).

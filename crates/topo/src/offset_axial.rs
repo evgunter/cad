@@ -153,9 +153,12 @@
 //! **The carried arms themselves have door-built rows**: a full tube's
 //! seam vertex (torus circle), a drum's collinear wall vertex
 //! (cylinder line), a frustum's collinear generator vertex (cone
-//! line), a cap's collinear vertex (station line) and a two-arc
-//! sphere's cocircular vertex (sphere circle) all shell through
-//! `shell7_seam_corner`. **No row at all**, written for correctness:
+//! line) and a cap's collinear vertex (station line) all shell through
+//! `shell7_seam_corner`. A sphere's same-surface latitude (sphere
+//! circle) is door-built only by a partial revolve of cocircular arcs
+//! (the two-arc lune, `torax_axial`); a full revolve builds the arc run
+//! as one wall, so `shell7_seam_corner`'s two-arc sphere has its
+//! latitude cut through the Euler door. **No row at all**, written for correctness:
 //! the latitude posture's off-axis-centre refusal (no door-built
 //! operand carries a circle between two distinct non-torus,
 //! non-sphere charts with its centre off the axis; `torax_axial`
@@ -1705,8 +1708,9 @@ fn mint_carrier<T: Decide>(
     // **Every same-surface circle in the LATITUDE posture — centred on
     // the axis, in a plane normal to it — is a latitude circle, and
     // takes the latitude rule whatever its surface is**: a cylinder's
-    // or a cone's collinear-vertex ring, a sphere authored as two
-    // cocircular arcs, a cap plane split by a collinear vertex, a full
+    // or a cone's collinear-vertex ring, a sphere's latitude between
+    // two cocircular arcs' walls, a cap plane split by a collinear
+    // vertex, a full
     // tube's equator. The posture is decided FIRST, by the one helper
     // every centre-on-axis question here goes through; the arms below
     // are the seams that are NOT latitudes — a generator line, a
@@ -2489,7 +2493,9 @@ fn restate<T: Decide>(
 /// itself (its centre and radius), and the included angle the points
 /// subtend at that centre — the offset of a meridian arc is concentric,
 /// so the centre is the datum that does not move and the sweep is what
-/// the endpoints say it is. A POINT's
+/// the endpoints say it is, on the turn of the arc it replaces: the
+/// subtended angle is read nearest the old sweep, so a half turn (a
+/// pole-to-pole meridian) keeps its side of the atan2 cut. A POINT's
 /// trajectory — extruded along a vector, or revolved about an axis —
 /// is the same trajectory of the moved point: the vector and the axis
 /// are the operand's own conventional data and are carried. A revolved
@@ -2527,7 +2533,7 @@ fn reauthor<T: Decide>(
                     geom_brep::SketchSegment::Line { .. } => {
                         geom_brep::SketchSegment::Line { a, b }
                     }
-                    geom_brep::SketchSegment::Arc { .. } => {
+                    geom_brep::SketchSegment::Arc { arc: was, .. } => {
                         let Curve3::Circle { center, radius, .. } = carrier else {
                             return Err(refuse(
                                 "a declaring pushforward whose sketch arc has no moved circle \
@@ -2542,7 +2548,9 @@ fn reauthor<T: Decide>(
                             arc: Arc2 {
                                 centre,
                                 radius: *radius,
-                                sweep: u.perp_dot(v).atan2(u.dot(v)),
+                                sweep: was.sweep
+                                    + (u.perp_dot(v).atan2(u.dot(v)) - was.sweep)
+                                        .reduce_periodic_centred(T::tau()),
                             },
                         }
                     }
