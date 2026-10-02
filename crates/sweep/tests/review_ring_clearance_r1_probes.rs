@@ -496,28 +496,57 @@ mod recorded {
     }
 
     /// **`fillet3_ring_clearance` decisions per carve on the boss's
-    /// three rims**: base rim (hostless, ring-free host) 0; top outer
-    /// rim (hostless annulus, one ring) 1; dome rim (ladder, no other
-    /// ring, a two-arc circular outer cycle) 2 — one per ring per
-    /// touched host plus one per outer-cycle edge of a ladder rim's
-    /// host, and `circle_margins` mints no sample of its own.
+    /// three rims**: one per ring of each distinct host, plus one per
+    /// outer-cycle edge the carve does not replace on each distinct
+    /// host AND mate support (`support_boundary_clearance`). The boss's
+    /// wall is two half-cylinder faces and each of its circles two
+    /// half arcs, so:
+    ///
+    /// - base rim: no ring; the base disc's outer cycle is the rim
+    ///   itself; each wall half carries its top arc, `1 − 0.1` above
+    ///   the trim — two readings of `0.9`;
+    /// - top outer rim (a hostless annulus): the dome rim is the host's
+    ///   ring, `0.4` inside the trim circle of radius `0.9`; each wall
+    ///   half carries its bottom arc at `0.9` — three readings;
+    /// - dome rim (a ladder): the host's outer cycle is the two halves
+    ///   of the outer rim; the dome's own edges all meet the rim — two
+    ///   readings.
+    ///
+    /// `circle_margins` mints no sample of its own. All three rims are
+    /// read before the assertion, so a red names every rim that moved.
     #[test]
     fn r1_ring_clearance_decisions_per_carve() {
-        for (rim, want) in [((1.0, 0.0), 0usize), ((1.0, 1.0), 1), ((0.5, 1.0), 2)] {
-            let body = boss();
-            let arcs = rim_arcs_at(&body, rim.0, rim.1);
-            k_stats::start_recording();
-            fillet_edges(&body, &arcs, Probe(0.1), Tol::witness()).expect("carves");
-            let samples = k_stats::take_samples();
-            let rings = samples
-                .iter()
-                .filter(|s| s.predicate == "fillet3_ring_clearance")
-                .count();
-            println!(
-                "[r1] rim {rim:?}: {} samples, {rings} fillet3_ring_clearance",
-                samples.len()
-            );
-            assert_eq!(rings, want, "rim {rim:?}");
-        }
+        let readings: Vec<Vec<f64>> = [(1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]
+            .into_iter()
+            .map(|rim| {
+                let body = boss();
+                let arcs = rim_arcs_at(&body, rim.0, rim.1);
+                k_stats::start_recording();
+                fillet_edges(&body, &arcs, Probe(0.1), Tol::witness()).expect("carves");
+                let mut margins: Vec<f64> = k_stats::take_samples()
+                    .iter()
+                    .filter(|s| s.predicate == "fillet3_ring_clearance")
+                    .map(|s| s.margin)
+                    .collect();
+                margins.sort_by(f64::total_cmp);
+                println!("[r1] rim {rim:?}: fillet3_ring_clearance margins {margins:?}");
+                margins
+            })
+            .collect();
+        let counts: Vec<usize> = readings.iter().map(Vec::len).collect();
+        assert_eq!(counts, [2, 3, 2], "decisions per carve: base, top outer, dome rim");
+        let near = |got: &[f64], want: &[f64]| {
+            got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-12)
+        };
+        assert!(
+            near(&readings[0], &[0.9, 0.9]),
+            "base rim: each wall half's top arc, 0.9 above the trim: {:?}",
+            readings[0]
+        );
+        assert!(
+            near(&readings[1], &[0.4, 0.9, 0.9]),
+            "top outer rim: the dome-rim ring inside the trim, then each wall half's bottom arc: {:?}",
+            readings[1]
+        );
     }
 }
