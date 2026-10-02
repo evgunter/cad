@@ -48,3 +48,11 @@ The union still refuses `FallbackExtentUnsupported` in all three poses,
 and so does the stacked pose's subtract and intersect (the repro above,
 re-measured on the same merge). Pinned by
 `declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`.
+
+## Also B ∖ A (`reach/door-backstop`)
+
+`declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`
+now runs B ∖ A for its three in-wall poses (sunk, flush top, flush
+bottom). Each one refuses `FallbackExtentUnsupported` exactly as the
+union does, with the same message: no crossing event, near-tangent
+carriers. The true result is empty.

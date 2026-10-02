@@ -50,3 +50,28 @@ A rounding allowance the closed-form margin carries soundly (for example
 a pad from the flux terms' magnitudes), so that a tie at rounding scale
 reads `Zero` while a wrong-component result still refuses. The row's
 flush-top intersect then flips to building at the oracle.
+
+## Resolution (`reach/door-backstop`)
+
+Arm 1 no longer reads an `f64` closed-form sum as exact. When the
+walk's sums call a violation, the backstop re-derives both sides in
+interval arithmetic (`PastTarget::interval_volume`):
+
+- every closed-form face is re-derived at the interval scalar over its
+  stored geometry (`QuadLane`'s `closed_form`, `quad_lane::closed_form`);
+- every quadrature face contributes the enclosure its lane returned,
+  not the midpoint and half-width rounded from it;
+- the fold sums in interval arithmetic.
+
+A violation the interval margin does not certify is the rounding's and
+stays open. No pad and no constant is involved. The flush-top intersect
+builds at the oracle `(24 − (4 − π)/4)/2`.
+
+The class's general form, a tie at a tight bound, has a second source
+that rounding does not explain: a declared coincidence the door settles
+inside the band. Measured on the in-band wedge fixture: with the tilt
+dipping, the sunk ∩ stands 8e-12 m³ past `vol(B)`, and `origin/main`
+refuses it `ResultVolumeImplausible`. Each margin is now widened by
+`band.escalate()` × the smaller face of each declared pair.
+`topo/tests/door_backstop_settled_residue.rs` holds the poses through
+∪, ∩, A ∖ B and B ∖ A at both tilts.

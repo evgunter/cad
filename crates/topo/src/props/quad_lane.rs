@@ -138,7 +138,7 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 /// than its `f64` rounding. A plane reads every loop; any other surface
 /// reads its outer loop and its sense, as the face walk's closed form
 /// does.
-pub(super) fn closed_form<T: Decide + Bounds + CertifiedEnclosure>(
+pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
     sense: bool,

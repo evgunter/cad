@@ -56,3 +56,32 @@ Measure the cost of tier 3 on the door's corpus before choosing.
 
 REACH (the backstop is #3611's), on `crates/topo/src/boolean/ops.rs`,
 which CLEAVE and HONE share.
+
+## Resolution (`reach/door-backstop`)
+
+Tier 3's cost on the door's corpus was measured first: about 15 % of op
+time on the topo and sweep suites. Gating it, though, refuses 52
+results the door ships today, from tier-1/2-only operands and from
+slivers whose minted edge keeps a scaffold description. That is the
+description-gap decision. It is filed with the measurement as
+`boolean-door-tier-3-waits-on-the-description-gap` and not taken here.
+
+The backstop half ships:
+
+- **The positivity arm** (`encloses_material`): a bounded ∩ or ∖ result
+  must enclose material. It is tier 3's +V invariant read at the door,
+  with the same exemption ("zero and escalated exempt"). Only a negative
+  that the interval re-derivation certifies refuses. The ε = 1e-12
+  sliver that blocked it (−3e-16 m³ read for 6e-19 m³) straddles zero
+  in interval arithmetic and passes. It is the arm the 6 negative ∩
+  bodies would meet. They were not re-measured here: the join defect
+  that made them is fixed, so a negative result is planted instead
+  (`boolean::ops::tests::volume_backstop_joint_and_sign_arms`).
+- **`vol(A ∪ B) ≤ vol(A) + vol(B)` and `vol(A ∖ B) ≥ vol(A) − vol(B)`.**
+  They are tight on correct results whenever the operands touch, so
+  each margin carries what the door may move there. That allowance is
+  `band.escalate()` × the smaller face of each declared pair. It is the
+  door's own error bound, not a constant.
+
+The 4 short positive ∩ bodies stay out of reach of any inequality over
+the three volumes. They are the residue item's.
