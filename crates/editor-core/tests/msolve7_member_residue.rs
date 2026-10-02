@@ -60,11 +60,15 @@ fn shipped(text: &str, must_hold: &[&str]) -> String {
 }
 
 /// **The nominal environment is built at one site of the solve**:
-/// `solve_document`'s body holds the one `param_env` build under
-/// `mate/`, `solve_with_env` — the entry the evaluation uses — holds
+/// `solve_document`'s body holds the one `param_env` build the solve
+/// makes, `solve_with_env` — the entry the evaluation uses — holds
 /// none, and `member.rs`, every reader of that environment, holds
 /// none. A reader that rebuilt its own would put a second build in
-/// one of these files, which is what this row counts.
+/// one of these files, which is what this row counts. The one other
+/// build in `solve.rs` is `SolvedPoses::placement`'s: the nominal
+/// world-pose door evaluates a group's frame after the solve, which
+/// reads no gauge frame, and that door is no reader of the solve's
+/// environment.
 ///
 /// What it cannot see: an environment reached through another door
 /// (`ParamEnv { .. }` written by hand, `param_env_over`, `seed_env`),
@@ -81,7 +85,25 @@ fn a1_the_solve_builds_its_nominal_environment_exactly_once() {
         "member.rs takes the environment as a parameter and builds none"
     );
     let solve = shipped(SOLVE, &["pub fn solve_document", "fn solve_with_env"]);
-    let builds: Vec<usize> = solve.match_indices(NEEDLE).map(|(at, _)| at).collect();
+    let door = {
+        let at = solve
+            .find("pub fn placement<P>")
+            .expect("the nominal world-pose door is declared");
+        let source::ItemBody::Body(body) = source::item_body(&solve, at) else {
+            panic!("the door has a body");
+        };
+        body
+    };
+    let builds: Vec<usize> = solve
+        .match_indices(NEEDLE)
+        .map(|(at, _)| at)
+        .filter(|at| !door.contains(at))
+        .collect();
+    assert_eq!(
+        solve[door.clone()].matches(NEEDLE).count(),
+        1,
+        "the world-pose door builds its own nominal environment once"
+    );
     assert_eq!(
         builds.len(),
         1,
@@ -202,7 +224,7 @@ fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, c
         .0;
     }
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let a = head(in_part(base, base_body, CapEnd::End));
     let (doc, pattern, b) = match rule {
         None => (doc, None, head(in_part(top, top_body, CapEnd::Start))),
@@ -428,7 +450,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::instantiate_part(doc_ref),
+                node: Box::new(Node::instantiate_part(doc_ref)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -453,7 +475,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: crate::fixture::head(name(ids[0])),
                 b: crate::fixture::head(name(ids[1])),
                 class: ContactClass::Rest,
@@ -464,7 +486,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

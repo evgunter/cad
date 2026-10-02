@@ -276,6 +276,15 @@ pub enum SelectRefusal {
         /// The funnel's own diagnostic (margin, band, recourse).
         source: geom_core::Indeterminate,
     },
+    /// The flush detector's two nodes live in different spaces (A9,
+    /// A11 (2)): one is in an unplaced group's own space, and nothing
+    /// outside an unplaced group is compared with it.
+    AcrossSpaces {
+        /// The unplaced group, by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
+    },
     /// The stated value expression did not evaluate.
     BadValue(crate::expr::EvalError),
     /// The ambiguity band itself could not be built from the ambient
@@ -315,10 +324,19 @@ pub enum SelectRefusal {
 // sentence is the right one here (unlike a contact site, where it is
 // not). The arms that wrap another layer's refusal forward that
 // layer's words.
-impl core::fmt::Display for SelectRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::spoken::Say for SelectRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         let named = |f: &mut core::fmt::Formatter<'_>, name: &StableName| {
-            write!(f, "the {} minted by node {}", name.kind.noun(), name.node)
+            write!(
+                f,
+                "the {} minted by {}",
+                name.kind.noun(),
+                by.node(name.node)
+            )
         };
         match self {
             Self::InBand {
@@ -352,22 +370,31 @@ impl core::fmt::Display for SelectRefusal {
             Self::Unreadable { name, error } => {
                 f.write_str("select: ")?;
                 named(f, name)?;
-                write!(f, " could not be read to decide the query: {error}")
+                write!(
+                    f,
+                    " could not be read to decide the query: {}",
+                    crate::spoken::Said(error, by)
+                )
             }
             Self::NotADatum { datum, found } => write!(
                 f,
-                "select: the query measures from node {}, which produced {found} rather than \
+                "select: the query measures from {}, which produced {found} rather than \
                  a datum — point a distance query at an evaluated datum",
-                datum
+                by.node(*datum)
             ),
             Self::DatumHasNoValue(standing) => {
                 write!(
                     f,
-                    "select: the distance query's datum has no value: {standing}"
+                    "select: the distance query's datum has no value: {}",
+                    crate::spoken::Said(standing, by)
                 )
             }
             Self::NodeHasNoValue(standing) => {
-                write!(f, "select: the flush query's node has no value: {standing}")
+                write!(
+                    f,
+                    "select: the flush query's node has no value: {}",
+                    crate::spoken::Said(standing, by)
+                )
             }
             Self::NotALength { dim } => write!(
                 f,
@@ -398,7 +425,32 @@ impl core::fmt::Display for SelectRefusal {
                  tolerance, so no comparison below it can be trusted: {error}"
             ),
             Self::DistinctFinding(defect) => write!(f, "select: {defect}"),
+            Self::AcrossSpaces { group, cause } => write!(
+                f,
+                "select: the two nodes live in different spaces — one is in the own space of the \
+                 group rooted at {}, unplaced because {cause}, and nothing outside an \
+                 unplaced group is compared with it. {}",
+                by.node(*group),
+                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
+            ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for SelectRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl SelectRefusal {
+    /// **The refusal as the frame holding the evaluated document says it**:
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
+    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -582,6 +634,7 @@ mod census {
             NodeHasNoValue,
             NotALength,
             PairInBand,
+            AcrossSpaces,
             BadValue,
             Band,
             DistinctFinding,
@@ -640,6 +693,10 @@ mod census {
                 pair: Box::new((*name(), *name())),
                 predicate: "bool_plane_side_of",
                 source: in_band(),
+            },
+            SelectRefusal::AcrossSpaces {
+                group: RecipeNodeId(3),
+                cause: crate::mate::Unplaced::NoOffset,
             },
             SelectRefusal::BadValue(crate::expr::EvalError::ContinuousExprInCountEval {
                 found: Dimension::Length,

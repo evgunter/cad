@@ -322,8 +322,8 @@ fn every_declaring_corpus_document_replays_in_document_order() {
         let mut replay = ProfileDoc::empty_derived("r1_replay", Tol::witness());
         let mut declares_seen = 0;
         for (i, entry) in d.edits.iter().enumerate() {
-            if let DocEdit::InsertNode { node } = &entry.edit {
-                match node {
+            if let DocEdit::InsertNode { node } = entry {
+                match &**node {
                     Node::Declare { .. } => declares_seen += 1,
                     Node::Boolean {
                         declare: Some(_), ..
@@ -335,7 +335,7 @@ fn every_declaring_corpus_document_replays_in_document_order() {
                 }
             }
             // The logged replay: the recorded rows, never a solve.
-            replay = editor_core::apply_logged(&replay, entry, Tol::witness())
+            replay = editor_core::apply_replayed(&replay, entry, Tol::witness())
                 .unwrap_or_else(|e| panic!("{}: edit {i} refused: {e:?}", d.name))
                 .doc;
         }

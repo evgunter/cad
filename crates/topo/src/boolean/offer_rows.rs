@@ -170,6 +170,11 @@ const CURVED_ARM_SITE: Door = Door::Site(
     "the curved sweep arm is the one door for an edge against a cylinder wall sheet, and a \
      solid built around the pose meets other questions first",
 );
+const WALL_ROOT_SITE: Door = Door::Site(
+    "the wall's axis-parallel rung is read inside the edge sweep's wall crossing, on a line and \
+     a run set directly: the prism fixtures' edges run across a wall's axis or exactly along it, \
+     never off it by a drift in band",
+);
 
 use Door::Public;
 use Offer::{Valued, Withdrawn};
@@ -202,13 +207,13 @@ cases! {
         tangent_side(true);
     line_clear_of_a_wall: "Coincidence(EdgeOnCurvedFace)", D, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0 + D, 0.0);
-    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", -D, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("WallRoots(Discriminant)")) =>
+    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0 - D, 0.0);
     endpoint_clear_of_a_wall: "Coincidence(VertexOnCurvedFace)", D, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0, (2.0 * D).sqrt());
-    endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("WallRoots(Discriminant)")) =>
+    edge_drifting_off_a_walls_axis: "WallRoots(AxisParallel)", D, WALL_ROOT_SITE, Valued =>
+        line_drifting_off_a_walls_axis(D);
+    endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
     arc_clear_of_a_wall: "Coincidence(ArcClearsCurvedFace)", D, CURVED_ARM_SITE, Valued =>
         arc_against_a_wall(1.0 + D, None);
@@ -286,14 +291,14 @@ cases! {
     corner_turned_on_a_corner: "Coincidence(VertexOnFace)", -3e-9 * 2.0 / CC2_AXIS_NORM,
         Public, Withdrawn(Because::Refuses("Coincidence(VertexOnFace)")) =>
         corner_on_a_corner(Vec3::new(-2.0, 1.0, 0.5), 3e-9);
-    // The coincfr4 review's W6: below the vertex's value the containment
-    // refuses (CONTACT's row): no witness of the wedge's shell decides,
-    // every one of them reading in band.
+    // The coincfr4 review's W6: below the vertex's value it builds. Its
+    // shell's witnesses read in band there until the ray's parallel test
+    // against a face's plane was levered by the selection's reach.
     wide_wedge_with_a_far_vertex_union: "Coincidence(VertexOnFace)", 1.1e-8 * sin_deg(30.0),
-        Public, Withdrawn(Because::Refuses("ShellWitnessExhausted")) =>
+        Public, Withdrawn(Because::Passes) =>
         turned_wedge(0, true, 10.0, 30.0, 1.0, 1.1e-8);
     wide_wedge_with_a_far_vertex_intersect: "Coincidence(VertexOnFace)",
-        1.1e-8 * sin_deg(30.0), Public, Withdrawn(Because::Refuses("ShellWitnessExhausted")) =>
+        1.1e-8 * sin_deg(30.0), Public, Withdrawn(Because::Passes) =>
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
@@ -540,6 +545,26 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
         [(x0, y0), (x0 + 1.0, y0), (x0 + 1.0, 2.0), (x0, 2.0)]
     };
     line_run(profile)
+}
+
+/// A line from inside the unit wall about `z`, off the axis direction
+/// by `drift` over the unit run its edge covers.
+fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
+    let z = Vec3::new(0.0, 0.0, 1.0);
+    super::super::solid_contain::line_wall_roots(
+        Point3::new(0.5, 0.0, 0.0),
+        Vec3::new(drift, 0.0, 1.0),
+        Point3::new(0.0, 0.0, 0.0),
+        z,
+        1.0,
+        1.0,
+        band(),
+    )
+    .map(|_| ())
+    .map_err(|fault| BooleanError::Escalated {
+        decision: BooleanDecision::WallRoots(fault.rung),
+        diag: fault.diag,
+    })
 }
 
 fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {

@@ -745,7 +745,7 @@ fn three_face_cylinder() -> Body<f64> {
 /// declared-REST zip that takes over a refused declared union declines
 /// both at its segment enumeration, so the join's refusal surfaces
 /// verbatim for both. That stop is not a torus door
-/// (`work/zip/dumbbell-joint-union-leaves-four-loose-ends`).
+/// (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
 #[test]
 fn the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control() {
     for handle in [Handle::Torus, Handle::Cylinder] {

@@ -275,7 +275,7 @@ fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<Vec3<T>, Boo
 /// The record's germ direction, by declared class: a `Tangent` pair's
 /// sector normals are PARALLEL along the contact (the tangency), so
 /// its germ direction is the verified closed-form locus
-/// ([`super::rest::tangent_locus`] — the DEV-1 witness the door
+/// ([`geom_brep::tangent_locus`] — the DEV-1 witness the door
 /// derived), signed into the sector pair by the same membership test;
 /// every other pair takes the transverse normal cross ([`germ_dir`]).
 fn record_germ_dir<T: Decide>(
@@ -306,9 +306,9 @@ fn record_germ_dir<T: Decide>(
     };
     let s_a = surface_of(a_body, sa.face)?;
     let s_b = surface_of(b_body, sb.face)?;
-    let d = match super::rest::tangent_locus(&s_a, &s_b, band) {
-        Ok(super::rest::TangentLocus::Line { dir, .. }) => dir.normalize(),
-        Err(super::rest::TangentLocusError::Escalated(diag)) => {
+    let d = match geom_brep::tangent_locus(&s_a, &s_b, band) {
+        Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
+        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
                 read,
@@ -320,8 +320,8 @@ fn record_germ_dir<T: Decide>(
         // produce. Listed rather than wildcarded, so a new
         // `TangentLocusError` arm is classified here deliberately.
         Err(
-            super::rest::TangentLocusError::NotTangent { .. }
-            | super::rest::TangentLocusError::Unsupported { .. },
+            geom_brep::TangentLocusError::NotTangent { .. }
+            | geom_brep::TangentLocusError::Unsupported { .. },
         ) => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "declared-Tangent germ without a closed-form locus",

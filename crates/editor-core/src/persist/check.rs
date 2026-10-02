@@ -36,8 +36,8 @@
 
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
-use crate::doc::{DocParam, DocParamField, ParamName, PlacementFault, WitnessSiteFault};
-use crate::edit::{DocEdit, LoggedEdit};
+use crate::doc::{DocParam, DocParamField, GaugeRefFault, ParamName, WitnessSiteFault};
+use crate::edit::DocEdit;
 use crate::meta::MetaVersionError;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
@@ -141,12 +141,6 @@ pub(crate) enum Walk {
     /// JSON has no non-finite tokens — which is the asymmetry being
     /// BYTE-level, not a reason to fork the validator.
     NonFinite,
-    /// [`first_maintenance_frame_fault`] over the edit log's recorded
-    /// maintenance rows: every frame a row carries is held to the
-    /// `SetPlacement` door's rule ([`crate::Frame::admission_fault`]:
-    /// finite, and proper), because a row's frame re-enters the
-    /// registry at replay without passing that door. Log only.
-    MaintenanceFrame,
     /// [`first_distribution_fault`] over the param table: the E2
     /// invariants of every doc param's distribution beyond finiteness,
     /// by the same `Distribution::check` the edit door runs. Snapshot
@@ -202,8 +196,8 @@ pub(crate) enum Walk {
     /// predicate both doors ask, and this walk only names the answer in
     /// the load door's vocabulary. What is stated THERE and nowhere
     /// else is what only a FILE can be wrong about — `order` against
-    /// the node map, ids the mint log does not hold, a forward input, and
-    /// the placement registry's gauge — plus the two liveness walks
+    /// the node map, ids the mint log does not hold and a forward input
+    /// — plus the two liveness walks
     /// whose rule is the node map's own lookup. Each site says which it
     /// is.
     Snapshot,
@@ -213,9 +207,8 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 9] = [
+    pub(crate) const ORDER: [Walk; 8] = [
         Walk::NonFinite,
-        Walk::MaintenanceFrame,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::SlotDimension,
@@ -238,17 +231,12 @@ impl Walk {
     fn run(
         self,
         snapshot: &ProfileDoc,
-        edits: &[LoggedEdit<ProfileProgram>],
+        edits: &[DocEdit<ProfileProgram>],
         tol: Tol,
     ) -> Option<super::PersistError> {
         match self {
             Walk::NonFinite => first_non_finite(snapshot, edits)
                 .map(|site| super::PersistError::NonFinite { site }),
-            Walk::MaintenanceFrame => {
-                first_maintenance_frame_fault(edits, tol).map(|(index, row, fault)| {
-                    super::PersistError::MaintenanceFrame { index, row, fault }
-                })
-            }
             Walk::Distribution => first_distribution_fault(snapshot)
                 .map(|(name, fault)| super::PersistError::Distribution { name, fault }),
             Walk::DisplayUnit => {
@@ -329,7 +317,7 @@ impl Walk {
 /// contract.
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
-    edits: &[LoggedEdit<ProfileProgram>],
+    edits: &[DocEdit<ProfileProgram>],
     tol: Tol,
 ) -> Result<(), super::PersistError> {
     for walk in Walk::ORDER {
@@ -538,37 +526,17 @@ fn first_payload_param_ref_fault(
     })
 }
 
-/// **The first recorded maintenance row whose frame is not a
-/// placement** — the log's rows are trusted bytes otherwise, and a
-/// row's frame enters the registry at replay without passing the
-/// `SetPlacement` door, so it is held here to exactly what that door
-/// holds a frame to ([`crate::Frame::admission_fault`]: finite, proper
-/// and rigid). Named by the entry's index in the log and the row's index
-/// in the entry.
-fn first_maintenance_frame_fault(
-    edits: &[LoggedEdit<ProfileProgram>],
-    tol: Tol,
-) -> Option<(usize, usize, crate::placement::FrameFault)> {
-    edits.iter().enumerate().find_map(|(index, entry)| {
-        entry.maintenance.iter().enumerate().find_map(|(row, act)| {
-            act.frame()
-                .and_then(|f| f.admission_fault(tol))
-                .map(|fault| (index, row, fault))
-        })
-    })
-}
-
 /// The first non-finite float in ε, the document params, the profile
 /// nodes, the appearance records or the edit log, reported as a
 /// [`NonFiniteSite`], or `None`.
 ///
-/// NOT every float the format writes: placement frames and mate
+/// NOT every float the format writes: literal placement frames and mate
 /// alignments are checked by [`validate_snapshot`] and reported under
 /// [`SnapshotError`], because they are structural state rather than a
 /// value the writer is asked to round-trip.
 fn first_non_finite(
     snapshot: &ProfileDoc,
-    edits: &[LoggedEdit<ProfileProgram>],
+    edits: &[DocEdit<ProfileProgram>],
 ) -> Option<NonFiniteSite> {
     if !snapshot.epsilon.is_finite() {
         return Some(NonFiniteSite::Epsilon);
@@ -594,8 +562,8 @@ fn first_non_finite(
             });
         }
     }
-    for (index, entry) in edits.iter().enumerate() {
-        if let Some(inner) = edit_non_finite(snapshot, &entry.edit) {
+    for (index, edit) in edits.iter().enumerate() {
+        if let Some(inner) = edit_non_finite(snapshot, edit) {
             return Some(NonFiniteSite::Edit {
                 index,
                 inner: Box::new(inner),
@@ -698,9 +666,10 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         //
         // - Most `InsertNode` node kinds hold their floats in `Expr`
         //   literals, finite by the construction door.
-        // - `Node::Mate`'s `alignment` and `SetPlacement`'s `frame` are
-        //   RAW `f64`, not `Expr`s. They are refused on replay by
-        //   `apply` (`EditError::NonFiniteAlignment`,
+        // - `Node::Mate`'s `alignment` and a placement's literal steps
+        //   (an inserted transform's or gauge's, an instance's offset,
+        //   `SetOffset`'s) are RAW `f64`, not `Expr`s. They are refused
+        //   on replay by `apply` (`EditError::NonFiniteAlignment`,
         //   `NonFinitePlacement`), which `persist::load` runs the log
         //   through — so they are guarded, but by a door this function
         //   deliberately does not rely on for the rest of its list.
@@ -731,7 +700,9 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::ClearAppearance { .. }
         | DocEdit::ClearAppearanceMeta { .. }
         | DocEdit::SetRoots { .. }
-        | DocEdit::SetPlacement { .. }
+        | DocEdit::SetOffset { .. }
+        // A gauge reference is a node id.
+        | DocEdit::SetGauge { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,
@@ -839,18 +810,29 @@ pub enum SnapshotError {
     /// D-2): the same check `apply` runs, so a file can carry no root
     /// state the edit doors could not have produced.
     Roots(crate::roots::RootFault),
-    /// A placement row keyed by a node that is not a live
-    /// `InstantiatePart` (A11: only an instance's cluster has a frame).
-    PlacementSite {
-        /// The offending key.
+    /// A gauge reference — an instance's gauge or a gauge's parent —
+    /// that names a live node that is not a gauge. The edit doors
+    /// refuse it through the same predicate (`doc::gauge_ref_fault`).
+    NotAGauge {
+        /// The instance or gauge holding the reference.
         node: SpokenNode,
+        /// The node it names.
+        gauge: SpokenNode,
     },
-    /// A placement frame carrying a non-finite coordinate — a
-    /// registry row's, or a literal step of a transform's placement.
-    /// The edit door refuses it, so a file holding one is corrupt —
-    /// refused, never repaired.
+    /// A gauge reference that closes a loop: a gauge sitting on
+    /// itself through its own chain.
+    GaugeCycle {
+        /// The gauge holding the reference.
+        node: SpokenNode,
+        /// The gauge it names, which sits on `node`.
+        gauge: SpokenNode,
+    },
+    /// A placement frame carrying a non-finite coordinate — a literal
+    /// step of a transform's or a gauge's placement, or of an
+    /// instance's offset. The edit door refuses it, so a file holding
+    /// one is corrupt — refused, never repaired.
     PlacementNonFinite {
-        /// The registry key, or the transform.
+        /// The node holding the placement.
         node: SpokenNode,
         /// Which of its frames.
         at: FrameSite,
@@ -859,10 +841,9 @@ pub enum SnapshotError {
     /// case R4 gates. Its own arm rather than
     /// [`SnapshotError::PlacementNonFinite`]: a mirror is authored data
     /// this build declines to admit, a non-finite coordinate is data no
-    /// predicate can read, and the repairs differ. A registry row's
-    /// frame, or a literal step of a transform's placement.
+    /// predicate can read, and the repairs differ.
     PlacementImproper {
-        /// The registry key, or the transform.
+        /// The node holding the placement.
         node: SpokenNode,
         /// Which of its frames.
         at: FrameSite,
@@ -870,28 +851,16 @@ pub enum SnapshotError {
         determinant: f64,
     },
     /// A proper placement frame that is not definitely a rigid motion
-    /// at tolerance — a registry row's, or a literal step of a
-    /// transform's placement. The edit door refuses it by the
-    /// predicate the evaluation moves a body by.
+    /// at tolerance. The edit door refuses it by the predicate the
+    /// evaluation moves a body by.
     PlacementNonRigid {
-        /// The registry key, or the transform.
+        /// The node holding the placement.
         node: SpokenNode,
         /// Which of its frames.
         at: FrameSite,
         /// The rigidity check that refused; routing, never rendered by
         /// name.
         check: &'static str,
-    },
-    /// A placement row keyed by an instance that is NOT its cluster's
-    /// gauge (ASM-R2a D-3). A11 puts the frame on the cluster, and the
-    /// cluster's key is its document-order-first instance; any other
-    /// key would place a member instead of the cluster, which is the
-    /// multi-anchor state A11 makes unrepresentable.
-    PlacementNotGauge {
-        /// The offending key.
-        node: SpokenNode,
-        /// The gauge that should have carried the row.
-        gauge: SpokenNode,
     },
     /// A mate's alignment datum carries a non-finite coordinate. The
     /// edit door refuses it, so a file holding one is corrupt: no
@@ -1159,10 +1128,13 @@ impl core::fmt::Display for SnapshotError {
                 "the recorded ε {value:e} is not finite and strictly positive"
             ),
             Self::Roots(fault) => write!(f, "{fault}"),
-            Self::PlacementSite { node } => write!(
+            Self::NotAGauge { node, gauge } => write!(
                 f,
-                "a placement is keyed by {node}, which does not instantiate a part"
+                "{node}'s gauge reference names {gauge}, which is not a gauge"
             ),
+            Self::GaugeCycle { node, gauge } => {
+                write!(f, "{node} sits on {gauge}, which sits on it")
+            }
             // The frame clause is the frame rule's own
             // (`crate::placement::FrameFault`); these arms supply only
             // the subject, so a reader sees one sentence about a frame
@@ -1185,10 +1157,6 @@ impl core::fmt::Display for SnapshotError {
             Self::PlacementNonRigid { node, at, check } => {
                 frame_refusal(f, node, *at, FrameFault::NotRigid { check })
             }
-            Self::PlacementNotGauge { node, gauge } => write!(
-                f,
-                "the placement keyed by {node} belongs on its cluster's gauge, {gauge}"
-            ),
             Self::MateAlignment { node } => write!(
                 f,
                 "{node}'s alignment datum carries a non-finite coordinate"
@@ -1369,8 +1337,35 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         for at in node.payload_read_sites() {
             check_id(at)?;
         }
-        // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
-        // same reason the A11 registry is below: a saved file is DATA,
+        // The gauge reference (A11 (2)), by the predicate the edit
+        // doors ask. A reference to a DELETED gauge is legal state —
+        // A11 (2) keeps it so the unplaced group names its cause — and
+        // loads; one past the counter, to a live non-gauge, or round a
+        // loop is a file no door could have written.
+        if let Some(gauge) = node.gauge_ref() {
+            check_id(gauge)?;
+            match crate::doc::gauge_ref_fault(doc, id, Some(gauge)) {
+                None | Some(GaugeRefFault::Deleted) => {}
+                // `check_id` above refused an id past the counter.
+                Some(GaugeRefFault::NeverMinted) => {
+                    unreachable!("node {}'s gauge id was checked minted above", id)
+                }
+                Some(GaugeRefFault::NotAGauge) => {
+                    return Err(SnapshotError::NotAGauge {
+                        node: doc.spoken(id),
+                        gauge: doc.spoken(gauge),
+                    });
+                }
+                Some(GaugeRefFault::Cycle) => {
+                    return Err(SnapshotError::GaugeCycle {
+                        node: doc.spoken(id),
+                        gauge: doc.spoken(gauge),
+                    });
+                }
+            }
+        }
+        // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked because
+        // a saved file is DATA,
         // and every rule on the wire must be one the edit door would
         // have accepted — one spelling of the count, at least one
         // placement, and frames that are finite and proper.
@@ -1380,8 +1375,9 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 fault,
             });
         }
-        // A transform's literal frames, held by the predicate the edit
-        // door asks, for the rule's reason: the snapshot is the one road
+        // A placement's literal frames — a transform's, a gauge's, an
+        // instance's offset — held by the predicate the edit door asks,
+        // for the rule's reason: the snapshot is the one road
         // to a document that does not pass `apply`.
         if let Some((index, fault)) = node.placement_frame_fault(tol) {
             return Err(SnapshotError::placement_frame(
@@ -1540,34 +1536,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             });
         }
     }
-    // The A11 placement registry (ASM-2A D-6): every key names a live
-    // instantiate node, and every frame is one the edit door would
-    // have accepted.
-    for (&node, frame) in &doc.placements {
-        check_id(node)?;
-        if let Some(fault) = crate::doc::placement_fault(doc, node, frame, tol) {
-            return Err(match fault {
-                PlacementFault::NotAnInstance => SnapshotError::PlacementSite {
-                    node: doc.spoken(node),
-                },
-                PlacementFault::Frame(fault) => {
-                    SnapshotError::placement_frame(doc.spoken(node), FrameSite::Registry, fault)
-                }
-            });
-        }
-        // The GAUGE rule is this door's alone, and that is the
-        // invariant rather than a gap: `SetPlacement` KEYS a row on the
-        // cluster's gauge instead of refusing a non-gauge key, and the
-        // cluster maintenance re-keys the registry whenever the mate
-        // graph moves, so a non-gauge row exists only in a file.
-        let gauge = crate::mate::root_of(doc, node);
-        if gauge != node {
-            return Err(SnapshotError::PlacementNotGauge {
-                node: doc.spoken(node),
-                gauge: doc.spoken(gauge),
-            });
-        }
-    }
     // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
     // walk so a file with dangling inputs is diagnosed as such rather
     // than as an incidental coverage failure.
@@ -1715,7 +1683,6 @@ mod tests {
         /// against [`WALKS_IN_CALL_ORDER`] in both directions.
         const WALK: Walk = [
             NonFinite,
-            MaintenanceFrame,
             Distribution,
             DisplayUnit,
             SlotDimension,
@@ -1734,11 +1701,7 @@ mod tests {
     /// or this does not compile.
     const fn raises_snapshot_error(walk: Walk) -> bool {
         match walk {
-            Walk::NonFinite
-            | Walk::MaintenanceFrame
-            | Walk::Distribution
-            | Walk::DisplayUnit
-            | Walk::Program => false,
+            Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
             Walk::SlotDimension | Walk::SlotParamRef | Walk::PayloadParamRef | Walk::Snapshot => {
                 true
             }
@@ -1769,11 +1732,11 @@ mod tests {
             PayloadDocParamDimension,
             EpsilonInvalid,
             Roots,
-            PlacementSite,
+            NotAGauge,
+            GaugeCycle,
             PlacementNonFinite,
             PlacementImproper,
             PlacementNonRigid,
-            PlacementNotGauge,
             MateAlignment,
             PlacementRule,
             MeasureRefs,
@@ -1811,11 +1774,11 @@ mod tests {
             | SnapshotError::LabelOnMissingNode { .. }
             | SnapshotError::EpsilonInvalid { .. }
             | SnapshotError::Roots(_)
-            | SnapshotError::PlacementSite { .. }
+            | SnapshotError::NotAGauge { .. }
+            | SnapshotError::GaugeCycle { .. }
             | SnapshotError::PlacementNonFinite { .. }
             | SnapshotError::PlacementImproper { .. }
             | SnapshotError::PlacementNonRigid { .. }
-            | SnapshotError::PlacementNotGauge { .. }
             | SnapshotError::MateAlignment { .. }
             | SnapshotError::PlacementRule { .. }
             | SnapshotError::MeasureRefs { .. }
@@ -1921,10 +1884,17 @@ mod tests {
                 ancestor: at(1),
                 descendant: at(2),
             }),
-            SnapshotError::PlacementSite { node: node() },
+            SnapshotError::NotAGauge {
+                node: node(),
+                gauge: at(2),
+            },
+            SnapshotError::GaugeCycle {
+                node: node(),
+                gauge: at(2),
+            },
             SnapshotError::PlacementNonFinite {
                 node: node(),
-                at: FrameSite::Registry,
+                at: FrameSite::Step { index: 0 },
             },
             SnapshotError::PlacementImproper {
                 node: node(),
@@ -1935,10 +1905,6 @@ mod tests {
                 node: node(),
                 at: FrameSite::Step { index: 1 },
                 check: "transform_rigid_col0_unit",
-            },
-            SnapshotError::PlacementNotGauge {
-                node: node(),
-                gauge: at(2),
             },
             SnapshotError::MateAlignment { node: node() },
             SnapshotError::PlacementRule {
@@ -2087,7 +2053,7 @@ mod tests {
             let applied = crate::edit::apply(
                 &doc,
                 &crate::edit::DocEdit::InsertNode {
-                    node: Node::instantiate_part(doc_ref),
+                    node: Box::new(Node::instantiate_part(doc_ref)),
                 },
                 Tol::witness(),
                 &crate::mate::RefusingReach,
@@ -2134,7 +2100,9 @@ mod tests {
         };
         let applied = crate::edit::apply(
             &doc,
-            &crate::edit::DocEdit::InsertNode { node: mate },
+            &crate::edit::DocEdit::InsertNode {
+                node: Box::new(mate),
+            },
             Tol::witness(),
             &crate::mate::RefusingReach,
         )
@@ -2162,13 +2130,17 @@ mod tests {
         }
 
         let (mut doc, ids) = instances_of_an_unresolved_reference("check-place", 1);
-        doc.placements.insert(
-            ids[0],
-            crate::placement::Frame {
-                columns: [[f64::NAN, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-                translation: [0.0; 3],
-            },
-        );
+        match doc.nodes.get_mut(&ids[0]) {
+            Some(Node::InstantiatePart { offset, .. }) => {
+                *offset = Some(crate::placement::Placement::literal(
+                    &crate::placement::Frame {
+                        columns: [[f64::NAN, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                        translation: [0.0; 3],
+                    },
+                ));
+            }
+            other => panic!("the fixture's instance is an instance, got {other:?}"),
+        }
         match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node, .. })) => {
                 assert_eq!(node, doc.spoken(ids[0]));
@@ -2193,16 +2165,16 @@ mod tests {
             (doc, id)
         };
         let doc = ProfileDoc::empty_derived("check-speak", tol);
-        let (doc, plane) = insert(doc, crate::test_support::xy_frame());
+        let (doc, plane) = insert(doc, Box::new(crate::test_support::xy_frame()));
         let triangle = crate::program::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
             .expect("finite corners");
         let (doc, profile) = insert(
             doc,
-            Node::Profile(crate::program::ProfileProgram {
+            Box::new(Node::Profile(crate::program::ProfileProgram {
                 plane,
                 loops: vec![triangle],
                 ids: Vec::new(),
-            }),
+            })),
         );
         let doc = doc
             .apply(

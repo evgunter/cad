@@ -140,7 +140,9 @@ fn an_authored_class_is_what_the_node_holds() {
     };
     let applied = doc
         .apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -178,7 +180,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
         let applied = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: declare(class),
+                    node: Box::new(declare(class)),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -189,12 +191,12 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
             .doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: Node::Boolean {
+                    node: Box::new(Node::Boolean {
                         op: BooleanOp::Union,
                         a,
                         b,
                         declare: Some(d),
-                    },
+                    }),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,

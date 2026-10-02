@@ -883,12 +883,12 @@ fn wire_doors_refuse_typed() {
     // the edit door, so the document never carries the mis-wire.
     let refused = doc.apply(
         &editor_core::DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
                 a: u,
                 b: base,
                 declare: Some(ax),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

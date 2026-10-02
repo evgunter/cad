@@ -240,7 +240,9 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
     for node in shapes {
         let err = doc
             .apply(
-                &DocEdit::InsertNode { node: node.clone() },
+                &DocEdit::InsertNode {
+                    node: Box::new(node.clone()),
+                },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )
@@ -435,7 +437,9 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .order()
         .iter()
         .map(|id| DocEdit::InsertNode {
-            node: crate::fixture::as_authored(doc.node(*id).expect("an ordered node")),
+            node: Box::new(crate::fixture::as_authored(
+                doc.node(*id).expect("an ordered node"),
+            )),
         })
         .collect();
     edits.push(DocEdit::SetMembers {
@@ -450,8 +454,8 @@ fn a_union_and_a_set_members_replay_bit_identically() {
             .expect("the log replays")
             .doc;
     }
-    let text = editor_core::persist::save(&empty, &editor_core::LoggedEdit::bare_all(&edits), tol)
-        .expect("the document saves");
+    let text =
+        editor_core::persist::save(&empty, &edits.to_vec(), tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("the document loads");
     assert!(
         loaded.doc.bit_eq(&replayed),
@@ -1066,10 +1070,10 @@ fn a_one_section_loft_is_refused_at_the_insert_door() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Loft {
+                node: Box::new(Node::Loft {
                     profiles: vec![profiles[0]],
                     v_degree: editor_core::Expr::count(1),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

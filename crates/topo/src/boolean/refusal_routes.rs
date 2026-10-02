@@ -692,9 +692,10 @@ const COVERED_VERTEX_LEVER: &str = "move the parts so the vertex lies clearly on
 /// ([`Coincide::EdgeOnCurvedFace`], [`Coincide::VertexOnCurvedFace`]).
 /// Every side passes the question; a positive margin is a gap a smaller
 /// tolerance decides clear, and a negative one goes on to the exact
-/// wall roots, whose margin is no length (`WallRoots`), so a smaller
-/// tolerance is offered on the positive side alone.
-const CURVED_CLEARANCE: SizedDecision = proximity(SizedPass::Positive);
+/// wall roots, whose discriminant is the depth the edge's line reaches
+/// inside the wall (`WallRoots`), the length this margin reads on the
+/// other side, so a smaller tolerance is offered on both.
+const CURVED_CLEARANCE: SizedDecision = proximity(SizedPass::NonZero);
 
 /// An uncovered arc against a curved face
 /// ([`Coincide::ArcClearsCurvedFace`]): the larger of the arc's two
@@ -1102,11 +1103,10 @@ pub enum RestZipFrontier {
     /// The two contact patches' face cycles do not match across the
     /// mate.
     PatchCyclesIncongruent,
-    /// The two contact patches hold different numbers of holes.
-    HoleCountsDiffer,
     /// A hole's boundary vertex has no partner across the seam.
     HoleVertexUnmatched,
-    /// The two contact patches' holes do not match across the mate.
+    /// The two contact patches' holes do not match across the mate, one
+    /// for one.
     HoleCyclesIncongruent,
     /// A face zipped along part of its boundary holds holes.
     SlitFaceHoles,
@@ -1136,7 +1136,6 @@ impl RestZipFrontier {
             }
             Self::PatchVertexUnmatched => "patch boundary vertex without a seam correspondent",
             Self::PatchCyclesIncongruent => "patch face cycles not congruent across the mate",
-            Self::HoleCountsDiffer => "patch pair carries differing interior-boundary counts",
             Self::HoleVertexUnmatched => "ring boundary vertex without a seam correspondent",
             Self::HoleCyclesIncongruent => "ring cycles not congruent across the mate",
             Self::SlitFaceHoles => "slit-zip face carries rings",
@@ -1154,7 +1153,7 @@ impl RestZipFrontier {
             // The zip glues the holes of the two contact faces pairwise,
             // by congruent cycles: holes that match across the mate are
             // what it takes.
-            Self::HoleCountsDiffer | Self::HoleVertexUnmatched | Self::HoleCyclesIncongruent => {
+            Self::HoleVertexUnmatched | Self::HoleCyclesIncongruent => {
                 "Recourse: make the holes inside the declared contact match, one for one and \
                  corner for corner, across the two parts"
             }
@@ -1214,12 +1213,9 @@ impl Ending {
 /// and so why no refusal of it offers the tolerance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LeverPass {
-    /// It passes on a definitely positive margin, which is no length the
-    /// user chose, so a tolerance below it names no size: the offer
+    /// It passes on either definite sign, and the margin is no length
+    /// the user chose, so a tolerance below it names no size: the offer
     /// waits on a length door for the margin.
-    PositiveNotALength,
-    /// It passes on either definite sign, the margin no length the user
-    /// chose, as [`LeverPass::PositiveNotALength`].
     NonZeroNotALength,
     /// The arms that read its verdict pass on different sets, so no one
     /// sign set is the decision's.
@@ -1514,19 +1510,20 @@ impl BooleanDecision {
             Self::Radius(SectionRadius::Sphere) => {
                 Ending::Lever(SectionRadius::Sphere.sized().lever, LeverPass::Frontier)
             }
-            // A positive `|d⊥|²/2r` has roots to find; a zero one is a
-            // constant residual, which every edge-sweep arm refuses at
-            // the frontier. The margin is 1/m, ledger row F2 (debt
-            // #214, `docs/predicate-dimension-audit.md`).
-            Self::WallRoots(WallRung::AxisParallel) => Ending::Lever(
+            // The margin is the edge's drift off its distance from the
+            // axis over its own length. A positive one has roots to find;
+            // a zero one is a constant residual, which every edge-sweep
+            // arm refuses at the frontier.
+            Self::WallRoots(WallRung::AxisParallel) => sized(
                 "turn the edge clearly away from the direction of the cylinder's axis",
-                LeverPass::PositiveNotALength,
+                "edge's drift off the cylinder's axis",
+                SizedPass::Positive,
             ),
             // Two roots pass at every arm; a miss passes where both ends
             // are off the wall and refuses where one is on it (a miss
             // cannot hold a zero endpoint); a zero is a tangency, refused
-            // at the frontier. The margin `disc/(2r)²` is dimensionless,
-            // ledger row F2 (debt #214).
+            // at the frontier. The margin is the depth the edge's line
+            // reaches inside the wall, a length.
             Self::WallRoots(WallRung::Discriminant) => Ending::Lever(
                 "move the parts so the edge clearly crosses the wall or clearly misses it",
                 LeverPass::ByArm,
@@ -1926,10 +1923,10 @@ mod tests {
                 LeverPass::ByArm,
             ),
             Coincide::EdgeOnPlane => Ending::Sized(MEET, SizedPass::AnySign),
-            // A negative margin goes on to the wall roots, which offer no
-            // tolerance: the offer is the positive side's alone.
+            // A negative margin goes on to the wall roots, whose depth a
+            // smaller tolerance decides too: both sides are offered.
             Coincide::EdgeOnCurvedFace | Coincide::VertexOnCurvedFace => {
-                Ending::Sized(MEET, SizedPass::Positive)
+                Ending::Sized(MEET, SizedPass::NonZero)
             }
             Coincide::ArcClearsCurvedFace => Ending::Sized(
                 "Recourse: move the parts so the arc clearly clears that face",
@@ -2085,10 +2082,10 @@ mod tests {
             ),
             BooleanDecision::WallRoots(WallRung::AxisParallel) => (
                 "whether an edge runs parallel to a cylinder's axis",
-                Ending::Lever(
+                Ending::Sized(
                     "Recourse: turn the edge clearly away from the direction of the cylinder's \
                      axis",
-                    LeverPass::PositiveNotALength,
+                    SizedPass::Positive,
                 ),
             ),
             BooleanDecision::WallRoots(WallRung::Discriminant) => (

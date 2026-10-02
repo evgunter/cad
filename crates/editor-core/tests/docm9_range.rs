@@ -37,7 +37,7 @@ use editor_core::range::{
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
     LoopProgram, Node, NodeResult, ParamName, PatternKind, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SlotId, StableName, evaluate,
+    RecipeNodeId, SlotId, SpokenNode, StableName, evaluate,
 };
 
 use fixture::{Recorder, len, scl, tol, xy_frame};
@@ -637,7 +637,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             tol()
         ),
         Err(RangeRefusal::StructuralSlot {
-            node: pattern,
+            node: doc.spoken(pattern),
             slot: SlotId::Count
         })
     );
@@ -656,7 +656,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             tol()
         ),
         Err(RangeRefusal::SlotIsNotALiteral {
-            node: extrude,
+            node: driven.spoken(extrude),
             slot: SlotId::Distance
         })
     );
@@ -673,7 +673,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             tol()
         ),
         Err(RangeRefusal::UnknownSlot {
-            node: extrude,
+            node: driven.spoken(extrude),
             slot: SlotId::Radius
         })
     );
@@ -688,7 +688,9 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             seed,
             tol()
         ),
-        Err(RangeRefusal::UnknownNode { node: ghost })
+        Err(RangeRefusal::UnknownNode {
+            node: SpokenNode::absent(ghost)
+        })
     );
     assert_eq!(
         derive(&driven, &RangeField::Param(name("nope")), seed, tol()),
@@ -723,7 +725,7 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
             tol()
         ),
         Err(RangeRefusal::UnknownSlot {
-            node,
+            node: doc.spoken(node),
             slot: SlotId::Count
         })
     );
@@ -747,7 +749,7 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
             tol()
         ),
         Err(RangeRefusal::StructuralSlot {
-            node: pattern,
+            node: patterned_doc.spoken(pattern),
             slot: SlotId::Count
         })
     );

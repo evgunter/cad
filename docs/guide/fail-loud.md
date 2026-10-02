@@ -206,26 +206,25 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
-// `apply`'s last argument is the mated parts' REACH — what an edit
-// that moves an assembly group's root levers its re-keying solve
-// through. This document has no instance and no mate, so no edit here
-// can move a root and the refusing reach is never asked.
+// `apply`'s last argument is the mated parts' REACH — what inserting
+// a mate with a clocking rider levers the rider's admission through.
+// This document inserts no mate, so the refusing reach is never asked.
 // The frame the square is drawn on — a dependency of the profile
 // exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Datum(Datum::Frame {
+    node: Box::new(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
-    }),
+    })),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    node: Box::new(Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() })),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Extrude { profile, distance: len(1.0) },
+    node: Box::new(Node::Extrude { profile, distance: len(1.0) }),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol, &pncad::document::RefusingReach);

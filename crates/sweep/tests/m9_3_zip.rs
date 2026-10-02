@@ -5,6 +5,11 @@
 //! cylindrical); the union removes all three patches as interior,
 //! the bore walls vanish (full engagement), and the volume is exactly
 //! additive (the C7-lane statement).
+//!
+//! Acceptance (ii) is the kissing rounds: two convex quarter-round
+//! walls touching externally along one ruling, a wedge-2π rim. (The
+//! wedge-π G1 "tube chain" is a different fixture, the torus chain in
+//! `mate7a_torus_rest.rs`.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -148,11 +153,13 @@ fn two_peg_plate_union_is_exactly_additive() {
 }
 
 // -------------------------------------------------------------------
-// Acceptance (ii): the tube-chain rim on the DEV-1 carriers — two
-// EQUAL-RADIUS quarter-round walls meeting G1 along a shared tangent
-// ruling (the parallel-cylinder witness lane), mated by a declared
-// planar Rest with the wall pairs declared Tangent. The rim survives
-// the zip as the wedge-π smooth seam and carries the INTRINSIC
+// Acceptance (ii): the kissing-rounds rim on the DEV-1 carriers — two
+// EQUAL-RADIUS convex quarter-round walls (axes (2,·,0) and (2,·,2))
+// kissing externally along one ruling, opposite outward normals there
+// (the parallel-cylinder witness lane), mated by a declared planar
+// Rest with the wall pairs declared Tangent. The rim survives the zip
+// as the wedge-2π kiss, a slit interior to material, and carries the
+// INTRINSIC
 // `TangentIntersection` description (the D6 smooth ladder's mint —
 // the jet is determinate: κ_rel = 1/r + 1/r definite).
 // -------------------------------------------------------------------
@@ -229,7 +236,7 @@ fn cyl_face(body: &Body<f64>) -> topo::FaceKey {
 }
 
 #[test]
-fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
+fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     let a = quarter_round_below();
     let b = quarter_round_above();
     let va = mass_properties(&a, Tol::witness()).unwrap().volume;
@@ -261,9 +268,9 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
         ContactClass::Tangent,
     ));
     let out =
-        topo::union_with(&a, &b, &decls, Tol::witness()).expect("the tube-chain rim union runs");
+        topo::union_with(&a, &b, &decls, Tol::witness()).expect("the kissing-rounds union runs");
     let BooleanResult::Body(bb) = out else {
-        panic!("a tube-chain union cannot be empty");
+        panic!("a kissing-rounds union cannot be empty");
     };
     let body = bb.body;
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
@@ -284,7 +291,7 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     );
 
     // The rim: the seam edges between the two cylinder walls — the
-    // wedge-π smooth junction — carry the INTRINSIC tangency
+    // wedge-2π kiss — carry the INTRINSIC tangency
     // description on their line carrier (D6's smooth ladder; U2's
     // taxonomy, no new variant).
     let face_kind = |he| {
@@ -308,7 +315,7 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
                     c.description(),
                     geom_brep::EdgeDescription::TangentIntersection { .. }
                 ),
-                "the G1 rim is intrinsically described: {:?}",
+                "the kissing rim is intrinsically described: {:?}",
                 c.description()
             );
         }
@@ -323,7 +330,7 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     // tangency was created: this op was GIVEN the wall × wall `Tangent`
     // mate above.
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
-        panic!("the tube-chain rim body must be tier-3 valid: {errs:?}");
+        panic!("the kissing-rounds body must be tier-3 valid: {errs:?}");
     }
     // The tier-3 contact mark agrees: the rim EDGE ITSELF is the
     // must-carry's own regime (jet-determinate tangency), satisfied
@@ -365,7 +372,7 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     // V − E + F − R = 2(S − H).
     let counts = euler_counts(&body);
     assert_eq!(counts.s, 1, "one shell");
-    assert_eq!(counts.r, 0, "no ring loops in the tube chain");
+    assert_eq!(counts.r, 0, "no ring loops in the kissing rounds");
     assert_eq!(
         counts.genus(),
         Ok(0),
@@ -374,6 +381,91 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     // 3′ judges the rim as tier 3 does — its local battery reads no
     // record — over the contacts the op itself emitted.
     if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
-        panic!("the tube chain must be pseudomanifold-clean: {errs:?}");
+        panic!("the kissing rounds must be pseudomanifold-clean: {errs:?}");
     }
+}
+
+/// A slab under the upper quarter round, wide enough that the round's
+/// rim vertices land INSIDE its top face (x ∈ [0, 5], y ∈ [−1, 5],
+/// z ∈ [0, 1]).
+fn wide_slab_below() -> Body<f64> {
+    let plane = SketchPlane::new(Affine3::from_parts(
+        geom_core::Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
+        Vec3::new(0.0, -1.0, 0.0),
+    ));
+    let profile = Profile::new(
+        plane,
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 5.0), 0.0),
+            (Point2::new(0.0, 5.0), 0.0),
+        ])],
+    )
+    .validate(Tol::witness())
+    .unwrap();
+    extrude(&profile, Extrusion::Distance(6.0), Tol::witness())
+        .unwrap()
+        .body
+}
+
+/// **A declared-`Tangent` CURVED sector at a vertex on a face is lumped
+/// whole.** The quarter round rests on a slab whose top face contains
+/// its rim vertices, so the vertex-on-face door meets the round's wall
+/// sector with both bounds `On`: the tangency ruling, and the arc,
+/// which departs in the plane. Undeclared, that curved on-carrier
+/// sector is the typed frontier; declared `Tangent`, the door lumps it
+/// and the classification completes — the slab minus the round is the
+/// slab, and their intersection is empty. (The union is not asserted:
+/// at `ε = 1e-6` it refuses `ClassificationInvariant` at the run's germ,
+/// filed with the band-edge split below.)
+///
+/// What tells the whole-sector lump from a per-bound reading here is a
+/// defect: read per bound, the ruling is `On` and so is the arc, whose
+/// lever arm is the sliver the band-edge split leaves
+/// (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`),
+/// and two consecutive `On`s refuse. With the split fixed the arc reads
+/// its own side and per bound should pass too
+/// (`work/tang/vtxfac-tangent-sector-should-descend-per-bound.md`).
+#[test]
+fn a_tangent_curved_sector_on_a_face_lumps_whole() {
+    let a = wide_slab_below();
+    let b = quarter_round_above();
+    let va = mass_properties(&a, Tol::witness()).unwrap().volume;
+    let mut decls = BooleanDeclarations::none();
+    decls.coincident_faces.push(FacePairDeclaration::new(
+        plane_face(&a, 1.0, true),
+        plane_face(&b, 1.0, false),
+        ContactClass::Rest,
+    ));
+    let undeclared = topo::subtract_with(&a, &b, &decls, Tol::witness())
+        .expect_err("an undeclared curved on-carrier sector is the typed frontier");
+    assert!(
+        matches!(
+            undeclared,
+            topo::BooleanError::CurvedBooleanUnsupported { face, .. } if face == cyl_face(&b)
+        ),
+        "the frontier names the round's wall: {undeclared:?}"
+    );
+    decls.coincident_faces.push(FacePairDeclaration::new(
+        plane_face(&a, 1.0, true),
+        cyl_face(&b),
+        ContactClass::Tangent,
+    ));
+    let diff = topo::subtract_with(&a, &b, &decls, Tol::witness())
+        .expect("the declared tangent sector lumps and the difference runs");
+    let BooleanResult::Body(diff) = diff else {
+        panic!("the slab minus a body resting on it is the slab, not empty");
+    };
+    let v = mass_properties(&diff.body, Tol::witness()).unwrap().volume;
+    assert!(
+        (v - va).abs() <= 4.0 * va * f64::EPSILON,
+        "the slab minus the round is the slab: {v} vs {va}"
+    );
+    let meet = topo::intersect_with(&a, &b, &decls, Tol::witness())
+        .expect("the declared tangent sector lumps and the intersection runs");
+    assert!(
+        matches!(meet, BooleanResult::Empty),
+        "a resting contact encloses no volume"
+    );
 }

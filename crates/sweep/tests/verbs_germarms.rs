@@ -19,10 +19,9 @@
 //! pierce ring is an EMPTY loop carrying only null scaffolding, so the
 //! run co-bounding a chord across it has no edge with a chart image and
 //! the divided face has no azimuth window to select an arc against. The
-//! planar sibling has the same shape and the same status — a box driven
-//! through a cylinder CAP refuses at the join too (`verbs_pierce`) —
-//! which is what says the missing arm is the RING's join, shared by
-//! both, rather than anything this lane left undone.
+//! planar sibling joins (`verbs_pierce`): a planar face's chord is
+//! straight and asks no window, so the missing arm is the ring's join on
+//! a CURVED face, not anything this lane left undone.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -107,6 +106,33 @@ fn a_bar_leaving_through_one_side_of_a_wall_reaches_the_join() {
             err,
             BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
                 case: topo::ArcWindowCase::NoChartedRun,
+                ..
+            })
+        ),
+        "{err:?}"
+    );
+}
+
+/// **The asymmetric pose that reaches the join.** The pipe's wall is two
+/// faces split at the seam rulings `(±1, 0, z)`, and the acceptance bars
+/// above straddle both, so each half-wall's section runs seam to seam.
+/// Lifted to `y ∈ [0.15, 0.7]` the bar's section on each side closes
+/// INSIDE one wall face — azimuths 8.6° to 44.4°, clear of every seam —
+/// and the join refuses at a different sub-case of the same arc-side
+/// rule: the divided face's run is charted, but neither section arc
+/// lies in its window. Short arms, so the sector side certifies
+/// (`a_long_armed_bar_cannot_certify_its_sector_sides`).
+#[test]
+fn a_bar_whose_section_closes_inside_one_wall_face_reaches_the_join() {
+    let err = union_err(
+        &pipe(),
+        &brick((-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
+    );
+    assert!(
+        matches!(
+            err,
+            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                case: topo::ArcWindowCase::NeitherContained,
                 ..
             })
         ),

@@ -157,6 +157,7 @@ fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Mate { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -703,7 +704,7 @@ impl Refusal {
     /// the class the declaration asserts: a contact's class, or a
     /// continuation (one surface carried on, which is not a contact).
     /// The face within each operand has no prose name
-    /// (`work/author/face-pick-cannot-name-which-face.md`), so the line
+    /// (`work/doors/face-pick-cannot-name-which-face.md`), so the line
     /// says "a face of" rather than inventing one.
     pub fn declare_pair_wording(doc: &Doc<ProfileProgram>, finding: &FlushFinding) -> String {
         let (one, other) = &finding.pair;
@@ -1305,6 +1306,7 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         | ValuePayload::Instances(_)
         | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,

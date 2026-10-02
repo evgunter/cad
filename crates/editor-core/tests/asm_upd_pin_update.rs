@@ -127,9 +127,11 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
             let dx = 10.0 * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
                 },
             );
             doc = next;
@@ -787,9 +789,11 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     // An unrelated edit keeps moving the pin exactly as it did — the
     // update arm smuggles no path into the canonical bytes.
-    let unrelated = DocEdit::SetPlacement {
-        node: ids[0],
-        frame: Frame::translation([1.0, 2.0, 3.0]),
+    let unrelated = DocEdit::SetOffset {
+        instance: ids[0],
+        offset: Some(editor_core::Placement::literal(&Frame::translation([
+            1.0, 2.0, 3.0,
+        ]))),
     };
     let update = DocEdit::UpdateReference {
         node: ids[0],

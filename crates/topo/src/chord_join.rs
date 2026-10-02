@@ -258,10 +258,7 @@ pub enum SplitJoinError {
     },
     /// A section loop mixed above copies with below-side vertices —
     /// the joining invariant (heads join heads, tails join tails)
-    /// failed, loudly. In the boolean it is reachable on legal input:
-    /// the role probe at a curved edge's chord midpoint, a point on
-    /// neither flanking region, reads both copies alike
-    /// (`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces.md`).
+    /// failed, loudly.
     ///
     /// **A reachable source that was not a join bug**: a box driven
     /// through a cylinder CAP arrived here while `point_in_solid`'s

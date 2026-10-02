@@ -181,7 +181,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
     // The two doors are DIFFERENT: the goldening form carries bits, the
     // human form carries percentages and prose. Neither is the other's
     // substitute, which is what makes shipping both worth it.
-    let rendered = one.render(&analyzed);
+    let rendered = one.render(&doc, &analyzed);
     assert!(
         rendered.contains("CERTIFIED WORST CASE"),
         "the human form leads with the gating number: {rendered}"
@@ -417,7 +417,7 @@ fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
         );
         assert!(row.mass.is_ok(), "a uniform law prices every leaf");
     }
-    let rendered = histogram.render();
+    let rendered = histogram.render(&doc);
     assert!(
         rendered.contains("ADVISORY") && rendered.contains("Not a density"),
         "the advisory label and the E11.6 disclaimer are the first line: {rendered}"
@@ -492,9 +492,22 @@ fn the_mc_report_is_deterministic_and_labeled() {
     .expect("replays");
     assert_ne!(a.serialize(), other.serialize(), "the seed is the draw");
 
-    // Every advisory line carries the count and the seed.
-    let rendered = a.render();
-    for line in rendered.lines().filter(|l| l.contains("node")) {
+    // Every estimate line carries the count and the seed. Each one opens
+    // with its node as the document speaks it.
+    let rendered = a.render(&doc);
+    let nodes: Vec<String> = a
+        .measures
+        .iter()
+        .map(|m| m.node)
+        .chain(a.assertions.iter().map(|x| x.node))
+        .map(|n| doc.spoken(n).to_string())
+        .collect();
+    assert!(!nodes.is_empty(), "the report estimates at least one node");
+    for node in &nodes {
+        let line = rendered
+            .lines()
+            .find(|l| l.starts_with(&format!("  {node}: ")))
+            .unwrap_or_else(|| panic!("an estimate line for {node} in:\n{rendered}"));
         assert!(
             line.contains("64 samples") && line.contains("0x4d435f4531315f31"),
             "an estimate line carries its count and seed: {line}"

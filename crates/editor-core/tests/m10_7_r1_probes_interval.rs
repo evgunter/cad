@@ -500,7 +500,7 @@ fn r1_e2e_bracket_study() {
                 }
             }
             match stackup(&doc, measure, &analyzed, &v, None, true, tol) {
-                Ok(report) => println!("{}", report.render(&analyzed)),
+                Ok(report) => println!("{}", report.render(&doc, &analyzed)),
                 Err(e) => println!("   stackup refused: {e}"),
             }
             let mut holds = (0, 0, 0);

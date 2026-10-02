@@ -1078,7 +1078,7 @@ impl ViewerBehavior<'_> {
     /// Drawing on a picked FACE is still two gestures: minting that
     /// face's frame in the add-datum form
     /// ([`DatumKindChoice::FaceFrame`]) and choosing it here.
-    /// `work/author/add-profile-placement-on-picked-face-frame.md`
+    /// `work/authtail/drawing-on-a-picked-face-is-a-two-form-trip.md`
     /// carries that residue.
     ///
     /// The bore field is guarded IN THE FORM: loop roles come from
