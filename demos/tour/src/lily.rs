@@ -2712,25 +2712,14 @@ mod review_probes {
         let lant = body(&ps, "lily_lantern");
         let mut planar_pairs = 0usize;
         let mut curved_pairs = 0usize;
-        for (_, e) in lant.edges() {
-            let face_of = |he| {
-                let p = lant.get_half_edge(he)?.parent_loop;
-                Some(lant.get_loop(p)?.face)
-            };
-            let (Some(f1), Some(f2)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
+        for (k, _) in lant.edges() {
+            let Ok(sides) = pncad::topo::readback::edge_sides(lant, k) else {
                 continue;
             };
-            if f1 == f2 {
+            if sides.plus.face == sides.minus.face || sides.plus.surface != sides.minus.surface {
                 continue;
             }
-            let (k1, k2) = (
-                lant.get_face(f1).map(|f| f.surface),
-                lant.get_face(f2).map(|f| f.surface),
-            );
-            if k1.is_none() || k1 != k2 {
-                continue;
-            }
-            match k1.and_then(|k| lant.get_surface(k)) {
+            match lant.get_surface(sides.plus.surface) {
                 Some(Surface::Plane { .. }) => planar_pairs += 1,
                 Some(_) => curved_pairs += 1,
                 None => {}
