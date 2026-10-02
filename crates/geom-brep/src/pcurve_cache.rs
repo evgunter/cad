@@ -4809,9 +4809,23 @@ fn run_fitted_checks<T: Decide>(
     // for the same reason: a certificate whose own bound exceeds ε is
     // not a certificate. It is NOT folded into `max_residual` (the
     // sampled max and the sup bound stay separate statements).
+    //
+    // **A circle's envelope is recorded under its own name.** Its image
+    // is refined until the Hermite bound is a quarter of the band
+    // ([`sphere_circle_image_lane`]), so this margin sits just under
+    // `ε/4` at every ε by construction: it scales with ε, unlike the
+    // closed-form lanes' envelopes, which are rounding-sized. The K
+    // lint judges it against that target (`tools/k-lint`'s
+    // `CONSTRUCTION_COUPLED`), so it must not share a name with the
+    // envelopes the metre rules still watch.
+    let envelope_name = if matches!(carrier, Curve3::Circle { .. }) {
+        "pcurve_envelope_hermite"
+    } else {
+        "pcurve_envelope"
+    };
     let mut envelope_margin = T::zero();
     check_residual(
-        "pcurve_envelope",
+        envelope_name,
         PcurveCheck::Envelope,
         0,
         Margin::of(envelope),

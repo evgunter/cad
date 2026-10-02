@@ -1,7 +1,7 @@
 ---
 id: fitted-general-circle-envelope-sits-a-quarter-band-under-coincidence
 kind: issue
-title: pcert: the fitted general-circle image is refined to a quarter of the band, so its certified pcurve_envelope sits within 4x of the coincidence threshold at every eps and k-lint rule 2 flags it
+title: "pcert: the fitted general-circle image is refined to a quarter of the band, so its certified envelope (pcurve_envelope_hermite) keeps only 4x of headroom against the band at every eps; confirm the target or widen it"
 status: open
 opened: 2026-10-02
 priority: P3
@@ -32,28 +32,26 @@ The margin is ε-coupled by construction.
 re-derives the envelope at just under ε/4 and classifies it `zero`.
 k-lint rule (2) flags any zero-classified margin above `ε/10²`.
 
-**Why the ε-coupled roster cannot take it.**
-- `lint_sample` judges a `zero` row by rule (2) for EVERY family,
-  rostered or not ("a zero classification is a decision against ε
-  itself"). Putting the name on `EPS_COUPLED_PREDICATES` would therefore
-  not touch these rows.
-- The name's other sites are closed-form residuals at ~1e-15, which are
-  ε-independent.
-- The name records no definite rows, since a definite envelope is a
-  refusal, so rule (4) has no draw to cut over.
-- `EPS_COUPLED_UNRULED` gates on every row of the name, and every
-  sweep has 640 of them.
+**What the lint does with it now** (PR 3817). `run_fitted_checks`
+records a circle carrier's envelope under its own name,
+`pcurve_envelope_hermite`, so the closed-form lanes' envelopes keep
+`pcurve_envelope` and stay under the metre rules. `tools/k-lint` gained
+rule (5), `CONSTRUCTION_COUPLED`. The rule judges a name's `zero` rows
+against the target its construction refines to: here a quarter of the
+band, with a 1.2× ceiling of 0.30·ε. It flags any definite row as a
+refused certificate. `tools/k-lint/tests/construction_coupled.rs`
+re-reads the target out of `sphere_circle_image_lane` (`0.25 *
+band.zero()`), so the ruling goes red if the lane's target moves.
 
-So the flag is a true rule-(2) statement: the fitted lane leaves its
-certificate 4× of headroom against the band. At the interval scalar at
-1e-12, the same rows already escalate their loop-continuity check
+The rule records the design as built. It does not settle whether a
+quarter band is the right target: the certificate has 4× of headroom
+against the band. At the interval scalar at 1e-12, the same rows already
+escalate their loop-continuity check
 (`fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar`).
 
 ## What a fix owes
 
-One of the following:
-- A fit target with the headroom the rule asks for. Quintic Hermite
-  error falls as `h⁶`, so a target of `ε/10²` costs about 1.7× the
-  spans.
-- Or the reason a quarter band is the right target, recorded where
-  k-lint reads it.
+PCERT should confirm that a quarter band is the lane's intent, or choose
+a target with more headroom. Quintic Hermite error falls as `h⁶`, so a
+target of `ε/10²` costs about 1.7× the spans. If the target moves,
+`CONSTRUCTION_COUPLED`'s entry and its pin move with it.
