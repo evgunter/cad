@@ -2151,6 +2151,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcTorusRoots",
         1,
     ),
+    (
+        "finish.rs",
+        "weld_pinches",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "mint_directed", "Coincide::Sectors", 1),
@@ -2346,7 +2352,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "vertex_on_curved_face",
         "BooleanDecision::VertexOnVertex",
-        2,
+        1,
     ),
     (
         "reduce.rs",

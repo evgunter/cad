@@ -111,7 +111,7 @@ use super::join::bool_connect;
 use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
-use super::zip::zip_seam;
+use super::zip::{SeamCorrespondence, survivor, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
     ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact, SideCode,
@@ -214,8 +214,14 @@ pub struct BooleanNaming {
     pub graft_faces: Vec<(FaceKey, FaceKey)>,
     /// Seam edges surviving the zips, in zip/cycle order, result keys.
     pub seam_edges: Vec<EdgeKey>,
-    /// Zip vertex fusions `(dead, kept)` in zip order, result keys.
+    /// Vertex fusions `(dead, kept)` in mint order, result keys: the
+    /// A-side pinch welds' first, then the zips'.
     pub vertex_merges: Vec<(VertexKey, VertexKey)>,
+    /// The B-side pinch welds' vertex fusions `(dead, kept)` in mint
+    /// order, in B-CLONE keys: they ran before the graft, so a dead key
+    /// has no result key (translate the kept column through
+    /// `graft_vertices`).
+    pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
@@ -267,34 +273,18 @@ pub struct BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// Each vertex the zip fused away → the live vertex it finally
-    /// fused into, following `vertex_merges` through every hop: the one
-    /// reading of "where did this pre-zip vertex go" (a discard's
-    /// `bordered` ends are read through it). `None` when the fusions
-    /// form a cycle, which no zip writes.
+    /// Each result vertex an A-side weld or a zip fused away → the
+    /// vertex it finally fused into, following `vertex_merges` through
+    /// every hop (a discard's `bordered` ends are read through it). B-side
+    /// welds are not here: they killed B-clone keys before the graft, so
+    /// no result key names them (`weld_merges_b`).
     #[must_use]
-    pub fn fused_into(&self) -> Option<BTreeMap<VertexKey, VertexKey>> {
-        let step: BTreeMap<VertexKey, VertexKey> = self
-            .vertex_merges
+    pub fn fused_into(&self) -> BTreeMap<VertexKey, VertexKey> {
+        self.vertex_merges
             .iter()
-            .copied()
             .filter(|(dead, kept)| dead != kept)
-            .collect();
-        let mut out = BTreeMap::new();
-        for &dead in step.keys() {
-            let mut at = dead;
-            for _ in 0..=step.len() {
-                match step.get(&at) {
-                    Some(&next) => at = next,
-                    None => break,
-                }
-            }
-            if step.contains_key(&at) {
-                return None;
-            }
-            out.insert(dead, at);
-        }
-        Some(out)
+            .map(|&(dead, _)| (dead, survivor(&self.vertex_merges, dead)))
+            .collect()
     }
 }
 
@@ -544,13 +534,17 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
-    let mut vertex_merges = Vec::new();
-    let mut desc = Descendants::default();
+    let mut vertex_merges = fin.weld_merges_a.clone();
+    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b);
+    // A pinch is one vertex on two seams: the first zip fuses it, so
+    // each later zip reads the correspondence through the fusions made.
+    let mut vertex_map = fin.vertex_map.clone();
     for &(a_face, b_face) in &fin.seams {
-        let rep = zip_seam(&mut body, a_face, b_face, &fin.vertex_map, tol)?;
+        let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
+        vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
@@ -595,10 +589,11 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_faces,
         seam_edges,
         vertex_merges,
+        weld_merges_b: fin.weld_merges_b,
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
-        face_fragments_a: connected.a_fragments,
-        face_fragments_b: connected.b_fragments,
+        face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
+        face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
         reduction_contacts,
         discards: fin.discards,
         covered,
@@ -609,6 +604,21 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         contacts,
         naming,
     }))
+}
+
+/// `map` with each vertex on either side read as the vertex a zip's
+/// fusions `(dead, kept)` left in its place.
+fn fused_through(
+    map: &SeamCorrespondence,
+    merges: &[(VertexKey, VertexKey)],
+) -> SeamCorrespondence {
+    let mut out = SeamCorrespondence::new();
+    for (&a, bs) in map {
+        out.entry(survivor(merges, a))
+            .or_default()
+            .extend(bs.iter().map(|&b| survivor(merges, b)));
+    }
+    out
 }
 
 /// What the pipeline reaches through its join ([`through_the_join`]).
@@ -1950,7 +1960,7 @@ impl KeyView<'_> {
 }
 
 /// The D5 descendant map (M3 PR 6a, PR 5 review R5): result-stage
-/// entity replacement — seam-zip vertex fusions and
+/// entity replacement — pinch-weld and seam-zip vertex fusions and
 /// `merge_coplanar_faces` face absorption — as old key → surviving
 /// key rows, extending the graft's key lineage so a contact record
 /// drops ONLY when its coincidence is consumed (entity gone, not
@@ -1958,7 +1968,15 @@ impl KeyView<'_> {
 /// scan-to-bless (F1); the descendants ARE the mint-time knowledge.
 #[derive(Default)]
 pub(super) struct Descendants {
-    vertices: std::collections::BTreeMap<VertexKey, VertexKey>,
+    /// Each operand's pinch-weld fusions, in its clone keys: read
+    /// before its key view. A weld fuses ring vertices minted after the
+    /// contacts were recorded, so no record cites a weld's keys: no rest
+    /// is consumed by a weld (`fused` holds only the zips'), and these
+    /// rows chase only a record a producer mints in clone keys.
+    a_welds: Vec<(VertexKey, VertexKey)>,
+    b_welds: Vec<(VertexKey, VertexKey)>,
+    /// The zips' fusions in mint order, result keys.
+    vertices: Vec<(VertexKey, VertexKey)>,
     faces: std::collections::BTreeMap<FaceKey, FaceKey>,
     /// Every vertex that participated in a zip fusion (dead OR kept):
     /// its point rests were consumed into seam structure.
@@ -1966,9 +1984,18 @@ pub(super) struct Descendants {
 }
 
 impl Descendants {
+    /// The map that starts from each operand's pinch welds.
+    pub(super) fn welded(a: &[(VertexKey, VertexKey)], b: &[(VertexKey, VertexKey)]) -> Self {
+        Self {
+            a_welds: a.to_vec(),
+            b_welds: b.to_vec(),
+            ..Self::default()
+        }
+    }
+
     pub(super) fn absorb_zip(&mut self, rep: &super::zip::ZipReport) {
         for &(dead, kept) in &rep.vertex_merges {
-            self.vertices.insert(dead, kept);
+            self.vertices.push((dead, kept));
             self.fused.insert(dead);
             self.fused.insert(kept);
         }
@@ -1982,18 +2009,20 @@ impl Descendants {
         }
     }
 
-    /// Chases a vertex key through the fusion rows until it resolves
-    /// live (bounded by the map size — rows never cycle: a dead key
-    /// maps to its survivor).
-    fn live_vertex<T: Real>(&self, body: &Body<T>, v: VertexKey) -> Option<VertexKey> {
-        let mut k = v;
-        for _ in 0..=self.vertices.len() {
-            if body.get_vertex(k).is_some() {
-                return Some(k);
-            }
-            k = *self.vertices.get(&k)?;
-        }
-        None
+    /// Operand `side`'s vertex `v`, through its pinch welds, the key
+    /// `view`, and the zips' fusions, if it is live.
+    fn live_vertex<T: Real>(
+        &self,
+        body: &Body<T>,
+        (side, view): (Operand, &KeyView<'_>),
+        v: VertexKey,
+    ) -> Option<VertexKey> {
+        let welds = match side {
+            Operand::A => &self.a_welds,
+            Operand::B => &self.b_welds,
+        };
+        let k = survivor(&self.vertices, view.vertex(survivor(welds, v))?);
+        body.get_vertex(k).map(|_| k)
     }
 
     /// Chases a face key through the absorption rows until live.
@@ -2022,7 +2051,7 @@ pub(super) fn remap_contacts<T: Real>(
     // v-v pairs chase through zip fusions (a fused vertex's partner
     // may still coincide with the survivor); a pair fused into ONE
     // vertex is consumed (structural now) and drops.
-    let vert = |view: &KeyView<'_>, v: VertexKey| desc.live_vertex(body, view.vertex(v)?);
+    let vert = |side: (Operand, &KeyView<'_>), v: VertexKey| desc.live_vertex(body, side, v);
     // v-on-f VERTICES deliberately do NOT chase, and any vertex that
     // took part in a zip fusion (either side of a kev) drops its
     // rests: a fused vertex IS a seam vertex — the point rest was
@@ -2041,8 +2070,15 @@ pub(super) fn remap_contacts<T: Real>(
     let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
     let mut out = ContactRecords::default();
     for c in &contacts.vv {
-        if let (Some(a), Some(b)) = (vert(&a_view, c.a), vert(&b_view, c.b))
-            && a != b
+        // Two records whose ends fused into one pair are one record.
+        if let (Some(a), Some(b)) = (
+            vert((Operand::A, &a_view), c.a),
+            vert((Operand::B, &b_view), c.b),
+        ) && a != b
+            && !out
+                .vv
+                .iter()
+                .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
         {
             out.vv.push(VvContact { a, b });
         }
@@ -2161,7 +2197,7 @@ pub(super) fn remap_carried<T: Real>(
     b_view: &KeyView<'_>,
     desc: &Descendants,
 ) {
-    let vert = |view: &KeyView<'_>, v: VertexKey| desc.live_vertex(body, view.vertex(v)?);
+    let vert = |side: (Operand, &KeyView<'_>), v: VertexKey| desc.live_vertex(body, side, v);
     let vert_strict = |view: &KeyView<'_>, v: VertexKey| {
         let k = view.vertex(v)?;
         if desc.fused.contains(&k) {
@@ -2170,9 +2206,9 @@ pub(super) fn remap_carried<T: Real>(
         body.get_vertex(k).map(|_| k)
     };
     let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
-    let push_vv = |out: &mut ContactRecords, carried: &CarriedContacts, view: &KeyView<'_>| {
+    let push_vv = |out: &mut ContactRecords, carried: &CarriedContacts, side| {
         for c in &carried.vv {
-            if let (Some(a), Some(b)) = (vert(view, c.pair.a), vert(view, c.pair.b))
+            if let (Some(a), Some(b)) = (vert(side, c.pair.a), vert(side, c.pair.b))
                 && a != b
                 && !out
                     .vv
@@ -2183,8 +2219,8 @@ pub(super) fn remap_carried<T: Real>(
             }
         }
     };
-    push_vv(out, &decls.carried_a, a_view);
-    push_vv(out, &decls.carried_b, b_view);
+    push_vv(out, &decls.carried_a, (Operand::A, a_view));
+    push_vv(out, &decls.carried_b, (Operand::B, b_view));
     let dup_vf = |out: &ContactRecords, v: VertexKey, f: FaceKey| {
         out.a_on_b
             .iter()
@@ -3299,9 +3335,80 @@ mod tests {
             ..ContactRecords::default()
         };
         let mut desc = Descendants::default();
-        desc.vertices.insert(dead_vertex, live_vertex);
+        desc.vertices.push((dead_vertex, live_vertex));
         let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
+    }
+
+    /// **A v-v record follows a vertex either operand's pinch weld
+    /// fused away.** B's weld runs in B-clone keys before the graft, so
+    /// its dead key has no graft row: the chase reads the weld first,
+    /// then the graft. A's weld rows are result keys. Without the weld
+    /// rows both records drop.
+    ///
+    /// Only this row reaches the weld rows, by building `Descendants`
+    /// by hand: no boolean can hand them such a record. A weld fuses
+    /// pierce ring vertices `vtxfac` mints after the reduction's
+    /// contacts are recorded, and carried records cite operand keys, so
+    /// no record cites a weld's dead key.
+    #[test]
+    fn a_vv_record_follows_a_pinch_weld_on_either_side() {
+        use super::{Descendants, KeyView, remap_contacts};
+        use crate::boolean::combine::GraftMap;
+        use crate::boolean::{ContactRecords, VvContact};
+
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let mut body = quad_prism(&square, 1.0, Tol::witness());
+        let keys: Vec<crate::entity::VertexKey> = body.vertices().map(|(k, _)| k).collect();
+        let (a_live, a_kept, a_dead, b_dead, b_kept) =
+            (keys[0], keys[1], keys[2], keys[3], keys[4]);
+        body.vertices.remove(a_dead);
+        // B-clone keys: `b_dead` stands for the welded-away pierce (no
+        // graft row), `b_kept` for its partner, grafted to `keys[5]`.
+        let mut graft = GraftMap::default();
+        graft.vertices.insert(b_kept, keys[5]);
+        let contacts = ContactRecords {
+            vv: vec![
+                VvContact {
+                    a: a_live,
+                    b: b_dead,
+                },
+                VvContact {
+                    a: a_dead,
+                    b: b_kept,
+                },
+            ],
+            ..ContactRecords::default()
+        };
+        let remap = |desc: &Descendants| {
+            remap_contacts(
+                &body,
+                &contacts,
+                KeyView::Direct,
+                KeyView::Graft(&graft),
+                desc,
+            )
+            .vv
+        };
+        assert!(
+            remap(&Descendants::default()).is_empty(),
+            "without the weld rows neither record resolves"
+        );
+        let welded = Descendants::welded(&[(a_dead, a_kept)], &[(b_dead, b_kept)]);
+        assert_eq!(
+            remap(&welded),
+            vec![
+                VvContact {
+                    a: a_live,
+                    b: keys[5]
+                },
+                VvContact {
+                    a: a_kept,
+                    b: keys[5]
+                },
+            ],
+            "each record follows its side's weld"
+        );
     }
 
     /// **A record citing a vertex the merge pruned drops, through the
@@ -3329,7 +3436,7 @@ mod tests {
     /// survivor would carry the records and turn this red.
     #[test]
     fn a_record_citing_a_pruned_free_end_drops() {
-        use super::{Descendants, KeyView, remap_contacts};
+        use super::{Descendants, KeyView, Operand, remap_contacts};
         use crate::boolean::{ContactRecords, VfContact, VvContact};
         use crate::entity::VertexKey;
         use crate::{MefSite, MevSite};
@@ -3397,10 +3504,10 @@ mod tests {
         let fused_in = VertexKey::default();
         let survivor = body.vertices().map(|(k, _)| k).next().unwrap();
         let face = body.faces().map(|(k, _)| k).next().unwrap();
-        desc.vertices.insert(fused_in, bend);
+        desc.vertices.push((fused_in, bend));
         desc.fused.insert(bend);
         assert_eq!(
-            desc.live_vertex(&body, bend),
+            desc.live_vertex(&body, (Operand::A, &KeyView::Direct), bend),
             None,
             "no survivor for {bend:?}"
         );
@@ -3414,7 +3521,7 @@ mod tests {
         let remap =
             |c: &ContactRecords| remap_contacts(&body, c, KeyView::Direct, KeyView::Direct, &desc);
         assert_eq!(
-            desc.live_vertex(&body, fused_in),
+            desc.live_vertex(&body, (Operand::A, &KeyView::Direct), fused_in),
             None,
             "the chase ends dead"
         );
