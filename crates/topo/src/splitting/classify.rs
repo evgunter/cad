@@ -634,7 +634,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
 /// the honest lane the raw book formula lacks). New vertices are ON
 /// **by construction** (declared coincidence): their verdicts are
 /// cached without re-measuring.
-pub(super) fn insert_crossings<T: Decide>(
+pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     plane: &SplitPlane<T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
