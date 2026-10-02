@@ -2,3 +2,6 @@ fork: split-halves-have-no-contact-records-so-no-pseudomanifold-self-check (TQUE
 dispatched: 2026-10-02
 byte: 117
 mapping: A=fable B=opus
+round1: crossed (each moved to the other's answer)
+round2: crossed again
+further designer C (round 3, shown both final positions as A/B): opus
