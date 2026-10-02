@@ -42,6 +42,14 @@ pub enum ResolveFault {
     Unresolved,
 }
 
+/// What to do about [`ResolveFault::EpsilonSeam`], whichever door
+/// reached the part: a document keeps the ε it was written at, a
+/// process holds one, and the recorded-ε edit moves a part onto another
+/// while it keeps its id.
+pub(crate) const EPSILON_SEAM_RECOURSE: &str = "open the part in a process at its own tolerance, \
+     record the edit that sets this process's tolerance, save it over its file, then accept its \
+     updated version here";
+
 // The human-readable rendering (LIB-DOORS F6 shape): the classification
 // on its own, in the same seam vocabulary the evaluation layer's
 // `PartFault` uses when it has the resolver's message to append. Only

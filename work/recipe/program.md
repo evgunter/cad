@@ -2,7 +2,7 @@
 id: recipe
 kind: program
 title: RECIPE — the document model's doors: the persisted recipe, the edit vocabulary and the node shapes Ev ruled
-status: ready
+status: active
 opened: 2026-10-02
 area: api
 prefix: recipe/

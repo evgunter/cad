@@ -509,6 +509,150 @@ fn merge_ladder_fires_only_on_declared_planes() {
     assert_props(&body.body, 16.0, 40.0);
 }
 
+/// `body` with its one face on `plane` re-charted onto that plane's
+/// reversal and its sense flipped: the same outward side on the
+/// opposite chart, through the describing door with every stranded
+/// edge description carried. Returns the body and the face. `plane` picks a face by its chart's
+/// origin and normal and its sense, read off the description, not
+/// through any outward-normal door.
+fn with_reversed_face(
+    body: &Body<f64>,
+    plane: impl Fn(geom_core::Point3<f64>, geom_core::Vec3<f64>, bool) -> bool,
+) -> (Body<f64>, topo::FaceKey) {
+    let picked: Vec<_> = body
+        .faces()
+        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            }) if plane(*origin, *normal, f.sense) => Some((
+                k,
+                geom::Surface::Plane {
+                    origin: *origin,
+                    normal: -*normal,
+                    u_ref: *u_ref,
+                },
+                !f.sense,
+            )),
+            _ => None,
+        })
+        .collect();
+    let [(face, reversed, sense)] = &picked[..] else {
+        panic!("exactly one face on the plane: {picked:?}")
+    };
+    let mut out = body.clone();
+    let charts = vec![topo::Rechart::new(reversed.clone(), *face, *sense)];
+    let specs = out.carried_redescriptions(&charts).unwrap();
+    out.set_face_surfaces_describing(charts, &specs, Tol::witness())
+        .unwrap();
+    (out, *face)
+}
+
+/// The full-overlap stacked bricks of
+/// [`merge_ladder_fires_only_on_declared_planes`], with one face of the
+/// upper brick reversed onto its plane's opposite chart (the outward
+/// side kept), unioned with the flush pairs declared: the result is the
+/// one the unreversed pair gives. Returns the operands and the reversed
+/// face.
+fn stacked_union_with_a_reversed_face(
+    plane: impl Fn(geom_core::Point3<f64>, geom_core::Vec3<f64>, bool) -> bool,
+) -> (Body<f64>, Body<f64>, topo::FaceKey) {
+    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let (b, reversed) = with_reversed_face(
+        &brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0), Tol::witness()),
+        plane,
+    );
+    let r = run(union_with, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_eq!(body.body.faces().count(), 6, "declared-rung merge census");
+    assert_props(&body.body, 16.0, 40.0);
+    (a, b, reversed)
+}
+
+/// **The REST lane reads the contact face's sense.** The upper brick's
+/// bottom (z = 2, outward -z) is charted +z with `sense: false`, so the
+/// contact's carriers face apart only through the bit: the flush
+/// detector must class the pair a rest, and the declaration door
+/// verifies a rest by the senses it reads off the two carriers. A
+/// carrier door that drops the bit reads the faces facing one way and
+/// classes the contact a continuation.
+#[test]
+fn stacked_union_rests_on_a_contact_face_reversed_onto_its_opposite_chart() {
+    let (a, b, bottom) = stacked_union_with_a_reversed_face(|o, n, sense| {
+        o.z == 2.0 && n.z != 0.0 && !sense == (n.z > 0.0)
+    });
+    let top = a
+        .faces()
+        .find(|(_, f)| {
+            matches!(a.get_surface(f.surface), Some(geom::Surface::Plane { origin, normal, .. })
+                if origin.z == 2.0 && f.sense == (normal.z > 0.0))
+        })
+        .map(|(k, _)| k)
+        .expect("the lower brick's top");
+    let decls = common::flush_declarations(&a, &b, Tol::witness());
+    let classes: Vec<_> = decls
+        .coincident_faces
+        .iter()
+        .filter(|d| (d.a, d.b) == (top, bottom))
+        .map(|d| d.class)
+        .collect();
+    assert_eq!(
+        classes,
+        vec![topo::BooleanCoincidence::Contact(topo::ContactClass::Rest)],
+        "the contact is declared once, as a rest"
+    );
+    // The door verifies the rest it is handed against the senses it
+    // reads, whatever the detector found: the recipe's rest, stated.
+    let mut stated = decls;
+    stated
+        .coincident_faces
+        .retain(|d| (d.a, d.b) != (top, bottom));
+    stated.coincident_faces.push(topo::FacePairDeclaration::new(
+        top,
+        bottom,
+        topo::ContactClass::Rest,
+    ));
+    let r = union_with(&a, &b, &stated, Tol::witness())
+        .expect("a rest whose carriers face apart is verified");
+    assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
+}
+
+/// **The merge stage's declared rung reads a side wall's sense.** The
+/// upper brick's x = 0 wall (outward -x) is charted +x with
+/// `sense: false`; the lower brick's wall on the same plane keeps
+/// `sense: true`. The pair reaches the declared rung, and only the bit
+/// makes the two outward normals agree: a planar door that drops it
+/// refuses the pair as opposite.
+#[test]
+fn stacked_union_merges_a_side_wall_reversed_onto_its_opposite_chart() {
+    stacked_union_with_a_reversed_face(|o, n, sense| {
+        o.x == 0.0 && n.x != 0.0 && !sense == (n.x > 0.0)
+    });
+}
+
+/// **The ring lane winds the island's run about the face's OUTWARD
+/// normal.** [`pocket_subtract`] with the block's top (z = 2, outward
+/// +z) charted -z with `sense: false`: the pocket's rim is an island in
+/// that face, and which side of the run is the outer boundary follows
+/// from the run's winding read about the outward normal, so the bit is
+/// what keeps the roles. A door that drops it reads the run's winding
+/// backwards.
+#[test]
+fn pocket_subtract_into_a_top_reversed_onto_its_opposite_chart() {
+    let (a, _) = with_reversed_face(
+        &brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        |o, n, sense| o.z == 2.0 && n.z != 0.0 && sense == (n.z > 0.0),
+    );
+    let b = brick::<f64>((0.75, 1.25), (0.75, 1.25), (1.5, 2.5), Tol::witness());
+    let r = run(subtract_with, &a, &b);
+    let body = body_of(&r);
+    assert_eq!(body.kind, BooleanResultKind::Seamed);
+    assert_props(&body.body, 8.0 - 0.125, 24.0 + 1.0);
+    assert_tier3_posture(&body.body);
+}
+
 #[test]
 fn tangential_rest_operands() {
     // Full-face coplanar rest (PR 4: ∩/∖ classify to contacts only).
