@@ -25,6 +25,9 @@ The PLACE orchestrator holds the track (`status: active`). Order, per the plan:
 
 `a-part-resting-on-a-gauge-cannot-follow-a-part-edit` is priced `H` with `design: true`: every candidate fix touches A11 (2), so it goes to a designer pair and then an `[ev]` PR, after P2-split's spec is out.
 
+## 2026-10-02 — split and inline refusals state their recourse (PR 3872)
+
+Review tier: orchestrator's read (mechanical message rewrites; CI green on `3555e6594`). Every split and inline arm now carries one recourse; `FILED_NO_RECOURSE` and its plumbing are gone. `Split/Pin` ends on `KERNEL_DEFECT_ENDING` (the part has replayed clean, so a pin refusal is this module's defect). `InlineError::Unresolved` renders as the evaluation door's `PartFault::Unresolved` does, through one shared `part::EPSILON_SEAM_RECOURSE`. The row's `StepMapDiverged` exists in neither enum.
 ## 2026-10-02 — P2-split spec'd, and cut in three
 
 The survey lane wrote `## P2-split` in `docs/EDIT-PLACEMENT-SPEC.md` and found, beyond the row:

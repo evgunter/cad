@@ -3809,6 +3809,154 @@ fn a_wall_corner_outside_the_planes_window_refuses() {
     );
 }
 
+/// **The ℝ³ lane drops a seed Newton settles outside the slab, and
+/// still finds the branch.** The slab's top face `z = 0.996` cuts the
+/// planted north loop, whose height runs from 0.9939 to 0.9988, at a
+/// shallow angle. Near the crossing the curve runs almost along the
+/// face, so min-norm Newton settles the subdivision's cell centre
+/// `(0.0378125, −0.08046875, 0.9944375)` on the loop about 0.1 mm above
+/// the face. That seed is no branch. A seed further in marches the arc
+/// below the face, which certifies as the one branch, ending on the
+/// boundary.
+#[test]
+fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
+    let d = SsiDomain {
+        center: Point3::new(0.03, 0.0, 0.896),
+        half_extent: 0.1,
+        extent: 0.2,
+        floor_scale: 1.0,
+    };
+    let seed = Point3::new(0.0378125, -0.08046875, 0.9944375);
+    match ssi::idealized_trace_r3(&threaded_cylinder(), &sphere(), seed, d, band()) {
+        Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+            margin < -1.0e-5,
+            "the seed settles outside the slab: {margin:e} m"
+        ),
+        other => panic!("the seed at {seed:?} is no branch, got {other:?}"),
+    }
+    let out = match ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band()) {
+        Ok(out) => out,
+        Err(SsiError::FitSampleBudget { .. }) => {
+            vacuity::stood_down(
+                &format!("the clipped north loop, ε {:e}", eps()),
+                "the arc wants more samples than the fit budget allows, so the door's \
+                 handling of the off-slab seed is not asserted at this ε",
+            );
+            return;
+        }
+        Err(e) => panic!("the clipped north loop does not certify: {e:?}"),
+    };
+    assert_eq!(out.branches.len(), 1, "the arc below the face");
+    assert_ne!(
+        out.branches[0].end,
+        BranchEnd::Closed,
+        "the arc ends on the face"
+    );
+}
+
+/// The dome `W(d)`: a clamped quadratic 3×3 net, weights 1, control
+/// points `(i/2, 0, j/2)` with the centre one moved to `y = −d`. Its
+/// surface is `x = s, z = t, y = −4d·s(1−s)·t(1−t)`, with section
+/// curvature `2d` per metre at the centre.
+fn dome_wall(d: f64) -> NurbsSurface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::with_capacity(9);
+    for i in 0..3u8 {
+        for j in 0..3u8 {
+            let y = if i == 1 && j == 1 { -d } else { 0.0 };
+            control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
+        }
+    }
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+}
+
+/// The plane `x + y = 0.5 − d/8` across the dome's dip, and the domain
+/// centred on it.
+fn dome_tilt(d: f64) -> (Surface<f64>, SsiDomain) {
+    let s2 = std::f64::consts::FRAC_1_SQRT_2;
+    let at = Point3::new(0.5, -d / 8.0, 0.5);
+    let plane = Surface::Plane {
+        origin: at,
+        normal: Vec3::new(s2, s2, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let dom = SsiDomain {
+        center: at,
+        half_extent: 2.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    (plane, dom)
+}
+
+/// **A seed Newton settles off the wall's chart is no branch.** The
+/// subdivision hands the tilt cut of the dome `W(d)` a seed one cell
+/// from the wall's `t = 0` edge, at `(0.369, 0.00195)` for `d = 1` and
+/// `(0.243, 0.00098)` for `d = 2`, and min-norm Newton settles it at
+/// `t ≈ −1e-3`. Marched from there, the out-of-chart seed reached the
+/// fit, and the cut refused limb 1 by millimetres (1.6 mm and 3.4 mm)
+/// or as a trace of one sample. Settled outside, the seed is no
+/// branch, and a seed further in marches the branch to the edge.
+///
+/// What the cut refuses now is pinned by name and ε:
+/// - `TubeStraddles` at 1e-6
+///   (`work/ssi/plane-nurbs-tube-straddles-a-curved-dome-at-coarse-eps.md`);
+/// - limb 2 at 1e-9, inferred but not traced to be cause 4 of
+///   `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`;
+/// - the fit budget at 1e-12, that row's cause 2.
+///
+/// None of them is a carrier off the wall.
+#[test]
+fn a_seed_settled_off_the_walls_chart_is_no_branch() {
+    let b = band();
+    for (d, seed) in [(1.0, (0.369, 0.00195)), (2.0, (0.243, 0.00098))] {
+        let (plane, dom) = dome_tilt(d);
+        let wall = dome_wall(d);
+        match ssi::trace_plane_nurbs_uncertified(&plane, &wall, seed, dom, b.zero(), b) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => assert!(
+                margin < -1.0e-4,
+                "d = {d}: the seed settles a millimetre off the chart: {margin:e} m"
+            ),
+            other => panic!("d = {d}: the seed {seed:?} is no branch, got {other:?}"),
+        }
+        let r = ssi::plane_nurbs_ssi(&plane, &wall, dom, b);
+        let at = format!("d = {d}, ε {:e}", eps());
+        if let Err(
+            SsiError::CertificateLimb {
+                limb: SsiLimb::OnLocus,
+                ..
+            }
+            | SsiError::TraceUnresolved { .. },
+        ) = r
+        {
+            panic!("{at}: a carrier off the wall's chart: {r:?}");
+        }
+        let pinned = match eps() {
+            1.0e-6 => matches!(r, Err(SsiError::TubeStraddles { .. })),
+            1.0e-9 => matches!(
+                r,
+                Err(SsiError::CertificateLimb {
+                    limb: SsiLimb::HullSup,
+                    ..
+                } | SsiError::CertificateEscalated {
+                    limb: SsiLimb::HullSup,
+                    ..
+                })
+            ),
+            1.0e-12 => matches!(r, Err(SsiError::FitSampleBudget { .. })),
+            _ => {
+                vacuity::stood_down(
+                    &at,
+                    "the cut's remaining refusal is measured at ε 1e-6, 1e-9 and 1e-12 only, \
+                     so which cause refuses it here is not pinned",
+                );
+                true
+            }
+        };
+        assert!(pinned, "{at}: the cut's refusal moved: {r:?}");
+    }
+}
+
 /// **A spent step budget ends by the rung that held the steps short.**
 ///
 /// - Curvature: the planted fixture at a thousand times its size, at

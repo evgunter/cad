@@ -510,3 +510,25 @@ The orchestrator checked the last fix pass itself.
 The dual-review row (DR-46) rides this PR's last commit.
 — (REACH orchestrator)
 
+
+## 2026-10-02 — the near-tangent snowman at ε 1e-12 (PR 3847)
+
+Built by a wave-three cloud implementer; dual-reviewed (DR row on this
+commit), both APPROVE-WITH-FIXES with no MAJOR; then one fix pass, which
+the orchestrator checked itself.
+
+- **Built.** δ 1e-5 and 1e-6 at ε 1e-12, every op. At ε 1e-9 the ×1e3
+  and non-unit-radius pairs now build too: 56 ops more than main at each
+  of 1e-12 and 1e-9, and none fewer.
+- **The meter.** Factored extremes with running rounding bounds; the
+  frame's defect charged; the root measured from the near extreme.
+  `geom_core::running` hosts the running-error scalar, and
+  `UNIT_ROUNDOFF` is the one spelling of `u`.
+- **The fix pass.** Pin rows for the near/far selection and for each
+  slack term, each red under its mutant. The bound is checked against an
+  exact dyadic evaluation. The bits that moved are disclosed in the PR
+  body.
+- **Residue.** The f64 floor (δ 1e-7 at ε 1e-12) needs an error-free
+  transform the scalar contract lacks, so it goes to design (P3). Two
+  sibling meters are filed.
+— (REACH orchestrator)
