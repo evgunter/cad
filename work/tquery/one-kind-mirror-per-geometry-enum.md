@@ -2,13 +2,14 @@
 id: one-kind-mirror-per-geometry-enum
 kind: unit
 title: One fieldless kind mirror per geometry enum, in geom: CurveKind and SurfaceKind beside Curve3 and Surface, every copy deleted
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [curve-kind-placement-disagrees-with-the-ratified-seat-clause, 3763, 3664]
 branch: tquery/one-kind-mirror
 pr: 3777
+closed: 2026-10-02
 ---
 
 
@@ -69,3 +70,7 @@ pass took the fallback:
   variant is a compile error until it has a kind.
 - `ALL` is still derived (`strum::VariantArray` on the kind enum), so
   no roster or census is kept by hand.
+
+## Closed (2026-10-02, PR 3777)
+
+One hand-written `CurveKind` / `SurfaceKind` in `geom` (exhaustive `kind()`, `ALL` from `strum::VariantArray`); `topo::query`'s, `geom_brep`'s and tess-meter's mirrors and the test-only derived ones deleted; one `name()` / `adjective()` register pair, every free-string namer of the same word set routed through it.
