@@ -1305,4 +1305,3 @@ fn subtract_and_intersect_refuse_where_union_does() {
         );
     }
 }
-
