@@ -7,7 +7,6 @@ opened: 2026-10-02
 priority: P0
 cost: H
 design: true
-needs_ev: true
 refs: [3759]
 ---
 
@@ -56,17 +55,13 @@ angle `α = atan2(…)`, and checks 3 and 4 push it back through
    - A property test must fail if a table is mutated.
    - A refusal names the incidence that failed.
 2. **Check 3, the schedule `|S(P(tᵢ)) − C(tᵢ)|` on a `Harmonic` row,
-   leaves the certificate over a parameter box.** Where it runs instead
-   is Ev's question, open on an `[ev]` PR. The recommendation is:
-   - it runs where the scalar is a point (the driver's f64 witness
-     replay);
-   - it runs as a property test of
-     `chart_image_harmonic ∘ chart_pcurve = carrier_harmonic` over the
-     covered classes.
-
-   The alternative keeps it in the box certificate and needs a SYM tier
-   rule `cos/sin(atan2(y, x)) = x,y/√(x²+y²)` with angle addition,
-   whose reach is unmeasured. Part 1 does not depend on the answer.
+   leaves the certificate over a parameter box** (Ev, 2026-10-02, PR
+   3781; C4 now leads with the closed-form envelope as the whole
+   statement). It runs where the scalar is a point (the driver's f64
+   witness replay) and as a property test of
+   `chart_image_harmonic ∘ chart_pcurve = carrier_harmonic` over the
+   covered classes. Fitted rows keep the schedule in their certified
+   statement.
 3. **Measure before claiming a ceiling:**
    - the M10-7 plate, the `m10_3` drive, `m10_4`, `m10_9`, `sym11`, the
      demo tour's `eps_regression` and `chaintol`, under the shipped rule

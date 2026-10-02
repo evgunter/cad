@@ -88,9 +88,8 @@ comparand this ledger FLAGS as not-a-length are carried through the
 seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
-enumerates the clause-(i) debt exactly (F2 ×4,
-F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
-F16 ×1 — 8 shipped sites, tracked as issue #214 and pinned by
+enumerates the clause-(i) debt exactly (F10 ×1 — one loop over seven
+rigidity residuals — F13 ×1, F14 ×1, F16 ×1 — 4 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -443,10 +442,10 @@ which is what actually moves the number.
 | boolean/solid_contain.rs (`wall_hit_outside_reach`) | bool_wall_outline_reach | distance to the ball's centre − its radius | m | OK |
 | boolean/solid_contain.rs:538/562/587 | bool_point_in_solid_plane | plane residual; /2r linearizations | m | OK |
 | boolean/solid_contain.rs:645/655 | bool_point_in_solid_advance/order | ray parameters (m, unit dir) | m | OK |
-| boolean/solid_contain.rs:691 | bool_point_in_solid_denom (plane) | cos(unit,unit), no arm | dimensionless | FLAG F2 |
-| boolean/solid_contain.rs:743 | bool_point_in_solid_denom (cylinder) | sin²/2r | **1/m** | FLAG F2 |
-| boolean/solid_contain.rs:763 | bool_ray_cylinder_disc | disc/(2r)² (self-documented, F3 of PR 9c) | dimensionless | FLAG F2 |
-| boolean/solid_contain.rs:792 | bool_point_in_solid_denom (cylinder hit-outward — the pre-migration row mislabeled it "sphere"; the sphere lane reads outward structurally and its disc is over_lever at :850) | (unit·radial)/radius | dimensionless | FLAG F2 |
+| boolean/solid_contain.rs (`cast_ray`, plane arm) | bool_point_in_solid_denom (plane) | cos(unit,unit) levered by the selection's reach (`selection_reach`): the ray's rise off the plane over every length at which it could meet the face | m | FIXED (F2) |
+| boolean/solid_contain.rs (`line_wall_roots`) | bool_point_in_solid_denom (cylinder) | `|d⊥|` levered by the run the caller reads (the ray: the selection's reach + 2r; an edge: its own span): the line's drift off its distance from the axis | m | FIXED (F2; was sin²/2r, 1/m) |
+| boolean/solid_contain.rs (`line_wall_roots`) | bool_ray_cylinder_disc | disc/|d⊥|² over 2r (over_lever), the sphere arm's form | m | FIXED (F2; was disc/(2r)², dimensionless) |
+| boolean/solid_contain.rs (`cast_ray`, wall arm) | (cylinder hit-outward) | read off the decided discriminant's root order, as the sphere lane reads it: no decision | — | FIXED (F2; was (unit·radial)/radius, dimensionless) |
 | boolean/solid_contain.rs:850/903 | bool_ray_sphere_disc / at_infinity | disc/2r (over_lever); volume/area (V/A mean thickness, over_lever — a genuine containment decision, not a backstop) | m | OK |
 | boolean/vtxfac.rs:106/113/453 | side_code / bool_sector_coplanar / bool_germ_line | side_code as in the sectors.rs row; `bool_sector_coplanar`: sin × sector arm, which only proposes coplanar (both bounds must also read On, in band too); `bool_germ_line` (`pierce_germ_dir`): sin × the sector's farther reach (`BoolSector::span`) | m | FIXED (CONTACT-9; the germ line was levered at the sector arm) |
 | boolean/vtxfac.rs (on-edge resolution) | bool_sector_bisector_side | refusal only: a bisector reading On between two readings definitely on one side, reachable only at K ≤ 2 | — | OK (CONTACT-9) |
@@ -688,11 +687,17 @@ speculative — each row below states what it measured):
 
 Flagged, NOT fixed here (dispositions):
 
-- **F2** `solid_contain.rs` ray-caster denominators (691/743/763/792 — refs refreshed and the fourth site relabeled cylinder hit-outward at the clause-(i) fix pass; the sphere-disc form at :850 is the model and took `over_lever`):
-  dimensionless and 1/m comparands. The cylinder-disc site carries an
-  in-tree admission earmarking a re-pin unit (PR 9c review F3). One
-  coordinated unit should meter all four (the sphere-disc form (now :850)
-  is the model). Reported, deferred to that unit.
+- **F2** `solid_contain.rs` ray-caster denominators — **FIXED** (REACH,
+  `work/reach/an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed`).
+  The two skip questions (the plane arm's `d·n̂`, the wall's axis-parallel
+  rung) are levered by how far from the query the selection reaches, so
+  a ray is skipped only where it drifts less than the band over every
+  length at which it could meet the face; the wall's discriminant takes
+  the sphere arm's `over_lever` form; the wall's hit-outward sign is read
+  off the discriminant's root order and no longer decided. Measured
+  before the fix at ε = 1e-6: `sin²/2r` cannot exceed ε on a wall of
+  radius 5e5 or more, so every ray skipped the rod's wall and a point on
+  its axis read `Out`.
 - **F3** — **FIXED by the F3+F4 dimensional unit** (see the fixed
   list above).
 - **F4** — **FIXED by the F3+F4 dimensional unit** (see the fixed

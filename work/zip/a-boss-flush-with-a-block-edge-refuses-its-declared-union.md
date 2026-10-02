@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: H
-refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist, m9-3-semantic-residues, a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence]
+refs: [m9-3-semantic-residues, a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence]
 ---
 
 
