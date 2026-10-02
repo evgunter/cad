@@ -2148,6 +2148,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcTorusRoots",
         1,
     ),
+    (
+        "ellipse_roots.rs",
+        "ellipse_roots",
+        "BooleanDecision::ArcCylinderRoots",
+        1,
+    ),
+    (
+        "ellipse_roots.rs",
+        "ellipse_roots",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "mint_directed", "Coincide::Sectors", 1),

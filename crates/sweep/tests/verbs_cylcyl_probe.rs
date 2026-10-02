@@ -536,13 +536,16 @@ fn the_containment_door_reports_the_trim_boundary_rather_than_guessing() {
     }
 }
 
-/// The class gate: a wall the chart trim CANNOT express answers `None`,
-/// never a verdict. A tilted cut leaves the wall bounded by a section
+/// The class gate: a wall the chart trim's RECTANGLE cannot express is
+/// never read as one. A tilted cut leaves the wall bounded by a section
 /// ELLIPSE, whose height extreme is interior to an edge, so the
 /// rectangle the boundary vertices pin misstates the face in both
-/// directions — and the door refuses to speak rather than read it.
+/// directions. The door reads such a wall by its chart outline's parity
+/// along the point's ruling instead, so a point on the carrier is `In`
+/// exactly one wall face below the cut and in none above it — the
+/// rectangle would put both of the points below inside the face.
 #[test]
-fn a_wall_the_trim_cannot_express_gets_no_verdict() {
+fn a_wall_closed_by_a_tilted_section_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
@@ -557,16 +560,37 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
     };
     let walls = wall_faces(below);
     assert!(!walls.is_empty(), "the cut post still has wall faces");
-    // On the carrier, well inside the surviving stub: an iso-bounded
-    // wall answers In or Out here; an ellipse-bounded one must not.
-    let verdicts: Vec<_> = walls
-        .iter()
-        .map(|&f| topo::curved_face_containment(below, f, on_wall(0.4, 0.5), band).unwrap())
-        .collect();
-    assert!(
-        verdicts.iter().all(Option::is_none),
-        "a wall closed by a tilted section must get no verdict, got {verdicts:?}"
-    );
+    // The cut is at `z = 1 − x·tan φ`: 0.715 over θ = 0.4, 1.285 over
+    // θ = π − 0.4. Each point is 0.2 off it.
+    for (theta, h, inside) in [
+        (0.4, 0.515, true),
+        (0.4, 0.915, false),
+        (core::f64::consts::PI - 0.4, 1.085, true),
+        (core::f64::consts::PI - 0.4, 1.485, false),
+    ] {
+        let q = on_wall(theta, h);
+        assert!(
+            ((1.0 - q.x * phi.tan()) - h).abs() > 0.19,
+            "θ = {theta}, h = {h}: off the cut"
+        );
+        let verdicts: Vec<_> = walls
+            .iter()
+            .map(|&f| topo::curved_face_containment(below, f, q, band).unwrap())
+            .collect();
+        let ins = verdicts
+            .iter()
+            .filter(|v| matches!(v, Some(topo::FaceContainment::In)))
+            .count();
+        assert!(
+            verdicts.iter().all(Option::is_some),
+            "θ = {theta}, h = {h}: a verdict on every wall, got {verdicts:?}"
+        );
+        assert_eq!(
+            ins,
+            usize::from(inside),
+            "θ = {theta}, h = {h}: {verdicts:?}"
+        );
+    }
 }
 
 /// **The dip clamp's own row.** The blinded review found the clamp

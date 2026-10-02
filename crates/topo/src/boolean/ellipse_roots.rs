@@ -291,7 +291,10 @@ mod tests {
         let truth = oracle(e, s, mid - PI, mid + PI);
         assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
         for (a, b) in got.iter().zip(&truth) {
-            assert!((a - b).abs() < 1e-9, "{label}: root {a} vs the oracle's {b}");
+            assert!(
+                (a - b).abs() < 1e-9,
+                "{label}: root {a} vs the oracle's {b}"
+            );
         }
     }
 
@@ -349,7 +352,10 @@ mod tests {
                 "{label}: got {:?}",
                 door(&thin, &s, 0.0, TAU)
             );
-            assert!(oracle(&thin, &s, 0.0, TAU).is_empty(), "{label}: the oracle agrees");
+            assert!(
+                oracle(&thin, &s, 0.0, TAU).is_empty(),
+                "{label}: the oracle agrees"
+            );
         }
     }
 

@@ -343,23 +343,20 @@ fn trimmed_sphere_group_operand_assembles_with_a_clear_partner() {
 
 /// **F2 (fix pass): the scan's CYLINDER-NEAR-SPHERE arm.** A ball
 /// inside the cylinder wall's certified box but with every edge pair
-/// box-clear: nothing is examined, the fallback fires, and the scan
-/// refuses typed naming the cyl×sphere seam blocker — certified boxes
-/// prove separation, and anything closer than the boxes cannot be
-/// classified without the fitted-chord lane (PR 9c deviation 1).
+/// box-clear: nothing is examined and the fallback fires. Past the
+/// boxes the scan reads the wall's CARRIER: a sphere definitely clear
+/// of the whole cylinder, or definitely inside it, meets no face on it.
 ///
 /// **Where the ball sits, and why there.** The wall's box is the
 /// rectangular prism around a ROUND slab, so it over-claims at its
 /// own corners — the looseness the rule states, not slack in the
 /// code. The ball is parked in one of those corners: radially
 /// 0.43 out from the axis against a 0.35 wall, so it is genuinely
-/// clear of the solid, while its box still meets the wall's.
-/// A ball hovering ABOVE the top cap is NOT such a case, whatever
-/// the gap: the slab claims nothing along its own axis beyond the
-/// face's own trim, so the scan certifies that pair and the union
-/// answers.
+/// clear of the solid, while its box still meets the wall's. The
+/// carrier test certifies the 0.08 gap and the union answers the two
+/// solids, their volumes summed.
 #[test]
-fn cylinder_near_sphere_refuses_typed_at_the_scan() {
+fn a_ball_in_the_walls_box_corner_is_certified_by_its_carrier() {
     let disc = bulge_loop(vec![
         (Point2::new(0.35, 0.0), 1.0),
         (Point2::new(-0.35, 0.0), 1.0),
@@ -371,12 +368,45 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
         .unwrap()
         .body;
     let ball = ball_poled_y(0.05, Vec3::new(0.34, 0.34, 0.65), Tol::witness());
-    let err = topo::union(&cyl, &ball, Tol::witness())
-        .expect_err("nearness to a cylinder wall cannot certify");
+    let joined = both_lanes(BooleanOp::Union, &cyl, &ball);
+    assert_eq!(joined.shells().count(), 2, "the slab plus the ball");
+    let want = PI * 0.35_f64.powi(2) * 1.3 + 4.0 * PI * 0.05_f64.powi(3) / 3.0;
+    assert!(
+        (vol(&joined) - want).abs() < slack(),
+        "disjoint union adds volumes: {} vs {want}",
+        vol(&joined)
+    );
+}
+
+/// **The arm's refusal, where the carrier cannot speak**: a slab whose
+/// wall turns three quarters of the way round, and a ball straddling
+/// the wall's cylinder in the missing quarter. The ball is clear of
+/// the solid (0.247 from each flat face, at radius 0.05), its box meets
+/// the wall's (which spans the whole turn's square), and it neither
+/// clears the carrier nor lies inside it — so the scan refuses typed,
+/// naming the cyl×sphere seam blocker: no exact sphere-vs-FACE nearness
+/// is wired (PR 9c deviation 1).
+#[test]
+fn a_ball_straddling_a_notched_walls_carrier_refuses_typed_at_the_scan() {
+    let notched = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(0.35, 0.0), (3.0 * PI / 8.0).tan()),
+        (Point2::new(0.0, -0.35), 0.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![notched])
+        .validate(Tol::witness())
+        .unwrap();
+    let slab = extrude(&vp, Extrusion::Distance(1.3), Tol::witness())
+        .unwrap()
+        .body;
+    let at = 0.35 * core::f64::consts::FRAC_1_SQRT_2;
+    let ball = ball_poled_y(0.05, Vec3::new(at, -at, 0.65), Tol::witness());
+    let err = topo::union(&slab, &ball, Tol::witness())
+        .expect_err("a sphere straddling the carrier cannot certify its nearness");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the scan's cylinder arm, got {err:?}");
     };
-    assert!(what.contains("cyl×sphere"), "{what}");
+    assert!(what.contains("straddles the wall's carrier"), "{what}");
 }
 
 /// **The other side of that boundary, and the consumer-visible half

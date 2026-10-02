@@ -35,7 +35,7 @@
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, BooleanError};
+use topo::{Body, BooleanError, BooleanOp};
 
 /// The cylinder: a circle of radius `r` at the origin, extruded along
 /// world Z from `z0` to `z1`. Its axis is Z.
@@ -164,34 +164,65 @@ fn a_transversal_pose_stops_at_the_sector_side_in_both_poses() {
     }
 }
 
-/// **The second reachable door, and the row that refuted "a contained
-/// ball just answers".** A ball wholly inside a wider cylinder has no
-/// crossing at all, so the pipeline falls through to the containment
-/// fallback — and the fallback's curved-extent scan refuses
-/// `FallbackExtentUnsupported`, naming the cyl×sphere seam lane. It
-/// cannot answer even here, because the ball's certified extent meets
-/// the wall face's BOX and a box overlap is a MAY, not a DOES.
+/// **A ball wholly inside a wider cylinder builds.** It has no crossing
+/// at all, so the pipeline falls through to the containment fallback,
+/// whose curved-extent scan reads the wall's CARRIER once the boxes
+/// meet: the ball lies definitely inside the wall's whole cylinder
+/// (its centre on the axis, `0.5 < 2`), so it meets no face on it.
+/// Under ∪, ∩ and both differences, against the closed forms, in both
+/// poses: the cylinder `16π`, the ball `π/6`, `B ∖ A` empty.
 ///
-/// This is what makes the opening measurement a table rather than a
-/// single door: the crossing pose takes the germ frame and the
-/// non-crossing pose takes the scan.
+/// The opening measurement is a table, not a single door: the crossing
+/// pose takes the sector side, and the non-crossing pose answers.
 #[test]
-fn a_contained_ball_refuses_at_the_curved_extent_scan() {
+fn a_contained_ball_builds_through_the_extent_scan() {
     let c = cyl(2.0, -2.0, 2.0);
     let s = ball_at(0.5, Vec3::new(0.0, 0.0, 0.0));
+    let (vc, vs) = (16.0 * core::f64::consts::PI, core::f64::consts::PI / 6.0);
+    let vol = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
     for (label, c, s) in [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ] {
-        let err = topo::union(&c, &s, Tol::witness())
-            .expect_err("the contained pose cannot certify its nearness");
-        let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-            panic!("{label}: expected the extent scan's refusal, got {err:?}");
-        };
-        assert!(
-            what.contains("cyl×sphere seam lane is not wired"),
-            "{label}: {what}"
-        );
+        for (op_label, op, x, y, want) in [
+            ("A ∪ B", BooleanOp::Union, &c, &s, Some(vc)),
+            ("A ∩ B", BooleanOp::Intersect, &c, &s, Some(vs)),
+            ("A ∖ B", BooleanOp::Subtract, &c, &s, Some(vc - vs)),
+            ("B ∖ A", BooleanOp::Subtract, &s, &c, None),
+        ] {
+            let out = topo::boolean::boolean_op_with(
+                op,
+                x,
+                y,
+                &topo::BooleanDeclarations::none(),
+                topo::boolean::SweepStrategy::Realized,
+                Tol::witness(),
+            )
+            .unwrap_or_else(|e| panic!("{label}, {op_label}: refused {e:?}"));
+            match (out.body(), want) {
+                (Some(b), Some(v)) => {
+                    assert_eq!(
+                        topo::validate_geometric(&b.body, Tol::witness()),
+                        Ok(()),
+                        "{label}, {op_label}: tier 3"
+                    );
+                    assert!(
+                        (vol(&b.body) - v).abs() < 1e-9 * v,
+                        "{label}, {op_label}: volume {} against {v}",
+                        vol(&b.body)
+                    );
+                }
+                (None, None) => {}
+                (got, _) => panic!(
+                    "{label}, {op_label}: a body {} against the closed form",
+                    if got.is_some() {
+                        "came back"
+                    } else {
+                        "is missing"
+                    }
+                ),
+            }
+        }
     }
 }
 

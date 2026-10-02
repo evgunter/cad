@@ -222,12 +222,14 @@ pub enum BooleanDecision {
     /// Where an arc crosses a sphere: the circle × sphere lane's
     /// extremes (`circle_sphere`, `bool_circle_sphere_extreme`), read
     /// for a coaxial carrier's constant residual and for either end of
-    /// a tilted one's range.
+    /// a tilted one's range; on an ellipse, the ellipse door's rows
+    /// (`ellipse_roots`).
     ArcSphereRoots,
     /// Where an arc crosses a cylinder wall: the circle × cylinder lane's
     /// certified roots (`circle_cylinder`) — on a circle square to the
     /// wall's axis the square arm's extremes, otherwise the half-angle
-    /// quartic's rows.
+    /// quartic's rows; on an ellipse, the ellipse door's rows
+    /// (`ellipse_roots`), by the same two arms.
     ArcCylinderRoots,
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.

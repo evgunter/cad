@@ -1084,21 +1084,22 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// against a cylinder or sphere the residual is convex (both-inside
 /// means no wall crossing, both-outside clears through the span
 /// minimum), against a torus the certified quartic's roots decide, and
-/// for a CIRCLE
-/// carrier the ARC's residual range is enclosed two ways (the
-/// carrier's exact harmonic bounds and the arc's own chord-dip
-/// bound), so a definitely one-sided arc clears. What definitely MEETS
-/// the face is split by kind, and the third paragraph below is the
-/// statement of record: a LINE or a CIRCLE carrier against a CYLINDER
-/// wall, a SPHERE or a TORUS is routed through the certified roots and
-/// pierces; everything else — a tangency, a cone, an undeclared
+/// for a CONIC carrier (a circle or an ellipse, `geom_brep::Conic`) the
+/// ARC's residual range is enclosed two ways (the carrier's exact
+/// harmonic bounds and the arc's own chord-dip bound), so a definitely
+/// one-sided arc clears. What definitely MEETS the face is split by
+/// kind, and the third paragraph below is the statement of record: a
+/// LINE or a CIRCLE carrier against a CYLINDER wall, a SPHERE or a
+/// TORUS, and an ELLIPSE against a cylinder wall or a sphere, is routed
+/// through the certified roots and pierces; everything else — a
+/// tangency, a cone, an ellipse against a torus, an undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
 /// in-band clearance escalates (F6, the same margin's other half) —
-/// except an uncovered circle's against one of those three kinds, where
-/// the certified roots decide what the enclosures could not.
-/// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
-/// silent fallback.
+/// except an uncovered conic's against one of those three kinds, where
+/// the certified roots decide what the enclosures could not. Spiric and
+/// NURBS carriers have no enclosure and take the frontier door before
+/// any clearance test. Never a silent fallback.
 ///
 /// **The carrier-identity rung** comes before any enclosure on a
 /// CIRCLE carrier: an edge whose parent face is `Rest`-declared against
@@ -1166,8 +1167,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// split/record triple is the planar conic lane's, verbatim. Still the
 /// frontier is everything the roots do not cover: a TANGENCY (an
 /// in-band discriminant, or a torus root count the quartic cannot
-/// certify, is not a crossing at any order this lane sees), a CIRCLE
-/// carrier against a cone, and a trim the chart door declines to
+/// certify, is not a crossing at any order this lane sees), a conic
+/// carrier against a cone, an ELLIPSE against a torus (its residual is a
+/// degree-4 trigonometric polynomial, an octic in the half-angle, which
+/// no ladder here solves), and a trim the chart door declines to
 /// express.
 ///
 /// **A CIRCLE against a SPHERE, a CYLINDER or a TORUS takes the same
@@ -1177,11 +1180,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// quartic in the tangent half-angle, and the ray lane's certified
 /// ladder answers it ([`super::circle_torus`],
 /// [`super::circle_cylinder`]; a circle square to the wall's axis is a
-/// first harmonic again, and takes the square arm, the first-harmonic door). It reaches
-/// those arms only from the
-/// circle rung, after the enclosures failed to clear the arc, and never
-/// through a declared-cover arm — those rest on a line's separation
-/// story.
+/// first harmonic again, and takes the square arm, the first-harmonic door).
+/// An ELLIPSE against a sphere or a cylinder wall is a degree-2
+/// trigonometric polynomial in its eccentric anomaly and takes the same
+/// ladder ([`super::ellipse_roots`]). A conic reaches those arms only
+/// from the conic rung, after the enclosures failed to clear the arc,
+/// and never through a declared-cover arm — those rest on a line's
+/// separation story.
 ///
 /// **What a successful wall pierce reaches next is a typed door, not
 /// a body**: a ring minted in a cylinder face has no join arm (#1291),
@@ -1319,7 +1324,8 @@ pub(super) fn curved_face_arm<T: Decide>(
     // one-sided — the arc strictly outside, or strictly inside — means
     // no wall crossing (meters). Anything else keeps the typed frontier
     // door, and an in-band clearance escalates (two-tolerance on the
-    // arm, definite ones included). Ellipse/NURBS carriers keep the M5
+    // arm, definite ones included). The rung is the CONIC's: an ellipse
+    // reads the same two enclosures (`geom_brep::Conic`).
     // unconditional door.
     match (curve.carrier(), geom_brep::Conic::of(curve.carrier())) {
         (geom::Curve3::Line { .. }, _) => {}
@@ -2099,8 +2105,9 @@ fn wall_crossing<T: Decide>(
         let p = carrier.eval(t);
         // The face's own trim decides whether a crossing of the CARRIER
         // is a crossing of this FACE. `None` is the chart door's honest
-        // remainder (a ringed face, a non-iso boundary, a full-period
-        // window outside the band class) and keeps the caller's
+        // remainder (a ringed face, a boundary outside its outline
+        // classes, a full-period window outside the band class) and
+        // keeps the caller's
         // frontier rather than reading as "outside".
         //
         // **A landing point definitely OFF the carrier is not "outside
