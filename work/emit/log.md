@@ -1547,3 +1547,25 @@ Filed:
 **Filed:** `separation-unavailable-carries-the-kernel-refusal-shared`.
 
 **CI.** The test job went red on #3733's `circle_image_envelope`, which was missing from geom-core's `bounds_census` roster and was red on every merge ref. The lane added the roster line, classing it as `Selection` with two refusal gates.
+
+## 2026-10-02 — viewer refusals speak the node, part 1 (PR 3806)
+
+**What changed.**
+- The viewer's own refusal types now hold a `SpokenNode` built at the raise: `Refusal`, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError`, `HeldRefusal` and `RefusedBoolean`.
+- Kernel errors carry `HeldNodes` beside them.
+- These also speak: the at-rest badge, the product badge and `NoProduct`.
+
+**Kept refusal (ruled by the lane, not a fork).** The status line is a sentence made once, and the next accepted act retires it. The review found two holes, both fixed:
+- A refusal and a rename in one batch: `frame::batch_refusal` now re-speaks the batch's refusal from the document the batch leaves.
+- A stale mate-tool label: it is now spoken from the session document. Ids are stable within one document's history, which the mint check verifies.
+
+The rule is now stated in the viewer README.
+
+**Not fixed: `Refusal::Edit`.** `EditError` stores its nodes already spoken, so it cannot re-speak them. Filed as `edit-error-respeaks-from-a-later-version`.
+
+**Main formatting.** Main was red on fmt in `crates/sweep/tests/run_walls_built.rs` (from `ea80b402fc`). This PR carried the fix, so main is green again.
+
+**Filed:**
+- `viewer-pick-path-refusals-speak-the-node`
+- `viewer-panes-speak-the-kernel-refusals-they-draw`
+- the vnews in-band-mark issue, now covering `•` and the `"; "` join
