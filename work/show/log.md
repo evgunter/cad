@@ -369,3 +369,29 @@ The fix pass:
 The reviewer's claim that "walls never run in CI" contradicts the teapot lane's finding that `eps_regression` spawns the tour binary. The lane must settle it with evidence.
 
 Composed census pins once all five overlapping PRs merge: rows 1551, pairs 28,265, triangles 427,690, scenes 78.
+
+## 2026-10-02 — bench (PR 3840) in full review; the disk filled
+
+### bench
+- **What the scene now does:**
+  - The stand sits on a turntable gauge driven by a `swing` parameter.
+  - A crate sits on a nested shelf-top gauge, with a cross-gauge declared rest.
+  - Three swing edits: each recomputes 5 nodes and reuses 4.
+  - Vertices are checked to 1e-12 at every pose.
+- **No refusal was met.**
+- **Filed:** `lib/the-turntable-bench-has-no-python-row`.
+- **Not filed, noted as awkward:**
+  - a rotation about a pivot takes a three-step chain;
+  - Rust's `regauge_then_mate` returns edits, while Python's returns an id.
+
+  The review judges whether either is a finding.
+
+### Disk
+- **The disk filled during the bench lane.** The root allowance was down to 409 MB.
+- **Reclaimed:**
+  - the targets of seven idle, finished implementer lanes, checked first for no writes in the last 5 minutes;
+  - eight finished reviewer worktrees.
+
+  Free space is back to 16 GB.
+- **Lesson:** lane targets run 0.6–7 GB each. Reclaim when each review returns, not when the disk fills (agent-lane-operations already says so; I lagged).
+- **From now on:** a lane's target goes when its PR merges, or when its lane is done and no fix pass is pending.
