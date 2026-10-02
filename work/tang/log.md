@@ -332,3 +332,20 @@ sibling. Filed out of it: WIRE's dropped operand records, and TESS's
 non-manifold doubled edge. The m1 strut row stays open with a second
 witness. Merging main moved one fixture: REACH's continuation rule now
 refuses `(slab − p1) − p2`, so X is cut once as `slab − (p1 ∪ p2)`.
+
+## 2026-10-02 — the declared door reads one margin over the consumed extent (PR 3795) (TANG orchestrator)
+
+Review tier: a single full review, then two delta reviews, each
+APPROVE-WITH-FIXES with no MAJOR. The first found the bridge at about
+2·Kε (two margins decided apart) and `Contradicted` read off an upper
+bound. The second found three more: the merge's extent ball did not
+enclose its faces, so a 900·Kε corner glued; the escalation text
+reported a margin inside the band when it was past it; and the
+declared sum reached the undeclared corner sites. C4's `Rest` sentence
+is reworded in the PR, as text that moved with the code. The orchestrator
+ruled it a sharper reading of "definitely distinct ... at the consumed
+extent", not a new decision. The one input class that moves
+(contradicted → escalated) is named in the PR body for Ev to see. The
+tour is byte-identical. The lane also reported three tests on main that
+fail under `--all-features`, which CI never runs; they are filed with
+PR 3823's state-sync.

@@ -7,6 +7,7 @@ use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
+use crate::extent::ExtentBall;
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
 /// ruling): the closed-form contact line of a tangent carrier pair,
@@ -57,12 +58,15 @@ pub enum TangentLocusError {
 ///
 /// - `tangent_locus_axis_parallel` — the axis/plane (or axis/axis)
 ///   angular deviation `|d × n̂|` (a sine of unit vectors) levered by
-///   the **1 m verification arm**, a `T::one()` literal that `topo`'s
-///   carrier-pair doors (`rest::flush_pair_relation`,
-///   `rest::carrier_pair_verdict`) spell too and must agree with:
-///   tangency along an unbounded ruling is a carrier-level claim,
-///   metered at the same arm the carrier ladder meters its
-///   parallelism rungs.
+///   `reach`'s extent from the point the gap row is read at — the foot
+///   of the extent's centre on the cylinder's axis (the second
+///   cylinder's, for a pair). A tilt moves the ruling by that angle
+///   times the distance from there, so the row reads the displacement
+///   the tilt induces across the faces the locus is consumed on; with
+///   the gap row it mints only where each reads zero, so the ruling
+///   stands within two zero bands of the carriers across the faces,
+///   and the `Tangent` table then verifies it sample by sample. `reach` is the declared pair's consumed
+///   extent, the one `topo`'s carrier-pair doors lever their ladder at.
 /// - `tangent_locus_gap` — the metre gap at the tangency: for
 ///   plane×cylinder the axis-to-plane distance minus the radius; for
 ///   parallel cylinders the axis-to-axis distance minus `r1 + r2`
@@ -104,9 +108,9 @@ pub enum TangentLocusError {
 pub fn tangent_locus<T: Decide>(
     a: &geom::Surface<T>,
     b: &geom::Surface<T>,
+    reach: ExtentBall<T>,
     band: Band,
 ) -> Result<TangentLocus<T>, TangentLocusError> {
-    let arm = T::one();
     let escalate = TangentLocusError::Escalated;
     match (a, b) {
         (
@@ -129,9 +133,10 @@ pub fn tangent_locus<T: Decide>(
         ) => {
             // Ruling tangency needs the axis IN the plane's direction
             // space: |axis · n̂| is the sine of the axis' elevation.
+            let co = &reach.foot_on(*co, *axis);
             match decide(
                 "tangent_locus_axis_parallel",
-                Margin::levered(axis.dot(*normal).abs(), arm),
+                Margin::levered(axis.dot(*normal).abs(), reach.lever_from(*co)),
                 band,
             )
             .map_err(escalate)?
@@ -181,9 +186,10 @@ pub fn tangent_locus<T: Decide>(
                 ..
             },
         ) => {
+            let o2 = &reach.foot_on(*o2, *a2);
             match decide(
                 "tangent_locus_axis_parallel",
-                Margin::levered(a1.cross(*a2).norm(), arm),
+                Margin::levered(a1.cross(*a2).norm(), reach.lever_from(*o2)),
                 band,
             )
             .map_err(escalate)?
@@ -284,5 +290,50 @@ pub fn tangent_locus<T: Decide>(
             what: "the closed-form tangent-locus lane holds plane×cylinder and parallel \
                    cylinder pairs only (the DEV-1 certified set)",
         }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::Tol;
+
+    /// **The axis row is levered over the consumed extent.** A unit
+    /// cylinder resting on `z = 0` at the origin, its axis rising
+    /// `0.3·ε` per metre along `x`: over a 1 m patch about the origin
+    /// (a 2 m lever from the axis) the tilt reads zero and the ruling
+    /// is minted; over a 10 m patch along `x` the lever is 6 m, the tilt
+    /// reads in band, and the row escalates rather than mint a ruling
+    /// the far end stands `3·ε` off.
+    #[test]
+    fn the_axis_row_reads_the_tilt_across_the_extent() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let theta: f64 = 0.3 * band.zero();
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(theta.cos(), 0.0, theta.sin()),
+            radius: 1.0,
+            u_ref: Vec3::unit_z(),
+        };
+        let metre = ExtentBall::new(Point3::origin(), 1.0);
+        match tangent_locus(&plane, &cyl, metre, band) {
+            Ok(TangentLocus::Line { .. }) => {}
+            other => panic!("over a metre the tilt reads zero and the ruling is minted: {other:?}"),
+        }
+        let ten = ExtentBall::new(Point3::new(5.0, 0.0, 0.0), 5.0);
+        match tangent_locus(&plane, &cyl, ten, band) {
+            Err(TangentLocusError::Escalated(d)) => assert_eq!(
+                d.predicate,
+                Some("tangent_locus_axis_parallel"),
+                "the axis row escalates"
+            ),
+            other => panic!("over 10 m the tilt reads in band and escalates: {other:?}"),
+        }
     }
 }
