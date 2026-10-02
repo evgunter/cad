@@ -385,7 +385,9 @@ fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
             "the cavity vertex {q:?} is strictly inside the re-posed operand, got {got:?}"
         );
     }
-    assert_eq!(cavity, 6, "the cavity shell's six vertices");
+    // Two rim circles of two vertices each; the caps are whole discs,
+    // their centres no vertex.
+    assert_eq!(cavity, 4, "the cavity shell's four vertices");
     // On the axis: between the two top caps (y ∈ (15/128, 1/8)) is wall
     // material; the cavity's middle is not.
     for (y, want) in [

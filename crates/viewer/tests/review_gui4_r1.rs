@@ -390,7 +390,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == bench.post_b && !mates.is_empty()
+                if instance.id() == bench.post_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -438,7 +438,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
                 instance,
                 mates,
             }))) => {
-                assert_eq!(instance, constrained);
+                assert_eq!(instance.id(), constrained);
                 assert!(!mates.is_empty(), "the refusal names its mates");
             }
             other => panic!("a mated instance must refuse the probe, got {other:?}"),
@@ -771,9 +771,9 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     assert_eq!(killed.instance, bench.post_b);
     assert!(
         matches!(
-            killed.cause,
-            AdmissionFault::MateConstrained { instance, ref mates }
-                if instance == bench.post_b && mates.len() == 1
+            &killed.cause,
+            AdmissionFault::MateConstrained { instance, mates }
+                if instance.id() == bench.post_b && mates.len() == 1
         ),
         "the cause is the landing mate, carried from the predicate that \
          decided rather than re-derived: {}",
@@ -831,7 +831,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let (doc, eval) = session.landed_pair().expect("landed");
     match tool.proposal(doc, eval, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
-            assert_eq!(head, bench.post_b);
+            assert_eq!(head.id(), bench.post_b);
         }
         other => panic!("a self-mate must refuse at the tool, got {other:?}"),
     }

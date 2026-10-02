@@ -124,7 +124,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         let inner = minted(
             EntityKind::Face,
             node,
-            RoleSeg::Lateral(crate::fixture::piece(&doc, node, 0, seg as usize)),
+            RoleSeg::Lateral(crate::fixture::piece(&doc, node, 0, seg as usize).into()),
         );
         let seg = if wrap_a {
             RoleSeg::FromA(inner.into())

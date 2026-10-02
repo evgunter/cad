@@ -98,7 +98,7 @@ impl Say for ExportError {
                 )
             }
             ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
-            ExportError::Product(e) => write!(f, "export: {e}"),
+            ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
             ExportError::Unplaced { parts } => {
                 write!(
                     f,

@@ -134,10 +134,11 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 /// — the cylinder chart's closed-form lane plus the described-NURBS
 /// patch lane (M6-3), entered and left where the window says (the
 /// quadrature module's two levels); [`super::QuadLane`] holds this
-/// and reads it at either level. Cone/sphere/torus charts MINT
-/// stored pcurves since M6-3 (walk row 4) but their chart-normal
-/// flux algebra is not written — they refuse typed naming that true
-/// blocker.
+/// and reads it at either level. A cone face never arrives: the face
+/// walk routes it to its closed form
+/// ([`geom_brep::props::cone_face_closed_form`]). Sphere and torus
+/// charts mint stored pcurves but have no flux lane here, and refuse
+/// typed.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
@@ -161,10 +162,10 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
-            what: "conic trim on a cone/sphere/torus chart — those charts mint stored \
-                   pcurves, but this lane's chart-normal flux algebra is the \
-                   cylinder chart's; the other analytic charts' closed-form flux \
-                   has no lane",
+            what: "conic trim on a cone/sphere/torus chart — a cone face takes its \
+                   closed form before this lane (`cone_face_closed_form`); sphere and \
+                   torus charts mint stored pcurves, but this lane's chart-normal flux \
+                   algebra is the cylinder's",
         });
     };
     let eps = tol.eps();
@@ -549,6 +550,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "a NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
                            chart images live on its own cutting plane and its own \
                            torus, and this chart is a spline patch",
+                });
+            }
+            Pcurve::ConeSection { .. } => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face half-edge carries a CONE-SECTION pcurve — that \
+                           image certifies on a cone chart only, and this chart is a \
+                           spline patch",
                 });
             }
         };

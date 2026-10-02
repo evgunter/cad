@@ -863,6 +863,21 @@ rebuild lands, `pane::viewport` clears `projection_fault` where a
 matrix forms); that is work about the seam, not about the chrome, and
 no writer decides the fate of anyone else's sentence.
 
+**A refusal on the line is a sentence made once, and the next accepted
+act retires it.** The nodes it names are spoken (DESIGN.md Band 1,
+"Node labels") when the batch that raised it ends: `frame::batch_refusal`
+speaks the batch's refusal again from the committed document the batch
+leaves (`Refusal::respoken`), unless the batch replaced the document,
+so a rename later in the same batch is the label it says. After that
+the line holds text, and the label it says stays fresh only because
+every op that changes a label answers `frame::acts` true: the frame
+that renames a node is an acting batch, and its `RankedVerdict::Clear`
+retires the sentence that said the old label. An op that changed a
+label without acting would leave a stale label on the line.
+`Refusal::Edit` is the exception inside the batch: the kernel door
+speaks `EditError` at the refusal, so a rename later in its own batch
+does not reach it (`work/emit/edit-error-respeaks-from-a-later-version.md`).
+
 **Seventeen of the eighteen writers that can put a sentence on the line
 now come through the ranking.** All eighteen used to reach the field
 without it —

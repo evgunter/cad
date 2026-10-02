@@ -159,7 +159,7 @@ pub fn checks_report(
         d::run_checks_on(doc, evaluation, d::Subject::Product(product), cfg, tol)
     }) {
         Ok(report) => report,
-        Err(ref source) => d::run_checks_on(doc, evaluation, d::Subject::refused(source), cfg, tol),
+        Err(source) => d::run_checks_on(doc, evaluation, d::Subject::refused(source), cfg, tol),
     }
 }
 

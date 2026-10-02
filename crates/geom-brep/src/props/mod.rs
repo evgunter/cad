@@ -234,8 +234,8 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
 
 pub use curved::{
-    MaterialSign, boundary_material_sign, curved_face, require_iso_rectangle,
-    require_one_chart_branch,
+    MaterialSign, boundary_material_sign, cone_face_closed_form, curved_face,
+    require_iso_rectangle, require_one_chart_branch,
 };
 pub use loop_area::loop_vector_area;
 

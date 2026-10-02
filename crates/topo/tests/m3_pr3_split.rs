@@ -665,3 +665,82 @@ fn no_split_refusal_names_a_stage() {
         assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
     }
 }
+
+/// The below side's tier-2 findings, where `split` refuses it as
+/// [`SplitFinishError::ResultInvalid`].
+fn below_refused_at_tier_2(
+    what: &str,
+    body: &Body<f64>,
+    plane: &SplitPlane<f64>,
+) -> Vec<topo::ValidationError> {
+    match split(body, plane, Tol::witness()) {
+        Err(SplitError::Finish(SplitFinishError::ResultInvalid {
+            side: topo::PlaneSide::Below,
+            errors,
+        })) => errors,
+        other => panic!("{what}: expected the below side refused at tier 2, got {other:?}"),
+    }
+}
+
+/// **No side leaves `split` unless it is a closed solid — whole.** An
+/// `mvfs` seed given a plane through the public door is tier-1 sound and
+/// passes split's operand gate (no edge, a plane face), but its empty
+/// loop is tier-2 scaffolding. It lies wholly below `y = 1`, so the
+/// un-cut lane hands it back as the below side, and the gate refuses it.
+#[test]
+fn an_uncut_side_that_is_not_a_closed_solid_refuses() {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::origin(), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        topo::FaceSurface::New {
+            surface: Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1 accepts the seed");
+    assert_eq!(
+        below_refused_at_tier_2("the seed", &body, &plane_y(1.0)),
+        vec![topo::ValidationError::ScaffoldingEmptyLoop { loop_: seed.r#loop }],
+    );
+}
+
+/// **— and cut.** The unit brick with a strut from its top corner
+/// `(0, 0, 1)` into the top face, ending at `(0.2, 0.2, 1)`: tier-1
+/// sound, every edge a certified line. Cut at `y = 0.5`, the strut
+/// rides into the below half, where its tip is a valence-1 vertex.
+#[test]
+fn a_cut_side_carrying_a_strut_refuses() {
+    let tol = Tol::witness();
+    let mut body: Body<f64> = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let at = |v: topo::VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let on_top = |he: topo::HalfEdgeKey| at(body.get_half_edge(he).unwrap().start).z == 1.0;
+    let he = body
+        .half_edges()
+        .find(|&(_, h)| {
+            let p = at(h.start);
+            (p.x, p.y, p.z) == (0.0, 0.0, 1.0) && on_top(h.next) && on_top(h.prev)
+        })
+        .map(|(k, _)| k)
+        .expect("the top face's half-edge leaving the corner");
+    body.mev_line(
+        topo::MevSite::Fan { he1: he, he2: he },
+        Point3::new(0.2, 0.2, 1.0),
+        tol,
+    )
+    .unwrap();
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1 accepts the strut");
+    let errors = below_refused_at_tier_2("the strutted brick", &body, &plane_y(0.5));
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::ScaffoldingStrutVertex { .. }]
+        ),
+        "the strut tip is the one finding: {errors:?}"
+    );
+}

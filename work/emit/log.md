@@ -1521,3 +1521,29 @@ Filed:
 - `work/census/prose-census-finds-sentence-impls-by-their-trait-names` (P4)
 
 **Ruling (mine): `product-refusals-speak-the-node` is not a fork.** PR 3760's pattern settles it. `ProductError` keeps ids and gains `Say`, and `PartFault::PartProduct` holds the error rather than a pre-rendered string. The ruling is recorded on the row and dispatched.
+
+## 2026-10-02 — the viewer's own refusal types speak the node at the raise (viewer-refusals-speak-the-node)
+
+`Refusal`'s node arms, `FaceFrameFault`, `AdmissionFault`, `SlotUnitFault`, `DuplicateFault`, `MateToolError` and `HeldRefusal` hold `SpokenNode`, built from the document the raising door holds; a kernel `Say` value they carry keeps its `HeldNodes`.
+
+**Ruling (implementer, revised in review): a kept refusal is not a fork.** The status line is a sentence made once, at the end of its batch (`frame::batch_refusal` speaks the refusal again from the document the batch leaves, unless it replaced the document; `Refusal::Edit` excepted, filed as `edit-error-respeaks-from-a-later-version`), and any batch that acts clears it; `SetLabel` acts, so a rename retires a refusal that said the old label. Recorded on the row.
+
+**Split:** `viewer-pick-path-refusals-speak-the-node`, `viewer-panes-speak-the-kernel-refusals-they-draw`, `viewer-product-badge-speaks-the-node` (carried by this PR once 3794 merged), `edit-error-respeaks-from-a-later-version`. **Filed on vnews:** `a-withdrawn-cause-can-carry-the-list-mark-inside-a-label` (P4).
+## 2026-10-02 — product refusals speak the node (PR 3794)
+
+**Shape.** Built on PR 3760's pattern:
+- `ProductError` and `SourceFinding` keep their ids and gain `Say`.
+- `PartFault::PartProduct` and `ChecksError::Product` hold the refusal rather than a pre-rendered string, so the frame speaks it. A part's product refusal keeps its tags in a host frame; this is pinned by the zero-chain collision fixture.
+- The assembly and export forwards now say `Said(e, by)`.
+- Python `product_err` speaks from the evaluation's document.
+
+**Review folds:**
+- One shared `editor_core::Refusal<E>` wrapper. `NodeRefusal` and `ProductRefusal` are now aliases of it.
+- `Labelled::open` is the one spelling of the stage opening.
+- The `Naming` arms use `by.name`.
+- `SourceLine::subject` renders through `SourceFinding`'s `Say`.
+- The demos speak `ChecksError`.
+
+**Filed:** `separation-unavailable-carries-the-kernel-refusal-shared`.
+
+**CI.** The test job went red on #3733's `circle_image_envelope`, which was missing from geom-core's `bounds_census` roster and was red on every merge ref. The lane added the roster line, classing it as `Selection` with two refusal gates.
