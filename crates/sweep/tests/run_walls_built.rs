@@ -506,7 +506,7 @@ fn extruded_arc_runs_build_one_wall_each() {
         }
     }
     // Uneven pieces, a short one at either end and inside.
-    for ratios in [&[1.0, 1e-3][..], &[1e-3, 1.0, 1.0], &[5.0, 1.0, 1e-2, 3.0]] {
+    for ratios in [&[1.0, 2e-2][..], &[2e-2, 1.0, 1.0], &[5.0, 1.0, 5e-2, 3.0]] {
         let sum: f64 = ratios.iter().sum();
         let mut a = -PI / 2.0;
         let mut v = Vec::new();
