@@ -14,7 +14,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{CapEnd, ContactClass, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save};
+use editor_core::{
+    BooleanCoincidence, CapEnd, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save,
+};
 use geom_core::Tol;
 
 use crate::fixture;
@@ -33,10 +35,10 @@ fn a_declaration_round_trips_carrying_its_class() {
         panic!("the Declare node survives the round trip");
     };
     assert_eq!(pairs.len(), 2);
-    assert_eq!(pairs[0].1, ContactClass::Rest);
+    assert_eq!(pairs[0].1, BooleanCoincidence::REST);
     assert_eq!(
         pairs[1].1,
-        ContactClass::Tangent,
+        BooleanCoincidence::TANGENT,
         "the class is persisted per pair, not defaulted on read"
     );
 }
@@ -60,7 +62,8 @@ fn an_unknown_class_spelling_refuses_typed() {
     // assertion, not message sniffing; the fuller phrase keeps a short
     // word from matching by accident.
     assert!(
-        err.to_string().contains("unknown contact class 'fit'"),
+        err.to_string()
+            .contains("unknown declared coincidence 'fit'"),
         "the refusal names the spelling it could not read: {err}"
     );
 }
@@ -78,17 +81,19 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
         pairs: vec![
             (
                 (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
-                ContactClass::Rest,
+                BooleanCoincidence::REST,
             ),
             (
                 (cap(a, CapEnd::Start), cap(b, CapEnd::End)),
-                ContactClass::Tangent,
+                BooleanCoincidence::TANGENT,
             ),
         ],
     };
     let applied = doc
         .apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )

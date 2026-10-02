@@ -19,11 +19,10 @@ use std::sync::Arc;
 
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
-    EditError, EvalOptions, Frame, FrameFault, Lever, LeverRefusal, LoggedEdit, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult,
-    PASS_A_RESOLVER, PartFault, PartReach, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId,
-    Recourse, ResolveFault, SplitError, content_pin, mate_reach, product, split,
+    Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
+    Frame, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, Node,
+    NodeErrorKind, NodeResult, PartFault, PartReach, ProfileDoc, ReachRefusal, RecipeNodeId,
+    ResolveFault, SplitError, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -54,6 +53,45 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
         },
     );
     doc
+}
+
+/// `part` (a [`box_part`]) re-valued in place: its square's half-width
+/// and its extrude's height edited, every id kept — a later version of
+/// the same document.
+fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
+    let profile = part
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(part.node(id), Some(Node::Profile(_))))
+        .expect("a box part has one profile");
+    let Some(Node::Profile(program)) = part.node(profile) else {
+        unreachable!("found as a profile")
+    };
+    let ids = program
+        .ids
+        .iter()
+        .map(|lp| lp.iter().copied().map(Some).collect())
+        .collect();
+    let loops = fixture::desc(program.plane, vec![fixture::square(0.0, 0.0, half)]).loops;
+    let body = body_node(&part);
+    let (part, _) = fixture::step(
+        part,
+        DocEdit::SetProgram {
+            node: profile,
+            loops,
+            ids,
+        },
+    );
+    let (part, _) = fixture::step(
+        part,
+        DocEdit::SetParam {
+            node: body,
+            slot: editor_core::SlotId::Distance,
+            expr: len(height),
+        },
+    );
+    part
 }
 
 /// A cylinder part: a rectangle `radius × height` in the xy plane,
@@ -596,16 +634,12 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
 #[test]
 fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     let theta = 1e-8;
-    // Two versions of ONE part document: the same id, so the
-    // reference can be re-pinned in place; different extents.
+    // Two versions of ONE part document, the later a value edit of the
+    // earlier: the same ids, so the reference can be re-pinned in
+    // place; different extents.
     let small = box_part("msolve6-a5-memo-part", 0.005, 0.01);
     let body = body_node(&small);
-    let large = box_part("msolve6-a5-memo-part", 5.0, 10.0);
-    assert_eq!(
-        body_node(&large),
-        body,
-        "the re-pinned part keeps its body's id"
-    );
+    let large = resized(small.clone(), 5.0, 10.0);
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -756,7 +790,7 @@ fn seated(
     [RecipeNodeId; 2],
     RecipeNodeId,
     EvalOptions,
-    Vec<editor_core::LoggedEdit<editor_core::ProfileProgram>>,
+    Vec<editor_core::DocEdit<editor_core::ProfileProgram>>,
     RecipeNodeId,
 ) {
     let (doc, ids, opts, body) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 0);
@@ -768,10 +802,7 @@ fn seated(
         let applied = doc
             .apply(&edit, Tol::witness(), &reach)
             .expect("the edit applies");
-        log.push(editor_core::LoggedEdit {
-            edit,
-            maintenance: applied.cluster_rows(),
-        });
+        log.push(edit);
         *doc = applied.doc;
         applied.record.minted
     };
@@ -787,38 +818,38 @@ fn seated(
     let a = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::instantiate_part(part_ref),
+            node: Box::new(Node::instantiate_part(part_ref)),
         },
     )
     .unwrap();
     let b = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::instantiate_part(part_ref),
+            node: Box::new(Node::instantiate_part(part_ref)),
         },
     )
     .unwrap();
     let mate = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: clocked(
+            node: Box::new(clocked(
                 (a, body),
                 (b, body),
                 coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
-            ),
+            )),
         },
     )
     .unwrap();
     (doc, [a, b], mate, opts, log, body)
 }
 
-/// **A mate-graph edit on a document whose part does not resolve
-/// refuses at the door**, carrying the solve's fault: deleting the
-/// mate moves the orphan's gauge, the maintenance solves the prior
-/// document for its pose, and the solve cannot lever a part it cannot
-/// reach — no verdict, so no frame is recorded.
+/// **A mate-graph edit is never refused for the placement it removes,
+/// and asks no store** (A11 (2)): no edit records a frame, so deleting
+/// a mate whose part does not resolve applies through the store's reach
+/// and through no resolver alike, and leaves the orphan where nothing
+/// places it — no row, no solve.
 #[test]
-fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
+fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
     let mut elsewhere = PartStore::new();
     let lost_part = box_part("msolve6-a6-elsewhere", 0.5, 1.0);
     let lost_body = body_node(&lost_part);
@@ -839,62 +870,41 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
         ),
     );
     let reach = mate_reach::<f64>(&opts, Tol::witness());
-    let err = doc
-        .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
-        .expect_err("the orphan's frame cannot be minted");
-    let editor_core::EditError::MaintenanceRefused { gauge, fault } = &err else {
-        panic!("expected MaintenanceRefused, got {err:?}");
-    };
-    assert_eq!(*gauge, lost);
-    assert!(
-        matches!(
-            fault.as_deref(),
-            Some(MateFault::Unleverable { refusal, .. }) if matches!(
-                refusal.as_ref(),
-                LeverRefusal::Reach {
-                    instance,
-                    refusal: ReachRefusal::PartUnresolved { .. },
-                    ..
-                } if *instance == lost
-            )
-        ),
-        "the resolver's own voice: {fault:?}"
-    );
-    // The same edit through no resolver at all: the same arm.
-    let err = doc
-        .apply(
+    for applied in [
+        doc.apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach),
+        doc.apply(
             &DocEdit::DeleteNode { id: mate },
             Tol::witness(),
             &editor_core::RefusingReach,
-        )
-        .expect_err("no resolver, no frame");
-    assert!(
-        matches!(err, editor_core::EditError::MaintenanceRefused { .. }),
-        "{err:?}"
-    );
+        ),
+    ] {
+        let applied = applied.expect("deleting a placing mate is never refused");
+        assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
+        assert!(
+            matches!(
+                applied.doc.node(ids[0]),
+                Some(Node::InstantiatePart { offset: None, .. })
+            ),
+            "the orphan — the side the mate moved — carries no offset the delete invented"
+        );
+    }
 }
 
-/// **An edit that moves no gauge never asks the reach for its
-/// maintenance**: on a mated document, a second mate (a Join — the
-/// survivor keeps its gauge) asks exactly what its OWN admission
-/// needs — the rider on its coincidence is decided over its two
-/// parts, once each — and a placement, an appearance, a declare and
-/// a fourth instance ask nothing more. An edit that moves a gauge
-/// asks exactly what the prior document's solve asks: `pairs × 2` —
-/// each mated pair asks both its parts' reach once, lazily, at its
-/// first mate — so on the three-instance chain `a–b`, `b–c` a Split
-/// (deleting the pair's mate) and a GaugeRewrite (deleting the gauge
-/// instance) each ask `2 × 2 = 4`.
+/// **Only a mate insert's rider asks the store**: on a mated document,
+/// a second mate asks exactly what its OWN admission needs — the rider
+/// on its coincidence is decided over its two parts, once each — and
+/// joins the third instance's group, clearing the offset of its first
+/// operand's group root (the mate door). An offset, an appearance, a declare, a fourth
+/// instance and every delete — the mate's, the root's — ask nothing:
+/// no edit records a frame, so none solves.
 #[test]
-fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
+fn a6_only_a_mate_inserts_rider_asks_the_store() {
     let (doc, [a, b], mate, opts, _log, body) = seated("msolve6-a6-preserving");
     let counting = Counting(
         core::cell::Cell::new(0),
         mate_reach::<f64>(&opts, Tol::witness()),
     );
     let tol = Tol::witness();
-    // A Join: a mate to a third instance, whose singleton cluster is
-    // absorbed by the pair's, gauge unchanged.
     let part_ref = match doc.node(a) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         _ => panic!("an instance"),
@@ -903,40 +913,37 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
     let applied = doc
         .apply(
             &DocEdit::InsertNode {
-                node: clocked(
+                node: Box::new(clocked(
                     (b, body),
                     (c, body),
                     coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
-                ),
+                )),
             },
             tol,
             &counting,
         )
-        .expect("a join asks nothing of the maintenance");
+        .expect("a joining mate inserts");
     assert!(
-        matches!(applied.cluster_rows()[..], [editor_core::ClusterMaintenance::Join { survived, absorbed, .. }] if survived == a && absorbed == c),
+        matches!(&applied.maintenance[..], [editor_core::Maintenance::OffsetCleared { instance, .. }] if instance.id() == b),
         "{:?}",
         applied.maintenance
     );
-    // The door's own admission asked for the rider's lever — the two
-    // mated parts, once each — and the maintenance for nothing.
     let admission = counting.0.get();
     assert_eq!(admission, 2, "the rider is decided over its two parts");
     let doc = applied.doc;
-    let applied = doc
+    let doc = doc
         .apply(
-            &DocEdit::SetPlacement {
-                node: a,
-                frame: editor_core::Frame::translation([0.0, 0.0, 3.0]),
+            &DocEdit::SetOffset {
+                instance: a,
+                offset: Some(editor_core::Placement::literal(
+                    &editor_core::Frame::translation([0.0, 0.0, 3.0]),
+                )),
             },
             tol,
             &counting,
         )
-        .expect("a placement asks nothing");
-    assert!(applied.maintenance.is_empty());
-    let doc = applied.doc;
-    // An appearance, a Declare, and a fourth instance: none touches
-    // the mate graph, so none asks.
+        .expect("an offset asks nothing")
+        .doc;
     let doc = doc
         .apply(
             &DocEdit::SetAppearance {
@@ -951,7 +958,7 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::declare_rest(Vec::new()),
+                node: Box::new(Node::declare_rest(Vec::new())),
             },
             tol,
             &counting,
@@ -961,318 +968,57 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::instantiate_part(part_ref),
+                node: Box::new(Node::instantiate_part(part_ref)),
             },
             tol,
             &counting,
         )
         .expect("a fourth instance asks nothing")
         .doc;
-    assert_eq!(
-        counting.0.get(),
-        admission,
-        "no gauge moved, so the maintenance never consulted the store"
-    );
-    // Deleting the pair's mate splits the cluster: the prior
-    // document's solve asks the chain's two pairs for their two parts
-    // each, and nothing else.
-    let pairs = 2;
-    let split = doc
-        .apply(&DocEdit::DeleteNode { id: mate }, tol, &counting)
-        .expect("a split solves through the store");
-    assert!(
-        matches!(split.cluster_rows()[..], [ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b),
-        "{:?}",
-        split.maintenance
-    );
-    assert_eq!(
-        counting.0.get(),
-        admission + pairs * 2,
-        "asks = pairs × 2 parts"
-    );
-    // Deleting the gauge instance rewrites the gauge: the same prior
-    // solve, the same asks.
-    let rewrite = doc
-        .apply(&DocEdit::DeleteNode { id: a }, tol, &counting)
-        .expect("a gauge rewrite solves through the store");
-    assert!(
-        rewrite
-            .cluster_rows()
-            .iter()
-            .any(|act| matches!(act, ClusterMaintenance::GaugeRewrite { from, to, .. } if *from == a && *to == b)),
-        "{:?}",
-        rewrite.maintenance
-    );
-    assert_eq!(
-        counting.0.get(),
-        admission + 2 * pairs * 2,
-        "asks = pairs × 2 parts, again"
-    );
+    for id in [mate, a] {
+        let applied = doc
+            .apply(&DocEdit::DeleteNode { id }, tol, &counting)
+            .expect("a delete is never refused for the placement it removes");
+        assert!(
+            applied.maintenance.iter().all(|row| matches!(
+                row,
+                editor_core::Maintenance::Strand { .. }
+                    | editor_core::Maintenance::StrandedAppearance { .. }
+            )),
+            "a delete reports what it stranded and records no frame: {:?}",
+            applied.maintenance
+        );
+    }
+    assert_eq!(counting.0.get(), admission, "nothing but the rider asked");
 }
 
-/// **A saved document with a split replays bit-identically from its
-/// recorded rows with no store**: the delete's `Split` row carries the
-/// minted frame; `load` re-applies it and never solves.
+/// **A saved document with a split replays bit-identically with no
+/// store**: the log is its edits, and replay re-applies them without
+/// solving — the orphan is unplaced, not re-minted.
 #[test]
 fn a6_a_saved_split_replays_bit_identically_with_no_store() {
     let (doc, [a, b], mate, opts, mut log, _) = seated("msolve6-a6-replay");
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
-        .expect("the store's reach places the orphan");
-    let split = applied.cluster_rows();
-    assert!(
-        matches!(split[..], [editor_core::ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b),
-        "the orphan's frame is minted from the solved pose: {split:?}"
-    );
-    log.push(editor_core::LoggedEdit {
-        edit: DocEdit::DeleteNode { id: mate },
-        maintenance: split,
-    });
-    let live = applied.doc;
-    assert!(live.placements().contains_key(&b), "the orphan has a row");
-    // The file: an empty snapshot and the whole log, rows included.
-    let empty = ProfileDoc::empty(live.id(), Tol::witness());
-    let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
-    // The wire shape, read as a value: EVERY entry is `{edit,
-    // maintenance}`, both keys present. One that performed no
-    // maintenance (the two instance inserts) carries an empty list;
-    // one that did (the mate insert's Join, the delete's Split)
-    // carries exactly its rows. There is no second, bare shape.
-    let (header, body) = text.split_once('\n').expect("a header line");
-    let value: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let entries = value["edits"].as_array().expect("an edit log");
-    assert_eq!(entries.len(), log.len());
-    let mut empty = 0;
-    for (entry, logged) in entries.iter().zip(&log) {
-        let keys: Vec<&String> = entry
-            .as_object()
-            .expect("an entry is an object")
-            .keys()
-            .collect();
-        assert_eq!(
-            keys,
-            ["edit", "maintenance"],
-            "one shape for every entry: {entry}"
-        );
-        assert_eq!(
-            entry["maintenance"].as_array().map(Vec::len),
-            Some(logged.maintenance.len()),
-            "{entry}"
-        );
-        if logged.maintenance.is_empty() {
-            empty += 1;
-        }
-    }
-    assert_eq!(empty, 2, "the two instance inserts moved no cluster");
-    // Every wire type refuses a field it does not know, a log entry
-    // included.
-    let mut tampered = value.clone();
-    tampered["edits"][entries.len() - 1]["extra"] = serde_json::json!(1);
-    let tampered = format!(
-        "{header}\n{}\n",
-        serde_json::to_string_pretty(&tampered).expect("re-serializes")
-    );
-    assert!(
-        matches!(
-            editor_core::load(&tampered, Tol::witness()),
-            Err(PersistError::Unreadable { .. })
-        ),
-        "an unknown field on an entry refuses"
-    );
-    let loaded = editor_core::load(&text, Tol::witness()).expect("loads with no store");
-    assert_eq!(
-        loaded.doc.placements(),
-        live.placements(),
-        "the registry replays bit for bit"
-    );
-    assert!(loaded.doc.bit_eq(&live), "and so does the document");
-    let replayed = ProfileDoc::replay(live.id(), &log, Tol::witness()).expect("replays");
-    assert_eq!(replayed.placements(), live.placements());
-}
-
-/// **A recorded row's frame is held to the placement door's rule at
-/// load**: the log's rows re-enter the registry at replay without
-/// passing `SetPlacement`, so a split row hand-edited into a
-/// REFLECTION (an improper frame, determinant −1) refuses typed at
-/// load naming the entry and the row, exactly as `save` refuses the
-/// same log — never a mirror loaded into the registry that the door
-/// would have refused.
-#[test]
-fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
-    let (doc, [a, b], mate, opts, mut log, _) = seated("msolve6-a6-mirror");
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
-    let applied = doc
-        .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
         .expect("the delete applies");
-    let index = log.len();
-    log.push(LoggedEdit {
-        edit: DocEdit::DeleteNode { id: mate },
-        maintenance: applied.cluster_rows(),
-    });
+    log.push(DocEdit::DeleteNode { id: mate });
     let live = applied.doc;
     let empty = ProfileDoc::empty(live.id(), Tol::witness());
     let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
-    assert!(editor_core::load(&text, Tol::witness()).is_ok());
-    // The tamper: the split row's frame, mirrored across x.
-    let mirror = Frame {
-        columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation: [0.0, 0.0, 0.0],
-    };
-    let (header, body) = text.split_once('\n').expect("a header line");
-    let mut value: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let row = &mut value["edits"][index]["maintenance"][0]["Split"]["frame"];
-    assert!(row.is_object(), "the split row carries a frame: {row}");
-    *row = serde_json::to_value(mirror).expect("a frame serializes");
-    let tampered = format!(
-        "{header}\n{}\n",
-        serde_json::to_string_pretty(&value).expect("re-serializes")
-    );
-    let err =
-        editor_core::load(&tampered, Tol::witness()).expect_err("a mirror is not a placement");
-    assert_eq!(
-        err,
-        PersistError::MaintenanceFrame {
-            index,
-            row: 0,
-            fault: FrameFault::Improper { determinant: -1.0 },
-        }
-    );
-    // The same log, through the save door: the shared validator.
-    let mut mirrored = log.clone();
-    mirrored[index].maintenance = vec![ClusterMaintenance::Split {
-        from: a,
-        to: b,
-        frame: Some(mirror),
-    }];
-    assert_eq!(
-        editor_core::save(&empty, &mirrored, Tol::witness()).expect_err("save refuses the same"),
-        err
-    );
-    // And the door the rule is borrowed from says the same of it.
-    assert!(matches!(
-        live.apply(
-            &DocEdit::SetPlacement {
-                node: b,
-                frame: mirror
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach
-        ),
-        Err(EditError::ImproperPlacement { node, determinant, .. }) if node == b && determinant == -1.0
-    ));
-}
-
-/// **A log entry that claims no maintenance its edit performed refuses
-/// typed at load, and the bare pre-rows shape is not a format.**
-///
-/// Replay performs exactly an entry's rows, so an entry whose
-/// `maintenance` is empty while its edit performs any refuses
-/// `MaintenanceUnrecorded` — both kinds: a row that needs a solved
-/// frame (the delete's, which moves a gauge), because replay never
-/// solves; and a row replay could derive from the documents alone (the
-/// mate insert's `Join`), because re-deriving it would give the log two
-/// answers to what the edit did. A log in the bare shape — each entry
-/// the edit itself, as files from before the rows existed carried — is
-/// not read at all: it refuses `Unreadable` at the entry's first key,
-/// instead of loading as a log of entries that performed nothing.
-#[test]
-fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_a_format() {
-    let (doc, [_a, b], mate, opts, mut log, _) = seated("msolve6-a6-dropped-rows");
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
-    let applied = doc
-        .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
-        .expect("the delete applies");
-    let rows = applied.cluster_rows();
-    assert!(!rows.is_empty(), "the delete moved a gauge, so it has rows");
-    log.push(editor_core::LoggedEdit {
-        edit: DocEdit::DeleteNode { id: mate },
-        maintenance: rows,
-    });
-    let live = applied.doc;
-    let empty = ProfileDoc::empty(live.id(), Tol::witness());
-    let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
-    let (header, body) = text.split_once('\n').expect("a header line");
-    let value: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let index = value["edits"].as_array().expect("an edit log").len() - 1;
-    let reemit = |v: &serde_json::Value| {
-        format!(
-            "{header}\n{}\n",
-            serde_json::to_string_pretty(v).expect("re-serializes")
-        )
-    };
-
-    // The mate insert's join emptied: a row the documents alone would
-    // derive, and still refused rather than re-derived.
-    let join = 2;
-    assert!(
-        matches!(
-            log[join].maintenance.as_slice(),
-            [ClusterMaintenance::Join { absorbed, .. }] if *absorbed == b
-        ),
-        "the mate insert joined b's cluster: {:?}",
-        log[join].maintenance
-    );
-    let mut joined = value.clone();
-    joined["edits"][join]["maintenance"] = serde_json::json!([]);
-    let err = editor_core::load(&reemit(&joined), Tol::witness()).expect_err("a join with no rows");
-    assert!(
-        matches!(
-            &err,
-            editor_core::PersistError::EditReplay {
-                index: i,
-                error: editor_core::EditError::MaintenanceUnrecorded { gauge }
-            } if *i == join && *gauge == b
-        ),
-        "{err:?}"
-    );
-
-    // The delete's rows emptied, shape intact.
-    let mut dropped = value.clone();
-    dropped["edits"][index]["maintenance"] = serde_json::json!([]);
-    let err = editor_core::load(&reemit(&dropped), Tol::witness())
-        .expect_err("a moved gauge with no rows");
-    assert!(
-        matches!(
-            &err,
-            editor_core::PersistError::EditReplay {
-                index: i,
-                error: editor_core::EditError::MaintenanceUnrecorded { gauge }
-            } if *i == index && *gauge == b
-        ),
-        "{err:?}"
-    );
-
-    // Every entry replaced by its bare edit: the shape files from before
-    // the rows carried. Not a format this build reads — refused at the
-    // first entry's edit tag, read as a field `LoggedEdit` does not have.
-    let mut bare = value.clone();
-    for entry in bare["edits"].as_array_mut().expect("an edit log") {
-        let edit = entry
-            .get("edit")
-            .cloned()
-            .expect("every saved entry carries its edit");
-        *entry = edit;
-    }
-    let bare = reemit(&bare);
-    assert!(
-        !bare.contains("\"maintenance\""),
-        "the tamper removed every row list"
-    );
-    let err = editor_core::load(&bare, Tol::witness()).expect_err("a bare entry");
-    assert!(
-        matches!(
-            &err,
-            editor_core::PersistError::Unreadable { detail, .. }
-                if detail.contains("unknown field `InsertNode`")
-        ),
-        "a bare entry is not a log entry: {err:?}"
-    );
-
-    // And the file as written loads with no store in hand.
     let loaded = editor_core::load(&text, Tol::witness()).expect("loads with no store");
-    assert_eq!(loaded.doc.placements(), live.placements());
+    assert!(loaded.doc.bit_eq(&live), "the document replays bit for bit");
     assert_eq!(loaded.edits, log, "the log comes back as saved");
+    let replayed = ProfileDoc::replay(live.id(), &log, Tol::witness()).expect("replays");
+    assert!(replayed.bit_eq(&live));
+    assert!(
+        matches!(
+            live.node(a),
+            Some(Node::InstantiatePart { offset: None, .. })
+        ),
+        "the moved root's offset was cleared at the mate and stays cleared"
+    );
+    let _ = b;
 }
 
 /// **C5, the checked-in corpus**: every TRACKED `.pncad` (git's
@@ -1478,16 +1224,6 @@ fn true_reach(body: &topo::Body<f64>) -> (f64, usize) {
     (best, circles)
 }
 
-fn coaxial(fa: MateFrame, fb: MateFrame) -> Alignment {
-    Alignment {
-        a: fa,
-        b: fb,
-        primitive: MatePrimitive::Coaxial,
-        sense: AxisSense::Aligned,
-        clocking: Some(0.0),
-    }
-}
-
 /// **The reach bounds the TRUE maximum over every fixture part** —
 /// boxes at three scales, the unit block, two cylinders — measured
 /// against the rims themselves (line ends exactly, circles sampled),
@@ -1561,121 +1297,10 @@ fn a2_the_reach_fold_propagates_a_poisoned_face_rather_than_dropping_it() {
     );
 }
 
-/// Three instances of one box, `a` placed at a translation so the
-/// orphan's inherited frame is recognisable.
-fn trio(
-    label: &str,
-) -> (
-    ProfileDoc,
-    [RecipeNodeId; 3],
-    EvalOptions,
-    Frame,
-    RecipeNodeId,
-) {
-    let (doc, ids, opts, body) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 3);
-    let f_a = Frame::translation([1.0, 2.0, 3.0]);
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: f_a,
-        },
-    );
-    (doc, [ids[0], ids[1], ids[2]], opts, f_a, body)
-}
-
-/// **A contradictory prior records the split with the cluster's
-/// frame**: the prior solve DECIDED the cluster has no pose, so
-/// deleting the mate — the recourse the refusal names — splits the
-/// orphan off carrying the cluster's recorded frame, not a re-solved
-/// pose and not a refusal.
-#[test]
-fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
-    let (doc, [a, b, c], opts, f_a, body) = trio("msolve6-p3a");
-    let (doc, _m1) = mated(
-        doc,
-        &opts,
-        clocked(
-            (a, body),
-            (b, body),
-            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
-        ),
-    );
-    // A contradiction against ANOTHER mate is the pair's verdict, not
-    // the mate's own: the door admits it and the solve refuses it.
-    let (doc, _m2) = mated(
-        doc,
-        &opts,
-        clocked(
-            (a, body),
-            (b, body),
-            coincidence(frame([0.0, 0.0, 2.0]), frame([0.0; 3]), 0.0),
-        ),
-    );
-    let (doc, m3) = mated(
-        doc,
-        &opts,
-        clocked(
-            (b, body),
-            (c, body),
-            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
-        ),
-    );
-    let poses = solve(&doc, &opts, Tol::witness());
-    assert!(matches!(
-        poses.fault(c),
-        Some(MateFault::Contradictory { .. })
-    ));
-    assert_eq!(poses.relative(c), None);
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
-    let applied = doc
-        .apply(&DocEdit::DeleteNode { id: m3 }, Tol::witness(), &reach)
-        .expect("deleting a mate of a contradictory cluster is its recourse");
-    assert_eq!(
-        applied.cluster_rows(),
-        vec![ClusterMaintenance::Split {
-            from: a,
-            to: c,
-            frame: Some(f_a)
-        }]
-    );
-    assert!(applied.doc.placements()[&c].bit_eq(&f_a));
-}
-
-/// **An under-determined prior records the split with the cluster's
-/// frame** — the same recourse, the same row.
-#[test]
-fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
-    let (doc, [a, b, _c], opts, f_a, body) = trio("msolve6-p3b");
-    let (doc, m) = insert(
-        doc,
-        clocked(
-            (a, body),
-            (b, body),
-            coaxial(frame([0.0; 3]), frame([0.0; 3])),
-        ),
-    );
-    let poses = solve(&doc, &opts, Tol::witness());
-    assert!(matches!(poses.fault(b), Some(MateFault::Under { .. })));
-    let reach = mate_reach::<f64>(&opts, Tol::witness());
-    let applied = doc
-        .apply(&DocEdit::DeleteNode { id: m }, Tol::witness(), &reach)
-        .expect("deleting an under-determined mate is its recourse");
-    assert_eq!(
-        applied.cluster_rows(),
-        vec![ClusterMaintenance::Split {
-            from: a,
-            to: b,
-            frame: Some(f_a)
-        }]
-    );
-}
-
-/// **An indeterminate prior refuses the edit typed**: a tilt priced
-/// inside the band leaves the solve with NO verdict, so an edit that
-/// moves that cluster's gauge refuses carrying the fault — and the
-/// same edit through the refusing reach refuses `Unleverable` in the
-/// resolver's voice.
+/// **An indeterminate group's mate deletes like any other**: a tilt
+/// priced inside the band leaves the solve with NO verdict, and the
+/// delete of a mate in that group neither asks for one nor refuses —
+/// no edit records a frame.
 ///
 /// The rider is decided at the door over the parts as they are when
 /// the mate is authored, so an in-band rider cannot be inserted: it
@@ -1684,15 +1309,10 @@ fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
 /// document under which the tilt lands in the band — the road a
 /// verdict moves by after insert (the memo row's).
 #[test]
-fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
+fn a6_an_indeterminate_groups_mate_deletes_like_any_other() {
     let small = box_part("msolve6-p3c-part", 0.005, 0.01);
     let body = body_node(&small);
-    let large = box_part("msolve6-p3c-part", 5.0, 10.0);
-    assert_eq!(
-        body_node(&large),
-        body,
-        "the re-pinned part keeps its body's id"
-    );
+    let large = resized(small.clone(), 5.0, 10.0);
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -1706,9 +1326,11 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     let (doc, c) = insert(doc, Node::instantiate_part(small_ref));
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: a,
-            frame: Frame::translation([1.0, 2.0, 3.0]),
+        DocEdit::SetOffset {
+            instance: a,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 2.0, 3.0,
+            ]))),
         },
     );
     let band = Band::linear(Tol::witness()).expect("band");
@@ -1764,80 +1386,30 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
         Some(MateFault::Indeterminate { .. })
     ));
     let reach = mate_reach::<f64>(&opts_large, Tol::witness());
-    let err = doc
-        .apply(&DocEdit::DeleteNode { id: m2 }, Tol::witness(), &reach)
-        .expect_err("no verdict, no frame");
-    assert!(matches!(
-        &err,
-        EditError::MaintenanceRefused { gauge, fault: Some(f) }
-            if *gauge == c && matches!(**f, MateFault::Indeterminate { .. })
-    ));
-    let err = doc
-        .apply(
+    for applied in [
+        doc.apply(&DocEdit::DeleteNode { id: m2 }, Tol::witness(), &reach),
+        doc.apply(
             &DocEdit::DeleteNode { id: m2 },
             Tol::witness(),
             &editor_core::RefusingReach,
-        )
-        .expect_err("no parts, no frame");
-    assert!(matches!(
-        &err,
-        EditError::MaintenanceRefused { gauge, fault: Some(f) }
-            if *gauge == c && matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
-                refusal.as_ref(),
-                LeverRefusal::Reach {
-                    refusal: ReachRefusal::PartUnresolved { fault: PartFault::NoResolver },
-                    ..
-                }
-            ))
-    ));
+        ),
+    ] {
+        let applied = applied.expect("deleting a mate is never refused");
+        assert!(applied.maintenance.is_empty());
+    }
 }
 
-/// **A logged edit has one wire shape, and its rows round-trip**: an
-/// entry with no rows and an entry with rows both carry `edit` and
-/// `maintenance`, and each reads back equal. The bare edit is refused
-/// as an entry.
+/// **A whole-group split levers its mate through the caller's
+/// resolver**: the part is built by inserting the cut, and the cut
+/// mate's clocking rider is decided over its two parts at that insert,
+/// so with no resolver the split refuses typed at the part side, in the
+/// resolver's own voice — never a rider nothing decided. The remainder
+/// inserts no mate and asks nothing.
 #[test]
-fn a6_a_logged_edit_has_one_wire_shape_and_its_rows_round_trip() {
-    let edit = DocEdit::<editor_core::ProfileProgram>::SetPlacement {
-        node: RecipeNodeId(0),
-        frame: Frame::translation([1.0, 2.0, 3.0]),
-    };
-    let shape = |text: &str| -> Vec<String> {
-        let value: serde_json::Value = serde_json::from_str(text).unwrap();
-        value.as_object().unwrap().keys().cloned().collect()
-    };
-    let none = serde_json::to_string(&LoggedEdit::bare(edit.clone())).unwrap();
-    assert_eq!(shape(&none), ["edit", "maintenance"], "{none}");
-    let back: LoggedEdit<editor_core::ProfileProgram> = serde_json::from_str(&none).unwrap();
-    assert_eq!(back, LoggedEdit::bare(edit.clone()));
-    let bare_edit = serde_json::to_string(&edit).unwrap();
-    assert!(
-        serde_json::from_str::<LoggedEdit<editor_core::ProfileProgram>>(&bare_edit).is_err(),
-        "the edit alone is not an entry: {bare_edit}"
-    );
-    let with = LoggedEdit {
-        edit,
-        maintenance: vec![ClusterMaintenance::Split {
-            from: RecipeNodeId(0),
-            to: RecipeNodeId(1),
-            frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-        }],
-    };
-    let text = serde_json::to_string(&with).unwrap();
-    assert_eq!(shape(&text), ["edit", "maintenance"]);
-    let back: LoggedEdit<editor_core::ProfileProgram> = serde_json::from_str(&text).unwrap();
-    assert_eq!(back, with);
-}
-
-/// **A whole-group split levers through the part it is minting**
-/// (the `WithPart` resolver composed with the caller's), and with no
-/// resolver at all refuses typed — `Unresolved` on the new instance,
-/// in the resolver's own voice, never a frame nothing decided.
-#[test]
-fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolver() {
+fn a6_a_split_levers_its_mate_through_the_callers_resolver() {
     let (doc, ids, opts, body) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
     let [a, b] = [ids[0], ids[1]];
-    let (doc, _m) = mated(
+    let (doc, m) = mated(
         doc,
         &opts,
         clocked(
@@ -1846,7 +1418,7 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
-    let cut = [a, b].into_iter().collect();
+    let cut = [a, b, m].into_iter().collect();
     split(
         &doc,
         &cut,
@@ -1854,7 +1426,7 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         Tol::witness(),
         opts.resolver.as_ref(),
     )
-    .expect("a whole-group cut splits through the part in hand");
+    .expect("a whole-group cut splits through the caller's resolver");
     let none = split(
         &doc,
         &cut,
@@ -1862,40 +1434,24 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         Tol::witness(),
         None,
     );
-    // The sentence states the split's own recourse — the resolver the
-    // call was not given — once.
-    let text = none
-        .as_ref()
-        .err()
-        .map(ToString::to_string)
-        .unwrap_or_default();
-    assert!(
-        text.contains("the split was given no resolver")
-            && text.contains(&Recourse(PASS_A_RESOLVER).to_string())
-            && text.matches("Recourse:").count() == 1,
-        "the split's recourse: {text}"
-    );
     match none {
-        Err(SplitError::RemainderEdit { error }) => assert!(
+        Err(SplitError::PartEdit { error }) => assert!(
             matches!(
                 *error,
-                EditError::MaintenanceRefused { fault: Some(ref f), .. }
-                    if matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
+                EditError::MateRefused { ref fault, .. }
+                    if matches!(&**fault, MateFault::Unleverable { refusal, .. } if matches!(
                         refusal.as_ref(),
                         LeverRefusal::Reach {
                             refusal: ReachRefusal::PartUnresolved {
-                                fault: PartFault::Unresolved {
-                                    fault: ResolveFault::Unresolved,
-                                    ..
-                                },
+                                fault: PartFault::NoResolver,
                             },
                             ..
                         }
                     ))
             ),
-            "typed Unresolved expected, got {error:?}"
+            "typed NoResolver expected, got {error:?}"
         ),
-        other => panic!("a no-resolver split refuses its remainder edit, got {other:?}"),
+        other => panic!("a no-resolver split refuses its part-side mate, got {other:?}"),
     }
 }
 

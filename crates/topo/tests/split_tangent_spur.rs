@@ -16,15 +16,18 @@
 
 use geom_core::{Point3, Tol, Vec3};
 use topo::test_support::brick;
-use topo::{Body, SplitError, SplitJoinError, SplitPlane, plane_section, split, union};
+use topo::{
+    Body, SectionError, SplitError, SplitJoinError, SplitPlane, plane_section, split, union,
+};
 
 /// The plane y + z = 2, normal (0, s·h, s·h).
 fn tangent_plane(s: f64) -> SplitPlane<f64> {
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    SplitPlane {
-        origin: Point3::new(0.0, 1.0, 1.0),
-        normal: Vec3::new(0.0, s * h, s * h),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 1.0),
+        Vec3::new(0.0, s * h, s * h),
+        geom_core::Tol::witness(),
+    )
 }
 
 fn unite(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
@@ -38,6 +41,14 @@ fn unite(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 fn block() -> Body<f64> {
     brick::<f64>((0.0, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness())
+}
+
+/// `plane_section`'s refusal, which must be the split stages' own.
+fn stages<T>(label: &str, r: Result<T, SectionError<f64>>) -> Result<T, SplitError> {
+    r.map_err(|e| match e {
+        SectionError::Split(e) => e,
+        e => panic!("{label}: {e:?}"),
+    })
 }
 
 /// Which join refusal a result carries, by name.
@@ -62,7 +73,10 @@ fn a_tangent_contact_standing_alone_refuses_on_area() {
     ] {
         let r = split(&body, &tangent_plane(1.0), Tol::witness());
         assert_eq!(refusal(label, r), "area", "{label}");
-        let r = plane_section(&body, &tangent_plane(1.0), Tol::witness());
+        let r = stages(
+            label,
+            plane_section(&body, &tangent_plane(1.0), Tol::witness()),
+        );
         assert_eq!(refusal(label, r), "area", "{label}");
     }
 }
@@ -87,9 +101,15 @@ fn a_tangent_contact_meeting_a_real_section_stays_refused() {
         assert_eq!(refusal(label, r), "area", "{label}: split, +n");
         let r = split(&body, &tangent_plane(-1.0), Tol::witness());
         assert_eq!(refusal(label, r), "spur", "{label}: split, −n");
-        let r = plane_section(&body, &tangent_plane(1.0), Tol::witness());
+        let r = stages(
+            label,
+            plane_section(&body, &tangent_plane(1.0), Tol::witness()),
+        );
         assert_eq!(refusal(label, r), "area", "{label}: section, +n");
-        let r = plane_section(&body, &tangent_plane(-1.0), Tol::witness());
+        let r = stages(
+            label,
+            plane_section(&body, &tangent_plane(-1.0), Tol::witness()),
+        );
         assert_eq!(refusal(label, r), "spur", "{label}: section, −n");
     }
 }

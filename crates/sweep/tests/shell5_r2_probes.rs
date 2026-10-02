@@ -40,7 +40,7 @@ fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
                 let start = body.get_half_edge(he).expect("a half-edge").start;
                 let vertex = body.get_vertex(start).expect("a vertex");
                 let pt = *body.get_point(vertex.point).expect("a point");
-                for (i, c) in [pt.x, pt.y, pt.z].into_iter().enumerate() {
+                for (i, c) in pt.to_array().into_iter().enumerate() {
                     out[i].0 = out[i].0.min(c);
                     out[i].1 = out[i].1.max(c);
                 }
@@ -210,7 +210,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
             })
             .collect(),
     };
-    topo::boolean::insert_void(&mut body, solid, cavity, &evidence, tol).expect("the void grafts");
+    topo::boolean::insert_void(&mut body, solid, cavity, &evidence).expect("the void grafts");
     assert_eq!(body.solids().count(), 1);
     assert_eq!(body.shells().count(), 2, "outer plus one cylindrical void");
 

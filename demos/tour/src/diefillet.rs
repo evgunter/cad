@@ -44,9 +44,7 @@
 // is exactly the shape a GUI form has, where the draft is canonical
 // whatever the picker shows.
 
-use core::f64::consts::PI;
-
-use pncad::document::{BooleanOp, BooleanValue, LoggedEdit, RefusingReach, save};
+use pncad::document::{BooleanOp, BooleanValue, RefusingReach, save};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
     EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
@@ -192,8 +190,15 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }
@@ -445,16 +450,6 @@ fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
     }
 }
 
-/// The blank's closed-form volume: core + 6 slabs + 12
-/// quarter-cylinders + 8 octants (which sum to one whole ball).
-fn blank_volume() -> f64 {
-    let core = L - 2.0 * R;
-    core.powi(3)
-        + 6.0 * R * core.powi(2)
-        + 12.0 * (PI * R * R / 4.0) * core
-        + (4.0 / 3.0) * PI * R.powi(3)
-}
-
 /// The document label [`build`] authors under, and therefore the
 /// identity the exported save file replays from.
 const DOC_LABEL: &str = "die";
@@ -507,7 +502,9 @@ pub fn corpus_text(tol: Tol) -> String {
             if let Node::Profile(program) = &mut node {
                 program.ids = Vec::new();
             }
-            DocEdit::InsertNode { node }
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            }
         })
         .collect();
     edits.push(DocEdit::DeleteNode { id: die.blank });
@@ -537,7 +534,7 @@ pub fn corpus_text(tol: Tol) -> String {
         gallery_document(tol),
         "the derived log must reproduce the document this scene publishes"
     );
-    save(&empty, &LoggedEdit::bare_all(&edits), tol).expect("the die document saves")
+    save(&empty, &edits, tol).expect("the die document saves")
 }
 
 /// This scene's recipe, as a document the GUI can open — **the
@@ -618,7 +615,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     let blank = body_at(&ev, die.blank);
     let vol = pncad::topo::mass_properties(&blank, tol).unwrap().volume;
-    let want = blank_volume();
+    let want = crate::oracles::rounded_box_volume([L; 3], R);
     assert!(
         (vol - want).abs() < 1e-9 * want,
         "the blank's volume is a closed form: {vol} vs {want}"

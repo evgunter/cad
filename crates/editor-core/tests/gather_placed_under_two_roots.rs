@@ -87,8 +87,12 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     assert_eq!(err.kind(), ProductErrorKind::PlacedUnderTwoRoots);
     let message = err.to_string();
     for needle in [
-        format!("node {:012x}'s body", extrude.0),
-        format!("two roots, {:012x} and {:012x}", t1.0, t2.0),
+        format!("node {}'s body", test_utils::refusal::tag(extrude.0)),
+        format!(
+            "two roots, node {} and node {}",
+            test_utils::refusal::tag(t1.0),
+            test_utils::refusal::tag(t2.0)
+        ),
     ] {
         assert!(
             message.contains(&needle),
@@ -179,8 +183,10 @@ fn one_half_under_two_roots_refuses_naming_the_half() {
     let ev = run(&doc);
     let err = product(&doc, &ev, Tol::witness()).expect_err("one half under two roots");
     assert!(
-        err.to_string()
-            .contains(&format!("the above half of node {:012x}", split.0)),
+        err.to_string().contains(&format!(
+            "the above half of node {}",
+            test_utils::refusal::tag(split.0)
+        )),
         "{err}"
     );
     assert_eq!(
@@ -255,8 +261,10 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
     let ev = run(&doc);
     let err = product(&doc, &ev, Tol::witness()).expect_err("instance 000000000001 twice");
     assert!(
-        err.to_string()
-            .contains(&format!("instance `1` of node {:012x}", pattern.0)),
+        err.to_string().contains(&format!(
+            "instance `1` of node {}",
+            test_utils::refusal::tag(pattern.0)
+        )),
         "{err}"
     );
     assert_eq!(
@@ -392,10 +400,10 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
         let (doc, m) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     head_at(base, in_part(base, base_body, CapEnd::End)),
                     head_at(at, in_part(top, top_body, CapEnd::Start)),
-                ),
+                )),
             },
         );
         (doc, m.expect("the mate inserts"))

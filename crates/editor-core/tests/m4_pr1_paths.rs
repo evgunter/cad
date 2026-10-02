@@ -11,7 +11,7 @@ use geom_core::Tol;
 
 /// The opaque profile payload for tests: this crate never looks
 /// inside `P` (spec D1/D3 — PR 2 instantiates the real profile type).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
@@ -27,7 +27,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
     let a = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("square")),
+                node: Box::new(Node::Profile(FakeProfile("square"))),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -39,7 +39,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         .doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude { profile, distance },
+                node: Box::new(Node::Extrude { profile, distance }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -64,9 +64,9 @@ fn expr_path_survives_edits_to_other_expressions() {
     let c = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Datum(Datum::Point {
+                node: Box::new(Node::Datum(Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -139,7 +139,7 @@ fn recipe_node_ids_are_never_reused() {
     let a = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("p0")),
+                node: Box::new(Node::Profile(FakeProfile("p0"))),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -158,7 +158,7 @@ fn recipe_node_ids_are_never_reused() {
         .doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("p1")),
+                node: Box::new(Node::Profile(FakeProfile("p1"))),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -177,16 +177,21 @@ fn dangling_ref_rejected() {
     let err = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: ghost,
                     distance: len(0.01),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::UnresolvedInput { input: ghost });
+    assert_eq!(
+        err,
+        EditError::UnresolvedInput {
+            input: editor_core::SpokenNode::absent(ghost)
+        }
+    );
 }
 
 #[test]
@@ -194,20 +199,25 @@ fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let guessed = RecipeNodeId(0); // empty doc will mint 0 next
+    let guessed = RecipeNodeId(0); // no node holds it
     let err = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: guessed,
                     distance: len(0.01),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::UnresolvedInput { input: guessed });
+    assert_eq!(
+        err,
+        EditError::UnresolvedInput {
+            input: editor_core::SpokenNode::absent(guessed)
+        }
+    );
 }
 
 #[test]
@@ -223,8 +233,8 @@ fn delete_of_referenced_node_rejected() {
     assert_eq!(
         err,
         EditError::DeleteWouldDangle {
-            id: profile,
-            referenced_by: extrude
+            id: doc.spoken(profile),
+            referenced_by: doc.spoken(extrude)
         }
     );
 }
@@ -290,5 +300,12 @@ fn set_expression_path_off_tree_rejected() {
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::PathOffTree { path: bad });
+    assert_eq!(
+        err,
+        EditError::PathOffTree {
+            node: doc.spoken(extrude),
+            slot: bad.slot,
+            path: bad.path
+        }
+    );
 }

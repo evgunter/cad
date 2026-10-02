@@ -168,9 +168,9 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     let wall = |segment| StableName {
         kind: EntityKind::Face,
         node: *bar1,
-        path: vec![RoleSeg::Lateral(crate::fixture::piece(
-            &doc, *bar1, 0, segment,
-        ))],
+        path: vec![RoleSeg::Lateral(
+            crate::fixture::piece(&doc, *bar1, 0, segment).into(),
+        )],
     };
     let mut vanished = 0;
     for name in &names {
@@ -330,7 +330,7 @@ fn vanished_piece(ev1: &Evaluation<f64>, ev2: &Evaluation<f64>, cut: RecipeNodeI
 
 /// The reviewer's two-run chain. Last-good: `cut = a − X`, `X =
 /// Union[tr, P]`, `P = Union[c1, c2]`; `R`, an unrelated plate-with-
-/// bar, is built first (lowest id). The edit re-lists `X → [tr, c3]`
+/// bar, is built first. The edit re-lists `X → [tr, c3]`
 /// and `P → [c1, R]`, and slides `R`'s bar (a flip at `R`) and the
 /// cutter along y. `R` feeds `cut` in NEITHER run — only a walk that
 /// crosses from the old `X → P` edge to the new `P → R` edge reaches
@@ -373,9 +373,10 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     // The premises, each read per document.
     assert!(!ancestors_in(&doc, cut).contains(&r) && !ancestors_in(&doc2, cut).contains(&r));
     assert!(ancestors_in(&doc, cut).contains(&p) && !ancestors_in(&doc2, cut).contains(&p));
+    let at = |n| doc2.order().iter().position(|&m| m == n);
     assert!(
-        r < p,
-        "R is first in deterministic order: a walk reaching it reports it"
+        at(r) < at(p),
+        "R is first in document order: a walk reaching it reports it"
     );
     // Hand-built runs at the cut over those documents, R and P each
     // flipping: a name that mentions no partner, so only the scope
@@ -678,6 +679,8 @@ fn hand_eval(
     let recomputed = order.len();
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
+        unplaced_below: Default::default(),
         document: doc.id(),
         prior_refused: None,
         order,

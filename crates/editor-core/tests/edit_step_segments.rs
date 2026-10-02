@@ -105,7 +105,7 @@ fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
     let mut replay = Vec::new();
     for steps in &resolved {
         let (lp, record) = profile::replay_recording(steps, tol()).expect("the corpus replays");
-        loops.push(lp);
+        loops.push(lp.into_loop());
         replay.push(record);
     }
     let assembled = profile::Profile::new(SketchPlane::xy(), loops);
@@ -115,8 +115,8 @@ fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
         .map(|lp| {
             lp.vertices()
                 .iter()
-                .zip(lp.bulges())
-                .map(|(&v, &b)| (v, b))
+                .zip(lp.segments())
+                .map(|(&v, s)| (v, matches!(s, profile::Segment::Arc(_))))
                 .collect()
         })
         .collect();
@@ -156,9 +156,9 @@ fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
 struct Records {
     structure: ProfileStructure,
     steps: Vec<Vec<Step<f64>>>,
-    /// Per loop, per vertex: where it sits and the bulge of the segment
-    /// LEAVING it. Segment `k` leaves vertex `k`.
-    verts: Vec<Vec<(Point2<f64>, f64)>>,
+    /// Per loop, per vertex: where it sits and whether the segment
+    /// LEAVING it is stored as an arc. Segment `k` leaves vertex `k`.
+    verts: Vec<Vec<(Point2<f64>, bool)>>,
     /// Per program loop, the canonical loop it became.
     canonical_loop: Vec<u32>,
 }
@@ -273,7 +273,7 @@ fn lateral(
     e: CanonicalSegment,
 ) -> Option<FaceKey> {
     let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
-    let name = fixture::fname(node, RoleSeg::Lateral(piece));
+    let name = fixture::fname(node, RoleSeg::Lateral(piece.into()));
     match ev.value(node)?.name_table.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
@@ -917,16 +917,27 @@ fn a_loft_whose_outer_and_hole_start_off_their_lex_min_names_its_walls() {
 }
 
 /// **Memo: re-authoring a section re-derives its answer.** Section 1
-/// re-authored clockwise (the same point set) against a prior
-/// evaluation: its anchor changes, the loft is recomputed, and the door
-/// asked with the NEW section's naming names the walls its steps bound.
+/// re-authored clockwise (the same point set, by `SetProgram`) against
+/// a prior evaluation: its anchor changes, the loft is recomputed, and
+/// the door asked with the NEW section's naming names the walls its
+/// steps bound.
 #[test]
 fn a_reauthored_section_is_answered_after_a_memoized_reevaluation() {
     let before = [vec![rect_ccw()], vec![rect_ccw()]];
-    let after = [vec![rect_ccw()], vec![rect_cw()]];
     let (a, ids, loft) = loft_of_loops("loft-memo", &before);
-    let (b, ids_b, loft_b) = loft_of_loops("loft-memo", &after);
-    assert_eq!((&ids, loft), (&ids_b, loft_b));
+    let loops = crate::fixture::desc(ids[1], vec![rect_cw()]).loops;
+    let fresh = loops
+        .iter()
+        .map(|lp| vec![None; lp.authored_steps()])
+        .collect();
+    let (b, _) = crate::fixture::step(
+        a.clone(),
+        editor_core::DocEdit::SetProgram {
+            node: ids[1],
+            loops,
+            ids: fresh,
+        },
+    );
     let ea = run(&a);
     let again = evaluate::<f64>(
         &a,
@@ -1208,10 +1219,10 @@ fn assert_attribution(
                      it {edges:?}"
                 );
                 let s = seg(&edges[0]);
-                assert_eq!(
-                    verts[s].1, 0.0,
-                    "{what} step {j} is a `line`, so the segment it produced carries \
-                     no bulge"
+                assert!(
+                    !verts[s].1,
+                    "{what} step {j} is a `line`, so the segment it produced is \
+                     stored straight"
                 );
                 let got = (verts[(s + 1) % n].0 - verts[s].0).norm_squared();
                 assert!(
@@ -1245,7 +1256,7 @@ fn assert_attribution(
         if edges.len() >= 2 {
             tally.multi += 1;
         }
-        if edges.iter().any(|e| verts[seg(e)].1 != 0.0) {
+        if edges.iter().any(|e| verts[seg(e)].1) {
             tally.arcs += 1;
         }
     }
@@ -2509,11 +2520,11 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
         let (doc, plane) = insert(doc, fixture::xy_frame());
         let attempt = doc.apply(
             &editor_core::DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![head(closer.clone())],
                     ids: Vec::new(),
-                }),
+                })),
             },
             tol(),
             &editor_core::RefusingReach,
@@ -2624,11 +2635,11 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
     let applied = doc
         .apply(
             &editor_core::DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![program],
                     ids: Vec::new(),
-                }),
+                })),
             },
             tol(),
             &editor_core::RefusingReach,

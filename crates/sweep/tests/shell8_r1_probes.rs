@@ -233,7 +233,7 @@ fn r1_a_part_inside_another_solids_void() {
         tol(),
     )
     .expect("identity");
-    topo::graft_disjoint(&mut body, &placed, tol()).expect("the nested part grafts");
+    topo::graft_disjoint(&mut body, &placed).expect("the nested part grafts");
     println!(
         "[r1] nested operand: solids={} shells={} clearance=0.02 < t={t}",
         body.solids().count(),
@@ -279,7 +279,7 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
     // The void's ceiling: the z = h - t1 plane on the vessel's solid.
     let ves = pair.solids().map(|(k, _)| k).next().unwrap();
     // `vessel` revolves about +y, so the void's CEILING is the plane at
-    // `y = h - t1` — a chart of two faces, split by the revolve's seam.
+    // `y = h - t1` — one face, the revolve building its cap whole.
     let ceiling: Vec<FaceKey> = faces_of(&pair, ves)
         .into_iter()
         .filter(|&f| {
@@ -292,11 +292,7 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
             )
         })
         .collect();
-    assert_eq!(
-        ceiling.len(),
-        2,
-        "the void ceiling chart, two faces at the seam"
-    );
+    assert_eq!(ceiling.len(), 1, "the void ceiling chart is one face");
     let opened = topo::shell_open(&pair, t2, &ceiling, tol())
         .expect("the vessel's void ceiling opens beside a box")
         .body;

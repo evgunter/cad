@@ -16,10 +16,11 @@ use topo::{
 };
 
 fn plane_y(c: f64) -> SplitPlane<f64> {
-    SplitPlane {
-        origin: Point3::new(0.0, c, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, c, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
@@ -145,9 +146,9 @@ fn tiny_real_sliver_not_wrongly_refused() {
         (va - expect).abs() <= 1e-6 * expect,
         "sliver volume {va} vs {expect}"
     );
-    // And the section query agrees: one tiny positive-area polygon.
+    // And the section query agrees: one tiny region.
     let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 1);
+    assert_eq!(s.regions.len(), 1);
 }
 
 /// Target 3b: an in-band section (a wall whose thickness sits inside
@@ -182,17 +183,18 @@ fn in_band_section_escalates_typed_not_misclassified() {
 fn vertex_only_contact_is_typed_empty() {
     let fx = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let s3 = 3.0f64.sqrt();
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
+        geom_core::Tol::witness(),
+    );
     let r = split(&fx, &plane, Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
     assert_eq!(below.vertices().count(), fx.vertices().count());
     let s = plane_section(&fx, &plane, Tol::witness()).unwrap();
-    assert!(s.polygons.is_empty());
+    assert!(s.regions.is_empty());
     assert!(s.u_ref.is_none());
 }
 
@@ -245,18 +247,15 @@ fn single_solid_gate_split_vs_section() {
         "got {err:?}"
     );
     // plane_section never reaches the finish gate: it quietly slices
-    // BOTH solids (two polygons) — the gate asymmetry, witnessed.
+    // BOTH solids (two regions) — the gate asymmetry, witnessed.
     let s = plane_section(&body, &plane_y(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 2);
+    assert_eq!(s.regions.len(), 2);
 }
 
-/// `plane_section` ergonomics probe: is the (u, v) winding of the
-/// returned polygons DETERMINED (a consumer computing signed areas or
-/// offsets needs an orientation contract)? Executed answer, for the
-/// writeup: whatever this asserts is what consumers can rely on
-/// today; the acceptance suite only ever takes |area|.
+/// `plane_section`'s outlines wind counter-clockwise in `(u, v)`: each
+/// outline's shoelace area over its corners is positive.
 #[test]
-fn plane_section_winding_is_consistent() {
+fn plane_section_outlines_wind_counter_clockwise() {
     let notched = &[
         (0.0, 0.0),
         (8.0, 0.0),
@@ -270,9 +269,9 @@ fn plane_section_winding_is_consistent() {
     ];
     let fx = prism::<f64>(notched, 1.0, Tol::witness());
     let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 3);
+    assert_eq!(s.regions.len(), 3);
     let mut signs = Vec::new();
-    for poly in &s.polygons {
+    for poly in s.regions.iter().map(|r| &r.outline) {
         let mut twice = 0.0;
         for i in 0..poly.uv.len() {
             let a = poly.uv[i];
@@ -281,10 +280,7 @@ fn plane_section_winding_is_consistent() {
         }
         signs.push(twice.signum());
     }
-    assert!(
-        signs.iter().all(|&s| s == signs[0]),
-        "mixed winding across polygons of one section: {signs:?}"
-    );
+    assert_eq!(signs, [1.0; 3], "every outline counter-clockwise");
 }
 
 /// A 2×2×1 quad prism (x offset by `x0`, spanning y ∈ [0, 2]) added as

@@ -154,7 +154,7 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
         py,
         ErrorClass::Frame,
         // `FrameError` implements `Display`, so the human message is
-        // the kernel's own prose (including its coincidence recourse);
+        // the kernel's own prose (including its recourse);
         // the machine payload is the `variant` tag and the fields.
         err.to_string(),
         &[
@@ -534,6 +534,13 @@ impl Placement {
             }
             .into(),
         )
+    }
+
+    /// The empty chain: the identity, and the unit of `compose` — the
+    /// offset an inserted instance carries on the world.
+    #[staticmethod]
+    fn identity() -> Self {
+        Self(d::Placement::IDENTITY)
     }
 
     /// One literal step: exactly `frame`, bit for bit.

@@ -304,10 +304,9 @@ fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
     let b1 = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let b2 = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.9), Tol::witness());
     let err = topo::union(&b1, &b2, Tol::witness()).expect_err("no sphere×sphere seam lane");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+    let BooleanError::SpheresMeet { .. } = err else {
         panic!("expected the scan's typed refusal, got {err:?}");
     };
-    assert!(what.contains("sphere"), "{what}");
 }
 
 /// **The scan's TRIMMED-GROUP arm, and where it actually bites.** A pip
@@ -342,25 +341,16 @@ fn trimmed_sphere_group_operand_assembles_with_a_clear_partner() {
     );
 }
 
-/// **F2 (fix pass): the scan's CYLINDER-NEAR-SPHERE arm.** A ball
-/// inside the cylinder wall's certified box but with every edge pair
-/// box-clear: nothing is examined, the fallback fires, and the scan
-/// refuses typed naming the cyl×sphere seam blocker — certified boxes
-/// prove separation, and anything closer than the boxes cannot be
-/// classified without the fitted-chord lane (PR 9c deviation 1).
-///
-/// **Where the ball sits, and why there.** The wall's box is the
-/// rectangular prism around a ROUND slab, so it over-claims at its
-/// own corners — the looseness the rule states, not slack in the
-/// code. The ball is parked in one of those corners: radially
-/// 0.43 out from the axis against a 0.35 wall, so it is genuinely
-/// clear of the solid, while its box still meets the wall's.
-/// A ball hovering ABOVE the top cap is NOT such a case, whatever
-/// the gap: the slab claims nothing along its own axis beyond the
-/// face's own trim, so the scan certifies that pair and the union
-/// answers.
+/// **A ball in the corner of the cylinder wall's box.** The wall's box
+/// is the rectangular prism around a ROUND slab, so it over-claims at
+/// its own corners; the ball is parked in one of them, radially 0.43
+/// out from the axis against a 0.35 wall, genuinely clear of the solid
+/// while its box meets the wall's. No edge pair is examined, the
+/// fallback fires, and the section pass certifies the sphere × wall
+/// pair apart (its carriers have no section), so the union answers a
+/// two-solid assembly of the two volumes.
 #[test]
-fn cylinder_near_sphere_refuses_typed_at_the_scan() {
+fn a_ball_in_the_wall_boxs_corner_is_certified_separated() {
     let disc = bulge_loop(vec![
         (Point2::new(0.35, 0.0), 1.0),
         (Point2::new(-0.35, 0.0), 1.0),
@@ -372,12 +362,25 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
         .unwrap()
         .body;
     let ball = ball_poled_y(0.05, Vec3::new(0.34, 0.34, 0.65), Tol::witness());
-    let err = topo::union(&cyl, &ball, Tol::witness())
-        .expect_err("nearness to a cylinder wall cannot certify");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-        panic!("expected the scan's cylinder arm, got {err:?}");
-    };
-    assert!(what.contains("cyl×sphere"), "{what}");
+    let out = topo::union(&cyl, &ball, Tol::witness())
+        .expect("a genuinely separated pair must be certified, not refused");
+    let built = out.body().expect("a non-empty union");
+    assert!(
+        matches!(built.kind, topo::boolean::BooleanResultKind::Assembly),
+        "two disjoint solids union to an assembly, got {:?}",
+        built.kind
+    );
+    assert_eq!(
+        topo::validate_geometric(&built.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    let want = PI * 0.35_f64.powi(2) * 1.3 + 4.0 / 3.0 * PI * 0.05_f64.powi(3);
+    assert!(
+        (vol(&built.body) - want).abs() < slack(),
+        "the union adds the volumes: {} vs {want}",
+        vol(&built.body)
+    );
 }
 
 /// **The other side of that boundary, and the consumer-visible half

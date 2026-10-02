@@ -144,6 +144,7 @@ use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::VerdictVectorKey;
+use crate::spoken::SpokenNode;
 
 /// The E4 semantics-honesty mark: what a reported ∂m/∂pᵢ is valid
 /// over. Two variants and no third — a sensitivity is chamber-scoped
@@ -244,6 +245,9 @@ pub enum SensitivityOutcome {
 /// One continuous parameter's sensitivity entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sensitivity {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// The parameter.
     pub param: ParamName,
     /// The pass's reading, marked.
@@ -266,8 +270,9 @@ pub enum PairingViolation {
     /// different input bits than the document's build — the exact
     /// silent state DL3's availability argument leans on excluding.
     ContentKey {
-        /// The first differing node, in evaluation order.
-        node: RecipeNodeId,
+        /// The first differing node, in evaluation order, spoken from
+        /// the document asked about.
+        node: SpokenNode,
         /// The handed evaluation's key there.
         handed: ContentKey,
         /// The document's own build's key there.
@@ -277,8 +282,9 @@ pub enum PairingViolation {
     /// they disagree about which nodes evaluate — and the difference
     /// is not one of the lift's typed limits (module docs).
     ResultArm {
-        /// The first disagreeing node, in evaluation order.
-        node: RecipeNodeId,
+        /// The first disagreeing node, in evaluation order, spoken
+        /// from the document asked about.
+        node: SpokenNode,
         /// The arm in the evaluation being checked.
         found: &'static str,
         /// The arm in the build of record.
@@ -287,8 +293,9 @@ pub enum PairingViolation {
     /// A seeded pass's value channel at this node is not the anchor's,
     /// bit for bit, over the whole payload — the dual contract broken.
     ValueChannel {
-        /// The first diverging node, in evaluation order.
-        node: RecipeNodeId,
+        /// The first diverging node, in evaluation order, spoken from
+        /// the document asked about.
+        node: SpokenNode,
     },
 }
 
@@ -306,10 +313,9 @@ impl core::fmt::Display for PairingViolation {
             ),
             Self::ContentKey { node, .. } => write!(
                 f,
-                "the paired f64 evaluation is STALE at node {}: its content key is not \
+                "the paired f64 evaluation is STALE at {node}: its content key is not \
                  the document's own build's, so differentiating now would report a \
-                 sensitivity of a build nobody validated",
-                node
+                 sensitivity of a build nobody validated"
             ),
             Self::ResultArm {
                 node,
@@ -317,16 +323,14 @@ impl core::fmt::Display for PairingViolation {
                 expected,
             } => write!(
                 f,
-                "node {} is {found} where the build of record has it {expected} — the \
+                "{node} is {found} where the build of record has it {expected} — the \
                  two runs disagree about which nodes evaluate, and not by one of the \
-                 lift's typed limits",
-                node
+                 lift's typed limits"
             ),
             Self::ValueChannel { node } => write!(
                 f,
-                "the seeded pass's value channel at node {} is not the validated \
-                 build's, bit for bit — the dual contract is broken there",
-                node
+                "the seeded pass's value channel at {node} is not the validated \
+                 build's, bit for bit — the dual contract is broken there"
             ),
         }
     }
@@ -341,8 +345,9 @@ impl core::error::Error for PairingViolation {}
 pub enum SensitivityRefusal {
     /// The named node is not a `Measure` node.
     NotAMeasure {
-        /// The node that was asked about.
-        node: RecipeNodeId,
+        /// The node that was asked about, spoken from the document
+        /// asked about.
+        node: SpokenNode,
     },
     /// The chamber verdict's root box does not even name this
     /// document's continuous parameters — driven over a different
@@ -353,11 +358,12 @@ pub enum SensitivityRefusal {
     /// over this document (module docs — the document was edited
     /// since the drive, or the verdict is another document's).
     VerdictNotOfThisBuild {
-        /// The leaf that was replayed.
-        leaf: ParamBox,
+        /// The leaf that was replayed, boxed so the refusal stays a
+        /// small `Err`.
+        leaf: Box<ParamBox>,
         /// The first node whose key differs (or is missing on one
         /// side), in evaluation order.
-        node: RecipeNodeId,
+        node: DivergedAt,
         /// The drive's recorded key there, if the record has one.
         recorded: Option<ContentKey>,
         /// This document's replay key there, if the replay built it.
@@ -368,10 +374,42 @@ pub enum SensitivityRefusal {
     Pairing(PairingViolation),
 }
 
+/// **Where a stale verdict's replay first parts from its record**, said
+/// by what is known of that node.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DivergedAt {
+    /// A node this document's replay holds, spoken from this document.
+    Replayed(SpokenNode),
+    /// A node only the drive's record names. The record is spelled in
+    /// the document the drive ran on, which may be another one, so the
+    /// node is said by tag as the record's, never looked up here.
+    Recorded(RecipeNodeId),
+}
+
+impl DivergedAt {
+    /// The node's full id, whichever side named it.
+    #[must_use]
+    pub fn id(&self) -> RecipeNodeId {
+        match self {
+            Self::Replayed(node) => node.id(),
+            Self::Recorded(id) => *id,
+        }
+    }
+}
+
+impl core::fmt::Display for DivergedAt {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Replayed(node) => write!(f, "{node}"),
+            Self::Recorded(id) => write!(f, "the drive record's node {id}"),
+        }
+    }
+}
+
 impl core::fmt::Display for SensitivityRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAMeasure { node } => write!(f, "node {} is not a Measure node", node),
+            Self::NotAMeasure { node } => write!(f, "{node} is not a Measure node"),
             Self::ForeignVerdict => f.write_str(
                 "the chamber verdict's root box does not span this document's continuous \
                  parameters — it was driven over a different parameter set and certifies \
@@ -380,9 +418,8 @@ impl core::fmt::Display for SensitivityRefusal {
             Self::VerdictNotOfThisBuild { node, .. } => write!(
                 f,
                 "the chamber verdict is not of this build: its certified leaf replays with \
-                 a different content key at node {} — the document changed since the \
-                 drive, or the verdict is another document's; drive again",
-                node
+                 a different content key at {node} — the document changed since the \
+                 drive, or the verdict is another document's; drive again"
             ),
             Self::Pairing(v) => write!(f, "pairing violation: {v}"),
         }
@@ -447,7 +484,9 @@ fn driver(
     tol: Tol,
 ) -> Result<Driven, SensitivityRefusal> {
     if !matches!(doc.node(measure), Some(Node::Measure { .. })) {
-        return Err(SensitivityRefusal::NotAMeasure { node: measure });
+        return Err(SensitivityRefusal::NotAMeasure {
+            node: doc.spoken(measure),
+        });
     }
     // The mark is a property of the nominal's leaf — one chamber for
     // the whole entry set, tied to this build once.
@@ -468,7 +507,7 @@ fn driver(
         tol,
     );
     if let Some(handed) = paired {
-        pair_record(handed, &anchor).map_err(SensitivityRefusal::Pairing)?;
+        pair_record(doc, handed, &anchor).map_err(SensitivityRefusal::Pairing)?;
     }
 
     // The names, in name order (deterministic in both schedules).
@@ -495,11 +534,12 @@ fn driver(
         // anchor does with the anchor's value channel, or it is not a
         // sensitivity of the anchor's build — unless the lift refused
         // typed, which is the entry's own state.
-        let outcome = match pair_pass(&anchor, &pass)? {
+        let outcome = match pair_pass(doc, &anchor, &pass)? {
             Some((node, refusal)) => SensitivityOutcome::Unliftable { node, refusal },
             None => read_pass(&pass, measure, &chamber),
         };
         Ok(Sensitivity {
+            document: doc.id(),
             param: name.clone(),
             outcome,
         })
@@ -557,7 +597,14 @@ fn nominal_of(
         Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
             ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
-            other => Err((id, format!("node is a {}", other.kind_name()))),
+            other => Err((
+                id,
+                format!(
+                    "node is {} {} node",
+                    crate::sentence::article(other.kind_name()),
+                    other.kind_name()
+                ),
+            )),
         },
         Err(standing) => Err(no_measure(ev, standing)),
     }
@@ -603,7 +650,11 @@ fn measure_of<T: geom_core::Decide + Copy>(
             // node's own refusal rather than panicking.
             other => Err((
                 id,
-                format!("node evaluated to a {}, not a measure", other.kind_name()),
+                format!(
+                    "node evaluated to {} {} value, not a measure",
+                    crate::sentence::article(other.kind_name()),
+                    other.kind_name()
+                ),
             )),
         },
         Err(standing) => Err(no_measure(ev, standing)),
@@ -646,6 +697,7 @@ fn read_pass(
 /// sensitivity is read from a failed subgraph, and every `Ok` node's
 /// inputs are certified transitively by its own key.
 fn pair_record(
+    doc: &Doc<ProfileProgram>,
     handed: &Evaluation<f64>,
     rebuilt: &Evaluation<f64>,
 ) -> Result<(), PairingViolation> {
@@ -660,13 +712,13 @@ fn pair_record(
             (Some(NodeResult::Ok(h)), Some(NodeResult::Ok(r))) => {
                 if h.content_key != r.content_key {
                     return Err(PairingViolation::ContentKey {
-                        node: id,
+                        node: doc.spoken(id),
                         handed: h.content_key,
                         rebuilt: r.content_key,
                     });
                 }
             }
-            (h, r) => same_arm(id, h, r)?,
+            (h, r) => same_arm(doc, id, h, r)?,
         }
     }
     Ok(())
@@ -680,6 +732,7 @@ fn pair_record(
 /// Total: every node is compared, and a node both runs built is
 /// compared on its whole payload.
 fn pair_pass(
+    doc: &Doc<ProfileProgram>,
     anchor: &Evaluation<f64>,
     pass: &Evaluation<Dual64>,
 ) -> Result<Option<(RecipeNodeId, LiftRefusal)>, PairingViolation> {
@@ -692,7 +745,9 @@ fn pair_pass(
         match (anchor.result(id), pass.result(id)) {
             (Some(NodeResult::Ok(a)), Some(NodeResult::Ok(p))) => {
                 if payload_digest(&a.payload) != payload_digest(&p.payload) {
-                    return Err(PairingViolation::ValueChannel { node: id });
+                    return Err(PairingViolation::ValueChannel {
+                        node: doc.spoken(id),
+                    });
                 }
             }
             (Some(NodeResult::Ok(_)), Some(NodeResult::Failed(e))) => match &e.kind {
@@ -716,14 +771,14 @@ fn pair_pass(
                         },
                     ));
                 }
-                _ => same_arm(id, anchor.result(id), pass.result(id))?,
+                _ => same_arm(doc, id, anchor.result(id), pass.result(id))?,
             },
             (Some(NodeResult::Ok(_)), Some(NodeResult::Poisoned { through }))
                 if unlifted.contains(through) =>
             {
                 unlifted.insert(id);
             }
-            (a, p) => same_arm(id, a, p)?,
+            (a, p) => same_arm(doc, id, a, p)?,
         }
     }
     Ok(valve)
@@ -732,6 +787,7 @@ fn pair_pass(
 /// The arm comparison both halves share: `Ok`/`Failed`/`Poisoned` (same
 /// poison source)/absent, the RECORD's arm being the expected one.
 fn same_arm<T: geom_core::Decide, U: geom_core::Decide>(
+    doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
     record: Option<&NodeResult<T>>,
     checked: Option<&NodeResult<U>>,
@@ -746,7 +802,7 @@ fn same_arm<T: geom_core::Decide, U: geom_core::Decide>(
         Ok(())
     } else {
         Err(PairingViolation::ResultArm {
-            node: id,
+            node: doc.spoken(id),
             found: arm(checked),
             expected: arm(record),
         })
@@ -839,7 +895,7 @@ impl Digest {
 
 /// The value-channel digest of one payload: its arm, its counts, and
 /// every scalar it stores — body points, datum frames, profile
-/// vertices and bulges, measured values, verdict numbers — through the
+/// vertices and arc carriers, measured values, verdict numbers — through the
 /// scalar's own value bracket, so an `f64` build and a `Dual64` pass
 /// digest identically exactly when their value channels agree.
 fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
@@ -891,13 +947,25 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(14);
             for lp in p.validated.loops() {
                 d.u64(lp.vertices().len() as u64);
-                // Each vertex with the bulge its segment was lowered
-                // from: an arc's carrier and sweep are functions of
-                // these, so they are digested through them.
+                // Each vertex with its leaving segment's classified
+                // carrier: a kind tag, and an arc's centre, radius and
+                // sweep — every scalar the segment stores.
                 for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                     d.scalar(v.x);
                     d.scalar(v.y);
-                    d.scalar(s.bulge);
+                    match s.kind {
+                        profile::SegmentKind::Line => d.u64(0),
+                        profile::SegmentKind::Arc { arc, turn } => {
+                            d.u64(match turn {
+                                geom_core::Sign::Negative => 2,
+                                geom_core::Sign::Zero | geom_core::Sign::Positive => 1,
+                            });
+                            d.scalar(arc.centre.x);
+                            d.scalar(arc.centre.y);
+                            d.scalar(arc.radius);
+                            d.scalar(arc.sweep);
+                        }
+                    }
                 }
             }
         }
@@ -934,6 +1002,7 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(pairs.len() as u64);
         }
         ValuePayload::Mate(_) => d.u64(21),
+        ValuePayload::Gauge => d.u64(26),
         ValuePayload::Measure { value, .. } => {
             d.u64(22);
             d.scalar(*value);
@@ -1022,7 +1091,7 @@ fn bind_verdict(
         },
         tol,
     );
-    tie(tied, &readback.keys)?;
+    tie(doc, tied, &readback.keys)?;
     Ok(
         chamber.map_or(Chamber::LocalOnly, |leaf| Chamber::ChamberCertified {
             leaf: leaf.box_.clone(),
@@ -1034,6 +1103,7 @@ fn bind_verdict(
 /// The tie itself: the leaf's recorded per-node keys against its
 /// replay's, in evaluation order, the first difference named.
 fn tie(
+    doc: &Doc<ProfileProgram>,
     leaf: &CertifiedLeaf,
     replayed: &[(RecipeNodeId, ContentKey)],
 ) -> Result<(), SensitivityRefusal> {
@@ -1043,9 +1113,18 @@ fn tie(
         let r = recorded.get(i).copied();
         let p = replayed.get(i).copied();
         if r != p {
-            let node = r.or(p).map_or(RecipeNodeId(0), |(id, _)| id);
+            // The replay is of `doc`; the record is of whichever
+            // document the drive ran on.
+            let node = match (r, p) {
+                (Some((recorded, _)), Some((replayed, _))) if recorded == replayed => {
+                    DivergedAt::Replayed(doc.spoken(replayed))
+                }
+                (None, Some((replayed, _))) => DivergedAt::Replayed(doc.spoken(replayed)),
+                (Some((recorded, _)), _) => DivergedAt::Recorded(recorded),
+                (None, None) => unreachable!("two absent keys are equal"),
+            };
             return Err(SensitivityRefusal::VerdictNotOfThisBuild {
-                leaf: leaf.box_.clone(),
+                leaf: Box::new(leaf.box_.clone()),
                 node,
                 recorded: r.map(|(_, k)| k),
                 replayed: p.map(|(_, k)| k),
@@ -1209,6 +1288,9 @@ pub struct WorstCase {
 /// accounting — M10-3's, verbatim — plus the mark, once, at the top.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stackup {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// The `Measure` node the report is about.
     pub measurement: RecipeNodeId,
     /// The f64 build's measured value — re-derived from the anchored
@@ -1293,7 +1375,7 @@ impl Stackup {
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
                 row.param.as_str(),
-                render_sensitivity(&row.sensitivity),
+                sensitivity_text(&row.sensitivity, |id| format!("node {}", id.full())),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
                     Err(u) => format!("unavailable:{}", u.param().as_str()),
@@ -1355,10 +1437,18 @@ impl Stackup {
     /// omission"): an engineer who reads only the first two lines has
     /// read the certified answer, and the RSS cannot be met before the
     /// number that gates.
-    pub fn render(&self, analyzed: &crate::analysis::AnalyzedBox) -> String {
+    ///
+    /// Each node it names is spoken from `doc`, the document the
+    /// stackup was taken of.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the stackup was taken of.
+    pub fn render<P>(&self, doc: &Doc<P>, analyzed: &crate::analysis::AnalyzedBox) -> String {
         use core::fmt::Write as _;
+        crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let mut s = String::new();
-        let _ = writeln!(s, "stackup of measure node {}", self.measurement);
+        let _ = writeln!(s, "stackup of {}", doc.spoken(self.measurement));
         let _ = writeln!(
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
@@ -1397,7 +1487,7 @@ impl Stackup {
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
                 row.param.as_str(),
-                render_sensitivity(&row.sensitivity),
+                sensitivity_text(&row.sensitivity, |id| doc.spoken(id).to_string()),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
                     Err(u) => format!("[{u}]"),
@@ -1456,9 +1546,9 @@ fn render_rss(rss: &Rss) -> String {
 /// What opens each blocker's line under a refused rss row.
 const RSS_BLOCKER_LEAD: &str = "      - ";
 
-/// One sensitivity reading, in one spelling shared by the goldening
-/// form and the human one — the number and its E4 mark, never the
-/// number alone.
+/// One sensitivity reading as a person reads it — the number and its
+/// E4 mark, never the number alone. The goldening form writes the same
+/// sentence with each node's full id.
 ///
 /// **Public since M10-6's review**: a `NothingCertified` refusal hands
 /// a consumer its `sensitivities` and nothing to print them with, so
@@ -1468,7 +1558,21 @@ const RSS_BLOCKER_LEAD: &str = "      - ";
 /// own chamber is not a derivative over the box — and it deserves
 /// better than a struct dump, in ONE spelling rather than a second one
 /// per consumer.
-pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
+///
+/// A node it names is spoken from `doc`, the document the entry was
+/// taken of.
+///
+/// # Panics
+///
+/// When `doc` is not the document the entry was taken of.
+pub fn render_sensitivity<P>(entry: &Sensitivity, doc: &Doc<P>) -> String {
+    crate::spoken::assert_taken_of("this sensitivity", entry.document, doc);
+    sensitivity_text(&entry.outcome, |id| doc.spoken(id).to_string())
+}
+
+/// One sensitivity reading, each node it names written by `node`: a
+/// spoken node in the human form, the full id in the goldening form.
+fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) -> String) -> String {
     match outcome {
         SensitivityOutcome::Derivative { value, chamber } => format!(
             "{value} ({})",
@@ -1480,20 +1584,20 @@ pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
         SensitivityOutcome::TangentDegraded { tangent } => {
             format!("degraded tangent ({tangent})")
         }
-        SensitivityOutcome::MeasureRefused { node, cause } => {
-            format!("refused at node {}: {cause}", node)
+        SensitivityOutcome::MeasureRefused { node: id, cause } => {
+            format!("refused at {}: {cause}", node(*id))
         }
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
         // `serialize`, and `Debug` is a form neither of those wants.
-        SensitivityOutcome::Unliftable { node, refusal } => format!(
-            "unliftable at node {}: {}",
-            node,
+        SensitivityOutcome::Unliftable { node: id, refusal } => format!(
+            "unliftable at {}: {}",
+            node(*id),
             match refusal {
                 LiftRefusal::PinnedSection { section, param } => format!(
-                    "{} feeds the section of node {}, which stays f64 (C6/D9)",
+                    "{} feeds the section of {}, which stays f64 (C6/D9)",
                     param.as_str(),
-                    section
+                    node(*section)
                 ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
@@ -1549,8 +1653,8 @@ pub enum StackupRefusal {
     /// rendered.
     MeasureRefusedAtNominal {
         /// The refusing node (the measure, or the ancestor it was
-        /// poisoned through).
-        node: RecipeNodeId,
+        /// poisoned through), spoken from the document asked about.
+        node: SpokenNode,
         /// The node error, rendered.
         cause: String,
     },
@@ -1580,10 +1684,10 @@ pub enum StackupRefusal {
     /// swallowed. (A foreign or edited document is caught before this
     /// by the tie, as [`SensitivityRefusal::VerdictNotOfThisBuild`].)
     LeafDiverged {
-        /// The leaf's box.
-        leaf: ParamBox,
-        /// The refusing node.
-        node: RecipeNodeId,
+        /// The leaf's box, boxed so the refusal stays a small `Err`.
+        leaf: Box<ParamBox>,
+        /// The refusing node, spoken from the document asked about.
+        node: SpokenNode,
         /// The node error, rendered.
         cause: String,
     },
@@ -1608,9 +1712,8 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::MeasureRefusedAtNominal { node, cause } => write!(
                 f,
-                "the measure refuses at the nominal build (node {}), so there is no \
-                 nominal to report: {cause}",
-                node
+                "{node} refuses at the nominal build, so there is no nominal to \
+                 report: {cause}"
             ),
             Self::NothingCertified { receipt, .. } => write!(
                 f,
@@ -1621,10 +1724,9 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::LeafDiverged { node, cause, .. } => write!(
                 f,
-                "a certified leaf tied to this build by its content keys refused at node {} \
+                "a certified leaf tied to this build by its content keys refused at {node} \
                  on replay — same inputs, a different result (a D9 replay-identity \
-                 break): {cause}",
-                node
+                 break): {cause}"
             ),
             Self::WorstCaseUncertified { .. } => f.write_str(
                 "a certified leaf's measure enclosure carries a domain violation — a \
@@ -1696,7 +1798,10 @@ pub fn stackup(
     let nominal = match nominal_of(&anchor, measure) {
         Ok(n) => n,
         Err((node, cause)) => {
-            return Err(StackupRefusal::MeasureRefusedAtNominal { node, cause });
+            return Err(StackupRefusal::MeasureRefusedAtNominal {
+                node: doc.spoken(node),
+                cause,
+            });
         }
     };
 
@@ -1784,6 +1889,7 @@ pub fn stackup(
     };
 
     Ok(Stackup {
+        document: doc.id(),
         measurement: measure,
         nominal,
         chamber,
@@ -1849,13 +1955,13 @@ fn worst_case(
             },
             tol,
         );
-        tie(leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
+        tie(doc, leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
         readback
             .measure
             .unwrap_or(Ok(None))
             .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
-                leaf: leaf.box_.clone(),
-                node,
+                leaf: Box::new(leaf.box_.clone()),
+                node: doc.spoken(node),
                 cause,
             })?
             .ok_or_else(|| StackupRefusal::WorstCaseUncertified {

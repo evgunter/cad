@@ -68,7 +68,7 @@ test_utils::gated_to![
 
 use core::f64::consts::PI;
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -221,17 +221,11 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
     // door's own destination after it has been written into twice —
     // the shape the PR's row-1 refutation is about.
     let mut dst = c.clone();
-    if topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()), Tol::witness())
-        .is_ok()
-    {
+    if topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness())).is_ok() {
         out.push(("grafted_two_solid", dst.clone()));
         let mut again = dst.clone();
-        if topo::instance::graft_disjoint_all(
-            &mut again,
-            &ball_at(0.3, Vec3::new(9.0, 0.0, 0.0)),
-            Tol::witness(),
-        )
-        .is_ok()
+        if topo::instance::graft_disjoint_all(&mut again, &ball_at(0.3, Vec3::new(9.0, 0.0, 0.0)))
+            .is_ok()
         {
             out.push(("grafted_three_solid", again));
         }
@@ -574,7 +568,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
     );
 
     let mut dst = base.clone();
-    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()), Tol::witness())
+    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()))
         .expect("a disjoint graft");
     assert!(
         dst.solids().count() > 1 || dst.shells().count() > 1,

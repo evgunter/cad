@@ -92,7 +92,9 @@ fn lid_meridian() -> LoopProgram {
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         tol,
         &pncad::document::RefusingReach,
     )
@@ -214,7 +216,7 @@ fn seam_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, k: usize, tol: Tol) -> 
     StableName {
         kind: EntityKind::Edge,
         node: lid,
-        path: vec![RoleSeg::Meridian(MeridianEnd::Seam, piece)],
+        path: vec![RoleSeg::Meridian(MeridianEnd::Seam, piece.into())],
     }
 }
 
@@ -315,9 +317,10 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
             })
             .collect();
         bands.sort();
+        let mut wanted = vec![want(1), want(2)];
+        wanted.sort();
         assert_eq!(
-            bands,
-            vec![want(1), want(2)],
+            bands, wanted,
             "the flange seam's {role}s: one per band that ends on it, each carrying its \
              own rim"
         );
@@ -398,13 +401,25 @@ fn one_request_builds_the_kernels_body() {
 /// **The rolled lid's names do not depend on the radius.**
 ///
 /// Every role argument is a source NAME, so rolling the same rims at a
-/// different radius re-mints the same name set: a name stays put when
-/// a number moves.
+/// different radius — the roll's radius edited — re-mints the same
+/// name set: a name stays put when a number moves.
 #[test]
 fn the_rolled_names_are_one_set_at_two_radii() {
     let tol = Tol::witness();
     let names = |roll: f64| -> Vec<StableName> {
-        let (doc, _, rolled) = rolled_lid(&ROLLED, roll, tol);
+        let (doc, _, rolled) = rolled_lid(&ROLLED, ROLL, tol);
+        let doc = apply(
+            &doc,
+            &DocEdit::SetParam {
+                node: rolled,
+                slot: pncad::document::SlotId::Radius,
+                expr: len(roll),
+            },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the radius edit applies")
+        .doc;
         let ev = eval(&doc, tol);
         assert!(
             ev.node_error(rolled).is_none(),

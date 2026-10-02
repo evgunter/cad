@@ -19,10 +19,9 @@
 //! pierce ring is an EMPTY loop carrying only null scaffolding, so the
 //! run co-bounding a chord across it has no edge with a chart image and
 //! the divided face has no azimuth window to select an arc against. The
-//! planar sibling has the same shape and the same status — a box driven
-//! through a cylinder CAP refuses at the join too (`verbs_pierce`) —
-//! which is what says the missing arm is the RING's join, shared by
-//! both, rather than anything this lane left undone.
+//! planar sibling joins (`verbs_pierce`): a planar face's chord is
+//! straight and asks no window, so the missing arm is the ring's join on
+//! a CURVED face, not anything this lane left undone.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -55,18 +54,10 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
 /// each — and every one of them is strictly inside a wall face, on no
 /// boundary of either operand.
 ///
-/// **The bar is short on purpose**, and the reason is the sector-side
-/// curvature charge rather than the crossing lane: a pierce vertex's
-/// sector arms are the split edge's two fragments, and a fragment
-/// LONGER than the wall's radius makes the sagitta bound exceed any
-/// first-order displacement, so no tangent-plane verdict there is
-/// certifiable (`a_long_armed_bar_cannot_certify_its_sector_sides`
-/// below is that pose, pinned). At `x = ±1.1` against `r = 1` the near
-/// fragment is 0.146 m and the verdict stands. Before this unit the first of them
-/// refused at the crossing layer with `CurvedPierceUnsupported`; the
-/// door it refuses at now is the JOIN's, which is the measurement that
-/// says the crossings were found, the edges split and the rings
-/// inserted.
+/// Before the ring lane, the first of them refused at the crossing
+/// layer with `CurvedPierceUnsupported`; the door it refuses at now is
+/// the JOIN's, which is the measurement that says the crossings were
+/// found, the edges split and the rings inserted.
 ///
 /// The site is asserted, not just the variant: `NoChartedRun` is the
 /// pierce ring's own signature — the run carries only null scaffolding,
@@ -107,6 +98,33 @@ fn a_bar_leaving_through_one_side_of_a_wall_reaches_the_join() {
             err,
             BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
                 case: topo::ArcWindowCase::NoChartedRun,
+                ..
+            })
+        ),
+        "{err:?}"
+    );
+}
+
+/// **The asymmetric pose that reaches the join.** The pipe's wall is two
+/// faces split at the seam rulings `(±1, 0, z)`, and the acceptance bars
+/// above straddle both, so each half-wall's section runs seam to seam.
+/// Lifted to `y ∈ [0.15, 0.7]` the bar's section on each side closes
+/// INSIDE one wall face — azimuths 8.6° to 44.4°, clear of every seam —
+/// and the join refuses at a different sub-case of the same arc-side
+/// rule: the divided face's run is charted, but neither section arc
+/// lies in its window. Short arms, so the sector side certifies
+/// (`a_long_armed_bar_cannot_certify_its_sector_sides`).
+#[test]
+fn a_bar_whose_section_closes_inside_one_wall_face_reaches_the_join() {
+    let err = union_err(
+        &pipe(),
+        &brick((-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
+    );
+    assert!(
+        matches!(
+            err,
+            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                case: topo::ArcWindowCase::NeitherContained,
                 ..
             })
         ),
@@ -175,28 +193,29 @@ fn a_bar_grazing_the_wall_keeps_the_pierce_door() {
     );
 }
 
-/// **The curvature charge's planted red, on a real body.** The same
-/// bar made LONG: at `x = ±3` against a wall of radius 1, the pierce
-/// vertex's shorter edge fragment is 1.9 m, so the sagitta bound
-/// `arm²/lever = 3.6 m` exceeds any first-order displacement the
-/// sector can offer (which is at most `arm` itself). No tangent-plane
-/// verdict about the material side is certifiable there, and the lane
-/// refuses instead of answering one — the wrong answer it would
-/// otherwise give is a wrong TOPOLOGY, not a conservative refusal
-/// (`boolean::sectors::side_code` carries the witness).
-///
-/// This is the row that makes the short bar above a measurement rather
-/// than a lucky pose: the two differ only in the bar's length, and they
-/// land on different doors for a stated reason.
+/// **The bar's length does not move the door.** The same bar made
+/// LONG: at `x = ±3` against a wall of radius 1 the pierce vertex's
+/// shorter edge fragment is 1.9 m, nearly twice the radius, so the
+/// edge re-crosses nothing but runs far past where the wall's sagitta
+/// outgrows its first-order departure. The sector side is a statement
+/// about the bound near the vertex, and the curvature charge certifies
+/// it at the distance where it is largest (`slope·r/2`), so the long
+/// bar reaches the same join door as the short one.
 #[test]
-fn a_long_armed_bar_cannot_certify_its_sector_sides() {
+fn a_long_armed_bar_reaches_the_same_join_door() {
     let err = union_err(
         &pipe(),
         &brick((-3.0, 3.0), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
     );
     assert!(
-        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
-        "a sector arm past the wall's radius is not first-order decidable: {err:?}"
+        matches!(
+            err,
+            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                case: topo::ArcWindowCase::NoChartedRun,
+                ..
+            })
+        ),
+        "an edge fragment longer than the wall's radius still certifies its side: {err:?}"
     );
 }
 
@@ -253,8 +272,8 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
         matches!(
             err,
             BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Cone,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                kind: geom::SurfaceKind::Cone,
+                other_kind: geom::SurfaceKind::Plane,
                 ..
             }
         ),

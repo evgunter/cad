@@ -64,7 +64,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     // which carries the pip's names verbatim (N1).
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(
+        Node::declare_continuation(vec![(
             editor_core::SitedRef::new(
                 cube,
                 fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),

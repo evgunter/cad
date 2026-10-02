@@ -5,7 +5,7 @@
 //! whose shared geometry lies entirely on both operands' boundaries:
 //! the contact region R is a union of coincident opposite-oriented
 //! face patches — on ANY carrier the ladder certifies (plane, sphere,
-//! cylinder; the C4 `Rest` inventory) — and its boundary ∂R — the
+//! cylinder, torus; the C4 `Rest` inventory) — and its boundary ∂R — the
 //! seam — runs along operand edges or across single faces, never
 //! through material. The chord joining ([`super::join`]) cannot
 //! complete such seams: at a REST site a germ direction lies in FOUR
@@ -25,25 +25,34 @@
 //! gates, coincidence doors, sweep splitting, classification — runs
 //! unchanged first; this lane consumes its RECORDS:
 //!
-//! 1. **Segments**: the null-pair germ records are matched into seam
-//!    segments by the SAME mutual-facing/nearest tests as the join
-//!    (`bool_join_chord` / `bool_join_facing` / `bool_join_nearest` —
-//!    reused predicate funnels, no new numeric predicate), with the
-//!    ambiguous face-pair identity dropped. Incomplete matching ⇒
-//!    not this frontier (the original join refusal stands).
-//! 2. **Lane door**: every declared face pair is verified through
-//!    [`super::oriented_plane_eq`]'s declared rung — a false
-//!    declaration refuses [`BooleanError::ContactContradicted`]
-//!    here, never a silent no-op. Opposite-oriented verified pairs
-//!    name the REST-contact surfaces.
-//! 3. **Undo the scaffolding**: the classification's null-edge struts
-//!    are removed (`kev`, reverse mint order) from clones of the
-//!    annotated operands — the sweep's edge splits and the pierce-ring
-//!    vertices remain (both are load-bearing: they make the seam
-//!    vertex sets congruent across the mate).
+//! 1. **REST-contact surfaces**: the `Rest` pairs the declaration door
+//!    verified one carrier with opposed senses (the reduction's
+//!    `rest_contacts`) name the REST-contact surfaces. The door verified
+//!    every declaration, and refused a false one
+//!    ([`BooleanError::ContactContradicted`]), before the reduction ran,
+//!    so this lane verifies nothing again. With no such pair the lane
+//!    is not this frontier, before matching runs.
+//! 2. **Segments**: the null-pair germ records are read, the
+//!    scaffolding is undone (step 3), and the germs are matched into
+//!    seam segments: first along circle arcs both operands carry
+//!    between the two sites ([`arcs_along`]), each such segment naming
+//!    its two arcs, then by facing along the straight chord through the
+//!    join's predicate funnels (`bool_join_chord` / `bool_join_facing` /
+//!    `bool_join_nearest`), with the ambiguous face-pair identity
+//!    dropped. Matching that leaves a germ unpaired is not this
+//!    frontier (the original join refusal stands), unless that germ's
+//!    arc lookup escalated, which is the refusal then.
+//! 3. **Undo the scaffolding**, inside step 2 between reading the germs
+//!    and matching them, so the arcs are found on the operands' own
+//!    vertex orbits: the classification's null-edge struts are removed
+//!    (`kev`, reverse mint order) from clones of the annotated operands
+//!    — the sweep's edge splits and the pierce-ring vertices remain
+//!    (both are load-bearing: they make the seam vertex sets congruent
+//!    across the mate).
 //! 4. **Seam realization** (splitting machinery reused): per segment
 //!    and per solid, either the segment already IS an operand edge
-//!    (structural fan walk — reused as the seam, minted nowhere), or
+//!    (the arc it was matched along, or a structural fan walk — reused
+//!    as the seam, minted nowhere), or
 //!    it is minted ONCE as a real chord through the standard
 //!    `mef`/`mekr` machinery in the unique face bounded by both
 //!    endpoints. No new region algebra: a segment that does not
@@ -74,9 +83,11 @@
 //! (REST rests are consumed into structure — the census's consumed
 //! class), tier gates, and the volume backstop.
 
-use geom_core::{Band, Bounds, Decide, Margin, Sign};
+use geom_brep::{EdgeCurveSpec, ExtentBall};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
+use super::arcs::{ArcStep, arcs_along};
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
@@ -85,18 +96,20 @@ use super::ops::{
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
-use super::zip::{ZipReport, zip_seam};
+use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
+    BooleanReduction, BooleanResult, BooleanResultKind, Operand, OperandKeys,
 };
+use super::{Coincide, DeclarationRead, RestZipFrontier};
 use crate::body::Body;
-use crate::contact::ContactClass;
+use crate::contact::BooleanCoincidence;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
+use crate::null::CurveGeom;
 use crate::splitting::finish::single_solid;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -110,19 +123,22 @@ fn desync(what: &'static str) -> BooleanError {
 
 /// A named sub-frontier the lane declines (honest typed refusal,
 /// never a laundered catch-all).
-fn unsupported(what: &'static str) -> BooleanError {
+fn unsupported(what: RestZipFrontier) -> BooleanError {
     BooleanError::RestZipUnsupported { what }
 }
 
 /// One seam segment: the two end sites, as vertex keys per operand
 /// (the pre-insertion site vertices — they survive the scaffolding
-/// undo).
+/// undo), and, for a segment that runs along an arc of both operands,
+/// those two arcs ([`arcs_along`]): two vertices can bound more than
+/// one arc, so the ends alone do not name it.
 #[derive(Clone, Copy, Debug)]
 struct Segment {
     a_u: VertexKey,
     a_v: VertexKey,
     b_u: VertexKey,
     b_v: VertexKey,
+    arcs: Option<(EdgeKey, EdgeKey)>,
 }
 
 /// The declared-REST union lane (module docs). `red` is the finished
@@ -154,18 +170,17 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(None);
     }
 
-    // ---- 1. Segments from the germ records (A-side geometry — the
-    // site points are bitwise-shared between the solids). ----
-    let Some(segments) = enumerate_segments(&red, band)? else {
-        return Ok(None);
-    };
-
-    // ---- 2. Lane door: verify every declared pair; collect the
-    // REST-contact (opposite-oriented) surface sets. ----
-    let (a_rest, b_rest) = verify_declared_pairs(a_pristine, b_pristine, decls, band)?;
+    // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
+    let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
     if a_rest.is_empty() || b_rest.is_empty() {
         return Ok(None); // no opposite-oriented contact declared
     }
+
+    // ---- 2. Segments from the germ records (A-side geometry — the
+    // site points are bitwise-shared between the solids). ----
+    let Some(segments) = enumerate_segments(&mut red, band)? else {
+        return Ok(None);
+    };
 
     // Vertex correspondence across the mate, operand keys — record
     // data end to end (F9): the segment end sites, EXTENDED by the
@@ -198,9 +213,6 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
 
-    // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
-    undo_struts(&mut red)?;
-
     // Pierce-ring vertices: ring vertex → host face, per operand.
     let mut a_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
     let mut b_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
@@ -216,7 +228,11 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut b_fragments = Vec::new();
     let a_seam = realize_seam(
         &mut red.a,
-        &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
+        &red.b,
+        &segments
+            .iter()
+            .map(|s| ((s.a_u, s.a_v), s.arcs.map(|(ea, _)| ea), (s.b_u, s.b_v)))
+            .collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
         tol,
@@ -226,7 +242,11 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
     let b_seam = realize_seam(
         &mut red.b,
-        &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
+        &red.a,
+        &segments
+            .iter()
+            .map(|s| ((s.b_u, s.b_v), s.arcs.map(|(_, eb)| eb), (s.a_u, s.a_v)))
+            .collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
         tol,
@@ -235,11 +255,42 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(None);
     };
 
-    // ---- 5. Patch discovery + cross-mate pairing. ----
+    // ---- 5. Patch discovery, the interior curve networks made
+    // congruent, cross-mate pairing. ----
     let Some(a_patch) = patch_faces(&red.a, &a_seam, &a_rest)? else {
         return Ok(None);
     };
     let Some(b_patch) = patch_faces(&red.b, &b_seam, &b_rest)? else {
+        return Ok(None);
+    };
+    let b_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (a, b)).collect();
+    let a_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (b, a)).collect();
+    let a_interior = interior_edges(&red.a, &a_patch, &a_seam)?;
+    let b_interior = interior_edges(&red.b, &b_patch, &b_seam)?;
+    let Some(a_patch) = mirror_edges(
+        &mut red.a,
+        &red.b,
+        &b_interior,
+        &a_of,
+        &a_patch,
+        &a_rings,
+        &mut a_fragments,
+        tol,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(b_patch) = mirror_edges(
+        &mut red.b,
+        &red.a,
+        &a_interior,
+        &b_of,
+        &b_patch,
+        &b_rings,
+        &mut b_fragments,
+        tol,
+    )?
+    else {
         return Ok(None);
     };
     if a_patch.len() != b_patch.len() {
@@ -253,6 +304,14 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // ---- 6. Graft B whole (disjoint interiors: nothing discarded),
     // then glue every patch pair in BFS order. ----
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
+    // A REST union's patches are opposed contact faces, whose lump keeps
+    // neither copy, so it holds no region through a coincident copy and
+    // its rows have no held stretches (`DiscardRow::held`).
+    if !red.held.is_empty() {
+        return Err(BooleanError::JoinDesync {
+            what: "a declared-REST union holds a region through a coincident copy",
+        });
+    }
     // The contact patches are the faces this union discards; A's keys
     // are the result's, so its rows are taken here, before the zip.
     let mut discards = patch_discards(&red.a, &a_patch, Operand::A, &|u, w| Ok((u, w)))?;
@@ -299,38 +358,20 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
 
     let mut vertex_merges: Vec<(VertexKey, VertexKey)> = Vec::new();
-    let mut interior: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
+    let mut seam_edges: Vec<EdgeKey> = a_seam.per_segment.clone();
     let mut desc = Descendants::default();
     for &fa in &glue_order {
         let fb = fb_of(fa)?;
         let rep = glue_pair(&mut body, fa, fb, &vmap, tol)?;
+        settle_glue(&body, &mut seam_edges, &rep.interior_edges)?;
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
-        for &e in &rep.interior_edges {
-            interior.insert(e, ());
-        }
-    }
-
-    // The surviving seam: the A-side per-segment edges (the A arena IS
-    // the result arena). A segment INTERIOR to the contact region —
-    // an already-fused run a later glue consumed, e.g. the meridian
-    // seams of a closed cosurface band — legitimately dies with R's
-    // interior and is dropped here; a segment that died any other way
-    // is a lane desync.
-    let mut seam_edges: Vec<EdgeKey> = Vec::new();
-    for &e in &a_seam.per_segment {
-        if body.get_edge(e).is_none() {
-            if interior.contains_key(e) {
-                continue;
-            }
-            return Err(desync("REST lane: a seam segment edge did not survive"));
-        }
-        seam_edges.push(e);
     }
 
     // ---- Output stages (shared with every seamed boolean). ----
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts;
+    let covered = red.covered;
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
@@ -366,12 +407,14 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_faces,
         seam_edges,
         vertex_merges,
+        weld_merges_b: Vec::new(),
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: a_fragments,
         face_fragments_b: b_fragments,
         reduction_contacts,
         discards,
+        covered,
     };
     Ok(Some(BooleanResult::Body(BooleanBody {
         body,
@@ -379,6 +422,34 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         contacts,
         naming,
     })))
+}
+
+/// Settles one glue's deaths against the seam. The surviving seam is
+/// the A-side per-segment edges (the A arena IS the result arena); a
+/// segment INTERIOR to the contact region — an already-fused run the
+/// glue consumed — dies with R's interior, and the glue reports it so. Every edge the
+/// glue reports interior is dead after it, and every seam edge that
+/// died in it is one it reports: anything else is a lane desync. `seam`
+/// holds the seam edges alive before the glue and keeps those alive
+/// after it, in segment order.
+fn settle_glue<T: Decide>(
+    body: &Body<T>,
+    seam: &mut Vec<EdgeKey>,
+    interior: &[EdgeKey],
+) -> Result<(), BooleanError> {
+    if interior.iter().any(|&e| body.get_edge(e).is_some()) {
+        return Err(desync(
+            "REST lane: an edge the glue reported interior survived it",
+        ));
+    }
+    if seam
+        .iter()
+        .any(|&e| body.get_edge(e).is_none() && !interior.contains(&e))
+    {
+        return Err(desync("REST lane: a seam segment edge did not survive"));
+    }
+    seam.retain(|&e| body.get_edge(e).is_some());
+    Ok(())
 }
 
 /// One operand's discarded faces (`boolean::discard`): its contact
@@ -394,20 +465,23 @@ fn patch_discards<T: Decide>(
     let kept_across = |f: FaceKey| !patch.contains(&f);
     patch
         .iter()
-        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends))
+        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends, None))
         .collect()
 }
 
 // ---------------------------------------------------------------
-// 1. Segment enumeration.
+// 2. Segment enumeration.
 // ---------------------------------------------------------------
 
 /// Matches the germ records into seam segments — [`super::join`]'s
 /// mutual-facing/nearest tests with the (REST-ambiguous) face-pair
-/// identity dropped. `None`: matching did not complete — not this
-/// lane's frontier.
+/// identity dropped, after the arcs ([`arc_along`]). The germs are read
+/// first and the null-edge scaffolding is then undone (step 3), so the
+/// arcs are found on the operands' own vertex orbits. `None`: matching
+/// did not complete — not this lane's frontier; an escalated arc
+/// lookup on a germ left unpaired refuses instead.
 fn enumerate_segments<T: Decide>(
-    red: &BooleanReduction<T>,
+    red: &mut BooleanReduction<T>,
     band: Band,
 ) -> Result<Option<Vec<Segment>>, BooleanError> {
     let mut a_by_edge: SecondaryMap<EdgeKey, &BoolNullEdgeRecord<T>> = SecondaryMap::new();
@@ -455,8 +529,67 @@ fn enumerate_segments<T: Decide>(
             });
         }
     }
-    let escalate = BooleanError::coincidence;
+    let escalate = |diag| {
+        BooleanError::coincidence(
+            Coincide::Join,
+            DeclarationRead::Spent(BooleanCoincidence::REST),
+            diag,
+        )
+    };
+    // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
+    undo_struts(red)?;
     let mut segments = Vec::new();
+    // **Arcs first.** An arc's end germs need not face each other
+    // along its chord (a half circle's are square to it), so the
+    // straight test cannot pair them. Each germ looks up, once per
+    // operand, the arc it runs along from its site; two germs pair when
+    // each one's arcs arrive at the other's sites along the same two
+    // edges. A germ whose lookup escalates is left to the straight
+    // test, and its escalation stands only if that test leaves it
+    // unpaired.
+    let mut arcs: Vec<Result<Option<[ArcStep<T>; 2]>, geom_core::Indeterminate>> =
+        Vec::with_capacity(germs.len());
+    for g in &germs {
+        let (a, b) = sites[g.pair];
+        arcs.push(
+            match (
+                arc_along(&red.a, a, g.dir, band)?,
+                arc_along(&red.b, b, g.dir, band)?,
+            ) {
+                (Ok(None), _) | (_, Ok(None)) => Ok(None),
+                (Err(diag), _) | (_, Err(diag)) => Err(diag),
+                (Ok(Some(sa)), Ok(Some(sb))) => Ok(Some([sa, sb])),
+            },
+        );
+    }
+    for i in 0..germs.len() {
+        let Ok(Some([sa, sb])) = arcs[i] else {
+            continue;
+        };
+        if germs[i].used {
+            continue;
+        }
+        let back = (0..germs.len()).find(|&j| {
+            !germs[j].used
+                && sites[germs[j].pair] == (sa.to, sb.to)
+                && matches!(arcs[j], Ok(Some([ta, tb]))
+                    if ta.edge == sa.edge && tb.edge == sb.edge
+                        && (ta.to, tb.to) == sites[germs[i].pair])
+        });
+        let Some(j) = back else {
+            continue;
+        };
+        germs[i].used = true;
+        germs[j].used = true;
+        let ((au, bu), (av, bv)) = (sites[germs[i].pair], sites[germs[j].pair]);
+        segments.push(Segment {
+            a_u: au,
+            a_v: av,
+            b_u: bu,
+            b_v: bv,
+            arcs: Some((sa.edge, sb.edge)),
+        });
+    }
     loop {
         // Globally nearest mutually-facing unused pair (the join's
         // scan order and tie discipline).
@@ -513,7 +646,13 @@ fn enumerate_segments<T: Decide>(
             a_v: av,
             b_u: bu,
             b_v: bv,
+            arcs: None,
         });
+    }
+    for (g, arc) in germs.iter().zip(&arcs) {
+        if let (false, Err(diag)) = (g.used, arc) {
+            return Err(escalate(*diag));
+        }
     }
     if germs.iter().any(|g| !g.used) {
         return Ok(None); // leftover germs: not a pure REST seam
@@ -521,8 +660,28 @@ fn enumerate_segments<T: Decide>(
     Ok(Some(segments))
 }
 
+/// The one circle arc of `body` leaving `u` along `dir`
+/// ([`arcs_along`]): `None` when there is none, the alignment's
+/// escalation as the inner error, and a second such arc the typed
+/// refusal.
+fn arc_along<T: Decide>(
+    body: &Body<T>,
+    u: VertexKey,
+    dir: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<Result<Option<ArcStep<T>>, geom_core::Indeterminate>, BooleanError> {
+    Ok(match arcs_along(body, u, dir, band)? {
+        Err(diag) => Err(diag),
+        Ok(steps) => match steps[..] {
+            [] => Ok(None),
+            [step] => Ok(Some(step)),
+            _ => return Err(unsupported(RestZipFrontier::ParallelSeamEdges)),
+        },
+    })
+}
+
 // ---------------------------------------------------------------
-// 2. The lane door.
+// 1. The REST-contact surfaces.
 // ---------------------------------------------------------------
 
 /// The per-operand verified REST-contact (opposite-oriented declared)
@@ -530,35 +689,28 @@ fn enumerate_segments<T: Decide>(
 type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>);
 
 /// **The one flush-pair door**: the C4 verify ladder for a single
-/// cross-body face pair — descriptions through [`face_plane`]
-/// (outward, sense-folded), identity through [`face_oriented_source`]
-/// (oriented sources, S10: the descriptions compared are the two
-/// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
-/// senses too — REST contact is precisely the `SameOpposite`
-/// verdict), and the verdict through [`super::oriented_plane_eq`] at
-/// the verification arm, which lives HERE and nowhere else: **1 m** —
-/// the declared rung contradicts only on DEFINITE margins, so the arm
-/// only meters the angular sliver band (exact fixtures decide
-/// definitely either way).
+/// cross-body PLANAR face pair — [`carrier_pair_relation`] restricted
+/// to two planes (descriptions through [`face_plane`], outward and
+/// sense-folded; S10's oriented sources, so rung 1's `orient` tags
+/// carry the face senses too — REST contact is precisely the
+/// `SameOpposite` verdict). It is that door, not a mirror of it: the
+/// verdict, the `decide` sites and the lever are the ones every carrier
+/// pair gets.
 ///
 /// **This door has NO in-tree consumer.** Verify-at-use stopped
 /// calling it at M9-1 and the flush detector followed when its scope
 /// became the `Rest` ladder's; what to do about a published door with
 /// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
-/// What it still IS is [`carrier_pair_relation`]'s planar projection,
-/// and the two cannot drift: that door's `(Plane, Plane)` case
-/// delegates to
-/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
-/// the very function [`super::oriented_plane_eq`] wraps here — one
-/// verdict function, one set of `decide` sites, one verification arm.
-/// (The #304 review's planted-drift probe showed a hand-mirrored arm
-/// passes every axis-aligned suite, which is why the arm is shared
-/// rather than mirrored.)
 ///
-/// `None`: not a planar pair — there is no plane description to
-/// compare (the REST lane treats it as an invariant violation at its
-/// own site; [`carrier_pair_relation`] is where a caller asks the
-/// same question of any carrier the ladder names).
+/// `Err`: a face that is not a plane, which this door has no
+/// description for ([`PairUnread::OutsideInventory`]; the REST lane
+/// treats it as an invariant violation at its own site, and
+/// [`carrier_pair_relation`] is where a caller asks the same question
+/// of any carrier the ladder names), or whose extent cannot be read.
+///
+/// # Errors
+///
+/// [`PairUnread`], as above.
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -566,15 +718,135 @@ pub fn flush_pair_relation<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<PlaneRelation, PlaneEqError>> {
-    let (pa, pb) = (face_plane(a, fa)?, face_plane(b, fb)?);
-    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
-    let id = PlaneIdentity {
-        s1: ga.as_ref(),
-        s2: gb.as_ref(),
-        declared,
+) -> Result<Result<PlaneRelation, PlaneEqError>, PairUnread> {
+    face_plane(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    face_plane(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    carrier_pair_relation(a, fa, b, fb, declared, band)
+}
+
+/// Which face of a pair, in the order a door took them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairFace {
+    /// The first face.
+    First,
+    /// The second face.
+    Second,
+}
+
+/// Why a face pair has no carrier reading: the door's input, not a
+/// verdict.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairUnread {
+    /// A face's surface kind is outside the ladder's inventory (cone,
+    /// NURBS, `Approx`), or its key does not resolve: there is no
+    /// description to compare.
+    OutsideInventory,
+    /// The face's consumed extent cannot be read ([`pair_extent`]): its
+    /// box has no claim to make (a NURBS placeholder, a boundary it
+    /// cannot read), or its boundary cannot be walked for the points
+    /// on it.
+    Extent(PairFace),
+}
+
+/// **A face's consumed extent**: a ball enclosing every point of it,
+/// the region over which a verdict about its carrier is consumed
+/// ([`pair_extent`]). A sphere's or a torus's own ball
+/// ([`ExtentBall::of_carrier`]: the torus's `R + r`, whatever the
+/// trim); otherwise the ball around the face's certified box, from the
+/// kernel's one kind→box rule (`census::face_reach`). `None` where that
+/// box has no claim to make, or the ball does not read.
+fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
+    let f = body.get_face(face)?;
+    let ball = match ExtentBall::of_carrier(body.get_surface(f.surface)?) {
+        Some(ball) => ball,
+        None => {
+            let (lo, hi) = crate::census::face_reach(body, face, band)?;
+            ExtentBall::of_box(lo, hi)
+        }
     };
-    Some(super::oriented_plane_eq(&pa, &pb, id, T::one(), band))
+    ball.readable()
+}
+
+/// The face's boundary vertex positions (outer loop then rings; an
+/// empty loop contributes its lone vertex): points known to lie on the
+/// face. `None` where the boundary cannot be walked.
+pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
+    let f = body.get_face(face)?;
+    let vertex_point = |vk| {
+        body.get_vertex(vk)
+            .and_then(|v| body.get_point(v.point))
+            .copied()
+    };
+    let mut out = Vec::new();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        match body.get_loop(lk)?.boundary {
+            crate::entity::LoopBoundary::Empty { vertex } => out.push(vertex_point(vertex)?),
+            crate::entity::LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first)? {
+                    out.push(vertex_point(body.get_half_edge(he)?.start)?);
+                }
+            }
+        }
+    }
+    Some(out)
+}
+
+/// **A face pair's consumed extent**, as the carrier doors read it:
+/// one ball enclosing both faces ([`face_ball`]), since the verdict is
+/// consumed on each, and each face's boundary vertices, the points
+/// known to be consumed ([`super::carrier_eq::ConsumedExtent`]).
+#[derive(Clone, Debug)]
+pub(crate) struct PairExtent<T: geom_core::Real> {
+    /// The ball enclosing both faces.
+    pub(crate) reach: ExtentBall<T>,
+    /// The first face's boundary vertices, then the second's.
+    pub(crate) on: [Vec<Point3<T>>; 2],
+}
+
+impl<T: geom_core::Real> PairExtent<T> {
+    /// The extent as the ladder reads it, its faces in the order
+    /// measured, or the other way round when `swapped`.
+    pub(crate) fn consumed(&self, swapped: bool) -> super::carrier_eq::ConsumedExtent<'_, T> {
+        let [first, second] = &self.on;
+        super::carrier_eq::ConsumedExtent {
+            reach: self.reach,
+            on: if swapped {
+                [second, first]
+            } else {
+                [first, second]
+            },
+        }
+    }
+}
+
+/// [`PairExtent`] of `fa` on `a` and `fb` on `b`. Read on the operands
+/// at rest: mid-operation, a face whose boundary carries null
+/// scaffolding has no box to read, and the sites there take a declared
+/// pair's extent from [`super::DeclaredPairs::consumed`].
+///
+/// # Errors
+///
+/// The face whose extent cannot be read ([`PairUnread::Extent`]).
+pub(crate) fn pair_extent<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<PairExtent<T>, PairFace> {
+    let read = |body, face| face_ball(body, face, band).zip(face_witnesses(body, face));
+    let (ball_a, on_a) = read(a, fa).ok_or(PairFace::First)?;
+    let (ball_b, on_b) = read(b, fb).ok_or(PairFace::Second)?;
+    // Two readable balls enclose readably short of overflow, which the
+    // larger reach is what tips; the second face takes the blame
+    // rather than neither.
+    let reach = ExtentBall::enclosing(&[ball_a, ball_b])
+        .and_then(ExtentBall::readable)
+        .ok_or(PairFace::Second)?;
+    Ok(PairExtent {
+        reach,
+        on: [on_a, on_b],
+    })
 }
 
 /// The face's **oriented carrier description** — the curved
@@ -635,17 +907,18 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// **The one carrier-pair door**: [`flush_pair_relation`] for every
 /// carrier kind the `Rest` table names.
 ///
-/// Same descriptions-plus-identity construction, same verification
-/// arm (**1 m**, living here and nowhere else), same shared-by-
-/// construction contract between the verify-at-use site and the
-/// detector's candidate-generation mode — only the carrier kind
-/// widens. The planar case reaches exactly the same numbers it
-/// reached before ([`mod@super::carrier_eq`]'s plane arm delegates), so
-/// this door is a superset of the old one rather than a replacement
-/// for it.
+/// Descriptions through [`face_carrier`], identity through
+/// [`face_oriented_source`], and the pair's consumed extent through
+/// [`pair_extent`]: a declared verdict that bridges is one whose
+/// displacement stays in band at every point of both faces
+/// ([`super::carrier_eq::pair_door_verdict`]). One door for the
+/// verify-at-use site and the detector's candidate-generation mode.
 ///
-/// `None`: a face whose surface kind is outside the ladder's
-/// inventory — there is no description to compare.
+/// # Errors
+///
+/// [`PairUnread`]: a face whose surface kind is outside the ladder's
+/// inventory — there is no description to compare — or whose extent
+/// cannot be read. The ladder's own refusals ride inside the `Ok`.
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -653,14 +926,18 @@ pub fn carrier_pair_relation<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<CarrierRelation, CarrierEqError>> {
-    Some(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
+) -> Result<Result<CarrierRelation, CarrierEqError>, PairUnread> {
+    Ok(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
 }
 
 /// [`carrier_pair_relation`] plus the AQ6 trilean — the door the
 /// CONTACT verification uses, since only a caller that can see the
 /// bridged residue can enforce C4's "trusted exactly there" invariant.
 /// One traversal, two projections.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`].
 pub fn carrier_pair_verdict<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -668,396 +945,47 @@ pub fn carrier_pair_verdict<T: Decide>(
     fb: FaceKey,
     declared: bool,
     band: Band,
-) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
-    let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
+) -> Result<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>, PairUnread> {
+    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
     let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
         s2: gb.as_ref(),
         declared,
     };
-    Some(super::carrier_eq::carrier_eq_verdict(
+    Ok(super::carrier_eq::pair_door_verdict(
         &ca,
         &cb,
         id,
-        T::one(),
+        &extent.consumed(false),
         band,
     ))
 }
 
-/// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
-/// ruling): the closed-form contact line of a tangent carrier pair,
-/// for exactly the configurations whose locus IS closed-form — a
-/// plane and a cylinder tangent along a ruling, and two PARALLEL
-/// cylinders tangent along the line between closest generators.
-///
-/// This is GEOMETRY, and it lives beside [`carrier_pair_relation`]
-/// because its consumers are that door's: the LIB flush detector's
-/// `Tangent` arm (its named follow-up — a tangency finding without a
-/// locus is one the verifier cannot check, so the detector waits on
-/// THIS helper) and any at-rest verification that must mint the
-/// witness a `Tangent` declaration is verified along.
-#[derive(Clone, Copy, Debug)]
-pub enum TangentLocus<T: geom_core::Real> {
-    /// The tangent line: `origin + t·dir`, `dir` unit (both certified
-    /// carriers are ruled along it).
-    Line {
-        /// A point on the locus.
-        origin: geom_core::Point3<T>,
-        /// The locus direction (the shared ruling / axis direction).
-        dir: geom_core::Vec3<T>,
-    },
-}
-
-/// Typed refusal of [`tangent_locus`] (closed enum, D3 style).
-#[derive(Debug)]
-pub enum TangentLocusError {
-    /// A margin landed in the sliver band.
-    Escalated(geom_core::Indeterminate),
-    /// The pair is definitely NOT tangent: `apart` distinguishes the
-    /// definite-clearance side from the definite-crossing side.
-    NotTangent {
-        /// `true`: definite clearance; `false`: definite crossing.
-        apart: bool,
-    },
-    /// The configuration is outside the closed-form lane (kinds other
-    /// than plane×cylinder / parallel cylinders, or a non-parallel
-    /// axis relation): the demanded set IS the certifiable set — no
-    /// sampled locus, ever.
-    Unsupported {
-        /// Why the configuration has no closed-form locus.
-        what: &'static str,
-    },
-}
-
-/// The closed-form tangent locus of two carriers (see
-/// [`TangentLocus`]). Kind dispatch is structural; every numeric
-/// decision is a named three-outcome row:
-///
-/// - `tangent_locus_axis_parallel` — the axis/plane (or axis/axis)
-///   angular deviation `|d × n̂|` (a sine of unit vectors) levered by
-///   the **1 m verification arm** ([`carrier_pair_relation`]'s own,
-///   living here and nowhere else): tangency along an unbounded
-///   ruling is a carrier-level claim, metered at the same arm the
-///   carrier ladder meters its parallelism rungs.
-/// - `tangent_locus_gap` — the metre gap at the tangency: for
-///   plane×cylinder the axis-to-plane distance minus the radius; for
-///   parallel cylinders the axis-to-axis distance minus `r1 + r2`
-///   (external) falling back to `|r1 − r2|` (internal). Zero ⇒
-///   tangent (the locus mints); Positive ⇒ definitely apart;
-///   Negative ⇒ definitely crossing.
-///
-/// **CONTRACT — the separation invariant** (consumed by the reduce
-/// sweep's declared-cover rung): every configuration this lane mints
-/// a locus for has each carrier wholly in ONE closed residual
-/// half-space of the other — a plane tangent to a cylinder has the
-/// whole cylinder on one side; each of two externally (or
-/// internally) tangent parallel cylinders is one-signed against the
-/// other — so an on-carrier edge under a verified declaration never
-/// crosses the partner surface. A new arm may NOT land here without
-/// restating its own residual-sign story.
-///
-/// **The coaxial cylinder×sphere circle arm's story is MEASURED and it
-/// PASSES — and that is not what still blocks the arm** (issue #974;
-/// the blocker's stated cause is superseded here rather than left
-/// standing). At the only coaxial tangency, `R = r`, the sphere lies
-/// wholly in the cylinder's non-positive residual half-space and the
-/// cylinder wholly in the sphere's non-negative one. The orientations
-/// are OPPOSITE per direction, which this contract never forbade: the
-/// internally tangent parallel cylinder pair the `|r1 − r2|` fallback
-/// already admits has exactly that structure. Both halves are pinned
-/// by `crates/topo/tests/verbs_cylsph_tangent_residuals.rs`. What
-/// blocks the arm is downstream of the story: [`TangentLocus`] carries
-/// a LINE and nothing else, its consumers all read a locus DIRECTION
-/// and none has a circle story, and the arm would need a
-/// declared-coaxiality channel this lane cannot reach. #974 stays open
-/// for that work.
-///
-/// # Errors
-///
-/// [`TangentLocusError`] — escalation, definite non-tangency, or a
-/// configuration outside the closed-form lane.
-pub fn tangent_locus<T: Decide>(
-    a: &geom::Surface<T>,
-    b: &geom::Surface<T>,
-    band: Band,
-) -> Result<TangentLocus<T>, TangentLocusError> {
-    use geom::Surface;
-    let arm = T::one();
-    let escalate = TangentLocusError::Escalated;
-    match (a, b) {
-        (
-            Surface::Plane { origin, normal, .. },
-            Surface::Cylinder {
-                origin: co,
-                axis,
-                radius,
-                ..
-            },
-        )
-        | (
-            Surface::Cylinder {
-                origin: co,
-                axis,
-                radius,
-                ..
-            },
-            Surface::Plane { origin, normal, .. },
-        ) => {
-            // Ruling tangency needs the axis IN the plane's direction
-            // space: |axis · n̂| is the sine of the axis' elevation.
-            match decide(
-                "tangent_locus_axis_parallel",
-                Margin::levered(axis.dot(*normal).abs(), arm),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Zero => {}
-                _ => {
-                    return Err(TangentLocusError::Unsupported {
-                        what: "plane×cylinder tangency is closed-form only along a ruling — \
-                               the axis must lie in the plane's direction space",
-                    });
-                }
-            }
-            // Signed axis-to-plane height; its SIGN picks the tangent
-            // generator, its magnitude minus r is the tangency gap.
-            let h = (*co - *origin).dot(*normal);
-            let side = match decide("tangent_locus_side", Margin::of(h), band).map_err(escalate)? {
-                Sign::Positive => T::one(),
-                Sign::Negative => T::zero() - T::one(),
-                Sign::Zero => {
-                    // Axis ON the plane: the cylinder definitely
-                    // crosses (both sides pierce).
-                    return Err(TangentLocusError::NotTangent { apart: false });
-                }
-            };
-            match decide("tangent_locus_gap", Margin::of(h.abs() - *radius), band)
-                .map_err(escalate)?
-            {
-                Sign::Zero => Ok(TangentLocus::Line {
-                    origin: *co - *normal * (side * *radius),
-                    dir: *axis,
-                }),
-                Sign::Positive => Err(TangentLocusError::NotTangent { apart: true }),
-                Sign::Negative => Err(TangentLocusError::NotTangent { apart: false }),
-            }
-        }
-        (
-            Surface::Cylinder {
-                origin: o1,
-                axis: a1,
-                radius: r1,
-                ..
-            },
-            Surface::Cylinder {
-                origin: o2,
-                axis: a2,
-                radius: r2,
-                ..
-            },
-        ) => {
-            match decide(
-                "tangent_locus_axis_parallel",
-                Margin::levered(a1.cross(*a2).norm(), arm),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Zero => {}
-                _ => {
-                    return Err(TangentLocusError::Unsupported {
-                        what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
-                               axes (the generator line); skew/crossing axes are outside \
-                               the lane",
-                    });
-                }
-            }
-            // Perpendicular axis-to-axis offset (the axis LINE datum,
-            // the carrier ladder's own construction).
-            let delta = *o2 - *o1;
-            let w = delta - *a1 * delta.dot(*a1);
-            let dist = w.norm();
-            // External tangency first (|w| = r1 + r2): the common case
-            // and the flush detector's; internal (|w| = |r1 − r2|)
-            // second. Fixed probe order (D9).
-            match decide("tangent_locus_gap", Margin::of(dist - (*r1 + *r2)), band)
-                .map_err(escalate)?
-            {
-                Sign::Zero => {
-                    let w_hat = w.normalize();
-                    return Ok(TangentLocus::Line {
-                        origin: *o1 + w_hat * *r1,
-                        dir: *a1,
-                    });
-                }
-                Sign::Positive => return Err(TangentLocusError::NotTangent { apart: true }),
-                Sign::Negative => {}
-            }
-            match decide(
-                "tangent_locus_gap",
-                Margin::of((*r1 - *r2).abs() - dist),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Zero => {
-                    // Internal tangency: the smaller cylinder rests
-                    // inside the larger; the generator sits on the
-                    // offset direction at the LARGER radius from the
-                    // larger axis. With coaxial axes (dist in the
-                    // zero band AND radii in the zero band) the locus
-                    // direction is ill-posed — refuse typed.
-                    match decide("tangent_locus_side", Margin::of(dist), band).map_err(escalate)? {
-                        Sign::Positive => {}
-                        _ => {
-                            return Err(TangentLocusError::Unsupported {
-                                what: "coaxial equal-radius cylinders have no isolated \
-                                       tangent generator (conformal contact is Rest, \
-                                       not Tangent)",
-                            });
-                        }
-                    }
-                    // Which cylinder contains which decides the
-                    // generator's side (derived: with ŵ = o1→o2 and
-                    // |w| = |r1 − r2|, the touch point is
-                    // P = o1 + ŵ·r1 when r1 > r2 — c2 inside c1 —
-                    // and P = o1 − ŵ·r1 when r1 < r2, both from
-                    // collinearity of P, o1, o2 with |P−o1| = r1,
-                    // |P−o2| = r2). The side is DECIDED, never an
-                    // evaluation-lane comparison.
-                    let w_hat = w.normalize();
-                    let sign = match decide("tangent_locus_side", Margin::of(*r1 - *r2), band)
-                        .map_err(escalate)?
-                    {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
-                        Sign::Zero => {
-                            return Err(TangentLocusError::Unsupported {
-                                what: "equal-radius internal tangency contradicts the \
-                                       definite axis offset — no closed-form generator",
-                            });
-                        }
-                    };
-                    Ok(TangentLocus::Line {
-                        origin: *o1 + w_hat * (sign * *r1),
-                        dir: *a1,
-                    })
-                }
-                // dist < |r1 − r2|: one cylinder NESTED strictly
-                // inside the other — the surfaces definitely do NOT
-                // meet (their minimum distance is |r1 − r2| − dist,
-                // definitely positive here): APART, not crossing
-                // (union fix F3 — the pre-fix arm labeled this
-                // definite clearance a crossing).
-                Sign::Positive => Err(TangentLocusError::NotTangent { apart: true }),
-                // |r1 − r2| < dist < r1 + r2 (the external row already
-                // refused the ≥ side): the surfaces definitely cross.
-                Sign::Negative => Err(TangentLocusError::NotTangent { apart: false }),
-            }
-        }
-        _ => Err(TangentLocusError::Unsupported {
-            what: "the closed-form tangent-locus lane holds plane×cylinder and parallel \
-                   cylinder pairs only (the DEV-1 certified set)",
-        }),
-    }
-}
-
-/// Verifies every declared face pair through the declared rung and
-/// returns the opposite-oriented (REST-contact) surface sets per
-/// operand. A definitely-distinct declared pair is the typed
-/// [`BooleanError::ContactContradicted`] — a false REST
-/// declaration refuses at the lane, never a silent no-op.
-fn verify_declared_pairs<T: Decide>(
+/// The REST-contact surface sets per operand: the surfaces of the
+/// `Rest` pairs the declaration door verified one carrier with opposed
+/// senses ([`BooleanReduction`]'s `rest_contacts`). The door refused
+/// every false declaration before the reduction ran, so this lane reads
+/// its certificates and verifies nothing again.
+fn rest_surfaces<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
-    band: Band,
+    pairs: &[(FaceKey, FaceKey)],
 ) -> Result<RestSurfaces, BooleanError> {
+    let surface = |body: &Body<T>, f: FaceKey| {
+        body.get_face(f)
+            .map(|face| face.surface)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "REST lane: a verified declared face vanished",
+            })
+    };
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
-    for &FacePairDeclaration {
-        a: fa,
-        b: fb,
-        class,
-    } in &decls.coincident_faces
-    {
-        // Only the CONFORMAL class names REST-contact surfaces; a
-        // `Tangent` pair touches along a locus, was verified by its
-        // own C4 table at the front door, and licenses no patch.
-        if class != ContactClass::Rest {
-            continue;
-        }
-        // The one carrier-pair door: oriented sources, sense-folded
-        // descriptions, and the verification arm all live inside it —
-        // shared with the flush detector by construction, since that
-        // detector asks THIS function in its `declared: false`
-        // posture.
-        // The generalized door: planar pairs reach exactly the numbers
-        // the plane ladder always reached (its plane arm delegates),
-        // and a curved declared pair is verified rather than being
-        // silently outside the lane.
-        let relation = carrier_pair_relation(a, fa, b, fb, true, band).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "REST lane: a declared face lost its carrier",
-            },
-        )?;
-        match relation {
-            Ok(PlaneRelation::SameOpposite) => {
-                let sa = a
-                    .get_face(fa)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "REST lane: declared A face vanished",
-                    })?
-                    .surface;
-                let sb = b
-                    .get_face(fb)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "REST lane: declared B face vanished",
-                    })?
-                    .surface;
-                a_rest.insert(sa, ());
-                b_rest.insert(sb, ());
-            }
-            Ok(PlaneRelation::SameOriented) => {} // merge-stage pair
-            Ok(PlaneRelation::Distinct) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "REST lane: declared rung returned Distinct instead of contradicting",
-                });
-            }
-            Err(PlaneEqError::Contradicted { fact, diag }) => {
-                // C4's verify-at-use: the refusal names the pair, the
-                // CLASS that was claimed and the margin that decided —
-                // and steers to the class that would fit when the
-                // counter-evidence is a separation (AQ6).
-                return Err(BooleanError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
-                        a: fa,
-                        b: fb,
-                        class: ContactClass::Rest,
-                    },
-                    steer: super::contact_verify::fit_steer(fact),
-                    fact: Some(fact),
-                    margin: diag,
-                });
-            }
-            Err(PlaneEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(
-                    rung,
-                    super::PlaneDoor::Declared,
-                    diag,
-                ));
-            }
-            Err(PlaneEqError::Undeclared { diag, relation }) => {
-                // Unreachable with declared=true; refuse loudly anyway.
-                return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
-                    pair: [(Operand::A, fa), (Operand::B, fb)],
-                    relation,
-                });
-            }
-        }
+    for &(fa, fb) in pairs {
+        a_rest.insert(surface(a, fa)?, ());
+        b_rest.insert(surface(b, fb)?, ());
     }
     Ok((a_rest, b_rest))
 }
@@ -1111,13 +1039,19 @@ struct SeamSet {
     per_segment: Vec<EdgeKey>,
 }
 
-/// Realizes the seam in one solid: per segment, the existing operand
-/// edge (fan walk) or a minted chord through the standard splitting
-/// machinery. `Ok(None)`: a segment does not resolve structurally —
-/// not this lane's frontier (pre-identification phase).
+/// An edge's two vertices, `(u, v)`.
+type VertexPair = (VertexKey, VertexKey);
+
+/// Realizes the seam in one solid: per segment, the arc it was matched
+/// along, else the existing operand edge (fan walk), else a minted chord
+/// through the standard splitting machinery, on the other solid's edge
+/// for the segment where it has one. `Ok(None)`: a segment does not
+/// resolve structurally — not this lane's frontier (pre-identification
+/// phase).
 fn realize_seam<T: Decide>(
     body: &mut Body<T>,
-    segments: &[(VertexKey, VertexKey)],
+    other: &Body<T>,
+    segments: &[(VertexPair, Option<EdgeKey>, VertexPair)],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -1126,10 +1060,22 @@ fn realize_seam<T: Decide>(
         set: SecondaryMap::new(),
         per_segment: Vec::with_capacity(segments.len()),
     };
-    for &(u, v) in segments {
-        let edge = match fan_edge_between(body, u, v)? {
+    for &((u, v), arc, theirs) in segments {
+        let found = match arc {
+            Some(e) => Some(e),
+            None => fan_edge_between(body, u, v)?,
+        };
+        let edge = match found {
             Some(e) => e,
-            None => match mint_chord(body, u, v, rings, fragments, tol)? {
+            None => match mint_chord(
+                body,
+                u,
+                v,
+                Twin::of(other, theirs, (u, v))?.as_ref(),
+                rings,
+                fragments,
+                tol,
+            )? {
                 Some(e) => e,
                 None => return Ok(None),
             },
@@ -1138,6 +1084,84 @@ fn realize_seam<T: Decide>(
         out.per_segment.push(edge);
     }
     Ok(Some(out))
+}
+
+/// The edges of `body` interior to its contact patch, as endpoint
+/// pairs: both sides on patch faces, and not on the seam. Arena order.
+fn interior_edges<T: Decide>(
+    body: &Body<T>,
+    patch: &[FaceKey],
+    seam: &SeamSet,
+) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
+    let in_patch = |he| {
+        body.face_of_half_edge(he)
+            .is_some_and(|f| patch.contains(&f))
+    };
+    let mut out = Vec::new();
+    for (key, edge) in body.edges() {
+        if seam.set.contains_key(key) || !in_patch(edge.he_plus) || !in_patch(edge.he_minus) {
+            continue;
+        }
+        let start = |he| {
+            body.get_half_edge(he)
+                .map(|h| h.start)
+                .ok_or_else(|| desync("REST lane: interior edge half no longer resolves"))
+        };
+        out.push((start(edge.he_plus)?, start(edge.he_minus)?));
+    }
+    Ok(out)
+}
+
+/// **The two operands' interior curve networks, made congruent.** The
+/// seam bounds the contact region on both solids alike, but each solid
+/// divides the region into faces its own way: a full-turn bore is one
+/// face where the shaft against it is three. Patches pair by vertex
+/// cycles, so every edge interior to the OTHER solid's patch is given
+/// a twin in `body`'s: found between the corresponding vertices, or
+/// minted in the patch face holding both, on the other edge's carrier.
+/// The zip removes both patches as interior, so what the twins must get
+/// right is how they divide the faces.
+///
+/// Returns the patch grown by the faces the twins split off.
+/// `Ok(None)`: an interior edge whose ends have no counterpart here (a
+/// vertex of the other solid interior to the region), a closed one, or
+/// one whose host is not a single patch face — not this lane's frontier.
+#[allow(clippy::too_many_arguments)] // both solids, the vertex map, and the split bookkeeping `mint_chord` takes
+fn mirror_edges<T: Decide>(
+    body: &mut Body<T>,
+    other: &Body<T>,
+    other_interior: &[(VertexKey, VertexKey)],
+    here: &SecondaryMap<VertexKey, VertexKey>,
+    patch: &[FaceKey],
+    rings: &SecondaryMap<VertexKey, FaceKey>,
+    fragments: &mut Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
+) -> Result<Option<Vec<FaceKey>>, BooleanError> {
+    let mut patch = patch.to_vec();
+    for &(ou, ov) in other_interior {
+        let (Some(&u), Some(&v)) = (here.get(ou), here.get(ov)) else {
+            return Ok(None);
+        };
+        if u == v {
+            return Ok(None);
+        }
+        if fan_edge_between(body, u, v)?.is_some() {
+            continue;
+        }
+        let fu = incident_faces(body, u, rings)?;
+        let fv = incident_faces(body, v, rings)?;
+        let host: Vec<FaceKey> = fu.iter().filter(|f| fv.contains(f)).copied().collect();
+        if !matches!(host[..], [f] if patch.contains(&f)) {
+            return Ok(None);
+        }
+        let minted = fragments.len();
+        let twin = Twin::of(other, (ou, ov), (u, v))?;
+        if mint_chord(body, u, v, twin.as_ref(), rings, fragments, tol)?.is_none() {
+            return Ok(None);
+        }
+        patch.extend(fragments[minted..].iter().map(|&(new, _)| new));
+    }
+    Ok(Some(patch))
 }
 
 /// The existing edge from `u` to `v`, if any (structural fan walk —
@@ -1164,9 +1188,7 @@ fn fan_edge_between<T: Decide>(
                 None => found = Some(e),
                 Some(prev) if prev == e => {}
                 Some(_) => {
-                    return Err(unsupported(
-                        "two parallel operand edges span one seam segment",
-                    ));
+                    return Err(unsupported(RestZipFrontier::ParallelSeamEdges));
                 }
             }
         }
@@ -1174,14 +1196,111 @@ fn fan_edge_between<T: Decide>(
     Ok(found)
 }
 
+/// The other solid's edge between the vertices a chord joins, read for
+/// the chord: a line (the straight chord IS its locus) or a circle, with
+/// its parameter span and which of this solid's two vertices that span
+/// starts at.
+enum Twin<T: geom_core::Real> {
+    Line,
+    Circle {
+        carrier: geom::Curve3<T>,
+        t0: T,
+        t1: T,
+        start: VertexKey,
+    },
+}
+
+impl<T: Decide> Twin<T> {
+    /// The other solid's edge from `ou` to `ov`, read for this solid's
+    /// `u` and `v` (`ou`, `ov` correspond to them), or `None` where the
+    /// other solid has no such edge. An edge whose curve is uncertified,
+    /// or neither a line nor a circle, refuses typed: no chord this
+    /// lane can mint is its twin. No union reaches that refusal today:
+    /// an ellipse or spline seam edge comes from a curved face's
+    /// boundary, where the crossing layer answers `Unread` first, or
+    /// from an oblique planar cut, whose body the containment door
+    /// refuses `VolumeUncertified` first (an obliquely capped rod
+    /// resting on a plate, declared `Rest`, in both operand orders);
+    /// an uncertified edge is turned away at the operand gate.
+    fn of(
+        other: &Body<T>,
+        (ou, ov): (VertexKey, VertexKey),
+        (u, v): (VertexKey, VertexKey),
+    ) -> Result<Option<Self>, BooleanError> {
+        let Some(edge) = fan_edge_between(other, ou, ov)? else {
+            return Ok(None);
+        };
+        let ed = other
+            .get_edge(edge)
+            .ok_or_else(|| desync("REST lane: twin edge no longer resolves"))?;
+        let curve = other
+            .get_curve_geom(ed.curve)
+            .and_then(CurveGeom::certified)
+            .ok_or_else(|| unsupported(RestZipFrontier::TwinCarrierUnsupported))?;
+        let first = other
+            .get_half_edge(ed.he_plus)
+            .ok_or_else(|| desync("REST lane: twin half no longer resolves"))?
+            .start;
+        let (t0, t1) = curve.params();
+        match curve.carrier() {
+            geom::Curve3::Line { .. } => Ok(Some(Self::Line)),
+            carrier @ geom::Curve3::Circle { .. } => Ok(Some(Self::Circle {
+                carrier: carrier.clone(),
+                t0,
+                t1,
+                start: if first == ou { u } else { v },
+            })),
+            _ => Err(unsupported(RestZipFrontier::TwinCarrierUnsupported)),
+        }
+    }
+
+    /// The twin's curve run from `from`: `None` for a line, which the
+    /// straight chord mints as it stands; a circle's own arc in the
+    /// direction asked (reversed by flipping the axis).
+    fn spec(&self, from: VertexKey) -> Option<EdgeCurveSpec<T>> {
+        let Self::Circle {
+            carrier,
+            t0,
+            t1,
+            start,
+        } = self
+        else {
+            return None;
+        };
+        let geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = *carrier
+        else {
+            return None;
+        };
+        if from == *start {
+            EdgeCurveSpec::arc_of_circle(carrier.clone(), *t0, *t1)
+        } else {
+            let reversed = geom::Curve3::Circle {
+                center,
+                axis: -axis,
+                radius,
+                u_ref,
+            };
+            EdgeCurveSpec::arc_of_circle(reversed, -*t1, -*t0)
+        }
+    }
+}
+
 /// Mints the seam chord `u → v` through the standard splitting
 /// machinery (`mef` same-loop, `mekr` for ring loops / pierce-ring
-/// vertices) in the unique face incident to both endpoints.
+/// vertices) in the unique face incident to both endpoints, on its
+/// `twin`'s carrier where the other solid has the edge (a rim arc stays
+/// an arc), and as a straight chord where it has none.
 /// `Ok(None)`: no unique host face — not this lane's frontier.
 fn mint_chord<T: Decide>(
     body: &mut Body<T>,
     u: VertexKey,
     v: VertexKey,
+    twin: Option<&Twin<T>>,
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -1209,13 +1328,27 @@ fn mint_chord<T: Decide>(
             .ok_or_else(|| desync("REST lane: chord half no longer resolves"))?
             .parent_loop)
     };
+    // The new edge's curve from `from` to `to`, where the twin states
+    // one; `None` takes the straight chord.
+    // The new edge's curve from `from`; `None` takes the straight chord.
+    let spec = |from: VertexKey| twin.and_then(|t| t.spec(from));
+    let mef = |body: &mut Body<T>, he1: HalfEdgeKey, he2: HalfEdgeKey, from| {
+        let site = MefSite::Chords { he1, he2 };
+        match spec(from) {
+            Some(curve) => body.mef(site, curve, FaceSurface::Inherit, tol),
+            None => body.mef_chord(site, tol),
+        }
+    };
+    let mekr = |body: &mut Body<T>, site: MekrSite, from| match spec(from) {
+        Some(curve) => body.mekr(site, curve, tol),
+        None => body.mekr_chord(site, tol),
+    };
     let created = match (&hu[..], &hv[..]) {
         ([hu], [hv]) => {
             let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
             if lu == lv {
-                let created = body
-                    .mef_chord(MefSite::Chords { he1: *hu, he2: *hv }, tol)
-                    .map_err(|_| unsupported("seam chord mef refused on its host face"))?;
+                let created = mef(body, *hu, *hv, u)
+                    .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
                 fragments.push((created.face, face));
                 created.edge
             } else {
@@ -1224,33 +1357,35 @@ fn mint_chord<T: Decide>(
                     .get_face(face)
                     .ok_or_else(|| desync("REST lane: chord host face vanished"))?
                     .outer;
-                let (target, ring) = if lv == outer { (*hv, *hu) } else { (*hu, *hv) };
-                body.mekr_chord(MekrSite::Cycles { target, ring }, tol)
-                    .map_err(|_| unsupported("seam chord mekr refused on its host face"))?
+                let ((target, from), ring) = if lv == outer {
+                    ((*hv, v), *hu)
+                } else {
+                    ((*hu, u), *hv)
+                };
+                mekr(body, MekrSite::Cycles { target, ring }, from)
+                    .map_err(|_| unsupported(RestZipFrontier::ChordMekrRefused))?
                     .edge
             }
         }
         ([], [hv]) => {
             let ring = ring_loop_of(body, u)
-                .ok_or_else(|| unsupported("seam chord endpoint has no boundary presence"))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hv, ring }, tol)
-                .map_err(|_| unsupported("seam chord mekr (pierce ring) refused"))?
+                .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
+            mekr(body, MekrSite::EmptyRing { target: *hv, ring }, v)
+                .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
                 .edge
         }
         ([hu], []) => {
             let ring = ring_loop_of(body, v)
-                .ok_or_else(|| unsupported("seam chord endpoint has no boundary presence"))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hu, ring }, tol)
-                .map_err(|_| unsupported("seam chord mekr (pierce ring) refused"))?
+                .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
+            mekr(body, MekrSite::EmptyRing { target: *hu, ring }, u)
+                .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
                 .edge
         }
         ([], []) => {
-            return Err(unsupported("seam chord between two isolated pierce points"));
+            return Err(unsupported(RestZipFrontier::ChordBetweenIsolatedPierces));
         }
         _ => {
-            return Err(unsupported(
-                "seam chord endpoint revisited by its host face boundary",
-            ));
+            return Err(unsupported(RestZipFrontier::ChordEndpointRevisited));
         }
     };
     Ok(Some(created))
@@ -1448,9 +1583,10 @@ fn pair_patches<T: Decide>(
         let mapped: Vec<VertexKey> = starts
             .iter()
             .map(|&v| {
-                vcorr.get(v).copied().ok_or_else(|| {
-                    unsupported("patch boundary vertex without a seam correspondent")
-                })
+                vcorr
+                    .get(v)
+                    .copied()
+                    .ok_or_else(|| unsupported(RestZipFrontier::PatchVertexUnmatched))
             })
             .collect::<Result<_, _>>()?;
         let n = mapped.len();
@@ -1477,9 +1613,7 @@ fn pair_patches<T: Decide>(
             break;
         }
         let Some(fb) = matched else {
-            return Err(unsupported(
-                "patch face cycles not congruent across the mate",
-            ));
+            return Err(unsupported(RestZipFrontier::PatchCyclesIncongruent));
         };
         used.insert(fb, ());
         pairs.push((fa, fb));
@@ -1598,6 +1732,23 @@ fn shared_run<T: Decide>(
 /// the promoted pairs then glue the same way — the same-shell
 /// `kfmrh` inside those glues is where the mate's genus bookkeeping
 /// lives (a filled through-peg's handle).
+///
+/// Rings pair one for one, so differing counts are holes that do not
+/// match, refused as a ring with no congruent partner is.
+///
+/// On a PLANE a ring vertex always has a seam correspondent: the patch
+/// flood stops only at seam edges, so a ring is bounded by seam edges,
+/// whose ends are segment ends, or encloses another patch face whose
+/// outer cycle the patch pairing has already mapped (the ring is that
+/// face's outer boundary, by Jordan). Neither half holds on a periodic
+/// carrier: a cylinder band's two boundary circles are outer and ring by
+/// designation only, so a ring can border a neighbouring patch face's
+/// RING, whose vertices the pairing never reads (two stacked bands mated
+/// against a band split at another height). The unmatched-vertex
+/// refusal answers that configuration; no row builds it yet. A ring
+/// that is an isolated vertex (a pierce ring no segment reached) is
+/// outside both arguments: the flood passes over it, and its promotion
+/// or its cycle read below refuses as a lane desync.
 fn glue_pair<T: Decide>(
     body: &mut Body<T>,
     fa: FaceKey,
@@ -1605,6 +1756,10 @@ fn glue_pair<T: Decide>(
     vmap: &SecondaryMap<VertexKey, VertexKey>,
     tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
+    let corr: SeamCorrespondence = vmap
+        .iter()
+        .map(|(a, &b)| (a, std::collections::BTreeSet::from([b])))
+        .collect();
     let rings_of = |body: &Body<T>, f: FaceKey| -> Result<Vec<LoopKey>, BooleanError> {
         Ok(body
             .get_face(f)
@@ -1629,13 +1784,11 @@ fn glue_pair<T: Decide>(
         );
     }
     if ga.len() != gb.len() {
-        return Err(unsupported(
-            "patch pair carries differing interior-boundary counts",
-        ));
+        return Err(unsupported(RestZipFrontier::HoleCyclesIncongruent));
     }
     let shared = shared_run(body, fa, fb)?;
     let mut report = if shared.is_empty() {
-        zip_seam(body, fa, fb, vmap, tol)?
+        zip_seam(body, fa, fb, &corr, tol)?
     } else {
         slit_zip(body, fa, fb, &shared, vmap, tol)?
     };
@@ -1650,7 +1803,7 @@ fn glue_pair<T: Decide>(
             .map(|&v| {
                 vmap.get(v)
                     .copied()
-                    .ok_or_else(|| unsupported("ring boundary vertex without a seam correspondent"))
+                    .ok_or_else(|| unsupported(RestZipFrontier::HoleVertexUnmatched))
             })
             .collect::<Result<_, _>>()?;
         let n = mapped.len();
@@ -1675,12 +1828,12 @@ fn glue_pair<T: Decide>(
             break;
         }
         let Some(db) = matched else {
-            return Err(unsupported("ring cycles not congruent across the mate"));
+            return Err(unsupported(RestZipFrontier::HoleCyclesIncongruent));
         };
         used.insert(db, ());
         let shared = shared_run(body, da, db)?;
         let rep = if shared.is_empty() {
-            zip_seam(body, da, db, vmap, tol)?
+            zip_seam(body, da, db, &corr, tol)?
         } else {
             slit_zip(body, da, db, &shared, vmap, tol)?
         };
@@ -1732,7 +1885,7 @@ fn slit_zip<T: Decide>(
             .get_face(f)
             .ok_or_else(|| desync("REST lane: slit face vanished"))?;
         if !fd.rings.is_empty() {
-            return Err(unsupported("slit-zip face carries rings"));
+            return Err(unsupported(RestZipFrontier::SlitFaceHoles));
         }
         let LoopBoundary::Cycle { first } = body
             .get_loop(fd.outer)
@@ -1756,14 +1909,14 @@ fn slit_zip<T: Decide>(
         .collect::<Result<_, BooleanError>>()?;
     let k = flags.iter().filter(|&&s| s).count();
     if k != shared.len() || k == flags.len() {
-        return Err(unsupported("patch pair shares its whole boundary"));
+        return Err(unsupported(RestZipFrontier::WholeBoundaryShared));
     }
     let n = flags.len();
     // Rotate so a run occupies a prefix: find i with flags[i] &&
     // !flags[(i+n-1)%n], then collect every maximal run in cycle
     // order from there (deterministic — D9).
     let Some(start) = (0..n).find(|&i| flags[i] && !flags[(i + n - 1) % n]) else {
-        return Err(unsupported("patch pair shares its whole boundary"));
+        return Err(unsupported(RestZipFrontier::WholeBoundaryShared));
     };
     let mut runs: Vec<Vec<HalfEdgeKey>> = Vec::new();
     let mut t = 0;
@@ -1831,9 +1984,7 @@ fn slit_zip<T: Decide>(
             .vertex_orbit(anchor)
             .ok_or_else(|| desync("REST lane: run vertex orbit not walkable"))?;
         if orbit.len() != 1 {
-            return Err(unsupported(
-                "seam-run interior vertex holds edges beyond the run",
-            ));
+            return Err(unsupported(RestZipFrontier::RunVertexBranches));
         }
         let mate = body
             .mate(he)
@@ -1910,9 +2061,7 @@ fn slit_zip<T: Decide>(
                 } else if fd.rings.contains(&lm) {
                     m
                 } else {
-                    return Err(unsupported(
-                        "band-closure run edge outside the folded face's loops",
-                    ));
+                    return Err(unsupported(RestZipFrontier::BandRunOffLoops));
                 };
                 let ring = loop_of(body, ring_half)?;
                 body.mfkrh(ring, FaceSurface::Inherit)
@@ -2042,7 +2191,7 @@ fn zip_folded<T: Decide>(
             .half_edge_end(hb)
             .ok_or_else(|| desync("REST lane: fold half has no end"))?;
         if sa == eb {
-            return Err(unsupported("pre-fused vertex pair inside a slit-zip fold"));
+            return Err(unsupported(RestZipFrontier::FoldVertexFused));
         }
         if vmap.get(sa).copied() != Some(eb) {
             return Err(corr("slit-zip vertex pair off the seam correspondence"));
@@ -2056,26 +2205,189 @@ fn zip_folded<T: Decide>(
             .ok_or_else(|| desync("REST lane: fold half no longer resolves"))?
             .next;
         // Wall off the 3-edge sliver [ha, hb, scaffold], fuse the
-        // vertex pair, retire the b copy (its remnant a copy lands in
-        // the b-side neighbor's loop — the fuse).
-        let made = body.mef(
-            MefSite::Chords {
-                he1: ha,
-                he2: hb_next,
-            },
-            geom_brep::EdgeCurveSpec::self_loop_circle_at(p),
-            FaceSurface::Inherit,
-            tol,
-        )?;
-        // The fuse merges the b copy into the a copy across a certified
-        // circle: the merged fan keeps its carriers, re-certified at the
-        // a copy under the run's band.
-        body.kev_describing(made.he_plus, &[], tol)
-            .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
-        report.vertex_merges.push((eb, sa));
+        // vertex pair into the a copy, retire the b copy (its remnant a
+        // copy lands in the b-side neighbor's loop — the fuse).
+        let joint = Joint::Chord {
+            he1: ha,
+            he2: hb_next,
+        };
+        let (merge, _) = fuse_by_joint(body, joint, p, desync, tol)?;
+        debug_assert_eq!(merge, (eb, sa), "the slit fuse keeps the a copy");
+        report.vertex_merges.push(merge);
         report.seam_edges.push(edge_of(body, ha)?);
         body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// **A glue's deaths settle against the seam, one glue at a time.**
+    /// A seam edge that died and was reported interior leaves the seam;
+    /// one that died unreported is the lane's desync; and an edge
+    /// reported interior that is still alive is one too. The prism is a
+    /// key scaffold: only edge liveness is read, so the death is an
+    /// arena removal rather than a glue's surgery.
+    ///
+    /// This is the only coverage the unreported-death arm can have: a
+    /// glue that reports every run edge it kills (as `slit_zip` does,
+    /// pushing each before the kill) never feeds it one, so only a
+    /// broken glue reaches it end to end. No suite row has a real glue
+    /// kill a seam segment edge at all.
+    #[test]
+    fn a_glue_settles_each_seam_death_it_reports_and_no_other() {
+        let prism = crate::fixtures::raw_prism(3, Tol::witness());
+        let mut body = prism.body;
+        let [kept, killed, other] = [prism.et[0], prism.et[1], prism.et[2]];
+        body.edges.remove(killed);
+        let what = |r: Result<(), BooleanError>| match r {
+            Err(BooleanError::JoinDesync { what }) => what,
+            other => panic!("expected a lane desync, got {other:?}"),
+        };
+
+        let mut seam = vec![kept, killed];
+        settle_glue(&body, &mut seam, &[killed]).expect("a reported death settles");
+        assert_eq!(seam, vec![kept], "the reported dead edge leaves the seam");
+
+        let mut seam = vec![kept, killed];
+        assert_eq!(
+            what(settle_glue(&body, &mut seam, &[])),
+            "REST lane: a seam segment edge did not survive",
+            "an unreported seam death is a desync"
+        );
+
+        let mut seam = vec![kept, killed];
+        assert_eq!(
+            what(settle_glue(&body, &mut seam, &[killed, other])),
+            "REST lane: an edge the glue reported interior survived it",
+            "an interior report on a live edge is a desync"
+        );
+    }
+}
+
+/// **A declared `Rest` bridges only a displacement that stays in band
+/// at every point of the faces it is consumed on.** Each row poses a
+/// pair a datum-by-datum reading bridged — each datum in band at its
+/// own lever — while some consumed point stands at or past the band;
+/// the door reads the pair as one displacement and refuses it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod lever_rows {
+    use super::*;
+    use crate::boolean::boxes::tests::torus_wall;
+    use crate::contact::ContactRefusal;
+    use crate::test_support::{CylFrame, cyl_wall_sheet};
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn door(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> Result<(), ContactRefusal> {
+        crate::boolean::contact_pair_verdict(
+            a,
+            fa,
+            b,
+            fb,
+            crate::contact::ContactClass::Rest,
+            None,
+            band(),
+        )
+        .map(|_| ())
+    }
+
+    /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about
+    /// `y` through the shared centre. At `θ = 0.6·Kε`, in band at one
+    /// metre, the tilt moves the tube's core circle by `θ·R = 1.2·Kε`
+    /// while no corner of the patch stands past the band: the door
+    /// refuses unsettled rather than bridging. At `2·Kε` a corner stands
+    /// past it, and the door contradicts.
+    #[test]
+    fn a_torus_tilt_is_read_at_the_ring() {
+        for (k, unsettled) in [(0.6, true), (2.0, false)] {
+            let theta = k * band().escalate();
+            let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+            let (a, fa) = torus_wall(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                0.5,
+                u,
+                v,
+            );
+            let (mut b, fb) = torus_wall(
+                Point3::origin(),
+                Vec3::new(theta.sin(), 0.0, theta.cos()),
+                Vec3::new(theta.cos(), 0.0, -theta.sin()),
+                2.0,
+                0.5,
+                u,
+                v,
+            );
+            b.set_face_sense(fb, false).unwrap();
+            let read = door(&a, fa, &b, fb);
+            if unsettled {
+                assert!(
+                    matches!(read, Err(ContactRefusal::Escalated { .. })),
+                    "{k}·Kε: the swing at the ring is unsettled: {read:?}"
+                );
+            } else {
+                assert!(
+                    matches!(read, Err(ContactRefusal::Contradicted { .. })),
+                    "{k}·Kε: a corner past the band contradicts: {read:?}"
+                );
+            }
+        }
+    }
+
+    /// A 10 m cylinder wall against its twin tilted by `0.5·K·ε` about
+    /// `y` through the shared axis point at its foot: `0.5·Kε` at one
+    /// metre, while the far rim stands `5·Kε` off.
+    #[test]
+    fn a_cylinder_tilt_is_read_at_the_far_rim() {
+        let tol = Tol::witness();
+        let theta = 0.5 * band().escalate();
+        let (u, v) = ((0.2, 1.6), (0.0, 10.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        let read = door(&a, fa, &b, fb);
+        assert!(
+            matches!(read, Err(ContactRefusal::Contradicted { .. })),
+            "the tilt at the far rim contradicts the declaration: {read:?}"
+        );
+    }
+
+    /// **The offset and the tilt add.** A 1 m band of cylinder wall at
+    /// `9 ≤ v ≤ 10` against its twin tilted by `0.105·K·ε` about `y`
+    /// through the axis' foot at the origin: the axis offset at the
+    /// patch's middle reads `≈ 1.0·Kε` (just in band), the tilt over the
+    /// patch's extent another fraction of it, each in band on its own,
+    /// while the rim stands `1.05·Kε` off. Read datum by datum it
+    /// bridged; read as one displacement it does not.
+    #[test]
+    fn an_offset_and_a_tilt_in_band_each_do_not_bridge_their_sum() {
+        let tol = Tol::witness();
+        let theta = 0.105 * band().escalate();
+        let (u, v) = ((-0.3, 0.3), (9.0, 10.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        let read = door(&a, fa, &b, fb);
+        assert!(
+            matches!(read, Err(ContactRefusal::Contradicted { .. })),
+            "the rim stands past the band, so the declaration does not bridge: {read:?}"
+        );
+    }
 }

@@ -412,6 +412,16 @@ fn sym_9_what_each_retry_recovers() {
 /// claim on those two is now the door's axiom and not a theorem.
 /// Measured by restoring the old end samples on a probe, which
 /// restores every old number.
+/// Over copied arc carriers, where a lift carries the stored carrier
+/// rather than re-lowering it, the bracket moves with the same end
+/// samples: `[1105, 21, 144, 783]` → `[1105, 21, 146, 781]` without the
+/// ladder and `[1105, 21, 150, 777]` → `[1105, 21, 152, 775]` with it,
+/// retried 6 either way — two numeric decisions registered by the door
+/// on the first attempt. Sixteen of the bracket's `sign_gated` are
+/// theorems once a product with an ungated zero factor rests on that
+/// factor alone (DECIDE-9: `dihedral_wedge`'s `sin θ · arm`, the arm a
+/// read): `[1105, 21, …]` → `[1121, 5, …]` with and without the ladder,
+/// `registered`, `numeric` and `retried` unmoved.
 ///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
@@ -437,8 +447,8 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         ("r1_segment_boss", [375, 2, 96, 233], [375, 2, 96, 233], 0),
         (
             "r2_filleted_bracket",
-            [1105, 21, 144, 783],
-            [1105, 21, 150, 777],
+            [1121, 5, 146, 781],
+            [1121, 5, 152, 775],
             6,
         ),
         ("r2_link", [545, 0, 110, 507], [547, 0, 122, 493], 14),
@@ -511,7 +521,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// the six as discharges a second attempt reached, not as a clause of
 /// `registered`'s. Without the ladder neither appears and the line is
 /// the one a drive wrote before the ladder existed. The six themselves
-/// are the rule-A attempt's, and they are `registered` (144 → 150).
+/// are the rule-A attempt's, and they are `registered` (146 → 152).
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -553,11 +563,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1105, 21, 150, 777, 6],
+        [1121, 5, 152, 775, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=150 retried=6\n"),
+        line.contains("registered=152 retried=6\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -573,7 +583,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1105, 21, 144, 783, 0]
+        [1121, 5, 146, 781, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

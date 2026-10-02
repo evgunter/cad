@@ -459,7 +459,7 @@ pub enum ShellError<T: Real> {
         /// The designated face.
         face: FaceKey,
         /// Its surface kind.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
     },
     /// A designated face shares its chart with faces of its own solid
     /// that were NOT designated. The rim surgery lifts a solid's wearers
@@ -1216,7 +1216,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             && out.solids().map(|(k, _)| k).eq(solids.iter().copied()),
         "a clone reordered its solid arena",
     );
-    let inserted = insert_voids(&mut out, &solids, cavity, &evidence, tol)
+    let inserted = insert_voids(&mut out, &solids, cavity, &evidence)
         .map_err(|error| ShellError::Insert { error })?;
 
     // ---- The record: the inner twins, read off the graft map at the
@@ -1856,9 +1856,10 @@ fn canonicalize_chart<T: Decide>(
         let edges: Vec<crate::entity::EdgeKey> = body.edges().map(|(k, _)| k).collect();
         let mut acted = false;
         for edge in edges {
-            let Some((fp, fm)) = crate::replace_face::edge_faces(body, edge) else {
+            let Ok(sides) = crate::readback::edge_sides(body, edge) else {
                 continue;
             };
+            let (fp, fm) = sides.faces();
             if fp == fm || !alive.contains(&fp) || !alive.contains(&fm) {
                 continue;
             }
@@ -2612,7 +2613,7 @@ fn check_designation<T: Real>(
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(ShellError::OpenFaceRingUnsupported {
                 face: *face,
-                kind: geom_brep::SurfaceKind::of(surface),
+                kind: surface.kind(),
             });
         }
     }

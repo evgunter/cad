@@ -276,7 +276,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
         "each branch mints its new step from its own chain"
     );
     assert!(
-        !b.step_mint().has_minted(a_new),
+        !b.mint().has_step(a_new),
         "B's mint log does not hold A's new step"
     );
     let again = with_leg(&base, profile, 2, (3.0, 1.0));
@@ -294,10 +294,13 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     let wall = |step| {
         fixture::fname(
             ext,
-            RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
-                step,
-                role: editor_core::PieceRole::Leg,
-            }),
+            RoleSeg::Lateral(
+                editor_core::ProfileEdgeRef::Piece {
+                    step,
+                    role: editor_core::PieceRole::Leg,
+                }
+                .into(),
+            ),
         )
     };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
@@ -369,27 +372,48 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
 }
 
 /// **Node ids branch the same way.** Two inserts applied to one base
-/// mint one `RecipeNodeId` for two different nodes, so a name minted by
-/// either node carries across to the other branch as the other node's.
+/// mint two `RecipeNodeId`s for their two different nodes, and neither
+/// branch has minted the other's, so a name minted by either node and
+/// carried to the other branch resolves as a node that branch never
+/// had: `NodeGone` blaming `ForeignNode`, never another node's face.
 #[test]
-fn sibling_versions_mint_one_node_id_for_different_nodes() {
+fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     let (base, profile, _) = part();
-    let (_, tall) = insert(
+    let (a, tall) = insert(
         base.clone(),
         Node::Extrude {
             profile,
             distance: len(3.0),
         },
     );
-    let (_, taller) = insert(
+    let (b, taller) = insert(
         base,
         Node::Extrude {
             profile,
             distance: len(5.0),
         },
     );
-    assert_eq!(
-        tall, taller,
-        "each branch mints its new node from the base's counter"
+    assert_ne!(tall, taller, "each branch mints its own node's id");
+    assert!(
+        !a.has_minted(taller) && !b.has_minted(tall),
+        "and neither branch has minted the other's"
     );
+    for (what, doc, carried) in [("A's top on B", &b, tall), ("B's top on A", &a, taller)] {
+        let eval = corpus::eval::<f64>(doc);
+        let top = fixture::fname(carried, RoleSeg::Cap(editor_core::CapEnd::End));
+        match editor_core::resolve(editor_core::RunCtx { doc, eval: &eval }, &top) {
+            editor_core::Resolution::Failed(f) => assert!(
+                matches!(
+                    &f.error,
+                    editor_core::ResolveError::NodeGone {
+                        edit: editor_core::RecipeEditRef::ForeignNode { node },
+                        ..
+                    } if *node == carried
+                ),
+                "{what}: expected NodeGone(ForeignNode), got {:?}",
+                f.error
+            ),
+            other => panic!("{what}: expected a NodeGone failure, got {other:?}"),
+        }
+    }
 }

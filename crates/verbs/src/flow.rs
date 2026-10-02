@@ -158,7 +158,9 @@ impl FlowSource {
 /// forgotten.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RoleFamily {
-    /// The blend faces, one per source edge (`BlendNaming::blends`).
+    /// The open blend faces, one per open chain: one per source edge
+    /// (`BlendNaming::blends`), or one across several links joined on
+    /// one support pair (`BlendNaming::joined_blends`).
     Blends,
     /// The corner faces, one per source vertex (`BlendNaming::corners`).
     Corners,

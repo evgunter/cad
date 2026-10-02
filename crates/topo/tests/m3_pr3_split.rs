@@ -22,10 +22,11 @@ use topo::{
 
 /// The split plane y = c, Above = +y.
 fn plane_y<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
-    SplitPlane {
-        origin: Point3::new(T::from_f64(0.0), T::from_f64(c), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(0.0), T::from_f64(c), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// Fig. 14.2 analogue (PR 2's fixture, restated): flat notch floor ON
@@ -367,7 +368,7 @@ fn one_sided_tangency_refused_typed() {
     let err = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(
         err,
-        SplitError::Join(SplitJoinError::DegenerateSection { .. })
+        topo::SectionError::Split(SplitError::Join(SplitJoinError::DegenerateSection { .. }))
     ));
 }
 
@@ -408,10 +409,11 @@ fn bob_mirror_pinch_refuses_typed() {
 
     // NOTCHED under −n: pinched prisms are BELOW the flipped normal.
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let flipped = SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, -1.0, 0.0),
-    };
+    let flipped = topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let r = split(&fx.body, &flipped, Tol::witness()).unwrap();
     // Below the flipped normal = the y > 1 pinched prisms.
     let (pieces, slab) = (body_of(&r.below), body_of(&r.above));
@@ -437,12 +439,13 @@ fn plane_section_slicing() {
     let before = format!("{:?}", fx.body);
     let section = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(format!("{:?}", fx.body), before, "operand untouched");
-    assert_eq!(section.polygons.len(), 3);
+    assert_eq!(section.regions.len(), 3);
+    assert!(section.regions.iter().all(|r| r.holes.is_empty()));
     let (u, v) = (section.u_ref.unwrap(), section.v_ref.unwrap());
     // The frame is in-plane and orthonormal (exact for these axes).
-    assert_eq!(u.dot(section.plane.normal), 0.0);
-    assert_eq!(v.dot(section.plane.normal), 0.0);
-    for poly in &section.polygons {
+    assert_eq!(u.dot(section.plane.normal.get()), 0.0);
+    assert_eq!(v.dot(section.plane.normal.get()), 0.0);
+    for poly in section.regions.iter().map(|r| &r.outline) {
         assert_eq!(poly.points.len(), poly.uv.len());
         assert!(poly.points.len() >= 4);
         for (p, q) in poly.points.iter().zip(&poly.uv) {
@@ -454,21 +457,22 @@ fn plane_section_slicing() {
     }
     // Total section area = the y = 1 material cross-section: the
     // notched block's slice is x ∈ [0,4] ∪ [4,6] ∪ [7,8], z ∈ [0,1].
+    // Outlines wind counter-clockwise, so the signed areas sum to it.
     let mut total = 0.0;
-    for poly in &section.polygons {
+    for poly in section.regions.iter().map(|r| &r.outline) {
         let mut twice = 0.0;
         for i in 0..poly.uv.len() {
             let a = poly.uv[i];
             let b = poly.uv[(i + 1) % poly.uv.len()];
             twice += a.x * b.y - b.x * a.y;
         }
-        total += (twice / 2.0).abs();
+        total += twice / 2.0;
     }
     assert!((total - 7.0).abs() < 1e-12);
 
-    // A plane that misses the body: zero polygons, typed success.
+    // A plane that misses the body: zero regions, typed success.
     let empty = plane_section(&fx.body, &plane_y(9.0), Tol::witness()).unwrap();
-    assert!(empty.polygons.is_empty());
+    assert!(empty.regions.is_empty());
     assert!(empty.u_ref.is_none());
 }
 
@@ -482,10 +486,11 @@ fn ring_rehoming_genus_one() {
     let body = holed_box_geometric();
     assert_eq!(validate_closed(&body), Ok(()));
     // Split at x = 3: the hole (x ∈ [0.5, 1.5]) is entirely below.
-    let plane = SplitPlane {
-        origin: Point3::new(3.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(3.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(above), Ok(()));
@@ -595,9 +600,9 @@ fn interval_lane_acceptance() {
     assert_eq!(body_of(&r.above).shells().count(), 3);
     assert_eq!(body_of(&r.below).shells().count(), 1);
 
-    // Slicing: three polygons, corners on the plane (containment).
+    // Slicing: three regions, corners on the plane (containment).
     let s = plane_section(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 3);
+    assert_eq!(s.regions.len(), 3);
 
     // One-sided tangency refuses typed on this lane too.
     let fx = prism::<Interval>(
@@ -659,4 +664,83 @@ fn no_split_refusal_names_a_stage() {
         );
         assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
     }
+}
+
+/// The below side's tier-2 findings, where `split` refuses it as
+/// [`SplitFinishError::ResultInvalid`].
+fn below_refused_at_tier_2(
+    what: &str,
+    body: &Body<f64>,
+    plane: &SplitPlane<f64>,
+) -> Vec<topo::ValidationError> {
+    match split(body, plane, Tol::witness()) {
+        Err(SplitError::Finish(SplitFinishError::ResultInvalid {
+            side: topo::PlaneSide::Below,
+            errors,
+        })) => errors,
+        other => panic!("{what}: expected the below side refused at tier 2, got {other:?}"),
+    }
+}
+
+/// **No side leaves `split` unless it is a closed solid — whole.** An
+/// `mvfs` seed given a plane through the public door is tier-1 sound and
+/// passes split's operand gate (no edge, a plane face), but its empty
+/// loop is tier-2 scaffolding. It lies wholly below `y = 1`, so the
+/// un-cut lane hands it back as the below side, and the gate refuses it.
+#[test]
+fn an_uncut_side_that_is_not_a_closed_solid_refuses() {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::origin(), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        topo::FaceSurface::New {
+            surface: Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1 accepts the seed");
+    assert_eq!(
+        below_refused_at_tier_2("the seed", &body, &plane_y(1.0)),
+        vec![topo::ValidationError::ScaffoldingEmptyLoop { loop_: seed.r#loop }],
+    );
+}
+
+/// **— and cut.** The unit brick with a strut from its top corner
+/// `(0, 0, 1)` into the top face, ending at `(0.2, 0.2, 1)`: tier-1
+/// sound, every edge a certified line. Cut at `y = 0.5`, the strut
+/// rides into the below half, where its tip is a valence-1 vertex.
+#[test]
+fn a_cut_side_carrying_a_strut_refuses() {
+    let tol = Tol::witness();
+    let mut body: Body<f64> = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let at = |v: topo::VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let on_top = |he: topo::HalfEdgeKey| at(body.get_half_edge(he).unwrap().start).z == 1.0;
+    let he = body
+        .half_edges()
+        .find(|&(_, h)| {
+            let p = at(h.start);
+            (p.x, p.y, p.z) == (0.0, 0.0, 1.0) && on_top(h.next) && on_top(h.prev)
+        })
+        .map(|(k, _)| k)
+        .expect("the top face's half-edge leaving the corner");
+    body.mev_line(
+        topo::MevSite::Fan { he1: he, he2: he },
+        Point3::new(0.2, 0.2, 1.0),
+        tol,
+    )
+    .unwrap();
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1 accepts the strut");
+    let errors = below_refused_at_tier_2("the strutted brick", &body, &plane_y(0.5));
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::ScaffoldingStrutVertex { .. }]
+        ),
+        "the strut tip is the one finding: {errors:?}"
+    );
 }

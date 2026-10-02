@@ -53,7 +53,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeDescription, MustCarryVerdict, SurfaceKind, must_carry_over_edge};
+use geom_brep::{EdgeDescription, MustCarryVerdict, must_carry_over_edge};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -596,14 +596,14 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
 /// folded lever arm of a plane and a resting cylinder is the extent
 /// once the extent is shorter than the radius, and `classify_dihedral`
 /// classifies that arm before any angle: an in-band arm escalates
-/// in-band, a definitely-zero arm escalates `Invalid` (the question was
-/// never validly posed there). Either way the rule answers
-/// `InBand` under `"dihedral_arm"`, never the conventional
+/// in-band, a definitely-zero arm with the zero it decided (the arm is
+/// a length, and a smaller tolerance decides it). Either way the rule
+/// answers `InBand` under `"dihedral_arm"`, never the conventional
 /// `UnderDetermined` a sagitta over such an arm would read.
 #[test]
 fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
     let (plane, cylinder, ruling) = resting_cylinder();
-    for (extent, in_band) in [(in_band_margin(), true), (definite_zero_margin(), false)] {
+    for extent in [in_band_margin(), definite_zero_margin()] {
         let (a, b) = both_orders(&plane, &cylinder, &ruling, extent, extent);
         for (order, verdict) in [("plane first", a), ("cylinder first", b)] {
             let MustCarryVerdict::InBand(source) = verdict else {
@@ -617,14 +617,9 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
                 "{order}, extent {extent:e}: the escalation is the first-order arm's"
             );
             assert_eq!(
-                matches!(
-                    source.margin.diagnostic_f64_for_error_text(),
-                    ErrorTextReading::Value(_)
-                ),
-                in_band,
-                "{order}, extent {extent:e}: an in-band arm carries its margin, a \
-                 definitely-zero arm is Invalid; got {:?}",
-                source.margin
+                source.margin.diagnostic_f64_for_error_text(),
+                ErrorTextReading::Value(extent),
+                "{order}, extent {extent:e}: the arm carries the margin it was decided on"
             );
         }
     }
@@ -677,8 +672,8 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
                 geom_brep::tangent_certificate_lane(c.carrier(), &a, &b),
                 "{name}: edge {k:?} presents the rule a triple the certificate's lane \
                  refuses — surfaces {:?} / {:?}",
-                SurfaceKind::of(&a),
-                SurfaceKind::of(&b)
+                a.kind(),
+                b.kind()
             );
         }
         assert!(

@@ -205,7 +205,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             let Surface::Plane { origin, normal, .. } = surface else {
                 return Err(ReplaceFaceError::TogetherNonPlanar {
                     face,
-                    kind: geom_brep::SurfaceKind::of(surface),
+                    kind: surface.kind(),
                 });
             };
             let delta = *normal * m.distance;
@@ -255,8 +255,9 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
         if !scope.holds_edge(edge) {
             continue;
         }
-        let (fa, fb) =
-            crate::replace_face::edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let (fa, fb) = crate::readback::edge_sides(body, edge)
+            .map_err(|_| ReplaceFaceError::Corrupt)?
+            .faces();
         let (pa, pb) = (
             plane_of(fa).ok_or(ReplaceFaceError::Corrupt)?,
             plane_of(fb).ok_or(ReplaceFaceError::Corrupt)?,
@@ -954,7 +955,7 @@ mod scope_walks {
             tol,
         )
         .unwrap();
-        let second = crate::graft_disjoint(&mut body, &placed, tol).unwrap();
+        let second = crate::graft_disjoint(&mut body, &placed).unwrap();
         assert!(crate::validate::validate_closed(&body).is_ok());
         (body, first, second)
     }

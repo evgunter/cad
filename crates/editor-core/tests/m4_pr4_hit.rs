@@ -7,6 +7,7 @@
 
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use editor_core::NodeStanding;
 use editor_core::{
@@ -54,6 +55,7 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
         // Neither sink denotes a body, so neither offers an entity to
         // invert — the same answer a declaration gives.
         | ValuePayload::Measure { .. }
@@ -279,9 +281,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         }))
     );
     assert_eq!(
-        body_name(&ev, RecipeNodeId(9999), 0),
+        body_name(&ev, RecipeNodeId(tagged(9999)), 0),
         Err(HitTestError::Standing(NodeStanding::NotInDocument {
-            node: RecipeNodeId(9999)
+            node: RecipeNodeId(tagged(9999))
         }))
     );
     // The Unnamed bug door: a node whose (legitimately empty) table
@@ -319,6 +321,7 @@ test_utils::f6_variants! {
         EvaluationOfAnotherDocument,
         Ambiguous,
         Unnamed,
+        AcrossSpaces,
     ];
 }
 
@@ -338,8 +341,8 @@ test_utils::f6_variants! {
 /// cites, and its roster had drifted from the other one.
 #[test]
 fn hit_test_error_display_names_its_content_not_its_struct() {
-    let node = RecipeNodeId(7);
-    let through = RecipeNodeId(3);
+    let node = RecipeNodeId(tagged(7));
+    let through = RecipeNodeId(tagged(3));
     // Two faces of ONE node, differing only in their role path — the
     // shared-edge tie's own shape, and the case that says the
     // rendering carries the path.
@@ -417,6 +420,18 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
                 "face",
                 "body 2",
                 "kernel bug",
+            ],
+        ),
+        (
+            HitTestError::AcrossSpaces {
+                group: node,
+                cause: editor_core::Unplaced::NoOffset,
+            },
+            vec![
+                "different spaces",
+                "node 000000000007",
+                "no instance in it carries an offset",
+                "Recourse:",
             ],
         ),
     ];

@@ -262,3 +262,120 @@ fix pass, delta review; the review's row
 right source from a merely valid one. Residue (the ladder still names
 `meridian_splits` by the split key) is on
 `blend-split-rows-and-must-carry-prose-residue`.
+
+## 2026-10-01 — the three recourse rows and ENCL's ending row closed (PR #3690)
+
+`corner-config-recourse-and-policy-assert-a-default-for-any-tag`,
+`every-escalation-carries-the-coincidence-recourse-first`,
+`in-band-corner-verdicts-route-to-the-corner-configuration-recourse` and
+`blend-endings-say-lower-the-tolerance-and-route-by-name` closed as one
+unit. `BlendError::Escalated` carries a closed `BlendDecision` (11
+decisions at 13 construction points); subject, lever and ending are
+exhaustive matches; no blend refusal renders "declare the coincidence";
+sized endings go through `geom_brep::recourse`. Full review, fix pass,
+delta review, a last small pass, and a python-census fix (`BlendDecision`
+listed interior beside `BlendSite`). Known cost: `ContactSecondOrder`
+offers no tolerance until ENCL's must-carry row says which reading
+escalated. Filed: ENCL's `recourse-table-has-no-lever-only-ending` and
+`must-carry-in-band-verdict-does-not-say-which-decision-escalated`;
+BAND's `dependent-normals-refusal-carries-no-margin-for-its-ending`,
+`dependent-normals-names-a-run-out-policy-the-tag-says-cannot-help`.
+`blend-surgery-invariant-ends-in-a-tag` priced P4/E.
+
+## 2026-10-01 — continuation walls ruled: construct (PR 3647)
+
+Ev approved the designer pair's converged answer, superseding the
+2026-09-25 merge-stage ruling: sweeps build one wall per cosurface run;
+F7 is back to boolean outputs as the one op with a merge stage. The row
+`swept-continuation-walls-reach-the-boolean-unmerged` is now the
+implementation (fork-log row 36; A = Fable, B = Opus).
+
+## 2026-10-01 — `arc-window-membership-has-three-spellings` closed (PR #3700)
+
+The row's "three spellings" were two questions: a selection ("may this
+angle bracket lie in this periodic window" — sweep's `CircleFrame::misses`,
+geom's curve boxes, and a fourth copy found in `mesh/src/cert.rs`), now one
+home `geom::periodic_window_may_hold(phi, window, period)`; and topo's
+decided in/out/in-band membership (`arc_trim`, `chart_azimuth_margin`),
+a different question that keeps its own code, argued once at `arc_trim`.
+`misses` asks in its relative frame and is exactly the old predicate on
+its domain (pinned against an oracle with a census row). `CircleMargins`
+stays: an unsigned per-piece distance reads an enclosing ring as clear.
+Single review, fix pass, delta review, last pass.
+
+## 2026-10-01 — `subdivided-rim-fillet-refuses-at-the-collinear-joint` closed (PR #3701)
+
+A rim of collinear plane–plane links between the same two faces, meeting
+at valence-2 joints, fillets and chamfers as ONE band face
+(`OpenBand::admit`'s `Joint`, one `joint_verdict` shared with predicate 2;
+per joint one kef of the lower strut and one kev of the spur), named
+`BandFace` of the chain's sorted edge names. Predicate 2's clearance screen
+groups a joined run as one feature and checks each joint's foot exactly
+against the trimlines at the run's ends; nothing it cannot read is skipped.
+Full review, fix pass, delta review, last pass. Merged with two red rows
+that are main's own (filed there: REACH's 1e-6 `SectionLoopMixed`, PROPS'
+thread-count golden); every other row green. Filed:
+`ruled-band-refuses-a-joint-on-one-support-pair`,
+`unmerged-subdivided-wall-rim-fillet-names-no-merge-recourse`.
+
+## 2026-10-01 — `annulus-rim-host-outer-boundary-is-metered-only-by-the-sampled-screen` closed (PR #3715)
+
+Every closed rim's host AND mate outer boundary is now metered in closed
+form (`support_boundary_clearance`), not only by predicate 2's sampled
+screen: four silent-wrong carves (a notch or a tilted cut whose closest
+approach falls between sample stations) now refuse `RingClearance`.
+Non-line/circle edges are bounded by geom's certified boxes with the
+ellipse's exact height range, and a refusal decided by a box says so
+(`bounded`). Full review (MAJOR: an ellipse ball assumed `major ≥ minor`),
+two fix passes, delta review. Merged with two red rows that are main's own
+(as #3701). Filed: `face-clearance-screen-skips-boundary-edges-it-cannot-read`,
+`support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place`,
+`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`.
+
+## 2026-10-01 — S90 ruled: the blend stays differentiable (PR 3724)
+
+Ev approved the designers' converged answer: the blend doors stay generic
+under DL5; H-R3's fillet third is retired. `S90-impl` becomes the pin
+(dual tangent rows), P1/M. Fork-log row 40 (A = Opus, B = Fable).
+
+## 2026-10-02 — `S90-impl` closed (PR #3764)
+
+The blend's dual tangents are pinned: a sweep row checks a filleted and a
+chamfered cube's `Dual64` volume tangent against central differences
+(blend size and an upstream cube size seeded) and the fillet against two
+closed forms; an editor-core row differentiates a stack-up measure
+through a 3D fillet. Each row reds under a tangent-freezing mutant
+(radius read through `.lo()`; chamfer distance; edge point). Reviewed by
+the orchestrator's read (tests only, mutants demonstrated). Filed TINT's
+`dual-tangent-is-unpinned-for-seven-recipe-verbs`.
+
+## 2026-10-02 — continuation walls closed: sweeps build one wall per run (PR #3736)
+
+Closes `swept-continuation-walls-reach-the-boolean-unmerged` and the claimed
+`full-revolve-emits-split-planar-walls` (Ev's "construct" ruling, fork-log
+row 36). Extrude and partial revolve build one wall per run of collinear
+profile pieces (`swept::wall_runs`), a station being an `mev` chain with no
+strut; a full revolve collapses each run (`kef`/`kev`/`kemr`), so a planar
+wall in a solid is one face. Walls are stored per run; names go through
+`PieceRun` (a one-piece run is spelled as its bare locator, so bodies with
+no multi-piece run keep their names) and one constituents view
+(`names/merged.rs`). No `merge_coplanar_faces` is left on the sweep path.
+Dual review, class H (DR-38): both NOT-MERGEABLE-AS-IS on the
+same two CI-demonstrated MAJORs, tally 0; the union was taken in one fix
+pass, plus a delta read. Filed: `swept-cocircular-arc-runs-build-one-wall`
+(P1), `lamina-plane-annulus-keeps-its-slit`,
+`swept-operand-merge-repairs-left-in-tests`, `swept-run-walls-style-residue`,
+SHELL's `cap-rim-refusal-order-follows-the-arena`. Merged over main's two
+filed reds (thread-count digest; the 1e-6 open-sign row).
+## 2026-10-02 — `face-clearance-screen-skips-boundary-edges-it-cannot-read` closed (PR #3786)
+
+Predicate 2's boundary-pair screen reads each support loop whole
+(`screened_loop`) and refuses what it cannot read instead of skipping it.
+Two arms are reachable on a tier-1-valid body through `fillet_edges`: a
+lone-vertex ring and an uncertified boundary carrier, both now
+`UnsupportedGeometry` naming the entity (each pinned by a row that reds on
+main). The other three (unresolved face, loop/cycle, half-edge) are torn-body
+states, refused `BodyNotIntact`. `touches_any` refuses an unresolved edge
+rather than reading it as apart, and the surgery's three
+`filter_map(get_half_edge)` member reads became its typed no-cycle refusal.
+Reviewed by the orchestrator's read (cost E).

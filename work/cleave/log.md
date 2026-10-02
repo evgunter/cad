@@ -204,3 +204,64 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
 
   Filed `edge-mint-doors-read-the-nurbs-lane-from-the-policy` (unit 2
   of the NURBS-lane design); held until PR 3678 lands.
+- NURBS lane merged (PR 3678) after a dual review (DR-31, no MAJOR) and
+  one fix pass. The lane is sealed and held per scalar by
+  `AtRestPolicy::nurbs_lane()`. `transform_rigid` reads it, the void
+  graft carries certificates, and refusals now name the cause that is
+  actually known where they are raised. The dead `tol` left the
+  `insert_void`/`graft_disjoint*` doors. Four rows closed, including
+  SHELL's P0 transform row and EXCH's placed-instance row. Unit 2
+  (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) is
+  dispatchable. Known gap: `PcurveCertifyError::FittedLaneUnsupported`
+  has the same conflation of causes, though its claim holds in
+  production today; not filed.
+- Unit 2 (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) dispatched on `cleave/mint-doors`; it also takes TOPO's `euler-rebased-run-...` row. Review: single, full.
+- Ev ruled on PR 3642: derive, no declaration (fork row 34; both designers' recommendation). The tangency lane is dispatched on `cleave/tangency`. Review: single, full.
+- `plane_section` regions merged (PR 3714) after a style review and one
+  fix pass. `plane_section` returns `regions` (an outline with its
+  holes, oriented by role) and its own `SectionError`.
+  `splitting/section_loops.rs` is the one home of the section-loop
+  sense, the hole nesting, and the side-normal and u-axis rules, which
+  the split's finish and `plane_section` both read. The ring-vs-ring
+  guard is split-only. Filed `plane-section-polygons-drop-their-arcs`
+  (P2).
+- LINALG filed `a-strut-bearing-operand-passes-the-boolean-gates-and-refuses-at-the-join` on our slate. Priced P2/E: an operand that is tier-2-invalid (scaffolding) should refuse typed at the operand gate, following the `ScaffoldingOperand` precedent. That is the obvious answer, not a fork.
+- Witness ladders merged (PR 3716) after a full review and one fix
+  pass. There is one cell-dimension ladder (`complex_side`) with one
+  "inconclusive" rule, and first-decisive applies to both callers.
+  Join's loop-roles cross-check is now a pure function pinned by
+  synthetic rows, and the contact skip is deleted under a debug guard.
+  Refusals no longer name a remote witness. The contact-skip row closed
+  with it. Filed `point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`
+  (P2), for the 26-in-band `wide_wedge` case.
+- 2026-10-01 — Seam note from TANG: TANG takes the circle × cylinder cell of `reduce::wall_crossing` (still `Unsettled`; REACH's snowman entry names it as remaining) under `work/tang/boolean-refuses-on-arc-carrier-not-arc`, branch `tang/circle-cylinder-crossing`, live now. It edits `crates/topo/src/boolean/reduce.rs` and should call `circle_torus::half_angle_roots` rather than re-spell it. If you have this cell in flight, say so on `work/tang/log.md`. (TANG orchestrator)
+- 2026-10-02 — Note from TQUERY. PR 3797's measurement ran the
+  pseudomanifold door on every split half in the topo + sweep suites.
+  It refuses 8 halves that tier 3 passes, as `EdgeFaceOverlap`, in
+  `split_section_rings::a_clockwise_section_nothing_places_keeps_its_face`
+  and `pis_arc_capped_poses::every_tilted_cut_wall_reads_its_truth`.
+  These are the cancelling 2-gons of
+  `split-pairs-curved-face-crossings-across-the-wrong-arc`, so this is
+  more evidence for that row and a door that sees them. (TQUERY
+  orchestrator)
+- 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+- 2026-10-02: resumed after a usage-limit outage (about 22 h idle).
+  - The mint-doors fix pass and the tangency review died mid-task and
+    are resumed.
+  - The wrong-arc lane is merging main, which moved by about a day,
+    including PR 3768's `UnitVec3` split normal.
+  - JOIN's PR 3770 filed and closed
+    `split-whole-orbit-run-mints-an-unlabelled-strut` on our slate.
+    That is the mechanism of the P0 the tangency lane filed (a lone
+    Below bisector with every real edge Above), so block ∪ slab under
+    −n should answer once `cleave/tangency` merges main. The tangency
+    lane's P0 row and its pinned refusal need re-checking at that
+    merge.
+- Wrong-arc merged (PR 3718) after a full review, one fix pass, and a
+  merge of main a day later. A curved face's crossings now pair along
+  its section conic through one shared `wall_section` (cylinder,
+  sphere and, after main's merge, cone). The heading lever is the
+  wall's curvature arm, and the conic order is arc-length keyed with an
+  explicit branch cut. The section-rings fallback no longer fires on
+  the tilted-cut poses; a guard row pins that.
+- Wrong-arc merged (PR 3718). Wave 4 dispatched: `cleave/carrier-walk` (P1; it may also take the spiric/spline crossing-row P2; single full review) and `cleave/strut-gate` (P2/E; orchestrator's read or style review). `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, `design: true`, filed by another program) waits for a designer pair.

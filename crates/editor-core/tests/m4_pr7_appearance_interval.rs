@@ -89,7 +89,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
                 node: uni,
                 path: vec![RoleSeg::OutputBody],
             },
-            Attr::Label("union".into()),
+            Attr::Label(editor_core::Label::new("union").unwrap()),
         ),
         (uni_face.clone(), Attr::Color(Rgba8::opaque(10, 200, 10))),
         (uni_face, Attr::Visibility(true)),

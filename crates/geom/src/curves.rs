@@ -75,14 +75,6 @@ pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
-// The variant roster the analytic-kind fixtures read
-// ([`crate::test_support`]; this crate's `test-support` feature,
-// test builds only).
-#[cfg_attr(
-    feature = "test-support",
-    derive(strum::EnumDiscriminants),
-    strum_discriminants(name(Curve3Variant), derive(strum::EnumIter), doc(hidden))
-)]
 pub enum Curve3<T: Real> {
     /// The infinite straight line `P(t) = origin + dir·t`.
     ///
@@ -241,6 +233,85 @@ pub enum Curve3<T: Real> {
     /// [`Curve3::nurbs_placeholder`] — a poison-valued payload with the
     /// same all-poison evaluation behavior.
     Nurbs(Arc<NurbsCurve3<T>>),
+}
+
+/// Which [`Curve3`] variant a carrier is: the workspace's one fieldless
+/// mirror of the curve enum ([`Curve3::kind`]).
+///
+/// Hand-written rather than derived so each variant's doc speaks of the
+/// tag, not of a payload it does not have. A variant added to
+/// [`Curve3`] reds [`Curve3::kind`]'s wildcard-free match until it has
+/// a kind here; [`Self::ALL`] is derived from this enum, so there is no
+/// roster to forget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, strum::VariantArray)]
+pub enum CurveKind {
+    /// A [`Curve3::Line`].
+    Line,
+    /// A [`Curve3::Circle`].
+    Circle,
+    /// A [`Curve3::Ellipse`].
+    Ellipse,
+    /// A [`Curve3::Spiric`].
+    Spiric,
+    /// A [`Curve3::Nurbs`], described or the placeholder.
+    Nurbs,
+}
+
+impl<T: Real> Curve3<T> {
+    /// Which variant this carrier is.
+    ///
+    /// **No wildcard arm**: a new [`Curve3`] variant is a compile error
+    /// here until [`CurveKind`] names it.
+    #[must_use]
+    pub fn kind(&self) -> CurveKind {
+        match self {
+            Self::Line { .. } => CurveKind::Line,
+            Self::Circle { .. } => CurveKind::Circle,
+            Self::Ellipse { .. } => CurveKind::Ellipse,
+            Self::Spiric { .. } => CurveKind::Spiric,
+            Self::Nurbs(_) => CurveKind::Nurbs,
+        }
+    }
+}
+
+impl CurveKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; <Self as strum::VariantArray>::VARIANTS.len()] =
+        match <Self as strum::VariantArray>::VARIANTS.first_chunk() {
+            Some(all) => *all,
+            None => unreachable!(),
+        };
+
+    /// The kind's name: one lower-case word, the spelling refusals and
+    /// tables print.
+    ///
+    /// **Also a persisted key.** `tools/tess-meter` writes it into its
+    /// CSV's `chart` column and `tools/tess-lint` joins committed
+    /// baselines on that column, so rewording a name re-keys every
+    /// baseline row that carries it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Line => "line",
+            Self::Circle => "circle",
+            Self::Ellipse => "ellipse",
+            Self::Spiric => "spiric",
+            Self::Nurbs => "nurbs",
+        }
+    }
+
+    /// The kind as an adjective for an edge or its curve, for prose
+    /// ("a circular edge").
+    #[must_use]
+    pub const fn adjective(self) -> &'static str {
+        match self {
+            Self::Line => "straight",
+            Self::Circle => "circular",
+            Self::Ellipse => "elliptical",
+            Self::Spiric => "toric-section",
+            Self::Nurbs => "spline",
+        }
+    }
 }
 
 /// Typed refusal of [`Curve3::ellipse`] — the one place that decides an
@@ -749,7 +820,7 @@ impl<T: Real> Curve3<T> {
     /// `Circle` arm calls `circle_point` on the one frame it shares
     /// with its tangent half — so a caller that builds a point here
     /// builds the very node either door would. That is what
-    /// `sweep::swept::register_span_identity` rests on — node ids are
+    /// `sweep::swept::register_placed_carrier_end` rests on — node ids are
     /// content hashes, so "the constructor states the identity about
     /// the node the certifier will ask about" is a fact of this
     /// delegation and not a transcription anyone has to keep in step.

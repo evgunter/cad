@@ -17,7 +17,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, Node,
+    CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, ListFault, Node,
     NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
     SnapshotError, StableName, apply, evaluate, load, save,
 };
@@ -48,10 +48,10 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
 /// the names only have to be well formed, spell a minted step, and sort
 /// by `segment` — so `edge(n, 0) < edge(n, 2)`.
 fn edge(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
-    let step = *doc
-        .step_mint()
-        .log()
-        .first()
+    let step = doc
+        .mint()
+        .steps()
+        .next()
         .expect("the prism minted its steps");
     StableName {
         kind: EntityKind::Edge,
@@ -84,11 +84,11 @@ fn saved_fillet(segments: &[u32]) -> String {
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(
+            node: Box::new(Node::fillet(
                 solid,
                 fixture::len(0.0625),
                 segments.iter().map(|s| edge(&doc, solid, *s)).collect(),
-            ),
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -128,7 +128,9 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
     let raw = raw_fillet(&doc, solid, &[2, 0]);
     match apply(
         &doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -140,7 +142,7 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
     apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(&doc, solid, &[0, 2]),
+            node: Box::new(raw_fillet(&doc, solid, &[0, 2])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -160,7 +162,9 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
     };
     match apply(
         &doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -178,7 +182,9 @@ fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
     let raw = raw_fillet(&doc, solid, &[0, 0, 2]);
     match apply(
         &doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -188,9 +194,9 @@ fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
 }
 
 /// **The load door refuses the same document with the same fault**,
-/// through `SnapshotError::InputList` — the arm every other
-/// `Node::input_fault` answer already loads through, so the blend's
-/// canonical form has no refusal of its own any more.
+/// through `SnapshotError::InputList` — the load door's arm for every
+/// fault of a node's own list or designation (`ListFault`), so the
+/// blend's canonical form has no refusal of its own.
 #[test]
 fn an_unsorted_selection_is_refused_at_the_load_door() {
     let text = saved_fillet(&[0, 2]);
@@ -202,7 +208,7 @@ fn an_unsorted_selection_is_refused_at_the_load_door() {
     let corrupt = corrupt_selection(&text, 0, 9);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::InputList {
-            fault: InputFault::SelectionNotCanonical { at: 0 },
+            fault: ListFault::SelectionNotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("an unsorted selection must refuse typed at load, got {other:?}"),
@@ -218,7 +224,7 @@ fn a_repeated_selection_entry_is_refused_at_the_load_door() {
     let corrupt = corrupt_selection(&text, 2, 0);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::InputList {
-            fault: InputFault::SelectionNotCanonical { at: 0 },
+            fault: ListFault::SelectionNotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("a repeated selection must refuse typed at load, got {other:?}"),
@@ -270,7 +276,9 @@ fn an_empty_selection_is_canonical() {
     assert!(empty.input_fault().is_none());
     let doc = apply(
         &doc,
-        &DocEdit::InsertNode { node: empty },
+        &DocEdit::InsertNode {
+            node: Box::new(empty),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -317,7 +325,7 @@ fn both_doors_forward_one_sentence() {
     let at_edit = match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(&doc, solid, &[0, 4, 2]),
+            node: Box::new(raw_fillet(&doc, solid, &[0, 4, 2])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -383,7 +391,7 @@ fn the_insert_door_reports_a_non_zero_position() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(&doc, solid, &[0, 4, 2]),
+            node: Box::new(raw_fillet(&doc, solid, &[0, 4, 2])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -403,7 +411,7 @@ fn the_load_door_reports_a_non_zero_position() {
     // `[0, 2, 4]` → `[0, 9, 4]`: the break moves to entry 1.
     match load(&corrupt_selection(&text, 2, 9), Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::InputList {
-            fault: InputFault::SelectionNotCanonical { at },
+            fault: ListFault::SelectionNotCanonical { at },
             ..
         })) => assert_eq!(at, 1, "the load door names the same entry"),
         other => panic!("expected a typed refusal, got {other:?}"),
@@ -422,7 +430,7 @@ fn a_rebind_leaves_a_canonical_selection() {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::fillet(
+                node: Box::new(Node::fillet(
                     solid,
                     fixture::len(0.0625),
                     vec![
@@ -430,7 +438,7 @@ fn a_rebind_leaves_a_canonical_selection() {
                         edge(&doc, solid, 2),
                         edge(&doc, solid, 4),
                     ],
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

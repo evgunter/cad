@@ -23,7 +23,7 @@ const L_PROFILE: [(f64, f64); 6] = [
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
@@ -105,7 +105,7 @@ fn cavity() -> Body<f64> {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut dst, solid, hole, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut dst, solid, hole, &evidence).unwrap();
     let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8), Tol::witness());
     assembly(&dst, &part)
 }

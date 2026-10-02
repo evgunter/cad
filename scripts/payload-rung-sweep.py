@@ -152,6 +152,12 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "boolean-error.md"),
     "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                       "boolean-error.md"),
+    # `BooleanError::CoplanarNeighbours`'s refused offset and
+    # `RestZipUnsupported`'s sub-frontier: the same carrier, the same row.
+    "NeighbourOffset": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
+    "RestZipFrontier": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
                         "declaration under the alias `PlaneRelation` "
                         "(crates/topo/src/boolean/plane_eq.rs)"),
@@ -161,6 +167,9 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "MappedCurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
+    "Minted": ("argued", "NOT_CARRIED, the mint family (crates/pncad/tests/all.rs): a "
+                         "consumer holds ids, never the mint log, and a snapshot refusal "
+                         "crosses as its tag word"),
     "PairingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
                                    "(crates/pncad/tests/all.rs)"),
     "ParamValue": ("argued", "NOT_CARRIED, a curated face of a different shape "
@@ -216,6 +225,13 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
                                "once, beside `Evaluation`; the general rule is at the "
                                "payload-rule header of crates/pncad/src/document.rs"),
+    # Why a group is unplaced (A11 (2)) is the evaluation's own vocabulary as
+    # well: `Space::Own` carries it, and the select-list refusals that meet
+    # two spaces (hit test, selection) name the group's cause as their
+    # payload. The same rule as `NodeStanding`.
+    "Unplaced": ("argued", "the placement vocabulary is `document`'s and is spelled "
+                           "once, beside `Evaluation`; the general rule is at the "
+                           "payload-rule header of crates/pncad/src/document.rs"),
 }
 
 

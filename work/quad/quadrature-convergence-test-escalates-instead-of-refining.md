@@ -51,3 +51,21 @@ The text the escalation renders is PROPS's
 `props-escalation-renders-the-coincidence-menu-unlabelled`. The
 backstop's own refusal now names the quadrature's convergence and
 offers no coincidence (`topo::validate::classify_mass_props`).
+
+## Second witness (BAND, branch `band/annulus-host-outer-metered`, 2026-10-01)
+
+At `CAD_TOLERANCE_EPS=1e-12` only, subtracting a 45°-tilted block from
+a revolved cone-then-cylinder shaft (profile
+`(0,0) (0.5,0) (1,0.5) (1,3) (0,3)` about `y`, the block's underside
+lowest on the cylinder at `y = 0.535` or `0.547`) refuses
+`VolumeUnmeasured { operand: None, source: Face { source: Escalated {
+margin 2.05e-12 / −8.52e-12, band (1e-12, 1e-11), predicate
+"props_quad_converged" } } }` on the cut face, which the cut leaves
+bounded by ellipse arcs alone. Both build at 1e-6 and the default eps.
+With the cylinder ending at `y = 2` (a strip of the top cap stands, so
+the cut face carries a chord too) every case builds at all three rows,
+which is what `crates/sweep/tests/band_annulus_host_boundary.rs` now
+uses. Two of two levels landing in band at 1e-12 suggests the width
+stalls near the `1024·eps` target on that face rather than landing
+there by coincidence.
+

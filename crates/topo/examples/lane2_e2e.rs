@@ -60,7 +60,7 @@ fn main() {
         tol,
     );
     let mut dual = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut dual, &shelf.body, tol).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut dual, &shelf.body).unwrap();
     let mut drecords = ContactRecords::default();
     drecords.patches.push(PatchContact {
         face_a: post.top_face,

@@ -153,16 +153,9 @@ fn r1_the_planar_cap_pierce_joins_and_the_curved_wall_pierce_refuses() {
         Ok(topo::BooleanResult::Body(out)) => out.body,
         other => panic!("the planar cap pierce joins, got {other:?}"),
     };
-    // RE-DERIVED after this probe was written (authorship otherwise
-    // untouched): the review's own MAJ-1 landed the sector-side
-    // curvature charge, and at `x = ±3` against `r = 1` the pierce
-    // vertex's shorter edge fragment is 1.9 m — a sagitta bound of
-    // 3.6 m, which no first-order displacement at that arm can exceed.
-    // The long bar now stops one layer EARLIER, at
-    // `CurvedSectorSideUnsupported`, so the probe's own claim (the two
-    // ring joins refuse at DIFFERENT gates) is measured on a bar short
-    // enough to reach the join. The finding is unchanged; the fixture
-    // is the part that moved.
+    // The probe's claim (the two ring joins refuse at DIFFERENT gates)
+    // is measured on the short bar; the long one reaches the same join
+    // door (`verbs_germarms::a_long_armed_bar_reaches_the_same_join_door`).
     let wall = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
         &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
@@ -233,8 +226,8 @@ fn r1_the_cone_fixture_names_its_own_door() {
         matches!(
             err,
             BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Cone,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                kind: geom::SurfaceKind::Cone,
+                other_kind: geom::SurfaceKind::Plane,
                 ..
             }
         ),
@@ -267,7 +260,10 @@ fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     assert!(
         text.starts_with(&format!(
             "an edge of the {which} operand touches or crosses a curved face"
-        )) && text.ends_with(geom_core::COINCIDENCE_RECOURSE),
+        )) && text.ends_with(&format!(
+            "Recourse: {}",
+            geom_core::DEFINITE_COINCIDENCE_RECOURSE
+        )),
         "{text}"
     );
     let owner = match operand {

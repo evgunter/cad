@@ -33,6 +33,10 @@ addendum's silent-discard shape, not a wrong answer on valid input.
 ## This slate's sites
 
 - `crates/topo/src/boolean/join.rs`, `ring_run_ccw`'s run term, ~:1471. The direction: `conic_segment_term(curve, edge.he_plus == he)`.
+  **Closed** by JOIN's `ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum`
+  (branch `join/ring-run-winding`): the run is wound by
+  `Body::planar_run_winding_decided`, which reads `Edge::claim` and
+  refuses an unclaimed half as `TornLoop::Unclaimed`.
 - `crates/topo/src/boolean/rest.rs`, the REST lane's first-run far half, ~:1807 (shared with TANG). The mate: `if ed.he_plus == run[0] { he_minus } else { he_plus }`.
 
 ## Repair shape

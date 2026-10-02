@@ -35,7 +35,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{

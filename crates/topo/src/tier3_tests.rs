@@ -458,7 +458,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
     use geom::ConventionEnd::{Lower, Upper};
     use geom::ConventionMeasure::{Length, Tilt, Value};
     use geom::SurfaceDatum as D;
-    use geom_brep::SurfaceKind as K;
+    use geom::SurfaceKind as K;
     enum Verdict {
         Poisoned,
         Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
@@ -909,11 +909,11 @@ fn pillow_with_carrier(
 /// rides after the datum's.)
 #[test]
 fn check_1_names_the_carrier_datum_that_describes_no_curve() {
-    use crate::query::CurveKind as K;
     use geom::ConventionEnd::{Lower, Upper};
     use geom::ConventionMeasure::{Length, Value};
     use geom::Curve3;
     use geom::CurveDatum as D;
+    use geom::CurveKind as K;
     let tol = Tol::witness();
     let pi = core::f64::consts::PI;
     let c = Point3::new(0.5, 0.0, 0.0);
@@ -2263,7 +2263,7 @@ fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64
 
 /// `inner`'s extent lies strictly inside `outer`'s, componentwise.
 fn strictly_within(inner: (Point3<f64>, Point3<f64>), outer: (Point3<f64>, Point3<f64>)) -> bool {
-    let axes = |p: Point3<f64>| [p.x, p.y, p.z];
+    let axes = Point3::to_array;
     let (ilo, ihi) = (axes(inner.0), axes(inner.1));
     let (olo, ohi) = (axes(outer.0), axes(outer.1));
     (0..3).all(|i| ilo[i] > olo[i] && ihi[i] < ohi[i])
@@ -2412,7 +2412,7 @@ fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
 /// One solid, three shells: the outer cube, a cavity wall inside it,
 /// and an island inside that cavity — the hollow-operand subtraction's
 /// shape
-/// (`work/zip/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
+/// (`work/fuse/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
 /// Two of those shells enclose definitely-positive volume.
 ///
 /// Four doors produce this state on purpose — `graft onto`, the
@@ -2621,7 +2621,7 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
     let outer = body.shells_of_solid(outer_solid).expect("live")[0];
     let inner_body: Body<f64> =
         crate::test_support_fixtures::brick((1.0, 2.0), (1.0, 2.0), (2.0, 3.0), tol);
-    crate::graft_disjoint_all_onto_keyed(&mut body, &[outer_solid], &inner_body, tol)
+    crate::graft_disjoint_all_onto_keyed(&mut body, &[outer_solid], &inner_body)
         .expect("the graft");
     let inner = *body
         .shells_of_solid(outer_solid)

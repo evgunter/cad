@@ -7,12 +7,10 @@
 use crate::common;
 
 use geom::Surface;
+use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{
-    Body, ContactRecords, PatchContact, TangentLocus, TangentLocusError, ValidationError,
-    tangent_locus, validate_pseudomanifold,
-};
+use topo::{Body, ContactRecords, PatchContact, ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -27,7 +25,7 @@ fn cube_scaled_at(s: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
@@ -127,6 +125,12 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
     );
 }
 
+/// A 1 m patch about the origin: the extent these exact-axis fixtures'
+/// locus verdicts are consumed over (no row here turns on the lever).
+fn metre_patch() -> geom_brep::ExtentBall<f64> {
+    geom_brep::ExtentBall::new(Point3::origin(), 1.0)
+}
+
 fn cyl_at(cy: f64, r: f64) -> Surface<f64> {
     Surface::Cylinder {
         origin: Point3::new(0.0, cy, 0.0),
@@ -142,7 +146,7 @@ fn cyl_at(cy: f64, r: f64) -> Surface<f64> {
 /// (Pre-fix this probe pinned the "crossing" mislabel.)
 #[test]
 fn probe_tangent_locus_nested_cylinders_are_apart() {
-    match tangent_locus(&cyl_at(0.0, 1.0), &cyl_at(0.5, 3.0), band()) {
+    match tangent_locus(&cyl_at(0.0, 1.0), &cyl_at(0.5, 3.0), metre_patch(), band()) {
         Err(TangentLocusError::NotTangent { apart }) => {
             println!("nested cylinders: apart = {apart}");
             assert!(apart, "nested surfaces are definitely APART");
@@ -169,7 +173,7 @@ fn probe_tangent_locus_rows_are_metre_dimensioned() {
         radius: 1e-3,
         u_ref: Vec3::unit_z(),
     };
-    match tangent_locus(&plane, &mm_cyl, band()) {
+    match tangent_locus(&plane, &mm_cyl, metre_patch(), band()) {
         Err(TangentLocusError::Escalated(_)) => {}
         other => panic!("mm twin with in-band gap must escalate: {other:?}"),
     }
@@ -180,7 +184,7 @@ fn probe_tangent_locus_rows_are_metre_dimensioned() {
         radius: 1e3,
         u_ref: Vec3::unit_z(),
     };
-    match tangent_locus(&plane, &big, band()) {
+    match tangent_locus(&plane, &big, metre_patch(), band()) {
         Ok(TangentLocus::Line { origin, .. }) => {
             assert!(origin.z.abs() < 1e-9, "{origin:?}");
         }

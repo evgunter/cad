@@ -7,9 +7,11 @@
 //! cylindrical shaft, and a square crown block whose crenellations are
 //! cut by two crossing slots — every dimension chosen so the evaluated
 //! volume has a closed form the assertions derive beside the ops. (The
-//! crown is square deliberately: a slab cut through a cylinder WALL is
-//! the boolean's curved-sector frontier and refuses typed —
-//! `CurvedSectorSideUnsupported`, issue 1455's frontier — while the
+//! crown is square deliberately: a slab cut through a cylinder WALL
+//! pierces it, a pierce ring in a wall face has no join arm yet, and
+//! the cut refuses typed at the join
+//! (`work/tang/pierce-ring-has-no-join-arm`; the round crown's cut is
+//! `editor-core`'s `reach_slab_cut_sector_side` row) — while the
 //! curved unions below are the supported boss class. The story stays
 //! on what the kernel ships. Stacked discs stand in for the revolved
 //! silhouette a rook naturally is: this scene predates
@@ -243,7 +245,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         .expect("a self-boolean refuses")
         .to_string();
     assert!(
-        rendered.contains(&format!("node {:012x}", softened.0)),
+        rendered.contains(&format!("Chamfer {}", test_utils::refusal::tag(softened.0))),
         "the refusal names the double-picked node: {rendered}"
     );
     assert!(mispick.committed.is_empty(), "a refusal commits nothing");
@@ -294,9 +296,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "… ∪ shaft: {v_u2}"
     );
     // The crown is a square block (a slab cut through a cylinder WALL
-    // is the boolean's curved-sector frontier, issue 1455 — the module
-    // docs carry the ruling), so its slots stay in the crossing-slots
-    // class.
+    // stops at the pierce ring's join door — the module docs carry the
+    // reason), so its slots stay in the crossing-slots class.
     let plane = frame_at(&mut session, [0.0, 0.0, DRUM_Z]);
     let (_, drum) = common::box_in(&mut session, plane, [DRUM_S, DRUM_S, DRUM_H]);
     let u3 = session_insert(
@@ -422,9 +423,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     });
     assert!(
         matches!(
-            refused.refusal,
+            &refused.refusal,
             Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                if node == pattern
+                if node.id() == pattern
         ),
         "{:?}",
         refused.refusal
@@ -486,7 +487,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let affordance = session.delete_affordance(block);
     assert_eq!(
         affordance.label,
-        format!("Delete Extrude {:012x} and 3 dependent features", block.0)
+        format!(
+            "Delete Extrude {} and 3 dependent features",
+            test_utils::refusal::tag(block.0)
+        )
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {

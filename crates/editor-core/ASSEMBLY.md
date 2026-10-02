@@ -26,6 +26,8 @@ walk is `docs/guide/assembly.md`.
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
+| A11 (2) gauges, offsets, spaces | `Node::Gauge` and `InstantiatePart`'s `gauge`/`offset` in `src/node.rs`; `DocEdit::SetOffset`/`SetGauge`, the mate door (`clear_joined_offsets`) and `regauge_then_mate` in `src/edit.rs`; `group_frame`, `Pose`, `check_offsets`, `spaces_with` in `src/mate/solve.rs`; `instance_frame` in `src/eval/wire.rs`; the per-space gather and gate (`Product::spaces`, `own_spaces`, `gate_spaces`) in `src/product.rs` and `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an unplaced group below as `CarriedUnplaced` (`Evaluation::unplaced_below`) |
+| A11 (3) roots | `root_and_cause` in `src/mate/solve.rs`: a group's members are `InstantiatePart` nodes, and a pattern's copies are values of the pattern node, never `InstantiatePart` nodes, so no pattern-placed instance is a root candidate |
 | A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
@@ -108,10 +110,11 @@ The memo reads the stamp too and refuses differently, since `evaluate`
 returns no `Result`: a prior of another document is dropped whole
 before the schedule is built, and the run records the drop as
 `Evaluation::prior_refused` while recomputing everything. Node ids
-alone could not decide any of this — they are minted by a per-document
-counter, so two documents built from one recipe carry the SAME ids for
-the same nodes, and a gather over the wrong one would succeed, in
-full, about other geometry.
+alone could not decide any of this — they are minted from the edits
+that inserted them and not from the document's identity, so two
+documents built from one recipe carry the SAME ids for the same nodes,
+and a gather over the wrong one would succeed, in full, about other
+geometry.
 
 What the stamp decides is the DOCUMENT half only, at every door
 here. A LATER evaluation of the same document is admitted — by the
@@ -149,8 +152,8 @@ the move.
 ## Nodes and mates
 
 **A3 — The node vocabulary; mates are declarations.**
-`Node::InstantiatePart { doc_ref, interface }` has no placement field
-(A11 puts it on the cluster). `Node::Mate { a, b, class, alignment }`:
+`Node::InstantiatePart { doc_ref, interface, gauge, offset }` names
+its gauge and may carry an offset in it (A11 (2)). `Node::Mate { a, b, class, alignment }`:
 `a`/`b` are `SitedFace`s — an instance-qualified FACE name
 (`names::FaceName`, whose one constructor is the only way a face name
 is made) plus the operand node it is read at, so a mate naming an edge
@@ -176,9 +179,9 @@ refuses at the solve door.
 minting instance, whatever the depth of the copy chain above it —
 recomputed by `reading_edges`, never stored. `inputs()` stays empty because a reading
 edge is not consuming: making an operand consuming would take the mated
-bodies out of A10's root set. A9's partition and A11's clusters run over
-consuming ∪ reading edges; A10's invariants, maintenance and gather run
-over consuming edges only, so a mate is an ordinary non-body root: an
+bodies out of A10's root set. A9's partition runs over consuming ∪
+reading edges, and A11's groups over placing mates; A10's invariants
+and gather run over consuming edges only, so a mate is an ordinary non-body root: an
 isolated sink, listed, ignored by the gather. A dangling reference —
 name or operand — contributes no edge, and the fault names the node the
 walk stopped at; `Rebind` repairs a name and carries an at-mint operand
@@ -316,9 +319,9 @@ declaration C6 above describes, are not implemented.
 **A6 — Mirror and improper frames.** `Frame` stores a general linear
 part so an improper frame (det = −1) is representable, and it is
 refused wherever a document admits a frame, by one predicate
-(`Frame::admission_fault`): `DocEdit::SetPlacement`'s frame, an
-explicit placement rule's listed frames and a transform's literal
-steps refuse `EditError::ImproperPlacement` for det ≤ 0, naming which
+(`Frame::admission_fault`): a literal step of an instance's offset, a
+gauge's placement or a transform's chain, and an explicit placement
+rule's listed frames, refuse `EditError::ImproperPlacement` for det ≤ 0, naming which
 frame, and the load validator refuses the same. Mirrored instances are
 not implemented; STEP import refuses a mirroring placement.
 
@@ -348,7 +351,7 @@ stays deterministic, and every placed group has a world pose, so the
 placed part of an assembly is one body. A group nothing places lives in
 its own space (A11 (2)): nothing outside it is compared with it, and it
 is not part of that body. The viewer's free-move probe is display state,
-never persisted; it admits a whole group (`crates/viewer/src/display.rs`).
+never persisted (`crates/viewer/src/display.rs`).
 
 **A10 — Explicit product roots.** `Doc::roots` is an ordered list of
 node ids, document data. Invariants (`roots::check`): coverage (every
@@ -409,17 +412,17 @@ parts, naming how to place them. The viewer draws such a group where it
 was last shown, as display state that no logic reads (G3's free-move
 probe, widened to a whole group); placing it where it is shown is one
 edit whose frame the user supplies. (3) A
-cluster's tree is rooted at its placed member when it has one, and at
-its earliest instance in document order otherwise, a convention that
-decides nothing a user placed; pattern-placed instances are
+group's tree is rooted at its earliest member carrying an offset when
+its gauge chain is live, and at its earliest instance in document order
+otherwise, a convention that decides nothing a user placed; pattern-placed instances are
 root-ineligible. (4) `solve_document` takes the deterministic spanning
-tree rooted at the cluster's root: tree mates DETERMINE and must fold to
+tree rooted at the group's root: tree mates DETERMINE and must fold to
 `Trivial` (an UNDER tree edge refuses naming the residual subgroup,
 recourse `UNDER_RECOURSE`); non-tree mates DECLARE and are only
 verified by the gate. No cycle is ever solved; an inconsistent loop
 dies at its closing mate's verification (`MateFault::Contradictory`,
 recourse `CONTRADICTORY_RECOURSE`). The solve is total and
-per-node: a refusing cluster faults its own mate and instances
+per-node: a refusing group faults its own mate and instances
 (`SolvedPoses::fault`), nothing else. (5) A placed instance's world pose composes its gauge's frame and its
 root's offset onto the solved relative pose; a lone instance returns
 its placement's frame bit for bit. An unplaced instance has no world
@@ -459,7 +462,7 @@ mate in the resolver's own voice, carrying the part fault unaltered —
 `FaceRefusal::Reach`) where a
 `FromFace` side stands on it, since a side's frame is read before the
 lever, else `MateFault::Unleverable` — and that fault poisons the
-cluster as any mate fault does. The two questions that DO need a number are
+group as any mate fault does. The two questions that DO need a number are
 asked once per reference, where the solve reads it — for every
 reference of every live mate, not only the ones a tree edge's offset
 derives: the named copy must exist (its index against the pattern's
@@ -470,7 +473,7 @@ name is the authority; the `Part` is checked against it. A member's derived pose
 the PLACER's own voice: a pattern copy or a transform on the chain
 whose pose cannot be derived refuses `MateFault::PlacerRefused`,
 holding the evaluation layer's own typed cause unaltered. Where a
-cluster's fold derives the offset, the fault reaches the instance
+group's fold derives the offset, the fault reaches the instance
 under the placer, so the placer is poisoned and never gets to state
 that cause itself: the fault carries it, drawn as its own line under
 the mate's. Where the solve reads one mate's references, the fault
@@ -503,4 +506,4 @@ the cause on its own row, and the mate points there.
   mate stays in the document and its names rebind like any other (N5);
   it says nothing about the seam. The split collector gates on
   `member_of` for both heads — the same predicate A12's reading edges
-  and A11's clusters ask.
+  and A11's groups ask.

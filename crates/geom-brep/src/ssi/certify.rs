@@ -351,10 +351,9 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                            — refused rather than represented by a midpoint";
     match *s {
         Surface::Plane { origin, normal, .. } => {
-            let (Some(point), Some(normal)) = (
-                exact3([origin.x, origin.y, origin.z]),
-                exact3([normal.x, normal.y, normal.z]),
-            ) else {
+            let (Some(point), Some(normal)) =
+                (exact3(origin.to_array()), exact3(normal.to_array()))
+            else {
                 return Err(WIDENED);
             };
             Ok((
@@ -364,9 +363,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
             ))
         }
         Surface::Sphere { center, radius, .. } => {
-            let (Some(center), Some(radius)) =
-                (exact3([center.x, center.y, center.z]), exact(radius))
-            else {
+            let (Some(center), Some(radius)) = (exact3(center.to_array()), exact(radius)) else {
                 return Err(WIDENED);
             };
             Ok((
@@ -383,8 +380,8 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
             ..
         } => {
             let (Some(point), Some(axis), Some(radius)) = (
-                exact3([origin.x, origin.y, origin.z]),
-                exact3([axis.x, axis.y, axis.z]),
+                exact3(origin.to_array()),
+                exact3(axis.to_array()),
                 exact(radius),
             ) else {
                 return Err(WIDENED);
@@ -839,9 +836,9 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let t = pcurve.deriv(T::from_f64(mid));
         let tn = (t.x.powi(2) + t.y.powi(2)).sqrt().hi();
         let (tx, ty) = (t.x.hi(), t.y.hi());
-        // A positive finite norm and a nonzero direction. The norm alone
-        // cannot see a zero tangent: the outward `sqrt` of an exact `0`
-        // is the smallest subnormal, so the zero shows as `(tx, ty)`.
+        // A positive finite norm and a nonzero direction: a lane whose
+        // root pads an exact `0` outward reads a zero tangent as a
+        // positive norm, so the zero is asked of `(tx, ty)` too.
         // The tangent is the pcurve's alone, so an unusable one refuses
         // at this rung rather than sending the ladder down rungs that
         // read the same tangent.

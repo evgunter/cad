@@ -170,14 +170,16 @@ impl InterfaceRecord {
 /// Raise `SplitError` carrying the refusal's stable tag and payload.
 fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     use d::SplitError as E;
-    let id = |n: &d::RecipeNodeId| -> Py<PyAny> {
-        Py::new(py, NodeId(*n))
+    // The machine channel keeps the full id and the stored name; the
+    // spoken forms are the message's.
+    let id = |n: &d::SpokenNode| -> Py<PyAny> {
+        Py::new(py, NodeId(n.id()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None())
     };
     let text = |s: &str| -> Py<PyAny> { PyString::new(py, s).unbind().into_any() };
-    let named = |n: &pncad::prelude::StableName| -> Py<PyAny> {
-        name_text(py, n)
+    let named = |n: &d::SpokenName| -> Py<PyAny> {
+        name_text(py, n.name())
             .map(|s| text(&s))
             .unwrap_or_else(|_| py.None())
     };
@@ -237,6 +239,80 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             instance: i,
             ..
         } => (none(), none(), none(), id(g), id(i), none(), none(), none()),
+        // The gauge a cut holds, or the one a cut instance's chain names
+        // that was deleted, is the `node`; the instance it is about is
+        // `instance`.
+        E::CutHoldsGauge { gauge } => (
+            id(gauge),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::DeadGaugeReference { instance, gauge } => (
+            id(gauge),
+            none(),
+            none(),
+            none(),
+            id(instance),
+            none(),
+            none(),
+            none(),
+        ),
+        // Two anchors: the earlier votes' gauge rides `node` and this
+        // node's `input`, each `None` for the world; the node that
+        // disagrees rides `instance`.
+        E::TwoAnchors {
+            node,
+            first,
+            second,
+        } => (
+            first.as_ref().map_or_else(none, id),
+            none(),
+            second.as_ref().map_or_else(none, id),
+            none(),
+            id(node),
+            none(),
+            none(),
+            none(),
+        ),
+        E::UnplacedAlone { group } => (
+            none(),
+            none(),
+            none(),
+            id(group),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The mate is the subject; which side crosses is in the message.
+        E::WouldStartPlacing { mate }
+        | E::PlacingMateLeft { mate }
+        | E::MateFrameCrosses { mate, .. }
+        | E::MateFaceFrameCrosses { mate, .. } => (
+            id(mate),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::HoistedMemberOffset { instance } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            id(instance),
+            none(),
+            none(),
+            none(),
+        ),
         E::UncutParamReference {
             param: p,
             cut_node,
@@ -273,7 +349,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             named(name),
             none(),
         ),
-        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } | E::StepMapDiverged(_) => (
+        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => (
             none(),
             none(),
             none(),
@@ -356,8 +432,8 @@ impl SplitOutcome {
     /// The new part document, carrying the cut nodes.
     ///
     /// Its `last_maintenance` is what building the part from empty
-    /// did to the placement registry — a cut group re-forms as one
-    /// join per mate that welded two members still separate.
+    /// reported — an offset a cut mate's insert cleared as it joined
+    /// two groups.
     #[getter]
     fn part(&self) -> Doc {
         Doc {
@@ -472,14 +548,16 @@ pub(crate) fn split(
 /// Raise `InlineError` carrying the refusal's stable tag and payload.
 fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
     use d::InlineError as E;
-    let id = |n: &d::RecipeNodeId| -> Py<PyAny> {
-        Py::new(py, NodeId(*n))
+    // The machine channel keeps the full id and the stored name; the
+    // spoken forms are the message's.
+    let id = |n: &d::SpokenNode| -> Py<PyAny> {
+        Py::new(py, NodeId(n.id()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None())
     };
     let text = |s: &str| -> Py<PyAny> { PyString::new(py, s).unbind().into_any() };
-    let named = |n: &pncad::prelude::StableName| -> Py<PyAny> {
-        name_text(py, n)
+    let named = |n: &d::SpokenName| -> Py<PyAny> {
+        name_text(py, n.name())
             .map(|s| text(&s))
             .unwrap_or_else(|_| py.None())
     };
@@ -566,6 +644,55 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
+        // The instance is the subject: why it cannot be spliced is the
+        // variant, and an unplaced one's cause is in the message.
+        E::MatePlaced { instance, .. }
+        | E::Unplaced { instance, .. }
+        | E::NeedsAGauge { instance } => (
+            id(instance),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // A node of the referenced document, in its own id space: it
+        // rides `root`, the part-side slot, as the plain-geometry root
+        // does.
+        E::PartDeadGauge { node: n } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            id(n),
+            none(),
+            none(),
+        ),
+        E::MateFrameCrosses { mate, .. } | E::MateFaceFrameCrosses { mate, .. } => (
+            id(mate),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The earlier mate is the subject; the one that reads another
+        // inner instance rides `by`.
+        E::MatePairSplits { first, second } => (
+            id(first),
+            id(second),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
@@ -579,7 +706,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::Edit { .. } | E::StepMapDiverged(_) => (
+        E::Edit { .. } => (
             none(),
             none(),
             none(),
@@ -629,7 +756,7 @@ impl InlineOutcome {
     ///
     /// The document and the maintenance its edits performed travel
     /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
-    /// what the splice did to the placement registry.
+    /// what the splice's edits reported.
     #[getter]
     fn doc(&self) -> Doc {
         Doc {

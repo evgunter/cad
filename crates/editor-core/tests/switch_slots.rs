@@ -29,7 +29,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -38,11 +38,11 @@ fn circle_doc(r: f64) -> ProfileDoc {
         .doc;
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane: doc.order()[0],
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
-            }),
+            })),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -220,7 +220,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node, doc.order()[1]);
+            assert_eq!(node.id(), doc.order()[1]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
@@ -255,7 +255,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -265,14 +265,14 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -322,7 +322,7 @@ fn insert_node_checks_program_dimensions() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -340,7 +340,7 @@ fn insert_node_checks_program_dimensions() {
     };
     match doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(bad),
+            node: Box::new(Node::Profile(bad)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -422,7 +422,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -504,7 +504,9 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // transition, so no `SetParam`/`SetExpression`/`expr_at` row
         // can exist for these three roles.
         match doc.apply(
-            &DocEdit::InsertNode { node: program },
+            &DocEdit::InsertNode {
+                node: Box::new(program),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
@@ -550,6 +552,7 @@ test_utils::f6_variants! {
         PlacedUnion,
         Declare,
         InstantiatePart,
+        Gauge,
         Mate,
         Measure,
         Assertion,
@@ -764,7 +767,21 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             interface: InterfaceRecord {
                 crossings: Vec::new(),
             },
+            gauge: None,
+            offset: Some(Placement::from(Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            })),
         },
+        Node::gauge(
+            None,
+            Step::Rigid {
+                translation: [len(0.0), len(2.0), len(0.0)],
+                axis: [scl(1.0), scl(0.0), scl(0.0)],
+                angle: ang(0.25),
+            },
+        ),
         Node::Mate {
             a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
@@ -908,6 +925,38 @@ fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
             );
         }
     }
+}
+
+/// **The mint's preimage is pinned for every node shape**: the id each
+/// shape draws from an empty document's mint. `mint.rs`'s pin freezes
+/// one profile's bytes; a node shape whose serde form moves — a field
+/// renamed, reordered or re-typed, a variant renamed, display units
+/// reaching the bytes — re-mints every id a saved log replays to, and
+/// goes red here on the shape that moved. The shapes are
+/// `one_of_every_node_shape`'s, which
+/// `every_node_kinds_slots_are_all_readable` welds to the roster.
+#[test]
+fn every_node_shapes_mint_is_pinned() {
+    use std::fmt::Write as _;
+    let mut text = String::new();
+    for node in one_of_every_node_shape() {
+        let id = editor_core::test_support::first_node_id(&node);
+        let kind = test_utils::f6::variant_identifier(&node);
+        writeln!(text, "{kind} {}", id.0).unwrap();
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/mint_node_ids.txt");
+    if std::env::var_os("PNCAD_BLESS").is_some() {
+        std::fs::write(&path, &text).expect("the golden writes");
+        return;
+    }
+    assert_eq!(
+        text,
+        include_str!("golden/mint_node_ids.txt"),
+        "a node shape's mint preimage moved, and with it every id a saved log replays to. \
+         Read the diff and say in the PR body which shape moved and why (regenerate: \
+         PNCAD_BLESS=1 cargo test -p editor-core --test all every_node_shapes_mint_is_pinned)"
+    );
 }
 
 /// **Every node shape's slot table, pinned: its slots in order, and the

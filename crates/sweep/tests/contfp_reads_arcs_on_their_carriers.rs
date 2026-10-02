@@ -139,7 +139,7 @@ fn the_census_sees_a_brick_standing_in_the_lune() {
     let mut body = filleted_bored_d_rod();
     let brick =
         sweep::test_support::brick((-0.35, -0.25), (-0.05, 0.05), (ROD_L, ROD_L + 0.5), tol());
-    topo::graft_disjoint(&mut body, &brick, tol()).expect("two disjoint solids in one body");
+    topo::graft_disjoint(&mut body, &brick).expect("two disjoint solids in one body");
     let (cap, _) = cap_at(&body, ROD_L);
     let errors = topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol())
         .expect_err("a brick standing on the cap touches it");
@@ -388,7 +388,7 @@ fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
     // (0, 1, 1.25) is on the ellipse; the brick reaches away from the
     // cylinder in x and y and below the cut in z.
     let brick = sweep::test_support::brick((0.0, 0.3), (1.0, 1.3), (0.95, 1.25), tol());
-    topo::graft_disjoint(&mut body, &brick, tol()).expect("two solids meeting at a point");
+    topo::graft_disjoint(&mut body, &brick).expect("two solids meeting at a point");
     let errors = topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol())
         .expect_err("a corner on the section's edge is a contact");
     for e in &errors {
@@ -406,14 +406,15 @@ fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
 /// tilt` (14.1 at 1.5 rad, 19.7 at 1.52) and their ends at the MINOR
 /// vertices, where the edge's speed is `a`.
 fn steep_cut(tilt: f64) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
+    use topo::splitting::{SplitPart, split};
     let h = 2.0 * tilt.tan() + 20.0;
     let tall =
         sweep::test_support::prism(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 1.0)], h, tol());
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, h / 2.0),
-        normal: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, h / 2.0),
+        Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
     let SplitPart::Body(above) = result.above else {
         panic!("the part above the cut is a body");
@@ -545,7 +546,7 @@ fn the_census_reads_a_corner_near_a_steep_ellipses_end() {
     let q = corner.expect("a corner on the x > 0 side");
     let brick =
         sweep::test_support::brick((q.x, q.x + 0.3), (q.y, q.y + 0.3), (q.z - 0.3, q.z), tol());
-    topo::graft_disjoint(&mut body, &brick, tol()).expect("two solids meeting at a point");
+    topo::graft_disjoint(&mut body, &brick).expect("two solids meeting at a point");
     let errors = topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol())
         .expect_err("a corner on the section's edge is a contact");
     assert!(

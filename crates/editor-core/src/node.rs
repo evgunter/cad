@@ -10,7 +10,7 @@ use crate::names::SplitHalf;
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
 // owns the single upward re-export.
-use topo::ContactClass;
+use topo::BooleanCoincidence;
 
 /// The [`Node`] variants whose payload REFERENCES no [`StableName`], as
 /// a PATTERN.
@@ -52,13 +52,14 @@ macro_rules! name_free_node {
             | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::Assertion { .. }
+            | $crate::node::Node::Gauge { .. }
     };
 }
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
-/// substrate): minted from `Doc`'s monotone counter at insertion,
-/// never reused (deletion does not free it), never positional. Its
-/// stability is a contract, pinned by test.
+/// substrate): minted from the document's mint chain ([`crate::Mint`])
+/// at insertion, never reused (deletion does not free it), never
+/// positional. Its stability is a contract, pinned by test.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -66,7 +67,7 @@ pub struct RecipeNodeId(pub u64);
 
 /// **A profile program step's identity** (`names/README.md`, "N1, the
 /// profile pieces"): minted from the document's mint chain
-/// ([`crate::StepMint`]) when the step is authored — by `InsertNode`
+/// ([`crate::Mint`]) when the step is authored — by `InsertNode`
 /// or `SetProgram` — never reused, never positional, and unique across
 /// the document. A profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
 #[derive(
@@ -1232,6 +1233,41 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
+        | Node::Mate { .. } => None,
+    }
+}
+
+/// [`payload_exprs`], exclusive: the same expressions in the same order.
+pub(crate) fn payload_exprs_mut<P>(node: &mut Node<P>) -> Option<Vec<&mut Expr>> {
+    match node {
+        Node::Measure { expr, .. } => {
+            let mut leaves = Vec::new();
+            expr.value_leaves_mut(&mut leaves);
+            Some(leaves)
+        }
+        Node::Assertion { bound, .. } => Some(vec![bound]),
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Mate { .. } => None,
     }
 }
@@ -1534,16 +1570,25 @@ pub enum InputFault {
     },
 }
 
+/// [`InputFault::Duplicate`]'s sentence, with `input` spoken as the
+/// sentence's maker can: the edit and load doors from the document they
+/// judge, [`InputFault`]'s own `Display` by its tag.
+pub(crate) fn duplicate_input(
+    f: &mut core::fmt::Formatter<'_>,
+    input: &crate::SpokenNode,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "{input} is taken as an input twice — a node's inputs are pairwise distinct"
+    )
+}
+
 // The ONE prose vocabulary for this fault, forwarded by every door
 // that renders it rather than restated.
 impl core::fmt::Display for InputFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Duplicate { input } => write!(
-                f,
-                "node {} is taken as an input twice — a node's inputs are pairwise distinct",
-                input
-            ),
+            Self::Duplicate { input } => duplicate_input(f, &crate::SpokenNode::absent(*input)),
             Self::TooFew { found } => write!(
                 f,
                 "a list input takes two or more entries, and this has {found}"
@@ -1562,6 +1607,71 @@ impl core::fmt::Display for InputFault {
                 at + 1
             ),
         }
+    }
+}
+
+/// **An [`InputFault`] whose subject is the node's own list or
+/// designation** — every arm but `Duplicate`, whose subject is another
+/// node. A refusal that speaks that node from its document names a
+/// duplicate apart and holds the rest as this, so it cannot hold an
+/// input it would say only by its tag. Each arm is
+/// [`InputFault`]'s namesake, and so is the sentence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListFault {
+    /// [`InputFault::TooFew`].
+    TooFew {
+        /// How many entries it has.
+        found: usize,
+    },
+    /// [`InputFault::RepeatedDesignation`].
+    RepeatedDesignation {
+        /// The position of the entry's first occurrence.
+        first: usize,
+        /// The position at which it is named again.
+        again: usize,
+    },
+    /// [`InputFault::SelectionNotCanonical`].
+    SelectionNotCanonical {
+        /// The entry that does not sort strictly before its successor.
+        at: usize,
+    },
+}
+
+impl InputFault {
+    /// This fault as a [`ListFault`], or the input a `Duplicate`
+    /// reaches twice.
+    ///
+    /// # Errors
+    ///
+    /// The repeated input, for [`InputFault::Duplicate`].
+    pub fn list_fault(self) -> Result<ListFault, RecipeNodeId> {
+        match self {
+            Self::Duplicate { input } => Err(input),
+            Self::TooFew { found } => Ok(ListFault::TooFew { found }),
+            Self::RepeatedDesignation { first, again } => {
+                Ok(ListFault::RepeatedDesignation { first, again })
+            }
+            Self::SelectionNotCanonical { at } => Ok(ListFault::SelectionNotCanonical { at }),
+        }
+    }
+}
+
+impl From<ListFault> for InputFault {
+    fn from(fault: ListFault) -> Self {
+        match fault {
+            ListFault::TooFew { found } => Self::TooFew { found },
+            ListFault::RepeatedDesignation { first, again } => {
+                Self::RepeatedDesignation { first, again }
+            }
+            ListFault::SelectionNotCanonical { at } => Self::SelectionNotCanonical { at },
+        }
+    }
+}
+
+// [`InputFault`]'s prose, forwarded rather than restated.
+impl core::fmt::Display for ListFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", InputFault::from(*self))
     }
 }
 
@@ -2188,7 +2298,7 @@ pub enum Node<P> {
     /// whose boxes meet, or between which a pair is declared, are
     /// evaluated as the two-member union of just those two, with the
     /// pairs declared between them, and two members
-    /// that touch with the contact undeclared refuse `UndeclaredContact`
+    /// that touch with the contact undeclared refuse `UndeclaredCoincidence`
     /// exactly as a pair boolean's operands do. That holds in every
     /// member order, and for a contact a third member covers too. The
     /// fold then builds the body and judges no contact of its own. The
@@ -2455,18 +2565,21 @@ pub enum Node<P> {
     /// whose SHAPE is wrong rather than whose kind is
     /// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
     Declare {
-        /// The declared contact pairs, each with the CLASS it asserts
-        /// (CONTACT-DESIGN C4).
+        /// The declared pairs, each with the COINCIDENCE it asserts
+        /// (CONTACT-DESIGN C4): a contact of a class, or a continuation
+        /// — the valid inputs to a boolean, where a mate takes a
+        /// [`ContactClass`] alone.
         ///
         /// The class rides every pair rather than a node-level
         /// default: a declaration is "these two faces are in contact,
-        /// of THIS kind", and one `Declare` node may carry pairs of
-        /// different kinds. A class-less pair is unrepresentable —
-        /// there is no constructor that omits it and no default to
-        /// fall back to, because defaulting would let a `Tangent`
-        /// intent be verified against the conformal table.
+        /// of THIS kind" (or "these two faces are one surface carried
+        /// on"), and one `Declare` node may carry pairs of different
+        /// kinds. A class-less pair is unrepresentable — there is no
+        /// constructor that omits it and no default to fall back to,
+        /// because defaulting would let a `Tangent` intent be verified
+        /// against the conformal table.
         #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        pairs: Vec<((SitedRef, SitedRef), ContactClass)>,
+        pairs: Vec<((SitedRef, SitedRef), BooleanCoincidence)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
@@ -2474,11 +2587,13 @@ pub enum Node<P> {
     /// [`Node::inputs`] is empty and the DAG has nothing to schedule
     /// ahead of it.
     ///
-    /// **No frame field.** A11 puts placement on the GROUP, and the
-    /// registry holding it is document data ([`crate::Doc::placement`])
-    /// — an instance carries no frame of its own, which is what makes
-    /// zero-anchor and multi-anchor states unrepresentable rather than
-    /// merely refused.
+    /// **Where it sits** (A11 (2)): it names its [`Node::Gauge`] —
+    /// the world when `gauge` is `None` — and may carry an `offset` in
+    /// it. Its world pose is the gauge's frame composed with the offset
+    /// of its group's root, composed with its solved pose relative to
+    /// that root ([`crate::mate::SolvedPoses`]). An instance with no
+    /// offset sits where its mates place it, or, when nothing places
+    /// its group, in the group's own space.
     InstantiatePart {
         /// Which document, at which version (A4: the id answers "which
         /// part", the pin "which version of it"). Cargo.lock semantics
@@ -2494,6 +2609,36 @@ pub enum Node<P> {
         /// the node's content key.
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
+        /// The gauge the instance sits on, `None` for the world. A
+        /// READING edge, like a mate's: it is not an input, so a gauge
+        /// is never consumed by what sits on it, and deleting it is
+        /// never refused. A reference to a deleted gauge is kept, so
+        /// the group it unplaces can name its cause. Required on the
+        /// wire, `null` for the world, so a file written before gauges
+        /// refuses typed rather than loading as unplaced.
+        #[serde(deserialize_with = "crate::persist::wire::present")]
+        gauge: Option<RecipeNodeId>,
+        /// The instance's offset in its gauge, `None` when it carries
+        /// none. On its group's root it places the group; on any other
+        /// member it is a statement the solve checks
+        /// ([`crate::mate::MateFault::OffsetDisagrees`]). Its rigid
+        /// steps are slots ([`SlotId::rigid`]). Required on the wire,
+        /// `null` for none, as `gauge` is.
+        #[serde(deserialize_with = "crate::persist::wire::present")]
+        offset: Option<crate::placement::Placement>,
+    },
+    /// **A gauge** (A11 (2)): a frame that instances and other gauges
+    /// sit on. It denotes no body, so as a product root it contributes
+    /// nothing (A10). Its frame is its parent's frame composed with its
+    /// `placement`, the world's when `parent` is `None`; `parent` is a
+    /// READING edge, as an instance's `gauge` is. Its placement's rigid
+    /// steps are slots ([`SlotId::rigid`]), so a document parameter can
+    /// drive where everything on it sits.
+    Gauge {
+        /// The gauge this one sits on, `None` for the world.
+        parent: Option<RecipeNodeId>,
+        /// Where it sits on its parent.
+        placement: crate::placement::Placement,
     },
     /// A **mate** between two instances (ASSEMBLY-DESIGN A3/A12;
     /// ASM-R2a D-1): one node carrying BOTH the placement constraint
@@ -2835,7 +2980,17 @@ macro_rules! node_rows {
                 $out.push((S::Stations, stations));
                 $out.push((S::VDegree, v_degree));
             }
-            Node::Transform { placement, .. } => $out.extend(placement.$rows()),
+            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
+                $out.extend(placement.$rows())
+            }
+            // The offset's rigid steps are the instance's slots; the
+            // reference itself takes no arguments (AQ4 — the referenced
+            // document evaluates at its OWN parameters).
+            Node::InstantiatePart { offset, .. } => {
+                if let Some(offset) = offset {
+                    $out.extend(offset.$rows())
+                }
+            }
             // A pattern's count is a field, so it is always there; a
             // placed union's is an `Option`, and a rule missing the
             // count it needs carries no count SLOT either — the
@@ -2850,16 +3005,13 @@ macro_rules! node_rows {
                 PartSelect::SplitHalf(_) => {}
                 PartSelect::Instance(index) => $out.push((S::Instance, index)),
             },
-            // AQ4: an instance takes no arguments in v1 — the
-            // referenced document evaluates at its OWN parameters.
             Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Union { .. }
             | Node::Declare { .. }
             // A11: the alignment datum is authored geometry, not a
             // continuous slot — a mate has no expression to drive.
-            | Node::Mate { .. }
-            | Node::InstantiatePart { .. } => {}
+            | Node::Mate { .. } => {}
             // Neither carries a SLOT. A slot's address fixes its
             // dimension ([`SlotId::dimension`]) — that is the
             // vocabulary's contract, read by the edit door, the load
@@ -2876,6 +3028,19 @@ macro_rules! node_rows {
 
 impl<P: crate::ProfilePayload> Node<P> {
     row_readers!(pub(crate) node_rows -> SlotId);
+
+    /// Reads every literal's display unit as its dimension's canonical
+    /// one, in the slots and in the expressions no slot addresses
+    /// ([`payload_exprs`]): what [`Node::bit_eq`] sees, as a value that
+    /// serializes (D6: the display unit is never identity).
+    pub(crate) fn erase_display_units(&mut self) {
+        for (_, expr) in self.rows_mut() {
+            expr.erase_display_units();
+        }
+        for expr in payload_exprs_mut(self).into_iter().flatten() {
+            expr.erase_display_units();
+        }
+    }
 }
 
 /// **THE slot table of a placement**: every rigid step's components at
@@ -2941,7 +3106,8 @@ impl<P> Node<P> {
             // A mate is a leaf: its references are NAMES, not edges
             // (A12's reading edges are recomputed, never stored here).
             | Node::Mate { .. }
-            | Node::InstantiatePart { .. } => Vec::new(),
+            | Node::InstantiatePart { .. }
+            | Node::Gauge { .. } => Vec::new(),
             // A measure's references ARE its data dependencies (the
             // variant's docs state why this kind departs from the D3
             // carve-out). The edge is the node each reference is READ
@@ -3042,6 +3208,7 @@ impl<P> Node<P> {
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
@@ -3082,6 +3249,7 @@ impl<P> Node<P> {
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
@@ -3289,6 +3457,7 @@ impl<P> Node<P> {
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => false,
@@ -3648,25 +3817,72 @@ impl<P> Node<P> {
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
-    /// record — the authoring constructor. A non-empty record is
-    /// mintable only by the refactoring that observed declarations
-    /// crossing a cut, which reaches it through
-    /// [`Node::instantiate_part_with`]: an authored instance crosses
-    /// nothing.
+    /// record, on the world at the empty offset — the authoring
+    /// constructor, so every insert door yields an instance placed at
+    /// the world origin. A non-empty record is mintable only by the
+    /// refactoring that observed declarations crossing a cut, which
+    /// reaches it through [`Node::instantiate_part_with`]: an authored
+    /// instance crosses nothing.
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
+        Self::instantiate_part_with(
+            doc_ref,
+            InterfaceRecord::default(),
+            None,
+            Some(crate::placement::Placement::IDENTITY),
+        )
     }
 
     /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
-    /// (ASM-R2b D-4): the split's door, since only a split knows what
-    /// crossed its cut. Authoring an instance by hand goes through
-    /// [`Node::instantiate_part`] — an authored instance crosses
-    /// nothing.
+    /// (ASM-R2b D-4), on `gauge` at `offset`: the split's door, since
+    /// only a split knows what crossed its cut. Authoring an instance
+    /// by hand goes through [`Node::instantiate_part`] — an authored
+    /// instance crosses nothing.
     pub fn instantiate_part_with(
         doc_ref: crate::ident::DocRef,
         interface: InterfaceRecord,
+        gauge: Option<RecipeNodeId>,
+        offset: Option<crate::placement::Placement>,
     ) -> Self {
-        Node::InstantiatePart { doc_ref, interface }
+        Node::InstantiatePart {
+            doc_ref,
+            interface,
+            gauge,
+            offset,
+        }
+    }
+
+    /// Builds a [`Node::Gauge`] on `parent` (the world when `None`) at
+    /// `placement`.
+    pub fn gauge(
+        parent: Option<RecipeNodeId>,
+        placement: impl Into<crate::placement::Placement>,
+    ) -> Self {
+        Node::Gauge {
+            parent,
+            placement: placement.into(),
+        }
+    }
+
+    /// **The gauge reference this node reads**, where it has one: an
+    /// instance's gauge, or a gauge's parent. `None` is the world —
+    /// and for every other node kind, which sits on nothing.
+    pub fn gauge_ref(&self) -> Option<RecipeNodeId> {
+        match self {
+            Node::InstantiatePart { gauge, .. } => *gauge,
+            Node::Gauge { parent, .. } => *parent,
+            _ => None,
+        }
+    }
+
+    /// **The placement this node holds**, where it holds one: a
+    /// transform's, a gauge's, or an instance's offset when it carries
+    /// one.
+    pub fn held_placement(&self) -> Option<&crate::placement::Placement> {
+        match self {
+            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => Some(placement),
+            Node::InstantiatePart { offset, .. } => offset.as_ref(),
+            _ => None,
+        }
     }
 
     /// Builds a [`Node::PlacedUnion`] with a PARAMETRIC rule (linear
@@ -3708,7 +3924,10 @@ impl<P> Node<P> {
         tol: geom_core::Tol,
     ) -> Option<(usize, crate::placement::FrameFault)> {
         match self {
-            Node::Transform { placement, .. } => placement.frame_fault(tol),
+            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
+                placement.frame_fault(tol)
+            }
+            Node::InstantiatePart { offset, .. } => offset.as_ref()?.frame_fault(tol),
             // EXHAUSTIVE, as `placement_rule_fault` is: a node kind that
             // comes to hold a placement is classified here or the
             // compile breaks, rather than slipping past both doors.
@@ -3730,7 +3949,6 @@ impl<P> Node<P> {
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
-            | Node::InstantiatePart { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
@@ -3783,6 +4001,7 @@ impl<P> Node<P> {
             | Node::Part { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
             | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => return None,
@@ -3802,9 +4021,9 @@ impl<P> Node<P> {
         if frames.is_empty() {
             return Some(PlacementRuleFault::NoPlacements);
         }
-        // A11/A6 parity: a placement frame is held to exactly what
-        // `SetPlacement` holds a cluster frame to, because it is held
-        // to it by the same predicate — `Frame::admission_fault`, whose
+        // A6 parity: a listed frame is held to exactly what a
+        // placement's literal step is held to, because it is held to
+        // it by the same predicate — `Frame::admission_fault`, whose
         // home is the frame. This arm says only WHICH frame in the list
         // answered. Checked HERE so the refusal lands at the edit door
         // with the best diagnostics, not at the kernel's rigidity
@@ -3835,7 +4054,22 @@ impl<P> Node<P> {
     /// [`Node::Declare`] directly.
     pub fn declare_rest(pairs: Vec<(SitedRef, SitedRef)>) -> Self {
         Node::Declare {
-            pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
+            pairs: pairs
+                .into_iter()
+                .map(|p| (p, BooleanCoincidence::REST))
+                .collect(),
+        }
+    }
+
+    /// A `Declare` node whose every pair asserts a CONTINUATION — one
+    /// carrier, aligned senses: two stacked parts' outer walls. Named
+    /// at the call site for the reason [`Node::declare_rest`] gives.
+    pub fn declare_continuation(pairs: Vec<(SitedRef, SitedRef)>) -> Self {
+        Node::Declare {
+            pairs: pairs
+                .into_iter()
+                .map(|p| (p, BooleanCoincidence::Continuation))
+                .collect(),
         }
     }
 

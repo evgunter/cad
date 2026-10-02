@@ -2,10 +2,13 @@
 id: node-labels-are-document-data
 kind: unit
 title: A node's label is document data the kernel stores and speaks: SetLabel, one Label type, kind+label+tag in every sentence
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
 priority: P1
 cost: H
+pr: 3713
+branch: emit/node-labels
 ---
 
 
@@ -17,14 +20,12 @@ cost: H
 - Split and inline carry labels on the nodes they move; an instance left by split is unlabelled.
 - One spoken-node type (id, kind, label), built by the frame that owns the document when a sentence is made (edit refusals at the raise site; evaluation's node errors in the node frame), never inside a value the evaluation memo reuses. One `Display`: `Extrude "base plate" (3fa9c1d2a0b1)`, `Extrude 3fa9c1d2a0b1` when unlabelled, `node 3fa9c1d2a0b1` when gone. The kind noun moves from `viewer::tree::node_kind` into editor-core.
 - Python: `NodeId` repr is the full 16 hex digits; `doc.label(node)`, `DocEdit.set_label`, `label=` on insert helpers.
-- Viewer: a labelled row's headline is its label, with kind and tag muted beside it; an unlabelled row shows kind, pose and tag. Create forms propose an editable "Kind N", stored only when committed. Rename is a `SetLabel`.
+- Viewer: a labelled row's headline is its label, with kind and tag muted beside it; an unlabelled row shows kind, pose and tag. Create forms propose an editable "Kind N", stored only when committed; N is the number of live nodes of that kind plus one, stepping past any N whose "Kind N" that kind already carries (ruled in PR 3713's review: three unlabelled extrudes propose "Extrude 4"). Rename is a `SetLabel`.
 
 Sequencing: PR 3631 landed the unlabelled slice first (the spoken node, the tag, the full id on machine channels, the viewer's rows and pickers), before `sibling-branches-mint-one-node-id-for-different-nodes` unit 2 (PR 3594), and took that much of its unit 3. The rest of this row — the label and everything below — lands after PR 3594.
 
 ## Carried from PR 3631
 
-- **Refusal values hold a bare `RecipeNodeId`** and print `node <tag>`, with no kind: every kernel refusal that names a node (`EditError`, `RangeRefusal`, `MateFault`, `AssemblyError`, `PartFault`, `NodeStanding`, …) and the viewer's own refusal types — `MateToolError` (`matetool.rs`, `NotAnInstancePick`, `SamePick`), `HeldRefusal` (`sketch.rs`), `SlotUnitFault` (`props.rs`), `Refusal` and `FaceFrameFault` (`session/refuse.rs`), `DuplicateFault` (`combine.rs`), `AdmissionFault` (`display.rs`). The ruling builds the spoken node at the raise site; that is a type change on each variant that names a node, and it lands here with the label, which those sentences need too.
-- **The memoized `NodeError` keeps a bare id** (`node <tag> failed: …`); its node frame speaks it once the label exists.
-- **The tag is the id's LOW 48 bits** (`editor_core::spoken`'s `TAG_MASK`), which is what tells counter ids apart. When PR 3594 mints ids as a digest prefix (`u64::from_be_bytes` of the hash head), the tag switches to the HIGH 48 bits — the `DocRef` pin-prefix rule the ruling cites. One home on each side: `spoken.rs`'s `write_tag`, and the Python suite's `tests/spoken.py::tag` (read by `test_assembly_eval.py`, `test_assembly_author.py` and `test_document.py`). Tests that spell a tag as `{:012x}` of a small id (most of `editor-core/tests` and `viewer/tests`) are counter-shaped and move with the mint.
+The refusal values that still hold a bare `RecipeNodeId`, and the memoized `NodeError`, moved to `refusal-values-speak-the-node-with-its-label` when PR 3713 split the row (that row carries the list). The tag's rule stays as PR 3594 left it: one home on each side, `spoken.rs`'s `write_tag` and the Python suite's `tests/spoken.py::tag`; expected texts spell a tag through `test_utils::refusal::tag`.
 
-Off-question findings to file with it: Python `Doc(label=...)` seeds a `DocumentId`, so rename it (e.g. `seed`) so that "label" means one thing; `Attr::Label` is read by no surface.
+Off-question findings to file with it: Python `Doc(label=...)` seeds a `DocumentId`, so rename it (e.g. `seed`) so that "label" means one thing — done in PR 3713 (`Doc(seed=...)`); `Attr::Label` is read by no surface — filed as `attr-label-has-no-reader`; `sentence::Labels` is a third meaning — filed as `sentence-labels-is-a-second-meaning-of-label`.

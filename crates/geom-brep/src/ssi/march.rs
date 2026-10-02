@@ -40,7 +40,8 @@
 //! 6. Advance by the cubic approximant, then **Newton refinement** to
 //!    the surface pair: a fixed [`SSI_NEWTON_ITERS`] cap of
 //!    minimum-norm corrections, early-exiting on
-//!    [`SSI_NEWTON_TOL`]·ε (an f64 structure branch, C6 lane).
+//!    [`SSI_NEWTON_TOL`]·ε, or the coordinates' noise where that is larger
+//!    (`Readout`; an f64 structure branch, C6 lane).
 //!
 //! # The idealized stepper (the differential spec, T4/PERF-PLAN §4.4)
 //!
@@ -104,13 +105,15 @@
 //!   in band.
 
 use geom_core::linalg::svd::Svd;
-use geom_core::{Band, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use crate::dihedral::{decide, decide_positive, decide_reported};
 use crate::recourse::Refused;
 
-use super::SsiError;
+use super::enclose::Box3;
+use super::exhaust::{self, ExhaustLane, UvRect};
 use super::system::LocalSystem;
+use super::{SSI_FIT_DEGREE, SsiError, TraceDecision};
 
 /// The **candidate generator's** step tolerance, in meters.
 ///
@@ -133,7 +136,104 @@ use super::system::LocalSystem;
 /// ([`MarchTol::decoupled`]), and only that one door reaches for it;
 /// every certifying door derives its own from the run band.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct MarchTol(f64);
+pub(crate) struct MarchTol {
+    /// The tolerance, in metres.
+    meters: f64,
+    /// The residual Newton settles every state to, in metres.
+    settle: f64,
+}
+
+/// **How finely a march's residual can be read**, where its states
+/// reach furthest: the spacing of adjacent floats there, and the noise
+/// the lane's evaluation carries on top of it, in ulps of that spacing.
+/// A Newton target below that noise is one no state reliably reaches,
+/// so [`MarchTol`] settles to whichever is larger.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Readout {
+    /// Whose coordinates bind: the ℝ³ box the residual is evaluated in,
+    /// or a NURBS operand's chart Newton moves through.
+    lane: ExhaustLane,
+    /// Their largest magnitude, in the lane's units.
+    reach: f64,
+    /// The spacing of adjacent floats there, in the lane's units.
+    gap: f64,
+    /// What bounds the reach.
+    bound: ReachBound,
+    /// The residual noise, in metres.
+    noise: f64,
+}
+
+/// What bounds how far a march's states reach from zero
+/// ([`SettlingRefusal::bound`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReachBound {
+    /// The operands: the states lie on them, nearer zero than the
+    /// domain's far side.
+    Geometry,
+    /// The caller's domain: no operand box bounds the states nearer.
+    Domain,
+}
+
+impl Readout {
+    /// The residual evaluated at coordinates in the caller's `domain`,
+    /// cut down to the box the `operands` lie in where one bounds them,
+    /// with `ulps` of their spacing as noise.
+    pub(crate) fn spatial(domain: Box3, operands: Option<Box3>, ulps: f64) -> Self {
+        let (whole, _) = exhaust::coordinate_gap(domain);
+        let (reach, gap) = exhaust::coordinate_gap(operands.map_or(domain, |o| domain.meet(o)));
+        let bound = if reach < whole {
+            ReachBound::Geometry
+        } else {
+            ReachBound::Domain
+        };
+        Self {
+            lane: ExhaustLane::R3,
+            reach,
+            gap,
+            bound,
+            noise: ulps * gap,
+        }
+    }
+
+    /// The louder of this readout and a NURBS operand's chart `root`,
+    /// whose parameter spacing crosses into metres at `speed`, with
+    /// `ulps` of it as noise.
+    pub(crate) fn or_chart(self, root: UvRect, speed: SupSpeed<f64>, ulps: f64) -> Self {
+        let (reach, gap) = exhaust::coordinate_gap(root);
+        let noise = ulps * speed.to_meters(gap);
+        if noise <= self.noise {
+            return self;
+        }
+        Self {
+            lane: ExhaustLane::Chart { speed },
+            reach,
+            gap,
+            bound: ReachBound::Geometry,
+            noise,
+        }
+    }
+}
+
+/// Why the march cannot settle its states finely enough for the run's
+/// tolerance ([`SsiError::SettlingUnresolvable`]): the coordinates the
+/// residual is read in are too coarse, where they reach furthest, for a
+/// settled state to sit well inside ε.
+#[derive(Clone, Copy, Debug)]
+pub struct SettlingRefusal {
+    /// Whose coordinates bind, and on the chart lane the rate their
+    /// spacing crossed into metres by.
+    pub lane: ExhaustLane,
+    /// Their largest magnitude, in the lane's units.
+    pub reach: f64,
+    /// The spacing of adjacent floats there, in the lane's units.
+    pub gap: f64,
+    /// What bounds the reach: on the chart lane, always the geometry.
+    pub bound: ReachBound,
+    /// The residual the march can settle to there, in metres.
+    pub settle: f64,
+    /// The run's tolerance, in metres.
+    pub tolerance: f64,
+}
 
 impl MarchTol {
     /// The generator's tolerance derived from the run's band — the run
@@ -145,9 +245,43 @@ impl MarchTol {
     /// [`SsiError::MarchTolMismatch`] — so the marcher's spacing, the
     /// accounting floor and the certificate's floors are one number by
     /// enforcement rather than by intent.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::SettlingUnresolvable`] as [`MarchTol::settling`].
+    pub(crate) fn from_band(band: Band, readout: Readout) -> Result<Self, SsiError> {
+        Self::mint(band.zero(), readout)
+    }
+
+    /// Whether this is the run band's own tolerance.
     #[must_use]
-    pub(crate) fn from_band(band: Band) -> Self {
-        Self(band.zero())
+    pub(crate) fn is_of(self, band: Band) -> bool {
+        self.meters == band.zero()
+    }
+
+    /// The tolerance, settling to the larger of [`SSI_NEWTON_TOL`] of it
+    /// and the `readout`'s noise, refused where that is not within
+    /// [`SSI_SETTLE_MAX`] of it.
+    fn mint(meters: f64, readout: Readout) -> Result<Self, SsiError> {
+        let settle = Real::max(SSI_NEWTON_TOL * meters, readout.noise);
+        if settle.is_nan() || settle > SSI_SETTLE_MAX * meters {
+            return Err(SsiError::SettlingUnresolvable(SettlingRefusal {
+                lane: readout.lane,
+                reach: readout.reach,
+                gap: readout.gap,
+                bound: readout.bound,
+                settle,
+                tolerance: meters,
+            }));
+        }
+        Ok(Self { meters, settle })
+    }
+
+    /// The residual, in metres, Newton refinement settles every state
+    /// to.
+    #[must_use]
+    pub(crate) fn settling(self) -> f64 {
+        self.settle
     }
 
     /// A generator tolerance **deliberately decoupled** from the run
@@ -169,18 +303,19 @@ impl MarchTol {
     /// # Errors
     ///
     /// [`SsiError::InvalidMarchTol`] when `meters` is not finite and
-    /// strictly positive — a typed refusal, never a silent clamp.
-    pub(super) fn decoupled(meters: f64) -> Result<Self, SsiError> {
+    /// strictly positive — a typed refusal, never a silent clamp — and
+    /// [`MarchTol::from_band`]'s refusal.
+    pub(super) fn decoupled(meters: f64, readout: Readout) -> Result<Self, SsiError> {
         if !(meters.is_finite() && meters > 0.0) {
             return Err(SsiError::InvalidMarchTol { value: meters });
         }
-        Ok(Self(meters))
+        Self::mint(meters, readout)
     }
 
     /// The tolerance in meters — the `f64` the untrusted lane consumes.
     #[must_use]
     pub(crate) fn meters(self) -> f64 {
-        self.0
+        self.meters
     }
 }
 
@@ -188,9 +323,33 @@ impl MarchTol {
 pub const SSI_NEWTON_ITERS: usize = 8;
 
 /// Newton's early-exit residual, as a fraction of ε: refinement stops
-/// once the state satisfies both surfaces two orders inside tolerance.
+/// once the state satisfies both surfaces two orders inside tolerance,
+/// where the coordinates resolve that (`Readout`).
 /// A structure branch on `f64` (C6's lane), not a predicate.
 pub const SSI_NEWTON_TOL: f64 = 1.0e-2;
+
+/// The coarsest residual, as a fraction of ε, a march may settle its
+/// states to. The certificate bounds the fitted carrier against ε, so
+/// samples settled much coarser than this leave it no room: measured on
+/// the threaded cylinder × sphere at ε = 1e-9, states settled to 0.47ε
+/// certify and states settled to 0.93ε escalate limb 2; the plane ×
+/// wall at ε = 1e-12 reads the same (0.45ε certifies, 0.91ε escalates).
+/// The headroom below it is the fixture's, not a bound: a rational wall
+/// (weights 1, 1.05, 0.97, 1) at 500 m and ε = 1e-12, settled to 0.45ε,
+/// reads limb 2 at 0.92ε, 8% inside the band.
+pub const SSI_SETTLE_MAX: f64 = 0.5;
+
+/// A quadric pair's residual noise, in ulps of its coordinates: twice
+/// the measured need. The threaded cylinder × sphere settles at every
+/// reach to 1e6 m at ε = 1e-9 with one ulp.
+pub const SSI_QUADRIC_NOISE_ULPS: f64 = 2.0;
+
+/// A spline pair's residual noise, in ulps of its coordinates. The
+/// plane × certifiable wall of `tests/m5_pr7_ssi.rs` at 20–1000 m and
+/// ε = 1e-12 loses its branch settling to two ulps and settles at four;
+/// across further walls the need measured 4 to 6 ulps, so this is 1.3
+/// to 2 times the measured need, not a bound.
+pub const SSI_SPLINE_NOISE_ULPS: f64 = 8.0;
 
 /// Hoffmann's "keep the higher contributions small" (p. 215) as a named
 /// constant: the quadratic and cubic terms of the approximant may each
@@ -221,15 +380,18 @@ pub const SSI_STEP_RELATIVE: f64 = 0.1;
 pub const SSI_STEP_DEVIATION: f64 = 0.02;
 
 /// The idealized stepper's fixed step, as a fraction of the caller's
-/// named extent. Tiny by construction: the tangent-line step's own
+/// named extent, and never longer than the march's step cap
+/// (`march_both`). Tiny by construction: the tangent-line step's own
 /// truncation is `O(h²κ)`, so at a thousandth of the feature extent it
 /// is far below ε on anything with sane curvature, and Newton removes
 /// what remains.
 pub const SSI_IDEALIZED_STEP: f64 = 1.0e-3;
 
-/// The realized stepper's largest step, as a fraction of the extent —
-/// a cap so a nearly-straight branch still gets sampled densely enough
-/// for the fit to have data.
+/// The realized stepper's largest step, as a fraction of the caller's
+/// named extent — a cap so a nearly-straight branch still gets sampled
+/// densely enough for the fit to have data. A branch too short for the
+/// cubic fit at that cap is marched once more with its own length cut
+/// into an odd number of steps (`march_both`).
 pub const SSI_STEP_MAX: f64 = 1.0 / 32.0;
 
 /// Which stepper — the realized third-order approximant or the
@@ -311,7 +473,8 @@ pub(crate) struct MarchContext<const N: usize> {
     /// The domain box in state coordinates, `[lo, hi]` per coordinate.
     pub domain: [[f64; 2]; N],
     /// The caller's named feature extent, in meters — the lever arm of
-    /// last resort and the scale of the step clamps.
+    /// last resort and the scale of the idealized step. The realized
+    /// step's cap is [`march`]'s `step_cap`.
     pub extent: f64,
     /// The candidate generator's step tolerance. Derived from the run
     /// band on every certifying door — see [`MarchTol`].
@@ -356,7 +519,8 @@ pub(crate) trait TransversalityData<const N: usize> {
     fn lever_arm(&self, x: &[f64; N]) -> f64;
 }
 
-/// March one branch from `seed` (module docs).
+/// March one branch from `seed` (module docs), no step longer than
+/// `step_cap` meters.
 ///
 /// # Errors
 ///
@@ -375,6 +539,7 @@ pub(crate) fn march<const M: usize, const N: usize, S>(
     mode: StepperMode,
     direction: f64,
     band: Band,
+    step_cap: f64,
 ) -> Result<Trace<N>, SsiError>
 where
     S: LocalSystem<M, N> + TransversalityData<N>,
@@ -404,7 +569,7 @@ where
         let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
         let arm = Real::min(sys.lever_arm(&x), ctx.extent);
         decide_positive("ssi_transversality_arm", Margin::of(arm), band)
-            .map_err(SsiError::Escalated)?;
+            .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
         let transversality = Margin::levered(sin_theta, arm);
         if transversality.value() < min_transversality {
             min_transversality = transversality.value();
@@ -423,7 +588,7 @@ where
                     });
                 }
             }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
+            Err(diag) => return Err(TraceDecision::Transversality.escalated(diag)),
         }
 
         // ---- 3. the tangent, oriented along the march ----
@@ -460,7 +625,9 @@ where
         let (dx, h_meters) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
-                let h = Real::min((SSI_IDEALIZED_STEP * ctx.extent) / speed, ctx.diagonal());
+                let h = [step_cap / speed, ctx.diagonal()]
+                    .into_iter()
+                    .fold((SSI_IDEALIZED_STEP * ctx.extent) / speed, Real::min);
                 (scale(&d1, h), h * speed)
             }
             StepperMode::Realized => {
@@ -516,7 +683,7 @@ where
                 } else {
                     f64::INFINITY
                 };
-                let h_max = (SSI_STEP_MAX * ctx.extent) / speed;
+                let h_max = step_cap / speed;
                 let h = [h_cub, h_fit, h_max, ctx.diagonal()]
                     .into_iter()
                     .fold(h_quad, Real::min);
@@ -538,7 +705,7 @@ where
                     speed,
                 });
             }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
+            Err(diag) => return Err(TraceDecision::StepProgress.escalated(diag)),
         }
 
         // The step itself, where it is minted: a positive finite speed
@@ -594,7 +761,7 @@ where
                     steps,
                 });
             }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
+            Err(diag) => return Err(TraceDecision::BranchOpenEnd.escalated(diag)),
         }
 
         // ---- the closure pair ----
@@ -642,11 +809,11 @@ where
                                 arc_length: arc,
                             });
                         }
-                        Err(diag) => return Err(SsiError::Escalated(diag)),
+                        Err(diag) => return Err(TraceDecision::ClosureTangent.escalated(diag)),
                     }
                 }
                 Ok(Sign::Negative) => {}
-                Err(diag) => return Err(SsiError::Escalated(diag)),
+                Err(diag) => return Err(TraceDecision::ClosureReturn.escalated(diag)),
             }
         }
 
@@ -660,7 +827,7 @@ where
 }
 
 /// Minimum-norm Newton onto `F = 0`, fixed cap, early exit at
-/// [`SSI_NEWTON_TOL`]·ε. `None` when the iteration poisons or fails to
+/// [`MarchTol::settling`]. `None` when the iteration poisons or fails to
 /// settle — never a best-effort state.
 pub(crate) fn newton_refine<const M: usize, const N: usize, S>(
     sys: &S,
@@ -670,7 +837,7 @@ pub(crate) fn newton_refine<const M: usize, const N: usize, S>(
 where
     S: LocalSystem<M, N>,
 {
-    let tol = SSI_NEWTON_TOL * step_tol.meters();
+    let tol = step_tol.settling();
     for _ in 0..SSI_NEWTON_ITERS {
         let f = sys.residual(&x);
         let mut worst = 0.0f64;
@@ -879,9 +1046,27 @@ where
 /// seed as the join. A closed forward march needs no second pass: it
 /// already covered the component.
 ///
+/// The first march caps its steps at [`SSI_STEP_MAX`] of the caller's
+/// extent. This is the one place a whole branch is known, so it is also
+/// where a branch shorter than a few of those steps is caught: a trace
+/// with fewer samples than the cubic fit needs, and a positive length,
+/// is marched once more with its steps capped at that length over
+/// [`SHORT_BRANCH_STEPS`]. The rule is fixed and taken at most once
+/// (D9).
+///
+/// The re-march does not always come back long enough. The march ends
+/// at the first state not decided inside the domain, and that margin is
+/// a distance to the domain's box, not along the branch, so a branch
+/// running within the band of a face of the box has no inside state at
+/// any step; and the boundary search drops an end it cannot settle.
+///
 /// # Errors
 ///
-/// As [`march`]; a refusal in either direction is the operation's.
+/// As [`march`]; a refusal in either direction, on either march, is the
+/// operation's. [`SsiError::TraceUnresolved`] when the first trace has
+/// no length to cut, or the re-march is still too short to fit: a limit
+/// of the march, not a branch. A trace with a non-finite sample (a
+/// `NaN` length) goes to the fit, which refuses the sample by name.
 pub(crate) fn march_both<const M: usize, const N: usize, S>(
     sys: &S,
     seed: [f64; N],
@@ -892,11 +1077,62 @@ pub(crate) fn march_both<const M: usize, const N: usize, S>(
 where
     S: LocalSystem<M, N> + TransversalityData<N>,
 {
-    let fwd = march::<M, N, S>(sys, seed, ctx, mode, 1.0, band)?;
+    let cap = SSI_STEP_MAX * ctx.extent;
+    let first = march_both_at::<M, N, S>(sys, seed, ctx, mode, band, cap)?;
+    if first.states.len() > SSI_FIT_DEGREE {
+        return Ok(first);
+    }
+    let length = arc_length(sys, &first.states);
+    if length.is_nan() {
+        // A non-finite sample: the fit refuses it by name. Finite
+        // samples whose chords overflow read `+∞`, which re-marches at
+        // the extent's cap and refuses below if still short.
+        return Ok(first);
+    }
+    if length <= 0.0 {
+        return Err(SsiError::TraceUnresolved {
+            samples: first.states.len(),
+            step: cap,
+        });
+    }
+    let step = Real::min(cap, length / SHORT_BRANCH_STEPS as f64);
+    let again = march_both_at::<M, N, S>(sys, seed, ctx, mode, band, step)?;
+    if again.states.len() > SSI_FIT_DEGREE {
+        return Ok(again);
+    }
+    Err(SsiError::TraceUnresolved {
+        samples: again.states.len(),
+        step,
+    })
+}
+
+/// How many steps a short branch's re-march cuts its length into: the
+/// fewest odd count that gives the cubic fit its samples without the
+/// two boundary ends, which [`push_boundary`] may drop. Odd, because a
+/// seed lands near the middle of a branch as often as not: from there
+/// an odd count leaves `n` states strictly inside the branch and each
+/// end half a step from the nearest, where an even one walks a state
+/// onto each end — within the first trace's own shortfall of the
+/// boundary, which is inside the band at a fine tolerance.
+const SHORT_BRANCH_STEPS: usize = (SSI_FIT_DEGREE + 1) | 1;
+
+/// [`march_both`]'s two marches and their splice, at one `step_cap`.
+fn march_both_at<const M: usize, const N: usize, S>(
+    sys: &S,
+    seed: [f64; N],
+    ctx: MarchContext<N>,
+    mode: StepperMode,
+    band: Band,
+    step_cap: f64,
+) -> Result<Trace<N>, SsiError>
+where
+    S: LocalSystem<M, N> + TransversalityData<N>,
+{
+    let fwd = march::<M, N, S>(sys, seed, ctx, mode, 1.0, band, step_cap)?;
     if fwd.end == BranchEnd::Closed {
         return Ok(fwd);
     }
-    let bwd = march::<M, N, S>(sys, seed, ctx, mode, -1.0, band)?;
+    let bwd = march::<M, N, S>(sys, seed, ctx, mode, -1.0, band, step_cap)?;
     let mut states = bwd.states;
     states.reverse();
     // `states` now runs backward-end → seed; append the forward half
@@ -921,10 +1157,27 @@ where
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        LocalSystem, MarchContext, MarchTol, NormalPair, SsiError, StepFault, StepperMode,
-        TransversalityData, march,
+        Box3, LocalSystem, MarchContext, MarchTol, NormalPair, ReachBound, Readout, SSI_NEWTON_TOL,
+        SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_STEP_MAX, SsiError, StepFault, StepperMode,
+        TraceDecision, TransversalityData, march,
     };
+    use crate::ssi::ExhaustLane;
     use geom_core::{Band, Point3, Vec3};
+
+    /// A quadric pair's residual read in the box of half-width `r`
+    /// around `(x, 0, 0)`.
+    fn read_at(x: f64, r: f64) -> Readout {
+        Readout::spatial(
+            Box3::around(Point3::new(x, 0.0, 0.0), r),
+            None,
+            SSI_QUADRIC_NOISE_ULPS,
+        )
+    }
+
+    /// The same, about the origin.
+    fn reaching(r: f64) -> Readout {
+        read_at(0.0, r)
+    }
 
     /// A two-plane system in ℝ³ whose locus is the `x` axis, with the
     /// chart speed, the order-2 and order-3 right-hand sides, the `x`
@@ -976,7 +1229,7 @@ mod tests {
         }
 
         fn point(&self, x: &[f64; 3]) -> Point3<f64> {
-            Point3::new(x[0], x[1], x[2])
+            Point3::from_array(*x)
         }
 
         fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
@@ -1025,6 +1278,7 @@ mod tests {
                 StepperMode::Idealized,
                 1.0,
                 band,
+                SSI_STEP_MAX * unit_ctx(band).extent,
             );
             match r {
                 Err(SsiError::StepUnusable {
@@ -1042,10 +1296,9 @@ mod tests {
                     .ending(crate::recourse::Reading::Build);
                     assert_eq!(ending.as_deref(), Some(geom_core::KERNEL_DEFECT_ENDING));
                 }
-                Err(SsiError::Escalated(diag)) => panic!(
+                Err(SsiError::Escalated { decision, .. }) => panic!(
                     "WRONG DIAGNOSIS: a march speed of {speed:e} escalated on \
-                     {:?} instead of being refused as the speed it is",
-                    diag.predicate
+                     {decision:?} instead of being refused as the speed it is"
                 ),
                 other => panic!("expected the speed guard for {speed:e}, got {other:?}"),
             }
@@ -1104,7 +1357,15 @@ mod tests {
         ];
         for (speed, mode, ctx, x0, fault) in rows {
             let sys = FixedSpeedR3::at_speed(speed);
-            let r = march(&sys, [x0, 0.0, 0.0], ctx, mode, 1.0, band);
+            let r = march(
+                &sys,
+                [x0, 0.0, 0.0],
+                ctx,
+                mode,
+                1.0,
+                band,
+                SSI_STEP_MAX * ctx.extent,
+            );
             let named = match (fault, &r) {
                 (None, Err(SsiError::StepCollapsed { speed, .. })) => *speed,
                 (Some(want), Err(SsiError::StepUnusable { speed, fault, .. }))
@@ -1130,7 +1391,7 @@ mod tests {
         MarchContext::<3> {
             domain: [[-1.0, 1.0]; 3],
             extent: 1.0,
-            tol: MarchTol::from_band(band),
+            tol: MarchTol::from_band(band, reaching(1.0)).unwrap(),
             max_steps: 64,
         }
     }
@@ -1156,7 +1417,7 @@ mod tests {
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Idealized,
-                "ssi_transversality_arm",
+                TraceDecision::TransversalityArm,
             ),
             (
                 FixedSpeedR3 {
@@ -1164,7 +1425,7 @@ mod tests {
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Realized,
-                "ssi_step_progress",
+                TraceDecision::StepProgress,
             ),
             (
                 FixedSpeedR3 {
@@ -1172,7 +1433,7 @@ mod tests {
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Realized,
-                "ssi_step_progress",
+                TraceDecision::StepProgress,
             ),
             (
                 FixedSpeedR3 {
@@ -1180,15 +1441,35 @@ mod tests {
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Idealized,
-                "ssi_branch_open_end",
+                TraceDecision::BranchOpenEnd,
             ),
         ];
         for (sys, mode, guard) in rows {
-            match march(&sys, [0.0, 0.0, 0.0], unit_ctx(band), mode, 1.0, band) {
-                Err(SsiError::Escalated(diag)) => {
-                    assert_eq!(diag.predicate, Some(guard), "the poisoned operand's guard");
+            match march(
+                &sys,
+                [0.0, 0.0, 0.0],
+                unit_ctx(band),
+                mode,
+                1.0,
+                band,
+                SSI_STEP_MAX * unit_ctx(band).extent,
+            ) {
+                Err(ref e @ SsiError::Escalated { decision, .. }) => {
+                    assert_eq!(decision, guard, "the poisoned operand's guard");
+                    // A poisoned margin names no lever of the decision's:
+                    // the arm gate ends as transversality's unreadable
+                    // margin, the rest as the kernel's defect.
+                    let ending = e.ending(crate::recourse::Reading::Build).unwrap();
+                    if guard == TraceDecision::TransversalityArm {
+                        assert!(
+                            ending.ends_with(geom_core::UNREADABLE_MARGIN_NOTE),
+                            "{guard:?}: {ending}"
+                        );
+                    } else {
+                        assert_eq!(ending, geom_core::KERNEL_DEFECT_ENDING, "{guard:?}");
+                    }
                 }
-                other => panic!("expected {guard} to escalate, got {other:?}"),
+                other => panic!("expected {guard:?} to escalate, got {other:?}"),
             }
         }
     }
@@ -1218,10 +1499,16 @@ mod tests {
                 StepperMode::Realized,
                 1.0,
                 band,
+                SSI_STEP_MAX * unit_ctx(band).extent,
             );
             assert!(
-                !matches!(&r, Err(SsiError::Escalated(d))
-                    if d.predicate == Some("ssi_step_progress")),
+                !matches!(
+                    &r,
+                    Err(SsiError::Escalated {
+                        decision: TraceDecision::StepProgress,
+                        ..
+                    })
+                ),
                 "speed {:e}, rhs2 {:e}: {r:?}",
                 sys.speed,
                 sys.rhs2
@@ -1244,7 +1531,9 @@ mod tests {
             // the run's K·zero, which would read as a quantity the
             // bridge consults.
             let band = Band::new(zero, 2.0 * zero).unwrap();
-            assert_eq!(MarchTol::from_band(band).meters(), band.zero());
+            let tol = MarchTol::from_band(band, reaching(1.0)).unwrap();
+            assert_eq!(tol.meters(), band.zero());
+            assert!(tol.is_of(band));
         }
     }
 
@@ -1254,18 +1543,81 @@ mod tests {
     #[test]
     fn a_decoupled_march_tolerance_refuses_typed_on_a_non_length() {
         for bad in [0.0_f64, -1.0e-9, f64::NAN, f64::INFINITY] {
-            match MarchTol::decoupled(bad) {
+            match MarchTol::decoupled(bad, reaching(1.0)) {
                 Err(SsiError::InvalidMarchTol { value }) => {
                     assert!(value.is_nan() || value == bad, "{value:e} vs {bad:e}");
-                    let msg = format!("{}", SsiError::InvalidMarchTol { value });
+                    let msg =
+                        SsiError::InvalidMarchTol { value }.render(crate::recourse::Reading::Build);
                     assert!(
-                        msg.contains("MarchTol::from_band"),
-                        "the recourse sentence: {msg}"
+                        msg.contains("not a usable length")
+                            && msg.ends_with(
+                                "Recourse: name a march tolerance that is a positive finite \
+                                 length"
+                            )
+                            && !msg.contains("MarchTol"),
+                        "the caller's knob: {msg}"
                     );
                 }
                 other => panic!("expected a typed refusal for {bad:e}, got {other:?}"),
             }
         }
-        assert_eq!(MarchTol::decoupled(1.0e-9).unwrap().meters(), 1.0e-9);
+        assert_eq!(
+            MarchTol::decoupled(1.0e-9, reaching(1.0)).unwrap().meters(),
+            1.0e-9
+        );
+    }
+
+    /// **The march settles to what its coordinates resolve, and refuses
+    /// by name where that is not well inside ε.** Near the origin it
+    /// settles to `SSI_NEWTON_TOL`·ε; where the coordinates' noise is
+    /// larger it settles to the noise; where the noise passes
+    /// `SSI_SETTLE_MAX`·ε, at `1e8` m against ε = `1e-9`, both doors
+    /// refuse by the scale.
+    #[test]
+    fn the_march_settles_to_what_its_coordinates_resolve() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let near = MarchTol::from_band(band, reaching(1.0)).unwrap();
+        assert_eq!(
+            near.settling(),
+            SSI_NEWTON_TOL * band.zero(),
+            "near the origin"
+        );
+        let mid = MarchTol::from_band(band, read_at(1.0e5, 1.0)).unwrap();
+        let gap = 1.0e5f64 - 1.0e5f64.next_down();
+        assert!(
+            mid.settling() > SSI_NEWTON_TOL * band.zero()
+                && mid.settling() >= SSI_QUADRIC_NOISE_ULPS * gap,
+            "at 1e5 m it settles to the noise: {:e}",
+            mid.settling()
+        );
+        for minted in [
+            MarchTol::from_band(band, read_at(1.0e8, 1.0)),
+            MarchTol::decoupled(band.zero(), read_at(1.0e8, 1.0)),
+        ] {
+            let Err(SsiError::SettlingUnresolvable(r)) = minted else {
+                panic!("expected the settling door, got {minted:?}");
+            };
+            assert!(matches!(r.lane, ExhaustLane::R3), "{r:?}");
+            assert_eq!(r.bound, ReachBound::Domain, "no operand box: {r:?}");
+            assert!(
+                r.reach > 1.0e8 && r.gap > 1.0e-8 && r.settle > SSI_SETTLE_MAX * band.zero(),
+                "{r:?}"
+            );
+        }
+    }
+
+    /// **The reach is where the states can be**: a domain reaching
+    /// `1e8` m around an operand box at the origin reads at the box, and
+    /// names the geometry as what bounds it.
+    #[test]
+    fn the_readout_reads_where_the_operands_bound_the_states() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let wide = Box3::around(Point3::new(0.0, 0.0, 0.0), 1.0e8);
+        let unit = Box3::around(Point3::new(0.0, 0.0, 0.0), 1.0);
+        let r = Readout::spatial(wide, Some(unit), SSI_QUADRIC_NOISE_ULPS);
+        assert_eq!(r.bound, ReachBound::Geometry, "{r:?}");
+        assert!(r.reach <= 1.0 + 1.0e-12, "{r:?}");
+        let tol = MarchTol::from_band(band, r).unwrap();
+        assert_eq!(tol.settling(), SSI_NEWTON_TOL * band.zero());
     }
 }

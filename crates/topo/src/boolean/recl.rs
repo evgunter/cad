@@ -27,10 +27,11 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::sectors::{BoolSector, PairRecord, side_code};
-use super::tables::{eq15_3_lump, resolve_verdict, table_ii};
-use super::{BooleanError, BooleanOp, Operand, SideCode};
+use super::tables::{eq15_3_lump, kept_copy, resolve_verdict, table_ii};
+use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
+use geom_core::k_stats::NonzeroSign;
 
 /// The sector face's ORIENTED carrier description
 /// ([`super::rest::face_carrier`] —
@@ -48,7 +49,7 @@ fn carrier_of<T: Decide>(
         let kind = body
             .get_face(s.face)
             .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face: s.face,
@@ -72,14 +73,14 @@ fn carrier_of<T: Decide>(
 /// frontier refusal (the recourse is a declared contact, vocabulary
 /// CONTACT-DESIGN C4).
 #[allow(clippy::too_many_arguments)]
-fn require_same<T: Decide>(
+pub(super) fn require_same<T: Decide>(
     body1: &Body<T>,
     o1: super::Operand,
     s1: &BoolSector<T>,
     body2: &Body<T>,
     o2: super::Operand,
     s2: &BoolSector<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
@@ -88,11 +89,11 @@ fn require_same<T: Decide>(
     // lanes that can consume its second-order verdict dispatch to
     // [`super::sectors::tangent_lump`] before reaching here, so a
     // remaining reach is a lane without that arm — refused typed.
-    if declared.class_of(o1, s1.face, o2, s2.face) == Some(crate::contact::ContactClass::Tangent) {
+    if declared.declares_tangent(o1, s1.face, o2, s2.face) {
         let kind = body1
             .get_face(s1.face)
             .and_then(|f| body1.get_surface(f.surface))
-            .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand: o1,
             face: s1.face,
@@ -101,8 +102,8 @@ fn require_same<T: Decide>(
     }
     let c1 = carrier_of(body1, o1, s1)?;
     let c2 = carrier_of(body2, o2, s2)?;
-    let declared_rest = declared.declares_rest(o1, s1.face, o2, s2.face);
-    if !declared_rest {
+    let declared_one_carrier = declared.declares_one_carrier(o1, s1.face, o2, s2.face);
+    if !declared_one_carrier {
         let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
         let refusal = if curved(&c1) {
             Some((o1, s1.face, body1.get_face(s1.face), body1))
@@ -114,7 +115,7 @@ fn require_same<T: Decide>(
         if let Some((operand, face, f, body)) = refusal {
             let kind = f
                 .and_then(|f| body.get_surface(f.surface))
-                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand,
                 face,
@@ -129,16 +130,29 @@ fn require_same<T: Decide>(
     let id = super::PlaneIdentity {
         s1: g1.as_ref(),
         s2: g2.as_ref(),
-        declared: declared_rest,
+        declared: declared_one_carrier,
     };
-    match super::carrier_eq::carrier_eq(&c1, &c2, id, arm, band) {
+    // A declared pair reads as the door read it at rest, over both
+    // faces; an undeclared one at the corner's arm.
+    let extent = if declared_one_carrier {
+        declared.consumed(o1, s1.face, o2, s2.face)?
+    } else {
+        super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+            geom_core::Point3::origin(),
+            arm,
+        ))
+    };
+    match super::carrier_eq::carrier_eq(&c1, &c2, id, &extent, band) {
         Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
         Ok(rel) => Ok(rel),
         Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
             rung,
-            super::PlaneDoor::of(declared_rest),
+            declared.on_pair_door(
+                (o1, s1.face, o2, s2.face),
+                super::plane_eq::senses(s1.normal.vec(), s2.normal.vec(), arm, band),
+            ),
             diag,
         )),
         Err(PlaneEqError::Undeclared { diag, relation }) => {
@@ -151,6 +165,15 @@ fn require_same<T: Decide>(
         Err(PlaneEqError::Contradicted { fact, .. }) => {
             Err(BooleanError::DeclarationContradicted { fact })
         }
+        // Only a declared reading is unsettled.
+        Err(PlaneEqError::Unsettled { diag }) => Err(super::unsettled_rest(
+            declared.class_of(o1, s1.face, o2, s2.face).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "an undeclared sector pair's carrier reading was unsettled",
+                },
+            )?,
+            diag,
+        )),
     }
 }
 
@@ -164,6 +187,11 @@ fn cancel_uniform(r: &mut PairRecord) {
 /// Program 15.10 (module docs). `records` are rewritten in place,
 /// sequentially, in creation (A-major) order — later coplanar pairs see
 /// propagated codes, as the book.
+///
+/// Each coincident pair whose lump keeps one copy of the region is
+/// pushed onto `covered` as `(A face, B face)`
+/// (`BooleanReduction::covered`), and each edge of the kept copy's face
+/// that runs into the dropped copy's onto `held`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn recl_sectors<T: Decide>(
     records: &mut [PairRecord],
@@ -172,8 +200,10 @@ pub(super) fn recl_sectors<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
+    covered: &mut Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
+    held: &mut Vec<super::HeldEdge>,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     for i in 0..records.len() {
@@ -195,10 +225,12 @@ pub(super) fn recl_sectors<T: Decide>(
         // take the side their carrier curves to. No Eq. 15.3 lump and
         // no neighbor propagation: nothing here is a coincident-
         // sector identity.
-        let tangent_pair =
-            declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
-                == Some(crate::contact::ContactClass::Tangent);
-        if tangent_pair {
+        let read = declared.read(
+            &[(super::Operand::A, sa.face, super::Operand::B, sb.face)],
+            Coincide::TangentSide,
+            &[],
+        );
+        if read == DeclarationRead::Spent(crate::contact::BooleanCoincidence::TANGENT) {
             let surface_of = |body: &Body<T>, face| {
                 body.get_face(face)
                     .and_then(|f| body.get_surface(f.surface))
@@ -217,17 +249,16 @@ pub(super) fn recl_sectors<T: Decide>(
                 .ok_or(BooleanError::ClassificationInvariant {
                     what: "v-v site lost its point",
                 })?;
+            let side = |own: &geom::Surface<T>, other: &geom::Surface<T>, n, d| {
+                super::sectors::tangent_relative_side(own, other, n, p, d, arm, read, band)
+            };
             let ca = (
-                super::sectors::tangent_relative_side(
-                    &s_a, &s_b, sb.normal, p, sa.start, arm, band,
-                )?,
-                super::sectors::tangent_relative_side(&s_a, &s_b, sb.normal, p, sa.end, arm, band)?,
+                side(&s_a, &s_b, sb.normal, sa.start)?,
+                side(&s_a, &s_b, sb.normal, sa.end)?,
             );
             let cb = (
-                super::sectors::tangent_relative_side(
-                    &s_b, &s_a, sa.normal, p, sb.start, arm, band,
-                )?,
-                super::sectors::tangent_relative_side(&s_b, &s_a, sa.normal, p, sb.end, arm, band)?,
+                side(&s_b, &s_a, sa.normal, sb.start)?,
+                side(&s_b, &s_a, sa.normal, sb.end)?,
             );
             // Per-bound propagation, the Rest loop's shape with the
             // SHARED bound's own code (definite codes only — an `On`
@@ -285,6 +316,28 @@ pub(super) fn recl_sectors<T: Decide>(
             arm,
             band,
         )?;
+        if let Some(keeper) = kept_copy(op, rel) {
+            covered.push((sa.face, sb.face));
+            let (body, own, other, other_body) = match keeper {
+                Operand::A => (a_body, sa, sb, b_body),
+                Operand::B => (b_body, sb, sa, a_body),
+            };
+            let at = other_body.get_half_edge(other.he).map(|h| h.start).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "a covered sector's half-edge no longer resolves",
+                },
+            )?;
+            for (edge, dir) in super::sectors::bound_edges(body, own)? {
+                if super::sectors::runs_into(other, dir, arm, band)? {
+                    held.push(super::HeldEdge {
+                        holder: keeper,
+                        edge,
+                        face: other.face,
+                        at,
+                    });
+                }
+            }
+        }
         let (newsa, newsb) = (
             eq15_3_lump(op, Operand::A, rel),
             eq15_3_lump(op, Operand::B, rel),
@@ -391,7 +444,6 @@ fn flank_key<T: Decide>(
         bound,
         reach,
         ref_normal,
-        s.arm,
         super::sectors::NO_CURVATURE(),
         band,
     )
@@ -448,7 +500,7 @@ pub(super) fn recl_edges<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
@@ -460,6 +512,9 @@ pub(super) fn recl_edges<T: Decide>(
         start_holder: usize,
         real: bool,
         dir: geom_core::Vec3<T2>,
+        /// The mentioning sector's arm, which its direction's readings
+        /// are metered at.
+        arm: T2,
     }
     let mut mentions: Vec<Mention<T>> = Vec::new();
     for r in records.iter().filter(|r| r.intersect) {
@@ -493,6 +548,7 @@ pub(super) fn recl_edges<T: Decide>(
                     start_holder: f_s,
                     real,
                     dir,
+                    arm: secs[idx].arm,
                 });
             }
         }
@@ -507,7 +563,10 @@ pub(super) fn recl_edges<T: Decide>(
         used[i] = true;
         let mut group = vec![mentions[i]];
         for j in (i + 1)..mentions.len() {
-            if !used[j] && parallel_same_dir(mentions[i].dir, mentions[j].dir, T::one(), band)? {
+            // Metered at the shorter of the two mentioning sectors' arms,
+            // as every other reading of two directions at a corner is.
+            let arm = mentions[i].arm.min(mentions[j].arm);
+            if !used[j] && parallel_same_dir(mentions[i].dir, mentions[j].dir, arm, band)? {
                 used[j] = true;
                 group.push(mentions[j]);
             }
@@ -637,14 +696,14 @@ type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
 /// reflex dihedral wedges along a coincident edge are not yet
 /// discriminated — the A/B symmetry check refuses loudly if it bites.
 #[allow(clippy::too_many_arguments)]
-fn resolve_edge_edge<T: Decide>(
+pub(super) fn resolve_edge_edge<T: Decide>(
     records: &[PairRecord],
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     fa_s: usize,
     fb_s: usize,
@@ -698,33 +757,58 @@ fn resolve_edge_edge<T: Decide>(
                 w,
                 reach,
                 other_secs[oi].normal,
-                arm,
                 super::sectors::NO_CURVATURE(),
                 band,
             )? {
                 SideCode::In => {}
                 SideCode::Out => inside = false,
                 SideCode::On => {
-                    // On the flanking plane: overlap-tie or touch.
-                    let same = match decide("bool_dir_same", Margin::levered(w.dot(ow), arm), band)
-                    {
-                        Ok(Sign::Positive) => true,
-                        Ok(Sign::Negative) => false,
-                        Ok(Sign::Zero) => {
-                            return Err(BooleanError::ClassificationInvariant {
-                                what: "degenerate rep pair in edge-edge membership",
-                            });
+                    // On the flanking plane: overlap-tie or touch. No
+                    // declaration the door verifies settles it: two
+                    // planar flanks are conformal, and its screen refuses
+                    // `Tangent` there, while `Rest` changes nothing here;
+                    // a curved flank goes on, on either sense, to a face
+                    // pair the Boolean cannot yet meet. A decided zero
+                    // refuses as the in-band arm does.
+                    let (own_op, other_op) = if own_is_a {
+                        (super::Operand::A, super::Operand::B)
+                    } else {
+                        (super::Operand::B, super::Operand::A)
+                    };
+                    let own_sec = &own_secs[own_idx];
+                    let other_sec = &other_secs[oi];
+                    let same = match crate::validate::decide_nonzero_reported(
+                        "bool_dir_same",
+                        Margin::levered(w.dot(ow), arm),
+                        band,
+                    ) {
+                        Ok(NonzeroSign::Positive) => true,
+                        Ok(NonzeroSign::Negative) => false,
+                        Err(diag) => {
+                            let planar = [(own_body, own_sec.face), (other_body, other_sec.face)]
+                                .iter()
+                                .all(|&(body, face)| {
+                                    body.get_face(face)
+                                        .and_then(|f| body.get_surface(f.surface))
+                                        .map(geom::Surface::kind)
+                                        == Some(geom::SurfaceKind::Plane)
+                                });
+                            let which = if planar {
+                                Coincide::FlankSense
+                            } else {
+                                Coincide::CurvedFlankSense
+                            };
+                            let read = declared.read(
+                                &[(own_op, own_sec.face, other_op, other_sec.face)],
+                                which,
+                                &[],
+                            );
+                            return Err(BooleanError::coincidence(which, read, diag));
                         }
-                        Err(diag) => return Err(BooleanError::coincidence(diag)),
                     };
                     if !same {
                         inside = false; // touching, not overlapping
                     } else {
-                        let (own_op, other_op) = if own_is_a {
-                            (super::Operand::A, super::Operand::B)
-                        } else {
-                            (super::Operand::B, super::Operand::A)
-                        };
                         let comparison = if own_is_a { Operand::A } else { Operand::B };
                         // Declared-`Tangent` flanking pairs (distinct
                         // carriers touching along the on-edge): the
@@ -734,48 +818,58 @@ fn resolve_edge_edge<T: Decide>(
                         // face's material — not the carrier identity
                         // ladder (whose Same± question is ill-posed
                         // across distinct carriers).
-                        let own_sec = &own_secs[own_idx];
-                        let other_sec = &other_secs[oi];
-                        let lump =
-                            if declared.class_of(own_op, own_sec.face, other_op, other_sec.face)
-                                == Some(crate::contact::ContactClass::Tangent)
-                            {
-                                let surface_of = |body: &Body<T>, face| {
-                                    body.get_face(face)
-                                        .and_then(|f| body.get_surface(f.surface))
-                                        .cloned()
-                                        .ok_or(BooleanError::ClassificationInvariant {
-                                            what: "declared-Tangent face lost its surface",
-                                        })
-                                };
-                                let s_own = surface_of(own_body, own_sec.face)?;
-                                let s_other = surface_of(other_body, other_sec.face)?;
-                                let p = own_body
-                                    .get_half_edge(own_sec.he)
-                                    .and_then(|he| own_body.get_vertex(he.start))
-                                    .and_then(|vd| own_body.get_point(vd.point))
-                                    .copied()
+                        let read = declared.read(
+                            &[(own_op, own_sec.face, other_op, other_sec.face)],
+                            Coincide::TangentSide,
+                            &[],
+                        );
+                        let lump = if read
+                            == DeclarationRead::Spent(crate::contact::BooleanCoincidence::TANGENT)
+                        {
+                            let surface_of = |body: &Body<T>, face| {
+                                body.get_face(face)
+                                    .and_then(|f| body.get_surface(f.surface))
+                                    .cloned()
                                     .ok_or(BooleanError::ClassificationInvariant {
-                                        what: "edge-edge site lost its point",
-                                    })?;
-                                super::sectors::tangent_lump(
-                                    &s_own,
-                                    &s_other,
-                                    other_sec.normal,
-                                    p,
-                                    op,
-                                    comparison,
-                                    own_sec.face,
-                                    arm,
-                                    band,
-                                )?
-                            } else {
-                                let rel = require_same(
-                                    own_body, own_op, own_sec, other_body, other_op, other_sec,
-                                    declared, arm, band,
-                                )?;
-                                eq15_3_lump(op, comparison, rel)
+                                        what: "declared-Tangent face lost its surface",
+                                    })
                             };
+                            let s_own = surface_of(own_body, own_sec.face)?;
+                            let s_other = surface_of(other_body, other_sec.face)?;
+                            let p = own_body
+                                .get_half_edge(own_sec.he)
+                                .and_then(|he| own_body.get_vertex(he.start))
+                                .and_then(|vd| own_body.get_point(vd.point))
+                                .copied()
+                                .ok_or(BooleanError::ClassificationInvariant {
+                                    what: "edge-edge site lost its point",
+                                })?;
+                            let reach = declared.reach_of(
+                                own_op,
+                                own_sec.face,
+                                other_op,
+                                other_sec.face,
+                            )?;
+                            super::sectors::tangent_lump(
+                                &s_own,
+                                &s_other,
+                                reach,
+                                other_sec.normal,
+                                p,
+                                op,
+                                comparison,
+                                own_sec.face,
+                                arm,
+                                read,
+                                band,
+                            )?
+                        } else {
+                            let rel = require_same(
+                                own_body, own_op, own_sec, other_body, other_op, other_sec,
+                                declared, arm, band,
+                            )?;
+                            eq15_3_lump(op, comparison, rel)
+                        };
                         if lump != SideCode::In {
                             inside = false;
                         }
@@ -797,12 +891,12 @@ fn resolve_edge_edge<T: Decide>(
     let tangent_flank = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)]
         .into_iter()
         .any(|(ia, ib)| {
-            declared.class_of(
+            declared.declares_tangent(
                 super::Operand::A,
                 a_sectors[ia].face,
                 super::Operand::B,
                 b_sectors[ib].face,
-            ) == Some(crate::contact::ContactClass::Tangent)
+            )
         });
     if !tangent_flank {
         let a_in = [
@@ -845,7 +939,7 @@ fn resolve_edge_sector<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     a_side: bool,
     f_s: usize,
@@ -995,7 +1089,7 @@ fn resolve_bisector_graze<T: Decide>(
     })
 }
 
-fn parallel_same_dir<T: Decide>(
+pub(super) fn parallel_same_dir<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: T,
@@ -1010,19 +1104,22 @@ fn parallel_same_dir<T: Decide>(
     ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::coincidence(diag)),
+        Err(diag) => {
+            return Err(BooleanError::coincidence(
+                Coincide::EdgeOnEdge,
+                DeclarationRead::Moot,
+                diag,
+            ));
+        }
     }
-    match decide("bool_dir_same", Margin::levered(un.dot(vn), arm), band) {
-        Ok(Sign::Positive) => Ok(true),
-        Ok(_) => Ok(false),
-        Err(diag) => Err(BooleanError::coincidence(diag)),
-    }
+    super::sectors::direction_sense(un, vn, arm, band)
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::contact::BooleanCoincidence;
     use SideCode::{In, On, Out};
 
     /// A grazing bisector between keys read Out is the band's Zero
@@ -1037,7 +1134,7 @@ mod tests {
         let o = Point3::new(0.0, 0.0, 0.0);
         let chord = |v: [f64; 3]| Reach::Chord {
             base: o,
-            far: Point3::new(v[0], v[1], v[2]),
+            far: Point3::from_array(v),
         };
         let twin = |start: Vec3<f64>, sr, end: Vec3<f64>, er| BoolSector {
             he: crate::entity::HalfEdgeKey::default(),
@@ -1055,11 +1152,11 @@ mod tests {
                 twin(
                     bis,
                     Reach::Bisector(1.0),
-                    Vec3::new(far_end[0], far_end[1], far_end[2]).normalize(),
+                    Vec3::from_array(far_end).normalize(),
                     chord(far_end),
                 ),
                 twin(
-                    Vec3::new(far_start[0], far_start[1], far_start[2]).normalize(),
+                    Vec3::from_array(far_start).normalize(),
                     chord(far_start),
                     bis,
                     Reach::Bisector(1.0),
@@ -1074,10 +1171,12 @@ mod tests {
         assert!(
             matches!(
                 resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0)),
-                Err(BooleanError::Escalated { diag, .. })
-                    if diag.predicate == Some("bool_sector_bisector_side")
+                Err(BooleanError::Escalated {
+                    decision: crate::boolean::BooleanDecision::BisectorSide,
+                    diag,
+                }) if diag.predicate == Some("bool_sector_bisector_side")
             ),
-            "the graze between two Out keys refuses"
+            "the graze between two Out keys refuses as the bisector's own decision"
         );
         let crossing = twins([1.0, 0.0, 0.5], [-1.0, 0.0, -0.5]);
         let records = [rec(0, 0, (On, Out), (Out, In))];
@@ -1097,6 +1196,431 @@ mod tests {
             sb,
             intersect: true,
         }
+    }
+
+    /// **An edge-edge membership tie offers a declaration only where one
+    /// the door admits would settle it** (the second review's probe P2,
+    /// adopted). Two corners along a common line `z`, each flanker's
+    /// representative `x` lying exactly on the other corner's flanking
+    /// plane `y = 0`, at an arm whose reading of their sense lies in the
+    /// band, and at a zero-band arm (a decided zero refuses as the same
+    /// question, with its margin, on the frame's escalation log):
+    ///
+    /// - **planar flanks** (two prisms' shared side plane): the door
+    ///   verifies `Rest` there, and the tie refuses the declared pair
+    ///   all the same; it refuses `Tangent` (the conformal screen). No
+    ///   admitted declaration settles it, so none is offered, and the
+    ///   refusal ends in the corner's lever. The flanks overlap on this
+    ///   side, so a smaller tolerance leads to the door asking whether
+    ///   they are one face: the tolerance their arm gives is offered to
+    ///   the declared `Rest` pair alone (executed: `offer_rows`'
+    ///   `flanks_along_a_short_arm` and its `_declared_rest` twin).
+    /// - **curved flanks** (a cylinder resting on a plane along the
+    ///   line): the door refuses `Tangent` there
+    ///   (`verify_tangent_declaration`), so no declaration is offered;
+    ///   either sense goes on to the curved flank, which the Boolean
+    ///   cannot yet meet (executed: `offer_rows`'
+    ///   `membership_along_a_curved_flank`), so no tolerance is offered
+    ///   either, and the refusal ends in the corner's lever alone.
+    #[test]
+    fn an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{
+            BooleanDecision, BooleanDeclarations, DeclaredPairs, FacePairDeclaration,
+        };
+        use crate::contact::ContactClass;
+        use crate::entity::FaceKey;
+        use crate::test_support_fixtures::prism_z;
+        use geom_brep::OutwardNormal;
+        use geom_core::k_stats::Bracket;
+        use geom_core::{Point3, Tol};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, arm: f64, face: FaceKey| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + start,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + end,
+            },
+            face,
+            normal: OutwardNormal::from_chart(y, true),
+            arm,
+        };
+        let records = [rec(0, 0, (On, Out), (Out, In))];
+        let run = |a: (&crate::body::Body<f64>, FaceKey),
+                   b: (&crate::body::Body<f64>, FaceKey),
+                   arm: f64,
+                   class: Option<ContactClass>| {
+            let corner = |face| [sector(z, x, arm, face), sector(x, z, arm, face)];
+            let decls = BooleanDeclarations {
+                coincident_faces: class
+                    .map(|class| vec![FacePairDeclaration::new(a.1, b.1, class)])
+                    .unwrap_or_default(),
+                ..BooleanDeclarations::none()
+            };
+            let one = crate::boolean::verify_declared_contacts(a.0, b.0, &decls, band)
+                .expect("the door verifies the declaration");
+            let declared = DeclaredPairs::build(&decls, one, a.0, b.0, band)
+                .expect("the declared faces' extents read");
+            resolve_edge_edge(
+                &records,
+                &corner(a.1),
+                &corner(b.1),
+                a.0,
+                b.0,
+                BooleanOp::Union,
+                &declared,
+                band,
+                0,
+                0,
+            )
+        };
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let k = band.escalate() / band.zero();
+        let arms = [
+            (mid, "an in-band arm"),
+            (0.5 * band.zero(), "a zero-band arm"),
+        ];
+
+        // Planar flanks: two unit prisms side by side on the plane x = 1.
+        let pa = prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let pb = prism_z::<f64>(
+            &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let (fa, fb) = (pa.side_faces[1], pb.side_faces[3]);
+        assert!(
+            crate::boolean::contact_pair_verdict(
+                &pa.body,
+                fa,
+                &pb.body,
+                fb,
+                ContactClass::Rest,
+                None,
+                band
+            )
+            .is_ok(),
+            "the door verifies Rest on the planar flanks"
+        );
+        assert!(
+            crate::boolean::verify_tangent_declaration(&pa.body, fa, &pb.body, fb, band).is_err(),
+            "the door refuses Tangent on the planar flanks"
+        );
+        for (arm, label) in arms {
+            for (class, read) in [
+                (None, DeclarationRead::Moot),
+                (
+                    Some(ContactClass::Rest),
+                    DeclarationRead::Spent(BooleanCoincidence::REST),
+                ),
+            ] {
+                let bracket = Bracket::open();
+                let err =
+                    run((&pa.body, fa), (&pb.body, fb), arm, class).expect_err("the tie refuses");
+                let log = bracket.finish();
+                let BooleanError::Escalated { decision, diag } = &err else {
+                    panic!("{label}, {class:?}: an escalation: {err:?}");
+                };
+                assert_eq!(
+                    *decision,
+                    BooleanDecision::Coincidence(Coincide::FlankSense, read),
+                    "{label}, {class:?}"
+                );
+                assert_eq!(diag.predicate, Some("bool_dir_same"), "{label}");
+                assert_eq!(
+                    diag.margin.diagnostic_f64_for_error_text().value(),
+                    Some(arm),
+                    "{label}: the margin the funnel read rides the payload"
+                );
+                assert!(
+                    log.escalations
+                        .iter()
+                        .any(|e| e.source.predicate == Some("bool_dir_same")),
+                    "{label}: the refusal is on the frame's escalation log"
+                );
+                let text = err.to_string();
+                let lever = "Recourse: make the edges at the corner where the two faces meet \
+                             clearly longer than the tolerance";
+                let ending = if class.is_some() {
+                    format!(
+                        "{lever}, or, if this length of the corner's shorter edge is intended, \
+                         tighten the tolerance below {:e} m",
+                        arm / k
+                    )
+                } else {
+                    lever.to_owned()
+                };
+                assert!(
+                    !text.contains("declare") && text.ends_with(&ending),
+                    "{label}, {class:?}: {text}"
+                );
+            }
+        }
+
+        // Curved flanks: a unit cylinder along z resting on the plane
+        // y = 0, tangent along the common line.
+        let (ca, fca) = face_on(geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        });
+        let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
+        assert!(
+            crate::boolean::verify_tangent_declaration(&ca, fca, &cb, fcb, band).is_err(),
+            "the door refuses Tangent on the curved flanks"
+        );
+        for (arm, label) in arms {
+            let err = run((&ca, fca), (&cb, fcb), arm, None).expect_err("the tie refuses");
+            let BooleanError::Escalated { decision, .. } = &err else {
+                panic!("{label}: an escalation: {err:?}");
+            };
+            assert_eq!(
+                *decision,
+                BooleanDecision::Coincidence(Coincide::CurvedFlankSense, DeclarationRead::Moot),
+                "{label}"
+            );
+            assert!(
+                err.to_string().ends_with(
+                    "Recourse: reshape the parts so the faces along that edge are planes that \
+                     only touch there"
+                ),
+                "{label}: {err}"
+            );
+        }
+    }
+
+    /// **Two bound directions at an edge event are grouped at their
+    /// corners' own arm**: two corners along a common line `z`, both of
+    /// whose arms are an in-band length, mention the same direction. The
+    /// grouping reads their sense at those arms, where it cannot tell,
+    /// and refuses as the corner's sense; metered at a metre it would read
+    /// the sense and go on to the membership.
+    #[test]
+    fn edge_event_mentions_are_grouped_at_their_corners_arm() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{BooleanDecision, BooleanDeclarations, DeclaredPairs};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let arm = (band.zero() + band.escalate()) / 2.0;
+        let sector = |start: Vec3<f64>, end: Vec3<f64>| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + start,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + end,
+            },
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(y, true),
+            arm,
+        };
+        let corner = [sector(z, x), sector(x, z)];
+        let mut records = [rec(0, 0, (On, Out), (On, Out))];
+        let declared =
+            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
+        let body = crate::body::Body::<f64>::new();
+        let err = recl_edges(
+            &mut records,
+            &corner,
+            &corner,
+            &body,
+            &body,
+            BooleanOp::Union,
+            &declared,
+            band,
+        )
+        .expect_err("the sense at an in-band arm refuses");
+        let BooleanError::Escalated { decision, diag } = &err else {
+            panic!("an escalation: {err:?}");
+        };
+        assert_eq!(*decision, BooleanDecision::DirectionSense, "{err}");
+        assert_eq!(
+            diag.margin.diagnostic_f64_for_error_text().value(),
+            Some(arm),
+            "the sense is metered at the corners' arm"
+        );
+    }
+
+    /// **`recl`'s plane door offers the declaration that settles it**:
+    /// two planar faces read on one another whose planes part by an
+    /// in-band angle at the door's arm. Undeclared, the parallelism rung
+    /// escalates through the door the lookup read (`on_pair_door`),
+    /// which offers the one-carrier coincidence the pair's senses make
+    /// it: `Rest` for opposed senses, a continuation for aligned ones.
+    /// No nonzero sign passes there, so it ends in the declaration and
+    /// the geometry alone. Following the offer, the rung bridges the
+    /// residue and the carriers are one; the other class is contradicted
+    /// at the declaration door.
+    #[test]
+    fn the_on_pair_plane_door_offers_the_declaration_that_settles_it() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{
+            BooleanDecision, BooleanDeclarations, DeclaredPairs, FacePairDeclaration,
+        };
+        use crate::contact::BooleanCoincidence;
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let tilted = Vec3::new(0.0, mid.sin(), mid.cos());
+        // Unit blocks whose tops meet at `o`, the second's tilted by
+        // `mid` about `x`: the door reads the pair over their tops.
+        let top = |body: &crate::body::Body<f64>| {
+            body.faces()
+                .map(|(k, _)| k)
+                .find(|&k| {
+                    matches!(crate::boolean::face_carrier(body, k),
+                        Some(crate::boolean::CarrierDesc::Plane { normal, .. }) if normal.z > 0.99)
+                })
+                .expect("a top face")
+        };
+        let b1 = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (-1.0, 0.0), tol);
+        let f1 = top(&b1);
+        let sector = |face, normal: Vec3<f64>, sense| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + x,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + y,
+            },
+            face,
+            normal: OutwardNormal::from_chart(normal, sense),
+            arm: 1.0,
+        };
+        let s1 = sector(f1, z, true);
+        for (label, sense, offered, other) in [
+            (
+                "opposed",
+                false,
+                BooleanCoincidence::REST,
+                BooleanCoincidence::Continuation,
+            ),
+            (
+                "aligned",
+                true,
+                BooleanCoincidence::Continuation,
+                BooleanCoincidence::REST,
+            ),
+        ] {
+            let mut b2 = crate::test_support_fixtures::mapped_cube(
+                move |u, v, w| Point3::new(u, v, w - 1.0 - mid.tan() * v),
+                tol,
+            );
+            let f2 = top(&b2);
+            b2.set_face_sense(f2, sense).expect("a live face");
+            let s2 = sector(f2, tilted, sense);
+            let run = |class: Option<BooleanCoincidence>| {
+                let decls = BooleanDeclarations {
+                    coincident_faces: class
+                        .map(|class| vec![FacePairDeclaration::new(f1, f2, class)])
+                        .unwrap_or_default(),
+                    ..BooleanDeclarations::none()
+                };
+                let one = crate::boolean::verify_declared_contacts(&b1, &b2, &decls, band)?;
+                let declared = DeclaredPairs::build(&decls, one, &b1, &b2, band)?;
+                require_same(
+                    &b1,
+                    Operand::A,
+                    &s1,
+                    &b2,
+                    Operand::B,
+                    &s2,
+                    &declared,
+                    1.0,
+                    band,
+                )
+            };
+            let err = run(None).expect_err("an in-band parallelism refuses undeclared");
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::Escalated {
+                        decision: BooleanDecision::Coincidence(
+                            Coincide::OnPlanes,
+                            DeclarationRead::Settles(s)
+                        ),
+                        ..
+                    } if s.class() == offered
+                ),
+                "{label}: the door offers {offered:?}: {err:?}"
+            );
+            assert!(
+                err.to_string()
+                    .ends_with("Recourse: declare the coincidence, or move the geometry"),
+                "{label}: {err}"
+            );
+            assert!(
+                run(Some(offered)).is_ok(),
+                "{label}: following the offer, the rung bridges the residue"
+            );
+            let contradicted = run(Some(other)).expect_err("the other class is contradicted");
+            assert!(
+                matches!(
+                    contradicted,
+                    BooleanError::ContactContradicted { .. }
+                        | BooleanError::ContinuationContradicted { .. }
+                ),
+                "{label}: declared {other:?}: {contradicted:?}"
+            );
+        }
+    }
+
+    /// A body whose one skeletal face carries `surface`.
+    fn face_on(surface: geom::Surface<f64>) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
+        let st = crate::fixtures::mvfs_state();
+        let mut body = st.body;
+        body.set_face_surface(
+            st.face,
+            crate::euler::FaceSurface::New {
+                surface,
+                sense: true,
+            },
+        )
+        .expect("a skeletal face takes any surface");
+        (body, st.face)
     }
 
     /// The Program 15.10 mechanics on the Figure 15.9 shape (union,

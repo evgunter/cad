@@ -351,7 +351,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     let corpus = common::fixture_corpus();
     let corpus_names: Vec<&'static str> = corpus.iter().map(|(n, _)| *n).collect();
     // Pin A and pin B count reversed faces over DIFFERENT sets (the
-    // whole corpus vs the curved half), and both must reach 91 — the
+    // whole corpus vs the curved half), and both must reach 89 — the
     // planar fixtures contribute none. Two counters, deliberately.
     let mut reversed_seen = 0usize;
     let mut chart_axis_checked = 0usize;
@@ -510,17 +510,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "CYLINDRICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [origin.x, origin.y, origin.z],
-                        "FRAME: {name} cylinder origin"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} cylinder axis");
-                    assert_eq!(
-                        x,
-                        [u_ref.x, u_ref.y, u_ref.z],
-                        "FRAME: {name} cylinder u_ref"
-                    );
+                    assert_eq!(l, origin.to_array(), "FRAME: {name} cylinder origin");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} cylinder axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} cylinder u_ref");
                     assert_eq!(real(&a[2]), radius, "FRAME: {name} cylinder radius");
                 }
                 Surface::Cone {
@@ -531,9 +523,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "CONICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(l, [apex.x, apex.y, apex.z], "FRAME: {name} cone apex");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} cone axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} cone u_ref");
+                    assert_eq!(l, apex.to_array(), "FRAME: {name} cone apex");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} cone axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} cone u_ref");
                     assert_eq!(real(&a[2]), 0.0, "FRAME: {name} cone radius at the apex");
                     assert_eq!(real(&a[3]), half_angle, "FRAME: {name} cone semi-angle");
                 }
@@ -545,13 +537,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "SPHERICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [center.x, center.y, center.z],
-                        "FRAME: {name} sphere centre"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} sphere axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} sphere u_ref");
+                    assert_eq!(l, center.to_array(), "FRAME: {name} sphere centre");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} sphere axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} sphere u_ref");
                     assert_eq!(real(&a[2]), radius, "FRAME: {name} sphere radius");
                 }
                 Surface::Torus {
@@ -563,13 +551,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 } => {
                     assert_eq!(kw, "TOROIDAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(
-                        l,
-                        [center.x, center.y, center.z],
-                        "FRAME: {name} torus centre"
-                    );
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} torus axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} torus u_ref");
+                    assert_eq!(l, center.to_array(), "FRAME: {name} torus centre");
+                    assert_eq!(z, axis.to_array(), "FRAME: {name} torus axis");
+                    assert_eq!(x, u_ref.to_array(), "FRAME: {name} torus u_ref");
                     assert_eq!(
                         real(&a[2]),
                         major_radius,
@@ -610,7 +594,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                     for (r, p) in control_refs.iter().zip(ns.control()) {
                         assert_eq!(
                             triple(&recs[r]),
-                            [p.x, p.y, p.z],
+                            p.to_array(),
                             "FRAME: {name}: control point bitwise"
                         );
                     }
@@ -661,7 +645,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             let (_, z, _) = place(&recs);
             assert_eq!(
                 z,
-                [chart.x, chart.y, chart.z],
+                chart.to_array(),
                 "CHART-AXIS: {name}: a .F. face must keep the chart axis, not negate it"
             );
         }
@@ -682,25 +666,25 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     }
 
     // The corpus really does contain reversed faces, so pin A above is
-    // not vacuous: 91 = notched 1 + washer 2 + cone 2 (the
-    // original five) + die_pips 21·2 (each pip's two sense:false
+    // not vacuous: 89 = notched 1 + washer 2 + cone 1 (the
+    // original four) + die_pips 21·2 (each pip's two sense:false
     // half-band walls, S11 discipline) + the M6 composed die's 21·2
     // (the same half-caps, carried through the surgery) + the globe
-    // lily's lantern 2 (its MOUTH disc's two half-bands: a revolve
-    // mints both cap planes on the profile plane's own +y normal, so
-    // the cap facing −y opposes the solid's outward normal and the
-    // one facing +y agrees — exactly one of the two caps reverses,
-    // and each cap is two half-bands). The M6-3 loft_prism adds ZERO:
+    // lily's lantern 1 (its MOUTH disc: a revolve mints both cap
+    // planes on the profile plane's own +y normal, so the cap facing
+    // −y opposes the solid's outward normal and the one facing +y
+    // agrees — exactly one of the two caps reverses, and a full
+    // revolve builds each cap as one disc). The M6-3 loft_prism adds ZERO:
     // it mirrors extrude's minting (M5-LOG item 6(i)) — the bottom
     // cap's LOOP is reversed at mint so its plane derives normal-down
     // (outward), and every skinned wall chart's normal S_u × S_v
     // follows the material-left traversal (loft.rs module docs,
     // "Orientation") — so all six faces keep sense = true.
-    assert_eq!(reversed_seen, 91, "BOUND: the corpus's reversed faces");
+    assert_eq!(reversed_seen, 89, "BOUND: the corpus's reversed faces");
     assert_eq!(
-        chart_axis_checked, 91,
-        "CHART-AXIS: all 91 reversed faces checked (5 original + die_pips' 42 + the \
-         composed die's 42 + the lily lantern's 2; loft_prism contributes 0 — every \
+        chart_axis_checked, 89,
+        "CHART-AXIS: all 89 reversed faces checked (4 original + die_pips' 42 + the \
+         composed die's 42 + the lily lantern's 1; loft_prism contributes 0 — every \
          face sense-true, see pin A's derivation). Every one is on a CURVED fixture, \
          which is why this equals the whole-corpus count above."
     );
@@ -787,9 +771,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 } => {
                     assert_eq!(kw, "CIRCLE", "{name}");
                     let (l, z, x) = place();
-                    assert_eq!(l, [center.x, center.y, center.z], "{name} circle centre");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} circle axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} circle u_ref");
+                    assert_eq!(l, center.to_array(), "{name} circle centre");
+                    assert_eq!(z, axis.to_array(), "{name} circle axis");
+                    assert_eq!(x, u_ref.to_array(), "{name} circle u_ref");
                     assert_eq!(real(&a[2]), radius, "{name} circle radius");
                 }
                 Curve3::Ellipse {
@@ -802,9 +786,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     saw_ellipse = true;
                     assert_eq!(kw, "ELLIPSE", "{name}");
                     let (l, z, x) = place();
-                    assert_eq!(l, [center.x, center.y, center.z], "{name} ellipse centre");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} ellipse axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} ellipse u_ref");
+                    assert_eq!(l, center.to_array(), "{name} ellipse centre");
+                    assert_eq!(z, axis.to_array(), "{name} ellipse axis");
+                    assert_eq!(x, u_ref.to_array(), "{name} ellipse u_ref");
                     // semi_axis_1 along ref_direction is the MAJOR: the
                     // kernel's `u_ref` is the semi-major direction, and
                     // AP214's first semi-axis is measured along
@@ -1007,7 +991,7 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
                 // not the cylinder wall one face later. Either way the
                 // refusal is typed and names the geometry; the exact
                 // kind is pinned so a change in walk order is visible.
-                assert_eq!(kind, "circle", "at eps = {eps}");
+                assert_eq!(kind, "circle curve", "at eps = {eps}");
             }
             other => panic!("expected CurvedShellClassification at {eps}, got {other:?}"),
         }
@@ -1044,7 +1028,7 @@ fn hollow_ring_hits_the_curved_shell_gate() {
     match step_string(&ring.body, &StepOptions::default(), tol) {
         Err(StepExportError::CurvedShellClassification { kind, .. }) => {
             // The classifier meets the torus wall's surface first.
-            assert_eq!(kind, "torus");
+            assert_eq!(kind, "torus surface");
         }
         other => panic!("expected the standing curved-shell gate, got {other:?}"),
     }

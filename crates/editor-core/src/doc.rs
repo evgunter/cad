@@ -5,7 +5,7 @@
 //! latency data). All mutation goes through the pure
 //! [`crate::edit::apply`]; undo/redo is keeping prior values.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::Real;
 
@@ -784,16 +784,12 @@ pub struct Doc<P> {
     /// in this crate. Survives every edit; excluded from the content
     /// pin (the pin answers "which version", the id "which part").
     pub(crate) id: DocumentId,
-    /// The monotone id counter: the next [`RecipeNodeId`] to mint.
-    /// Never decremented — deletion does not free ids (spec D3).
-    pub(crate) next_id: u64,
-    /// The step mint: the chain an authored profile step's
-    /// [`crate::StepId`] is minted from and the log of every id minted
-    /// (`names/README.md`, "N1, the profile pieces"). A step a
-    /// `SetProgram` drops keeps its log entry, so its id is never
-    /// minted again. Apart from the node counter, so an authored step
-    /// moves no node id.
-    pub(crate) step_mint: crate::StepMint,
+    /// The mint: the chain a node's [`RecipeNodeId`] and an authored
+    /// profile step's [`crate::StepId`] are minted from, and the log of
+    /// every id minted (`names/README.md`, N1). A node `DeleteNode`
+    /// removes and a step a `SetProgram` drops keep their log entries,
+    /// so neither id is minted again.
+    pub(crate) mint: crate::Mint,
     /// The nodes, by stable id.
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
@@ -809,15 +805,6 @@ pub struct Doc<P> {
     /// product's solid ORDER, which is therefore semantic. No
     /// duplicates; every entry is live.
     pub(crate) roots: Vec<RecipeNodeId>,
-    /// Cluster placement frames (ASSEMBLY-DESIGN A11, ASM-2A D-2):
-    /// document data keyed by the instantiate node whose singleton
-    /// cluster the frame places. A MISSING entry is the identity frame
-    /// — a legal, complete state — so the registry never needs a row
-    /// per instance, and zero-/multi-anchor states cannot be spelled.
-    /// Written only by the recorded `SetPlacement` edit; every key
-    /// names a live `InstantiatePart` node.
-    #[serde(with = "crate::persist::strict::placements")]
-    pub(crate) placements: BTreeMap<RecipeNodeId, crate::placement::Frame>,
     /// Document-level named parameters.
     #[serde(with = "crate::persist::strict::params")]
     pub(crate) params: BTreeMap<ParamName, DocParam>,
@@ -844,6 +831,19 @@ pub struct Doc<P> {
     /// semantics.
     #[serde(with = "crate::persist::pairs")]
     pub(crate) appearance: AppearanceMap,
+    /// **Node labels** (DESIGN.md Band 1, "Node labels"): the human
+    /// text a person gave a node, keyed by the node. Beside the node,
+    /// never inside it, so a label is in neither the id's mint nor any
+    /// content key and a rename recomputes nothing. Not unique, never
+    /// resolved. Written only by `SetLabel`; every key names a live
+    /// node. Absent from the wire while empty, so an unlabelled
+    /// document costs no bytes and moves no pin.
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        with = "crate::persist::strict::labels"
+    )]
+    pub(crate) labels: BTreeMap<RecipeNodeId, crate::Label>,
 }
 
 /// **Which of the document's own fields hold a [`StableName`]** — one
@@ -940,25 +940,24 @@ impl<P> Doc<P> {
     pub fn empty(id: DocumentId, tol: Tol) -> Self {
         Self {
             id,
-            next_id: 0,
-            step_mint: crate::StepMint::empty(),
+            mint: crate::Mint::empty(),
             nodes: BTreeMap::new(),
             order: Vec::new(),
             roots: Vec::new(),
-            placements: BTreeMap::new(),
             params: BTreeMap::new(),
             epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
             appearance: AppearanceMap::new(),
+            labels: BTreeMap::new(),
         }
     }
 
-    /// The empty document under a label-derived identity —
+    /// The empty document under a seed-derived identity —
     /// [`Self::empty`] ∘ [`DocumentId::derive`], the deterministic
     /// spelling corpus/demos/tests use.
-    pub fn empty_derived(label: &str, tol: Tol) -> Self {
-        Self::empty(DocumentId::derive(label), tol)
+    pub fn empty_derived(seed: &str, tol: Tol) -> Self {
+        Self::empty(DocumentId::derive(seed), tol)
     }
 
     /// The document's stable identity.
@@ -966,11 +965,11 @@ impl<P> Doc<P> {
         self.id
     }
 
-    /// The document's step mint: its chain, and the log of every
-    /// [`crate::StepId`] it has minted.
+    /// The document's mint: its chain, and the log of every node and
+    /// step id it has minted.
     #[must_use]
-    pub fn step_mint(&self) -> &crate::StepMint {
-        &self.step_mint
+    pub fn mint(&self) -> &crate::Mint {
+        &self.mint
     }
 
     /// The same document under a different identity: `id` replaces
@@ -999,29 +998,24 @@ impl<P> Doc<P> {
     }
 
     /// **Could this document have minted `id`** — the one reading of
-    /// the mint counter that leaves this crate, and the one DI1's
-    /// minting-entry walk asks of a history entry
-    /// (`crates/editor-core/IDENTITY.md`).
+    /// the mint log that DI1's minting-entry walk asks of a history
+    /// entry (`crates/editor-core/IDENTITY.md`).
     ///
-    /// True exactly when `id` is below the counter. The counter is
-    /// monotone — never decremented, because deletion does not free
-    /// ids (spec D3) — so along any forward path of [`Doc::apply`]s
-    /// this answer goes false to true and never back. That is what
-    /// makes DI1's walk — up the history until the counter drops
-    /// below the held id — land on the entry that minted it: the
-    /// predicate is false above the mint and true from the mint on.
+    /// True exactly when the mint log holds `id` as a node's. The log
+    /// only grows — deletion does not free ids (spec D3) — so along any
+    /// forward path of [`Doc::apply`]s this answer goes false to true
+    /// and never back. That is what makes DI1's walk — up the history
+    /// until the document no longer holds the id — land on the entry
+    /// that minted it: the predicate is false above the mint and true
+    /// from the mint on.
     ///
     /// **What a `true` does NOT mean**: not that the node is there.
     /// A minted id may since have been deleted, and its id is not
     /// reused, so the predicate keeps answering true for it forever.
     /// Liveness is [`Doc::node`]'s question, and DI1's rule asks both
     /// — descent first, then liveness.
-    ///
-    /// The counter itself stays private: a caller can ask whether a
-    /// particular id is behind it and cannot read where it stands, so
-    /// the monotonicity argument stays on the side that owns it.
     pub fn has_minted(&self, id: RecipeNodeId) -> bool {
-        id.0 < self.next_id
+        self.mint.has_node(id)
     }
 
     /// Live node ids in insertion order.
@@ -1029,42 +1023,22 @@ impl<P> Doc<P> {
         &self.order
     }
 
+    /// **Each live node's position in [`Doc::order`]**: the order the
+    /// author placed the nodes in, which is what every tie between
+    /// nodes breaks by, since an id is a digest and says nothing of
+    /// seniority.
+    pub fn positions(&self) -> BTreeMap<RecipeNodeId, usize> {
+        self.order
+            .iter()
+            .enumerate()
+            .map(|(at, &id)| (id, at))
+            .collect()
+    }
+
     /// The ordered product roots (A10): the gather order of the
     /// document's product solids.
     pub fn roots(&self) -> &[RecipeNodeId] {
         &self.roots
-    }
-
-    /// The placement frame of `node`'s CLUSTER (A11): the frame
-    /// recorded against the cluster's gauge, or the identity when
-    /// nothing is recorded — the missing entry IS the identity, so
-    /// this is total.
-    ///
-    /// This is the CLUSTER's frame, which places its gauge; an
-    /// instance's own world placement is this composed with its solved
-    /// relative pose ([`crate::mate::SolvedPoses::placement`]). The
-    /// two coincide exactly for a singleton cluster, which is every
-    /// cluster in a mate-less document.
-    pub fn placement(&self, node: RecipeNodeId) -> crate::placement::Frame {
-        self.placements
-            .get(&crate::mate::root_of(self, node))
-            .copied()
-            .unwrap_or(crate::placement::Frame::IDENTITY)
-    }
-
-    /// Replaces the whole placement registry — the ONE door A11's
-    /// cluster-record maintenance writes through
-    /// ([`crate::mate::solve::maintain`], deriving the rows or
-    /// re-applying recorded ones), so re-keying is a single observable
-    /// act rather than a scatter of per-row edits.
-    pub(crate) fn set_placements(&mut self, rows: BTreeMap<RecipeNodeId, crate::placement::Frame>) {
-        self.placements = rows;
-    }
-
-    /// The recorded placement rows, in node order. Rows absent here
-    /// are identity placements, not missing state.
-    pub fn placements(&self) -> &BTreeMap<RecipeNodeId, crate::placement::Frame> {
-        &self.placements
     }
 
     /// Number of live nodes.
@@ -1132,6 +1106,19 @@ impl<P> Doc<P> {
     /// Every recorded witness, by node.
     pub fn witnesses(&self) -> &BTreeMap<RecipeNodeId, crate::witness::WitnessDatum> {
         &self.witnesses
+    }
+
+    /// The label a person gave node `id`, if any (written only by
+    /// `SetLabel`).
+    #[must_use]
+    pub fn label(&self, id: RecipeNodeId) -> Option<&crate::Label> {
+        self.labels.get(&id)
+    }
+
+    /// Every node label, by node.
+    #[must_use]
+    pub fn labels(&self) -> &BTreeMap<RecipeNodeId, crate::Label> {
+        &self.labels
     }
 
     /// The appearance store: attributes by stable name (M4 PR 7;
@@ -1268,20 +1255,10 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     /// (conflates `±0.0`); use THIS for replay pins and audits.
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
-            && self.next_id == other.next_id
-            && self.step_mint == other.step_mint
+            && self.mint == other.mint
             && self.order == other.order
             && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
-            // Placement coordinates are floats: compare BY BITS, like
-            // every other float field here.
-            && self.placements.len() == other.placements.len()
-            && self.placements.iter().all(|(id, frame)| {
-                other
-                    .placements
-                    .get(id)
-                    .is_some_and(|theirs| frame.bit_eq(theirs))
-            })
             // Witness bytes are exact data (no float semantics to
             // conflate) — structural equality IS bit equality here.
             && self.witnesses == other.witnesses
@@ -1291,6 +1268,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
             // BY BITS through `MetaValue`'s own `PartialEq` — so
             // structural equality IS bit equality here.
             && self.appearance == other.appearance
+            && self.labels == other.labels
             && self.nodes.len() == other.nodes.len()
             && self.nodes.iter().all(|(id, node)| {
                 other
@@ -1309,62 +1287,69 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
 }
 
 // ---------------------------------------------------------------
-// The document's REGISTRY KEYS, and what a key may name.
+// What a node id held in the document may name.
 //
-// `Doc` carries two maps keyed by node id — the A11 placement registry
-// and the witness store — and each holds its key to a NODE KIND: a
-// placement names an instance, a witness names a sketch. Both rules are
-// asked twice, by the edit door that writes the row and by the
-// save/load validator that re-reads it, so both live here, beside the
-// maps they are about and where a `Doc` is in scope. A predicate that
-// needs only the node is a `Node` method instead (`Node::input_fault`
-// and its siblings); these need the document to resolve the key at all.
+// A gauge reference names a gauge, and a witness names a sketch. Both
+// rules are asked twice, by the edit door that writes the reference
+// and by the save/load validator that re-reads it, so both live here,
+// where a `Doc` is in scope. A predicate that needs only the node is a
+// `Node` method instead (`Node::input_fault` and its siblings); these
+// need the document to resolve the id at all.
 // ---------------------------------------------------------------
 
-/// What makes an A11 placement row inadmissible
-/// ([`placement_fault`]) — one vocabulary for the edit door and the
-/// load door's re-check of the registry.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum PlacementFault {
-    /// The key names no live [`Node::InstantiatePart`]. A11 puts the
-    /// frame on an instance's cluster, so nothing else has one.
-    NotAnInstance,
-    /// The frame is one the frame rule refuses
-    /// ([`crate::placement::Frame::admission_fault`]).
-    Frame(crate::placement::FrameFault),
+/// What makes a gauge reference inadmissible ([`gauge_ref_fault`]) —
+/// one vocabulary for the edit doors and the load door.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GaugeRefFault {
+    /// The id was minted and its node deleted. A LEGAL state at rest —
+    /// A11 (2) keeps a reference to a deleted gauge so the group it
+    /// unplaces can name its cause — and refused only where an edit
+    /// writes one, as a reference to nothing.
+    Deleted,
+    /// The id was never minted in this document.
+    NeverMinted,
+    /// The id names a live node that is not a [`Node::Gauge`].
+    NotAGauge,
+    /// The reference closes a loop: the gauge would sit on itself
+    /// through its own chain.
+    Cycle,
 }
 
-/// **A11's admission rule for one placement row, stated once**: the
-/// key instantiates a part, and the frame is one the frame rule admits
-/// at `tol`.
+/// **A gauge reference's admission rule, stated once**: `gauge`, read
+/// by `node` (an instance's gauge or a gauge's parent), names a live
+/// [`Node::Gauge`] whose chain does not reach `node`. `None` (the
+/// world) is always admitted.
 ///
-/// One predicate with one home, asked by every door that admits a row
-/// — [`crate::DocEdit::SetPlacement`] and the load door's walk over the
-/// registry — each naming the answer in its own vocabulary. The
-/// question is asked in one place, so the two doors cannot disagree
-/// about which rows exist.
-///
-/// What is NOT here is the GAUGE rule (`SnapshotError::PlacementNotGauge`),
-/// and that asymmetry is the invariant rather than an omission:
-/// `SetPlacement` does not refuse a non-gauge key, it KEYS THE ROW ON
-/// THE GAUGE, and the cluster maintenance re-keys the whole registry
-/// whenever the mate graph moves ([`crate::mate::solve::reconcile`]).
-/// A non-gauge row is therefore unrepresentable through the edit doors
-/// and needs no refusal there; it is reachable only in a file, which is
-/// the door that asks.
-pub(crate) fn placement_fault<P>(
+/// Asked by every door that writes a reference — `InsertNode` and
+/// [`crate::DocEdit::SetGauge`] — and by the load door's walk, each
+/// naming the answer in its own vocabulary. The load door admits
+/// [`GaugeRefFault::Deleted`], which no edit writes and every delete
+/// leaves.
+pub(crate) fn gauge_ref_fault<P>(
     doc: &Doc<P>,
     node: RecipeNodeId,
-    frame: &crate::placement::Frame,
-    tol: geom_core::Tol,
-) -> Option<PlacementFault> {
-    if !matches!(doc.nodes.get(&node), Some(Node::InstantiatePart { .. })) {
-        return Some(PlacementFault::NotAnInstance);
+    gauge: Option<RecipeNodeId>,
+) -> Option<GaugeRefFault> {
+    let mut at = gauge;
+    let mut seen: BTreeSet<RecipeNodeId> = BTreeSet::new();
+    let first = gauge?;
+    while let Some(id) = at {
+        if id == node || !seen.insert(id) {
+            return Some(GaugeRefFault::Cycle);
+        }
+        match doc.nodes.get(&id) {
+            None if !doc.mint.has_node(id) => return Some(GaugeRefFault::NeverMinted),
+            // Only the reference itself is this rule's subject: a
+            // deleted gauge further up the chain is the chain's state,
+            // not this reference's fault.
+            None if id == first => return Some(GaugeRefFault::Deleted),
+            None => return None,
+            Some(Node::Gauge { parent, .. }) => at = *parent,
+            Some(_) if id == first => return Some(GaugeRefFault::NotAGauge),
+            Some(_) => return None,
+        }
     }
-    // The frame half is the frame's own rule, so a cluster frame, a
-    // placement rule's listed frames and a transform's literal steps
-    // are held to one standard rather than to spellings of one.
-    frame.admission_fault(tol).map(PlacementFault::Frame)
+    None
 }
 
 /// What makes a witness row's KEY inadmissible ([`witness_site_fault`])
@@ -1387,9 +1372,9 @@ pub(crate) enum WitnessSiteFault {
 /// — [`crate::DocEdit::ReWitness`] and
 /// [`crate::DocEdit::ReWitnessBulk`] — and by the load door's walk over
 /// the store, each naming the answer in its own vocabulary. It is the
-/// same shape as [`placement_fault`]'s first arm, and for the same
-/// reason: a registry key names a node of a required kind, and the two
-/// doors must agree on which keys exist.
+/// same shape as [`gauge_ref_fault`], and for the same reason: an id
+/// held in the document names a node of a required kind, and the two
+/// doors must agree on which ids are admitted.
 pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<WitnessSiteFault> {
     match doc.nodes.get(&node) {
         None => Some(WitnessSiteFault::NoSuchNode),
@@ -1427,6 +1412,7 @@ mod tests {
     use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, SitedRef};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
+    use topo::BooleanCoincidence;
 
     test_utils::f6_variants! {
         /// **The document's name carriers**, welded to [`Carrier`] by
@@ -1514,15 +1500,11 @@ mod tests {
     /// this order is the clause's payload-strands-before-store-strands
     /// order; `dm7_delete_strands` holds that end of it at the door.
     /// The fixture is built by poking `Doc`'s fields, not through
-    /// the edit doors, because the reversal it has to be able to
-    /// exhibit is one no edit door can mint. The doors touch
-    /// `Doc::order` twice — `InsertNode` pushes the id it has just
-    /// minted, `DeleteNode` retains — and ids are minted
-    /// monotonically, so through the doors the order is ascending by
-    /// id always and the reversal is unreachable. A loaded document
-    /// can hold any order. In-crate reach spells that state in five
-    /// lines and keeps the row's subject the walk rather than the
-    /// door.
+    /// the edit doors, because the reversal has to be the row's choice:
+    /// through the doors, how a node's id sorts against the ids before
+    /// it is the mint's digest, not the author's. In-crate reach spells
+    /// that state in five lines and keeps the row's subject the walk
+    /// rather than the door.
     #[test]
     fn name_carriers_reads_the_payloads_then_the_store() {
         let mut doc: ProfileDoc = Doc::empty_derived("carriers", Tol::witness());
@@ -1541,7 +1523,7 @@ mod tests {
                         SitedRef::at_mint(first.clone()),
                         SitedRef::at_mint(second.clone()),
                     ),
-                    ContactClass::Rest,
+                    BooleanCoincidence::REST,
                 )],
             },
         );
@@ -1553,7 +1535,7 @@ mod tests {
                         SitedRef::at_mint(third.clone()),
                         SitedRef::at_mint(third.clone()),
                     ),
-                    ContactClass::Tangent,
+                    BooleanCoincidence::TANGENT,
                 )],
             },
         );
@@ -1579,6 +1561,8 @@ mod tests {
                             .expect("the fixture spells a face"),
                     }],
                 },
+                gauge: None,
+                offset: Some(crate::placement::Placement::IDENTITY),
             },
         );
         doc.order = vec![RecipeNodeId(2), RecipeNodeId(1), RecipeNodeId(0)];

@@ -39,7 +39,7 @@ fn parallelepiped(p: [f64; 3], a: [f64; 3], b: [f64; 3], c: [f64; 3]) -> Body<f6
 fn assembly(parts: &[Body<f64>]) -> Body<f64> {
     let mut out = parts[0].clone();
     for part in &parts[1..] {
-        topo::graft_disjoint(&mut out, part, Tol::witness()).unwrap();
+        topo::graft_disjoint(&mut out, part).unwrap();
     }
     out
 }
@@ -442,7 +442,7 @@ fn a_declared_seat_with_a_keel_is_probed() {
         let part: common::Prism<f64> = common::prism_z(&prof, 0.0, 3.0, Tol::witness());
         let mut body = base.body;
         let top = base.side_faces[2];
-        let keys = topo::graft_disjoint_all_keyed(&mut body, &part.body, Tol::witness()).unwrap();
+        let keys = topo::graft_disjoint_all_keyed(&mut body, &part.body).unwrap();
         let under = |i: usize| keys.face(part.side_faces[i]).unwrap();
         let records = ContactRecords {
             patches: vec![
@@ -490,15 +490,9 @@ fn a_solid_crossing_itself_blocks_its_pair() {
         &mut body,
         &[a],
         &block((1.0, 2.0), (0.0, 3.0), (0.0, 1.0)),
-        Tol::witness(),
     )
     .unwrap();
-    topo::graft_disjoint(
-        &mut body,
-        &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0)),
-        Tol::witness(),
-    )
-    .unwrap();
+    topo::graft_disjoint(&mut body, &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0))).unwrap();
     let errors = errors_of(&body);
     assert!(crosses(&errors) > 0, "{errors:?}");
     assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
@@ -516,7 +510,7 @@ fn hollow(outer: [(f64, f64); 3], void: [(f64, f64); 3]) -> Body<f64> {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut body, solid, hole, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut body, solid, hole, &evidence).unwrap();
     body
 }
 
@@ -533,7 +527,7 @@ fn rest_patches(body: &Body<f64>) -> Vec<PatchContact> {
             let p = body
                 .get_point(body.get_vertex(he.start).unwrap().point)
                 .unwrap();
-            for (i, c) in [p.x, p.y, p.z].into_iter().enumerate() {
+            for (i, c) in p.to_array().into_iter().enumerate() {
                 b.0[i] = b.0[i].min(c);
                 b.1[i] = b.1[i].max(c);
             }

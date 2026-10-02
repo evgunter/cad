@@ -28,7 +28,7 @@
 )]
 
 use crate::boolean::ContactRecords;
-use crate::test_support_fixtures::{describe_as_intersections, face_surface_of_he, geometric_cube};
+use crate::test_support_fixtures::{describe_as_intersections, geometric_cube};
 use crate::validate::{self, ValidationError};
 use crate::{Body, FaceSurface};
 use geom::{NurbsSurface, Surface};
@@ -101,8 +101,9 @@ fn m7_8_cube() -> (
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = Vec::new();
     for (edge_key, edge) in edges {
-        let s1 = face_surface_of_he(&body, edge.he_plus);
-        let s2 = face_surface_of_he(&body, edge.he_minus);
+        let (s1, s2) = crate::readback::edge_sides(&body, edge_key)
+            .unwrap()
+            .surfaces();
         if s1 != wall && s2 != wall {
             continue;
         }
@@ -206,13 +207,20 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
             "the certified body must raise no EdgeCertification anywhere: {d}"
         );
     }
-    // `needs_nurbs_lane` answers YES on exactly the four wall edges.
+    // The lane-free re-derivation names the lane's absence on exactly
+    // the four wall edges.
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let mut needs = 0;
     for (k, e) in body.edges() {
         let Some(crate::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
             continue;
         };
-        if c.needs_nurbs_lane(|s| body.surfaces.get(s).cloned()) {
+        let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let start = point(body.get_half_edge(e.he_plus).unwrap().start);
+        let end = point(body.half_edge_end(e.he_plus).unwrap());
+        if let Err(geom_brep::CertifyError::NurbsLaneNotSupplied) =
+            c.recertify_via(start, end, |s| body.surfaces.get(s).cloned(), band, None)
+        {
             needs += 1;
             assert!(
                 lane_edges.contains(&k),
