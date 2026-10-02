@@ -477,8 +477,8 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
             query::edge_adjacent_matches(
                 &wedge,
                 e,
-                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
-                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Sphere),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Sphere),
             )
         })
         .expect("a wedge has an edge between a flat wall and the sphere zone");

@@ -193,8 +193,8 @@ CSV rather than a name filter.
 | `ss_carrier_external` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |
 | `ss_carrier_identity` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |
 | `ss_carrier_internal` | EXPLICIT | closed form at the site | `crates/geom-brep/src/intersect.rs` | not in the M10-8 documents |
-| `tangent_locus_axis_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/rest.rs` | not in the M10-8 documents |
-| `tangent_locus_gap` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/rest.rs` | not in the M10-8 documents |
+| `tangent_locus_axis_parallel` | EXPLICIT | closed form at the site | `crates/geom-brep/src/locus.rs` | not in the M10-8 documents |
+| `tangent_locus_gap` | EXPLICIT | closed form at the site | `crates/geom-brep/src/locus.rs` | not in the M10-8 documents |
 | `tangent_normal_parallel` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | — |
 | `tangent_on_surface_1` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | A0 |
 | `tangent_on_surface_2` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | — |

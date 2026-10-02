@@ -59,11 +59,7 @@ fn no_params() -> editor_core::ParamEnv<f64> {
 }
 
 /// Faces of one surface kind on one node's value, canonically ordered.
-fn faces(
-    ev: &Evaluation<f64>,
-    body: RecipeNodeId,
-    kind: geom_brep::SurfaceKind,
-) -> Vec<StableName> {
+fn faces(ev: &Evaluation<f64>, body: RecipeNodeId, kind: geom::SurfaceKind) -> Vec<StableName> {
     let mut f = select_where(
         ev,
         body,
@@ -395,7 +391,7 @@ fn r2_distance_vertex_plane_is_the_normal_projection() {
     let (doc, b) = boxed(&empty("r2-vp"), (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&doc);
     let vs = vertices(&ev, b);
-    let planes = faces(&ev, b, geom_brep::SurfaceKind::Plane);
+    let planes = faces(&ev, b, geom::SurfaceKind::Plane);
     assert_eq!(planes.len(), 6, "a box has six planar faces");
 
     // Identify the cap at z = 12 by measuring every corner against
@@ -452,8 +448,8 @@ fn r2_distance_plane_plane_is_the_authored_offset() {
     let (d1, a) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (d2, b) = boxed(&d1, (0.0, 1.0), (0.0, 1.0), 3.0, 1.0);
     let ev = eval(&d2);
-    let pa = faces(&ev, a, geom_brep::SurfaceKind::Plane);
-    let pb = faces(&ev, b, geom_brep::SurfaceKind::Plane);
+    let pa = faces(&ev, a, geom::SurfaceKind::Plane);
+    let pb = faces(&ev, b, geom::SurfaceKind::Plane);
 
     // Every A-plane against every B-plane. The four z-cap pairs give
     // the authored offsets {2, 3, 3, 4}; the parallel WALL pairs give
@@ -555,8 +551,8 @@ fn r2_gap_sphere_sphere_walks_all_three_regimes() {
         let (d1, outer) = sphere(&d0, 1.0, 0.0);
         let (d2, inner) = sphere(&d1, 0.5, cz);
         let ev = eval(&d2);
-        let fo = faces(&ev, outer, geom_brep::SurfaceKind::Sphere);
-        let fi = faces(&ev, inner, geom_brep::SurfaceKind::Sphere);
+        let fo = faces(&ev, outer, geom::SurfaceKind::Sphere);
+        let fi = faces(&ev, inner, geom::SurfaceKind::Sphere);
         assert!(
             !fo.is_empty() && !fi.is_empty(),
             "both revolves are spheres"
@@ -608,8 +604,8 @@ fn r2_gap_plane_plane_role_swap_behaviour() {
     let (d1, a) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (d2, b) = boxed(&d1, (0.0, 1.0), (0.0, 1.0), 3.0, 1.0);
     let ev = eval(&d2);
-    let pa = faces(&ev, a, geom_brep::SurfaceKind::Plane);
-    let pb = faces(&ev, b, geom_brep::SurfaceKind::Plane);
+    let pa = faces(&ev, a, geom::SurfaceKind::Plane);
+    let pb = faces(&ev, b, geom::SurfaceKind::Plane);
 
     let mut rows: Vec<(usize, usize, String, String)> = Vec::new();
     for (i, x) in pa.iter().enumerate() {
@@ -686,8 +682,8 @@ fn r2_the_parallelism_arm_is_clamped_below_one_metre() {
         let (d1, c1) = cylinder(&d0, 0.001, 0.0, 0.0, 0.0, 0.01);
         let (d2, c2) = cylinder(&d1, 0.001, sep, 0.0, 0.0, 0.01);
         let ev = eval(&d2);
-        let f1 = faces(&ev, c1, geom_brep::SurfaceKind::Cylinder);
-        let f2 = faces(&ev, c2, geom_brep::SurfaceKind::Cylinder);
+        let f1 = faces(&ev, c1, geom::SurfaceKind::Cylinder);
+        let f2 = faces(&ev, c2, geom::SurfaceKind::Cylinder);
         assert!(!f1.is_empty() && !f2.is_empty());
         let (d3, id) = with_measure(
             &d2,
@@ -759,8 +755,8 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
     );
     let c2 = crate::fixture::newest(&d3);
     let ev = eval(&d3);
-    let f1 = faces(&ev, c1, geom_brep::SurfaceKind::Cylinder);
-    let f2 = faces(&ev, c2, geom_brep::SurfaceKind::Cylinder);
+    let f1 = faces(&ev, c1, geom::SurfaceKind::Cylinder);
+    let f2 = faces(&ev, c2, geom::SurfaceKind::Cylinder);
     if f1.is_empty() || f2.is_empty() {
         eprintln!("R2/tilt: the tilted extrude produced no cylinder face; row is inconclusive");
         return;
@@ -1000,8 +996,8 @@ fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
     let (d1, outer) = sphere(&d0, 1.0, 0.0);
     let (d2, inner) = sphere(&d1, 0.5, 0.75);
     let ev = eval(&d2);
-    let fo = faces(&ev, outer, geom_brep::SurfaceKind::Sphere);
-    let fi = faces(&ev, inner, geom_brep::SurfaceKind::Sphere);
+    let fo = faces(&ev, outer, geom::SurfaceKind::Sphere);
+    let fi = faces(&ev, inner, geom::SurfaceKind::Sphere);
     let (d3, id) = with_measure(
         &d2,
         MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
@@ -1249,8 +1245,8 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
         let (d1, socket) = sphere(&d0, 1.0, 0.0);
         let (d2, ball) = sphere(&d1, 0.9, offset);
         let ev = eval(&d2);
-        let fo = faces(&ev, socket, geom_brep::SurfaceKind::Sphere);
-        let fi = faces(&ev, ball, geom_brep::SurfaceKind::Sphere);
+        let fo = faces(&ev, socket, geom::SurfaceKind::Sphere);
+        let fi = faces(&ev, ball, geom::SurfaceKind::Sphere);
         let (d3, measure) = with_measure(
             &d2,
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),

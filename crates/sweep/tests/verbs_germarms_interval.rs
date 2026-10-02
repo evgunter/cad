@@ -1,10 +1,9 @@
 //! The curved pierce RING lane at the CERTIFIED scalar — the two-arm pattern for the lane's new decide sites.
 //!
 //! Three predicates are new or newly reached here and all three are
-//! metered as LENGTHS (the root-span gaps and the chart certificate;
-//! the discriminant is the flagged dimensionless one it has always
-//! been, and is not re-metered here), so the lane's honesty depends on
-//! the enclosures being tight rather than lucky: `bool_pierce_normal_on_chart` (the
+//! metered as LENGTHS (the root-span gaps, the chart certificate, and
+//! the discriminant's half-chord depth), so the lane's honesty depends
+//! on the enclosures being tight rather than lucky: `bool_pierce_normal_on_chart` (the
 //! point-on-chart certificate behind the per-point outward normal),
 //! `bool_wall_root_in_span` (a root's two gaps to the span's ends), and
 //! `bool_ray_cylinder_disc` reached from an EDGE rather than a ray for
@@ -49,11 +48,7 @@ fn pipe() -> Body<Interval> {
 /// reaches. An escalation here would mean the enclosures, not the
 /// geometry, decided the lane.
 ///
-/// The bar is short for the same reason its `f64` twin is: a pierce
-/// vertex's sector arms are the split edge's fragments, and a fragment
-/// past the wall's radius makes the sector-side curvature charge
-/// refuse (`boolean::sectors::side_code`). Every coordinate here is
-/// dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
+/// Every coordinate here is dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
 /// points and this row measures the LANE rather than the fixture.
 #[test]
 fn the_ring_lane_builds_at_the_certified_scalar() {

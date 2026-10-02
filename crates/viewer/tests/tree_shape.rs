@@ -199,11 +199,9 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let measured = |session: &DocSession| {
-        session
-            .tree_rows()
-            .into_iter()
-            .find(|row| row.id == measure)
-            .and_then(|row| row.readout)
+        common::row_of(&session.tree_rows(), measure)
+            .readout
+            .clone()
     };
     let reading = |metres| {
         Some(Readout::Value(Computed {

@@ -40,42 +40,16 @@ const SPIRIC_MAX_NODES: usize = 1024;
 /// buys (`Writer::spiric_spline`'s docs).
 const SPIRIC_MIN_NODES: usize = 4;
 
-/// The surface variant's name, for typed refusals and for the
-/// curved-shell classification message.
+/// The surface's name, for typed refusals and for the curved-shell
+/// classification message: the kind's own name
+/// ([`geom::SurfaceKind::name`]), except that the mvfs "no description
+/// yet" NURBS placeholder (the shared `is_placeholder` discriminator)
+/// is named apart — it is a mid-surgery fact and refuses, where a
+/// described NURBS surface exports natively.
 pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
     match surface {
-        Surface::Plane { .. } => "plane",
-        Surface::Cylinder { .. } => "cylinder",
-        Surface::Cone { .. } => "cone",
-        Surface::Sphere { .. } => "sphere",
-        Surface::Torus { .. } => "torus",
-        // The two Nurbs states are told apart (the shared
-        // `is_placeholder` discriminator, M6-3): the mvfs "no
-        // description yet" placeholder (all-poison control points) is
-        // a mid-surgery fact and REFUSES; a described NURBS surface
-        // exports natively as B_SPLINE_SURFACE_WITH_KNOTS since M6-3
-        // — this name now appears only in messages that classify
-        // kinds (e.g. the multi-shell curved classification), never
-        // as a face-printer refusal.
-        Surface::Nurbs(payload) => {
-            if payload.is_placeholder() {
-                "nurbs placeholder"
-            } else {
-                "nurbs surface"
-            }
-        }
-        Surface::Approx(_) => "approximating surface",
-    }
-}
-
-/// The curve variant's name, for typed refusals.
-pub(crate) fn carrier_kind(carrier: &Curve3<f64>) -> &'static str {
-    match carrier {
-        Curve3::Line { .. } => "line",
-        Curve3::Circle { .. } => "circle",
-        Curve3::Ellipse { .. } => "ellipse",
-        Curve3::Spiric { .. } => "spiric",
-        Curve3::Nurbs(_) => "nurbs curve",
+        Surface::Nurbs(payload) if payload.is_placeholder() => "nurbs placeholder",
+        _ => surface.kind().name(),
     }
 }
 
@@ -1306,10 +1280,7 @@ mod tests {
             vec![1.0; 4],
         )
         .expect("a validated bilinear patch");
-        assert_eq!(
-            surface_kind(&Surface::Nurbs(patch.clone().into())),
-            "nurbs surface"
-        );
+        assert_eq!(surface_kind(&Surface::Nurbs(patch.clone().into())), "nurbs");
 
         // Record pins, both arms (the curve pins' idiom).
         let body = Body::<f64>::new();
@@ -1364,7 +1335,6 @@ mod tests {
             panic!("the placeholder is a NURBS curve");
         };
         assert!(payload.is_placeholder());
-        assert_eq!(carrier_kind(&placeholder), "nurbs curve");
 
         let edge = EdgeKey::default();
         match printable_carrier(&placeholder, edge) {

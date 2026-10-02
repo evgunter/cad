@@ -26,8 +26,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::PI;
-
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
@@ -36,9 +34,9 @@ use sweep::blend::{
 };
 use sweep::test_support::{arcs_at, cube, dome_profile, prism, revolved_about_y, rim_arcs_at};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::RimError;
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, EdgeKey, query, validate_geometric};
+use topo::{RimBreak, RimError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -302,16 +300,6 @@ fn the_geometry_recourse_reaches_the_front_door_at_a_line_ring() {
     }
 }
 
-/// An edge's certified carrier-parameter interval — the fixture-side
-/// read the open-arc row measures its refusal's `gap` against.
-fn carrier_params(body: &Body<f64>, k: EdgeKey) -> (f64, f64) {
-    body.get_curve_geom(body.get_edge(k).unwrap().curve)
-        .unwrap()
-        .certified()
-        .unwrap()
-        .params()
-}
-
 /// **The chain gate behind `CORNER_SUPPORT_NOT_PLANAR`, and the rim the
 /// assembly recourse has to name.**
 ///
@@ -342,36 +330,31 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
     assert!(!arcs.is_empty(), "the half dome keeps its equator arcs");
     for a in &arcs {
         // The arc is NOT a rim, and the rim door is what says so: a half
-        // revolve's arcs do not close, so `rim_of` names the matched set
-        // and the parameter it stops at rather than handing back a
-        // partial rim a fillet request would then stall on.
+        // revolve's arcs do not close, so `rim_of` names the vertex the
+        // chain dangles at rather than handing back a partial rim a
+        // fillet request would then stall on.
         match topo::query::rim_of(&half, *a) {
-            Err(RimError::NotOneRim { arcs: matched, gap }) => {
-                // The door matches on this arc's OWN circle and its OWN
-                // support pair, so it names FEWER arcs than the radius
-                // scan found — the scan's other hits at this radius sit
-                // between different surfaces. A door that matched across
-                // support pairs would fail here.
+            Err(RimError::NotOneRim { walked, at, how }) => {
+                assert_eq!(how, RimBreak::Dangles, "an open arc dangles");
+                // The walk follows this arc's OWN support pair, so it
+                // stays within the scan's arcs and stops at an end of
+                // the last one it walked.
                 assert!(
-                    matched.len() < arcs.len(),
-                    "the door is narrower than the radius scan: it named \
-                     {matched:?} of the scan's {arcs:?}"
+                    walked.len() < arcs.len(),
+                    "the door is narrower than the radius scan: it walked \
+                     {walked:?} of the scan's {arcs:?}"
                 );
-                // And the walk stops at one of THIS arc's own ends: an
-                // open arc dangles at the end it does not close onto.
-                let ends = carrier_params(&half, *a);
-                let wrapped = |t: f64| {
-                    let x = t.rem_euclid(core::f64::consts::TAU);
-                    if x > PI {
-                        x - core::f64::consts::TAU
-                    } else {
-                        x
-                    }
-                };
                 assert!(
-                    (gap - wrapped(ends.0)).abs() < 1e-9 || (gap - wrapped(ends.1)).abs() < 1e-9,
-                    "the gap is at one of the arc's own endpoints {ends:?}, got {gap}"
+                    walked.iter().all(|k| arcs.contains(k)),
+                    "the walk stays on the radius scan's arcs: {walked:?} of {arcs:?}"
                 );
+                let last = *walked.last().unwrap();
+                let e = half.get_edge(last).unwrap();
+                let ends = [
+                    half.get_half_edge(e.he_plus).unwrap().start,
+                    half.half_edge_end(e.he_plus).unwrap(),
+                ];
+                assert!(ends.contains(&at), "the walk stops at an end of {last:?}");
             }
             other => panic!("an open arc is not one rim, got {other:?}"),
         }

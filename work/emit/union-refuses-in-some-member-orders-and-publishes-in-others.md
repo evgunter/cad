@@ -39,7 +39,7 @@ itself: whether a contact is flush depends on whether another member
 has covered it yet. `RayExhausted` is REACH's: the containment
 fallback's vertex probe runs out when every vertex of the joining
 member lies on the accumulation's boundary. It shares that shape with
-`work/zip/two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted.md`
+`work/fuse/two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted.md`
 but is not the same defect, because the operands here are distinct and
 legal.
 

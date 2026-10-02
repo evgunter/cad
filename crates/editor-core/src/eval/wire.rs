@@ -360,11 +360,12 @@ where
         Node::Mate { .. } => match env.poses.fault(id) {
             Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
             None => Ok(OpOut::plain(
-                ValuePayload::Mate(
-                    env.poses
-                        .role(id)
-                        .unwrap_or(crate::mate::MateRole::Declaring),
-                ),
+                ValuePayload::Mate(env.poses.role(id).unwrap_or_else(|| {
+                    unreachable!(
+                        "the solve of this document records a role for every mate in its \
+                         order, or faults it, yet mate {id:?} has neither"
+                    )
+                })),
                 names::empty(),
             )),
         },
@@ -1366,7 +1367,7 @@ fn wire_datum<T: Decide>(
             // comparison of tags, not a predicate.
             let carrier = topo::readback::face_carrier_kind(&body, key)
                 .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
-            if carrier != geom_brep::SurfaceKind::Plane {
+            if carrier != geom::SurfaceKind::Plane {
                 return Err(NodeErrorKind::FaceFrameNotPlanar { carrier });
             }
             let pose = topo::readback::face_pose(&body, key)

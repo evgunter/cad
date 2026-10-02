@@ -539,3 +539,4 @@ time, so it goes to designer round 6 and may go to Ev. #3527 waits.
   - the fillet keeps its offset centre and registers the tangency facts it proves;
   - the tangent arc keeps the algebraic X and registers what Sym cannot close;
   - `sweep-arclen-legs-fold-an-over-full-angle` folds into 5b, so the authored angle is stored after its refusal.
+- 2026-10-02 — The sketch plane is its frame (#3775): Ev approved ("sounds good! deleting SketchPlane and just using orthoframe directly could also work. either is fine"). Fork row 43 is filled. The implementation is `the-sketch-plane-is-its-frame`, parked on 5b. It keeps the newtype unless the wrapper turns out to earn nothing.

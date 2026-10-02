@@ -91,17 +91,16 @@
 //!   declare the zero-turn joints they mint, both by construction.
 //!   [`ProfileLoop::tangent_joints`] is the field that carries the
 //!   result, and a fixture's way of writing one by hand.
-//! - **The sketch plane is a placement, and validation never reads
-//!   it.** [`SketchPlane`] is profile (x, y) ↦ plane origin + x·u +
-//!   y·v, with u/v/normal the columns of the placement's linear part,
-//!   and validation is purely 2-D (the plane is passed through
-//!   untouched). Rigidity — u, v, normal orthonormal and right-handed
-//!   — is the frame witness's: [`SketchPlane::from_frame`] takes an
-//!   [`geom_core::OrthoFrame`], which was decided at its mint.
-//!   [`SketchPlane::new`] is the read-back door and holds whatever
-//!   [`geom_core::Affine3`] it is handed, so a placement that came
-//!   from somewhere other than a frame carries only what its own
-//!   source decided.
+//! - **The sketch plane is a frame, and validation never reads it.**
+//!   [`SketchPlane`] holds one [`geom_core::OrthoFrame`] and nothing
+//!   else: profile (x, y) ↦ origin + x·u + y·v, its placement map
+//!   derived from the frame, never stored. Rigidity — u, v, normal
+//!   orthonormal and right-handed — is the frame's type, so every
+//!   sweep door that takes the plane reads a witnessed normal. No door
+//!   takes a bare [`geom_core::Affine3`]; the plane crosses scalars only
+//!   through the frame's exact crossings (geom-core's
+//!   `linalg::ortho_frame`, "Crossing scalars"). Validation is purely
+//!   2-D (the plane is passed through untouched).
 //!
 //! # Validation and canonical form
 //!
