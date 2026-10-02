@@ -3657,9 +3657,10 @@ fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
 /// **A spent step budget ends by the rung that held the steps short.**
 ///
 /// - Curvature: the planted fixture at a thousand times its size, at
-///   ε = 1e-12. The fit's between-sample rung `(ε/κ³)^¼` binds, which no
-///   extent or domain lengthens, so it ends in the last resort, as the
-///   fit's sample budget does.
+///   ε = 1e-12. The fit's between-sample rung `(ε/κ³)^¼` binds every
+///   step, which no extent lengthens: it names the domain, which cuts an
+///   open branch's step count, and the tolerance as the last resort,
+///   and no extent.
 /// - Cap: the substrate wall traced from its seed with a feature extent
 ///   of 1e-4 m, whose `SSI_STEP_MAX` share caps every step far below
 ///   the curvature rung at ε = 1e-9. The extent is the lever.
@@ -3695,7 +3696,12 @@ fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
             let shown = err.render(Reading::Build);
             assert!(
                 shown.contains("held short by the curvature against the tolerance")
-                    && shown.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
+                    && shown.contains(
+                        "Recourse: name a domain around just the feature traced, or loosen \
+                         the tolerance",
+                    )
+                    && shown.ends_with(geom_core::KERNEL_LIMIT_LAST_RESORT)
+                    && !shown.contains("feature extent"),
                 "{shown}"
             );
         }
@@ -3719,5 +3725,69 @@ fn a_spent_step_budget_ends_by_the_rung_that_held_its_steps() {
             );
         }
         other => panic!("the capped wall trace: expected the step budget, got {other:?}"),
+    }
+}
+
+/// A zigzag wall: 41 columns 0.05 m apart along `x`, alternating
+/// ±0.15 m in `y`, cubic in `u`, extruded 0.8 m along `z`. Its section's
+/// curvature swings at every column, so a march along it is held short
+/// by the curvature near the turns and by the cap between them.
+fn zigzag_wall() -> NurbsSurface<f64> {
+    const COLUMNS: usize = 41;
+    let degree = 3;
+    let mut knots = vec![0.0; degree + 1];
+    let spans = COLUMNS - degree;
+    #[allow(clippy::cast_precision_loss)]
+    knots.extend((1..spans).map(|i| i as f64 / spans as f64));
+    knots.extend(vec![1.0; degree + 1]);
+    let ku = KnotVector::clamped(knots, degree).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(2 * COLUMNS);
+    for i in 0..COLUMNS {
+        #[allow(clippy::cast_precision_loss)]
+        let x = 0.05 * i as f64;
+        let y = if i % 2 == 0 { 0.15 } else { -0.15 };
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 2 * COLUMNS]).unwrap()
+}
+
+/// **A branch whose steps both rungs held names both levers.** The
+/// zigzag wall traced from its seed at a feature extent of 3e-3 m and
+/// ε = 1e-12: the cap binds between the turns and the curvature at
+/// them, each for well over a quarter of the steps
+/// (`STEP_BOUND_MINORITY`), so a majority vote would name one lever
+/// and miss the other.
+#[test]
+fn a_step_budget_both_rungs_held_names_both_levers() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::StepBound;
+    let domain = SsiDomain {
+        center: Point3::new(1.0, 0.0, 0.4),
+        half_extent: 1.5,
+        extent: 3e-3,
+        floor_scale: 1.0,
+    };
+    let wall = zigzag_wall();
+    match ssi::trace_plane_nurbs_uncertified(
+        &cutting_plane(),
+        &wall,
+        (0.5, 0.5),
+        domain,
+        1e-12,
+        band_at(1e-12),
+    ) {
+        Err(ref err @ SsiError::StepBudget { bound, .. }) => {
+            assert_eq!(bound, StepBound::Both, "{err}");
+            let shown = err.render(Reading::Build);
+            assert!(
+                shown.contains("the curvature against the tolerance and by the feature extent")
+                    && shown.contains("name a feature extent near the size of the feature traced")
+                    && shown.contains("loosen the tolerance"),
+                "{shown}"
+            );
+        }
+        other => panic!("the zigzag wall trace: expected the step budget, got {other:?}"),
     }
 }

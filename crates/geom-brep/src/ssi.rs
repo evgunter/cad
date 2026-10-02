@@ -142,7 +142,7 @@ pub use exhaust::{
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
-    SSI_STEP_MAX, SettlingRefusal, StepBound, StepFault, StepperMode,
+    SSI_STEP_MAX, STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepFault, StepperMode,
 };
 
 use enclose::{Box3, NurbsBoxes};
@@ -416,12 +416,18 @@ pub enum SsiError {
     ///
     /// It is NOT a limb exceedance, and it does not carry a margin:
     /// nothing was measured.
+    ///
+    /// The marched doors cannot reach it while K ≥ 2: a marched step is
+    /// at most `SSI_STEP_MAX` (1/32) of the extent and must clear the
+    /// band's K·ε, while the ladder empties only below 64ε. Its live path
+    /// is [`certify_rung3`] with a declared carrier. The pcurve cache
+    /// reports it in a sentence of its own; the plane × NURBS edge lane
+    /// folds it into `Unsupported` through its wildcard
+    /// (`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`).
     TubeLadderEmpty {
-        /// The extent the ladder was scaled from (meters): the
-        /// domain's feature extent at the SSI doors, the caller's
-        /// [`TubeScale`] extent at [`certify_rung3`]. The pcurve cache
-        /// scales from a carrier's diameter and reports this refusal in
-        /// its own words, as the plane × NURBS edge lane does.
+        /// The extent the ladder was scaled from (meters): the caller's
+        /// [`TubeScale`] extent at [`certify_rung3`], the domain's
+        /// feature extent at the marched doors.
         extent: f64,
         /// The floor every rung fell below (meters).
         floor: f64,
@@ -659,6 +665,10 @@ impl core::fmt::Display for SsiError {
                 let held = match bound {
                     StepBound::Curvature => "the curvature against the tolerance",
                     StepBound::Cap => "the feature extent or the domain",
+                    StepBound::Both => {
+                        "the curvature against the tolerance and by the feature extent or the \
+                         domain"
+                    }
                 };
                 write!(
                     f,
@@ -904,25 +914,44 @@ impl SsiError {
             // interpolation counts: a short trace reaching the count is
             // the kernel's.
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
-            // The march's states are finite and each moves the last, but
-            // their 3-D images, the chord sum and the collocation solve
-            // are f64 afterwards: at an extreme scale images can coincide,
-            // the sum overflow, or the solve refuse. Nothing shows that
-            // unreachable, so these are the approximation's limit.
-            Self::Fit(_) => Unsized::LastResort.recourse(RefusedArm::SignCertain, reading),
+            // Interpolation takes no tolerance, runs no knot algebra and
+            // reads no rows: these are the approximating fits' refusals.
+            Self::Fit(
+                FitError::InvalidTolerance { .. }
+                | FitError::KnotAlgebra(_)
+                | FitError::RaggedRows { .. }
+                | FitError::BudgetExhausted { .. },
+            ) => defect_ending(reading).to_owned(),
+            // The march's states are finite and each moves the last; their
+            // 3-D images and chord parameters are computed afterwards in
+            // f64. A chord below the running total's rounding is absorbed,
+            // so two parameters tie (`ParamCountMismatch`, its knots
+            // `Structure`); a step below an image's resolution repeats a
+            // point (`DegenerateChord`); an image can overflow
+            // (`NonFinitePoint`); and the collocation solve meets the
+            // parameters as rounded (`Lsq`). Each is the approximation's
+            // limit at an extreme scale.
+            Self::Fit(
+                FitError::NonFinitePoint { .. }
+                | FitError::DegenerateChord { .. }
+                | FitError::ParamCountMismatch { .. }
+                | FitError::Structure(_)
+                | FitError::Lsq(_),
+            ) => Unsized::LastResort.recourse(RefusedArm::SignCertain, reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
             Self::ExhaustivenessInconclusive(_) => EXHAUSTIVENESS_RECOURSE.to_owned(),
             Self::CellBudget { .. } => CELL_BUDGET_RECOURSE.to_owned(),
-            Self::StepBudget {
-                bound: StepBound::Cap,
-                ..
-            } => STEP_BUDGET_RECOURSE.to_owned(),
-            // The fit's between-sample rung shrinks with ε and no extent
-            // or domain lengthens it: `FitSampleBudget`'s physics.
-            Self::StepBudget {
-                bound: StepBound::Curvature,
-                ..
-            } => Unsized::LastResort.recourse(RefusedArm::SignCertain, reading),
+            // The extent sets the length of a capped step; the domain
+            // bounds how far an open branch runs, so it cuts the step
+            // count whichever rung sets each step. A closed loop's count
+            // is the curvature's against ε alone: `FitSampleBudget`'s
+            // physics, so the tolerance is the last resort there.
+            Self::StepBudget { bound, .. } => match bound {
+                StepBound::Cap => STEP_BUDGET_RECOURSE,
+                StepBound::Curvature => STEP_BUDGET_CURVATURE_RECOURSE,
+                StepBound::Both => STEP_BUDGET_BOTH_RECOURSE,
+            }
+            .to_owned(),
             // The certifying doors read a seed that will not settle as no
             // branch; only a door seeded by its caller reports it.
             Self::SeedRefinementFailed { .. } => SEED_RECOURSE.to_owned(),
@@ -932,16 +961,8 @@ impl SsiError {
             Self::StepRefinementFailed { .. } => {
                 Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
             }
-            // The widest rung is `SSI_TUBE_RADIUS_MAX · extent`, and the
-            // floor is `SSI_TUBE_RADIUS · ε`: the extent that clears it,
-            // or the tolerance below which this extent does.
-            Self::TubeLadderEmpty { extent, floor } => format!(
-                "Recourse: name a feature extent of at least {:e} m, near the size of the \
-                 feature traced, or, if the feature is that small, tighten the tolerance below \
-                 {:e} m",
-                floor / certify::SSI_TUBE_RADIUS_MAX,
-                extent * certify::SSI_TUBE_RADIUS_MAX / SSI_TUBE_RADIUS
-            ),
+            // `r >= floor` is decided exactly, so the extent alone.
+            Self::TubeLadderEmpty { .. } => TUBE_EXTENT.recourse(RefusedArm::SignCertain, reading),
             Self::TubeDegenerate(TubeDegeneracy::WallConstantAcrossLocus) => {
                 WALL_COLLAPSED_RECOURSE.to_owned()
             }
@@ -1331,6 +1352,39 @@ const CELL_BUDGET_RECOURSE: &str = "Recourse: name a domain around just the feat
 /// far an open branch runs.
 const STEP_BUDGET_RECOURSE: &str = "Recourse: name a feature extent near the size of the feature \
      traced, and a domain around just that feature, so the march needs fewer steps";
+
+/// [`SsiError::StepBudget`]'s ending where the curvature held the
+/// steps short: the domain still shortens an open branch.
+const STEP_BUDGET_CURVATURE_RECOURSE: &str = concat!(
+    "Recourse: name a domain around just the feature traced, or loosen the tolerance, ",
+    geom_core::kernel_limit_last_resort!()
+);
+
+/// [`SsiError::StepBudget`]'s ending where each rung held a share of
+/// the steps: both levers.
+const STEP_BUDGET_BOTH_RECOURSE: &str = concat!(
+    "Recourse: name a feature extent near the size of the feature traced and a domain around \
+     just that feature, or loosen the tolerance, ",
+    geom_core::kernel_limit_last_resort!()
+);
+
+const _: () = assert!(
+    certify::SSI_TUBE_RADIUS_MAX * 8.0 == 1.0,
+    "TUBE_EXTENT's lever says eight times the floor"
+);
+
+/// The tube ladder's widest rung against its floor
+/// ([`SsiError::TubeLadderEmpty`]): `SSI_TUBE_RADIUS_MAX · extent`, an
+/// eighth of the extent, must reach the floor the payload names.
+/// Decided exactly, before any probe, so it ends in the lever alone.
+const TUBE_EXTENT: SizedDecision = SizedDecision {
+    lever: "name a feature extent of at least eight times the ladder floor, near the size of the \
+            feature traced",
+    size: "feature extent",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 /// [`SsiError::SeedRefinementFailed`]'s ending, at the doors whose
 /// caller names the seed.
@@ -2457,15 +2511,16 @@ mod ending_tests {
     /// or dead end (`test_utils::refusal::problems`). The arms whose
     /// decision has no margin end by name: the search's budget and the
     /// exhaustiveness proof by the domain, the extent, the floor scale
-    /// and the geometry; the march's budget by the extent and the domain
-    /// where they capped its steps, and in the last resort where the
-    /// curvature did; a caller's seed by the seed; the tube ladder by
-    /// the extent and tolerance that clear its floor; a collapsed wall
-    /// by the face; a step that will not settle, and a fit refused past
-    /// its sample count, in the last resort; a short fit, the tube's
-    /// probe and the pcurve's tangent as the kernel's; the foot point by
-    /// limb 1; a boundary of the certificate as no way through yet; and
-    /// the wrong door by the routing table.
+    /// and the geometry; the march's budget by the rungs that held its
+    /// steps (the extent and the domain for the cap, the domain and the
+    /// last resort for the curvature, all of them for both); a caller's
+    /// seed by the seed; the tube ladder by the extent alone, since it is
+    /// decided exactly; a collapsed wall by the face; a step that will
+    /// not settle, and a fit the f64 images can refuse, in the last
+    /// resort; a short fit, a fit refusal interpolation cannot raise,
+    /// the tube's probe and the pcurve's tangent as the kernel's; the
+    /// foot point by limb 1; a boundary of the certificate as no way
+    /// through yet; and the wrong door by the routing table.
     #[test]
     fn each_ssi_ending_is_its_decisions() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -2535,12 +2590,8 @@ mod ending_tests {
         let words = rendered.split_whitespace().count();
         assert!(words < 50, "{words} words: {rendered}");
 
-        // The ladder's widest rung is an eighth of the 1e-8 m extent,
-        // against an 8e-9 m floor: an extent of 8 floors clears it, and a
-        // tolerance of a sixty-fourth of this extent does.
-        let tube_extent = "Recourse: name a feature extent of at least 6.4e-8 m, near the size \
-                           of the feature traced, or, if the feature is that small, tighten the \
-                           tolerance below 1.5625e-10 m";
+        // Sign-certain: the lever alone, never a tolerance.
+        let tube_extent = format!("Recourse: {}", super::TUBE_EXTENT.lever);
         let roster = roster();
         let ending_of = |name: &str| {
             let (_, error) = roster.iter().find(|(n, _)| *n == name).unwrap();
@@ -2569,8 +2620,13 @@ mod ending_tests {
             ),
             (
                 "step budget, curvature",
-                KERNEL_LIMIT_RECOURSE,
-                KERNEL_OR_FILE_DEFECT_ENDING,
+                super::STEP_BUDGET_CURVATURE_RECOURSE,
+                super::STEP_BUDGET_CURVATURE_RECOURSE,
+            ),
+            (
+                "step budget, both",
+                super::STEP_BUDGET_BOTH_RECOURSE,
+                super::STEP_BUDGET_BOTH_RECOURSE,
             ),
             ("seed", super::SEED_RECOURSE, super::SEED_RECOURSE),
             (
@@ -2578,7 +2634,7 @@ mod ending_tests {
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
-            ("tube ladder", tube_extent, tube_extent),
+            ("tube ladder", tube_extent.as_str(), tube_extent.as_str()),
             (
                 "tube probe",
                 KERNEL_DEFECT_ENDING,
@@ -2597,6 +2653,11 @@ mod ending_tests {
             (
                 "fit, chord",
                 KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "fit, tolerance",
+                KERNEL_DEFECT_ENDING,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             ("unsupported, routing", NOT_YET_ENDING, NOT_YET_ENDING),
@@ -2646,6 +2707,34 @@ mod ending_tests {
         assert!(problems.is_empty(), "{problems:#?}");
         let missing: Vec<usize> = (0..ARMS).filter(|i| !reached[*i]).collect();
         assert!(missing.is_empty(), "arms with no roster row: {missing:?}");
+    }
+
+    /// **A chord the running total absorbs ties two parameters**, and
+    /// the fit refuses the trace as `ParamCountMismatch`: five finite,
+    /// distinct points whose second chord (1e-17 m) is below the
+    /// rounding of a third of the total. It ends in the last resort.
+    #[test]
+    fn an_absorbed_chord_refuses_the_fit_in_the_last_resort() {
+        use geom_core::Point3;
+        let points = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1e-17, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(3.0, 0.0, 0.0),
+        ];
+        let error = super::fit_branch(&points, None).err();
+        assert!(
+            matches!(
+                error,
+                Some(SsiError::Fit(geom::FitError::ParamCountMismatch { .. }))
+            ),
+            "{error:?}"
+        );
+        assert_eq!(
+            error.map(|e| e.ending(Reading::Build)).as_deref(),
+            Some(KERNEL_LIMIT_RECOURSE)
+        );
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
@@ -2767,7 +2856,7 @@ mod ending_tests {
             (
                 "step budget, cap",
                 SsiError::StepBudget {
-                    mode: "realized",
+                    mode: super::StepperMode::Realized.name(),
                     budget: SSI_MAX_STEPS,
                     bound: StepBound::Cap,
                 },
@@ -2775,15 +2864,23 @@ mod ending_tests {
             (
                 "step budget, curvature",
                 SsiError::StepBudget {
-                    mode: "realized",
+                    mode: super::StepperMode::Realized.name(),
                     budget: SSI_MAX_STEPS,
                     bound: StepBound::Curvature,
                 },
             ),
             (
+                "step budget, both",
+                SsiError::StepBudget {
+                    mode: super::StepperMode::Realized.name(),
+                    budget: SSI_MAX_STEPS,
+                    bound: StepBound::Both,
+                },
+            ),
+            (
                 "step collapsed",
                 SsiError::StepCollapsed {
-                    mode: "realized",
+                    mode: super::StepperMode::Realized.name(),
                     step_meters: 5e-10,
                     speed: 1.0,
                 },
@@ -2791,16 +2888,21 @@ mod ending_tests {
             (
                 "step unusable",
                 SsiError::StepUnusable {
-                    mode: "realized",
+                    mode: super::StepperMode::Realized.name(),
                     speed: 1e-300,
                     fault: StepFault::DoesNotMove,
                 },
             ),
-            ("seed", SsiError::SeedRefinementFailed { mode: "idealized" }),
+            (
+                "seed",
+                SsiError::SeedRefinementFailed {
+                    mode: super::StepperMode::Idealized.name(),
+                },
+            ),
             (
                 "step refinement",
                 SsiError::StepRefinementFailed {
-                    mode: "realized",
+                    mode: super::StepperMode::Realized.name(),
                     step_meters: 1e-3,
                 },
             ),
@@ -2847,6 +2949,10 @@ mod ending_tests {
             (
                 "fit, chord",
                 SsiError::Fit(geom::FitError::DegenerateChord { index: 5 }),
+            ),
+            (
+                "fit, tolerance",
+                SsiError::Fit(geom::FitError::InvalidTolerance { tolerance: -1.0 }),
             ),
             (
                 "trace unresolved",

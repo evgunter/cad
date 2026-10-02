@@ -428,18 +428,40 @@ pub enum StepFault {
     DoesNotMove,
 }
 
-/// Which rung held most of a march's steps short
-/// ([`SsiError::StepBudget`]): the one a caller's knobs reach, or the
-/// one only the tolerance does.
+/// Which rungs held a march's steps short ([`SsiError::StepBudget`]):
+/// the cap a caller's knobs set, the curvature, or both. A rung holding
+/// fewer than [`STEP_BOUND_MINORITY`] of the steps is not named.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StepBound {
-    /// The curvature rungs: the fit's between-sample budget, which
-    /// shrinks with ε, or the relative heuristic on the curvature
-    /// itself. No extent or domain lengthens these steps.
+    /// The curvature rungs. The fit's between-sample rung shrinks with
+    /// ε, so loosening the tolerance lengthens it exactly. The relative
+    /// heuristic's two rungs do not read ε at all; they bind only where
+    /// the radius of curvature is within a few hundred tolerances or
+    /// the torsion is extreme, and there the tolerance is an
+    /// approximate lever. No extent lengthens any of them.
     Curvature,
     /// The cap: a fraction of the feature extent, or the domain's
     /// diagonal.
     Cap,
+    /// Each held at least [`STEP_BOUND_MINORITY`] of the steps.
+    Both,
+}
+
+/// The share of a march's steps a rung must hold to be named in
+/// [`StepBound`]: a quarter.
+pub const STEP_BOUND_MINORITY: (usize, usize) = (1, 4);
+
+impl StepBound {
+    /// The rungs `curvature` of `steps` steps name.
+    fn of(curvature: usize, steps: usize) -> Self {
+        let (num, den) = STEP_BOUND_MINORITY;
+        let named = |n: usize| n * den >= steps * num;
+        match (named(curvature), named(steps - curvature)) {
+            (true, true) => Self::Both,
+            (true, false) => Self::Curvature,
+            (false, _) => Self::Cap,
+        }
+    }
 }
 
 /// How a traced branch ended.
@@ -847,11 +869,7 @@ where
     Err(SsiError::StepBudget {
         mode: mode.name(),
         budget: ctx.max_steps,
-        bound: if 2 * curvature_bound > steps {
-            StepBound::Curvature
-        } else {
-            StepBound::Cap
-        },
+        bound: StepBound::of(curvature_bound, steps),
     })
 }
 
@@ -1646,5 +1664,22 @@ mod tests {
         assert!(r.reach <= 1.0 + 1.0e-12, "{r:?}");
         let tol = MarchTol::from_band(band, r).unwrap();
         assert_eq!(tol.settling(), SSI_NEWTON_TOL * band.zero());
+    }
+
+    /// **A rung is named from a quarter of the steps**, on either side
+    /// of the line, for each rung.
+    #[test]
+    fn a_rung_is_named_from_a_quarter_of_the_steps() {
+        use super::StepBound;
+        for (curvature, want) in [
+            (0, StepBound::Cap),
+            (4, StepBound::Cap),
+            (5, StepBound::Both),
+            (15, StepBound::Both),
+            (16, StepBound::Curvature),
+            (20, StepBound::Curvature),
+        ] {
+            assert_eq!(StepBound::of(curvature, 20), want, "{curvature} of 20");
+        }
     }
 }
