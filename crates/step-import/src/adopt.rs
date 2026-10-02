@@ -348,22 +348,25 @@ fn adopt_edges(
             .get_half_edge(he_plus)
             .ok_or(resolve("internal: a realized half-edge does not resolve"))?
             .edge;
-        let face_surface = |body: &Body<f64>, he| -> Result<topo::SurfaceKey, StepImportError> {
-            let loop_key = body
-                .get_half_edge(he)
-                .ok_or(resolve("internal: a realized half-edge does not resolve"))?
-                .parent_loop;
-            let face = body
-                .get_loop(loop_key)
-                .ok_or(resolve("internal: a realized loop does not resolve"))?
-                .face;
-            Ok(body
-                .get_face(face)
-                .ok_or(resolve("internal: a realized face does not resolve"))?
-                .surface)
-        };
-        let fs_plus = face_surface(body, he_plus)?;
-        let fs_minus = face_surface(body, he_minus)?;
+        let sides = topo::readback::edge_sides(body, edge_key).map_err(|what| {
+            resolve(match what {
+                topo::DanglingRef::Entity(topo::EntityId::Loop(_)) => {
+                    "internal: a realized loop does not resolve"
+                }
+                topo::DanglingRef::Entity(topo::EntityId::Face(_)) => {
+                    "internal: a realized face does not resolve"
+                }
+                _ => "internal: a realized half-edge does not resolve",
+            })
+        })?;
+        // Assembly realizes a file edge's forward use as the edge's
+        // `he_plus`; the surface pair below is ordered by the file's uses.
+        if (sides.plus.half_edge, sides.minus.half_edge) != (he_plus, he_minus) {
+            return Err(resolve(
+                "internal: a realized edge's two uses are not its he_plus and he_minus",
+            ));
+        }
+        let (fs_plus, fs_minus) = sides.surfaces();
         let witness = spec.carrier.mid_point(spec.t0, spec.t1);
         let p_start = solid.vertices[&spec.start];
         let p_end = solid.vertices[&spec.end];
