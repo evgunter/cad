@@ -799,3 +799,67 @@ fn a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape() {
         }
     }
 }
+
+/// **A millimetre lens inside a ball, at the tolerance that cannot
+/// place the section circle.** The lens of [`R1`], [`R2`], [`D`] scaled
+/// by `k = 1e-3`, inside `ball(0.9k)` centred at `(0.1, 1, −0.1)·k`: the
+/// ball's sphere crosses the carriers of both lens spheres off the
+/// lens's faces. At ε 1e-6 the band is a thousandth of the bodies, and
+/// the section certificate's witness on one crossing circle lands in
+/// it: no point placed, so the pair refuses with the certificate's own
+/// reason (R-undec) as `FallbackExtentUnsupported`, never as spheres
+/// that meet, and never as apart. At every other ε the circles are
+/// certified off the faces and every op builds against the caps,
+/// to 1e-9 of the result (the volumes are of order k³).
+#[test]
+fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
+    let k = 1e-3;
+    let tol = Tol::witness();
+    let lens = run(
+        BooleanOp::Intersect,
+        &ball(R1 * k, 0.0),
+        &ball(R2 * k, D * k),
+    );
+    let shift = geom_core::Affine3::translation(geom_core::Vec3::new(0.1 * k, k, -0.1 * k));
+    let b = topo::transform_rigid(&ball(0.9 * k, 0.0), &shift, tol).unwrap();
+    let (v_lens, v_ball) = (lens_volume(R1 * k, R2 * k, D * k), ball_volume(0.9 * k));
+    for (op, x, y, want) in [
+        (BooleanOp::Union, &lens, &b, v_ball),
+        (BooleanOp::Union, &b, &lens, v_ball),
+        (BooleanOp::Intersect, &lens, &b, v_lens),
+        (BooleanOp::Intersect, &b, &lens, v_lens),
+        (BooleanOp::Subtract, &lens, &b, 0.0),
+        (BooleanOp::Subtract, &b, &lens, v_ball - v_lens),
+    ] {
+        let label = format!("ε {} {op:?}", tol.eps());
+        if tol.eps() == 1e-6 {
+            let e = refusal(op, x, y);
+            assert!(
+                matches!(
+                    e,
+                    topo::BooleanError::FallbackExtentUnsupported { what, .. }
+                        if what.contains("no witness could place")
+                ),
+                "{label}: expected the certificate's undecided refusal, got {e:?}"
+            );
+            continue;
+        }
+        match run_or_empty(op, x, y) {
+            None => assert!(want == 0.0, "{label}: empty against {want}"),
+            Some(out) => {
+                assert_eq!(topo::validate(&out), Ok(()), "{label}: tier 1");
+                assert_eq!(topo::validate_closed(&out), Ok(()), "{label}: tier 2");
+                assert_eq!(
+                    topo::validate_geometric(&out, tol),
+                    Ok(()),
+                    "{label}: tier 3"
+                );
+                let v = topo::mass_properties(&out, tol).unwrap().volume;
+                assert!(
+                    (v - want).abs() <= 1e-9 * want,
+                    "{label}: volume {v} against {want}"
+                );
+            }
+        }
+    }
+}

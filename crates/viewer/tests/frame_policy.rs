@@ -24,8 +24,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use common::asm;
 use pncad::document::NodeStanding;
 use pncad::document::{
-    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Expr, Frame, Node, ParamName,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, DocumentId, Expr, Frame, Node,
+    ParamName, ProductError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
@@ -717,6 +717,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         ),
         (
             frame::checks_badge(Some(&ChecksReport {
+                document: DocumentId(1),
                 findings: vec![CheckFinding {
                     check: CheckId::Connectedness,
                     root: RecipeNodeId(tagged(3)),
@@ -1253,6 +1254,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     );
     assert_eq!(
         frame::checks_badge(Some(&ChecksReport {
+            document: DocumentId(1),
             findings: Vec::new(),
             skipped: Vec::new(),
         })),
@@ -1262,6 +1264,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     );
     assert_eq!(
         frame::checks_badge(Some(&ChecksReport {
+            document: DocumentId(1),
             findings: Vec::new(),
             skipped: vec![CheckId::Connectedness],
         })),
@@ -1513,6 +1516,7 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
 #[test]
 fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     let report = ChecksReport {
+        document: DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::Connectedness,
             root: RecipeNodeId(tagged(3)),

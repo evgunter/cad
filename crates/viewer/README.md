@@ -874,9 +874,14 @@ every op that changes a label answers `frame::acts` true: the frame
 that renames a node is an acting batch, and its `RankedVerdict::Clear`
 retires the sentence that said the old label. An op that changed a
 label without acting would leave a stale label on the line.
-`Refusal::Edit` is the exception inside the batch: the kernel door
-speaks `EditError` at the refusal, so a rename later in its own batch
-does not reach it (`work/emit/edit-error-respeaks-from-a-later-version.md`).
+Every re-spoken refusal, `Refusal::Edit` (`EditError::respoken`)
+among them, follows one rule (`SpokenNode::respoken`): a node the
+batch's document holds is said as it holds it now; a node it does not
+hold (the one a refused insert was minting, one deleted since), or one
+the refusal said by its tag because it was not there then, is said as
+the refusal said it. A sentence about the state the refusal saw stays as
+raised: `EditError::LabelUnchanged` (the label the node had), the arms
+that say a node is not live, and `AdmissionFault::NoSuchNode`.
 
 **The pick path's refusals hold bare ids and are spoken where they are
 drawn.** The pick index, its edge names, the id pass and the blend
@@ -896,6 +901,18 @@ viewport leaves for the next frame's toolbar is one, since an `Open`
 between the two lands another document. `BlendEvent::TargetLost`
 names its node as the document spoke it when the target was picked,
 since no later document holds it.
+
+**The selection's verdict is spoken from the landed document too.**
+`DocSession::standing` asks a picked entity's resolution of the landed
+run every frame, so `pane::properties::standing_verdict` says its
+`ResolveError`, and its `ResolveIndeterminate` through
+`app::indeterminate_wording`, from that run's document.
+So is the Checks window: its report is the landed run's, and
+`ViewerApp::checks_window` hands `frame::check_rows` that run's
+document, from which each finding's root is said on its button and in
+its sentence. The report refuses another document, but a document's id
+survives every edit, so handing it the committed version is the
+call site's mistake to avoid, and the window's test holds it.
 
 The landed document lags the committed one by a run. A sentence spoken
 from it says the label the landed run was read under, so a rename that

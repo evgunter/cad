@@ -4,7 +4,9 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId, SlotId};
+use pncad::document::{
+    Axis3, Dimension, Doc, Frame, ParamName, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
+};
 use pncad::quantity::UnitDef;
 use pncad::select::Resolution;
 
@@ -368,6 +370,7 @@ impl ViewerBehavior<'_> {
             } => Some(*node),
             _ => None,
         });
+        let landed = self.session.landed_pair().map(|(doc, _)| doc);
         match standing {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
@@ -381,7 +384,7 @@ impl ViewerBehavior<'_> {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
                     // Beside the node's name, which is the node it is about.
-                    standing_verdict(ui, &self.theme, standing);
+                    standing_verdict(ui, &self.theme, standing, landed);
                 });
                 if *present {
                     self.label_ui(ui, *node);
@@ -395,7 +398,7 @@ impl ViewerBehavior<'_> {
                 self.entity_header_ui(ui, "edge", edge.feature(), standing);
             }
         }
-        standing_verdict(ui, &self.theme, standing);
+        standing_verdict(ui, &self.theme, standing, landed);
     }
 
     /// **The rename field** (DESIGN.md Band 1, "Node labels"): the
@@ -963,9 +966,19 @@ impl ViewerBehavior<'_> {
 /// about somebody else's refusal. How LOUD they are is not composed
 /// per arm: it is read once, off the value.
 ///
+/// A picked entity's resolution was asked of the landed run
+/// (`DocSession::standing`), so its nodes are said from `landed`, the
+/// document whose ids it is spelled in; by their tags when nothing has
+/// landed.
+///
 /// A free function over the `Ui` so a headless drive can reach it
 /// (`crate::pane::headless`).
-pub(crate) fn standing_verdict(ui: &mut egui::Ui, theme: &Theme, standing: &Standing) {
+pub(crate) fn standing_verdict(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    standing: &Standing,
+    landed: Option<&Doc<ProfileProgram>>,
+) {
     let tone = standing.tone();
     let (noun, resolution) = match standing {
         Standing::Empty
@@ -991,13 +1004,14 @@ pub(crate) fn standing_verdict(ui: &mut egui::Ui, theme: &Theme, standing: &Stan
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
         Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
     };
+    let by = landed.map_or(Speaker::TAG, Speaker::of);
     let said = match resolution {
         None => Some("no evaluation yet to resolve this against".to_owned()),
         Some(Resolution::Resolved(_)) => None,
         Some(Resolution::Failed(failure)) => {
-            Some(format!("this {noun} is gone: {}", failure.error))
+            Some(format!("this {noun} is gone: {}", Said(&failure.error, by)))
         }
-        Some(Resolution::Indeterminate(cause)) => Some(indeterminate_wording(noun, cause)),
+        Some(Resolution::Indeterminate(cause)) => Some(indeterminate_wording(noun, cause, by)),
     };
     if let Some(said) = said {
         crate::widgets::message_toned(ui, said, theme, tone);
@@ -1832,8 +1846,11 @@ mod tests {
 /// anywhere between [`Standing::tone`] and the glyphs, turns a row red.
 #[cfg(test)]
 mod verdict_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
     use editor_core::RecipeEditRef;
-    use pncad::document::{NodeStanding, ParamName, RecipeNodeId};
+    use pncad::document::{Doc, NodeStanding, ParamName, ProfileProgram, RecipeNodeId};
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
 
@@ -1873,11 +1890,115 @@ mod verdict_tests {
         })
     }
 
-    /// What [`standing_verdict`] painted for `standing`.
+    /// What [`standing_verdict`] painted for `standing`, with nothing
+    /// landed.
     fn drawn(standing: &Standing) -> (Vec<Landed>, Voices) {
+        drawn_over(standing, None)
+    }
+
+    /// What [`standing_verdict`] painted for `standing` over `landed`.
+    fn drawn_over(
+        standing: &Standing,
+        landed: Option<&Doc<ProfileProgram>>,
+    ) -> (Vec<Landed>, Voices) {
         landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            standing_verdict(ui, theme, standing)
+            standing_verdict(ui, theme, standing, landed)
         })
+    }
+
+    /// **A picked entity's verdict says its nodes as the landed
+    /// document holds them**: the failed arm's name and the
+    /// indeterminate arm's standing each say the block by its label
+    /// over the document they were asked of, and by its tag with none;
+    /// a minting node that document no longer holds, by its tag.
+    #[test]
+    fn a_pick_verdict_says_its_nodes_from_the_landed_document() {
+        let tol = pncad::tolerance::witness();
+        let (mut doc, block, _) = crate::test_support::boss_on_block("verdict-speaks", tol);
+        crate::test_support::edit_into(
+            &mut doc,
+            pncad::document::DocEdit::SetLabel {
+                node: block,
+                label: Some(pncad::document::Label::new("base block").expect("a label")),
+            },
+            tol,
+        );
+        let by_tag = format!("node {}", test_utils::refusal::tag(block.0));
+        let name = StableName {
+            kind: EntityKind::Face,
+            node: block,
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        };
+        let face = |resolution: Resolution| Standing::Face {
+            face: FaceSelection {
+                name: name.clone(),
+                node: block,
+                body: 0,
+            },
+            resolution: Some(Box::new(resolution)),
+        };
+        let gone = face(Resolution::Failed(ResolutionFailure {
+            error: ResolveError::Vanished {
+                name: name.clone(),
+                diagnosis: editor_core::Diagnosis::PredicateFlip {
+                    predicate: "orient",
+                    from: pncad::geom_core::Sign::Positive,
+                    to: pncad::geom_core::Sign::Negative,
+                },
+                last_good: None,
+            },
+            offers: Vec::new(),
+        }));
+        let waiting = face(Resolution::Indeterminate(ResolveIndeterminate {
+            standing: NodeStanding::Failed { node: block },
+        }));
+        for (arm, standing, opening) in [
+            ("failed", &gone, "this face is gone: "),
+            (
+                "indeterminate",
+                &waiting,
+                "this face cannot be resolved right now: ",
+            ),
+        ] {
+            let (over_doc, _) = drawn_over(standing, Some(&doc));
+            let said = &find_opening(&over_doc, opening).text;
+            assert!(
+                said.contains("base block") && !said.contains(&by_tag),
+                "the {arm} verdict says the block by its label over the landed document: {said}"
+            );
+            let (untied, _) = drawn(standing);
+            let said = &find_opening(&untied, opening).text;
+            assert!(
+                said.contains(&by_tag) && !said.contains("base block"),
+                "the {arm} verdict says the block by its tag with nothing landed: {said}"
+            );
+        }
+
+        // A node the landed document no longer holds has no label to
+        // say: it is said by its tag over that document too.
+        let deleted = RecipeNodeId(test_utils::refusal::tagged(1));
+        assert!(doc.node(deleted).is_none(), "the fixture's id is absent");
+        let stranded = StableName {
+            kind: EntityKind::Face,
+            node: deleted,
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        };
+        let (over_doc, _) = drawn_over(
+            &face(Resolution::Failed(ResolutionFailure {
+                error: ResolveError::NodeGone {
+                    name: stranded,
+                    edit: RecipeEditRef::NodeDeleted { node: deleted },
+                },
+                offers: Vec::new(),
+            })),
+            Some(&doc),
+        );
+        let said = &find_opening(&over_doc, "this face is gone: ").text;
+        let deleted_by_tag = format!("node {}", test_utils::refusal::tag(deleted.0));
+        assert!(
+            said.contains(&deleted_by_tag),
+            "a deleted minting node is said by its tag over the landed document: {said}"
+        );
     }
 
     /// **A name that no longer resolves is a verdict to act on**, so
