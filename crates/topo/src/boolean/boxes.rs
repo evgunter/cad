@@ -1286,13 +1286,14 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
 ///
 /// # Errors
 ///
-/// The [`UnitVec3Error`](geom_core::UnitVec3Error) of a cylinder axis
-/// with no decided length — a broken cylinder carrier, which each lane
-/// answers in its own fail-loud direction.
+/// The [`LeveredUnitError`](geom_core::LeveredUnitError) of a cylinder
+/// axis with no decided length, or of a radius that is no positive
+/// length — a broken cylinder carrier, which each lane answers in its
+/// own fail-loud direction.
 pub(crate) fn face_box_rule<T: Decide>(
     surface: &Surface<T>,
     band: Band,
-) -> Result<FaceBoxRule<'_, T>, geom_core::UnitVec3Error> {
+) -> Result<FaceBoxRule<'_, T>, geom_core::LeveredUnitError> {
     Ok(match surface {
         Surface::Plane { .. } => FaceBoxRule::BoundaryHull,
         Surface::Cylinder {

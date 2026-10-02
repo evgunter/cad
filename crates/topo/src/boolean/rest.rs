@@ -511,16 +511,10 @@ fn enumerate_segments<T: Decide>(
             .ok_or_else(|| desync("REST lane: pair B edge without a record"))?;
         sites.push((a_rec.at_vertex, b_rec.at_vertex));
         for g in &a_rec.germs {
-            let v = red
+            let point = red
                 .a
-                .get_half_edge(g.he)
-                .ok_or_else(|| desync("REST lane: germ half no longer resolves"))?
-                .start;
-            let point = *red
-                .a
-                .get_vertex(v)
-                .and_then(|vd| red.a.get_point(vd.point))
-                .ok_or_else(|| desync("REST lane: germ vertex has no point"))?;
+                .half_edge_start_point(g.he)
+                .ok_or_else(|| desync("REST lane: germ site has no point"))?;
             germs.push(Germ {
                 pair: i,
                 point,

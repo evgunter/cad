@@ -306,9 +306,7 @@ fn face_loop_points<T: Decide>(
             cycle
                 .into_iter()
                 .map(|he| {
-                    body.get_half_edge(he)
-                        .and_then(|h| body.get_vertex(h.start))
-                        .and_then(|vd| body.get_point(vd.point).copied())
+                    body.half_edge_start_point(he)
                         .ok_or(BooleanError::JoinDesync {
                             what: "face vertex has no point",
                         })

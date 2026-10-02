@@ -1367,6 +1367,13 @@ impl<T: Real> Body<T> {
         Some(next.start)
     }
 
+    /// The position of `he`'s start vertex. `None` if `he`, its vertex
+    /// or the vertex's point is stale.
+    pub fn half_edge_start_point(&self, he: HalfEdgeKey) -> Option<Point3<T>> {
+        let vertex = self.get_vertex(self.get_half_edge(he)?.start)?;
+        self.get_point(vertex.point).copied()
+    }
+
     /// The full cycle of `he`'s loop in `next` order, starting at `he`.
     ///
     /// **Bounded** (D9): the walk caps at the half-edge arena length and

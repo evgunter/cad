@@ -510,7 +510,10 @@ mod recorded {
     ///   half carries its bottom arc at `0.9` — three readings;
     /// - dome rim (a ladder): the host's outer cycle is the two halves
     ///   of the outer rim; the dome's own edges all meet the rim — two
-    ///   readings.
+    ///   readings. The dome is a sphere of radius `0.5` centred on the
+    ///   top plane, so the concave rim's ball sits `0.1` above the plane
+    ///   and `0.6` from that centre: the trim radius is `√(0.6² − 0.1²)
+    ///   = √0.35`, each reading `1 − √0.35`.
     ///
     /// `circle_margins` mints no sample of its own. All three rims are
     /// read before the assertion, so a red names every rim that moved.
@@ -550,6 +553,12 @@ mod recorded {
             near(&readings[1], &[0.4, 0.9, 0.9]),
             "top outer rim: the dome-rim ring inside the trim, then each wall half's bottom arc: {:?}",
             readings[1]
+        );
+        let dome = 1.0 - 0.35f64.sqrt();
+        assert!(
+            near(&readings[2], &[dome, dome]),
+            "dome rim: each outer-rim half, 1 − √0.35 off the trim: {:?}",
+            readings[2]
         );
     }
 }
