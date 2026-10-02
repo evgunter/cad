@@ -70,9 +70,11 @@ pub fn try_intersect_declared<S: Scalar>(
 /// The scene's flush contacts, DETECTED and then DECLARED — the two
 /// library doors a user would reach for, spelled the way a user would
 /// spell them: [`pncad::topo::flush::find_flush_candidates`] reports
-/// the cross-body `Rest` pairs the boolean's own verifier would accept
-/// — every carrier that verifier has a rung for, plane through torus
-/// — and [`pncad::topo::flush::declare_all`] turns the findings the
+/// the cross-body cosurface pairs the boolean's own verifier would
+/// accept — `Rest` contacts where the faces oppose, continuations
+/// where they face the same way, on every carrier that verifier has a
+/// rung for, plane through torus — and
+/// [`pncad::topo::flush::declare_all`] turns the findings the
 /// caller has seen into the declarations the op takes. The scene
 /// author BUILT the contact deliberately; this writes the intent down.
 /// Certification still happens inside the op through the verified
@@ -251,12 +253,13 @@ mod consumer_census {
     /// than inferred from renders being byte-identical.
     ///
     /// The scenes run for their effect on the census: the cross-lap's
-    /// declared mate, the table's four corner-aligned legs and the
-    /// letterforms' declared intersect. The plant's own four pairs —
-    /// the stem glue, the leaf sheath, the socket and the flower weld
-    /// — are measured in `lily`'s probe module instead, beside the
-    /// walls they belong to, because running the whole plant here
-    /// would rebuild it a second time in one suite for nothing.
+    /// declared mate, the table's four corner-aligned legs, the
+    /// letterforms' two declared intersects and the A x Z. The plant's
+    /// own four pairs — the stem glue, the leaf sheath, the socket and
+    /// the flower weld — are measured in `lily`'s probe module instead,
+    /// beside the walls they belong to, because running the whole
+    /// plant here would rebuild it a second time in one suite for
+    /// nothing.
     #[test]
     fn every_planar_consumer_of_the_helper_declares_planes_only() {
         let tol = Tol::witness();
@@ -264,6 +267,7 @@ mod consumer_census {
         let _ = crate::crosslap::build::<f64>(tol);
         let _ = crate::bool_bodies::table::<f64>(tol);
         let _ = crate::letterforms::build::<f64>(tol);
+        let _ = crate::az::build::<f64>(tol);
         let declared = census::drain();
         assert!(
             declared.len() >= 3,

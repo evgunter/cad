@@ -683,14 +683,14 @@ impl Assembly {
 
 /// Raise `AssemblyError` carrying the refusal's stable tag and the
 /// arm's own payload.
-fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> PyErr {
+fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>) -> PyErr {
     use d::AssemblyError as E;
     // A gather refusal is not wrapped: the caller wants the gather's
     // own answer, and the wrapper adds nothing they can act on. It
     // still raises on THIS class — the door they called was the gate.
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
-    let from = SpokenFrom(Some(Arc::new(doc.clone())));
+    let from = SpokenFrom(Some(Arc::clone(&doc)));
     let mut node = none();
     let (refusals, findings) = match err {
         // The group is the subject; the space's own gather refusal is
@@ -726,7 +726,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> 
             return typed_err(
                 py,
                 ErrorClass::Assembly,
-                err.spoken(doc),
+                err.spoken(&*doc),
                 &[
                     (
                         "variant",
@@ -766,7 +766,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: &d::ProfileDoc) -> 
     typed_err(
         py,
         ErrorClass::Assembly,
-        err.spoken(doc),
+        err.spoken(&*doc),
         &[
             (
                 "variant",
@@ -836,12 +836,12 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         assembly_err(
             py,
             &d::AssemblyError::Product(Box::new(m.into())),
-            evaluation.doc(),
+            evaluation.doc_shared(),
         )
     })?;
     let assembly = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
-        .map_err(|err| assembly_err(py, &err, evaluation.doc()))?;
+        .map_err(|err| assembly_err(py, &err, evaluation.doc_shared()))?;
     let names = assembly
         .names
         .iter()

@@ -154,7 +154,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == shelf_i && !mates.is_empty()
+                if instance.id() == shelf_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \

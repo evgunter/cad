@@ -306,7 +306,7 @@ pub(in crate::blend) struct BlankPlan<'a, T: Real> {
 }
 
 #[allow(clippy::type_complexity)]
-pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
+pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     plan: &BlankPlan<'_, T>,
     sources: &SourceFaces,
@@ -552,14 +552,13 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
         for s in struts_here {
             // Every strut was minted by this phase's `mev` above and is
             // killed at most once, in this loop, by the `kef` below.
-            let Some((hp, hm)) = halves_of(body, s) else {
+            let Some((hp, _)) = halves_of(body, s) else {
                 unreachable!(
                     "corner fusion: a strut edge was minted by this phase's strut `mev` \
                      and has not been killed"
                 )
             };
-            let (fa, fb) = (face_of_half(body, hp), face_of_half(body, hm));
-            if fa.is_some() && fa == fb {
+            if topo::readback::edge_sides(body, s).is_ok_and(|x| x.plus.face == x.minus.face) {
                 if spur.replace(s).is_some() {
                     unreachable!(
                         "corner fusion: a SECOND strut survived the fusion — exactly \

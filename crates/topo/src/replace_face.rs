@@ -1688,7 +1688,9 @@ fn plan_edge<T: Decide>(
         // the edge — which is a body-wide offset, not a
         // face-replacement, and this door says so rather than
         // storing a row the neighbour's own lane will reject.
-        let (fa, fb) = edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let (fa, fb) = crate::readback::edge_sides(body, edge)
+            .map_err(|_| ReplaceFaceError::Corrupt)?
+            .faces();
         let other = if group.contains(&fa) { fb } else { fa };
         if !group.contains(&other)
             && matches!(
@@ -2171,7 +2173,7 @@ pub(crate) fn offset_rechart<T: Real>(
 /// because an edge between two moving charts certifies on neither pair
 /// of mixed charts; a spec names a chart by the key its face wears now.
 /// The offset doors' shared mutation step, run on their staged clone.
-pub(crate) fn move_points_then_rechart<T: Decide>(
+pub(crate) fn move_points_then_rechart<T: Decide + crate::props::AtRestPolicy>(
     work: &mut Body<T>,
     moved: &[(VertexKey, Point3<T>)],
     charts: Vec<Rechart<T>>,
@@ -2442,23 +2444,6 @@ fn move_mapped_endpoint<T: Real>(
         },
         place,
     })
-}
-
-/// The two faces an edge separates (they coincide on a seam).
-///
-/// **One of two spellings, and the twin is in another crate**:
-/// `sweep::blend::surgery::edge_faces` takes the same edge key and
-/// composes the same two half-edge walks, over `surgery`'s own
-/// `face_of_half` rather than [`Body::face_of_half_edge`]. Both hops
-/// now read through the door on this side; folding the two functions
-/// together is a crate-boundary question and is filed on `carve`'s
-/// slate.
-pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(FaceKey, FaceKey)> {
-    let e = body.get_edge(edge)?;
-    Some((
-        body.face_of_half_edge(e.he_plus)?,
-        body.face_of_half_edge(e.he_minus)?,
-    ))
 }
 
 /// **The offset mint's fit door, as the pass takes it** — the rows that

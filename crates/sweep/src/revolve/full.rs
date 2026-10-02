@@ -83,7 +83,7 @@ use geom_core::Tol;
 /// minted. Any caller of this path owes an equivalent: a decided
 /// strict-containment fact about the SKETCH loops, not about the
 /// numbers a caller wrote.
-pub(super) fn build_full<T: Decide>(
+pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
     frame: &AxisFrame<T>,
     loops: &[Vec<SweptSeg<T>>],
     classes: &[LoopClasses<T>],
@@ -185,7 +185,7 @@ pub(super) fn build_full<T: Decide>(
 /// outer loop of an off-axis profile, or (with `loop_index > 0`, for
 /// error attribution) one hole loop building as its own
 /// hole-as-outer solid of revolution before the door reverses it.
-fn build_lamina<T: Decide>(
+fn build_lamina<T: Decide + topo::AtRestPolicy>(
     frame: &AxisFrame<T>,
     loop_index: usize,
     col: &Collapsed<T>,
@@ -360,7 +360,7 @@ fn build_lamina<T: Decide>(
 /// zip exists in this path: band 2 is carved out of the original wire
 /// face by one rim-closing `mef` per interior vertex, and the wire
 /// face itself survives as segment 0's band-2 wall.
-fn build_wire<T: Decide>(
+fn build_wire<T: Decide + topo::AtRestPolicy>(
     frame: &AxisFrame<T>,
     col: &Collapsed<T>,
     run: AxisRun,

@@ -417,7 +417,11 @@ fn sym_9_what_each_retry_recovers() {
 /// samples: `[1105, 21, 144, 783]` → `[1105, 21, 146, 781]` without the
 /// ladder and `[1105, 21, 150, 777]` → `[1105, 21, 152, 775]` with it,
 /// retried 6 either way — two numeric decisions registered by the door
-/// on the first attempt.
+/// on the first attempt. Sixteen of the bracket's `sign_gated` are
+/// theorems once a product with an ungated zero factor rests on that
+/// factor alone (DECIDE-9: `dihedral_wedge`'s `sin θ · arm`, the arm a
+/// read): `[1105, 21, …]` → `[1121, 5, …]` with and without the ladder,
+/// `registered`, `numeric` and `retried` unmoved.
 ///
 /// Every document moved UP when the extrude began closing with the
 /// pcurve mint: its wall rows' certificate is decided too. Without the
@@ -441,6 +445,13 @@ fn sym_9_what_each_retry_recovers() {
 /// bracket's six, and the link's retries fall 24 → 14 (`[683, 0, 130,
 /// 729]` with it): the ten that went were the certificate's schedule.
 ///
+/// DECIDE-9 (a product with an ungated zero factor rests on that
+/// factor alone), merged in after PR 3812, turns `sign_gated` into
+/// theorems on three documents, with and without the ladder alike:
+/// the annulus `[432, 32, …]` → `[440, 24, …]`, the boss `[453, 26, …]`
+/// → `[459, 20, …]` and the bracket `[1235, 59, …]` → `[1259, 35, …]`.
+/// `registered`, `numeric` and `retried` do not move.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -461,17 +472,17 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
         ("two_hole_plate", [947, 0, 148, 698], [947, 0, 148, 698], 0),
-        ("r1_annulus", [432, 32, 148, 445], [432, 32, 148, 445], 0),
+        ("r1_annulus", [440, 24, 148, 445], [440, 24, 148, 445], 0),
         (
             "r1_segment_boss",
-            [453, 26, 102, 410],
-            [453, 26, 102, 410],
+            [459, 20, 102, 410],
+            [459, 20, 102, 410],
             0,
         ),
         (
             "r2_filleted_bracket",
-            [1235, 59, 156, 1078],
-            [1235, 59, 162, 1072],
+            [1259, 35, 156, 1078],
+            [1259, 35, 162, 1072],
             6,
         ),
         ("r2_link", [681, 0, 118, 743], [683, 0, 130, 729], 14),
@@ -591,7 +602,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1235, 59, 162, 1072, 6],
+        [1259, 35, 162, 1072, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -611,7 +622,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1235, 59, 156, 1078, 0]
+        [1259, 35, 156, 1078, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

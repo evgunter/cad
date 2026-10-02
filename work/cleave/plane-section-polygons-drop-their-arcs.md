@@ -32,3 +32,8 @@ not describe its boundary.
 **Fix shape.** Report each edge of the polygon with its carrier (line,
 circle or ellipse arc in the section plane, in `(u, v)`), or a
 certified sampling of it; keep the corners as the edges' ends.
+
+SHOW `projectbox` (demos/tour/src/cutaway.rs, `read_section`): the
+tour's section read-back of a bored enclosure cannot measure its bore
+holes or its round bosses' outlines from `plane_section` (each is two
+corners, shoelace 0), so the scene supplies πr²/cos φ in closed form.

@@ -121,7 +121,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: 7.810e2,
             refused_by: None,
             registered: 148,
-            symbolic_zero: [432, 432, 432],
+            // 432 until DECIDE-9 (a product with an ungated zero factor
+            // rests on that factor alone): eight decisions the read
+            // answered as `sign_gated` are theorems, `registered` and
+            // `numeric` unmoved.
+            symbolic_zero: [440, 440, 440],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -162,14 +166,19 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
-            // is unmoved. With the read shut this replay reads 1121
-            // theorems; with it on, 16 of those are answered by the read
-            // before their form reduces and count `sign_gated` (21 in
-            // all) — the class the pad's note names. One of the 1105 is
-            // the bracket's fillet run out read against its arrival
-            // carrier (`path_run_out_carrier`), a margin the tier proves
-            // zero rather than measuring it.
-            symbolic_zero: [1255, 1255, 1255],
+            // is unmoved. One of these is the bracket's fillet run out
+            // read against its arrival carrier (`path_run_out_carrier`),
+            // a margin the tier proves zero rather than measuring it.
+            // 1255 until DECIDE-9: a product with an ungated zero factor
+            // stopped carrying its other factor's gate, so 28 decisions
+            // the read answered as `sign_gated` are theorems again,
+            // `registered` and `numeric` unmoved. Sixteen are the
+            // `dihedral_wedge` margins `sin θ · arm` it moved on main
+            // (whose `sin θ` is the zero form and whose lever arm the
+            // read settles); the other twelve exist only since the
+            // extrude closes with the pcurve mint, and which predicates
+            // they are is not read off a split here.
+            symbolic_zero: [1283, 1283, 1283],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -229,17 +238,18 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             //
             // DECIDE-3 (rule G and the decision read): `registered`
             // 128 -> 150, and with the read shut this replay reads
-            // 925 theorems, 0 `sign_gated`, 1004 `numeric` — every
-            // column up. With the read on, 32 of those 925 are answered
-            // by the read before their form reduces, so they count
-            // `sign_gated` (34) and not `symbolic_zero` (893). The tree
-            // without the must-carry gate's stations reads 4 such (894
-            // with the read shut, 890 with it on), so 28 of the 32 are
-            // INFERRED to be the stations' — 925 − 894 = 31 = 28
-            // station theorems + 3 run-outs — not read off a split,
-            // which was not taken. The decisions stay discharged; the claim on
-            // those 32 is the read's, not a theorem
+            // 925 theorems, 0 `sign_gated` — every column up. With the
+            // read on it read 893 / 34 until DECIDE-9: 32
+            // `dihedral_wedge` margins `sin θ · arm`, whose `sin θ` is
+            // the zero form and whose lever arm the read settles, were
+            // `sign_gated` because the product carried the arm's gate.
+            // A product with an ungated zero factor now rests on that
+            // factor alone, so they are theorems: 925 / 2, the two the
+            // `line_span` reads no form settles, `numeric` unmoved
             // (`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`).
+            // How many of the 32 are the must-carry stations' is not
+            // read off a split: the predicate is the same at every
+            // `dihedral_wedge` caller.
             //
             // Over copied arc carriers (a lift carries the stored
             // carrier rather than re-lowering it) 150 → 148, numeric
@@ -253,8 +263,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             registered: 152,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
-            // the tier proves zero rather than measuring them.
-            symbolic_zero: [980, 1004, 980],
+            // the tier proves zero rather than measuring them. Every row
+            // is up 32 since DECIDE-9, the 32 `dihedral_wedge` margins
+            // the note on `registered` names.
+            symbolic_zero: [1012, 1036, 1012],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -597,7 +609,10 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// `pcurve_envelope` at that scale under both dials
 /// (`work/pcert/fillet-meridian-radius-term-is-registered-only`), so the
 /// receipt below is over the decisions taken before that refusal; the
-/// claim is that the two dials still read the same one.
+/// claim is that the two dials still read the same one. Measured at the
+/// default ε: since DECIDE-9 it is `symbolic_zero` 1036, `sign_gated`
+/// 2, `registered` 152, `numeric` 1188, `frozen` 2587 under both
+/// dials.
 ///
 /// `#[ignore]`d: it is two whole-box replays of the heaviest of the
 /// five documents, on top of the one the gating row above already
@@ -643,7 +658,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1004, 34, 152, 1188, 2587),
+        (1036, 2, 152, 1188, 2587),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(

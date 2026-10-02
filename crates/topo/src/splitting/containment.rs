@@ -630,7 +630,7 @@ impl<T: Decide> ConicArc<T> {
     ///
     /// **A circle**: its unit coordinates are an isometry scaled by the
     /// radius, so every reading is levered into metres exactly — the
-    /// distance from the circle, `√(((ρ − 1)·r)² + axial²)`, then the
+    /// distance from the circle ([`circle_miss`]), then the
     /// arc's trim ([`arc_trim`], its `Zero` the band of an end).
     ///
     /// **An ellipse**: no single lever is exact. The smaller semi-axis
@@ -669,7 +669,7 @@ impl<T: Decide> ConicArc<T> {
         let (ends, apex, anti) = self.trim_points();
         if self.kind == ConicKind::Circle {
             let rho = (x.powi(2) + y.powi(2)).sqrt();
-            let miss = (((rho - T::one()) * self.lever).powi(2) + axial.powi(2)).sqrt();
+            let miss = circle_miss(q, self.center, self.axis, self.lever);
             match decide(rows.on, Margin::of(miss), band)? {
                 Sign::Zero => {}
                 Sign::Positive => return Ok(ConicHit::Off),
@@ -802,6 +802,23 @@ const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
     end: "point_in_arc_loop_conic_end",
     trim: "point_in_arc_loop_conic_window",
 };
+
+/// The distance from `p` to the circle (`center`, unit `axis`,
+/// `radius`): `√(h² + (ρ − r)²)`, `h` its height over the circle's plane
+/// and `ρ` its distance from the axis. The one spelling of a point's
+/// miss from a circle, for the loop walk here and the boolean's contact
+/// and on-carrier rows.
+pub(crate) fn circle_miss<T: Decide>(
+    p: Point3<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+) -> T {
+    let off = p - center;
+    let h = off.dot(axis);
+    let rho = (off - axis * h).norm();
+    (h.powi(2) + (rho - radius).powi(2)).sqrt()
+}
 
 /// **Whether `p`, a point on a circle, lies inside the arc of it whose
 /// ends are `ends` and whose apex is `apex`** (`anti` the apex's

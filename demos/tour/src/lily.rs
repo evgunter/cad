@@ -13,7 +13,7 @@
 //! booleans**. This stop is the honest intersection of the two, and
 //! every place the intersection is empty is pinned by
 //! [`wall_probes`] — a live, fail-loud record of what the kernel
-//! refused, in the `curvedcut::pin_frontier` style: each probe
+//! refused, in the [`crate::walls::wall`] style: each probe
 //! ASSERTS its refusal and panics with instructions if the refusal
 //! ever retires.
 //!
@@ -25,8 +25,10 @@
 //!   sphere-zone swelling with a coaxial BORE at the stem's own
 //!   diameter, so the two bodies are cosurface along the whole bore:
 //!   the cleanest declared CYLINDRICAL contact this plant has, and
-//!   the exact class M9-3 built. It still does not JOIN, and probes
-//!   12 and 13 are why — measured, not assumed.
+//!   the exact class M9-3 built. The declared socket unions
+//!   (`review_probes::the_curved_rungs_declare_the_socket_and_leave_the_stem_glue_alone`);
+//!   the scene still shows the two threaded and apart
+//!   (`work/show/lily-rootstock-joins-at-its-socket.md`).
 //! - the **stem** is a chain of circular tube arcs — each one a
 //!   windowed TUBE ALONG AN ARC, i.e. a torus segment said in world
 //!   coordinates: ring centre, spine axis, start radial, ring radius,
@@ -665,6 +667,14 @@ const LEAF_A_BASE: Point3<f64> = Point3::new(0.04, 0.05, 0.03);
 const LEAF_A_DIR: Vec3<f64> = Vec3::new(-0.72, 0.52, 0.16);
 /// See [`LEAF_A_BASE`].
 const LEAF_A_UP: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
+/// Wall 7's carving ball, the one that cuts a tepal seam into the
+/// lantern's zone sphere off its chart's polar axis: its centre, and
+/// [`WALL7_BALL_RADIUS`]. The wall carves with it at the walls' scalar
+/// and again in `f64` to draw, and a review row measures it, so it is
+/// spelled once.
+const WALL7_BALL_CENTER: Point3<f64> = Point3::new(-2.80, 0.0, 0.90);
+/// See [`WALL7_BALL_CENTER`].
+const WALL7_BALL_RADIUS: f64 = 0.16;
 /// See [`LEAF_A_BASE`].
 const LEAF_A_LEN: f64 = 5.10;
 /// See [`LEAF_A_BASE`]. Negative: the blade arches OVER, which is what
@@ -1425,8 +1435,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             name: "lily_corm",
             color: GREEN_CORM,
             // The swollen stem-base, threaded on the foot below —
-            // TOUCHING it along the whole bore and not joined to it,
-            // like every other pair on this plant (probe 12).
+            // TOUCHING it along the whole bore and not joined to it.
             body: corm(
                 CORM_TOP_Z,
                 CORM_GLOBE,
@@ -1596,9 +1605,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          sphere. The five analytic bodies approximate nothing — torus, \
          sphere, cone and plane exactly, parameters included; the \
          blades are fitted skins, the price of leaving the plane. \
-         Nothing is JOINED — the corm threaded on the stem's foot \
-         least of all, and the leaf to its own sheath least of all \
-         after that: see the wall probes.",
+         Nothing is JOINED — the leaf to its own sheath least of \
+         all: see the wall probes.",
         pieces.len()
     );
     vec![Stop {
@@ -1903,7 +1911,7 @@ fn ball<S: Scalar>(c: Point3<f64>, r: f64, tol: Tol) -> Body<S> {
 ///   probe that only pinned "some error" would stay green while the
 ///   frontier moved underneath it, and the findings list would quietly
 ///   become fiction (review MINOR-1);
-/// - success → panic with instructions, the `curvedcut::pin_frontier`
+/// - success → panic with instructions, the [`crate::walls::wall`]
 ///   retire-on-closure contract.
 fn wall<T, E: core::fmt::Debug>(
     n: u32,
@@ -1913,6 +1921,14 @@ fn wall<T, E: core::fmt::Debug>(
     retire: &str,
 ) {
     crate::walls::wall("lily", n, what, outcome, pinned, retire);
+}
+
+/// Where wall 7 stops: the carve itself, or drawing what it built.
+#[derive(Debug)]
+#[allow(dead_code)] // the payloads are read through `Debug` in the wall's report
+enum Wall7 {
+    Carve(BooleanError),
+    Draw(pncad::mesh::TessellateError),
 }
 
 /// The lily's frontier, run live: every shape the plant WANTED and the
@@ -2018,7 +2034,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    this and WITHDRAWN; the fix landed at the source instead — a
     //    full revolve sweeps a planar cap whole, so the lantern
     //    arrives maximal-faced. After F7 comes the curved
-    //    PIERCE arm (wall 12's door), and only after that could a
+    //    PIERCE arm, and only after that could a
     //    germ-pair question arise.
     //
     //    So wall 2's binding blocker is #1031, not #968's shape. The
@@ -2165,12 +2181,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    operation. The F7 door used to answer next; it no longer
     //    does, because a full revolve sweeps each planar cap whole and
     //    the lantern arrives maximal-faced. The crossing layer has
-    //    circle × sphere roots now, so the sweep gets through and the
-    //    JOIN answers: the sphere pair's chord rides the two spheres'
-    //    radical plane, and this ball sits off the lantern's axis, so
-    //    that plane is tilted against the lantern's polar axis and the
-    //    arc-side rule refuses it typed
-    //    (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+    //    circle × sphere roots, the sphere pair's chord rides the two
+    //    spheres' radical plane, and although this ball sits off the
+    //    lantern's axis — the plane is tilted against the zone's polar
+    //    axis — the join selects the section's arcs by the side of the
+    //    run they leave on, and the carved zone measures by
+    //    Gauss–Bonnet. So the CARVE builds, and what refuses is drawing
+    //    it: the mesher has no lane for a sphere face bounded by a
+    //    circle tilted against its chart
+    //    (`work/tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane.md`).
     //    The payload is quoted rather than described, the wall-7
     //    lesson about reading a locus off a comment instead of a dump.
     //
@@ -2186,19 +2205,49 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
     //    — the ruling that put it there is M9-5's, and the demand
     //    signal is this probe.
+    // The carve builds; drawing it is what refuses. The carve runs at
+    // the walls' own scalar, so its decisions record under the probe
+    // scalar like every other wall's; the mesher is an f64 door, so
+    // what it draws is the f64 carve, as a user's would be.
+    let carve = |lantern: &Body<S>| {
+        pncad::topo::subtract(
+            lantern,
+            &ball::<S>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
+            tol,
+        )
+    };
     wall(
         7,
-        "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
-         operand's own shape answers first)",
-        pncad::topo::subtract(
-            lant,
-            &ball::<S>(Point3::new(-2.80, 0.0, 0.90), 0.16, tol),
-            tol,
-        ),
+        "carve a tepal seam into the lantern and draw it (sphere x sphere by \
+         geometry; the seam's section is tilted against the zone's chart)",
+        carve(lant).map_err(Wall7::Carve).and_then(|carved| {
+            let body = &carved.body().expect("the carve leaves the lantern").body;
+            let drawn = match (body as &dyn core::any::Any).downcast_ref::<Body<f64>>() {
+                Some(b) => b.clone(),
+                None => {
+                    let lantern = plant::<f64>(tol)
+                        .into_iter()
+                        .find(|p| p.name == "lily_lantern")
+                        .expect("named lily piece")
+                        .body;
+                    pncad::topo::subtract(
+                        &lantern,
+                        &ball::<f64>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
+                        tol,
+                    )
+                    .map_err(Wall7::Carve)?
+                    .body()
+                    .expect("the carve leaves the lantern")
+                    .body
+                    .clone()
+                }
+            };
+            pncad::mesh::tessellate(&drawn, 2e-3, tol).map_err(Wall7::Draw)
+        }),
         |e| {
             matches!(
                 e,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionNotPolar { .. })
+                Wall7::Draw(pncad::mesh::TessellateError::UnsupportedCurvedShape { .. })
             )
         },
         "give the lanterns their three tepal seams",
@@ -2262,58 +2311,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",
-    );
-
-    // 12. The corm is the stem's OWN base, swollen: the two bodies are
-    //     cosurface along the whole bore, at one radius stated once
-    //     and used by both. That is a declared CYLINDRICAL `Rest` —
-    //     precisely the contact class M9-3 built — and it is DECLARED
-    //     here, face pair by face pair, because the author knows which
-    //     wall meets which.
-    //
-    //     It is said through the DETECTOR, not face pair by face pair:
-    //     `crate::booleans::flush_declarations` reports this mate's
-    //     bore-wall pairs and declares them, because the detector's
-    //     reach is the `Rest` ladder's reach and this contact is a
-    //     cylindrical rung of it. The scene used to assemble the pairs
-    //     itself, filtering both arenas for a wall at `STEM_R`, while
-    //     the detector was planar and had nothing to say about a mate
-    //     with no planar contact anywhere on it.
-    //
-    //     It refuses one door short of the zip, at the reduction's
-    //     curved-face arm rather than the declaration gate. The sphere
-    //     zone no longer stops it: the line x sphere root lane landed
-    //     (`work/reach/line-edge-crossing-a-sphere-face-has-no-root-lane.md`,
-    //     closed). What stops it now is the foot's seam ruling against
-    //     the corm's own BORE wall: the ruling's endpoints sit on the
-    //     shared carrier past each rim, so the declared cover records
-    //     nothing, and its crossings with the bore's rim circles are
-    //     interior to both edges and recorded by nobody — the class
-    //     `work/reach/full-turn-bore-rest-mate-does-not-union.md` names
-    //     on its minimal shaft-in-a-revolved-bore fixture.
-    let (corm_body, foot_body) = (by("lily_corm"), by("lily_foot"));
-    let bore_decls = crate::booleans::flush_declarations(corm_body, foot_body, tol);
-    wall(
-        12,
-        "thread the corm onto the stem's foot at their shared cylinder wall \
-         (declared cylindrical Rest, no planar contact anywhere on the mate)",
-        pncad::topo::union_with(corm_body, foot_body, &bore_decls, tol),
-        // The KIND is the claim: the reduction's curved-face arm, at
-        // an edge — NOT the declaration gate, which admitted the pair,
-        // and not a carrier refusal. The operand is pinned too, as the
-        // measurement of which side the sweep reaches first (see the
-        // note above).
-        |e| {
-            matches!(
-                e,
-                BooleanError::CurvedPierceUnsupported {
-                    operand: Operand::B,
-                    ..
-                }
-            )
-        },
-        "give the plant a joined rootstock, and re-derive the two-peg cell's \
-         claim about what a cylindrical mate needs beside it",
     );
 
     // 13 — RETIRED. It pinned the merge door SHUT on a full revolve's
@@ -2764,25 +2761,14 @@ mod review_probes {
         let lant = body(&ps, "lily_lantern");
         let mut planar_pairs = 0usize;
         let mut curved_pairs = 0usize;
-        for (_, e) in lant.edges() {
-            let face_of = |he| {
-                let p = lant.get_half_edge(he)?.parent_loop;
-                Some(lant.get_loop(p)?.face)
-            };
-            let (Some(f1), Some(f2)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
+        for (k, _) in lant.edges() {
+            let Ok(sides) = pncad::topo::readback::edge_sides(lant, k) else {
                 continue;
             };
-            if f1 == f2 {
+            if sides.plus.face == sides.minus.face || sides.plus.surface != sides.minus.surface {
                 continue;
             }
-            let (k1, k2) = (
-                lant.get_face(f1).map(|f| f.surface),
-                lant.get_face(f2).map(|f| f.surface),
-            );
-            if k1.is_none() || k1 != k2 {
-                continue;
-            }
-            match k1.and_then(|k| lant.get_surface(k)) {
+            match lant.get_surface(sides.plus.surface) {
                 Some(Surface::Plane { .. }) => planar_pairs += 1,
                 Some(_) => curved_pairs += 1,
                 None => {}
@@ -3648,36 +3634,6 @@ mod review_probes {
              this probe, the lofted_blade prose, and KERNEL-VERBS together"
         );
     }
-
-    /// **The wall list, run by the test suite and not only by the
-    /// renderer.**
-    ///
-    /// [`super::wall_probes`] is the whole point of the scene's
-    /// frontier discipline — every wall attempted for real, each
-    /// pinned by its own typed refusal, panicking if the refusal
-    /// changed or went away — and until this test existed its only
-    /// caller was `main.rs`'s render walk. So the discipline ran when
-    /// somebody rendered the tour and never under
-    /// `cd demos/tour && cargo test --release`, which is the command
-    /// the spec-level local acceptance actually runs: a frontier could
-    /// move and the suite would stay green.
-    ///
-    /// It cannot be a `tests/` integration test — `demo-tour` is a
-    /// bin-only crate, so nothing outside the binary can name
-    /// `lily::wall_probes` — which is why it lives here beside the
-    /// probes rather than next to the other suites.
-    ///
-    /// The body is one call because the assertions are the wall
-    /// probes' own: `walls::wall` panics on a different refusal and
-    /// panics on success, so there is nothing left for this test to
-    /// add. It rebuilds `plant::<f64>` and runs the frontier's
-    /// booleans, welds and fillets, so it is not free — but measured,
-    /// it is ~0.02 s of a 38 s bin suite, which is under the
-    /// run-to-run noise of the suite it joins.
-    #[test]
-    fn the_wall_list_still_stands() {
-        wall_probes::<f64>(Tol::witness());
-    }
 }
 
 #[cfg(test)]
@@ -3710,11 +3666,12 @@ mod verbs_gate_r1_probes {
             .find(|p| p.name == "lily_lantern")
             .expect("lantern piece")
             .body;
-        // The carving ball of wall 7, in its own numbers.
-        let (bc, br) = (Point3::new(-2.80, 0.0, 0.90), 0.16);
+        // The carving ball of wall 7.
+        let (bc, br) = (super::WALL7_BALL_CENTER, super::WALL7_BALL_RADIUS);
         let pucker = super::review_probes::pucker_cone_faces(&pieces);
         let mut min_frustum_gap = f64::INFINITY;
         let mut zone_hit = false;
+        let mut zone = None;
         for (k, f) in lant.faces() {
             match lant.get_surface(f.surface) {
                 Some(&Surface::Cone {
@@ -3759,6 +3716,7 @@ mod verbs_gate_r1_probes {
                     let d = (center - bc).norm();
                     if d <= radius + br && d + br >= radius {
                         zone_hit = true;
+                        zone = Some((center, radius));
                     }
                 }
                 _ => {}
@@ -3815,9 +3773,6 @@ mod verbs_gate_r1_probes {
              frustum, not contact"
         );
         let ball_body = ball::<f64>(bc, br, tol);
-        let refusal = pncad::topo::subtract(lant, &ball_body, tol)
-            .expect_err("the tepal seam is still refused, somewhere");
-        println!("wall-7 probe: the kernel answers {refusal:?}");
         // **The measured outcome, and it is neither branch the review
         // anticipated.** With the axial window taken from the
         // boundary's own locus, the pucker's box clears the ball by
@@ -3828,23 +3783,72 @@ mod verbs_gate_r1_probes {
         // same-key CURVED adjacency is the canonical maximal form —
         // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
         //
-        // With the caps swept whole and the crossing layer's circle ×
-        // sphere roots, the pair reaches the join: the section rides the
-        // radical plane, tilted against the lantern's polar axis, and the
-        // arc-side rule's polar gate refuses it
-        // (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+        // With the caps swept whole, the crossing layer's circle × sphere
+        // roots, the radical-plane join and its run-side arc rule for a
+        // section tilted against the zone's polar axis, the carve
+        // builds under every op, and each answer meets the lens the
+        // ball and the zone's sphere share, from the radii and the
+        // centre distance alone. What stops the scene is drawing it.
         assert!(
             tightest < 0.0,
             "the pucker's box must clear the ball's for the gate to admit; it does \
-             not, so this row's reading of the refusal below is wrong"
+             not, so this row's reading of the carve below is wrong"
         );
+        let (zc, zr) = zone.expect("the zone's sphere");
+        let d = (zc - bc).norm();
+        let x = (d * d + zr * zr - br * br) / (2.0 * d);
+        let cap = |r: f64, h: f64| PI * h * h * (3.0 * r - h) / 3.0;
+        let lens = cap(zr, zr - x) + cap(br, br - (d - x));
+        let volume = |b: &Body<f64>| {
+            pncad::topo::mass_properties(b, tol)
+                .expect("the volume integrates")
+                .volume
+        };
+        let (va, vb) = (volume(lant), 4.0 / 3.0 * PI * br.powi(3));
+        let built = |label: &str, r: Result<pncad::topo::BooleanResult<f64>, BooleanError>| {
+            let r = r.unwrap_or_else(|e| panic!("{label}: the carve builds, got {e:?}"));
+            let body = r.body().expect("a body").body.clone();
+            assert_eq!(
+                pncad::topo::validate_geometric(&body, tol),
+                Ok(()),
+                "{label}"
+            );
+            body
+        };
+        let carved = built("A ∖ B", pncad::topo::subtract(lant, &ball_body, tol));
+        for (label, body, want) in [
+            ("A ∖ B", carved.clone(), va - lens),
+            (
+                "A ∪ B",
+                built("A ∪ B", pncad::topo::union(lant, &ball_body, tol)),
+                va + vb - lens,
+            ),
+            (
+                "A ∩ B",
+                built("A ∩ B", pncad::topo::intersect(lant, &ball_body, tol)),
+                lens,
+            ),
+            (
+                "B ∖ A",
+                built("B ∖ A", pncad::topo::subtract(&ball_body, lant, tol)),
+                vb - lens,
+            ),
+        ] {
+            let got = volume(&body);
+            println!("wall-7 probe: {label} volume {got}, lens oracle {want}");
+            assert!(
+                (got - want).abs() <= 1e-9 * want.max(1.0),
+                "{label}: volume {got} against the lens oracle {want}"
+            );
+        }
+        let draw = pncad::mesh::tessellate(&carved, 2e-3, tol);
+        println!("wall-7 probe: drawing the carve answers {draw:?}");
         assert!(
             matches!(
-                &refusal,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionNotPolar { .. })
+                draw,
+                Err(pncad::mesh::TessellateError::UnsupportedCurvedShape { .. })
             ),
-            "the gate admits, the lantern is maximal-faced as built and the crossing \
-             layer pierces, so what refuses is the join's polar gate — got {refusal:?}"
+            "the carve's tilted-circle face has no tessellation lane — got {draw:?}"
         );
     }
 
@@ -3983,9 +3987,9 @@ mod verbs_gate_r1_probes {
     ///    scene used to assemble those pairs itself by filtering both
     ///    arenas for a wall at `STEM_R`, and the detector reports
     ///    exactly that set — the corm's one bore wall against the
-    ///    foot's three arcs. Wall 12's refusal is unmoved, which
-    ///    is the point: what changed is who wrote the declaration
-    ///    down, not what the kernel does with it.
+    ///    foot's three arcs — and the union it declares builds: one
+    ///    shell, valid at tier 3, its volume the two parts' sum (the
+    ///    interiors are disjoint).
     /// 2. The stem GLUE (wall 1) declares exactly what it declared
     ///    while the detector was planar — the two arcs' shared disk.
     ///    Their tube walls are tori about DIFFERENT ring centres, so
@@ -4028,6 +4032,26 @@ mod verbs_gate_r1_probes {
                 Some(SurfaceKind::Cylinder)
             );
         }
+        let rootstock = match pncad::topo::union_with(corm, foot, &socket, tol) {
+            Ok(pncad::topo::BooleanResult::Body(bb)) => bb.body,
+            other => panic!("the declared socket unions: {:?}", other.err()),
+        };
+        assert_eq!(rootstock.shells().count(), 1, "one rootstock shell");
+        assert_eq!(
+            pncad::topo::validate_geometric(&rootstock, tol),
+            Ok(()),
+            "the rootstock is valid at tier 3"
+        );
+        let volume = |b: &Body<f64>| {
+            pncad::topo::mass_properties(b, tol)
+                .expect("a volume")
+                .volume
+        };
+        let (got, parts) = (volume(&rootstock), volume(corm) + volume(foot));
+        assert!(
+            (got - parts).abs() <= 1e-12 * parts,
+            "the rootstock's volume is the parts' sum: {got} vs {parts}"
+        );
 
         let (stem, arch) = (by("lily_stem"), by("lily_arch"));
         let glue = pncad::topo::flush::find_flush_candidates(stem, arch, tol)

@@ -277,6 +277,8 @@ mod solid_separation;
 mod sphere_twin_rows_interval;
 #[path = "split_edge_pcurve_rows.rs"]
 mod split_edge_pcurve_rows;
+#[path = "split_gate_per_face.rs"]
+mod split_gate_per_face;
 #[path = "stated_general_image_mint.rs"]
 mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]
@@ -320,5 +322,9 @@ mod replace_face_band_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
-#[path = "split_tangent_spur.rs"]
-mod split_tangent_spur;
+#[path = "cleave_mint_doors.rs"]
+mod cleave_mint_doors;
+#[path = "review_cleave_mint_doors.rs"]
+mod review_cleave_mint_doors;
+#[path = "split_tangent_edge.rs"]
+mod split_tangent_edge;

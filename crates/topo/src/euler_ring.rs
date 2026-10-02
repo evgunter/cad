@@ -734,7 +734,10 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         curve: EdgeCurveSpec<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let created = self.mekr_with(site, NewCurve::Given(curve), tol)?;
@@ -751,7 +754,10 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         match site {
             MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve, tol),
             MekrSite::EmptyRing { target, ring } => {
@@ -776,7 +782,10 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mekr`].
-    pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError> {
+    pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
         let created = self.mekr_with(site, NewCurve::Chord, tol)?;
@@ -1549,7 +1558,10 @@ impl<T: Decide> Body<T> {
         ring: HalfEdgeKey,
         curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // ---- Preconditions. ----
         let (target_live, target_data) = self.resolve_half_edge_live(target)?;
         let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
@@ -1598,7 +1610,8 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
@@ -1658,7 +1671,10 @@ impl<T: Decide> Body<T> {
         ring: LoopKey,
         curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // ---- Preconditions. ----
         let (target_live, target_data) = self.resolve_half_edge_live(target)?;
         let target_loop = target_data.parent_loop;
@@ -1693,7 +1709,8 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
@@ -1737,7 +1754,10 @@ impl<T: Decide> Body<T> {
         ring: HalfEdgeKey,
         curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // ---- Preconditions. ----
         let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(target),
@@ -1776,7 +1796,8 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus.
         let rows = self.plan_site_rows(
@@ -1827,7 +1848,10 @@ impl<T: Decide> Body<T> {
         ring: LoopKey,
         curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // ---- Preconditions. ----
         let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(target),
@@ -1858,7 +1882,8 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus.
         let rows = self.plan_site_rows(

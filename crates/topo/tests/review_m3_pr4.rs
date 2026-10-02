@@ -33,7 +33,7 @@ fn dump<T: Decide>(b: &Body<T>) -> String {
     s
 }
 
-fn reduce_ok<T: Decide + geom_core::Bounds>(
+fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -402,7 +402,7 @@ fn plane_eq_nan_and_negzero() {
     let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
     let p1 = mk(Vec3::new(0.0, 0.0, nan1), Point3::new(0.0, 0.0, 0.0));
     let p2 = mk(Vec3::new(0.0, 0.0, nan2), Point3::new(0.0, 0.0, 0.0));
-    let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band);
+    let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, &metre_ball(1.0), band);
     assert!(r.is_err(), "bit-different NaN planes decided {r:?}");
     // Same-source revert pair (the post-retirement declared rung):
     // orient split decides SameOpposite with zero numerics.
@@ -419,7 +419,7 @@ fn plane_eq_nan_and_negzero() {
                 s2: Some(&src_rev),
                 declared: false
             },
-            1.0,
+            &metre_ball(1.0),
             band
         )
         .unwrap(),
@@ -427,7 +427,7 @@ fn plane_eq_nan_and_negzero() {
     );
     // The SAME values without sources: Undeclared, typed — the M4
     // PR 5 narrowing (equal bits without shared source stay unglued).
-    let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, 1.0, band);
+    let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, &metre_ball(1.0), band);
     assert!(
         matches!(r, Err(topo::PlaneEqError::Undeclared { .. })),
         "unsourced value-equal planes must refuse Undeclared, got {r:?}"
@@ -652,7 +652,12 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
         },
     )
     .unwrap();
-    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
+    // The bricks' flush walls are continuations, declared so the op
+    // reaches its crossing layer; the NURBS wall has no carrier the
+    // detector can compare, so it is in no finding.
+    let flush = flush_declarations(&a, &b, Tol::witness());
+    let err = match topo::boolean_reduce_declared(BooleanOp::Union, &a, &b, &flush, Tol::witness())
+    {
         Err(e) => e,
         Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
     };
@@ -710,4 +715,10 @@ fn corrected_subtract_cells_geometric() {
     // ∪ = B with A's coincident floor patch surviving: seams needed.
     let red = reduce_ok(BooleanOp::Union, &a, &b);
     assert_eq!(red.pierce_rings.len(), 4);
+}
+
+/// A ball of radius `arm` about the origin, no point of either face
+/// known: the extent a bare arm names.
+fn metre_ball(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm))
 }

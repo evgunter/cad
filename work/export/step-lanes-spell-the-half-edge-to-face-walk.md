@@ -32,7 +32,7 @@ walk. The four `adopt.rs` sites should be read against it: where the
 refusal does not distinguish the hops, they fold.
 
 `crates/step-import/tests` and `crates/step-export/tests` hold two more
-and are `work/tint/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
+and are `work/helper/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
 
 ## What the instrument could not see
 

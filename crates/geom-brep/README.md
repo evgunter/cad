@@ -125,9 +125,26 @@ stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
-(`StepCollapsed`) refuses naming the speed. A trace too short for the
-cubic fit refuses by its length and the extent that set its step
-(`BranchUndersampled`).
+(`StepCollapsed`) refuses naming the speed. The longest step is
+`SSI_STEP_MAX` of the caller's feature extent, and `march_both`, the
+one place a whole branch is known, marches once more any trace that
+has length but too few samples for the cubic fit: its steps are then
+capped at the trace's own polyline length over the fewest odd count
+that gives the fit its samples (five). The count is odd so that a seed
+near the branch's middle does not walk a state onto each end; that
+lowers the odds of a state landing in band of the boundary and
+guarantees nothing
+(`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
+A trace with no length to cut, or one the re-march leaves still too
+short, refuses as the march's limit (`SsiError::TraceUnresolved`): the
+surfaces touch at a point, the branch is shorter than the boundary
+search resolves at the step, it runs within the band of the domain's
+boundary (a plane flush with a face's edge, whose states are never
+decided inside), or no crossing settles at either end
+(`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
+The fit therefore only sees a trace with the samples it needs or a
+non-finite sample, which it refuses by name. The extent keeps its other
+roles: the lever arm's clamp, the seeding floor and the tube ladder.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure), *accounted* (contained in a found branch's tube), or
@@ -385,7 +402,10 @@ harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. (8) In-house SVD and
+`QuadratureBudget`, never a silent Gaussian. A sphere face whose
+boundary circles are tilted against its chart has no conic or spline
+trim and is on the closed-form lane, measured by Gauss–Bonnet over its
+circle arcs (`props/curved.rs`, `sphere_circle_loop`). (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.

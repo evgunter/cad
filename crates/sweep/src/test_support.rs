@@ -406,10 +406,6 @@ pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
 /// its reasons.
 #[must_use]
 pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
-    let surface_of = |he| -> Option<topo::SurfaceKey> {
-        let l = body.get_half_edge(he)?.parent_loop;
-        Some(body.get_face(body.get_loop(l)?.face)?.surface)
-    };
     let near = |x: T, want: f64| (x.lo() - want).abs() < 1e-9 && (x.hi() - want).abs() < 1e-9;
     body.edges()
         .filter_map(|(k, e)| {
@@ -420,7 +416,8 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
             if !near(radius, rim_r) || !near(center.y, rim_y) {
                 return None;
             }
-            (surface_of(e.he_plus)? != surface_of(e.he_minus)?).then_some(k)
+            let sides = topo::readback::edge_sides(body, k).ok()?;
+            (sides.plus.surface != sides.minus.surface).then_some(k)
         })
         .collect()
 }
@@ -536,11 +533,11 @@ pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: To
 /// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
 ///
 /// The axis matters: `revolve` puts the ball's poles on the sketch
-/// axis, and a plane×sphere section taken against a chart whose polar
-/// axis is TILTED to the plane is a typed frontier of the split-join
-/// (`SplitJoinError::SectionNotPolar`). A pip
-/// is cut by a face plane, so its ball is charted with the pole along
-/// that face's normal and the section stays polar by construction.
+/// axis, and a plane×sphere section is polar for the ball's chart only
+/// when the plane is normal to that axis. A pip is cut by a face plane,
+/// so its ball is charted with the pole along that face's normal and
+/// the section stays polar by construction, which keeps its faces
+/// inside the iso-rectangle inventory the tessellator walks.
 /// [`ball_poled_y`] and [`ball_poled_z`] name the two poles suites use
 /// most; this door takes any.
 pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> {

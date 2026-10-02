@@ -61,7 +61,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Bo
 /// solid, cross-shell fusion), then the loopglue zip — per coincident
 /// vertex pair a scaffolding `mekr`/`mef` + `kev`, per doubled edge a
 /// `kef` — the ch. 12 machinery's ch. 14 call site.
-fn reglue_pair<T: geom_core::Decide>(
+fn reglue_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     below_face: FaceKey,
     above_face: FaceKey,

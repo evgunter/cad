@@ -20,7 +20,8 @@ third is not the same defect and does not have the same answer.
 
 The third is the add-datum form's held FACE pick
 (`crates/viewer/src/pane/create.rs`, `datum_face_frame_rows`), which
-renders as `BlendTarget::of_face(face).to_string()` and therefore reads
+renders as `BlendTarget::of_face(face)` said from the landed document
+(`Say for BlendTarget`) and therefore reads
 the same for **all six faces of a box**. AUTH-1's reviewer filed that
 as NOTE-6.
 
@@ -33,18 +34,19 @@ face half is the whole complaint.
 
 - `BlendTarget` is deliberately a BODY SCOPE and nothing else — two
   fields, `node` and `body`, with a doc saying so and a destructure in
-  its `Display` whose comment exists to make a third field a compile
+  its `Say` whose comment exists to make a third field a compile
   error. A blend's accumulator opens on a body; it does not want a
   face and could not use one.
-- So putting face identity into `Display for BlendTarget` would give
+- So putting face identity into `Say for BlendTarget` would give
   every blend refusal a sentence about something the blend is not
   about, to fix one caller. AUTH-3 routed only the NODE half through
   the crate's one spelling (`tree::node_number`), which is what the
   blend sites genuinely share.
 - The face's own identity is its role path, and the tree has no
   renderable form of one: `RoleSeg` carries no `Display` at all
-  (`crates/viewer/src/idpass.rs` says so in as many words — "the path
-  rides as `Debug` because `RoleSeg` has no `Display`"), and
+  (`crates/viewer/src/idpass.rs`, `Say for Disagreement`, says so in
+  as many words — "the path rides as `Debug` because `RoleSeg` has no
+  `Display`"), and
   `Display for StableName` deliberately renders the kind and the
   minting node and stops, with a comment ruling that "the role path is
   a derivation, not something a person reads mid-sentence, so prose

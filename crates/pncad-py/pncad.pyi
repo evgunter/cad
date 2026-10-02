@@ -223,7 +223,7 @@ class EvaluationError(PncadError):
     different question and is not this attribute's.
 
     `finding` is the boolean's refusal MENU: when
-    `kind == "undeclared_contact"`, it carries the candidate
+    `kind == "undeclared_coincidence"`, it carries the candidate
     declaration as a typed `FlushFinding` — the same value
     `Evaluation.find_flush_candidates` answers with, ready for
     `Node.declare` / `Doc.declare`. The menu has exactly two arms:
@@ -631,7 +631,8 @@ class SelectRefusal(PncadError):
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
     `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
-    `not_a_length`, `pair_in_band`, `bad_value`, or `band`. The other attributes are
+    `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
+    `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text),
     `predicate` (the funnel site), `matched`/`candidates` (a tied
@@ -924,7 +925,8 @@ class CheckRefusal(PncadError):
     The registry's one refusing path, and it refuses on nothing the
     caller did not ask to be refused on — no resident defaults to
     `Error`, and the separation resident's knob cannot express it.
-    `findings` is every refusing finding, in report order."""
+    `findings` is every refusing finding, in report order, and the
+    message speaks each root from the document the checks ran over."""
 
     findings: list[CheckFinding]
 
@@ -2471,7 +2473,7 @@ class Node:
         """A Boolean of two upstream solids. `declare` names a
         `Declare` node whose coincidence pairs this boolean consumes;
         without one, operands that merely TOUCH refuse with the typed
-        menu (`EvaluationError`, `kind == "undeclared_contact"`,
+        menu (`EvaluationError`, `kind == "undeclared_coincidence"`,
         `finding` attached) — the kernel never infers that two faces
         are the same face."""
 
@@ -2487,7 +2489,7 @@ class Node:
         `DocEdit.set_members` rewrites on the live node. `declare` is
         the same optional coincidence input `boolean` takes, fed at
         the fold step its two members meet at; without one, members
-        that merely TOUCH refuse (`undeclared_contact`).
+        that merely TOUCH refuse (`undeclared_coincidence`).
 
         Refuses at `Doc.insert` on the list as stated: `too_few_members`
         (with the `count` found), `duplicate_input`,
@@ -4686,7 +4688,7 @@ class Verdict:
 class PlaneRelation:
     """The verify door's relation verdict: `SameOpposite` = resting
     contact (opposed outward normals), `SameOriented` = flush walls
-    (the merge-stage flavor). `Distinct` exists as vocabulary; a
+    (a continuation). `Distinct` exists as vocabulary; a
     finding never carries it."""
 
     SameOriented: Final[PlaneRelation]
@@ -4694,17 +4696,24 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The contact class a declaration asserts. `Rest` (cosurface
-    contact, on any carrier the verify ladder names — plane, sphere,
-    cylinder, torus) is the only class the flush DETECTOR mints, so
-    it is the only one a `FlushFinding` from
-    `find_flush_candidates` carries;
-    `Tangent` crossed the mirror with M9-1 and is nameable here
-    because a class the binding cannot name would refuse typed at the
-    crossing instead."""
+    """The contact class a mate asserts: `Rest` (cosurface contact,
+    opposed senses, on any carrier the verify ladder names — plane,
+    sphere, cylinder, torus) or `Tangent`. A union's declaration
+    speaks `BooleanCoincidence`, which adds the continuation."""
 
     Rest: Final[ContactClass]
     Tangent: Final[ContactClass]
+
+class BooleanCoincidence:
+    """What a boolean node may declare about a face pair: a contact
+    (`Rest`, `Tangent`), or a `Continuation` — one carrier with aligned
+    senses, as two stacked parts' outer walls are, which the union
+    merges. The flush detector reports `Rest` for an opposed pair and
+    `Continuation` for an aligned one."""
+
+    Rest: Final[BooleanCoincidence]
+    Tangent: Final[BooleanCoincidence]
+    Continuation: Final[BooleanCoincidence]
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:
@@ -4715,11 +4724,10 @@ class FlushRung:
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:
-    """One flush finding: "this face pair would verify as declared
-    contact" — a VALUE to inspect and declare, never itself a
-    declaration. The detector's reach is the `Rest` ladder's, so a
-    pair may be cosurface on a plane, a sphere, a cylinder or a
-    torus. `a`/`b` are the pair's names in the same OPAQUE text
+    """One flush finding: "this face pair would verify as declared" —
+    a VALUE to inspect and declare, never itself a declaration. The
+    detector's reach is the carrier ladder's, so a pair may be
+    cosurface on a plane, a sphere, a cylinder or a torus. `a`/`b` are the pair's names in the same OPAQUE text
     alphabet every materializer speaks (store them, hand them back;
     never parse). `class_` spells `class` (a Python keyword)
     with the `or_` trailing-underscore precedent."""
@@ -4731,7 +4739,7 @@ class FlushFinding:
     @property
     def relation(self) -> PlaneRelation: ...
     @property
-    def class_(self) -> ContactClass: ...
+    def class_(self) -> BooleanCoincidence: ...
     @property
     def rung(self) -> FlushRung: ...
     def __eq__(self, other: object) -> bool: ...
@@ -5251,8 +5259,8 @@ class Evaluation:
         Findings are DEFINITE and canonically ordered. Raises
         `SelectRefusal`, typed (`node_has_no_value` when either node
         has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
-        `band`) — an ambiguous pair is never silently included or
-        dropped."""
+        `band`, `distinct_finding` for a kernel defect) — an ambiguous
+        pair is never silently included or dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every
@@ -6589,7 +6597,11 @@ class CheckFinding:
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
     the body it names; `str()` renders it the way the library renders
-    a finding, recourse included."""
+    a finding, recourse included, each root spoken (kind, label and
+    tag) from the document the checks ran over — the one the
+    evaluation is of. `repr()` keeps the full id. Two findings are
+    equal when they are the same finding over the same document;
+    labels are not compared."""
 
     @property
     def check(self) -> CheckId: ...
@@ -6607,7 +6619,11 @@ class ChecksReport:
     `skipped` is why this is a report and not a list — "checked and
     fine" and "not checked" are different answers, and an empty
     `findings` read without `skipped` confuses them. `len(report)`
-    counts findings."""
+    counts findings. `str()` speaks each root from the document the
+    checks ran over, the one the evaluation is of: a label set after
+    `evaluate` shows on the next evaluation's report, not this one's.
+    Two reports are equal when they hold the same findings and skips
+    over the same document; labels are not compared."""
 
     @property
     def findings(self) -> list[CheckFinding]:
