@@ -2,12 +2,15 @@
 id: m9-3-semantic-residues
 kind: issue
 title: M9-3 semantic residues - vtxfac/recl tangent-descent divergence, ring-count refusal shadowed, unpinned lane-desync arm
-status: open
+status: closed
 opened: 2026-08-23
 github: 975
 refs: [967, 971, 974]
 priority: P1
 cost: M
+closed: 2026-10-02
+pr: 3747
+branch: tang/m9-3-residues
 ---
 
 ## From GitHub issue 975
@@ -81,3 +84,15 @@ Every site named is `crates/topo/src/boolean/rest.rs` or its neighbours in S-MAT
    TangentLocusError, tangent_locus}`, still re-exported from `topo`).
    Pure move; the rows decide through geom-brep's funnel, which is the
    same `k_stats::decide`.
+
+## Closed (2026-10-02, PR 3747)
+
+Items 2, 3 and 5 are fixed. Item 4 was already fixed
+(`contain::boundary_pre_pass` is one home). Item 1's remaining question
+(vtxfac should descend per bound once the band-edge split is fixed) is
+`vtxfac-tangent-sector-should-descend-per-bound`, parked on HONE's
+`an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band`.
+Residues the lane filed: ZIP's `rest-zip-frontier-refusals-reached-by-no-row`
+(which now also holds the cylinder-band fixture for `HoleVertexUnmatched`
+and the `glue_pair`/`pair_patches` twin) and
+`geom-brep-has-more-than-one-decide-wrapper`.
