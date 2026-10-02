@@ -1415,3 +1415,18 @@ for `classify_dihedral`'s other callers. The chain's mechanism has one
 home, `chaintol.rs`'s "What sets the wall". Spec deleted
 (`docs/doc-ledger/sym-15-spec.md`). The arm's straddle
 (`a-chain-of-three-joints-straddles-dihedral-arm`) is next behind it.
+
+## 2026-10-02 — SYM-16 spec'd: the ignored receipt rows' drift; single FULL review
+
+Second in the 2026-10-02 triage order, after SYM-15. The two
+`#[ignore]`d receipt rows (`sym11_the_exact_channel_never_contradicts_past_the_ceiling`
+and `m10_9_the_pad_at_both_rule_f_dials`) drifted red between
+`03ac24d8ba` and `8ee3daf171` with the drift unattributed, and every
+PR since has adjusted them by its own delta only.
+
+**Review tier: single FULL review.** The unit is a measurement, a
+bisect and a schedule change, settled by re-running the rows at the
+bisected commits; a wrong move found in another program's code stops
+the unit and is filed there.
+
+Spec `docs/SYM-16-SPEC.md`. Branch `sym/16-receipt-drift` from `main`.
