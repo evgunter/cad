@@ -1434,3 +1434,27 @@ Also, save runs the same validator, and `EditReplay` already spoke labels at loa
 **Designers.** A started from a per-step kernel record and moved to B's siting, adding the "consumed" condition. B took that condition in round 2.
 
 **Next.** The build has been dispatched, on the row `a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush`.
+
+## 2026-10-02 — analysis-door refusals speak the node (PR 3749)
+
+**Spoken at the raise:**
+- the range, drive and mc refusals;
+- the stackup refusals, including `PairingViolation`, which the name sweep had missed.
+
+**Reports.** Report values keep the bare id, and their human forms speak the node.
+- `Stackup`, `Sensitivity`, `McReport` and `LeafHistogram` carry the `DocumentId` they were taken of. `render` fails loud on any other document, because ids are not document-scoped.
+- The golden forms print the full id. `Stackup::serialize`'s sensitivity field moved from the tag to the full id; nothing persisted reads it.
+
+**Divergence.** `VerdictNotOfThisBuild` names its node as `DivergedAt`:
+- `Replayed`: spoken from the replayed document;
+- `Recorded`: "the drive record's node <tag>", never looked up.
+
+**Python.** `McReport` holds its run's document.
+
+**Review fixes:**
+- a test that could not fail, which filtered on "node";
+- tests that could not tell documents apart;
+- two echoing sentences;
+- untested raise sites.
+
+**Filed.** `product-refusals-speak-the-node` (`design: true`). Its sentence is memoized inside a part's evaluation, so it needs a designer pair and Ev.
