@@ -173,3 +173,30 @@ The PR holds only on its frames. `tiltedcut-engraved-face` is dispatched.
 - **Main is red on `geom-core` `bounds_census`** (#3733 added `circle_image_envelope` with no roster line). Reproduced locally on `9074254`. EMIT's open #3794 carries the line; I ported it verbatim into 3791 and commented there.
 - **Filed** `ciw/montage-kernel-reset-discards-freecad-rebaseline`, from the lane's reading.
 - **Dispatched a delta review** of the fix pass, since the workflow logic changed substantially.
+
+## 2026-10-02 — klein review: BLOCK, the claim was falsified; reworked to adopt
+
+The PR 3792 review found that quarter-arc sections at 17 stations and
+v-degree 2 pass tier 3 and mesh at all three ε. The lane had varied
+neither the station count nor the v-degree for the split sections.
+
+Ruling:
+- Adopt the one-body loop as `circle_split(4)`, gap-commented against the
+  TESS lofted-circle row, at a setting inside a stable neighbourhood. If no
+  such neighbourhood exists on the merged head, the lane stops and reports
+  rather than shipping a lottery.
+- The TESS row is rewritten around the station × degree table; the n=16
+  sliver is its lead.
+- The ε-proxy wall becomes per-row postures.
+- The duplicated 30 s suite test goes.
+- The scene's mesh grows about 13×, which is reported and, if over budget,
+  filed rather than coarsened.
+
+Process point: a negative result ("each spelling fails") was claimed
+from one setting of two untested knobs. Future lane briefs that pin a
+refusal must name the knobs varied.
+
+§3 wording question: Ev approved "message contains `[render]`". The
+review fix made the code subject-only, so the text is now false. Put to
+Ev in chat: (a) say "subject line" (recommended), or (b) widen the code
+back. A body-only warning goes in either way.
