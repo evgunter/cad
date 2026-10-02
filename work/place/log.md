@@ -47,3 +47,17 @@ Review tier: single review (a sweep that fixed sites). The reviewer's verdict wa
 - swept "root order"/"node order" doc phrases.
 
 Filed elsewhere: `work/chrome/display-prune-withdrawals-list-instances-in-id-order.md`, `work/vgeom/pick-ambiguity-lists-groups-in-id-order.md`, `work/wire/union-pairwise-refusal-names-its-pair-in-digest-id-order.md`. The orchestrator adjudicated the fix pass on its own read.
+
+## 2026-10-02 — split and inline keep a carried member's checked offset (PR 3885, P2-carry)
+
+Review tier: single full review. The verdict was APPROVE-WITH-FIXES; claims 1, 2, 3 and 5 held, and the reviewer executed its probe.
+
+The mechanism: `carry` re-states every offset a later carried mate's door cleared, with a recorded `SetOffset` after all carried nodes are in. `Recording` nets maintenance through `MaintenanceNet`. Skipping the door's clear was rejected, because replay runs the ordinary insert and would clear the offset again.
+
+The fix pass:
+- widened the rows to the reviewer's probe, killing three surviving mutants (per-insert re-statement, roots skipped, an invented identity offset);
+- swept the "what an outcome's maintenance holds" prose across two crates;
+- pinned the remainder-side improvement (a whole-document split of a declared union no longer reports a transient `OrphanedDeclare`);
+- made the re-statement fail loud.
+
+The orchestrator adjudicated the fix pass on its own read.
