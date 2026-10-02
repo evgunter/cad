@@ -73,7 +73,7 @@ impl crate::spoken::Say for UnnamedEntity {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UnnamedEntity {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -239,7 +239,7 @@ impl crate::spoken::Say for HitTestError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for HitTestError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 

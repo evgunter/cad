@@ -26,7 +26,7 @@
 
 use editor_core::{
     BooleanValue, CarriedUnplaced, Evaluation, NodeStanding, ProductError, ProfileDoc,
-    RecipeNodeId, SpokenNode, Unplaced, ValuePayload,
+    RecipeNodeId, Said, Say, Speaker, Unplaced, ValuePayload,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
@@ -79,38 +79,22 @@ pub enum ExportError {
     },
 }
 
-/// [`ExportError`]'s sentence with each of this document's nodes said
-/// by `doc` when the frame holds it, and by its tag when not.
-struct Said<'a>(&'a ExportError, Option<&'a ProfileDoc>);
-
-impl Said<'_> {
-    fn node(&self, id: RecipeNodeId) -> SpokenNode {
-        match self.1 {
-            Some(doc) => doc.spoken(id),
-            None => SpokenNode::absent(id),
-        }
-    }
-}
-
-impl core::fmt::Display for Said<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self.0 {
-            ExportError::Standing(standing) => match self.1 {
-                Some(doc) => write!(f, "export: {}", standing.spoken(doc)),
-                None => write!(f, "export: {standing}"),
-            },
+impl Say for ExportError {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            ExportError::Standing(standing) => write!(f, "export: {}", Said(standing, by)),
             ExportError::NotABody { node, kind } => {
                 write!(
                     f,
                     "export: {} evaluates to a `{kind}`, not a body",
-                    self.node(*node)
+                    by.node(*node)
                 )
             }
             ExportError::EmptyBoolean { node } => {
                 write!(
                     f,
                     "export: {}'s Boolean is empty — nothing to export",
-                    self.node(*node)
+                    by.node(*node)
                 )
             }
             ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
@@ -124,8 +108,8 @@ impl core::fmt::Display for Said<'_> {
                     write!(
                         f,
                         " {} (its group, rooted at {}, is unplaced because {cause});",
-                        self.node(*node),
-                        self.node(*group)
+                        by.node(*node),
+                        by.node(*group)
                     )?;
                 }
                 write!(
@@ -161,7 +145,7 @@ impl core::fmt::Display for Said<'_> {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        Said(self, None).fmt(f)
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -171,7 +155,7 @@ impl ExportError {
     /// evaluation alone, so the refusal holds ids, never a label.
     #[must_use]
     pub fn spoken(&self, doc: &ProfileDoc) -> String {
-        Said(self, Some(doc)).to_string()
+        editor_core::spoken_by(self, doc)
     }
 }
 

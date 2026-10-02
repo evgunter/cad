@@ -657,7 +657,7 @@ impl crate::spoken::Say for NodePickError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodePickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -734,7 +734,7 @@ impl crate::spoken::Say for NameLookupError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for NameLookupError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 

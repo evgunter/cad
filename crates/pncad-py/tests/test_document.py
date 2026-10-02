@@ -459,6 +459,22 @@ class TestDetectDeclareDoors(unittest.TestCase):
             str(caught.exception),
         )
 
+    def test_a_flush_refusal_speaks_the_labelled_node_that_has_no_value(self):
+        # The binding holds the evaluated document, so the standing in
+        # the message says the node's kind, label and tag.
+        doc = Doc()
+        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
+        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        doc.apply(DocEdit.set_label(cut, "pocket"))
+        with self.assertRaises(SelectRefusal) as caught:
+            evaluate(doc).find_flush_candidates(outer, cut)
+        self.assertEqual(caught.exception.reason, "node_has_no_value")
+        self.assertIn(
+            f'Boolean "pocket" ({tag(cut)}) failed, so it has no value',
+            str(caught.exception),
+        )
+
     def test_findings_are_values_with_opaque_names(self):
         doc, lower, upper = self.stacked()
         ev = evaluate(doc)

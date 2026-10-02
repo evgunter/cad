@@ -173,7 +173,7 @@ impl crate::spoken::Say for InterrogateError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for InterrogateError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 

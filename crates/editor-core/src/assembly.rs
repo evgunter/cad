@@ -480,7 +480,7 @@ impl crate::spoken::Say for Attribution {
                 declaration,
                 relation,
             } => {
-                subject(f, declaration, *relation, crate::spoken::Speaker::Tag)?;
+                subject(f, declaration, *relation, crate::spoken::Speaker::TAG)?;
                 write!(f, " (carried from {route})")
             }
             Self::Unattributed => f.write_str("no mate declared this"),
@@ -491,33 +491,18 @@ impl crate::spoken::Say for Attribution {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for Attribution {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
 // One at-rest finding through the document layer's one sink
-// ([`crate::finding`]): the attribution is the subject, the kernel's
-// finding — FORWARDED verbatim through its own `Display`, never
-// restated — is the story, and the recourse is `""` because the
-// kernel's tier-3′ messages already end in their own (the contact
-// arms carry `topo`'s two-armed menu; the structural arms carry their
-// own levers). Appending a document-layer sentence on top would
-// render two recourses, or a generic one — both forbidden.
-impl crate::finding::Finding for AtRestFinding {
-    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.attribution)
-    }
-
-    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.error)
-    }
-
-    fn recourse(&self) -> &str {
-        ""
-    }
-}
-
-/// An at-rest finding with its attribution said by a speaker.
+// ([`crate::finding`]): the attribution, said by the speaker, is the
+// subject, the kernel's finding — FORWARDED verbatim through its own
+// `Display`, never restated — is the story, and the recourse is `""`
+// because the kernel's tier-3′ messages already end in their own (the
+// contact arms carry `topo`'s two-armed menu; the structural arms
+// carry their own levers). Appending a document-layer sentence on top
+// would render two recourses, or a generic one — both forbidden.
 struct SaidFinding<'a>(&'a AtRestFinding, crate::spoken::Speaker<'a>);
 
 impl crate::finding::Finding for SaidFinding<'_> {
@@ -526,17 +511,38 @@ impl crate::finding::Finding for SaidFinding<'_> {
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::finding::Finding::story(self.0, f)
+        write!(f, "{}", self.0.error)
     }
 
     fn recourse(&self) -> &str {
-        crate::finding::Finding::recourse(self.0)
+        ""
     }
 }
 
+impl crate::spoken::Say for AtRestFinding {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        crate::finding::compose(f, &SaidFinding(self, by))
+    }
+}
+
+/// The finding where no document is at hand: its mate by tag.
 impl core::fmt::Display for AtRestFinding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::finding::compose(f, self)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl AtRestFinding {
+    /// **The finding as the frame holding the assembled document says
+    /// it**: this document's mate as `doc` holds it now; a carried
+    /// declaration's mate is a part's id, so it keeps its tag.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
     }
 }
 
@@ -617,10 +623,9 @@ impl crate::spoken::Say for MintRefusal {
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         match self {
-            // The name forwards `StableName`'s `Display` rather than
-            // re-spelling the kind-plus-minting-node phrase, and the
-            // article comes from the kind because the value decides
-            // it.
+            // The name is said through the speaker's one spelling of
+            // the kind-plus-minting-node phrase, and the article comes
+            // from the kind because the value decides it.
             Self::Reference {
                 mate,
                 side,
@@ -649,7 +654,7 @@ impl crate::spoken::Say for MintRefusal {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for MintRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -808,7 +813,7 @@ impl crate::spoken::Say for RefusedRef {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for RefusedRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -876,7 +881,7 @@ impl crate::spoken::Say for AssemblyError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 

@@ -137,12 +137,11 @@ pub enum ResolveError {
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in prose — the name through `StableName`'s own
-// `Display` (its kind and minting node — the half a user can act on),
-// the WHY forwarded from the payload's own rendering. `NodeGone`
-// alone re-spells the name, because its sentence interleaves the
-// fields ("the name's minting node …"). Composing layers
-// (`NodeErrorKind`'s two resolve arms) FORWARD this rather than
+// the PROBLEM in prose — the name with its minting node said by the
+// speaker (the half a user can act on), the WHY forwarded from the
+// payload's own rendering. `NodeGone` says the minting node once, in
+// the name, and words its edit itself. Composing layers
+// (`NodeErrorKind`'s resolve arms) FORWARD this rather than
 // re-stating it.
 impl crate::spoken::Say for ResolveError {
     fn say(
@@ -167,13 +166,17 @@ impl crate::spoken::Say for ResolveError {
                 by.name(name),
                 tie.width
             ),
-            Self::NodeGone { name, edit } => write!(
-                f,
-                "the {} is stranded: its minting node is no longer in the document ({}) — \
-                 the repair is an explicit rebind",
-                by.name(name),
-                Said(edit, by)
-            ),
+            Self::NodeGone { name, edit } => {
+                write!(f, "the {} is stranded: its minting node ", by.name(name))?;
+                match edit {
+                    RecipeEditRef::NodeDeleted { .. } => f.write_str("was deleted")?,
+                    RecipeEditRef::ForeignNode { .. } => {
+                        f.write_str("was never minted by this document")?;
+                    }
+                    other => write!(f, "is not in the document ({})", Said(other, by))?,
+                }
+                f.write_str(" — the repair is an explicit rebind")
+            }
         }
     }
 }
@@ -181,7 +184,7 @@ impl crate::spoken::Say for ResolveError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ResolveError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -708,7 +711,7 @@ impl crate::spoken::Say for GroupCutters {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for GroupCutters {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -781,9 +784,9 @@ impl crate::spoken::Say for UpstreamCause {
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
-                "a structural parameter changed at {} (slot {})",
-                by.node(*node),
-                param.label()
+                "a structural parameter changed: slot {} of {}",
+                param.label(),
+                by.node(*node)
             ),
             Self::RecipeEdit { edit } => write!(f, "the recipe changed ({})", Said(edit, by)),
         }
@@ -793,7 +796,7 @@ impl crate::spoken::Say for UpstreamCause {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UpstreamCause {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -864,9 +867,9 @@ impl crate::spoken::Say for Diagnosis {
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
-                "a structural parameter changed on the derivation path ({}, slot {})",
-                by.node(*node),
-                param.label()
+                "a structural parameter changed on the derivation path: slot {} of {}",
+                param.label(),
+                by.node(*node)
             ),
             // A SITE of difference, not a claim that an edit happened
             // (module docs: the total fallback arm reaches this on a
@@ -904,7 +907,7 @@ impl crate::spoken::Say for Diagnosis {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for Diagnosis {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -996,7 +999,7 @@ impl crate::spoken::Say for RecipeEditRef {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for RecipeEditRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 
@@ -1096,7 +1099,7 @@ impl crate::spoken::Say for ResolveIndeterminate {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ResolveIndeterminate {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 

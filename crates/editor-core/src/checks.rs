@@ -816,7 +816,7 @@ impl crate::spoken::Say for ChecksError {
 /// The sentence where no document is at hand: each node by its tag.
 impl fmt::Display for ChecksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::Tag)
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
 }
 

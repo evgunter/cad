@@ -989,8 +989,9 @@ fn a_report_rendered_from_another_document_fails_loud() {
 #[test]
 fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     use editor_core::{
-        Cmp, EntityKind, NamePat, NodePick, NodePickError, NodeStanding, Resolution, RunCtx,
-        SelectRefusal, Selector, resolve, select, select_where,
+        ChecksError, Cmp, Diagnosis, EntityKind, HitTestError, InterrogateError, NamePat, NodePick,
+        NodePickError, NodeStanding, Resolution, ResolveError, RunCtx, SelectRefusal, Selector,
+        SlotId, resolve, select, select_where,
     };
 
     let tol = Tol::witness();
@@ -1066,6 +1067,55 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         .into_iter()
         .next()
         .expect("the extrude names its faces");
+    let plate = format!("Extrude \"base plate\" ({e})");
+
+    // Each held node is said as the document holds it, through every
+    // refusal that forwards a standing or a name.
+    let failed = NodeStanding::Failed { node: extrude };
+    assert_eq!(
+        HitTestError::Standing(failed).spoken(&doc),
+        format!("hit test: {plate} failed, so it has no value — fix the node's own failure")
+    );
+    assert_eq!(
+        InterrogateError::Standing(failed).spoken(&doc),
+        format!("{plate} failed, so it has no value — fix the node's own failure")
+    );
+    assert_eq!(
+        ChecksError::Root(failed).spoken(&doc),
+        format!("checks: root {plate} failed, so it has no value — fix the node's own failure")
+    );
+    let changed = Diagnosis::StructuralParam {
+        node: extrude,
+        param: SlotId::Count,
+    };
+    assert_eq!(
+        changed.spoken(&doc),
+        format!(
+            "a structural parameter changed on the derivation path: slot {} of {plate}",
+            SlotId::Count.label()
+        )
+    );
+    let vanished = ResolveError::Vanished {
+        name: wall.clone(),
+        diagnosis: changed,
+        last_good: None,
+    };
+    assert!(
+        vanished.spoken(&doc).starts_with(&format!(
+            "the face name minted by {plate} no longer resolves in this evaluation: a \
+             structural parameter changed on the derivation path: slot {} of {plate}",
+            SlotId::Count.label()
+        )),
+        "{}",
+        vanished.spoken(&doc)
+    );
+    assert!(
+        vanished.to_string().starts_with(&format!(
+            "the face name minted by node {e} no longer resolves"
+        )),
+        "{vanished}"
+    );
+
     let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: extrude });
     let Resolution::Failed(failure) = resolve(
         RunCtx {
@@ -1079,8 +1129,8 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     assert_eq!(
         failure.error.spoken(&gone),
         format!(
-            "the face name minted by node {e} is stranded: its minting node is no longer in \
-             the document (node {e} was deleted) — the repair is an explicit rebind"
+            "the face name minted by node {e} is stranded: its minting node was deleted — the \
+             repair is an explicit rebind"
         ),
         "a node the document no longer holds is said by its tag"
     );
