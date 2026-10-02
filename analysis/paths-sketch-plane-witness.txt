@@ -1,0 +1,4 @@
+PATHS fork: sketch-plane frame witness (work/paths/sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary.md)
+dispatched 2026-10-02
+urandom byte: 55
+mapping: Fable=A Opus=B
