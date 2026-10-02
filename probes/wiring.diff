@@ -1,0 +1,26 @@
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index 60fcf2ca..8e1abee6 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -332,6 +332,8 @@ mod ray_wall_margin_twins;
+ mod reach_cone_split;
+ #[path = "reach_continuation.rs"]
+ mod reach_continuation;
++#[path = "reach3844_r2_probe.rs"]
++mod reach3844_r2_probe;
+ #[path = "reach_volume_backstop.rs"]
+ mod reach_volume_backstop;
+ #[path = "reach_wall_chord_rows.rs"]
+diff --git a/crates/topo/src/boolean/mod.rs b/crates/topo/src/boolean/mod.rs
+index da38c7a2..258edd2f 100644
+--- a/crates/topo/src/boolean/mod.rs
++++ b/crates/topo/src/boolean/mod.rs
+@@ -92,6 +92,8 @@ pub(crate) use ops::{ChartCache, section_report};
+ pub mod plane_eq;
+ #[cfg(test)]
+ mod r2_probes;
++#[cfg(test)]
++mod reach3844_probes;
+ pub(crate) mod recl;
+ pub(crate) mod reduce;
+ pub(crate) mod refusal_routes;
