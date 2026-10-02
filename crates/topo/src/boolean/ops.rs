@@ -1878,7 +1878,7 @@ fn bound_holds<'t, 'b, T: Decide>(
 /// `Intersection` with the chord-midpoint witness; definitely smooth ⇒
 /// the existing conventional description stays (D2's split — the
 /// surfaces under-determine the locus); escalation refuses typed.
-pub(super) fn describe_minted_edges<T: Decide>(
+pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     seam_edges: &[crate::entity::EdgeKey],
     merged: &crate::merge_faces::MergeCoplanarOutcome,

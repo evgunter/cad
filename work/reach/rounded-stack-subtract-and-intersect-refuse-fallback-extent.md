@@ -70,3 +70,19 @@ So the extent pass refuses in one operand order and not the other.
 Whatever closes this item should build `A ∪ B` as `B ∪ A` does. The
 split walls of `B ∪ A` are a separate question: a result that is not
 maximal.
+
+## The two-half rod stack refuses the same way
+
+Measured on `origin/main` after PR 3823 (the repro of
+`work/reach/stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends.md`):
+two rods of radius 1 and height 1, each wall two half-cylinders,
+stacked z 0 to 1 and 1 to 2, the upper one's seams turned by θ, every
+finding declared (the mating disc `Rest`, four wall continuations).
+The union builds at every θ; ∩, A ∖ B and B ∖ A refuse
+`FallbackExtentUnsupported` at every θ (0, 0.7, π/2, π), on A's wall
+half, with the section certificate's R-tan sentence
+(`boolean::section_cert`, `Refusal::Tangent`): the coaxial wall halves
+touch across the mating circle and no crossing event exists, the same
+shape as the rounded stack's fillet pair. The oracle once they build:
+∩ empty, each difference π. Pinned by
+`reach_aligned_half_rods::a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals`.
