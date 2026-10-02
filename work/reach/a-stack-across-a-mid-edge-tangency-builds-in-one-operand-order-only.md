@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P2
 cost: M
 branch: reach/mid-edge-tangency
+pr: 3846
 ---
 
 Found while building the continuation ruling (PR 3657) and widened by

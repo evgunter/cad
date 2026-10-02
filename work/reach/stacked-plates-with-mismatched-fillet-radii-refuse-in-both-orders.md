@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P3
 cost: M
 branch: reach/mid-edge-tangency
+pr: 3846
 ---
 
 Found by the review of PR 3657, measured on `d2d5b09076`.
