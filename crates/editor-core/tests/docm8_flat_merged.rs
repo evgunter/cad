@@ -124,7 +124,7 @@ fn member_space_declarations_survive_every_order() {
     let chain = [a, c, d];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
+        let (docx, union) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -153,7 +153,7 @@ fn a_four_member_chain_fuses_in_every_order() {
     let chain = [a, c, d, e];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
+        let (docx, union) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -182,7 +182,7 @@ fn a_chain_with_a_disjoint_member_fuses_in_every_order() {
     let chain = [a, c, d];
     for order in permutations(&[a, c, d, far]) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
+        let (docx, union) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -399,7 +399,7 @@ fn a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refus
             BooleanCoincidence::REST,
         )]
     };
-    let (docx, union, _) = declared_union_classed(doc.clone(), &[a, big, touch], against(touch));
+    let (docx, union) = declared_union_classed(doc.clone(), &[a, big, touch], against(touch));
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     for order in [
@@ -410,7 +410,7 @@ fn a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refus
         [far, a, big],
         [far, big, a],
     ] {
-        let (docx, union, _) = declared_union_classed(doc.clone(), &order, against(far));
+        let (docx, union) = declared_union_classed(doc.clone(), &order, against(far));
         let ev = run(&docx);
         assert!(
             matches!(
@@ -528,7 +528,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let doc = ProfileDoc::empty_derived("docm8_fromb", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let node = editor_core::declare_continuation(
+    let decl_ab = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -538,7 +538,6 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             })
             .collect(),
     );
-    let (doc, decl_ab) = insert(doc, node);
     let (doc, inner) = insert(
         doc,
         Node::Boolean {
@@ -573,7 +572,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             ),
         )
     };
-    let node1 = editor_core::declare_continuation(
+    let decl_mc = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -583,7 +582,6 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             })
             .collect(),
     );
-    let (doc, decl_mc) = insert(doc, node1);
     let (doc, outer) = insert(
         doc,
         Node::Boolean {
@@ -703,7 +701,7 @@ fn a_member_face_split_by_a_later_member_refuses_as_a_split() {
         (vec![c, s, a], Want::MergedChordNoRule),
         (vec![s, c, a], Want::MergedChordNoRule),
     ] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+        let (docx, union) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         let want = match want {
             Want::Fused => Outcome::Fused,
@@ -757,9 +755,9 @@ fn a_split_face_contained_in_every_piece_is_satisfied_and_one_with_a_piece_left_
         ),
         BooleanCoincidence::REST,
     ));
-    let (docx, union, _) = declared_union_classed(doc.clone(), &[a, s, big, p], pairs.clone());
+    let (docx, union) = declared_union_classed(doc.clone(), &[a, s, big, p], pairs.clone());
     assert_eq!(outcome(&run(&docx), union), Outcome::Fused);
-    let (docx, union, _) = declared_union_classed(doc, &[a, s, half, p], pairs);
+    let (docx, union) = declared_union_classed(doc, &[a, s, half, p], pairs);
     assert_eq!(
         outcome(&run(&docx), union),
         Outcome::Consumed(
@@ -821,7 +819,7 @@ fn every_cap_order(
 ) -> [usize; 4] {
     let mut tally = [0; 4];
     for order in permutations(&members) {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.to_vec());
+        let (docx, union) = declared_union(doc.clone(), &order, pairs.to_vec());
         let ev = run(&docx);
         let cap = member_face(union, capped, fname(capped, RoleSeg::Cap(CapEnd::End)));
         let got = outcome(&ev, union);
@@ -933,7 +931,7 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
             BooleanCoincidence::Continuation,
         ));
     }
-    let (docx, union, _) = declared_union_classed(doc.clone(), &[a, s, d], pairs.clone());
+    let (docx, union) = declared_union_classed(doc.clone(), &[a, s, d], pairs.clone());
     let ev = run(&docx);
     let what = failure(&ev, union);
     let Some(NodeErrorKind::UndeclaredCoincidence {
@@ -958,7 +956,7 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
         "d rests on a's top cap"
     );
     pairs.push((finding.pair.clone(), finding.class));
-    let (docx, union, _) = declared_union_classed(doc, &[a, s, d], pairs);
+    let (docx, union) = declared_union_classed(doc, &[a, s, d], pairs);
     assert_eq!(
         outcome(&run(&docx), union),
         Outcome::Consumed(

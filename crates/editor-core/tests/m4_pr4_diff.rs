@@ -85,10 +85,10 @@ fn slide_union(tx: f64) -> Slide {
             },
         ),
     );
-    // M4 PR 5: the sliding overlap's flush planes are declared.
+    // The sliding overlap's flush planes are declared on the union.
     // The B side is read at the TRANSFORM, the boolean's operand;
     // a transform carries `b0`'s names verbatim (N1).
-    let (doc, decl) = fixture::declare_x_offset_flush_at(doc, (a, a), (transform, b0));
+    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, union) = insert(
         doc,
         Node::Boolean {

@@ -1332,7 +1332,6 @@ BOUND_AS = {
     "ReachRefusal": "MateFault",
     "declare": "Doc.declare",
     "declare_all": "Doc.declare_all",
-    "declare_node": "Node.declare",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
     "tube_along_arc": "Node.tube",
@@ -1557,10 +1556,9 @@ FAMILIES: dict[str, str] = {
     ),
     # THE SIXTH ARRIVED WITH ITS DOOR. `MaintenanceNet` (DM7's
     # net-over-an-action rule) landed in `editor-core` with EMIT's
-    # `the-viewer-drops-every-dm7-rename-report`, and the stub's
-    # `orphaned_declare` paragraph already tells a Python caller that a
-    # cascade's net is read off the document the walk ended at — by
-    # hand, since nothing bound folds the rows. `crates/pncad-py/*` is
+    # `the-viewer-drops-every-dm7-rename-report`; a Python caller reads
+    # a cascade's net off the document the walk ended at — by hand,
+    # since nothing bound folds the rows. `crates/pncad-py/*` is
     # LIB's ground; `work/lib/python-has-no-maintenance-net-door`
     # carries the finding.
     "B-MAINT-NET": (
@@ -1568,10 +1566,8 @@ FAMILIES: dict[str, str] = {
         "`MaintenanceNet`, pushed one applied edit at a time and "
         "finished against the end document. Closing it needs a Python "
         "door that folds each `Doc.apply` result with the document it "
-        "produced, a `pncad.pyi` entry the `orphaned_declare` paragraph "
-        "points at instead of 'read it off the document', and one "
-        "Python row cascading a declared union's `Declare` away and "
-        "asserting an empty net."
+        "produced, a `pncad.pyi` entry on `Maintenance` for it, and one "
+        "Python row asserting the net of a cascade whose rows cancel."
     ),
 }
 
@@ -3436,17 +3432,10 @@ MEMBERS_BOUND_AS = {
     # can make one appear. Filed as
     # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
     # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
-    # selection and `DocEdit.delete_node` is bound. Nor does
-    # `Maintenance::OrphanedDeclare`, which needs a `Declare` and a
-    # consumer to delete: `Doc.declare_all`, `Node.boolean`'s
-    # `declare=` and `DocEdit.delete_node` are all bound, and
-    # `test_document.py`'s
-    # `test_deleting_the_consumer_reports_the_declaration_it_orphaned`
-    # is the Python program that makes one appear.
+    # selection and `DocEdit.delete_node` is bound.
     "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
-    "Maintenance::OrphanedDeclare": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3458,6 +3447,7 @@ MEMBERS_BOUND_AS = {
     "EditError::RepeatedDesignation": "EditError.variant",
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
     "EditError::NodeIdCollides": "EditError.variant",
@@ -3472,7 +3462,6 @@ MEMBERS_BOUND_AS = {
     "EditError::PayloadDocParamDimension": "EditError.variant",
     "EditError::MeasureMalformed": "EditError.variant",
     "EditError::AssertionTarget": "EditError.variant",
-    "EditError::DeclareInputNotDeclare": "EditError.variant",
     "EditError::AssertionDimension": "EditError.variant",
     "EditError::SlotUnknownDocParam": "EditError.variant",
     "EditError::SlotDocParamDimension": "EditError.variant",

@@ -1,6 +1,6 @@
 //! Corpus document **kiss_carry** — the tier-3′ carry as a recipe: a
 //! corner-kiss assembly union whose surviving v-v record is RE-ENTERED
-//! by name through a `Declare` into the next boolean, so a boolean
+//! by name as a declared pair on the next boolean, so a boolean
 //! value with NON-EMPTY surviving contacts exists in the corpus.
 //!
 //! That non-emptiness is the document's reason to exist: every other
@@ -10,11 +10,11 @@
 //! lowering that carries the contacts from one that drops them. The
 //! two boolean values here carry one v-v record each — the first
 //! DISCOVERED by the op at the kiss, the second CARRIED through the
-//! `Declare`'s same-operand vertex pair (`resolve_declarations`' third
+//! declared same-operand vertex pair (`resolve_declarations`' third
 //! arm, which no other corpus document reaches).
 //!
-//! Vocabulary: Profile, Extrude, Declare (carried v-v), Boolean
-//! (Union), `InsertNode`, `SetParam`.
+//! Vocabulary: Profile, Extrude, Boolean (Union, declared carried
+//! v-v), `InsertNode`, `SetParam`.
 //!
 //! Geometry (dyadic): block a `[0,1]³`; block b `[1,2]² × [1,2]`,
 //! kissing a at the single point `(1,1,1)`; mover c

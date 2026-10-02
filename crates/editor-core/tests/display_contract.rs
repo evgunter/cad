@@ -372,7 +372,7 @@ fn resolve_indeterminate_display_names_its_content_not_its_struct() {
 
 test_utils::f6_variants! {
     /// `DeclareError`'s census — see [`NODE_PICK_ERROR`].
-    const DECLARE_ERROR: DeclareError = [NoFindings, Edit, NoMintedId];
+    const DECLARE_ERROR: DeclareError = [NoFindings, Edit];
 }
 
 #[test]
@@ -394,10 +394,6 @@ fn declare_error_display_names_its_content_not_its_struct() {
                 "refers to a node that is not live",
                 "Recourse: declare findings inspected from this document as it now stands",
             ],
-        ),
-        (
-            DeclareError::NoMintedId,
-            vec!["minted no node id", geom_core::KERNEL_DEFECT_ENDING],
         ),
     ];
     assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
@@ -1038,7 +1034,6 @@ test_utils::f6_variants! {
         NodeNotMinted,
         DanglingInput,
         ForwardInput,
-        DeclareInput,
         WitnessSite,
         WitnessOnMissingNode,
         LabelOnMissingNode,
@@ -1145,16 +1140,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
                 "does not precede it",
-            ],
-        ),
-        (
-            SnapshotError::DeclareInput {
-                node: node(),
-                input: absent(9),
-            },
-            vec![
-                "Extrude \"base plate\" (000000000005)'s declare input names node 000000000009",
-                "not a declaration",
             ],
         ),
         (
@@ -2819,7 +2804,7 @@ fn a_program_fault_states_its_lattice_coordinate() {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance, OrphanedDeclare];
+    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance];
 }
 
 /// **What an accepted edit DID reads as prose too** — the strand count
@@ -2835,10 +2820,6 @@ test_utils::f6_variants! {
 /// carriers, and it offers both repairs: `Rebind` moves the key,
 /// `ClearAppearance` retires it, and only the second works without a
 /// live node to move to.
-/// The orphan arm's subject is the SURVIVOR — the node named is the
-/// declaration that is still there — where both strand sentences name
-/// a carrier and close on the casualty, so it says what the
-/// declaration lost (its reader) rather than what was deleted.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
     let cases = [
@@ -2877,20 +2858,6 @@ fn maintenance_display_says_what_the_edit_did() {
                  000000000007",
                 "this edit removed what it denoted",
                 "rebound or cleared",
-            ],
-        ),
-        (
-            Maintenance::OrphanedDeclare {
-                declare: held(5, "Declare"),
-            },
-            vec![
-                "Declare 000000000005 declares contacts",
-                "deleted the last node that consumed it",
-                // What it lost is a CONSUMER. "nothing reads it"
-                // would be false — the same delete re-roots the
-                // declaration into the document's product roots.
-                "so no node consumes the declaration",
-                "until a boolean or union names it again",
             ],
         ),
     ];
@@ -3441,11 +3408,10 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             vec![held(6, "Mate")],
         ),
         (
-            EditError::DeclareInputNotDeclare {
-                node: held(5, "Union"),
-                input: held(4, "Extrude"),
+            EditError::SetDeclareOnNonDeclaring {
+                node: held(4, "Extrude"),
             },
-            vec![held(5, "Union"), held(4, "Extrude")],
+            vec![held(4, "Extrude")],
         ),
         (
             EditError::UnresolvedInput {

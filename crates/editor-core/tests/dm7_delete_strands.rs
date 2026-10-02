@@ -4,11 +4,9 @@
 //! A payload name — `Node::payload_names` is the list of which
 //! payloads carry one — is not a DAG edge: the insert
 //! door checks its minting node is live and no other door does, so a
-//! later `DeleteNode` strands it. The delete stays legal — a full edge
-//! would deadlock the declared union, whose `Declare` names the very
-//! union that consumes it — and what the door owes instead is the
-//! report: one `Maintenance::Strand` per surviving `(node, name)`
-//! whose minting node the edit removed.
+//! later `DeleteNode` strands it. The delete stays legal, and what the
+//! door owes instead is the report: one `Maintenance::Strand` per
+//! surviving `(node, name)` whose minting node the edit removed.
 //!
 //! The document holds a `StableName` in one other place — the
 //! appearance store, whose keys `DocEdit::SetAppearance` gives the
@@ -22,21 +20,11 @@
 //! rows here assert the report the DELETE DOOR made — the door is what
 //! DM7 added, the loss is what it was limping along on.
 //!
-//! The door's third row is not a strand at all: a `Declare` whose
-//! LAST consumer the delete removed is left inert rather than
-//! dangling — the `declare` edge runs from the consumer to it, so no
-//! name is stranded and the document stays legal — and rides the
-//! same record as `Maintenance::OrphanedDeclare { declare }`. Its
-//! rule is a TRANSITION (a fresh declaration is legally consumerless
-//! until its consumer is authored), which is what the rows at the
-//! end of this file are about.
-//!
-//! These rows are what goes red when a strand or an orphan goes
-//! unreported.
+//! These rows are what goes red when a strand goes unreported.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::{block, declared_union, flush_pairs};
+use crate::docm7_union_declare::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
@@ -45,7 +33,7 @@ use editor_core::{
     MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
     cascade_delete_order,
 };
-use fixture::{ang, fname, insert, len, wall};
+use fixture::{ang, flush_pairs, fname, insert, len, wall};
 use geom_core::Tol;
 
 /// The strand rows an accepted edit reported, in the order it reported
@@ -55,9 +43,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
-            Maintenance::OffsetCleared { .. }
-            | Maintenance::StrandedAppearance { .. }
-            | Maintenance::OrphanedDeclare { .. } => None,
+            Maintenance::OffsetCleared { .. } | Maintenance::StrandedAppearance { .. } => None,
         })
         .collect()
 }
@@ -69,9 +55,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
         .iter()
         .filter_map(|row| match row {
             Maintenance::StrandedAppearance { name } => Some(name.name().clone()),
-            Maintenance::Strand { .. }
-            | Maintenance::OffsetCleared { .. }
-            | Maintenance::OrphanedDeclare { .. } => None,
+            Maintenance::Strand { .. } | Maintenance::OffsetCleared { .. } => None,
         })
         .collect()
 }
@@ -111,65 +95,82 @@ fn delete(
 // The declared union — DOCM-7's R1 probe, as a row.
 // ---------------------------------------------------------------------
 
-/// **A strand per NAME and none per site**, on a declared union.
-///
-/// The `Declare` is the union's INPUT, so deleting it dangles an edge
-/// and is refused typed. What the pairs NAME is not an edge: a sited
-/// pair names entities in the MEMBERS, so deleting the union strands
-/// nothing at all, and deleting a member — once the union is gone and
-/// nothing consumes it — strands the names minted there, one row per
-/// name. The SITE is reported by neither delete: a site is a reading
-/// edge, and a deleted one is N5's dangling case refused at the next
-/// evaluation (`Node::payload_read_sites`, DM7's sentence).
-#[test]
-fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
-    let doc = ProfileDoc::empty_derived("dm7_declared_union", Tol::witness());
+/// Three blocks under a union whose own payload declares the flush
+/// contact of the first two, each side sited at the member whose table
+/// holds it, then `SetMembers` dropping the second: the union still
+/// carries pairs naming `b`, and nothing consumes `b` any more.
+fn union_released_from_a_declared_member(
+    name: &str,
+) -> (ProfileDoc, ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived(name, Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
+    let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
+    let (declared, union) = crate::fixture::union_over(doc, &[a, b, c], pairs);
+    let released = apply(
+        &declared,
+        &DocEdit::SetMembers {
+            node: union,
+            members: vec![a, c],
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the member list is replaceable");
+    assert_eq!(
+        released.maintenance,
+        Vec::new(),
+        "a rewire strands nothing: the declared pairs are names, not inputs"
+    );
+    (declared, released.doc, union, b)
+}
+
+/// **A strand per NAME and none per site**, on a declared union.
+///
+/// A member is the union's DAG input, so deleting it while the union
+/// consumes it is refused typed. What the declared pairs NAME is not
+/// an edge: once `SetMembers` has dropped the member, the delete is
+/// legal and strands the names minted there, one row per name, on the
+/// union that still carries them. The SITE is reported by no delete: a
+/// site is a reading edge, and a deleted one is N5's dangling case
+/// refused at the next evaluation (`Node::payload_read_sites`, DM7's
+/// sentence).
+#[test]
+fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
+    let (declared, doc, union, b) = union_released_from_a_declared_member("dm7_declared_union");
 
     assert!(
         matches!(
             apply(
-                &doc,
-                &DocEdit::DeleteNode { id: decl },
+                &declared,
+                &DocEdit::DeleteNode { id: b },
                 Tol::witness(),
                 &editor_core::RefusingReach
             ),
             Err(EditError::DeleteWouldDangle { .. })
         ),
-        "the declare edge IS a DAG edge and refuses"
+        "a member IS a DAG edge and refuses"
     );
 
-    let Some(Node::Declare { pairs }) = doc.node(decl) else {
-        panic!("the declaration is a Declare")
+    let Some(Node::Union { declare: pairs, .. }) = doc.node(union) else {
+        panic!("the declaring node is a union")
     };
     assert_eq!(pairs.len(), 4, "four flush pairs");
     assert!(
         pairs
             .iter()
             .flat_map(|((x, y), _)| [x, y])
-            .all(|r| r.name.node == r.at && [a, b].contains(&r.at)),
+            .all(|r| r.name.node == r.at),
         "every side is sited at the member whose table holds it"
     );
 
-    // The union is what the declaration's sites POINT AT, and a site
-    // is not a name: deleting it strands nothing.
-    let freed = delete(&doc, union);
-    assert_eq!(
-        strands(&freed.maintenance),
-        Vec::new(),
-        "a site is not a strand"
-    );
-
-    // The member, now consumed by nothing, IS a name's minting node.
-    let applied = delete(&freed.doc, b);
+    let applied = delete(&doc, b);
     let expected: Vec<(RecipeNodeId, StableName)> = pairs
         .iter()
         .flat_map(|((x, y), _)| [x, y])
         .filter(|r| r.name.node == b)
-        .map(|r| (decl, r.name.clone()))
+        .map(|r| (union, r.name.clone()))
         .collect();
     assert_eq!(
         expected.len(),
@@ -179,14 +180,14 @@ fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
     assert_eq!(
         strands(&applied.maintenance),
         expected,
-        "the accepted delete names every stranded name, in the payload's own order"
+        "the accepted delete names every stranded name, in the payload's own order, and no site"
     );
-    // NOT "the Declare survives": a strand row names a SURVIVING
-    // carrier by construction, so the rows above already say that.
-    // What they do not say is that the payload is untouched — DM7
-    // reports, it does not repair — so that is what is asserted.
-    let Some(Node::Declare { pairs: after }) = applied.doc.node(decl) else {
-        panic!("the Declare survives its member — the orphan the user cascades or deletes")
+    // NOT "the union survives": a strand row names a SURVIVING carrier
+    // by construction, so the rows above already say that. What they do
+    // not say is that the payload is untouched — DM7 reports, it does
+    // not repair — so that is what is asserted.
+    let Some(Node::Union { declare: after, .. }) = applied.doc.node(union) else {
+        panic!("the union survives the member it no longer consumes")
     };
     assert_eq!(
         after, pairs,
@@ -215,6 +216,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let doc = ProfileDoc::empty_derived("dm7_carriers", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, other) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
 
     let f0 = fname(victim, wall(&doc, victim, 0));
     let f1 = fname(victim, wall(&doc, victim, 1));
@@ -265,10 +267,18 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
         )
         .expect("both indices address a reference"),
     );
-    let decl = editor_core::declare_rest(vec![(
-        SitedRef::new(victim, f1.clone()),
-        SitedRef::new(victim, f2.clone()),
-    )]);
+    let (doc, boolean) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: body,
+            b: other,
+            declare: editor_core::declare_rest(vec![(
+                SitedRef::new(victim, f1.clone()),
+                SitedRef::new(victim, f2.clone()),
+            )]),
+        },
+    );
 
     // **The expectation is DERIVED by a match over `Node`, not
     // written out as a list.** A list is only ever as complete as
@@ -288,13 +298,17 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             Node::Datum(Datum::FaceFrame { .. }) => expected.push((id, f3.clone())),
             // Argument order, which is meaning for a measure.
             Node::Measure { .. } => expected.extend([(id, f4.clone()), (id, f0.clone())]),
-            Node::Declare { .. } => expected.extend([(id, f1.clone()), (id, f2.clone())]),
-            // A mate's heads are the seventh carrier and need an
-            // instance to be minted by, which this document has none
-            // of: its row is `a_mates_head_strands_and_its_read_site_does_not`.
+            Node::Boolean { .. } => expected.extend([(id, f1.clone()), (id, f2.clone())]),
+            // A union's declared pairs ride the same payload as a
+            // boolean's; its row is
+            // `deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing`.
+            Node::Union { .. } => panic!("this fixture builds no union"),
+            // A mate's heads need an instance to be minted by, which
+            // this document has none of: its row is
+            // `a_mates_head_strands_and_its_read_site_does_not`.
             Node::Mate { .. } => panic!("this fixture builds no mate"),
-            // An instance's crossing `outer`s are the eighth carrier
-            // and need an interface record to ride, which only a
+            // An instance's crossing `outer`s need an interface
+            // record to ride, which only a
             // split mints: their rows are
             // `edit_instance_crossing_names`.
             Node::InstantiatePart { .. } => panic!("this fixture builds no instance"),
@@ -318,7 +332,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     assert_eq!(
         expected.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
         vec![
-            fillet, chamfer, shell, derived, measure, measure, decl, decl
+            fillet, chamfer, shell, derived, measure, measure, boolean, boolean
         ],
         "six carriers, eight names, in document order"
     );
@@ -542,23 +556,17 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
 /// door again rather than needing them carried across the boundary.
 #[test]
 fn a_round_tripped_document_reports_the_same_strands() {
-    let doc = ProfileDoc::empty_derived("dm7_round_trip", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, _decl) = declared_union(doc, &[a, b], pairs);
+    let (_, doc, _union, b) = union_released_from_a_declared_member("dm7_round_trip");
 
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
     assert!(loaded.doc.bit_eq(&doc), "the snapshot round-trips");
 
-    // The union goes first — a member is its DAG input while it lives —
-    // and then the member, which is what a declared name is minted in.
-    let direct = delete(&delete(&doc, union).doc, b);
-    let after_load = delete(&delete(&loaded.doc, union).doc, b);
+    let direct = delete(&doc, b);
+    let after_load = delete(&loaded.doc, b);
     assert!(
         !direct.maintenance.is_empty(),
-        "the delete strands the declaration's names"
+        "the delete strands the declared pairs' names"
     );
     assert_eq!(
         direct.maintenance, after_load.maintenance,
@@ -874,364 +882,5 @@ fn a_round_tripped_document_reports_the_same_appearance_strands() {
     assert_eq!(
         direct.maintenance, after_load.maintenance,
         "the store's half is derived from the document and the edit too"
-    );
-}
-
-// ---------------------------------------------------------------------
-// The orphaned declaration: the other thing a delete can leave behind.
-// ---------------------------------------------------------------------
-
-/// **The delete that takes a declaration's LAST consumer reports it;
-/// the one that leaves a consumer behind does not.**
-///
-/// Two unions over the same two members share one `Declare` — the
-/// `declare` edge is an ordinary DAG input and nothing makes it
-/// exclusive. Deleting the first union leaves the declaration read by
-/// the second, so there is nothing to say; deleting the second says
-/// it, once. A door that reported "this deleted node consumed a
-/// `Declare`" rather than "and nothing else does" reds on the first
-/// delete.
-#[test]
-fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
-    let doc = ProfileDoc::empty_derived("dm7_orphan_two_consumers", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, first, decl) = declared_union(doc, &[a, b], pairs);
-    let (doc, second) = insert(
-        doc,
-        Node::Union {
-            members: vec![a, b],
-            declare: decl,
-        },
-    );
-
-    let one_left = delete(&doc, first);
-    assert_eq!(
-        one_left.maintenance,
-        Vec::new(),
-        "the declaration is still read by the second union"
-    );
-    let none_left = delete(&one_left.doc, second);
-    assert_eq!(
-        none_left.maintenance,
-        vec![Maintenance::OrphanedDeclare {
-            declare: one_left.doc.spoken(decl),
-        }],
-        "the last consumer's delete is the transition, and reports it once"
-    );
-    let Some(Node::Declare { .. }) = none_left.doc.node(decl) else {
-        panic!("the report is a report: the declaration is untouched and live")
-    };
-
-    // A `Boolean` and a `Union` sharing one declaration are the same
-    // row, not a second: the door counts `Node::inputs`, so neither
-    // kind is privileged and neither order is. Re-authored on the
-    // document both unions have left, so the pair really is the
-    // whole consumer set. Deleting either alone reports nothing; the
-    // second reports the orphan once.
-    let (mixed, the_union) = insert(
-        none_left.doc,
-        Node::Union {
-            members: vec![a, b],
-            declare: decl,
-        },
-    );
-    let (mixed, the_boolean) = insert(
-        mixed,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: decl,
-        },
-    );
-    for (leaves_one, takes_the_last) in [(the_union, the_boolean), (the_boolean, the_union)] {
-        let one_left = delete(&mixed, leaves_one);
-        assert_eq!(
-            one_left.maintenance,
-            Vec::new(),
-            "the other kind still consumes the declaration"
-        );
-        let none_left = delete(&one_left.doc, takes_the_last);
-        assert_eq!(
-            none_left.maintenance,
-            vec![Maintenance::OrphanedDeclare {
-                declare: one_left.doc.spoken(decl),
-            }],
-            "the last consumer is the last consumer whatever kind it is"
-        );
-    }
-}
-
-/// **At most ONE orphan row is producible per accepted delete, under
-/// the node vocabulary as it stands** — the guard that reds the day a
-/// node kind holds two declarations.
-///
-/// `Node::declare_input` is an `Option` and no kind holds two, so the
-/// `Vec` the door returns describes a set whose size is provably 0 or
-/// 1 and the "in the deleted node's input order" clause of
-/// `Applied::maintenance` carries no weight. The day a kind does hold
-/// two, this row goes red and that clause needs a row of its own.
-#[test]
-fn no_delete_can_report_two_orphans_today() {
-    let doc = ProfileDoc::empty_derived("dm7_orphan_at_most_one", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
-    // A second declaration, consumerless, in the same document.
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let spare = editor_core::declare_rest(pairs);
-    let applied = delete(&doc, union);
-    assert_eq!(
-        applied.maintenance,
-        vec![Maintenance::OrphanedDeclare {
-            declare: doc.spoken(decl),
-        }],
-        "one delete, one declare edge, one row"
-    );
-    assert!(
-        applied.doc.node(spare).is_some(),
-        "the other declaration is nobody's business here"
-    );
-    for id in applied.doc.order() {
-        let node = applied.doc.node(*id).expect("live");
-        let declares = node
-            .inputs()
-            .iter()
-            .filter(|i| matches!(applied.doc.node(**i), Some(Node::Declare { .. })))
-            .count();
-        assert!(
-            declares <= 1,
-            "a node with two declare inputs would make the order clause load-bearing"
-        );
-    }
-}
-
-/// **No edit but `DeleteNode` can drop a `declare` edge**, which is
-/// what makes the delete door the only place the report is owed.
-/// `SetMembers` is the vocabulary's one rewire of a live node's
-/// inputs, and it leaves `declare` exactly as it was.
-#[test]
-fn set_members_cannot_orphan_a_declaration() {
-    let doc = ProfileDoc::empty_derived("dm7_orphan_set_members", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
-
-    let applied = apply(
-        &doc,
-        &DocEdit::SetMembers {
-            node: union,
-            members: vec![a, b, c],
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the member list is replaceable");
-    assert_eq!(
-        applied.maintenance,
-        Vec::new(),
-        "a rewire reports nothing, and there is nothing to report"
-    );
-    assert_eq!(
-        applied.doc.node(union).expect("live").declare_input(),
-        Some(decl),
-        "SetMembers leaves the declare edge as it was, so it cannot orphan"
-    );
-}
-
-/// **A delete elsewhere in the document never reports a declaration
-/// that was already consumerless.**
-///
-/// The rule is a transition, not a state: a `Declare` is authored
-/// FIRST and its consumer second (DM4), so a document is legally
-/// carrying a consumerless declaration for the whole of that window,
-/// and a delete of an unrelated node says nothing about it. This is
-/// the row a walk over "every consumerless `Declare` in the document"
-/// reds on, and the reason the candidates are the deleted node's own
-/// inputs.
-#[test]
-fn a_consumerless_declare_is_not_reported_by_an_unrelated_delete() {
-    let doc = ProfileDoc::empty_derived("dm7_orphan_transition", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, unrelated) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (a, a));
-    let decl = editor_core::declare_rest(pairs);
-
-    let applied = delete(&doc, unrelated);
-    assert_eq!(
-        applied.maintenance,
-        Vec::new(),
-        "the deleted node consumed nothing, so it orphaned nothing"
-    );
-    assert!(
-        applied.doc.node(decl).is_some(),
-        "and the declaration waiting for its consumer is untouched"
-    );
-}
-
-/// **Deleting the declaration itself reports the orphan at the
-/// consumer's step, and the next step removes its subject.**
-///
-/// The `Declare` is its consumer's DAG input, so the author who
-/// deletes it deletes the union first (`cascade_delete_order`), and
-/// THAT step is the same `(document, edit)` pair as deleting the
-/// union for any other reason. Maintenance is a function of the
-/// document and the edit, so the two cases cannot report differently:
-/// the row is reported and then cancelled by the step that follows.
-/// A caller who wants a cascade's net effect reads the document it
-/// ended at, which is what the last assertion here does.
-#[test]
-fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
-    let doc = ProfileDoc::empty_derived("dm7_orphan_cascade_decl", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
-
-    let order = cascade_delete_order(&doc, decl);
-    assert_eq!(
-        order,
-        vec![union, decl],
-        "the consumer goes first: the declare edge is a DAG input"
-    );
-    let declare = doc.spoken(decl);
-    let mut doc = doc;
-    let mut per_step = Vec::new();
-    for id in order {
-        let applied = delete(&doc, id);
-        per_step.push((id, applied.maintenance));
-        doc = applied.doc;
-    }
-    assert_eq!(
-        per_step,
-        vec![
-            (union, vec![Maintenance::OrphanedDeclare { declare }]),
-            (decl, Vec::new()),
-        ],
-        "the union's step cannot tell this cascade from any other delete of the union"
-    );
-    assert!(
-        doc.node(decl).is_none(),
-        "the cascade ended with the declaration gone, which is the state the author asked for"
-    );
-}
-
-/// **The transient is cancelled by the action's net, not by the
-/// door.** `apply` is a function of `(document, edit)` and answers what
-/// one delete did, so the cascade's first step reports the declaration
-/// orphaned and its second deletes it. The NET over the action is
-/// `MaintenanceNet`'s answer — the one spelling of which rows survive,
-/// which every caller holding a sequence folds through (the viewer's
-/// session; the pre-click count is
-/// `work/offer/cascade-delete-shows-the-strand-count.md`) — and it is
-/// empty here, so `apply` never needs cascade knowledge.
-#[test]
-fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
-    let doc = ProfileDoc::empty_derived("dm7_orphan_cancellable", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, _union, decl) = declared_union(doc, &[a, b], pairs);
-
-    let doomed = cascade_delete_order(&doc, decl);
-    let declare = doc.spoken(decl);
-    let mut walked = doc;
-    let mut rows: Vec<Maintenance> = Vec::new();
-    let mut net = editor_core::MaintenanceNet::new();
-    for id in &doomed {
-        let applied = delete(&walked, *id);
-        net.push(&applied);
-        rows.extend(applied.maintenance);
-        walked = applied.doc;
-    }
-    assert_eq!(rows, vec![Maintenance::OrphanedDeclare { declare }]);
-    assert_eq!(
-        net.finish(&walked),
-        Vec::new(),
-        "the cascade's NET maintenance is empty"
-    );
-}
-
-/// **What the orphaned declaration BECOMES**: the same delete that
-/// reports it also registers it as a product ROOT.
-///
-/// `roots::on_delete` re-roots the deleted node's inputs that its
-/// departure turned into sinks and does not ask what kind they are,
-/// so `doc.roots()` gains the `Declare`. Pre-existing and not this
-/// door's doing, but it is the fact the arm's `Display` sentence is
-/// written against — "no node consumes the declaration", not
-/// "nothing reads it", because the root set does. Whether a
-/// `Declare` may be a root at all is
-/// `work/edit/an-orphaned-declare-joins-the-product-root-set.md`.
-#[test]
-fn the_orphaned_declaration_is_re_rooted_by_the_same_delete() {
-    let doc = ProfileDoc::empty_derived("dm7_orphan_roots", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
-    assert_eq!(doc.roots(), [union], "the union is the document's product");
-
-    let applied = delete(&doc, union);
-    assert_eq!(
-        applied.maintenance,
-        vec![Maintenance::OrphanedDeclare {
-            declare: doc.spoken(decl)
-        }]
-    );
-    assert!(
-        applied.doc.roots().contains(&decl),
-        "the declaration the delete reported as unconsumed is now a product root"
-    );
-}
-
-/// **The orphan row follows the strands of the same delete** — the
-/// third boundary of `Applied::maintenance`'s order contract.
-///
-/// One delete produces both kinds: the union mints the face name a
-/// surviving fillet carries (a payload name, not an edge, so the
-/// delete is legal and strands it) AND holds the declaration's last
-/// `declare` edge. Written out as one vector, so a walk that put the
-/// orphans ahead of the strands reds here rather than somewhere a
-/// consumer finds it.
-#[test]
-fn an_orphaned_declare_follows_the_strands_of_the_same_delete() {
-    let doc = ProfileDoc::empty_derived("dm7_orphan_order", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
-    let (doc, elsewhere) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    // The fillet's DAG input is `elsewhere`; what it NAMES is a face
-    // of the union, which is a payload name and not an edge — so the
-    // fillet survives the union's delete and carries a dead name.
-    let carried = fname(union, wall(&doc, union, 0));
-    let (doc, fillet) = insert(
-        doc,
-        Node::Fillet {
-            target: elsewhere,
-            radius: len(0.1),
-            selection: vec![carried.clone()],
-        },
-    );
-
-    let applied = delete(&doc, union);
-    assert_eq!(
-        applied.maintenance,
-        vec![
-            Maintenance::Strand {
-                node: doc.spoken(fillet),
-                name: doc.spoken_name(&carried),
-            },
-            Maintenance::OrphanedDeclare {
-                declare: doc.spoken(decl),
-            },
-        ],
-        "the strands of a delete come before the declarations it left inert"
     );
 }

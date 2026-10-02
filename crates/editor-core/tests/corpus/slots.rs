@@ -4,7 +4,7 @@
 //! second tool's floor is coplanar with the first cavity's floor — a
 //! contact the recipe DECLARES by name.
 //!
-//! Vocabulary: Profile, Extrude, Declare, Boolean (Subtract),
+//! Vocabulary: Profile, Extrude, Boolean (Subtract, declared),
 //! `InsertNode`, `SetParam`.
 //!
 //! Geometry (dyadic): plate `[0,3]² × [0,1]`; slot 1

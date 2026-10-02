@@ -72,7 +72,7 @@ fn union_of(
     order: &[usize],
 ) -> (ProfileDoc, RecipeNodeId) {
     let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| members[i]).collect();
-    crate::fixture::union_over(doc, &ordered, None)
+    crate::fixture::union_over(doc, &ordered, Vec::new())
 }
 
 /// Each uniquely named face of `union`'s table → the centroid of its
@@ -305,7 +305,7 @@ fn check(fx: &Fixture) -> usize {
             ),
             None => {
                 let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
-                crate::fixture::union_over(doc.clone(), &ordered, None)
+                crate::fixture::union_over(doc.clone(), &ordered, Vec::new())
             }
         };
         let ev = run(&d);

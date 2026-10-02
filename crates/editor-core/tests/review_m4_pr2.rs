@@ -102,8 +102,8 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // M4 PR 5: the flush start caps are declared (sides resolve
-    // per-operand, so ONE Declare serves both operand orders).
+    // The flush start caps are declared; sides resolve per operand,
+    // so one pair serves both operand orders.
     let decl = editor_core::declare_continuation(vec![(
         SitedRef::new(a, fixture::fname(a, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(b, fixture::fname(b, RoleSeg::Cap(CapEnd::Start))),
@@ -735,7 +735,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 )
             },
         );
-        // M4 PR 5: the pip's outer cap lies ON the cube's top —
+        // The pip's outer cap lies ON the cube's top —
         // declared (the rotational variant maps the SAME names). The
         // B side is read at the TRANSFORM, the subtract's operand.
         let decl = editor_core::declare_continuation(vec![(
@@ -873,27 +873,6 @@ fn wire_doors_refuse_typed() {
         }
         other => panic!("expected Failed, got {other:?}"),
     }
-    // Boolean whose declare input is not a Declare node: refused at
-    // the edit door, so the document never carries the mis-wire.
-    let refused = doc.apply(
-        &editor_core::DocEdit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: BooleanOp::Union,
-                a: u,
-                b: base,
-                declare: ax,
-            }),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    assert!(
-        matches!(
-            &refused,
-            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input.id() == ax
-        ),
-        "expected the declare edge's kind refusal, got {refused:?}"
-    );
 }
 
 /// R2: same evaluated floats under DIFFERENT op tags must not collide

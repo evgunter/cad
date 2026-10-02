@@ -58,7 +58,7 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
     let (doc, b) = cube(doc, 2.0);
     let (doc, c) = cube(doc, 4.0);
     let boxes = [a, b, c];
-    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]), None);
+    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]), Vec::new());
     (doc, boxes, u)
 }
 
@@ -953,7 +953,7 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
 /// what says the fold added no refusal, only a name space.
 ///
 /// The recourse a caller whose members touch has is this node's own
-/// `declare` input, whose pairs are exactly what this refusal hands
+/// `declare` list, whose pairs are exactly what this refusal hands
 /// back: each side a `SitedRef` naming the MEMBER it was read at and
 /// the entity's name in that member's own table, which is a
 /// declaration the caller can write verbatim (`docm7_union_declare`).

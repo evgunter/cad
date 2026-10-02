@@ -16,10 +16,10 @@ use crate::wire::doctored;
 
 use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, BooleanCoincidence, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
-    groups, load, product, relative_freedom_components, save,
+    Alignment, AxisSense, BooleanCoincidence, BooleanOp, ContactClass, DocEdit, DocumentId,
+    EditError, EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    apply, groups, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
@@ -1316,8 +1316,8 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     );
 }
 
-/// The same repair with a `Declare` referencing the stranded name too:
-/// the declaration's rewrite is what makes the edit acceptable, so a
+/// The same repair with a boolean's declared pair referencing the
+/// stranded name too: the declaration's rewrite is what makes the edit acceptable, so a
 /// mate head skipped here is skipped SILENTLY — the loud arm never
 /// fires.
 #[test]
@@ -1338,11 +1338,16 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
             )),
         },
     );
-    let (doc, declare_id) = mint(
+    // The boolean's operands are the instances the delete leaves; its
+    // declared pair names the one it takes, which is not an edge.
+    let (doc, boolean_id) = mint(
         doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Declare {
-                pairs: vec![(
+            node: Box::new(Node::Boolean {
+                op: BooleanOp::Union,
+                a: ids[0],
+                b: ids[2],
+                declare: vec![(
                     (
                         SitedRef::new(ids[1], in_part(ids[1], body, CapEnd::Start)),
                         SitedRef::new(ids[0], in_part(ids[0], body, CapEnd::Start)),
@@ -1362,9 +1367,9 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("the declare pair alone makes this a rebind site");
-    let Some(Node::Declare { pairs }) = applied.doc.node(declare_id) else {
-        panic!("the declare is still there");
+        .expect("the declared pair alone makes this a rebind site");
+    let Some(Node::Boolean { declare: pairs, .. }) = applied.doc.node(boolean_id) else {
+        panic!("the boolean is still there");
     };
     assert_eq!(
         pairs[0].0.0.name,
@@ -1383,7 +1388,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
 }
 
 /// The insert door's own claim (`Node::named_nodes`): a mate's two
-/// heads carry the `Declare` carve-out, so a head naming a node that
+/// heads carry the declared-pair carve-out, so a head naming a node that
 /// never existed is a typo and is refused THERE — the only door that
 /// checks.
 #[test]
@@ -1415,7 +1420,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
 }
 
 /// A saved file is DATA: a mate head naming an id past the mint counter
-/// is as corrupt as a `Declare` pair naming one, and worse to let in —
+/// is as corrupt as a declared pair naming one, and worse to let in —
 /// `Rebind`'s source door refuses a never-minted id, so the document
 /// would load unrepairable.
 #[test]
@@ -1460,7 +1465,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
 
 /// The name-level edit door (`apply_with_names`, PR 3's R6 obligation)
 /// reads a mate's heads under the rule it has always applied to a
-/// `Declare` pair: checkable exactly when the minting node evaluated
+/// declared pair: checkable exactly when the minting node evaluated
 /// `Ok`, deferred otherwise. An instance-qualified head the tables
 /// carry passes; a role the part's product does not have is refused
 /// there rather than at the solve.

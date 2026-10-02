@@ -550,7 +550,6 @@ test_utils::f6_variants! {
         Pattern,
         Part,
         PlacedUnion,
-        Declare,
         InstantiatePart,
         Gauge,
         Mate,
@@ -758,7 +757,6 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             of: nid(1),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
-        Node::Declare { pairs: Vec::new() },
         Node::InstantiatePart {
             doc_ref: DocRef {
                 id: DocumentId::derive("switch-slots-census"),

@@ -94,7 +94,7 @@ fn slide_union(tx: f64) -> Slide {
     // The B side is read at the TRANSFORM — the boolean's operand —
     // and named in `b0`'s vocabulary, which the transform carries
     // verbatim (N1).
-    let (doc, decl) = fixture::declare_x_offset_flush_at(doc, (a, a), (transform, b0));
+    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, union) = insert(
         doc,
         Node::Boolean {
@@ -151,7 +151,7 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
         doc: &s.doc,
         eval: &ev,
     };
-    // M4 PR 5 (N3 live): the declared flush caps GLUE — the A-cap
+    // N3: the declared flush caps GLUE — the A-cap
     // wrap retired into the Merged row, which resolves at the union;
     // the retired constituent name itself now fails typed with the
     // merged row among the OFFERS (N3's loud retirement, pinned in
@@ -292,10 +292,10 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let (e1, e2) = (edges.next().unwrap(), edges.next().unwrap());
 
     // A one-node doc whose table we hand-build.
-    let mut doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let d = doc;
-    let node = editor_core::declare_rest(vec![]);
-    doc = d;
+    let (doc, node) = insert(
+        ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
+        leaf(),
+    );
     let base = StableName {
         kind: EntityKind::Edge,
         node,
@@ -307,7 +307,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     nodes.insert(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Declarations(vec![]),
+            payload: editor_core::ValuePayload::Gauge,
             name_table: Arc::new(table),
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
@@ -368,17 +368,11 @@ fn ranked_reference_widens_to_the_tied_base_row() {
 #[test]
 fn deleting_a_named_node_strands_names_as_node_gone() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
-    let _decl = editor_core::declare_rest(vec![(
-        SitedRef::at_mint(cap_a),
-        SitedRef::at_mint(cap_b.clone()),
-    )]);
-    // b has no DAG dependents (Declare names are refs, not edges):
-    // deletion is allowed and strands cap_b — N5's ratified dangling
-    // semantics.
+    // b has no DAG dependents: deletion is allowed and strands cap_b —
+    // N5's ratified dangling semantics.
     let (doc2, _) = step(doc, DocEdit::DeleteNode { id: b });
     let ev = run(&doc2, None);
     match resolve(
@@ -744,6 +738,15 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Vec::new(),
+        },
+    );
     let ev = run(&doc, None);
     let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
@@ -751,11 +754,12 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     assert!(
         apply_with_names(
             &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(editor_core::declare_rest(vec![(
+            &DocEdit::SetDeclare {
+                node: u,
+                pairs: editor_core::declare_rest(vec![(
                     SitedRef::at_mint(cap_a.clone()),
                     SitedRef::at_mint(cap_b.clone()),
-                )]))
+                )]),
             },
             &ev,
             Tol::witness(),
@@ -771,11 +775,12 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     );
     let err = apply_with_names(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(editor_core::declare_rest(vec![(
+        &DocEdit::SetDeclare {
+            node: u,
+            pairs: editor_core::declare_rest(vec![(
                 SitedRef::at_mint(cap_a.clone()),
                 SitedRef::at_mint(bogus.clone()),
-            )])),
+            )]),
         },
         &ev,
         Tol::witness(),
@@ -796,11 +801,12 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     assert!(
         apply_with_names(
             &doc2,
-            &DocEdit::InsertNode {
-                node: Box::new(editor_core::declare_rest(vec![(
+            &DocEdit::SetDeclare {
+                node: u,
+                pairs: editor_core::declare_rest(vec![(
                     SitedRef::at_mint(cap_a),
                     SitedRef::at_mint(cap_c),
-                )]))
+                )]),
             },
             &ev,
             Tol::witness(),
@@ -812,7 +818,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
 }
 
 /// The same door, same obligation, for the OTHER payloads that carry a
-/// name. A fillet's selection is checkable exactly when a `Declare`
+/// name. A fillet's selection is checkable exactly when a declared
 /// pair is — the minting node evaluated `Ok` — so a typo role on an
 /// evaluated node is refused here rather than surviving to the fillet's
 /// own resolution.
@@ -1358,6 +1364,15 @@ fn piece(node: RecipeNodeId, f: &StableName, walls: &[&StableName]) -> StableNam
     }
 }
 
+/// A node with no inputs and no evaluated body, for a doc whose
+/// evaluation is hand-built.
+fn leaf() -> Node<editor_core::ProfileProgram> {
+    Node::gauge(
+        None,
+        editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
+    )
+}
+
 /// One-node hand-built evaluation whose table is `t` (the over-tie
 /// pin's construction, reused).
 fn one_node_eval(
@@ -1369,7 +1384,7 @@ fn one_node_eval(
     nodes.insert(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Declarations(vec![]),
+            payload: editor_core::ValuePayload::Gauge,
             name_table: Arc::new(t),
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
@@ -1415,12 +1430,11 @@ fn border_delta_reads_the_walls_off_the_names_without_any_flip_set_evidence() {
     // moved.
     let (mut doc, n) = insert(
         ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
-        editor_core::declare_rest(vec![]),
+        leaf(),
     );
     let mut walls = Vec::new();
     for _ in 0..7 {
-        let d = doc;
-        let at = editor_core::declare_rest(vec![]);
+        let (d, at) = insert(doc, leaf());
         doc = d;
         walls.push(minted(EntityKind::Body, at, RoleSeg::OutputBody));
     }

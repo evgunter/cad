@@ -344,7 +344,7 @@ fn every_order(
     for order in orders(n) {
         let (doc, m) = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
         let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
-        let (doc, u) = crate::fixture::union_over(doc, &members, None);
+        let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
         let what = format!("{label}, member order {order:?} (0 = plate)");
         let o = checked(&run(&doc), u, &what, volume);
         assert_eq!(o.shape.counts(), counts, "{what}: faces, edges, vertices");
@@ -474,8 +474,8 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     let [plate, p1, p2] = m[..] else {
         panic!("the pinch fixture is three members")
     };
-    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], None);
-    let (doc, folded) = crate::fixture::union_over(doc, &[p1, p2, plate], None);
+    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], Vec::new());
+    let (doc, folded) = crate::fixture::union_over(doc, &[p1, p2, plate], Vec::new());
     let pair = |doc, op, a, b| {
         insert(
             doc,
@@ -580,7 +580,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     };
     // One cut: cutting the blocks one at a time sets the second block's
     // wall flush with the first's hole wall, an undeclared continuation.
-    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], None);
+    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], Vec::new());
     let (doc, x) = pair(doc, BooleanOp::Subtract, slab, blocks);
     // The slab less the two notches, and the plate's part inside it.
     let x_volume = 50.0 - 0.5 * 2.0 * 1.8 - 0.5 * 2.0 * 1.5;

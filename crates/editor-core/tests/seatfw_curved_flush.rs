@@ -30,7 +30,7 @@ use crate::fixture;
 use editor_core::{
     BooleanCoincidence, BooleanOp, CancelToken, EvalOptions, Evaluation, FlushRung, LoopProgram,
     Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal,
-    ValuePayload, declare_all, evaluate, find_flush_candidates,
+    ValuePayload, declared_pairs, evaluate, find_flush_candidates,
 };
 use geom::SurfaceKind;
 use geom_core::Tol;
@@ -217,15 +217,13 @@ fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
     let findings =
         find_flush_candidates(&ev, peg, block, Tol::witness()).expect("the pairs decide");
     assert!(!findings.is_empty());
-    let (applied, decl) = declare_all(&doc, &findings, Tol::witness()).expect("findings declare");
-    let doc = applied.doc;
     let (doc, union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: peg,
             b: block,
-            declare: decl,
+            declare: declared_pairs(&findings).expect("findings declare"),
         },
     );
     let ev = eval(&doc);

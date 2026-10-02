@@ -272,6 +272,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetDeclareOnNonDeclaring { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
@@ -303,8 +304,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             input: Some(input.id()),
             ..none
         },
-        EditError::DuplicateInput { node, input }
-        | EditError::DeclareInputNotDeclare { node, input } => EditPayload {
+        EditError::DuplicateInput { node, input } => EditPayload {
             node: Some(node.id()),
             input: Some(input.id()),
             ..none

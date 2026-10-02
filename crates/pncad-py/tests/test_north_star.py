@@ -1112,11 +1112,10 @@ def letter(doc, poly, plane, distance):
 def declared_intersect(doc, a, b):
     """`a` ∩ `b` with every flush contact between them declared, the
     detect/declare protocol the tour's `try_intersect_declared` spells:
-    evaluate, `find_flush_candidates`, `declare_all`, and wire the
-    Declare id into the boolean."""
+    evaluate, `find_flush_candidates`, and hand the findings to the
+    boolean's `declare=`."""
     findings = evaluate(doc).find_flush_candidates(a, b)
-    decl = doc.declare_all(findings)
-    return doc.insert(Node.boolean(BooleanOp.Intersect, a, b, declare=decl))
+    return doc.insert(Node.boolean(BooleanOp.Intersect, a, b, declare=findings))
 
 
 def silhouette3(doc):
@@ -2098,8 +2097,8 @@ class TestTable(unittest.TestCase):
     (`editor-core/tests/corpus/table.rs`): per leg, evaluate the
     document so far, `find_flush_candidates` between the accumulated
     body and the new leg, INSPECT the findings (the counts below are
-    that inspection), `Doc.declare_all`, and wire the Declare id into
-    the union. Nothing is fused; nothing parses a name.
+    that inspection), and hand them to the union's `declare=`. Nothing
+    is fused; nothing parses a name.
 
     Exact oracles, derived as the corpus derives them (dyadic):
     volume = top 4·3·0.25 = 3, plus per leg 0.5·0.5·1.125 = 0.28125
@@ -2131,8 +2130,9 @@ class TestTable(unittest.TestCase):
             for f in findings:
                 self.assertEqual(f.relation, PlaneRelation.SameOriented)
                 self.assertEqual(f.class_, BooleanCoincidence.Continuation)
-            decl = doc.declare_all(findings)
-            acc = doc.insert(Node.boolean(BooleanOp.Union, acc, leg, declare=decl))
+            acc = doc.insert(
+                Node.boolean(BooleanOp.Union, acc, leg, declare=findings)
+            )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(acc))
         body = ev.value(acc).body()
@@ -2210,9 +2210,8 @@ class TestCrosslapAtTheNamingWall(unittest.TestCase):
         mate = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
         self.assertEqual(len(mate), 5)
         self.assertTrue(all(f.class_ == BooleanCoincidence.Rest for f in mate))
-        decl = doc.declare_all(mate)
         mate_only = doc.insert(
-            Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=decl)
+            Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=mate)
         )
         ev = evaluate(doc)
         with self.assertRaises(EvaluationError) as caught:
@@ -2245,10 +2244,8 @@ class TestCrosslapAtTheNamingWall(unittest.TestCase):
         ev = evaluate(doc)
         findings = ev.find_flush_candidates(beam_a, beam_b)
         self.assertEqual(len(findings), 9)
-        decl = doc.declare_all(findings)
-        glued = doc.insert(
-            Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=decl)
-        )
+        glued = doc.insert(Node.boolean(BooleanOp.Union, beam_a, beam_b))
+        doc.declare_all(glued, findings)
         ev = evaluate(doc)
         self.assertFalse(ev.succeeded(glued))
         with self.assertRaises(EvaluationError) as caught:
@@ -3750,11 +3747,7 @@ class TestTwopeg(unittest.TestCase):
                 else BooleanCoincidence.Continuation,
             )
 
-        declared = doc.insert(
-            Node.boolean(
-                BooleanOp.Union, p, q, declare=doc.declare_all(findings)
-            )
-        )
+        declared = doc.insert(Node.boolean(BooleanOp.Union, p, q, declare=findings))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(declared))
         body = ev.value(declared).body()
@@ -3785,9 +3778,7 @@ class TestTwopeg(unittest.TestCase):
             if f.relation == PlaneRelation.SameOriented
         ]
         self.assertEqual(len(walls), 6)
-        declared = doc.insert(
-            Node.boolean(BooleanOp.Union, p, q, declare=doc.declare_all(walls))
-        )
+        declared = doc.insert(Node.boolean(BooleanOp.Union, p, q, declare=walls))
         ev = evaluate(doc)
         self.assertFalse(ev.succeeded(declared))
         with self.assertRaises(EvaluationError) as caught:
@@ -4314,7 +4305,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             [
                 "assertion", "boolean", "chamfer", "datum_axis",
                 "datum_axis_in_plane", "datum_face_frame",
-                "datum_frame", "datum_plane", "datum_point", "declare",
+                "datum_frame", "datum_plane", "datum_point",
                 "extrude", "fillet", "gauge", "hollow_tube", "instantiate_part",
                 "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",

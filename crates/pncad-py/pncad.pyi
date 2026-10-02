@@ -226,7 +226,8 @@ class EvaluationError(PncadError):
     `kind == "undeclared_coincidence"`, it carries the candidate
     declaration as a typed `FlushFinding` — the same value
     `Evaluation.find_flush_candidates` answers with, ready for
-    `Node.declare` / `Doc.declare`. The menu has exactly two arms:
+    `Node.boolean`'s `declare=` or `Doc.declare`. The menu has exactly
+    two arms:
     declare that finding, or move the geometry.
 
     A refusal that CARRIES another node's refusal — `part_root_failed`,
@@ -2468,17 +2469,20 @@ class Node:
 
     @staticmethod
     def boolean(
-        op: BooleanOp, a: NodeId, b: NodeId, declare: Optional[NodeId] = None
+        op: BooleanOp, a: NodeId, b: NodeId, declare: list[FlushFinding] = []
     ) -> Node:
-        """A Boolean of two upstream solids. `declare` names a
-        `Declare` node whose coincidence pairs this boolean consumes;
-        without one, operands that merely TOUCH refuse with the typed
-        menu (`EvaluationError`, `kind == "undeclared_coincidence"`,
-        `finding` attached) — the kernel never infers that two faces
-        are the same face."""
+        """A Boolean of two upstream solids. `declare` is its declared
+        contact pairs, given as the INSPECTED findings (each carries
+        its pair and class) and held as the node's own payload; an
+        empty list declares nothing, and then operands that merely
+        TOUCH refuse with the typed menu (`EvaluationError`,
+        `kind == "undeclared_coincidence"`, `finding` attached) — the
+        kernel never infers that two faces are the same face.
+        `Doc.declare` / `Doc.declare_all` set the list on the live
+        node."""
 
     @staticmethod
-    def union(members: list[NodeId], declare: Optional[NodeId] = None) -> Node:
+    def union(members: list[NodeId], declare: list[FlushFinding] = []) -> Node:
         """The N-ARY union: two or more member bodies folded into ONE
         body, in the LIST's order.
 
@@ -2487,21 +2491,14 @@ class Node:
         prototype under a placement rule: here the members are
         authored independently and the membership is a list, which
         `DocEdit.set_members` rewrites on the live node. `declare` is
-        the same optional coincidence input `boolean` takes, fed at
+        the same declared-pair list `boolean` takes, each pair fed at
         the fold step its two members meet at; without one, members
         that merely TOUCH refuse (`undeclared_coincidence`).
 
         Refuses at `Doc.insert` on the list as stated: `too_few_members`
         (with the `count` found), `duplicate_input`,
-        `unresolved_input`, `declare_input_not_declare`. Whether a
-        member is a BODY is the kernel's question at `evaluate`."""
-
-    @staticmethod
-    def declare(findings: list[FlushFinding]) -> Node:
-        """The `Declare` node built from INSPECTED findings; its
-        inserted id feeds `Node.boolean`'s `declare=`. Nothing here
-        detects (the ruled no-fusion boundary), and an empty list
-        raises EditError (`no_findings`)."""
+        `unresolved_input`. Whether a member is a BODY is the kernel's
+        question at `evaluate`."""
 
     @staticmethod
     def pattern(input: NodeId, count: Expr, kind: PatternKind) -> Node:
@@ -2666,8 +2663,8 @@ class Node:
         name the minting node for the authored one. Both are legal and
         they are different questions.
 
-        These references ARE recipe edges, unlike `Node.declare`'s and
-        `Node.mate`'s names: a measure consumes the values it names, so
+        These references ARE recipe edges, unlike a boolean's declared
+        pairs and `Node.mate`'s names: a measure consumes the values it names, so
         deleting a referenced node is refused at the delete door
         (`delete_would_dangle`) like any other consumer's input.
 
@@ -3246,12 +3243,25 @@ class DocEdit:
         spelling and no per-entry arm, so nothing is inferred about
         which old entry survived. Dropping a member is this edit
         without it plus `delete_node` of the orphan; a union's
-        `declare` input is left as it was.
+        declared pairs are left as they were.
 
         Every input check `Doc.insert` makes is remade of the
         REWRITTEN node — `unresolved_input`, `duplicate_input`,
         `too_few_members`, `would_cycle` — and a node carrying no list
         refuses `set_members_on_non_list`."""
+
+    @staticmethod
+    def set_declare(node: NodeId, findings: list[FlushFinding]) -> DocEdit:
+        """Replace a live boolean's or union's whole declared-pair list
+        with the pairs and classes of `findings`, the inspected
+        `FlushFinding`s `Node.boolean`'s `declare=` takes. An empty
+        list clears the declaration.
+
+        Refuses `set_declare_on_non_declaring` on a node that is
+        neither a boolean nor a union, `unknown_node` for a node the
+        document does not hold, and the name checks an insert runs
+        (`declare_names_missing_node`, `name_step_never_minted`,
+        `read_site_missing_node`)."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, expr: Expr) -> DocEdit:
@@ -3695,7 +3705,7 @@ class Doc:
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
         `chamfer`, `shell`, `split`, `boolean_union`, `boolean_intersect`,
         `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
-        `placed_union`, `declare`, `instantiate_part`, `mate`, `gauge`,
+        `placed_union`, `instantiate_part`, `mate`, `gauge`,
         `measure`, `assertion`. A Boolean answers a word per
         OPERATION, because union, intersect and subtract are three
         kernel operations sharing one payload shape; the unprefixed
@@ -3752,16 +3762,19 @@ class Doc:
         the id once and pass it twice.
         """
 
-    def declare(self, finding: FlushFinding) -> NodeId:
-        """Insert a `Declare` node for ONE inspected finding and
-        return its id for `Node.boolean`'s `declare=` (the
-        detect/declare protocol's declare arm). Raises EditError,
-        typed."""
+    def declare(self, node: NodeId, finding: FlushFinding) -> None:
+        """Declare ONE inspected finding on the live boolean or union
+        `node`: its whole declared-pair list becomes that finding's
+        pair (the detect/declare protocol's declare arm). Raises
+        EditError, typed: `set_declare_on_non_declaring` on a node
+        that is neither a boolean nor a union, `unknown_node`, and the
+        name checks an insert runs."""
 
-    def declare_all(self, findings: list[FlushFinding]) -> NodeId:
-        """`declare` for a SET of findings in one `Declare` node —
-        arity, not fusion. An empty list raises EditError
-        (`no_findings`)."""
+    def declare_all(self, node: NodeId, findings: list[FlushFinding]) -> None:
+        """`declare` for a SET of findings, replacing `node`'s whole
+        declared-pair list — arity, not fusion. An empty list raises
+        EditError (`no_findings`); `DocEdit.set_declare(node, [])` is
+        the spelling that clears."""
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
@@ -4678,9 +4691,10 @@ class Verdict:
 # --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
-# caller inspects, and `Node.declare` / `Doc.declare` /
-# `Doc.declare_all` turn inspected findings into the `Declare` node
-# `Node.boolean`'s `declare=` consumes. The same value rides the
+# caller inspects, and `Node.boolean` / `Node.union`'s `declare=`,
+# `Doc.declare` / `Doc.declare_all` and `DocEdit.set_declare` put
+# inspected findings on a boolean or union as its declared pairs. The
+# same value rides the
 # boolean's refusal menu (`EvaluationError.finding`). Detection and
 # declaration are separate doors ON PURPOSE: no fused
 # detect-and-declare door exists.
@@ -5976,29 +5990,11 @@ class Maintenance:
     document's appearance store still holds an attachment under a name
     whose minting node the delete removed. It carries no `node`,
     because the store carries it and no node does; the attachment is
-    left exactly where it was, since the report never repairs.
-
-    An `orphaned_declare` is not a loss of that kind: its `node` is a
-    `Declare` that SURVIVED the delete, and what went is the last node
-    that consumed it (`Node.union`/`Node.boolean`'s `declare=`). It
-    carries no `name` — nothing dangles, and no node consumes the
-    declaration any more (the document's `roots` do gain it, since a
-    node nothing reads is a product root). The repair is the author's:
-    delete the declaration, or give it a new consumer. A declaration
-    that has never had a consumer is not reported: a `Declare` is
-    inserted before the union that consumes it, so what the row says
-    is that a delete MADE it consumerless.
-
-    The row is TRANSIENT when the declaration itself is what the
-    author is deleting: the consumer must go first, that delete
-    reports the orphan, and the delete that follows removes its
-    subject — so a caller walking a node and its dependents reads the
-    net effect off the document the walk ended at, not off the rows."""
+    left exactly where it was, since the report never repairs."""
 
     @property
     def variant(self) -> str:
-        """`offset_cleared`, `strand`, `stranded_appearance`, or
-        `orphaned_declare`."""
+        """`offset_cleared`, `strand`, or `stranded_appearance`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...

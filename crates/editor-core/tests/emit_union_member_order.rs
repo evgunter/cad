@@ -85,7 +85,7 @@ fn union_of(
     let doc = ProfileDoc::empty_derived("emit_union_member_order", Tol::witness());
     let (doc, x, y) = fixture(doc);
     let members = if swap { vec![y, x] } else { vec![x, y] };
-    let (doc, u) = crate::fixture::union_over(doc, &members, None);
+    let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
     (run(&doc), u, [x, y])
 }
 
@@ -454,7 +454,7 @@ fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
             let m = [a, b, y];
             let members: Vec<RecipeNodeId> = p.iter().map(|&i| m[i]).collect();
             let pairs = flush_pairs(&doc, (a, a), (b, b));
-            let (doc, u, _) = declared_union(doc, &members, pairs);
+            let (doc, u) = declared_union(doc, &members, pairs);
             let ev = run(&doc);
             bindings(&ev, u)
                 .into_iter()

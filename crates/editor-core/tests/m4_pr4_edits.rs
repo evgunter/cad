@@ -62,7 +62,10 @@ fn sited(node: RecipeNodeId) -> SitedRef {
     SitedRef::at_mint(cap(node))
 }
 
-/// Three disjoint blocks + a Declare pairing A's cap with B's cap.
+/// Disjoint blocks A, B, C, plus a union `decl` whose declared pair
+/// names A's cap and B's cap. Neither B nor C is one of its members
+/// (the union is of A and a fourth block), so deleting either is
+/// allowed: a declared name is a reference, not a DAG edge.
 struct Three {
     doc: ProfileDoc,
     a: RecipeNodeId,
@@ -76,8 +79,23 @@ fn three() -> Three {
     let (doc, _, a) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
-    let decl = editor_core::declare_rest(vec![(sited(a), sited(b))]);
+    let (doc, _, d) = block(doc, (6.0, 7.0), (0.0, 1.0));
+    let (doc, decl) = insert(
+        doc,
+        Node::Union {
+            members: vec![a, d],
+            declare: editor_core::declare_rest(vec![(sited(a), sited(b))]),
+        },
+    );
     Three { doc, a, b, c, decl }
+}
+
+/// The declared-pair list of the union `decl`.
+fn declared(doc: &ProfileDoc, decl: RecipeNodeId) -> &[editor_core::DeclaredPair] {
+    let Some(Node::Union { declare, .. }) = doc.node(decl) else {
+        panic!("the declaring union is live");
+    };
+    declare
 }
 
 // ---- Rebind: semantics ----
@@ -96,13 +114,10 @@ fn rebind_rewrites_declare_sites_one_shot() {
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert!(applied.record.structural, "Declare payloads changed");
-    let Some(Node::Declare { pairs }) = applied.doc.node(t.decl) else {
-        panic!("declare survives");
-    };
+    assert!(applied.record.structural, "declared pairs changed");
     assert_eq!(
-        pairs,
-        &vec![(
+        declared(&applied.doc, t.decl),
+        [(
             (sited(t.a), SitedRef::new(t.b, cap(t.c))),
             BooleanCoincidence::REST
         )]
@@ -126,20 +141,17 @@ fn rebind_rewrites_declare_sites_one_shot() {
         }
     );
     // Purity: the input document is untouched.
-    let Some(Node::Declare { pairs }) = t.doc.node(t.decl) else {
-        panic!()
-    };
     assert_eq!(
-        pairs,
-        &vec![((sited(t.a), sited(t.b)), BooleanCoincidence::REST)]
+        declared(&t.doc, t.decl),
+        [((sited(t.a), sited(t.b)), BooleanCoincidence::REST)]
     );
 }
 
 #[test]
 fn rebind_repairs_a_stranded_name_after_node_gone() {
     let t = three();
-    // Delete B (allowed: Declare names are refs, not DAG edges) —
-    // cap(b) strands as NodeGone; Rebind is THE repair.
+    // Delete B (allowed: B is no member of the union) — cap(b)
+    // strands as NodeGone; Rebind is THE repair.
     let (doc, _) = step(t.doc, DocEdit::DeleteNode { id: t.b });
     let ev = run(&doc, None);
     assert!(matches!(
@@ -155,12 +167,9 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
         },
     );
     let ev = run(&doc, None);
-    let Some(Node::Declare { pairs }) = doc.node(t.decl) else {
-        panic!()
-    };
     assert_eq!(
-        pairs,
-        &vec![(
+        declared(&doc, t.decl),
+        [(
             (sited(t.a), SitedRef::new(t.b, cap(t.c))),
             BooleanCoincidence::REST
         )]
@@ -175,6 +184,60 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
         ),
         Resolution::Resolved(_)
     ));
+}
+
+// ---- SetDeclare: the whole-list replace and its refusal doors ----
+
+#[test]
+fn set_declare_replaces_the_whole_list_and_refuses_typed() {
+    let t = three();
+    let pair = |x, y| editor_core::declare_rest(vec![(sited(x), sited(y))]);
+    let set = |doc: &ProfileDoc, node, pairs| {
+        doc.apply(
+            &DocEdit::SetDeclare { node, pairs },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let applied = set(&t.doc, t.decl, pair(t.a, t.c)).expect("a live union takes a new list");
+    assert_eq!(applied.record.minted, None, "SetDeclare mints nothing");
+    assert!(applied.record.structural, "SetDeclare is structural");
+    assert!(
+        applied.maintenance.is_empty(),
+        "SetDeclare maintains nothing"
+    );
+    assert_eq!(
+        declared(&applied.doc, t.decl),
+        [((sited(t.a), sited(t.c)), BooleanCoincidence::REST)],
+        "the list is REPLACED, not appended to"
+    );
+    let cleared = set(&applied.doc, t.decl, Vec::new()).expect("an empty list clears");
+    assert!(
+        declared(&cleared.doc, t.decl).is_empty(),
+        "an empty list clears"
+    );
+    assert_eq!(
+        set(&t.doc, t.a, pair(t.a, t.b)).unwrap_err(),
+        EditError::SetDeclareOnNonDeclaring {
+            node: t.doc.spoken(t.a)
+        },
+        "an extrude declares no contacts"
+    );
+    let (doc_del, _) = step(t.doc.clone(), DocEdit::DeleteNode { id: t.c });
+    assert_eq!(
+        set(&doc_del, t.c, Vec::new()).unwrap_err(),
+        EditError::UnknownNode {
+            id: editor_core::SpokenNode::absent(t.c)
+        },
+        "a dead id is unknown"
+    );
+    assert_eq!(
+        set(&doc_del, t.decl, pair(t.a, t.c)).unwrap_err(),
+        EditError::DeclareNamesMissingNode {
+            name: doc_del.spoken_name(&cap(t.c))
+        },
+        "a pair naming a dead node is refused as an insert's would be"
+    );
 }
 
 // ---- Rebind: every refusal door ----

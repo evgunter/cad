@@ -584,7 +584,7 @@ fn the_border_delta_outranks_an_upstream_flip() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, u) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, n) = placed(doc, u);
-    let m = editor_core::declare_rest(vec![]);
+    let (doc, m) = insert(doc, fixture::xy_frame());
     assert!(ancestors_in(&doc, n).contains(&u));
     let body = |i: u32| editor_core::EntityRef {
         body: i,
@@ -655,7 +655,7 @@ fn hand_eval(
 ) -> Evaluation<f64> {
     let value = |table: NameTable, log: Vec<Verdict>| {
         editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Declarations(vec![]),
+            payload: editor_core::ValuePayload::Gauge,
             name_table: Arc::new(table),
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),

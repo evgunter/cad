@@ -3,8 +3,8 @@
 //! authoring so the corpus and the PR 2/5/6 acceptance rows can never
 //! drift apart.
 //!
-//! Vocabulary: Profile, Extrude, Transform, Declare, Boolean
-//! (Subtract), `SetDocParam`, `InsertNode`.
+//! Vocabulary: Profile, Extrude, Transform, Boolean (Subtract,
+//! declared), `SetDocParam`, `InsertNode`.
 //!
 //! Exact oracles (dyadic throughout — cube `[0,2]³`, 21 pips of
 //! 0.25 × 0.25 × 0.125):

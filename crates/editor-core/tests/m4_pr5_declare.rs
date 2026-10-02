@@ -1,4 +1,5 @@
-//! M4 PR 5 acceptance (spec D4–D6): Declare threading end-to-end.
+//! M4 PR 5 acceptance (spec D4–D6): declared contact pairs threaded
+//! end-to-end.
 //!
 //! - **D6.1, the M3 closure gap CLOSED by recipe intent**: a 3′ body
 //!   (corner-kiss union) reused as an operand certifies at the 3′
@@ -6,12 +7,12 @@
 //!   by name — and stays a loud `UndeclaredContact` refusal without
 //!   it (the envelope entry's fix direction, landed).
 //! - **D6.3, the #91 flush-plane narrative**: a coincident-plane pair
-//!   glues when authored WITH a Declare (N3 `Merged` row minted);
+//!   glues when the union declares it (N3 `Merged` row minted);
 //!   undeclared it refuses typed; the decoupled variant is untouched.
 //! - **D6.4 / PR 3 R13**: the #90 crossing-slots double subtract
 //!   promoted to a recipe document — the first boolean-of-boolean
 //!   naming/resolution corpus entry.
-//! - **N5 doors**: Declare resolution failures are the typed
+//! - **N5 doors**: declared-pair resolution failures are the typed
 //!   ResolveError verbatim; out-of-vocabulary pairs refuse typed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -121,7 +122,7 @@ fn kiss_vertex_names(
 /// a loud refusal otherwise.
 #[test]
 fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
-    // WITHOUT a Declare: the new result re-discovers the surviving
+    // UNDECLARED: the new result re-discovers the surviving
     // operand-internal kiss as UNDECLARED (the documented M3 gap).
     let (doc, a, b, base) = kiss_base(ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness()));
     let (doc_undeclared, mover) = block(doc.clone(), (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
@@ -146,7 +147,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
         "undeclared reuse must 3'-refuse UndeclaredContact only: {errors:?}"
     );
 
-    // WITH the Declare naming the surviving v-v intent BY NAME (the
+    // DECLARING the surviving v-v intent BY NAME (the
     // reused body's declaration re-enters by name, never arena key):
     // certified 3' pass.
     let (doc_declared, mover) = block(doc, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
@@ -176,8 +177,8 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
 }
 
 /// D6.3, the #91 flush-plane narrative: the coincident-plane pair
-/// GLUES when authored WITH a Declare (N3 `Merged` row), refuses
-/// typed without one, and the decoupled variant is untouched.
+/// GLUES when the union declares it (N3 `Merged` row), refuses
+/// typed undeclared, and the decoupled variant is untouched.
 #[test]
 fn flush_plane_pair_glues_with_declare_refuses_without() {
     // Coincident-plane pair, UNDECLARED: typed refusal at the
@@ -206,11 +207,10 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         other => panic!("undeclared flush union must fail, got {other:?}"),
     }
 
-    // WITH the Declare: glues — Merged rows minted, tiers green.
-    let doc_declared = doc;
+    // DECLARED: glues — Merged rows minted, tiers green.
     let decl = declare_x_offset_flush(&doc, a, b);
     let (doc_declared, u) = insert(
-        doc_declared,
+        doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
@@ -239,8 +239,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         .count();
     assert_eq!(merged_rows, 4, "caps + flush y-walls glue");
 
-    // Decoupled variant (no coincident planes): untouched — no
-    // Declare needed, transversal union works as before.
+    // Decoupled variant (no coincident planes): untouched — nothing
+    // to declare, transversal union works as before.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
@@ -349,11 +349,11 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     }
 }
 
-/// N5 doors: a Declare naming a VANISHED or out-of-vocabulary
+/// N5 doors: a declared pair naming a VANISHED or out-of-vocabulary
 /// reference refuses with the typed error — no silent drop, no
 /// best-effort gluing. (The FOREIGN arm — a name whose node id was
 /// never minted — is defense-in-depth only: `apply` validates
-/// Declare-named node EXISTENCE at edit time, so no apply-built
+/// declared-pair node EXISTENCE at edit time, so no apply-built
 /// document can carry one; NodeGone-by-DELETE is the reachable case,
 /// covered below.)
 #[test]
@@ -381,14 +381,11 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let ghost = fname(a, wall(&base, a, 1)); // exists…
     let mut ghost = ghost;
     ghost.path = vec![RoleSeg::Cap(CapEnd::End), RoleSeg::Cap(CapEnd::End)]; // …not any more
-    let (doc, decl) = insert(
-        base.clone(),
-        editor_core::declare_rest(vec![(
-            SitedRef::new(a, ghost.clone()),
-            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
-        )]),
-    );
-    let (doc, u) = boolean_with(doc, decl);
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(a, ghost.clone()),
+        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+    )]);
+    let (doc, u) = boolean_with(base.clone(), decl);
     let ev = run(&doc);
     match ev.nodes.get(&u) {
         Some(NodeResult::Failed(e)) => match &e.kind {
@@ -431,11 +428,8 @@ fn declare_resolution_failures_are_typed_n5_errors() {
         b,
         RoleSeg::CapVertex(CapEnd::End, crate::fixture::vpiece(&doc, b, 0, 0)),
     );
-    let (doc, decl) = insert(
-        base.clone(),
-        editor_core::declare_rest(vec![(SitedRef::new(a, va), SitedRef::new(b, vb))]),
-    );
-    let (doc, u) = boolean_with(doc, decl);
+    let decl = editor_core::declare_rest(vec![(SitedRef::new(a, va), SitedRef::new(b, vb))]);
+    let (doc, u) = boolean_with(base.clone(), decl);
     let ev = run(&doc);
     let k = failed_kind(&ev, u);
     assert_eq!(
@@ -523,7 +517,7 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     );
 }
 
-/// Review F4: the remaining Declare eval doors, each typed.
+/// Review F4: the remaining declared-pair eval doors, each typed.
 ///
 /// `DeclareBothOperands` used to be the third: a name carried by BOTH
 /// operands — two placements of one prototype, whose tables are
@@ -543,23 +537,20 @@ fn declare_doors_node_gone_and_ambiguous() {
     };
 
     // --- NodeGone by DELETE (the reachable N5 dangling case): the
-    // Declare names a third body's face; deleting that node AFTER the
-    // Declare strands the name; resolution refuses NodeGone with the
+    // union declares a third body's face; deleting that node AFTER the
+    // union strands the name; resolution refuses NodeGone with the
     // derived NodeDeleted edit.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        // Sited at the operands, as every declaration is; the NAME
-        // is the third body's, and rung 1 outranks the site's own
-        // table having no such row.
-        editor_core::declare_rest(vec![(
-            SitedRef::new(a, fname(c, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
-        )]),
-    );
+    // Sited at the operands, as every declaration is; the NAME is
+    // the third body's, and rung 1 outranks the site's own table
+    // having no such row.
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(a, fname(c, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+    )]);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
@@ -586,7 +577,7 @@ fn declare_doors_node_gone_and_ambiguous() {
         "{k}"
     );
 
-    // --- Ambiguous: the Declare names a TIED row (the symmetric U
+    // --- Ambiguous: the union declares a TIED row (the symmetric U
     // cutter's N2 tie) — refused with the tie carried honestly:
     // candidates name the tied row itself, width = the recorded tie.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
