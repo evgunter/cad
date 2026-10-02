@@ -1921,17 +1921,19 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(radius * (T::one() - half_span.cos()))
         }
-        // The minor semi-axis / minor radius is the certified direction
-        // (doc above): the ellipse and the spiric each dominate their
-        // minor-radius circle pointwise, so both take the circle fold
-        // at that radius.
-        Curve3::Ellipse { minor, .. }
-        | Curve3::Spiric {
-            minor_radius: minor,
-            ..
-        } => {
+        // The smaller semi-axis / the minor radius is the certified
+        // direction (doc above): the ellipse and the spiric each dominate
+        // that circle pointwise, so both take the circle fold at that
+        // radius. The ellipse's semi-axes carry no order and no sign
+        // (`Conic`), so its radius is the smaller MAGNITUDE — `minor`
+        // itself for a frame stored in the ordinary order.
+        Curve3::Ellipse { major, minor, .. } => {
             let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(minor * (T::one() - half_span.cos()))
+            chord.max(major.abs().min(minor.abs()) * (T::one() - half_span.cos()))
+        }
+        Curve3::Spiric { minor_radius, .. } => {
+            let half_span = (t1 - t0) * T::from_f64(0.5);
+            chord.max(minor_radius * (T::one() - half_span.cos()))
         }
         Curve3::Line { .. } | Curve3::Nurbs(_) => chord,
     }
@@ -2216,6 +2218,18 @@ fn run_checks<T: Decide>(
         sample: NOT_A_SAMPLE,
         cause,
     };
+    // The ellipse's and the spiric's span check, at the speed floor
+    // each arm below reads.
+    let span_at_floor = |floor: T| -> Result<(), CertifyError> {
+        let rate = InfSpeed::new(floor);
+        forward(Margin::metered(span, rate))?;
+        let headroom = Margin::metered(T::tau() - span, rate);
+        match decide("interval_span_winding", headroom, band).map_err(winding_escalated)? {
+            Sign::Positive | Sign::Zero => {}
+            Sign::Negative => return Err(CertifyError::WindingExceeded),
+        }
+        Ok(())
+    };
     match &spec.carrier {
         Curve3::Circle { radius, .. } => {
             let rate = InfSpeed::new(*radius);
@@ -2230,29 +2244,22 @@ fn run_checks<T: Decide>(
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
             }
         }
-        // Ellipse spans are metered at the MINOR semi-axis — the
-        // conservative meter (|dP/dθ| ≥ minor, so `span·minor` is a
-        // certified lower bound on the child's arc length: a span this
-        // gate accepts as forward is truly forward, and near-threshold
-        // spans escalate rather than sneak through). The same winding
-        // bound applies: the 8kτ sample-alias argument is about the
-        // parameter period, which the ellipse shares with the circle.
-        // A spiric's speed floor is its MINOR radius (`|dP/dv| ≥ r`,
-        // the variant docs) and its period is the same 2π, so it takes
-        // this arm at that meter.
-        Curve3::Ellipse { minor, .. }
-        | Curve3::Spiric {
-            minor_radius: minor,
-            ..
-        } => {
-            let rate = InfSpeed::new(*minor);
-            forward(Margin::metered(span, rate))?;
-            let headroom = Margin::metered(T::tau() - span, rate);
-            match decide("interval_span_winding", headroom, band).map_err(winding_escalated)? {
-                Sign::Positive | Sign::Zero => {}
-                Sign::Negative => return Err(CertifyError::WindingExceeded),
-            }
+        // Ellipse spans are metered at the SMALLER semi-axis magnitude —
+        // the conservative meter (|dP/dθ| ≥ min(|a|, |b|), so the span
+        // times it is a certified lower bound on the child's arc length:
+        // a span this gate accepts as forward is truly forward, and
+        // near-threshold spans escalate rather than sneak through). The
+        // semi-axes carry no order and no sign (`Conic`); for a frame
+        // stored in the ordinary order the meter is `minor` itself. The
+        // same winding bound applies: the 8kτ sample-alias argument is
+        // about the parameter period, which the ellipse shares with the
+        // circle. A spiric's speed floor is its MINOR radius
+        // (`|dP/dv| ≥ r`, the variant docs) and its period is the same
+        // 2π, so it takes this arm at that meter.
+        Curve3::Ellipse { major, minor, .. } => {
+            span_at_floor(major.abs().min(minor.abs()))?;
         }
+        Curve3::Spiric { minor_radius, .. } => span_at_floor(*minor_radius)?,
         Curve3::Line { .. } => {
             forward(Margin::of(span))?;
         }

@@ -514,8 +514,15 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
     let from = |p: Point3<T>| (p - origin).norm();
     match c {
         Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
-        Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
-        Curve3::Ellipse { center, major, .. } => Some(from(*center) + *major),
+        Curve3::Circle { center, radius, .. } => Some(from(*center) + radius.abs()),
+        // The semi-axes carry no order and no sign (`geom_brep::Conic`):
+        // the reach is the larger MAGNITUDE.
+        Curve3::Ellipse {
+            center,
+            major,
+            minor,
+            ..
+        } => Some(from(*center) + major.abs().max(minor.abs())),
         // Every point of the spiric lies on its torus, within `R + r` of
         // the torus centre.
         Curve3::Spiric {
@@ -934,6 +941,35 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::*;
+
+    /// **`curve_reach` bounds an ellipse in any stored frame.** The
+    /// semi-axes carry no order and no sign, so an ellipse stored with
+    /// `minor` the larger, or `major` negative, reaches as far as its
+    /// larger magnitude. Read at the stored `major` it under-reached —
+    /// and an under-estimate here certifies a parallelism that does not
+    /// hold. Dense samples of the whole ellipse against the bound.
+    #[test]
+    fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
+        let origin = Point3::new(0.3, -0.2, 0.1);
+        let center = Point3::new(1.0, 2.0, -0.5);
+        for (major, minor) in [(0.5, 3.0), (-3.0, 0.5), (-0.5, -3.0), (3.0, -0.5)] {
+            let e = Curve3::Ellipse {
+                center,
+                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                major,
+                minor,
+                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            };
+            let reach = curve_reach(&e, 0.0, core::f64::consts::TAU, origin).expect("a conic");
+            let far = (0..=4000)
+                .map(|k| (e.eval(core::f64::consts::TAU * f64::from(k) / 4000.0) - origin).norm())
+                .fold(0.0_f64, f64::max);
+            assert!(
+                far <= reach,
+                "({major}, {minor}): a point {far} out against a reach of {reach}"
+            );
+        }
+    }
 
     /// The measurement evaluator and the measurement's `Drop` cost the
     /// stack nothing per level: a million levels evaluate and free on

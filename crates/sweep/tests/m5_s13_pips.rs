@@ -421,7 +421,8 @@ fn a_ball_above_the_cylinders_cap_is_certified_separated() {
 /// (which spans the whole turn's square), no edge pair crosses, and the
 /// fallback hands the sphere × wall pair to the section pass, which
 /// certifies the section out of the face. Every op in both orders,
-/// tier 3, against `¾·π·0.35²·1.3` and `4π·0.05³/3`. A carrier-only
+/// tier 3, against `¾·π·0.35²·1.3` and `4π·0.05³/3` within the volume
+/// enclosure's own half-width. A carrier-only
 /// certificate (clear of the whole cylinder, or inside it) cannot speak
 /// here; this pose refused `FallbackExtentUnsupported` under one.
 #[test]
@@ -467,10 +468,20 @@ fn a_ball_straddling_a_notched_walls_carrier_builds() {
                     Ok(()),
                     "{op:?}: tier 3"
                 );
+                // Against the enclosure's own half-width, which must be
+                // able to see the ball: `slack()` is 1e-3 at ε = 1e-6,
+                // twice the ball's whole volume.
+                let props = topo::mass_properties(&b.body, Tol::witness()).unwrap();
                 assert!(
-                    (vol(&b.body) - w).abs() < slack(),
-                    "{op:?}: volume {} against {w}",
-                    vol(&b.body)
+                    props.volume_pad < v_ball / 10.0,
+                    "{op:?}: a pad of {} cannot see a ball of {v_ball}",
+                    props.volume_pad
+                );
+                assert!(
+                    (props.volume - w).abs() <= props.volume_pad + 1e-12,
+                    "{op:?}: volume {} against {w} (pad {})",
+                    props.volume,
+                    props.volume_pad
                 );
             }
             (None, None) => {}

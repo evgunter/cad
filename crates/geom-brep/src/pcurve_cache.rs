@@ -3302,7 +3302,9 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
         Curve3::Line { .. } => InfSpeed::new(T::one()),
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         Curve3::Circle { radius, .. } => InfSpeed::new(radius),
-        Curve3::Ellipse { minor, .. } => InfSpeed::new(minor),
+        // The smaller semi-axis MAGNITUDE: the semi-axes carry no order
+        // and no sign (`Conic`); `minor` for the ordinary order.
+        Curve3::Ellipse { major, minor, .. } => InfSpeed::new(major.abs().min(minor.abs())),
         Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
     }
 }
