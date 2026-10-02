@@ -32,7 +32,8 @@ pub(crate) fn indent(depth: usize) -> f32 {
 }
 
 /// **The indent a line UNDER a row draws at** — a failure's own
-/// words, the pointer at the row that has them, a standing note.
+/// words, the pointer at the row that has them, why a measure has no
+/// value, what a mate did in the solve, a standing note.
 ///
 /// One step past the row's own [`indent`], so the line reads as the
 /// row's — for as long as that leaves the line the width
@@ -237,8 +238,8 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
                     ui.label(comparison);
                 }
             }
-            // Its reason is a sentence, drawn under the row.
-            Some(Readout::Unavailable(_)) | None => {}
+            // Each is a sentence, drawn under the row.
+            Some(Readout::Unavailable(_) | Readout::Role(_)) | None => {}
         },
         RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
             ui.label(toned(row.status.badge(), theme, row.tone()));
@@ -248,7 +249,8 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
 
 /// **Every line drawn under a row**, in order: a failure's
 /// ([`failure_lines`]), why a measure has no value or an assertion no
-/// verdict, and the node's standing caveat. Answers the node a click
+/// verdict, what a mate did in the solve, and the node's standing
+/// caveat. Answers the node a click
 /// selects, as [`failure_lines`] does.
 fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
     let mut clicked = failure_lines(ui, row, theme);
@@ -256,6 +258,7 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         Some(Readout::Unavailable(reason)) => {
             advisory_line(ui, row.depth, &reason.to_string(), theme);
         }
+        Some(Readout::Role(role)) => advisory_line(ui, row.depth, &role.to_string(), theme),
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
@@ -1005,13 +1008,18 @@ mod tests {
         );
     }
 
-    /// **A row's standing note is drawn under it, quietly** — here a
-    /// mate whose class has no at-rest record, in the kernel's words.
+    /// **A mate's row paints what it did in the solve under it, in the
+    /// kernel's sentence**, then its standing note — here a mate whose
+    /// class has no at-rest record, in the kernel's words — both
+    /// quietly and with no badge.
     ///
-    /// Red if `lines_under` drops the note, or draws it loud.
+    /// Red if `lines_under` drops `Readout::Role` or the note,
+    /// re-spells the kernel's sentence, draws either loud or off its
+    /// place under the row, or if `row_result` draws the role beside
+    /// the row as well.
     #[test]
-    fn a_mate_rows_standing_note_paints_under_it() {
-        use pncad::document::{ClassAdmission, class_admission};
+    fn a_mate_rows_role_and_standing_note_paint_under_it() {
+        use pncad::document::{ClassAdmission, MateRole, class_admission};
         use pncad::select::ContactClass;
 
         let admission = class_admission(ContactClass::Tangent);
@@ -1020,17 +1028,33 @@ mod tests {
             "the premise: a Tangent mate has no at-rest record: {admission:?}"
         );
         let note = admission.no_record_reason();
-        let row = TreeRow {
-            status: RowStatus::Ok,
-            note: Some(note.to_owned()),
-            ..placer_refused_row(None)
-        };
-        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            feature_row_drawn(ui, &row, theme)
-        });
-        let line = find(&painted, note);
-        assert_under(find(&painted, "Mate 000000000007"), line);
-        assert_eq!(line.ink, Some(voices.weak), "said quietly");
+        for role in [MateRole::Determining, MateRole::Declaring] {
+            let sentence = role.to_string();
+            let row = TreeRow {
+                status: RowStatus::Ok,
+                note: Some(note.to_owned()),
+                readout: Some(Readout::Role(role)),
+                ..placer_refused_row(None)
+            };
+            let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+                feature_row_drawn(ui, &row, theme)
+            });
+            let kind = find(&painted, "Mate 000000000007");
+            for said in [sentence.as_str(), note] {
+                let line = find(&painted, said);
+                assert_under(kind, line);
+                assert_eq!(
+                    line.ink,
+                    Some(voices.weak),
+                    "{role:?}: {said:?} said quietly"
+                );
+            }
+            assert_eq!(
+                texts(&painted),
+                vec!["Mate 000000000007", sentence.as_str(), note],
+                "{role:?}: the row, its role, its note, and no badge"
+            );
+        }
     }
 
     /// The verdict `id` landed, from the evaluation itself.
