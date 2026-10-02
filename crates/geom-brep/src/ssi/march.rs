@@ -96,8 +96,12 @@
 //!   self-crossing makes the uniqueness tube's enclosure straddle.
 //! - **`ssi_branch_open_end`** — "the branch ends on the domain
 //!   boundary": the margin is the signed distance to the named domain
-//!   in meters. `Negative` ends the branch open; `Zero` also ends it
-//!   and **labels the end in-band** ([`BranchEnd::BoundaryInBand`]).
+//!   in meters. On a marched state, `Negative` ends the branch open;
+//!   `Zero` also ends it and **labels the end in-band**
+//!   ([`BranchEnd::BoundaryInBand`]). On the settled seed, `Negative`,
+//!   or `Zero` outside the box, makes the seed no branch
+//!   ([`super::SsiError::SeedOffDomain`]); in the escalation zone it
+//!   escalates on either.
 //!   The label is a report, not a mechanism: nothing keys off it. A
 //!   region no tube covers — including one past an in-band end — is
 //!   refined by the accounting pass and refuses typed at the floor,
@@ -566,7 +570,8 @@ pub(crate) trait TransversalityData<const N: usize> {
 /// other in-band trilean, [`SsiError::StepUnusable`] when the step
 /// minted from the march speed cannot be taken,
 /// [`SsiError::SeedRefinementFailed`] when the seed will not settle
-/// onto the locus, and [`SsiError::StepRefinementFailed`] when a step
+/// onto the locus, [`SsiError::SeedOffDomain`] when it settles outside
+/// the domain, and [`SsiError::StepRefinementFailed`] when a step
 /// from the locus will not settle back onto it.
 pub(crate) fn march<const M: usize, const N: usize, S>(
     sys: &S,
@@ -582,6 +587,22 @@ where
 {
     let mut x = newton_refine(sys, seed, ctx.tol)
         .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
+    // The seed is decided as a marched state is, and enters the trace
+    // on the terms `push_boundary` gives a marched end: definitely
+    // inside, or in the band and `within` the box. Any other seed is no
+    // branch; the accounting pass decides whether that was a miss.
+    let margin = domain_margin(&x, &ctx, sys, &x);
+    match decide("ssi_branch_open_end", Margin::of(margin), band) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Zero) if within(&x, &ctx.domain) => {}
+        Ok(Sign::Zero | Sign::Negative) => {
+            return Err(SsiError::SeedOffDomain {
+                mode: mode.name(),
+                margin,
+            });
+        }
+        Err(diag) => return Err(TraceDecision::BranchOpenEnd.escalated(diag)),
+    }
     let seed_state = x;
     let mut states = vec![x];
     let mut prev_tangent: Option<[f64; N]> = None;
@@ -1664,6 +1685,65 @@ mod tests {
         assert!(r.reach <= 1.0 + 1.0e-12, "{r:?}");
         let tol = MarchTol::from_band(band, r).unwrap();
         assert_eq!(tol.settling(), SSI_NEWTON_TOL * band.zero());
+    }
+
+    /// **A seed is decided inside the domain where it settles, before it
+    /// is marched.** The locus is the `x` axis, and the seed `(0, ½, 0)`
+    /// lies inside every domain below; Newton settles it to the origin,
+    /// at `y = 0`. The `y` face of the domain is placed so the settled
+    /// seed is definitely outside (no branch, naming its margin), in the
+    /// band's escalation zone (the open end escalates), in the band's
+    /// zero but outside the box (no branch, as `push_boundary` drops a
+    /// marched end there), on the face or in the band inside the box
+    /// (marched), and inside (marched). The `x` faces sit a few
+    /// idealized steps from the origin so a marched seed ends.
+    #[test]
+    fn a_seed_that_settles_outside_the_domain_is_no_branch() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let run = |y_lo: f64| {
+            let mut ctx = unit_ctx(band);
+            ctx.domain[0] = [-0.01, 0.01];
+            ctx.domain[1] = [y_lo, 1.0];
+            march(
+                &sys,
+                [0.0, 0.5, 0.0],
+                ctx,
+                StepperMode::Idealized,
+                1.0,
+                band,
+                SSI_STEP_MAX,
+            )
+        };
+        match run(0.1) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => {
+                assert!(
+                    (margin + 0.1).abs() < 1.0e-12,
+                    "outside by 0.1 m: {margin:e}"
+                );
+            }
+            other => panic!("outside: expected no branch, got {other:?}"),
+        }
+        match run(5.0e-9) {
+            Err(SsiError::Escalated {
+                decision: TraceDecision::BranchOpenEnd,
+                ..
+            }) => {}
+            other => panic!("in the escalation zone: expected the open end, got {other:?}"),
+        }
+        match run(5.0e-10) {
+            Err(SsiError::SeedOffDomain { margin, .. }) => {
+                assert!(
+                    (margin + 5.0e-10).abs() < 1.0e-20,
+                    "in the band, outside the box: {margin:e}"
+                );
+            }
+            other => panic!("in the band, outside the box: expected no branch, got {other:?}"),
+        }
+        for y_lo in [0.0, -5.0e-10, -0.1] {
+            let t = run(y_lo).unwrap_or_else(|e| panic!("y ≥ {y_lo}: the seed is marched: {e}"));
+            assert_eq!(t.states[0], [0.0; 3], "y ≥ {y_lo}: the settled seed");
+        }
     }
 
     /// **A rung is named from a quarter of the steps**, on either side

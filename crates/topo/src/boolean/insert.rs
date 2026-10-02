@@ -477,10 +477,10 @@ fn mint_run<T: Decide>(
     let successor = |body: &Body<T>, he: HalfEdgeKey| -> Result<HalfEdgeKey, BooleanError> {
         let mate = body
             .mate(he)
-            .ok_or(BooleanError::CorruptOperand { operand, vertex })?;
+            .ok_or(BooleanError::corrupt_at(operand, vertex))?;
         Ok(body
             .get_half_edge(mate)
-            .ok_or(BooleanError::CorruptOperand { operand, vertex })?
+            .ok_or(BooleanError::corrupt_at(operand, vertex))?
             .next)
     };
     let (site, dangling) = if hes.is_empty() {
