@@ -107,20 +107,26 @@ pub(crate) fn build<S: Scalar>(
         );
     }
 
+    // The bores' walls are measured by quadrature, so each reading is a
+    // certified bracket: midpoint and half-width.
     let props = |b: &pncad::topo::Body<S>, what: &str| {
         let p = pncad::topo::mass_properties(b, tol).expect(what);
-        (p.volume.f(), p.surface_area.f(), p.area_pad)
+        (
+            (p.volume.f(), p.volume_pad),
+            (p.surface_area.f(), p.area_pad),
+        )
     };
-    let (v_box, s_box, pad_box) = props(boxbody, "box props");
-    let (v_above, s_above, pad_above) = props(above, "above props");
-    let (v_below, s_below, pad_below) = props(below, "below props");
+    let ((v_box, vpad_box), (s_box, apad_box)) = props(boxbody, "box props");
+    let ((v_above, vpad_above), (s_above, apad_above)) = props(above, "above props");
+    let ((v_below, vpad_below), (s_below, apad_below)) = props(below, "below props");
     let gap = (v_above + v_below - v_box).abs();
+    let vpad = vpad_above + vpad_below + vpad_box;
     assert!(
-        gap < 1e-9,
-        "split halves must partition the volume (gap {gap:.3e})"
+        gap <= vpad + 1e-12,
+        "split halves must partition the volume (gap {gap:.3e}, brackets ± {vpad:.1e})"
     );
     let area = (s_above + s_below - s_box) / 2.0;
-    let area_pad = (pad_above + pad_below + pad_box) / 2.0;
+    let area_pad = (apad_above + apad_below + apad_box) / 2.0;
 
     // Pull the halves apart 0.75 along the section normal: rigid
     // transforms re-mint every moved witness (#84).
@@ -247,7 +253,7 @@ pub(crate) fn sectioned_beside(
          annuli ringed by their bores; `plane_section` reads {regions} regions with \
          {holes} holes, area {area:.9} (outline polygons less pi r^2 / cos phi per \
          bore) against {split:.9} ± {pad:.1e} from the halves' surface areas; halves partition \
-         the volume exactly ({v_above:.6} + {v_below:.6} = {v_box:.6}, gap \
+         the volume within their certified brackets ({v_above:.6} + {v_below:.6} = {v_box:.6}, gap \
          {gap:.1e}); halves then moved apart by rigid transforms (edge witnesses \
          re-minted, #84) and revalidated",
         faces = SECTION_RINGS.len(),
