@@ -810,6 +810,60 @@ pub(super) fn bound_edges<T: Decide>(
     Ok(out)
 }
 
+/// **The one fold rule for an on-bound**: an edge read On against the
+/// partner face, between bounds read `before` and `after`, joins the In
+/// run unless both neighbours read Out. Both classifiers call it — the
+/// vertex-on-face resolution of its entries and the vertex-vertex
+/// attribution of an edge-sector crossing — so at every site, in every
+/// op, a section segment along the edge is attributed to the flanking
+/// sector on the Out side, and the two ends of the segment put their
+/// null edges into the same face.
+pub(super) fn fold_on_bound(before: SideCode, after: SideCode) -> SideCode {
+    match (before, after) {
+        (SideCode::Out, SideCode::Out) => SideCode::Out,
+        _ => SideCode::In,
+    }
+}
+
+/// **The cell a germ lies in** ([`super::Locus`]), derived from the
+/// sector the germ was attributed to and its bounds' readings against
+/// the partner face as first read, before any rewrite. The germ ray is
+/// the intersection of the sector's face with the partner face, so a
+/// bound read On lies along it: a real edge there is `OnEdge`, and
+/// anything else — a bisector, or no bound On — leaves the germ inside
+/// the sector's face. Called by every site kind, before that site's
+/// surgery moves the orbit the bounds are read from.
+pub(super) fn germ_locus<T: Decide>(
+    body: &Body<T>,
+    s: &BoolSector<T>,
+    read: (SideCode, SideCode),
+) -> Result<super::Locus, BooleanError> {
+    let on_start = read.0 == SideCode::On && s.start_edge();
+    let on_end = read.1 == SideCode::On && s.end_edge();
+    let edge = |he: HalfEdgeKey| {
+        body.get_half_edge(he)
+            .map(|h| h.edge)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a germ sector's half-edge no longer resolves",
+            })
+    };
+    match (on_start, on_end) {
+        (false, false) => Ok(super::Locus::InFace(s.face)),
+        (false, true) => Ok(super::Locus::OnEdge(edge(s.he)?)),
+        (true, false) => {
+            let orbit = body
+                .vertex_orbit(s.he)
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "a germ sector's vertex orbit does not walk",
+                })?;
+            Ok(super::Locus::OnEdge(edge(orbit[1 % orbit.len()])?))
+        }
+        (true, true) => Err(BooleanError::ClassificationInvariant {
+            what: "a germ sector with both edge bounds on the partner face",
+        }),
+    }
+}
+
 /// Whether `dir`, coplanar with `s`, runs into its face: within the
 /// sector and along neither of its bounds that is an edge of the face.
 pub(super) fn runs_into<T: Decide>(

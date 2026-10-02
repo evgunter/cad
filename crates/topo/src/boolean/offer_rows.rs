@@ -1117,6 +1117,8 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         a_face: crate::entity::FaceKey::default(),
         b_face: crate::entity::FaceKey::default(),
+        a_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
+        b_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
         dir,
     };
     let (p1, p2) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));

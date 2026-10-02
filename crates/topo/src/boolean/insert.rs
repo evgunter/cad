@@ -62,10 +62,15 @@ pub(super) fn insert_null_pairs<T: Decide>(
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
+    raw: &[PairRecord],
     declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
-    let survivors: Vec<&PairRecord> = records.iter().filter(|r| r.intersect).collect();
+    let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) = records
+        .iter()
+        .zip(raw)
+        .filter(|(r, _)| r.intersect)
+        .unzip();
     let mut out = InsertOut {
         edges: Vec::new(),
         pairs: Vec::new(),
@@ -99,17 +104,30 @@ pub(super) fn insert_null_pairs<T: Decide>(
     let mut b_order: Vec<usize> = (0..survivors.len()).collect();
     b_order.sort_by_key(|&i| (survivors[i].b, survivors[i].a));
     let b_pos = |i: usize| b_order.iter().position(|&j| j == i).unwrap_or(usize::MAX);
+    // F12 guard 1: B-cyclic adjacency of each pair among survivors,
+    // checked for every pair before the first mint.
+    let n = survivors.len();
+    for pair_idx in 0..n / 2 {
+        let (p0, p1) = (b_pos(2 * pair_idx), b_pos(2 * pair_idx + 1));
+        if (p0 + 1) % n != p1 && (p1 + 1) % n != p0 {
+            return Err(mismatch());
+        }
+    }
+    // Every germ's cells are read before the first mint moves an orbit.
+    let loci = survivors
+        .iter()
+        .zip(&raw)
+        .map(|(r, w)| {
+            Ok((
+                super::sectors::germ_locus(a_body, &a_sectors[r.a], w.sa)?,
+                super::sectors::germ_locus(b_body, &b_sectors[r.b], w.sb)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
 
     for pair_idx in 0..survivors.len() / 2 {
         let (i0, i1) = (2 * pair_idx, 2 * pair_idx + 1);
         let (r0, r1) = (survivors[i0], survivors[i1]);
-        // F12 guard 1: B-cyclic adjacency of the pair among survivors.
-        let (p0, p1) = (b_pos(i0), b_pos(i1));
-        let n = survivors.len();
-        let adjacent = (p0 + 1) % n == p1 || (p1 + 1) % n == p0;
-        if !adjacent {
-            return Err(mismatch());
-        }
         // Which forward run is the corner's wedge is decided by DATA,
         // not index parity (ambiguous at two survivors): default to the
         // forward run r0 → r1 (the book's consumption order); if that
@@ -118,8 +136,8 @@ pub(super) fn insert_null_pairs<T: Decide>(
         // wedge is the other direction (r1 → r0). Applied per solid;
         // the run-side agreement guard runs against whichever
         // direction is chosen.
-        let g0_faces = (a_sectors[r0.a].face, b_sectors[r0.b].face);
-        let g1_faces = (a_sectors[r1.a].face, b_sectors[r1.b].face);
+        let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
+        let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
         let g0_dir = record_germ_dir(
             a_body,
             b_body,
@@ -183,7 +201,10 @@ pub(super) fn insert_null_pairs<T: Decide>(
 /// the complementary germ), in which case `g1 → g0`. The F12 run-side
 /// agreement guard (`entry germ's exit code == closing germ's entry
 /// code`) applies to whichever direction is chosen.
-type Germ<T> = (usize, (SideCode, SideCode), (FaceKey, FaceKey), Vec3<T>);
+type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>);
+
+/// A germ's `(A face, B face)` and `(A locus, B locus)`.
+type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
 
 #[allow(clippy::too_many_arguments)]
 fn mint_directed<T: Decide>(
@@ -468,7 +489,7 @@ fn mint_run<T: Decide>(
     from: usize,
     to: usize,
     run_side: SideCode,
-    germ_meta: [((FaceKey, FaceKey), Vec3<T>); 2],
+    germ_meta: [(Cells, Vec3<T>); 2],
     spike_from_first: bool,
 ) -> Result<BoolNullEdgeRecord<T>, BooleanError> {
     let hes = run_fan(sectors, from, to)?;
@@ -539,11 +560,16 @@ fn mint_run<T: Decide>(
             above_end: created.vertex,
         },
     };
-    let germ = |i: usize, he: crate::entity::HalfEdgeKey| super::HalfGerm {
-        he,
-        a_face: germ_meta[i].0.0,
-        b_face: germ_meta[i].0.1,
-        dir: germ_meta[i].1,
+    let germ = |i: usize, he: crate::entity::HalfEdgeKey| {
+        let (((a_face, b_face), (a_locus, b_locus)), dir) = germ_meta[i];
+        super::HalfGerm {
+            he,
+            a_face,
+            b_face,
+            a_locus,
+            b_locus,
+            dir,
+        }
     };
     // Germ ↔ half facing: for a fan the mev splice puts he_plus at the
     // from-germ cut and he_minus at the to-germ cut; a strut's spike
@@ -600,6 +626,7 @@ mod tests {
             &[],
             &[],
             &recs,
+            &recs,
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -612,6 +639,7 @@ mod tests {
             contact,
             &[],
             &[],
+            &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
@@ -655,6 +683,7 @@ mod tests {
             contact,
             &[],
             &[],
+            &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),
@@ -738,6 +767,7 @@ mod tests {
             contact,
             &a_sectors,
             &b_sectors,
+            &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
             geom_core::Band::linear(Tol::witness()).unwrap(),

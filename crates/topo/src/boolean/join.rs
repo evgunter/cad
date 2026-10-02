@@ -114,7 +114,7 @@ use super::{
     SelfCheck, SideCode,
 };
 use crate::body::Body;
-use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
+use crate::chord_join::{ChordJoiner, CutOutcome, SegmentEdge, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::face_normal::face_outward_normal;
 use crate::null::NullFacePair;
@@ -186,6 +186,7 @@ impl SolidJoin {
         (h1, h2): (HalfEdgeKey, HalfEdgeKey),
         plane: crate::splitting::SplitPlane<T>,
         datum: AuxDatum,
+        segment: SegmentEdge,
         tol: Tol,
     ) -> Result<(), BooleanError> {
         let mut ctx = crate::chord_join::SectionCtx {
@@ -198,6 +199,7 @@ impl SolidJoin {
                 h1,
                 h2,
                 crate::chord_join::JoinLane::Split(&mut ctx),
+                segment,
                 tol,
             )
             .map_err(BooleanError::Join)?;
@@ -217,6 +219,7 @@ impl SolidJoin {
         wall: geom::Surface<T>,
         window: (T, T),
         partner_face: FaceKey,
+        segment: SegmentEdge,
         tol: Tol,
     ) -> Result<(), BooleanError> {
         let datum = AuxDatum::Partner(partner_face);
@@ -231,6 +234,7 @@ impl SolidJoin {
                     window,
                     partner_key: &mut partner,
                 },
+                segment,
                 tol,
             )
             .map_err(BooleanError::Join)?;
@@ -426,6 +430,15 @@ pub(super) fn bool_connect<T: Decide>(
         // orientation comes from the joiner's stored winding.
         let (ka, ga) = surf_of(&red.a, germ.a_face)?;
         let (kb, gb) = surf_of(&red.b, germ.b_face)?;
+        // Each solid's adjacency skip asks whether the edge between its
+        // two halves is the one the segment's locus on that solid names.
+        let segment = |locus| {
+            SegmentEdge::Is(match locus {
+                super::Locus::OnEdge(e) => Some(e),
+                super::Locus::InFace(_) => None,
+            })
+        };
+        let (seg_a, seg_b) = (segment(germ.a_locus), segment(germ.b_locus));
         use crate::chord_join::{JoinLane, face_azimuth_window};
         use crate::splitting::SplitPlane;
         use geom::Surface as Sf;
@@ -457,6 +470,7 @@ pub(super) fn bool_connect<T: Decide>(
                                 normal: *nb,
                             },
                         },
+                        seg_a,
                         tol,
                     )
                     .map_err(BooleanError::Join)?;
@@ -471,6 +485,7 @@ pub(super) fn bool_connect<T: Decide>(
                                 normal: *na,
                             },
                         },
+                        seg_b,
                         tol,
                     )
                     .map_err(BooleanError::Join)?;
@@ -480,7 +495,15 @@ pub(super) fn bool_connect<T: Decide>(
                 let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                sa.join_bool_planar(&mut red.a, (a1, a2), gb.clone(), window, germ.b_face, tol)?;
+                sa.join_bool_planar(
+                    &mut red.a,
+                    (a1, a2),
+                    gb.clone(),
+                    window,
+                    germ.b_face,
+                    seg_a,
+                    tol,
+                )?;
                 let plane = SplitPlane {
                     origin: *origin,
                     normal: *normal,
@@ -490,6 +513,7 @@ pub(super) fn bool_connect<T: Decide>(
                     (b1, b2),
                     plane,
                     AuxDatum::Partner(germ.a_face),
+                    seg_b,
                     tol,
                 )?;
             }
@@ -504,12 +528,21 @@ pub(super) fn bool_connect<T: Decide>(
                     (a1, a2),
                     plane,
                     AuxDatum::Partner(germ.b_face),
+                    seg_a,
                     tol,
                 )?;
                 let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                sb.join_bool_planar(&mut red.b, (b1, b2), ga.clone(), window, germ.a_face, tol)?;
+                sb.join_bool_planar(
+                    &mut red.b,
+                    (b1, b2),
+                    ga.clone(),
+                    window,
+                    germ.a_face,
+                    seg_b,
+                    tol,
+                )?;
             }
             // **The sphere pair rides its RADICAL PLANE.** Two spheres
             // meet in a circle lying in the one plane both residuals
@@ -546,8 +579,8 @@ pub(super) fn bool_connect<T: Decide>(
                     Err(_) => return Err(desync("germ pair's section refused at join time")),
                 };
                 let datum = |own, partner| AuxDatum::Radical { own, partner };
-                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), tol)?;
-                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), tol)?;
+                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), seg_a, tol)?;
+                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), seg_b, tol)?;
             }
             (a_s, b_s) => {
                 // No wired join arm for this germ pair (cyl×cyl's
@@ -687,8 +720,12 @@ fn find_match<T: Decide>(
                 for &es in &slots(&e.a) {
                     let ega = e.a[es].0;
                     let e_he = ega.he;
-                    if ega.a_face != rga.a_face || ega.b_face != rga.b_face {
+                    if ega.a_locus != rga.a_locus || ega.b_locus != rga.b_locus {
                         continue;
+                    }
+                    for (germ, b_germ) in [(rga, rec.b[cs].0), (ega, e.b[es].0)] {
+                        locus_at_site(&red.a, germ.a_locus, germ.he)?;
+                        locus_at_site(&red.b, germ.b_locus, b_germ.he)?;
                     }
                     if sa.is_up(&red.a, e_he)? == sa.is_up(&red.a, r_he)? {
                         continue;
@@ -720,12 +757,12 @@ fn find_match<T: Decide>(
                     // anti-correlation theorem make disagreement a
                     // kernel bug, refused loudly.
                     let (rgb, egb) = (rec.b[cs].0, e.b[es].0);
-                    if rgb.a_face != rga.a_face
-                        || rgb.b_face != rga.b_face
-                        || egb.a_face != ega.a_face
-                        || egb.b_face != ega.b_face
+                    if rgb.a_locus != rga.a_locus
+                        || rgb.b_locus != rga.b_locus
+                        || egb.a_locus != ega.a_locus
+                        || egb.b_locus != ega.b_locus
                     {
-                        return Err(desync("B germ face pair differs at matched slots"));
+                        return Err(desync("B germ loci differ at matched slots"));
                     }
                     if sb.is_up(&red.b, egb.he)? == sb.is_up(&red.b, rgb.he)? {
                         return Err(desync("B senses agree at a matched pair"));
@@ -752,6 +789,34 @@ fn find_match<T: Decide>(
         }
     }
     Ok(best.map(|(_, m)| m))
+}
+
+/// An `OnEdge` germ's edge runs from the germ's site: one of its ends
+/// is an end of the null half facing the germ. A locus naming an edge
+/// anywhere else is a kernel bug, refused before it is matched on.
+fn locus_at_site<T: Decide>(
+    body: &Body<T>,
+    locus: super::Locus,
+    he: HalfEdgeKey,
+) -> Result<(), BooleanError> {
+    let super::Locus::OnEdge(edge) = locus else {
+        return Ok(());
+    };
+    let desync = |what| BooleanError::JoinDesync { what };
+    let start = |h: HalfEdgeKey| {
+        body.get_half_edge(h)
+            .map(|d| d.start)
+            .ok_or(desync("germ half no longer resolves"))
+    };
+    let site = [start(he)?, body.half_edge_end(he).ok_or(desync("germ half no longer resolves"))?];
+    let e = body
+        .get_edge(edge)
+        .ok_or(desync("an OnEdge germ's edge no longer resolves"))?;
+    if site.contains(&start(e.he_plus)?) || site.contains(&start(e.he_minus)?) {
+        Ok(())
+    } else {
+        Err(desync("an OnEdge germ's edge is not incident to its site"))
+    }
 }
 
 /// The germ pair's section frame: the conic center and axis of the
@@ -1984,6 +2049,8 @@ mod self_check_rows {
             he: crate::entity::HalfEdgeKey::default(),
             a_face: crate::entity::FaceKey::default(),
             b_face: crate::entity::FaceKey::default(),
+            a_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
+            b_locus: super::super::Locus::InFace(crate::entity::FaceKey::default()),
             dir,
         };
         let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));

@@ -891,10 +891,24 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             return Ok(None);
         }
     }
-    let combos = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)];
-    combos
-        .iter()
-        .find_map(|&(a, b)| find_on_record(records, a, b))
+    // The one fold rule: the germ goes on the record whose rewrite puts
+    // both on-bounds in the In run, which is the record whose other
+    // bounds both read Out ([`mark_germ`]).
+    let held: Vec<usize> = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)]
+        .into_iter()
+        .filter_map(|(a, b)| find_on_record(records, a, b))
+        .collect();
+    let folds_in = |r: &PairRecord| {
+        [r.sa, r.sb].into_iter().all(|c| match on_bound(c) {
+            Some(true) => c.1 == SideCode::Out,
+            Some(false) => c.0 == SideCode::Out,
+            None => false,
+        })
+    };
+    held.iter()
+        .copied()
+        .find(|&g| folds_in(&records[g]))
+        .or(held.first().copied())
         .map(Some)
         .ok_or(BooleanError::ClassificationInvariant {
             what: "edge-edge germ record missing among the flanking combos",
@@ -972,8 +986,19 @@ fn resolve_edge_sector<T: Decide>(
             band,
         )?;
     }
+    // A `Yes` cell is Table II's mixed row, which names the flanker keyed
+    // In. The one fold rule puts the on-bound in the In run, so the
+    // transition is across the flanker keyed Out, and the crossing is
+    // recorded there.
+    let fold = super::sectors::fold_on_bound(k1, k2);
+    let germ_flank = |flank: usize, verdict| match verdict {
+        super::tables::TableIiVerdict::Yes if k1 == fold => f_e,
+        super::tables::TableIiVerdict::Yes => f_s,
+        _ => flank,
+    };
     for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
         if resolve_verdict(verdict, op, comparison, relation) {
+            let flank = germ_flank(flank, verdict);
             let (ra, rb) = if a_side {
                 (flank, ref_idx)
             } else {

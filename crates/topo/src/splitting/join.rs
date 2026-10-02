@@ -156,7 +156,14 @@ pub(super) fn split_connect<T: Decide>(
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
-                joiner.join(&mut red.body, end, half, JoinLane::Split(section), tol)?;
+                joiner.join(
+                    &mut red.body,
+                    end,
+                    half,
+                    JoinLane::Split(section),
+                    crate::chord_join::SegmentEdge::InPlane,
+                    tol,
+                )?;
                 joined[slot] = true;
                 // Retire the consumed end's edge if its other half is
                 // no longer loose.

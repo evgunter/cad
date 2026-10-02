@@ -1597,27 +1597,45 @@ fn bool_planar_chord_spec<T: Decide>(
     }))
 }
 
+/// How a [`ChordJoiner::join`] knows the section segment it chords is
+/// an edge the face already has.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum SegmentEdge {
+    /// The split lane: an edge between the two halves that lies in the
+    /// section plane is the segment ([`between_edge_in_plane`]).
+    InPlane,
+    /// The boolean lanes: the segment is this edge, named by the matched
+    /// germs' locus on this solid, or lies inside a face (`None`).
+    Is(Option<EdgeKey>),
+}
+
 /// The adjacency skip, for both chords of a `join`: an already-adjacent
-/// pair whose between edge lies in the plane needs no chord — it IS the
-/// section segment (M3). A belly conic between them is not a section
-/// segment and its chord MUST be minted (M1 fix), and an escalated
-/// in-plane verdict refuses typed rather than guessing either way.
-///
-/// One body for both guards: they were two copies reconciled by a
-/// comment saying "same rule as the first guard".
+/// pair whose between edge IS the section segment needs no chord. On
+/// the split lane that is an edge lying in the plane (M3); a belly conic
+/// between them is not a section segment and its chord MUST be minted
+/// (M1 fix), and an escalated in-plane verdict refuses typed rather
+/// than guessing either way. On the boolean lanes it is structural: the
+/// between edge is the edge the segment's locus names.
 fn skip_adjacent_chord<T: Decide>(
     body: &Body<T>,
     lane: &JoinLane<'_, T>,
+    segment: SegmentEdge,
     between: HalfEdgeKey,
     face: FaceKey,
     band: Band,
 ) -> Result<bool, SplitJoinError> {
-    match between_edge_in_plane(body, lane, between, band)? {
-        Some(in_plane) => Ok(in_plane),
-        None => Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "in-plane classification of the join-adjacent edge escalated",
-        }),
+    match segment {
+        SegmentEdge::Is(edge) => {
+            let between = body.get_half_edge(between).ok_or_else(|| corrupt_he(between))?;
+            Ok(edge == Some(between.edge))
+        }
+        SegmentEdge::InPlane => match between_edge_in_plane(body, lane, between, band)? {
+            Some(in_plane) => Ok(in_plane),
+            None => Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "in-plane classification of the join-adjacent edge escalated",
+            }),
+        },
     }
 }
 
@@ -2214,6 +2232,7 @@ impl ChordJoiner {
         h1: HalfEdgeKey,
         h2: HalfEdgeKey,
         mut lane: JoinLane<'_, T>,
+        segment: SegmentEdge,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
         let l1 = body
@@ -2257,7 +2276,7 @@ impl ChordJoiner {
             // be minted or the section face inherits an off-plane
             // boundary; an escalated in-plane verdict refuses typed.
             let skip_first = if prev_adjacent {
-                skip_adjacent_chord(body, &lane, prev(body, h1)?, oldf, self.band)?
+                skip_adjacent_chord(body, &lane, segment, prev(body, h1)?, oldf, self.band)?
             } else {
                 false
             };
@@ -2339,7 +2358,7 @@ impl ChordJoiner {
         // fix — same rule as the first guard).
         let adjacent2 = next(body, next(body, h1)?)? == h2;
         let skip_second = if adjacent2 {
-            skip_adjacent_chord(body, &lane, next(body, h1)?, oldf, self.band)?
+            skip_adjacent_chord(body, &lane, segment, next(body, h1)?, oldf, self.band)?
         } else {
             false
         };
