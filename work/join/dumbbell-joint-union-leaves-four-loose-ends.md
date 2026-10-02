@@ -23,7 +23,7 @@ refusal is the same for both handles:
 - the CONTROL, a straight cylinder of radius 0.3.
 
 Pinned by `crates/sweep/tests/germ_torus_doors.rs`,
-`the_torus_waisted_union_stops_at_the_join_and_the_cylinder_control_builds`.
+`the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control`.
 
 ## Where it is raised (measured, instrumented)
 
@@ -56,16 +56,15 @@ The REST zip declines first, for two reasons of its own:
 on ZIP's slate. Loosening its facing test alone reaches
 `RestZipUnsupported { ParallelSeamEdges }`.
 
-## Measured (REACH, 2026-10-02; branch `reach/aligned-half-rods`)
+## Measured (TANG, 2026-10-02, branch `tang/abutting-rim`)
 
-That branch patches the REST zip's `enumerate_segments` in place (a
-chord pass, then an arc pass along a conic locus for the germs it
-leaves) and tells parallel arcs between one site pair apart by the
-faces their end germs lie on. With it the CYLINDER control builds:
-12 faces, volume `2π(0.3²·0.5 + 1.5²)` exact, tiers 3 and 3′ valid at
-ε 1e-9, 1e-6 and 1e-12. The TORUS waist still refuses
-`UnpairedLooseEnds { count: 4 }`: its germs' face pair is
-plane×torus, which `join::pair_section_frame` has no arm for
-(`NoArm`), so the arc pass makes no conic claim for them. Whether that
-patch lands ahead of JOIN-2 is the question that branch's PR puts to
-the REACH orchestrator.
+Both handles BUILD there, the joint discs declared `Rest` and the
+handles continuations, through the declared-REST zip: tier 3 and 3′, at
+exactly the two halves' volumes (torus 14.697464134831963, cylinder
+14.41991027997715), `(12, 22, 14)` faces, edges, vertices, one shell.
+The zip now matches germs along circle arcs both operands carry between
+two sites before its straight-chord test, and a segment names its two
+arcs, so the joint circle's two semicircles are two seams
+(`boolean/arcs.rs`, `arcs_along`). JOIN-2's plan replaces
+`enumerate_segments` with the join's segments; this is the interim, and
+the rows in `germ_torus_doors.rs` are re-pinned to the bodies.

@@ -777,7 +777,7 @@ fn find_match<T: Decide>(
 /// failures at match time are a desync (the germ was minted FROM this
 /// pair's crossing).
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
-pub(super) fn germ_section_frame<T: Decide>(
+fn germ_section_frame<T: Decide>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
@@ -1317,31 +1317,6 @@ pub(super) fn germs_face_each_other<T: Decide>(
             }
         }
     }
-}
-
-/// How far `p2` lies from germ `g1`'s site `p1` ALONG the germ's
-/// conic locus, in `g1`'s own direction, in metres: the arc `r·φ`,
-/// with `φ ∈ (0, 2π]` the angle swept about the frame axis in `g1`'s
-/// rotational sense from `p1` to `p2` and `r` the radius at `p1`. A
-/// chord is not monotone in the arc past a half turn, so a site behind
-/// a germ can lie at a shorter chord than the site ahead of it, and
-/// two germs on one site pair a half turn apart always tie.
-pub(super) fn germ_separation<T: Decide>(
-    (center, axis): (geom_core::Point3<T>, geom_core::Vec3<T>),
-    g1: &HalfGerm<T>,
-    p1: geom_core::Point3<T>,
-    p2: geom_core::Point3<T>,
-) -> T {
-    let radial = |p: geom_core::Point3<T>| {
-        let d = p - center;
-        d - axis * axis.dot(d)
-    };
-    let (u, w) = (radial(p1), radial(p2));
-    let sense = axis.dot(u.cross(g1.dir));
-    let sin = sense * axis.dot(u.cross(w));
-    let cos = sense.abs() * u.dot(w);
-    let swept = T::pi() + (-sin).atan2(-cos);
-    u.norm() * swept
 }
 
 type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
@@ -2860,49 +2835,5 @@ mod frame_dispatch_interval_tests {
             ),
             "parallel cylinder axes meet in rulings at the certified scalar"
         );
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod germ_separation_rows {
-    use super::super::HalfGerm;
-    use super::germ_separation;
-    use geom_core::{Point3, Vec3};
-
-    fn germ(dir: Vec3<f64>) -> HalfGerm<f64> {
-        HalfGerm {
-            he: crate::entity::HalfEdgeKey::default(),
-            a_face: crate::entity::FaceKey::default(),
-            b_face: crate::entity::FaceKey::default(),
-            dir,
-        }
-    }
-
-    /// **A conic germ measures the arc it sweeps in its own sense**: on
-    /// a circle of radius 2 about z, a germ leaving angle 0 reaches the
-    /// site at angle 2 after `2·2`, the site at −0.3 only after
-    /// `2·(2π − 0.3)` though that site's chord is the shorter, and the
-    /// site a half turn away after `2π` in either sense.
-    #[test]
-    fn a_conic_germ_measures_the_arc_ahead_of_it() {
-        use core::f64::consts::{PI, TAU};
-        let (c, z) = (Point3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 0.0, 1.0));
-        let at = |t: f64| Point3::new(2.0 * t.cos(), 2.0 * t.sin(), 5.0);
-        let (ccw, cw) = (
-            germ(Vec3::new(0.0, 1.0, 0.0)),
-            germ(Vec3::new(0.0, -1.0, 0.0)),
-        );
-        for (label, g, t, want) in [
-            ("ahead", &ccw, 2.0, 4.0),
-            ("behind", &ccw, -0.3, 2.0 * (TAU - 0.3)),
-            ("ahead, clockwise", &cw, -0.3, 0.6),
-            ("behind, clockwise", &cw, 2.0, 2.0 * (TAU - 2.0)),
-            ("half turn", &ccw, PI, TAU),
-            ("half turn, clockwise", &cw, PI, TAU),
-        ] {
-            let got = germ_separation((c, z), g, at(0.0), at(t));
-            assert!((got - want).abs() <= 1e-12, "{label}: {got} vs {want}");
-        }
     }
 }

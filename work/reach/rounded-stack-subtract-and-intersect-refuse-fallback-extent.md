@@ -51,8 +51,8 @@ re-measured on the same merge). Pinned by
 
 ## The two-half rod stack refuses the same way
 
-Measured on the branch of
-`work/reach/stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends.md`:
+Measured on `origin/main` after PR 3823 (the repro of
+`work/reach/stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends.md`):
 two rods of radius 1 and height 1, each wall two half-cylinders,
 stacked z 0 to 1 and 1 to 2, the upper one's seams turned by θ, every
 finding declared (the mating disc `Rest`, four wall continuations).

@@ -9,7 +9,9 @@
 //! with the halves swapped) the mating circle carries two sites a half
 //! turn apart: each seam segment is a semicircle, so its two end germs
 //! are perpendicular to their chord, and the two arcs between the
-//! sites are parallel edges told apart by the faces the germs lie on.
+//! sites are parallel edges. The zip matches each segment along the
+//! circle arc both operands carry between its sites (`arcs_along`), and
+//! that arc names the seam edge.
 //! The oracle is closed form: πr²h per rod.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

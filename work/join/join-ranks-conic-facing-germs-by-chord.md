@@ -31,13 +31,15 @@ this. It does not hide two polygon edges on one face pair with a narrow
 gap between them, such as a two-half rod crossing a U plate whose slot
 is narrower than its prongs.
 
-## Why not fixed with the REST lane's patch
+## A measured hazard for the fix
 
-Ranking by the swept arc (`join::germ_separation`, added on that
-branch for the REST zip) fixes the ranking. But in `find_match` it
-reorders the join's surgery: `axis_lap::a_blind_d_pocket_builds_from_below_and_refuses_from_above`
+Ranking by the swept arc `r·φ` (φ in the germ's own sense) fixes the
+ranking, and was tried in `find_match` and `loose_partners` on
+`reach/aligned-half-rods` (PR 3845, dropped once PR 3823 superseded
+that branch's REST-zip patch). It reorders the join's surgery:
+`axis_lap::a_blind_d_pocket_builds_from_below_and_refuses_from_above`
 went to `JoinDesync { "ring-run winding is degenerate" }`. JOIN-1's
 locus identity replaces the face-pair filter this rests on, so the
-ranking belongs with JOIN-1/JOIN-3, measured on the fixture above. That
-fixture currently stops earlier, at the wall's pierce ring
+ranking belongs with JOIN-1/JOIN-3, measured on the U-plate fixture
+above. That fixture currently stops earlier, at the wall's pierce ring
 (`SectionArcWindow`, `work/tang/pierce-ring-has-no-join-arm.md`).

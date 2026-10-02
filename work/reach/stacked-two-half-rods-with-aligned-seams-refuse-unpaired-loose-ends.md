@@ -2,13 +2,11 @@
 id: stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends
 kind: issue
 title: Two stacked two-half rods with their seams aligned refuse Join(UnpairedLooseEnds) with every finding declared; rotated seams build
-status: review
-branch: reach/aligned-half-rods
-pr: 3845
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
-refs: [rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity, JOIN-1, dumbbell-joint-union-leaves-four-loose-ends]
+closed: 2026-10-02
 ---
 
 Found by the review of PR 3657 (the continuation ruling), measured on
@@ -38,24 +36,31 @@ where a seam line of the upper rod starts, on the mating circle. Four
 loose ends fail to pair in the join, so the seam vertices on the
 mating circle are the likely site. Not investigated further.
 
-## Measured, and patched on the branch
+## Builds on TANG's branch (PR 3823, `tang/abutting-rim`)
 
-On `origin/main` `cd49025f` the join refuses every pose of this stack
-(`UnpairedLooseEnds`, 4 aligned, 8 turned); what builds the turned
-poses is the declared-REST zip (`boolean::rest`). Its segment
-enumeration pairs germs with the straight-chord facing test only. With
-the seams aligned the mating circle carries two sites a half turn
-apart, each germ is perpendicular to the chord between them (margin
-~1e-16, decided zero), nothing pairs, and the join's refusal surfaces
-verbatim. Past that, the two half-turn arcs between one site pair are
-parallel edges, and `fan_edge_between` refuses `ParallelSeamEdges`.
+The four loose ends are the mating circle's two semicircles, which the
+declared-REST zip's straight-chord facing test cannot pair (their germs
+are square to the chord) and `fan_edge_between` sees twice between one
+vertex pair. PR 3823's zip matches germs along circle arcs both operands
+carry first (`boolean/arcs.rs`, `arcs_along`), so the aligned pose
+builds there: `crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`
+stacks `rod_z(1, 0, 2)` and `rod_z(1, 2, 1)` (two semicircular wall
+halves each, seams aligned), discs `Rest` and walls continuations, and
+pins 3π, `(6, 10, 6)` faces, edges, vertices, one shell, tier 3 and 3′,
+in both orders. This row can close when PR 3823 lands.
 
-This is ZIP's
-`rest-zip-segments-read-a-straight-chord-facing-test-and-a-vertex-pair-identity`,
-which `docs/JOIN-1-SPEC.md` assigns to JOIN-2 (the zip reads the join's
-segments, and `enumerate_segments` / `fan_edge_between` go). The branch
-patches the two functions in place instead; whether that lands ahead
-of JOIN-2 is put to the orchestrator in the PR. Rows:
-`crates/sweep/tests/reach_aligned_half_rods.rs`. The other three ops
-refuse at every pose, as the rounded stack does
+## Closed (2026-10-02, TANG, PR 3823)
+
+With the walls declared `Continuation` (REACH, PR 3657), the stacked
+tube builds under PR 3823's arc-first REST matching: 3π, (6,10,6,1),
+tier 3 and 3′. It is pinned in `curved_mergedoor`.
+
+## The item's rows (REACH, PR 3845)
+
+`crates/sweep/tests/reach_aligned_half_rods.rs` pins the repro as filed
+on `origin/main` after PR 3823, at ε 1e-9, 1e-6 and 1e-12: the union
+at θ = 0, 0.7, π/2 and π builds at 2π (closed form), six faces, tier 3
+and 3′; a third rod stacks at 3π; undeclared or mate-only refuses
+`UndeclaredCoincidence`; and ∩, A ∖ B, B ∖ A keep the rounded stack's
+`FallbackExtentUnsupported`
 (`rounded-stack-subtract-and-intersect-refuse-fallback-extent`).

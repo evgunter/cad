@@ -100,12 +100,10 @@ tracing it is the crossing layer's business. The day the arm lands
 here, that row goes red unless the lens is traced or given a real
 guard; the arm's lane owns that row, not a relaxation of it.
 
-## Another consumer: the dumbbell's torus waist (REACH, 2026-10-02)
+## A tube on a torus latitude reaches this door (TANG, 2026-10-02)
 
-On branch `reach/aligned-half-rods` the declared-REST zip pairs a
-half-turn seam along its conic locus, read from the germ's face pair
-through `join::germ_section_frame`. The dumbbell's cylinder control
-builds that way; its torus waist does not, because the waist's germs
-are plane×torus and this frame has no arm, so the zip makes no conic
-claim and the join's `UnpairedLooseEnds { count: 4 }` stands
-(`germ_torus_doors::the_torus_waisted_union_stops_at_the_join_and_the_cylinder_control_builds`).
+Measured on branch `tang/abutting-rim`: a z-axis tube of radius
+`2 + 1/√2` standing at `z = 1/√2` on a full torus `R = 2`, `r = 1` about
+`z` (its rim on the torus's 45° latitude), unioned undeclared. Since that
+branch the rim is an ON event at the crossing layer, and the union stops
+here, `GermFrameUnsupported { Plane × Torus }`, in both member orders.
