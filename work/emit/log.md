@@ -1414,7 +1414,7 @@ Also, save runs the same validator, and `EditReplay` already spoke labels at loa
 **PR 3741: load and save errors.** `SnapshotError`'s 30 node fields and two names, `NonFiniteSite`, `PersistError::ProfileProgram` and `FrameSite::subject` speak from the document being validated.
 - New arm `SnapshotError::DuplicateInput` (Python `duplicate_input`). `InputList` now holds a `ListFault`, which cannot be a duplicate.
 - Duplicate-key refusals at parse time have one helper and one sentence.
-- Filed `work/edit/load-door-refusals-tag-ids-the-file-spells-in-decimal` (P4, a design question).
+- Filed `work/doctail/load-door-refusals-tag-ids-the-file-spells-in-decimal` (P4, a design question).
 
 **Remaining rows of the labels unit:**
 - `analysis-door-refusals-speak-the-node`
