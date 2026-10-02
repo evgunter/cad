@@ -1408,12 +1408,12 @@ pub(super) struct HeldPair {
 ///
 /// Each fragment, walked from the held key along `he_plus` to the
 /// edge's far end, is read again by [`curved_face_arm`] against the
-/// held face. A fragment
-/// that clears or records is done; one whose touch is still inside it,
-/// or that the arm reads as a crossing, answers the pair's typed
-/// frontier. A pair nothing split reads exactly as it was held, so it
-/// answers that frontier too: the hold widens only what a vertex of
-/// the other operand puts under the touch.
+/// held face. A fragment that clears or records is done; one whose
+/// touch is still inside it, or that the arm reads as a crossing,
+/// answers the pair's typed frontier. A pair nothing split reads
+/// exactly as it was held, so it answers that frontier too: the hold
+/// widens only what a vertex of the other operand puts under the
+/// touch.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn settle_held<T: Decide>(
     a: &mut Body<T>,
