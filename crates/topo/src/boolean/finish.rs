@@ -620,12 +620,16 @@ fn pinch_site<T: Decide>(
         let mut hus = Vec::new();
         let mut hws = Vec::new();
         for &l in core::iter::once(&f.outer).chain(&f.rings) {
-            let LoopBoundary::Cycle { first } = body
+            let first = match body
                 .get_loop(l)
                 .ok_or_else(|| desync("a face's loop no longer resolves"))?
                 .boundary
-            else {
-                continue;
+            {
+                LoopBoundary::Cycle { first } => first,
+                LoopBoundary::Empty { vertex } if vertex == u || vertex == w => {
+                    return Err(desync("a kept pierce vertex stands alone on its face"));
+                }
+                LoopBoundary::Empty { .. } => continue,
             };
             for he in body
                 .loop_cycle(first)
