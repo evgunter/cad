@@ -5,9 +5,10 @@ title: The ratified VERB-SEAT S1 puts CurveKind beside Curve3; the code has kept
 status: open
 opened: 2026-09-14
 needs_ev: true
-refs: [edge-carrier-kind-has-no-readback-door, 2587]
+refs: [edge-carrier-kind-has-no-readback-door, 2587, 3664]
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 
@@ -73,3 +74,19 @@ disposition above.
 Carry it on the next `[ev]` PR this program opens. Whichever way it
 goes, one of the two sentences is edited in that PR, and the
 `query.rs` placement paragraph follows it.
+
+## The premise moved (2026-10-02)
+
+The designer pair (`docs/DESIGN-FORK-LOG.md` row 41) found what this
+row did not have: since PR 3664 (`10a74f5da`, 2026-10-01) the tree
+holds TWO production mirrors of `Curve3` — `topo::query::CurveKind`
+and `geom_brep::CurveKind` (`crates/geom-brep/src/intersect.rs`, the
+payload of `CertifyError::ChartImageUnavailable` and
+`PcurveCertifyError::{UnsupportedCarrier, CarrierOffChart}`) — plus the
+test-only derived `geom::Curve3Variant` / `SurfaceVariant`. `topo`
+re-exports both production copies, so one fact ("the carrier is an
+ellipse") is spelled with two types that do not compare. PR 2587's
+STAY reasoning ("both readers are in `topo`") has been false since
+3664, and `geom-brep` sits below `topo`, so no copy in `topo` can be
+the one. The question is therefore one mirror per enum and its home,
+not the placement of one type; the `[ev]` PR asks that.
