@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P1
 cost: H
+refs: [an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired, ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum]
 ---
 
 

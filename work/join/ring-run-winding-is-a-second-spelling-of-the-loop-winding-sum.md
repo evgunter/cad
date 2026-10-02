@@ -48,3 +48,23 @@ once. Check whether `blind-d-pocket-subtract-refuses-with-join-internal-words`'s
 top-entry refusal ("ring-run winding is degenerate (zero enclosed
 area)") is this function deciding a run it should not have been handed,
 or one it winds wrongly.
+
+## Built (`join/ring-run-winding`)
+
+The sum's one home is `loop_winding.rs`'s `Body::winding_of_halves`,
+with a `Closing::Cycle` or `Closing::Chord` arm. `ring_run_ccw` reads it
+through `Body::planar_run_winding_decided`. Both callers read
+`edge.claim(he)`.
+
+- **Spline or spiric run edge:** the ring lane refuses it as
+  `SectionInvariant`, since the operand gates refuse both kinds.
+- **Null-edge scaffold:** both spellings now wind it as its
+  zero-length chord. This is a deliberate change to the loop spelling,
+  which used to answer `Unsupported`. A ring run always opens and
+  closes on null halves.
+
+The sweep's third spelling, `splitting/join.rs`
+`certify_section_area`, is REACH's
+`split-section-area-spells-the-planar-winding-sum-a-third-time`.
+`blind-d-pocket-subtract-refuses-with-join-internal-words` is
+diagnosed, not fixed, in its own `## Diagnosed` section.
