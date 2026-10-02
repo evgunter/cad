@@ -1,7 +1,8 @@
 //! `setopfinish` (ch. 15 §15.8, Program 15.15 re-derived): promote
 //! each completed section-polygon pair into IN/OUT section faces in
 //! BOTH solids, distribute components, select per **Eq. 15.1**, carve
-//! the kept components, `revert` the B side for ∖, and drive the
+//! the kept components, weld each kept pinch into one vertex
+//! (`weld_pinches`), `revert` the B side for ∖, and drive the
 //! combine door — everything keyed by the F9 records, never by index
 //! offsets into correlated arrays (the book's `sonfa[i+inda]`
 //! bookkeeping is replaced by side data).
@@ -29,7 +30,6 @@
 //! witness ([`super::shell_witness`]) against the *pristine* other
 //! operand.
 
-use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide};
 use slotmap::SecondaryMap;
 
@@ -37,12 +37,11 @@ use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
 use super::join::CompletedPolygonPair;
 use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
-use super::zip::{SeamCorrespondence, survivor};
+use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
-use crate::euler::{FaceSurface, MefSite};
-use crate::euler_ring::MekrSite;
+use crate::entity::{FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::euler::FaceSurface;
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
@@ -480,6 +479,9 @@ fn weld_pinches<T: Decide>(
             .push(copies_of(r.ring_vertex));
     }
     let mut welds = Welds::default();
+    // Every pair of one face's pierces, through their copies: quadratic,
+    // over the few edges of the other operand that pierce one face, and a
+    // pair costs one point comparison unless it coincides.
     for (&pierced, pierces) in &by_face {
         for (i, us) in pierces.iter().enumerate() {
             for (&u0, &w0) in pierces[i + 1..]
@@ -496,11 +498,11 @@ fn weld_pinches<T: Decide>(
                 };
                 let pu = point(u)?;
                 // No row reaches the escalation: two pierces a band
-                // apart need two edges of the piercing operand a band
-                // apart, and a kernel-built operand refuses those at its
-                // own build (two blocks a band apart escalate
-                // `bool_contact_edge` in their union). An operand built
-                // elsewhere can still bring them here.
+                // apart need the piercing operand's two edges a band
+                // apart, and the join escalates that waist at
+                // `bool_join_nearest` before the weld runs; a narrower
+                // one the profile insert refuses at the operand's build.
+                // An operand built elsewhere can still bring them here.
                 if !one_vertex(pu, point(w)?, band).map_err(|diag| BooleanError::Escalated {
                     decision: super::BooleanDecision::VertexOnVertex,
                     diag,
@@ -509,31 +511,17 @@ fn weld_pinches<T: Decide>(
                 }
                 let fragments = descendants(pierced, lineage.iter().chain(&welds.fragments));
                 let in_lineage = |f: FaceKey| fragments.contains(&f) && !sections.contains_key(f);
-                let joint = EdgeCurveSpec::self_loop_circle_at(pu);
-                let he = match pinch_site(body, u, w, in_lineage)? {
-                    None => continue,
-                    Some(Site::OneLoop { face, hu, hw }) => {
-                        let made = body.mef(
-                            MefSite::Chords { he1: hu, he2: hw },
-                            joint,
-                            FaceSurface::Inherit,
-                            tol,
-                        )?;
-                        welds.fragments.push((made.face, face));
-                        made.he_plus
-                    }
-                    Some(Site::TwoLoops { target, ring }) => {
-                        body.mekr(MekrSite::Cycles { target, ring }, joint, tol)?
-                            .he_plus
-                    }
+                let Some((face, joint)) = pinch_site(body, u, w, in_lineage)? else {
+                    continue;
                 };
-                let kept = body
-                    .get_half_edge(he)
-                    .ok_or_else(|| desync("a pinch joint no longer resolves"))?
-                    .start;
-                let dead = if kept == u { w } else { u };
-                body.kev_describing(he, &[], tol)?;
-                if body.get_vertex(dead).is_some() || body.get_vertex(kept).is_none() {
+                let ((dead, kept), made) = fuse_by_joint(body, joint, pu, desync, tol)?;
+                if let Some(made) = made {
+                    welds.fragments.push((made, face));
+                }
+                if [dead, kept] != [u, w] && [dead, kept] != [w, u]
+                    || body.get_vertex(dead).is_some()
+                    || body.get_vertex(kept).is_none()
+                {
                     return Err(desync("a pinch weld did not fuse its pair"));
                 }
                 welds.merges.push((dead, kept));
@@ -544,45 +532,35 @@ fn weld_pinches<T: Decide>(
 }
 
 /// `face` and every face divided from it, through `rows` (`(new face,
-/// divided-from face)`, mint order).
+/// divided-from face)`, in any order).
 fn descendants<'r>(
     face: FaceKey,
     rows: impl Iterator<Item = &'r (FaceKey, FaceKey)>,
 ) -> BTreeSet<FaceKey> {
+    let rows: Vec<_> = rows.collect();
     let mut out = BTreeSet::from([face]);
-    for &(new, from) in rows {
-        if out.contains(&from) {
-            out.insert(new);
+    let mut todo = vec![face];
+    while let Some(f) = todo.pop() {
+        for &&(new, from) in &rows {
+            if from == f && out.insert(new) {
+                todo.push(new);
+            }
         }
     }
     out
 }
 
-/// Where a pinch weld joins `u` to `w`: the half-edges leaving each on
-/// one face's boundary.
-enum Site {
-    /// Both in one loop of `face`.
-    OneLoop {
-        face: FaceKey,
-        hu: HalfEdgeKey,
-        hw: HalfEdgeKey,
-    },
-    /// In two loops of one face: `target`'s loop absorbs `ring`'s, the
-    /// face's outer loop when it is one of them.
-    TwoLoops {
-        target: HalfEdgeKey,
-        ring: HalfEdgeKey,
-    },
-}
-
 /// The one face `allowed` admits whose boundary runs through both `u`
-/// and `w`, each once; `None` when no such face holds both.
+/// and `w`, each once, and the joint between the half-edges leaving
+/// them: a chord when one loop holds both, else across their two loops,
+/// into the face's outer loop when it is one of them. `None` when no
+/// such face holds both.
 fn pinch_site<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
     w: VertexKey,
     allowed: impl Fn(FaceKey) -> bool,
-) -> Result<Option<Site>, BooleanError> {
+) -> Result<Option<(FaceKey, Joint)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let faces = body
         .faces_of_vertex(u)
@@ -619,18 +597,18 @@ fn pinch_site<T: Decide>(
         }
         let here = match (hus.as_slice(), hws.as_slice()) {
             (_, []) => continue,
-            (&[(lu, hu)], &[(lw, hw)]) if lu == lw => Site::OneLoop { face, hu, hw },
-            (&[(_, hu)], &[(lw, hw)]) if lw == f.outer => Site::TwoLoops {
+            (&[(lu, hu)], &[(lw, hw)]) if lu == lw => Joint::Chord { he1: hu, he2: hw },
+            (&[(_, hu)], &[(lw, hw)]) if lw == f.outer => Joint::Loops {
                 target: hw,
                 ring: hu,
             },
-            (&[(_, hu)], &[(_, hw)]) => Site::TwoLoops {
+            (&[(_, hu)], &[(_, hw)]) => Joint::Loops {
                 target: hu,
                 ring: hw,
             },
             _ => return Err(desync("a pinch face runs through a pierce vertex twice")),
         };
-        if site.replace(here).is_some() {
+        if site.replace((face, here)).is_some() {
             return Err(desync("two fragments of a pierced face meet one pinch"));
         }
     }

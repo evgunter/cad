@@ -11,11 +11,13 @@
 //! by `setopfinish` — never from geometric point matching. The two
 //! cycles must be **antiparallel** (A's kept loop and B's kept loop
 //! run in opposite senses — the book's crossover carried through):
-//! the outer half-edge `a → a'` matches the ring half-edge running
-//! from a correspondent of `a'` to one of `a`, so a vertex the seam
-//! meets twice (a welded pinch, with one correspondent per meeting)
-//! is told apart by the run's other end. A ring that runs the same
-//! sense is refused before any surgery
+//! the outer half-edge leaving `a` (for `a → a⁺`, after `a⁻ → a`) is
+//! paired with the ring half-edge leaving a correspondent of `a`, which
+//! runs to a correspondent of `a⁻`; the zip joins the two at `a`. So a
+//! vertex the seam meets twice (a welded pinch, with one correspondent
+//! per meeting) is told apart by the ring run's other end. A ring that
+//! leaves the right vertex but runs the same sense is refused before
+//! any surgery
 //! ([`BooleanError::SeamOrientation`]) rather than zipped.
 //!
 //! Scaffolding carriers use the canonical full-period self-loop spec
@@ -51,6 +53,59 @@ pub(super) fn survivor(merges: &[(VertexKey, VertexKey)], v: VertexKey) -> Verte
     merges
         .iter()
         .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
+}
+
+/// Where a zero-length joint runs between two vertices of one face.
+pub(super) enum Joint {
+    /// Across two of its loops (`mekr`, which joins them): `target`'s
+    /// loop absorbs `ring`'s.
+    Loops {
+        target: HalfEdgeKey,
+        ring: HalfEdgeKey,
+    },
+    /// Across one loop (`mef`, which divides the face).
+    Chord { he1: HalfEdgeKey, he2: HalfEdgeKey },
+}
+
+/// **Fuses two coincident vertices**: a zero-length edge between them at
+/// `p` (the canonical self-loop carrier, whose certification requires
+/// the pair bitwise coincident), collapsed by a `kev` that keeps the
+/// merged fan's carriers, each re-certified at the kept vertex under the
+/// run's band. Returns the fusion `(dead, kept)` and, for a chord, the
+/// face it divided off; `desync` names a joint that no longer resolves.
+pub(super) fn fuse_by_joint<T: Decide>(
+    body: &mut Body<T>,
+    joint: Joint,
+    p: geom_core::Point3<T>,
+    desync: fn(&'static str) -> BooleanError,
+    tol: Tol,
+) -> Result<((VertexKey, VertexKey), Option<FaceKey>), BooleanError> {
+    let carrier = EdgeCurveSpec::self_loop_circle_at(p);
+    let (he, made) = match joint {
+        Joint::Loops { target, ring } => (
+            body.mekr(MekrSite::Cycles { target, ring }, carrier, tol)?
+                .he_plus,
+            None,
+        ),
+        Joint::Chord { he1, he2 } => {
+            let made = body.mef(
+                MefSite::Chords { he1, he2 },
+                carrier,
+                FaceSurface::Inherit,
+                tol,
+            )?;
+            (made.he_plus, Some(made.face))
+        }
+    };
+    let kept = body
+        .get_half_edge(he)
+        .ok_or_else(|| desync("a joint half-edge no longer resolves"))?
+        .start;
+    let dead = body
+        .half_edge_end(he)
+        .ok_or_else(|| desync("a joint half-edge has no end"))?;
+    body.kev_describing(he, &[], tol)?;
+    Ok(((dead, kept), made))
 }
 
 /// What one seam zip did to the arena — the F9-style record the op
@@ -161,46 +216,21 @@ pub(super) fn zip_seam<T: Decide>(
                 .and_then(|vd| body.get_point(vd.point).copied())
                 .ok_or_else(|| corr("seam vertex has no point"))
         };
-    let record_kev = |body: &mut Body<T>,
-                      he: crate::entity::HalfEdgeKey,
-                      report: &mut ZipReport|
-     -> Result<(), BooleanError> {
-        let kept = body
-            .get_half_edge(he)
-            .ok_or_else(|| corr("kev half-edge no longer resolves"))?
-            .start;
-        let dead = body
-            .half_edge_end(he)
-            .ok_or_else(|| corr("kev half-edge has no end"))?;
-        // A merge of two vertices the section put a band apart (they
-        // can differ by ulps): the merged fan keeps its carriers, each
-        // re-certified at the kept vertex under the run's band.
-        body.kev_describing(he, &[], tol)?;
-        report.vertex_merges.push((dead, kept));
-        Ok(())
-    };
     let p0 = point_of(body, ob[0])?;
-    let n0 = body.mekr(
-        MekrSite::Cycles {
-            target: ob[0],
-            ring: rs[0],
-        },
-        EdgeCurveSpec::self_loop_circle_at(p0),
-        tol,
-    )?;
-    record_kev(body, n0.he_plus, &mut report)?;
+    let joint = Joint::Loops {
+        target: ob[0],
+        ring: rs[0],
+    };
+    let (merge, _) = fuse_by_joint(body, joint, p0, corr, tol)?;
+    report.vertex_merges.push(merge);
     for j in (1..n).rev() {
         let pj = point_of(body, ob[j])?;
-        let nj = body.mef(
-            MefSite::Chords {
-                he1: ob[j],
-                he2: rs[j],
-            },
-            EdgeCurveSpec::self_loop_circle_at(pj),
-            FaceSurface::Inherit,
-            tol,
-        )?;
-        record_kev(body, nj.he_plus, &mut report)?;
+        let joint = Joint::Chord {
+            he1: ob[j],
+            he2: rs[j],
+        };
+        let (merge, _) = fuse_by_joint(body, joint, pj, corr, tol)?;
+        report.vertex_merges.push(merge);
         body.kef_minting(rs[(j + 1) % n], tol)?;
     }
     body.kef_minting(rs[1 % n], tol)?;
