@@ -1460,6 +1460,17 @@ mod tests {
         );
     }
 
+    /// A door handed a subject that was never taken, with a check on
+    /// that reads one, says so and says what to pass.
+    #[test]
+    fn a_subject_never_taken_refuses_in_its_own_words() {
+        assert_eq!(
+            super::ChecksError::Product { refusal: None }.to_string(),
+            "checks: an enabled check reads the document's product, and none was taken. \
+             Recourse: pass the gathered product as the subject"
+        );
+    }
+
     /// INVARIANT: the subject door ROUTES the refusal it is handed.
     /// The one class [`product::ProductErrorKind::means_no_body`]
     /// reads as an ABSENCE — `ProductError::NoBodyRoots`, a document

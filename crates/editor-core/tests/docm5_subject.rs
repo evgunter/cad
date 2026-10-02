@@ -485,8 +485,9 @@ fn the_assembly_gathers_in_one_place() {
 
 /// **Nothing shares the product to get around the ordering.** The
 /// landing's three consumers are ordered so that one gather is enough;
-/// a `Clone` or an `Arc` on `Product` would be the other answer, and
-/// these modules do not take it.
+/// a `Clone` or an `Arc` on `Product<T>` would be the other answer, and
+/// these modules do not take it. The needles end at the generic's `<`,
+/// so a type that only shares the prefix (`ProductError`) is not one.
 ///
 /// Read through the shared reader's CODE view
 /// ([`test_utils::source::code_only`]), because every needle here is a
@@ -494,7 +495,7 @@ fn the_assembly_gathers_in_one_place() {
 /// an item — and the claim is about what these modules DO, not about
 /// what their prose says they do not. The view keeps every code byte
 /// at its own offset and blanks comments and literals, so a real
-/// `Arc<Product>` is still seen exactly where it is written while a
+/// `Arc<Product<T>>` is still seen exactly where it is written while a
 /// sentence naming one stops answering for it. This site's ledger row
 /// is in `crates/test-utils/tests/reader_census.rs`.
 #[test]

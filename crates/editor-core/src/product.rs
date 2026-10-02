@@ -292,12 +292,7 @@ struct SourceLine<'a> {
 
 impl crate::finding::Finding for SourceLine<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{} output {}",
-            self.by.node_as(self.source.node, "root"),
-            self.source.output
-        )
+        self.source.say(f, self.by)
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -309,20 +304,19 @@ impl crate::finding::Finding for SourceLine<'_> {
     }
 }
 
-/// The source's findings, one line each under its root and output.
+/// The source as a finding's subject names it: its root and output.
 impl Say for SourceFinding {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         write!(
             f,
-            "{} output {} is not valid at rest:",
+            "{} output {}",
             by.node_as(self.node, "root"),
             self.output
-        )?;
-        crate::finding::render_lines(f, &self.errors)
+        )
     }
 }
 
-/// The source's sentence where no document is at hand: its root by tag.
+/// The source where no document is at hand: its root by tag.
 impl core::fmt::Display for SourceFinding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         Say::say(self, f, Speaker::TAG)
@@ -348,7 +342,7 @@ impl core::fmt::Display for ProductError {
 /// The refusal under its stage word, each node said by `by`.
 impl Say for ProductError {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
-        write!(f, "{}: ", <Self as Staged>::STAGE)?;
+        Labelled::<Self>::open(f, Labels::Kept)?;
         self.fmt_said(f, Labels::Kept, by)
     }
 }
@@ -469,18 +463,14 @@ impl ProductError {
             // its own root's mint, and would be described correctly.
             Self::Naming { node, name } if *node != name.node => write!(
                 f,
-                "{}'s {} name (minted by {}) collides in the \
-                 product's name table",
+                "{}'s {} collides in the product's name table",
                 root(*node),
-                name.kind.noun(),
-                by.node(name.node)
+                by.name(name)
             ),
             Self::Naming { name, .. } => write!(
                 f,
-                "the {} name minted by {} collides in the \
-                 product's name table",
-                name.kind.noun(),
-                by.node(name.node)
+                "the {} collides in the product's name table",
+                by.name(name)
             ),
             Self::Graft { node, source } => write!(
                 f,
@@ -547,68 +537,30 @@ impl ProductError {
 
 impl core::error::Error for ProductError {}
 
-/// **A gather refusal, shared**: what a value that is `Clone` and
-/// compared holds in place of a [`ProductError`], which is neither
-/// ([`crate::PartFault::PartProduct`], [`crate::ChecksError::Product`]).
-///
-/// It keeps the error whole, its ids bare, so the frame that hands it
-/// out says its nodes ([`Say`]), and a clone is a pointer copy. Equality
-/// is [`crate::NodeRefusal`]'s, for its reason: over the `Debug`
-/// structure, since the kernel refusals the error carries have none of
-/// their own.
-#[derive(Debug, Clone)]
-pub struct ProductRefusal(Arc<ProductError>);
+/// **A gather refusal, shared** ([`crate::Refusal`]): what
+/// [`crate::PartFault::PartProduct`] and [`crate::ChecksError::Product`]
+/// hold, its ids bare for the frame that hands it out to say.
+pub type ProductRefusal = crate::refusal::Refusal<ProductError>;
 
 impl ProductRefusal {
     /// The refusal, as the gather typed it.
     #[must_use]
     pub fn error(&self) -> &ProductError {
-        &self.0
+        self.get()
     }
 
     /// Which arm refused ([`ProductError::kind`]).
     #[must_use]
     pub fn kind(&self) -> ProductErrorKind {
-        self.0.kind()
-    }
-}
-
-impl From<ProductError> for ProductRefusal {
-    fn from(error: ProductError) -> Self {
-        Self(Arc::new(error))
-    }
-}
-
-impl PartialEq for ProductRefusal {
-    fn eq(&self, other: &Self) -> bool {
-        let (Self(mine), Self(theirs)) = (self, other);
-        Arc::ptr_eq(mine, theirs) || format!("{mine:?}") == format!("{theirs:?}")
-    }
-}
-
-impl Eq for ProductRefusal {}
-
-impl Say for ProductRefusal {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
-        self.0.say(f, by)
-    }
-}
-
-impl core::fmt::Display for ProductRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(f)
+        self.get().kind()
     }
 }
 
 /// Which arm of [`ProductError`] refused, without the payload.
 ///
-/// A [`ProductError`] is neither `Clone` nor `PartialEq` — it carries
-/// validity-finding lists and the kernel's own boolean refusal — so a
-/// consumer that must record, compare or hash the refusal has had only
-/// the rendered prose to substring-match. This projection drops exactly
-/// the part that cannot be cloned or compared, so the class rides where
-/// the error itself cannot: into a `Clone + PartialEq` refusal record,
-/// a hash key, a test assertion.
+/// A consumer that records or compares the refusal holds it whole, as
+/// a [`ProductRefusal`]; this projection is the class alone, for one
+/// that branches on it, hashes it or asserts it.
 ///
 /// One variant per [`ProductError`] arm, except [`ProductError::Root`],
 /// whose standing decides which refusal it is to a caller: one variant
@@ -1713,6 +1665,40 @@ mod tests {
         assert_eq!(
             ProductError::Root(standing).to_string(),
             format!("product: root {standing}")
+        );
+    }
+
+    /// **The bare sentence names every failing root in its header**,
+    /// each as a root, so a carrier that draws no per-line subject
+    /// still says which roots failed.
+    #[test]
+    fn the_bare_root_invalid_header_names_each_root() {
+        let source = |node: u64| SourceFinding {
+            node: RecipeNodeId(test_utils::refusal::tagged(node)),
+            output: 0,
+            errors: vec![topo::ValidationError::NegativeVolume {
+                solid: topo::SolidKey::default(),
+            }],
+        };
+        let two = ProductError::RootInvalid {
+            findings: vec![source(3), source(5)],
+        };
+        assert!(
+            two.sentence()
+                .to_string()
+                .starts_with("root 000000000003, root 000000000005 are not valid at rest:\n  "),
+            "{}",
+            two.sentence()
+        );
+        let one = ProductError::RootInvalid {
+            findings: vec![source(3)],
+        };
+        assert!(
+            one.sentence()
+                .to_string()
+                .starts_with("root 000000000003 is not valid at rest:\n  "),
+            "{}",
+            one.sentence()
         );
     }
 
