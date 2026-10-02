@@ -128,10 +128,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
             // 110 / 545 / numeric 507 at the old ceiling, before the
-            // constructions stored their carriers; 44 / 643 / 442 here,
-            // with 33 sign-gated (it was none), at every ε.
+            // constructions stored their carriers; 44 / 676 / 442 here,
+            // at every ε. (643 with 33 sign-gated before DECIDE-9's
+            // early zero arm: 32 `dihedral_wedge` and one
+            // `path_seam_arrival_turn` the read answered first.)
             registered: 44,
-            symbolic_zero: 643,
+            symbolic_zero: 676,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -146,20 +148,27 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // numeric decisions reach the door, verdicts unchanged.
             // 146 / 1105 / 21 gated / 781 numeric until the fillet
             // stored its own centre and the authored radius and
-            // registered its incoming tangency: 34 / 1249 / 13 / 757
-            // since, at every ε.
-            registered: 34,
+            // registered its incoming tangency: 42 / 1257 / 5 / 749
+            // since, at every ε. Against main's 1121 / 5 / 146 / 781,
+            // eight `dihedral_wedge` theorems are registered instead:
+            // the fillet's tangency is the registration
+            // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
+            // centre's algebra.
+            registered: 42,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
-            // is unmoved. With the read shut this replay reads 1121
-            // theorems; with it on, 16 of those are answered by the read
-            // before their form reduces and count `sign_gated` (21 in
-            // all) — the class the pad's note names. One of the 1105 is
-            // the bracket's fillet run out read against its arrival
+            // is unmoved. 1105 until a product with an ungated zero
+            // factor stopped carrying its other factor's gate
+            // (`geom_core::sym`'s early zero arm, DECIDE-9): sixteen
+            // `dihedral_wedge` margins `sin θ · arm`, whose `sin θ` is
+            // the zero form and whose lever arm the read settles, are
+            // theorems again (`sign_gated` 21 -> 5, the five
+            // `line_span` reads no form settles). One of these is the
+            // bracket's fillet run out read against its arrival
             // carrier (`path_run_out_carrier`), a margin the tier proves
             // zero rather than measuring it.
-            symbolic_zero: 1249,
+            symbolic_zero: 1257,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -221,17 +230,18 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             //
             // DECIDE-3 (rule G and the decision read): `registered`
             // 128 -> 150, and with the read shut this replay reads
-            // 925 theorems, 0 `sign_gated`, 1004 `numeric` — every
-            // column up. With the read on, 32 of those 925 are answered
-            // by the read before their form reduces, so they count
-            // `sign_gated` (34) and not `symbolic_zero` (893). The tree
-            // without the must-carry gate's stations reads 4 such (894
-            // with the read shut, 890 with it on), so 28 of the 32 are
-            // INFERRED to be the stations' — 925 − 894 = 31 = 28
-            // station theorems + 3 run-outs — not read off a split,
-            // which was not taken. The decisions stay discharged; the claim on
-            // those 32 is the read's, not a theorem
+            // 925 theorems, 0 `sign_gated` — every column up. With the
+            // read on it read 893 / 34 until DECIDE-9: 32
+            // `dihedral_wedge` margins `sin θ · arm`, whose `sin θ` is
+            // the zero form and whose lever arm the read settles, were
+            // `sign_gated` because the product carried the arm's gate.
+            // A product with an ungated zero factor now rests on that
+            // factor alone, so they are theorems: 925 / 2, the two the
+            // `line_span` reads no form settles, `numeric` unmoved
             // (`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`).
+            // How many of the 32 are the must-carry stations' is not
+            // read off a split: the predicate is the same at every
+            // `dihedral_wedge` caller.
             //
             // Over copied arc carriers (a lift carries the stored
             // carrier rather than re-lowering it) 150 → 148, numeric
@@ -242,15 +252,17 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
-            // 148 / 893 / numeric 1004 until the constructions stored
-            // their carriers; 46 / 1070 / 42 gated / 921 since, at
-            // every ε: 102 registrations and 81 numeric decisions
-            // become theorems or sign-gated ones.
-            registered: 46,
+            // 148 / 925 / 2 gated / numeric 1004 until the
+            // constructions stored their carriers; 54 / 1110 / 2 / 913
+            // since, at every ε: 94 registrations and 91 numeric
+            // decisions become theorems. (46 / 1070 / 42 gated / 921
+            // before DECIDE-9's early zero arm, which takes 32 of those
+            // 40 gated decisions to theorems and 8 to registered.)
+            registered: 54,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
-            symbolic_zero: 1070,
+            symbolic_zero: 1110,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -570,8 +582,9 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// into the door. The axis-order basis mints no `copysign` for rule F
 /// to fold, and at the scale the pad certifies whole at, over its
 /// analyzed box, the two dials now read the same receipt —
-/// `symbolic_zero` 893, `sign_gated` 34, `registered` 150, `numeric`
-/// 1002, `frozen` 2577 — and both certify
+/// `symbolic_zero` 1110, `sign_gated` 2, `registered` 54, `numeric`
+/// 913, `frozen` 2733 since the constructions stored their carriers
+/// (925 / 2 / 148 / 1004 / 2510 before) — and both certify
 /// (`work/sym/the-negative-arm-lost-its-document-consumer`).
 ///
 /// `#[ignore]`d: it is two whole-box replays of the heaviest of the
@@ -615,7 +628,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (893, 34, 150, 1002, 2577),
+        (1110, 2, 54, 913, 2733),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(

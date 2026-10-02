@@ -127,21 +127,11 @@ fn decide_3_no_predicate_loses_a_decision() {
             // arc back to an `atan2` quarter-tangent restores all three
             // predicates' old numbers.
             //
-            // Three more are the decision read answering decisions that
-            // are theorems with it shut
-            // (`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`):
-            // with the constructions' carriers stored, the link's
-            // `dihedral_wedge` (32) and `path_seam_arrival_turn` (1) and
-            // the bracket's `dihedral_wedge` (8, beside 8 the fillet's
-            // incoming-tangency registration discharges) are theorems
-            // with G and the read shut, and the shipped side answers
-            // them by the read first — the bracket's other 8 then stay
-            // numeric. Against main's shipped side these are gains on
-            // the link (`[0, 0, 0, 128]` and `[0, 0, 0, 1]` before) and
-            // a loss of 8 gated decisions to numeric on the bracket
-            // (`[0, 16, 0, 216]` before).
-            // At the document level the shipped side still gains:
-            // `[569, 0, 94, 499] -> [643, 33, 44, 442]`.
+            // The decision read no longer answers any of this
+            // document's theorems first (DECIDE-9's early zero arm), so
+            // `dihedral_wedge` and `path_seam_arrival_turn` read the same
+            // on both sides. At the document level the shipped side
+            // gains: `[569, 0, 94, 499] -> [676, 0, 44, 442]`.
             //
             // Both sides here run one attempt per rung
             // (`split_at_the_nominal`, no retry ladder), because this is
@@ -155,9 +145,6 @@ fn decide_3_no_predicate_loses_a_decision() {
                     Some(([108, 0, 44, 28], [144, 0, 12, 24]))
                 }
                 ("r2_link", "arc_span") => Some(([8, 0, 0, 0], [4, 0, 0, 4])),
-                ("r2_link", "dihedral_wedge") => Some(([32, 0, 0, 96], [0, 32, 0, 96])),
-                ("r2_link", "path_seam_arrival_turn") => Some(([1, 0, 0, 0], [0, 1, 0, 0])),
-                ("r2_filleted_bracket", "dihedral_wedge") => Some(([8, 0, 8, 216], [0, 8, 0, 224])),
                 _ => None,
             };
             if let Some(expected) = rebaselined {

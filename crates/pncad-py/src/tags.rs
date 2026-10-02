@@ -316,6 +316,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
+        R::DistinctFinding(_) => "distinct_finding",
         R::AcrossSpaces { .. } => "across_spaces",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
@@ -947,7 +948,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // undeclared-contact refusal carrying the candidate
         // declaration; the `finding` payload crosses as a typed
         // attribute beside this tag.
-        C::UndeclaredContact => "undeclared_contact",
+        C::UndeclaredCoincidence => "undeclared_coincidence",
         // The same refusal with no declare arm: the contact is
         // against a row the union's own fold minted, which no sited
         // declaration names.
@@ -1126,7 +1127,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::DeclareUnsupportedPair { .. } => None,
         // The candidate declaration crosses whole, as the `finding`
         // attribute; the refusing predicate's diagnostic is a margin.
-        NodeErrorKind::UndeclaredContact { .. } => None,
+        NodeErrorKind::UndeclaredCoincidence { .. } => None,
         // The row it names crosses in the message; there is no inner
         // refusal to delegate to.
         NodeErrorKind::UndeclarableContact { .. } => None,
@@ -1478,11 +1479,12 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
 /// kernel-side; minting a tag for one would publish an FFI name no
 /// refusal can ever carry.
 ///
-/// `undeclared_coincidence` is here and is NOT the refusal the
-/// detect/declare protocol raises: the document layer lifts that one
-/// to its own `undeclared_contact` carrier word with the candidate
-/// declaration attached, and this arm is what survives when a key
-/// fails to resolve to a name.
+/// `undeclared_coincidence` is here and is ALSO the node kind the
+/// detect/declare protocol raises: the document layer lifts the kernel
+/// refusal to its own `undeclared_coincidence` node kind with the
+/// candidate declaration attached, and this arm (an `inner_kind`) is
+/// what survives when a key fails to resolve to a name. One
+/// coincidence, one word, two attributes.
 pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
     match kind {
         BooleanErrorKind::Band => "band",
@@ -1502,6 +1504,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UndeclaredCoincidence => "undeclared_coincidence",
         BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
+        BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
         BooleanErrorKind::RimSeamNotDeclarable => "rim_seam_not_declarable",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",

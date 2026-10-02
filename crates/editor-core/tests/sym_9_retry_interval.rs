@@ -417,16 +417,23 @@ fn sym_9_what_each_retry_recovers() {
 /// samples: `[1105, 21, 144, 783]` → `[1105, 21, 146, 781]` without the
 /// ladder and `[1105, 21, 150, 777]` → `[1105, 21, 152, 775]` with it,
 /// retried 6 either way — two numeric decisions registered by the door
-/// on the first attempt.
+/// on the first attempt. Sixteen of the bracket's `sign_gated` are
+/// theorems once a product with an ungated zero factor rests on that
+/// factor alone (DECIDE-9: `dihedral_wedge`'s `sin θ · arm`, the arm a
+/// read): `[1105, 21, …]` → `[1121, 5, …]` with and without the ladder,
+/// `registered`, `numeric` and `retried` unmoved.
 ///
 /// When the constructions began storing the carriers they build
 /// (`store-constructed-carriers`) every document moved, and only up:
 /// - the plate and the annulus's 140 registered decisions are theorems
 ///   (the circles' rims fold onto `|r|`), and the boss's 70 of 96;
-/// - the bracket reads `[1249, 13, 34, 757]` either way, so its ladder
-///   retries nothing (it recovered 6);
-/// - the link reads `[643, 33, 44, 442]` without the ladder and
-///   `[647, 33, 44, 438]` with it, retried 4 (it was 14).
+/// - the bracket reads `[1257, 5, 42, 749]` either way, so its ladder
+///   retries nothing (it recovered 6). Eight of its `dihedral_wedge`
+///   theorems are registered instead: the fillet's tangency is the
+///   registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of the
+///   offset centre's algebra;
+/// - the link reads `[676, 0, 44, 442]` without the ladder and
+///   `[680, 0, 44, 438]` with it, retried 4 (it was 14).
 ///
 /// Every document's `numeric` fell or held. One predicate moved down:
 /// the link's `carrier_on_surface_2` with the ladder, `[86, 0, 10, 12]`
@@ -460,11 +467,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         ("r1_segment_boss", [445, 2, 26, 233], [445, 2, 26, 233], 0),
         (
             "r2_filleted_bracket",
-            [1249, 13, 34, 757],
-            [1249, 13, 34, 757],
+            [1257, 5, 42, 749],
+            [1257, 5, 42, 749],
             0,
         ),
-        ("r2_link", [643, 33, 44, 442], [647, 33, 44, 438], 4),
+        ("r2_link", [676, 0, 44, 442], [680, 0, 44, 438], 4),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -533,7 +540,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// `retried=4` after the discharge columns, and the human form names
 /// the four as discharges a second attempt reached. Without the ladder
 /// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four are theorems (`symbolic_zero` 643 → 647).
+/// ladder existed. The four are theorems (`symbolic_zero` 676 → 680).
 /// The row read the filleted bracket until the fillet stored its own
 /// carrier: the bracket's first attempt now discharges what its ladder
 /// used to, so it retries nothing.
@@ -578,7 +585,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [647, 33, 44, 438, 4],
+        [680, 0, 44, 438, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -598,7 +605,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [643, 33, 44, 442, 0]
+        [676, 0, 44, 442, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),
