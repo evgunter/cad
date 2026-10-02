@@ -10,10 +10,14 @@
 //! outline plus a coplanar disc cancelling it. The join pairs a planar
 //! face's crossings along that face's own line, so a ringed cap the
 //! plane crosses is chorded beside its hole, not across it — and two
-//! crossings on different faces, however close, never refuse.
+//! crossings on different faces, however close, never refuse. It pairs
+//! a curved face's crossings along the face's section conic, so a steep
+//! cut chords each wall face along the arc that lies in it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::bores::{bored_brick, halves_at_rest, section_faces, tilted, u_cut};
+use crate::common::bores::{
+    bored_brick, halves_at_rest, section_faces, tilted, turned_cylinder, u_cut,
+};
 use crate::common::cavity::{brick, cut, prism, rod};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::bored_cylinder;
@@ -413,31 +417,30 @@ fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {
     }
 }
 
-/// **Where nothing decides a clockwise polygon's place, it keeps its
-/// own face.** The unit cylinder of height 2.5 with its seams turned to
-/// `π/2 + 0.05`, cut through `(0, 0, 1.25)` at tilt 1.1 (both caps and
-/// both seams crossed): the join chords the wall face holding both top
-/// crossings across the arc outside it, and the section comes back as
-/// the whole ellipse plus two clockwise 2-gons touching it, which the
-/// nesting leaves standing. The halves pass tier 3 and read right by
-/// cancellation.
-///
-/// This row pins that fallback firing. It goes red when
-/// `work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`
-/// is fixed — each half's section then one counter-clockwise face —
-/// and is rewritten to that, which retires the fallback's one known
-/// customer.
+/// The vertex count of a face's outer loop.
+fn outline_len(half: &Body<f64>, face: topo::FaceKey) -> usize {
+    let outer = half.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = half.get_loop(outer).unwrap().boundary else {
+        panic!("a section outline is a cycle");
+    };
+    half.loop_cycle(first).unwrap().len()
+}
+
+/// **A steep cut whose wall faces each hold four crossings pairs them
+/// along the section ellipse.** The unit cylinder of height 2.5 with
+/// its seams turned to `π/2 + 0.05`, cut through `(0, 0, 1.25)` at tilt
+/// 1.1, both ways round: the plane crosses both caps and both seams, so
+/// each wall face holds two cap crossings and two seam crossings. Each
+/// half's section is ONE counter-clockwise face of six vertices (two
+/// seam crossings, four cap crossings) with no rings, and the halves,
+/// swapped by the half-turn about the cylinder's centre, each hold
+/// half its volume. Pairing the two cap crossings of one wall face
+/// with each other instead chords the arc beyond the cap, and the
+/// section comes back as the whole ellipse plus two clockwise 2-gons
+/// cancelling it.
 #[test]
-fn a_clockwise_section_nothing_places_keeps_its_face() {
-    let turn = core::f64::consts::FRAC_PI_2 + 0.05;
-    let cylinder: Body<f64> = sweep::test_support::prism(
-        vec![
-            (Point2::new(turn.cos(), turn.sin()), 1.0),
-            (Point2::new(-turn.cos(), -turn.sin()), 1.0),
-        ],
-        2.5,
-        tol(),
-    );
+fn a_steep_cut_through_both_seams_is_one_six_vertex_section_face() {
+    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
     for flip in [false, true] {
         let plane = tilted(1.25, 1.1, flip);
         for (side, half) in ["below", "above"].into_iter().zip(halves_at_rest(
@@ -445,13 +448,126 @@ fn a_clockwise_section_nothing_places_keeps_its_face() {
             &cylinder,
             &plane,
         )) {
-            let mut s = sections(&half, &plane);
-            s.sort_unstable();
-            assert_eq!(
-                s,
-                vec![(false, 0), (false, 0), (true, 0)],
-                "flipped {flip} {side}: the ellipse and its two cancelling 2-gons"
+            let what = format!("flipped {flip} {side}");
+            let faces = section_faces(&half, &plane);
+            assert_eq!(sections(&half, &plane), vec![(true, 0)], "{what}");
+            assert_eq!(outline_len(&half, faces[0]), 6, "{what}: the outline");
+            let half_volume = core::f64::consts::PI * 1.25;
+            assert!(
+                (volume(&half) - half_volume).abs() < 1e-4,
+                "{what}: volume {} against {half_volume}",
+                volume(&half)
             );
+        }
+    }
+}
+
+/// **Every steep pose of the cylinder is one section face per half.**
+/// Seams turned to `0`, `1.0`, `π/2 ± 0.05`; tilts 0.9 to 1.3 through
+/// the centre, both ways round. Every half is at rest, its section is
+/// one counter-clockwise face with no rings, and it holds half the
+/// cylinder's volume.
+#[test]
+fn every_steep_pose_of_the_cylinder_is_one_section_face_per_half() {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    for turn in [0.0, 1.0, FRAC_PI_2 - 0.05, FRAC_PI_2 + 0.05] {
+        let cylinder = turned_cylinder(turn, 2.5);
+        for t in [0.9, 1.1, 1.3] {
+            for flip in [false, true] {
+                let what = format!("seams at {turn}, tilt {t}, flipped {flip}");
+                let plane = tilted(1.25, t, flip);
+                for (side, half) in ["below", "above"]
+                    .into_iter()
+                    .zip(halves_at_rest(&what, &cylinder, &plane))
+                {
+                    assert_eq!(sections(&half, &plane), vec![(true, 0)], "{what} {side}");
+                    assert!(
+                        (volume(&half) - PI * 1.25).abs() < 1e-4,
+                        "{what} {side}: volume {}",
+                        volume(&half)
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **A plane through a seam's corner on a cap pairs the wall faces'
+/// crossings along the ellipse too.** The turned cylinder cut by planes
+/// through a seam's end on the top or bottom cap, tilted about `y`,
+/// both ways round: the corner is a crossing both wall faces share,
+/// and the far wall face holds four. Each half's section is one
+/// counter-clockwise face. (Pairing by the sweep's order chords the
+/// far face across the arc beyond the cap at each of these poses, and
+/// a clockwise face cancels it.)
+#[test]
+fn a_plane_through_a_seam_corner_is_one_section_face_per_half() {
+    use core::f64::consts::FRAC_PI_2;
+    for (turn, z, t) in [
+        (FRAC_PI_2 + 0.05, 2.5, 1.4f64),
+        (FRAC_PI_2 + 0.05, 0.0, 1.4),
+        (1.0, 2.5, 1.4),
+        (1.0, 0.0, 1.1),
+    ] {
+        let cylinder = turned_cylinder(turn, 2.5);
+        for flip in [false, true] {
+            let s = if flip { -1.0 } else { 1.0 };
+            let plane = topo::test_support::split_plane(
+                Point3::new(turn.cos(), turn.sin(), z),
+                Vec3::new(t.sin(), 0.0, t.cos()) * s,
+                tol(),
+            );
+            let what = format!("seams at {turn}, corner at z = {z}, tilt {t}, flipped {flip}");
+            for (side, half) in ["below", "above"]
+                .into_iter()
+                .zip(halves_at_rest(&what, &cylinder, &plane))
+            {
+                assert_eq!(sections(&half, &plane), vec![(true, 0)], "{what} {side}");
+            }
+        }
+    }
+}
+
+/// **A bore whose wall faces each hold four crossings pairs them along
+/// the bore's section ellipse too.** The unit cylinder of height 1
+/// bored concentrically at radius 0.4, turned about its axis so the
+/// bore's seams sit at `turn` and `turn + π`, cut through `(0, 0, 0.5)`
+/// at tilt 1.1, both ways round. With the seams near `±π/2` each bore
+/// wall face (sense `false`, its outward normal into the bore) holds
+/// both cap crossings on its side and both seam crossings. The bore's
+/// section runs out through both caps, so each half's section is two
+/// counter-clockwise faces with no rings — the outline less the bore,
+/// cut apart by the cap chords — and each half holds half the tube.
+/// Pairing a bore face's two cap crossings with each other instead
+/// returns the outline as one face ringed by the bore's whole ellipse,
+/// with two clockwise faces cancelling the parts past the caps.
+#[test]
+fn a_bore_cut_out_through_both_caps_pairs_its_crossings_along_its_ellipse() {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    let a = 0.4;
+    for (outer_phi, turn) in [(0.0, FRAC_PI_2 + 0.05), (0.0, FRAC_PI_2 - 0.05), (0.3, 1.0)] {
+        let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn);
+        let tube =
+            topo::transform_rigid(&bored_cylinder(a, 0.0, outer_phi, tol()), &map, tol()).unwrap();
+        for flip in [false, true] {
+            let plane = tilted(0.5, 1.1, flip);
+            let what = format!("tube with its bore seams at {turn}, flipped {flip}");
+            for (side, half) in ["below", "above"]
+                .into_iter()
+                .zip(halves_at_rest(&what, &tube, &plane))
+            {
+                assert_eq!(
+                    sections(&half, &plane),
+                    vec![(true, 0), (true, 0)],
+                    "{what} {side}"
+                );
+                let half_volume = PI * (1.0 - a * a) * 0.5;
+                assert!(
+                    (volume(&half) - half_volume).abs() < 1e-4,
+                    "{what} {side}: volume {} against {half_volume}",
+                    volume(&half)
+                );
+            }
         }
     }
 }
@@ -665,31 +781,24 @@ fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
     );
 }
 
-/// **A hole nothing places refuses**: the turned cylinder of
-/// `a_clockwise_section_nothing_places_keeps_its_face`, whose join mints
-/// two clockwise polygons touching the ellipse around them. `split`
-/// keeps them as faces cancelling the ellipse's; a section's regions
-/// cannot state them, so `plane_section` refuses. This row goes red with
-/// that one when
-/// `work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`
-/// is fixed.
+/// **The steep cut through both seams slices to one region.** The
+/// turned cylinder of
+/// `a_steep_cut_through_both_seams_is_one_six_vertex_section_face`:
+/// `plane_section` reads one region, its outline the six crossings, with
+/// no holes. (Chording a wall face across the arc outside it makes two
+/// clockwise polygons touching the outline, which no region can state,
+/// and the slice refuses `UnplacedHole`.)
 #[test]
-fn plane_section_refuses_a_hole_nothing_places() {
-    let turn = core::f64::consts::FRAC_PI_2 + 0.05;
-    let cylinder: Body<f64> = sweep::test_support::prism(
-        vec![
-            (Point2::new(turn.cos(), turn.sin()), 1.0),
-            (Point2::new(-turn.cos(), -turn.sin()), 1.0),
-        ],
-        2.5,
-        tol(),
-    );
+fn plane_section_of_the_steep_cut_through_both_seams_is_one_region() {
+    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
     for flip in [false, true] {
-        let r = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol());
-        assert!(
-            matches!(r, Err(topo::SectionError::UnplacedHole { .. })),
-            "flipped {flip}: {:?}",
-            r.map(|s| s.regions.len())
-        );
+        let s = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol())
+            .unwrap_or_else(|e| panic!("flipped {flip}: {e:?}"));
+        let shape: Vec<_> = s
+            .regions
+            .iter()
+            .map(|r| (r.outline.points.len(), r.holes.len()))
+            .collect();
+        assert_eq!(shape, vec![(6, 0)], "flipped {flip}");
     }
 }
