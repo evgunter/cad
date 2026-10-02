@@ -217,7 +217,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
             node,
             &Selector::of(NamePat::of_kind(EntityKind::Face)),
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                pncad::geom_brep::SurfaceKind::Cylinder,
+                pncad::prelude::SurfaceKind::Cylinder,
             ))],
             &doc.param_env::<f64>(),
             tol,

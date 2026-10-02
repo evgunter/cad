@@ -852,7 +852,7 @@ fn the_open_face_designation_gates_refuse_typed() {
         matches!(
             e,
             ShellError::OpenFaceRingUnsupported {
-                kind: geom_brep::SurfaceKind::Cylinder,
+                kind: geom::SurfaceKind::Cylinder,
                 ..
             }
         ),

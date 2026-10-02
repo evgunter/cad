@@ -208,8 +208,9 @@
 //! between them has no transversal corner to solve, and the meter says
 //! so in the geometry's own terms rather than by a special case.
 
+use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKind};
+use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::k_stats::decide;
 use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -758,7 +759,7 @@ fn axial_frame<T: Real>(
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {
                     face,
-                    kind: SurfaceKind::of(other),
+                    kind: other.kind(),
                 });
             }
         };
@@ -952,7 +953,7 @@ fn classify<T: Decide>(
         (other, _) => {
             return Err(ReplaceFaceError::TogetherAxialUnsupported {
                 face,
-                kind: SurfaceKind::of(other),
+                kind: other.kind(),
             });
         }
     })

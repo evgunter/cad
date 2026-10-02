@@ -1135,3 +1135,86 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         "a node the document no longer holds is said by its tag"
     );
 }
+
+/// **A memoized refusal's inner nodes are spoken by the frame, and the
+/// node a line is about is named once.** Each value is built as the
+/// evaluation would hold it, over a document that holds its node under
+/// a label: the words a frame speaks say the label, the tag form says
+/// the tag, and a node the line already names reads `this …`.
+#[test]
+fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
+    use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
+    use editor_core::{
+        MateFault, MateSide, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, Unplaced, spoken_by,
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive("speak-inner"), Tol::witness());
+    let (doc, [_, _, body]) = block(doc, 0.0);
+    let doc = set_label(doc, body, Some("base plate"));
+    let t = tag(body.0);
+    let spoken = format!("Extrude \"base plate\" ({t})");
+
+    // A clearance refusal inside a measure's failure speaks its node
+    // through the frame (`said_payload`).
+    let measured = NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Selection(
+        SelectionRefusal::NoSuchBody {
+            node: body,
+            index: 3,
+        },
+    ));
+    assert_eq!(
+        spoken_by(&measured, &doc),
+        format!(
+            "the clearance engine refused `selection` ({spoken}'s value carries no body at \
+             index 3)"
+        )
+    );
+    assert!(
+        measured
+            .to_string()
+            .contains(&format!("(node {t}'s value carries no body at index 3)")),
+        "{measured}"
+    );
+
+    // A placement refusal's own kind is about the placement's node.
+    let placement = PoseRefusal::Placement {
+        node: body,
+        error: NodeRefusal::from(NodeErrorKind::Unplaced {
+            group: body,
+            cause: Unplaced::NoOffset,
+        }),
+    };
+    let said = placement.spoken(&doc);
+    assert!(
+        said.starts_with(&format!(
+            "the placement at {spoken} does not evaluate: this reads the group rooted at this \
+             node,"
+        )),
+        "{said}"
+    );
+    assert_eq!(said.matches(&t).count(), 1, "{said}");
+
+    // A mate fault recorded against an instance names the instance once,
+    // by its noun where it has one and as `this node` where it has none.
+    let self_mate = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::SelfMate {
+        mate: RecipeNodeId(7),
+        instance: body,
+    })));
+    let line = self_mate.line_at(body, Speaker::of(&doc));
+    assert!(
+        line.starts_with(&format!("{spoken} failed: the mate solve refused: mate "))
+            && line.contains("(it stands on this instance)"),
+        "{line}"
+    );
+    let dangling = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::DanglingHead {
+        mate: RecipeNodeId(7),
+        side: MateSide::A,
+        head: body,
+    })));
+    let line = dangling.line_at(body, Speaker::TAG);
+    assert!(
+        line.starts_with(&format!("node {t} failed:"))
+            && line.contains("reference resolves through this node, which")
+            && line.matches(&t).count() == 1,
+        "{line}"
+    );
+}

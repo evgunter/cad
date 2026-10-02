@@ -150,7 +150,7 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
             topo::PcurveMintError::Certify {
                 half_edge,
                 error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom_brep::SurfaceKind::Cone,
+                    chart: geom::SurfaceKind::Cone,
                     ..
                 },
             } if half_edge == made.he_plus || half_edge == made.he_minus

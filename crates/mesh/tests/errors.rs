@@ -237,14 +237,14 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::MeridianFreeCurvedFace {
                 face,
-                surface: geom_brep::SurfaceKind::Sphere,
+                surface: geom::SurfaceKind::Sphere,
             },
             vec!["sphere", "rims only", "is a meridian", "seamed"],
         ),
         (
             TessellateError::SingleColumnCurvedFace {
                 face,
-                surface: geom_brep::SurfaceKind::Torus,
+                surface: geom::SurfaceKind::Torus,
             },
             vec!["torus", "no rim", "single column", "needs a rim"],
         ),
@@ -268,7 +268,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
 /// one.
 #[test]
 fn the_meridian_free_refusal_prescribes_a_seam_only_where_one_exists() {
-    use geom_brep::SurfaceKind;
+    use geom::SurfaceKind;
     let shown = |surface| {
         TessellateError::MeridianFreeCurvedFace {
             face: topo::FaceKey::default(),
@@ -302,7 +302,7 @@ fn the_meridian_free_refusal_prescribes_a_seam_only_where_one_exists() {
 /// meridian.
 #[test]
 fn the_single_column_refusal_prescribes_a_second_column_only_where_one_can_exist() {
-    use geom_brep::SurfaceKind;
+    use geom::SurfaceKind;
     let shown = |surface| {
         TessellateError::SingleColumnCurvedFace {
             face: topo::FaceKey::default(),

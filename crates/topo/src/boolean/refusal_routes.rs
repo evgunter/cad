@@ -224,6 +224,11 @@ pub enum BooleanDecision {
     /// for a coaxial carrier's constant residual and for either end of
     /// a tilted one's range.
     ArcSphereRoots,
+    /// Where an arc crosses a cylinder wall: the circle × cylinder lane's
+    /// certified roots (`circle_cylinder`) — on a circle square to the
+    /// wall's axis the square arm's extremes, otherwise the half-angle
+    /// quartic's rows.
+    ArcCylinderRoots,
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.
     PierceCurvature,
@@ -409,9 +414,6 @@ pub enum Coincide {
     /// other or lies on it: every verdict passes (a clear one at once,
     /// the rest to the exact wall roots).
     EdgeOnCurvedFace,
-    /// Whether an arc of one solid clears a curved face of the other
-    /// that no declaration covers: only a clear arc passes.
-    ArcClearsCurvedFace,
     /// Whether an arc of one solid lies on a curved face of the other
     /// that it is declared to touch: on it or clear of it passes.
     ArcOnCoveredFace,
@@ -491,9 +493,6 @@ impl Coincide {
             Self::EdgeOnCurvedFace => {
                 "whether an edge of one solid clears a curved face of the other or lies on it"
             }
-            Self::ArcClearsCurvedFace => {
-                "whether an arc of one solid clears a curved face of the other"
-            }
             Self::ArcOnCoveredFace => {
                 "whether an arc of one solid lies on a curved face of the other or clears it"
             }
@@ -541,7 +540,6 @@ impl Coincide {
                 | Self::VertexOnCoveredFace
                 | Self::EdgeOnPlane
                 | Self::EdgeOnCurvedFace
-                | Self::ArcClearsCurvedFace
                 | Self::ArcOnCoveredFace
                 | Self::SectorSide
                 | Self::TangentSide
@@ -577,7 +575,6 @@ impl Coincide {
             Self::EdgeOnEdge => Ending::Sized(proximity(SizedPass::NonNegative)),
             Self::EdgeOnCurvedFace | Self::VertexOnCurvedFace => Ending::Sized(CURVED_CLEARANCE),
             Self::VertexOnCoveredFace => Ending::Lever(COVERED_VERTEX_LEVER, LeverPass::ByArm),
-            Self::ArcClearsCurvedFace => Ending::Sized(ARC_CLEARANCE),
             Self::ArcOnCoveredFace => Ending::Lever(COVERED_ARC_LEVER, LeverPass::DeclaredAway),
             Self::TangentSide => Ending::Sized(TANGENT_SIDE),
             Self::FlankSense => Ending::Sized(FLANK_SENSE),
@@ -614,7 +611,6 @@ impl Coincide {
             | Self::VertexOnCoveredFace
             | Self::EdgeOnPlane
             | Self::EdgeOnCurvedFace
-            | Self::ArcClearsCurvedFace
             | Self::ArcOnCoveredFace
             | Self::SectorSide
             | Self::TangentSide
@@ -681,22 +677,10 @@ const COVERED_VERTEX_LEVER: &str = "move the parts so the vertex lies clearly on
 /// ([`Coincide::EdgeOnCurvedFace`], [`Coincide::VertexOnCurvedFace`]).
 /// Every side passes the question; a positive margin is a gap a smaller
 /// tolerance decides clear, and a negative one goes on to the exact
-/// wall roots, whose margin is no length (`WallRoots`), so a smaller
-/// tolerance is offered on the positive side alone.
-const CURVED_CLEARANCE: SizedDecision = proximity(SizedPass::Positive);
-
-/// An uncovered arc against a curved face
-/// ([`Coincide::ArcClearsCurvedFace`]): the larger of the arc's two
-/// enclosures' one-sidedness margins, which passes only definitely
-/// positive (the arc is clear); zero or negative is the curved pierce
-/// frontier.
-const ARC_CLEARANCE: SizedDecision = SizedDecision {
-    lever: "move the parts so the arc clearly clears that face",
-    size: "clearance",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
+/// wall roots, whose discriminant is the depth the edge's line reaches
+/// inside the wall (`WallRoots`), the length this margin reads on the
+/// other side, so a smaller tolerance is offered on both.
+const CURVED_CLEARANCE: SizedDecision = proximity(SizedPass::NonZero);
 
 /// A covered arc against the curved face it is declared to touch
 /// ([`Coincide::ArcOnCoveredFace`]): passes on zero (the declared-cover
@@ -1201,12 +1185,9 @@ impl Ending {
 /// and so why no refusal of it offers the tolerance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LeverPass {
-    /// It passes on a definitely positive margin, which is no length the
-    /// user chose, so a tolerance below it names no size: the offer
+    /// It passes on either definite sign, and the margin is no length
+    /// the user chose, so a tolerance below it names no size: the offer
     /// waits on a length door for the margin.
-    PositiveNotALength,
-    /// It passes on either definite sign, the margin no length the user
-    /// chose, as [`LeverPass::PositiveNotALength`].
     NonZeroNotALength,
     /// The arms that read its verdict pass on different sets, so no one
     /// sign set is the decision's.
@@ -1379,6 +1360,9 @@ impl BooleanDecision {
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
             Self::ArcSphereRoots => "whether an arc crosses a sphere, grazes it or misses it",
+            Self::ArcCylinderRoots => {
+                "whether an arc crosses a cylinder wall, grazes it or misses it"
+            }
             Self::PierceCurvature => {
                 "whether an edge leaves a curved face steeply enough against its bend to read \
                  which side it goes"
@@ -1499,19 +1483,20 @@ impl BooleanDecision {
             Self::Radius(SectionRadius::Sphere) => {
                 Ending::Lever(SectionRadius::Sphere.sized().lever, LeverPass::Frontier)
             }
-            // A positive `|d⊥|²/2r` has roots to find; a zero one is a
-            // constant residual, which every edge-sweep arm refuses at
-            // the frontier. The margin is 1/m, ledger row F2 (debt
-            // #214, `docs/predicate-dimension-audit.md`).
-            Self::WallRoots(WallRung::AxisParallel) => Ending::Lever(
+            // The margin is the edge's drift off its distance from the
+            // axis over its own length. A positive one has roots to find;
+            // a zero one is a constant residual, which every edge-sweep
+            // arm refuses at the frontier.
+            Self::WallRoots(WallRung::AxisParallel) => sized(
                 "turn the edge clearly away from the direction of the cylinder's axis",
-                LeverPass::PositiveNotALength,
+                "edge's drift off the cylinder's axis",
+                SizedPass::Positive,
             ),
             // Two roots pass at every arm; a miss passes where both ends
             // are off the wall and refuses where one is on it (a miss
             // cannot hold a zero endpoint); a zero is a tangency, refused
-            // at the frontier. The margin `disc/(2r)²` is dimensionless,
-            // ledger row F2 (debt #214).
+            // at the frontier. The margin is the depth the edge's line
+            // reaches inside the wall, a length.
             Self::WallRoots(WallRung::Discriminant) => Ending::Lever(
                 "move the parts so the edge clearly crosses the wall or clearly misses it",
                 LeverPass::ByArm,
@@ -1548,6 +1533,12 @@ impl BooleanDecision {
             // escalation does not say which refused.
             Self::ArcSphereRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the sphere or clearly misses it",
+                LeverPass::ByRung,
+            ),
+            // The two lanes' rungs together: the extremes' sets, and the
+            // quartic's rows, which are not all lengths.
+            Self::ArcCylinderRoots => Ending::Lever(
+                "move the parts so the arc clearly crosses the cylinder or clearly misses it",
                 LeverPass::ByRung,
             ),
             Self::PierceCurvature => Ending::Sized(PIERCE_CURVATURE),
@@ -1789,6 +1780,7 @@ mod tests {
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
                 BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
+                BooleanDecisionKind::ArcCylinderRoots => vec![BooleanDecision::ArcCylinderRoots],
                 BooleanDecisionKind::PierceCurvature => vec![BooleanDecision::PierceCurvature],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
@@ -1862,9 +1854,6 @@ mod tests {
             Coincide::EdgeOnCurvedFace => {
                 "whether an edge of one solid clears a curved face of the other or lies on it"
             }
-            Coincide::ArcClearsCurvedFace => {
-                "whether an arc of one solid clears a curved face of the other"
-            }
             Coincide::ArcOnCoveredFace => {
                 "whether an arc of one solid lies on a curved face of the other or clears it"
             }
@@ -1911,15 +1900,11 @@ mod tests {
                 LeverPass::ByArm,
             ),
             Coincide::EdgeOnPlane => Ending::Sized(MEET, SizedPass::AnySign),
-            // A negative margin goes on to the wall roots, which offer no
-            // tolerance: the offer is the positive side's alone.
+            // A negative margin goes on to the wall roots, whose depth a
+            // smaller tolerance decides too: both sides are offered.
             Coincide::EdgeOnCurvedFace | Coincide::VertexOnCurvedFace => {
-                Ending::Sized(MEET, SizedPass::Positive)
+                Ending::Sized(MEET, SizedPass::NonZero)
             }
-            Coincide::ArcClearsCurvedFace => Ending::Sized(
-                "Recourse: move the parts so the arc clearly clears that face",
-                SizedPass::Positive,
-            ),
             // A clear arc is a gap its face's declared contact says is
             // not there.
             Coincide::ArcOnCoveredFace => Ending::Lever(
@@ -1981,7 +1966,6 @@ mod tests {
             | Coincide::VertexOnCoveredFace
             | Coincide::EdgeOnPlane
             | Coincide::EdgeOnCurvedFace
-            | Coincide::ArcClearsCurvedFace
             | Coincide::ArcOnCoveredFace
             | Coincide::SectorSide
             | Coincide::TangentSide
@@ -2070,10 +2054,10 @@ mod tests {
             ),
             BooleanDecision::WallRoots(WallRung::AxisParallel) => (
                 "whether an edge runs parallel to a cylinder's axis",
-                Ending::Lever(
+                Ending::Sized(
                     "Recourse: turn the edge clearly away from the direction of the cylinder's \
                      axis",
-                    LeverPass::PositiveNotALength,
+                    SizedPass::Positive,
                 ),
             ),
             BooleanDecision::WallRoots(WallRung::Discriminant) => (
@@ -2108,6 +2092,14 @@ mod tests {
                 "whether an arc crosses a sphere, grazes it or misses it",
                 Ending::Lever(
                     "Recourse: move the parts so the arc clearly crosses the sphere or clearly \
+                     misses it",
+                    LeverPass::ByRung,
+                ),
+            ),
+            BooleanDecision::ArcCylinderRoots => (
+                "whether an arc crosses a cylinder wall, grazes it or misses it",
+                Ending::Lever(
+                    "Recourse: move the parts so the arc clearly crosses the cylinder or clearly \
                      misses it",
                     LeverPass::ByRung,
                 ),
@@ -2458,7 +2450,6 @@ mod tests {
                 | Coincide::VertexOnCoveredFace
                 | Coincide::EdgeOnPlane
                 | Coincide::EdgeOnCurvedFace
-                | Coincide::ArcClearsCurvedFace
                 | Coincide::ArcOnCoveredFace
                 | Coincide::SectorSide
                 | Coincide::TangentSide

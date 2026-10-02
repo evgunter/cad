@@ -106,10 +106,12 @@ pub use editor_core::{
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
-// speaker a refusal holding bare ids is said by, and the full-width id a
-// machine channel prints.
+// speaker a refusal holding bare ids is said by, the nodes a door kept
+// beside a refusal it carries whole, and the full-width id a machine
+// channel prints.
 pub use editor_core::{
-    FullId, Said, Say, Speaker, SpokenName, SpokenNode, node_kind_noun, spoken_by,
+    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, held_by, node_kind_noun,
+    spoken_by,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the

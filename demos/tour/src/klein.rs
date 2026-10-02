@@ -237,9 +237,10 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom::NurbsCurve3;
-use pncad::geom_brep::{PropsError, SurfaceKind};
+use pncad::geom_brep::PropsError;
 use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{OrthoFrame, Point3, Tol};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, circle_split, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};

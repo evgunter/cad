@@ -1008,6 +1008,8 @@ the value). The names that reach the funnel through them today:
 | `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
+| `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |
+| `fixture_split_normal` | `crates/topo/src/test_support_fixtures.rs`'s `split_plane`, a const the fixtures own | no — a test-owned name, as `fixture_frame_axis` |
 
 **Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
 one added, two test-owned.** `mate_axes_parallel` was a bare `decide`
@@ -1040,6 +1042,19 @@ the two shapes a fix could take. The two names the sweep's corpus does
 NOT reach — `sketch_plane_frame_norm`, which is production code, and
 `fixture_frame_axis` — are filed at
 `work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`.
+
+**Roster change (TQUERY, 2026-10-02): two names added, one widened.**
+`SplitPlane.normal` became a `UnitVec3`
+(`work/tquery/split-refuses-cylindrical-feature-box.md`): a non-unit
+split normal had reached the plane×cylinder section as direction
+cosines. The boolean's germ planes feed the same section lanes from
+plane carriers, so their normals are now decided at that read under
+`bool_germ_plane_normal` — a `Margin::norm3` of a carrier normal unit
+at rest, which decides positive at every committed ε and cannot land
+in the band for a carrier the at-rest rule admits. The split fixtures
+mint under the test-owned `fixture_split_normal`. The tour's two cut
+scenes (`cutaway`, `curvedcut`) mint their normals under
+`tour_frame_axis`, so that name gains two samples per tour run.
 
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare

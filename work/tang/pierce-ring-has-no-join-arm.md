@@ -162,6 +162,16 @@ both sides) has nothing missing for this pose — the section and its
 plane are the coplanar pose's — so this is the third carrier on which
 the ring lane, and only it, is owed.
 
+## Evidence (2026-10-02, the circle × cylinder cell): parallel cylinders that pierce
+
+Two unit cylinders, `z ∈ [0, 2]` and `z ∈ [0.5, 2.5]`, axes `d` apart,
+`d ∈ {0.3, 0.8, 1.2, 1.6, 1.9}`: each rim circle's pierce of the other
+wall is certified by the circle × cylinder root lane and passes its
+sector side, and every op refuses
+`Join(SectionArcWindow { case: NoChartedRun })`. Pinned by
+`crates/sweep/tests/tang_circle_cylinder.rs`,
+`parallel_cylinders_that_pierce_stop_at_the_pierce_ring`.
+
 ## 2026-10-01 — re-measured on main (TANG)
 
 Every door was measured at `origin/main` `6000ec92d`, under all three ops
@@ -340,3 +350,33 @@ What is left: a ring's chord lane on a cylinder face, where both the
 seam-to-seam `NoChartedRun` and the in-face `NeitherContained` occur,
 and on a sphere face. Retiring the `NoChartedRun` doc paragraph waits on
 that lane. The `SectionLoopMixed` paragraph can be reworded now (above).
+
+## 2026-10-01 — the wall rows reach the join again, asymmetric pose included (REACH)
+
+The sector-side curvature charge (`boolean::sectors::side_code`) is now
+read at the distance along the bound where it is largest
+(`min(slope·R/2, reach)`) instead of at the sector's arm and the bound's
+far end. A bound longer than the wall's radius no longer refuses
+`CurvedSectorSideUnsupported` when its first-order side is definite, so
+the poses that stopped one layer early now reach this unit's doors:
+
+- **`NeitherContained` is reproducible again**, on two asymmetric
+  poses: `verbs_ga_r2_probes::r2_an_off_centre_bar_reaches_the_same_join_door`
+  (the R2 probe's own long bar, `x = ±3`, offset `y ∈ [0.15, 0.7]`) and
+  `germ_torus_doors::a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body`
+  (a rod through a three-face wall, under all four ops). That is the
+  fixture the diagnosis section above asked for; the run/chord pairing
+  is still the first thing to read there.
+- **`NoChartedRun`**, new consumers: the round crenellation (a slab cut
+  through a drum, the rook a user carves —
+  `editor-core` `reach_slab_cut_sector_side`, whose rows check the
+  closed-form volume once this arm lands), a slab across a round boss
+  in every union member order (same file), the long bar
+  (`verbs_germarms::a_long_armed_bar_reaches_the_same_join_door`),
+  `block ∖ cylinder` grooves (`review_fillet_h7_r1_probes`) and the
+  axis laps (`axis_lap::laps_off_the_rulings_stop_at_the_wall_pierce_ring`).
+- **A sphere face, too**: the bar through the ball
+  (`snowman::a_bar_through_a_ball_crosses_the_sphere`, every op at every
+  ε row) now reaches this door rather than the sector side.
+- The story suite's rook keeps its square crown for this door; its
+  module docs say so (`crates/viewer/tests/story_authoring.rs`).

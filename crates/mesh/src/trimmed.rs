@@ -1039,7 +1039,7 @@ fn trim_polygon(
             Pcurve::Fitted(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: he.edge,
-                    note: "trimmed face half-edge carries a FITTED (rung-3) pcurve — \
+                    note: "trimmed face half-edge carries a FITTED pcurve — \
                            the trim walk and the chord pass's boundary tightening \
                            read closed-form chart images; the fitted image's first \
                            tessellation consumer is the edge×NURBS-face boolean \
