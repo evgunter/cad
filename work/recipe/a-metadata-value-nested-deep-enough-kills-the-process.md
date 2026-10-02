@@ -2,10 +2,12 @@
 id: a-metadata-value-nested-deep-enough-kills-the-process
 kind: issue
 title: editor-core: a MetaValue nests without bound through the Rust API, and the edit door's walk over one recurses per level, so a deep one kills the process
-status: open
+status: review
 opened: 2026-09-30
 priority: P2
 cost: E
+branch: recipe/meta-bound-and-rule-recourse
+pr: 3909
 ---
 
 (EDIT, found by the recursion sweep of `edit/expr-nesting-bound`.)
@@ -54,3 +56,16 @@ A nesting bound on `MetaValue` checked at the doors that take one
 (`SetAppearanceMeta`, `to_value`), refused typed and read by the load
 door's limit as the expression bound is; or walks that do not recurse,
 `Drop` included.
+
+## Built (2026-10-02, PR 3909)
+
+The structural closure: **a value nests at most `meta::MAX_NESTING` (128) levels, and the type holds it.**
+- `MetaValue::List` and `Map` carry a `meta::Nested<C>` (`MetaList`, `MetaMap`) whose fields are private and which caches its nesting in a byte. A list or a map is built only by `MetaValue::list` / `MetaValue::map`, which refuse past the bound with `MetaError::NestedTooDeep { bound }` ("… Recourse: store it flatter, keeping a deep part as a string or as bytes"), by `to_value`, or by the deserializer. Children are read through `Deref`; there is no `DerefMut`, so a held value cannot be deepened in place.
+- `to_value` counts levels top-down (`ValueSer { level }`) and refuses the child past the bound before reading it, so a producer ten thousand levels deep is stopped at level 129, not walked.
+- The deserializer refuses with the problem alone; the load door states its own recourse.
+- The load door reads the bound: `persist::nesting::META_BODY_NESTING` (6 brackets of envelope + 2 per level = 262) is folded into `BODY_NESTING` as a max with the expression's 270, so the limit is unchanged today and follows a raise of either bound.
+- So no door needs a runtime check: `SetAppearanceMeta` cannot be handed a value deeper than the bound, and every recursive walk (`first_non_finite`, `PartialEq`, the derived `Clone`, `Debug`, `Drop`, serde, the content pin's round) is bounded by it.
+
+Pinned in `crates/editor-core/tests/meta_nesting_bound.rs`, every row on the 1 MiB stack: the row's evidence shape (a `List` folded 10 000 deep, and a `to_value` producer 10 000 deep) refuses typed at the bound; a value at the bound walks, clones, compares, prints, round-trips as a producer, applies through `SetAppearanceMeta`, pins, saves both ways, loads back equal, and its deepest save measures `META_BODY_NESTING`; a hand-edited file one past refuses `Unreadable` naming the bound, and 10 000 past refuses at the scan. A planted mutant (the bound check removed from `Nested::over`) reds two of the three rows.
+
+Filed: `the-load-doors-refusals-are-held-to-no-shape-guard`.
