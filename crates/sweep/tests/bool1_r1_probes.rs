@@ -223,12 +223,22 @@ fn coplanar_split_e2e_volume_and_watertight() {
         .volume;
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     let mut total = 0.0;
+    let mut shared_points = 0;
     for (name, part) in [("above", &result.above), ("below", &result.below)] {
         let b = part.body().expect("side has material");
         assert_eq!(
             topo::validate_geometric(b, Tol::witness()),
             Ok(()),
             "{name} at tier 3"
+        );
+        // The pinch's tip copies share the cut vertex's point (D1 tier
+        // 3′), so the census clears the touch with no records.
+        let points: std::collections::BTreeSet<_> = b.vertices().map(|(_, v)| v.point).collect();
+        shared_points += b.vertices().count() - points.len();
+        assert_eq!(
+            pseudomanifold_door(b),
+            Ok(()),
+            "{name} passes the pseudomanifold door with no records"
         );
         total += topo::mass_properties(b, Tol::witness())
             .unwrap_or_else(|e| panic!("{name} mass properties: {e:?}"))
@@ -241,6 +251,20 @@ fn coplanar_split_e2e_volume_and_watertight() {
         (total - v0).abs() <= 1e-12 * v0,
         "volume conserved: {total} vs {v0}"
     );
+    assert!(shared_points > 0, "a pinch half holds copies on one point");
+}
+
+/// The pseudomanifold door at rest (tiers 1–3, then the tier-3′
+/// census) over `body`, with NO declared contacts.
+fn pseudomanifold_door(body: &Body<f64>) -> Result<(), Vec<topo::ValidationError>> {
+    use topo::AtRestPolicy;
+    let kept = <f64 as AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness())?;
+    <f64 as AtRestPolicy>::gate_at_rest_declared(
+        &kept,
+        &topo::ContactRecords::default(),
+        Tol::witness(),
+    )
+    .map(|_| ())
 }
 
 /// PROBE 5: a DECLARED locus through the coplanar restatement. The
