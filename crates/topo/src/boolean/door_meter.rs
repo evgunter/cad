@@ -53,6 +53,7 @@ impl Meter {
     ///
     /// When the sink will not open or take the line: an instrument that
     /// drops a record reports a table it did not measure.
+    #[allow(clippy::panic)]
     pub(super) fn record<T: AtRestPolicy>(
         self,
         op: BooleanOp,
