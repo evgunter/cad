@@ -410,3 +410,17 @@ Composed census pins once all five overlapping PRs merge: rows 1551, pairs 28,26
   - the regauge-then-mate order hazard is silent at the edit door.
 - Stop narrowing the update walk around the crate. A resting crate on a hand-restated shelf-top gauge cannot follow a part edit; pin that as a wall and file it.
 - Fix the stale narration and the audit text.
+
+## 2026-10-02 — rocker fixed; split-by-name dispatched
+
+PR 3834 fix pass is in, head `72c166913`, green. What changed:
+- **r* derived:** r* = 0.3097 comes from the margin formula, pinned at ±1% by a carve and a wall.
+- **GS-Q2 row:** the wire row is now the single GS-Q2 demand row. Its `refs` to the tquery row is added once 3787 merges.
+- **Loop handles:** a `PlateLoop` enum replaces the positional reads.
+- **Rendered body metered:** the body the scene renders is the one it meters.
+
+`split-node-chords-by-name-has-no-demo` dispatched, with bracket as its home. The other open slate rows wait on files that open PRs hold:
+- helix → projectbox (3811)
+- gallery → gallery.rs (3793)
+- per-body delta → main.rs, which every scene PR touches
+- projectbox sixteenths → 3811

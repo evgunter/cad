@@ -2,7 +2,7 @@
 id: split-node-chords-by-name-has-no-demo
 kind: unit
 title: Node::Split in a document, with its section chords chamfered by name downstream, has no demo
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P4
 cost: M
