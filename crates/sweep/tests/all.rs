@@ -149,6 +149,10 @@ mod shellfix1_bitdump;
 mod shellfix1_r1_probes;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
+#[path = "tilted_sphere_pair.rs"]
+mod tilted_sphere_pair;
+#[path = "tilted_sphere_pair_k_rows.rs"]
+mod tilted_sphere_pair_k_rows;
 #[path = "topo_ring_nesting.rs"]
 mod topo_ring_nesting;
 #[path = "torax_axial.rs"]
@@ -469,6 +473,8 @@ mod split_cylindrical_feature_box;
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
+#[path = "split_tangent_edge_curved.rs"]
+mod split_tangent_edge_curved;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]

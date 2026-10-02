@@ -146,12 +146,16 @@ pub(super) fn ellipse_roots<T: Decide>(
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let second = hypot(h.c2, h.s2);
     if let Ok(Sign::Zero) = decide("bool_ellipse_second_harmonic", Margin::of(second), band) {
+        // The dropped second harmonic is charged to both extremes' noise.
+        let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
         let first = FirstHarmonic {
-            c0: h.c0,
-            a1: hypot(h.c1, h.s1),
+            lo: h.c0 - a1,
+            hi: h.c0 + a1,
             cos_part: h.c1,
             sin_part: h.s1,
-            noise: noise + second,
+            lo_noise: noise,
+            hi_noise: noise,
+            phase_noise: T::zero(),
         };
         return first_harmonic_roots(
             &first,

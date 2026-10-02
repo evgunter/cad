@@ -555,7 +555,15 @@ BOUNDS_ALLOWLIST=(
   # the same ruling; `props.rs` keeps the assemblers, `QuadLane`,
   # `ShellDoor` and the wiring rows.
   'crates/topo/src/props.rs 9 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/props/quad_lane.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
+  # face's flux at the interval scalar, lifting the face's geometry
+  # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
+  # the volume backstop's sign arm decides a refusal on the bracket it
+  # returns. That is a certification act, which is this seam's right:
+  # the function is reached only through `QuadLane::certified`'s second
+  # field, the same door `cut_face_rounds` is, so it is never formed at
+  # a dual.
+  'crates/topo/src/props/quad_lane.rs 15 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'

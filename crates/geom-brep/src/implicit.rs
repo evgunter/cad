@@ -65,7 +65,7 @@
 //!
 //! - **Closed-form**, for the plane, the sphere and the cylinder: the
 //!   composed residual is a trigonometric polynomial of degree ≤ 2, so
-//!   `circle_residual_harmonics`' `(c₀, A₁, A₂)` bounds both its range
+//!   `conic_residual_harmonics`' `(c₀, A₁, A₂)` bounds both its range
 //!   (exactly, for the first-harmonic kinds) and its second
 //!   derivative. Nothing is sampled.
 //! - **Sampled and CHARGED**, for the torus: the composed residual
@@ -81,7 +81,7 @@
 //! second is `K + 1` residual evaluations per call.
 
 use geom::Surface;
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point3, Real, Rounded, Vec3};
 
 use crate::enters::OutwardNormal;
 
@@ -851,6 +851,20 @@ pub fn circle_residual_extremes<T: Real>(
     radius: T,
     u_ref: Vec3<T>,
 ) -> Option<(T, T)> {
+    if let Surface::Sphere {
+        center: sc,
+        radius: r,
+        ..
+    } = *s
+    {
+        // The factored extremes, each charged its own running bound and
+        // the frame's defect (`CircleSphereHarmonic`).
+        let h = circle_sphere_harmonic(center, axis, radius, u_ref, sc, r);
+        return Some((
+            h.lo - h.lo_error - h.frame_error,
+            h.hi + h.hi_error + h.frame_error,
+        ));
+    }
     conic_residual_extremes(s, &Conic::circle(center, axis, radius, u_ref))
 }
 
@@ -1081,28 +1095,64 @@ pub fn conic_sphere_harmonics<T: Real>(
 ///
 /// `|C(θ) − c|² = |e|² + ρ² + 2ρ(e·û cos θ + e·v̂ sin θ)` with
 /// `e = C₀ − c`, and `û ⊥ v̂` unit makes the `θ`-dependence exactly one
-/// harmonic, so `[c₀ − A₁, c₀ + A₁]` is the residual's EXACT range. It
-/// is the circle's reading of [`conic_sphere_harmonics`], whose second
-/// harmonic vanishes on a circle, with the phase's components kept for
-/// the boolean's circle × sphere root door.
+/// harmonic, so `[lo, hi] = [c₀ − A₁, c₀ + A₁]` is the residual's EXACT
+/// range — the one home of this algebra, read by the whole-turn range
+/// here and by the boolean's circle × sphere root door.
+///
+/// The extremes are evaluated FACTORED, `(D∓ − r)(D∓ + r)/2r` with
+/// `D∓ = |(|e_uv| ∓ ρ, e·n̂)|` the distances from the sphere's centre to
+/// the circle's nearest and farthest points: near a tangency `c₀` and
+/// `A₁` agree to many digits and their difference keeps none of them,
+/// where this form cancels only in `D − r`, a length. `c₀` and `A₁` are
+/// read off the extremes.
 #[derive(Debug, Clone, Copy)]
 pub struct CircleSphereHarmonic<T> {
-    /// The constant term, metres of residual.
-    pub c0: T,
-    /// The amplitude `A₁ ≥ 0`, metres of residual.
-    pub a1: T,
     /// `e·û`, the phase's cosine component (metres).
     pub e_u: T,
     /// `e·v̂`, the phase's sine component (metres).
     pub e_v: T,
-    /// [`ConicHarmonics::terms`].
-    pub terms: T,
+    /// The lower extreme `c₀ − A₁` (metres of residual).
+    pub lo: T,
+    /// The upper extreme `c₀ + A₁`.
+    pub hi: T,
+    /// A first-order running bound ([`geom_core::Rounded`]) on the
+    /// rounding of [`Self::lo`] against the factored form evaluated
+    /// exactly on the stored inputs.
+    pub lo_error: T,
+    /// The same bound on [`Self::hi`].
+    pub hi_error: T,
+    /// The same bound on the vector `(e_u, e_v)`, as the sum of its two
+    /// components' (metres): the phase `φ` is off by at most this over
+    /// `|(e_u, e_v)|`, to first order.
+    pub phase_error: T,
+    /// A bound on how far the circle the stored frame EVALUATES —
+    /// `C₀ + ρ(û cos θ + (n̂ × û) sin θ)` with `û`, `n̂` as stored — sits
+    /// from the factored form, in metres of residual at every `θ`. The
+    /// form assumes the frame orthonormal; with `G = [û, n̂ × û, n̂]` the
+    /// two differ by `(|e|² − |Gᵀe|² + ρ²(|w|² − 1))/2r`, at most
+    /// `(|e|² + ρ²)·‖GᵀG − I‖/2r`. The frame's defect is read off
+    /// `|û|² − 1`, `|n̂|² − 1` and `n̂·û` with their own running bounds,
+    /// so an exactly orthonormal axis-aligned frame is charged nothing.
+    pub frame_error: T,
+}
+
+impl<T: Real> CircleSphereHarmonic<T> {
+    /// The constant term `c₀ = (lo + hi)/2`.
+    pub fn c0(&self) -> T {
+        (self.lo + self.hi) / T::from_f64(2.0)
+    }
+
+    /// The amplitude `A₁ = (hi − lo)/2 ≥ 0`.
+    pub fn a1(&self) -> T {
+        (self.hi - self.lo) / T::from_f64(2.0)
+    }
 }
 
 /// [`CircleSphereHarmonic`] for the circle
 /// `center + radius·(u_ref cos θ + (axis × u_ref) sin θ)` against the
-/// sphere `(s_center, s_radius)`. Frame precondition [`Conic`]'s,
-/// unchecked. Total arithmetic.
+/// sphere `(s_center, s_radius)`. The frame need not be orthonormal:
+/// its defect is charged to [`CircleSphereHarmonic::frame_error`]. Total
+/// arithmetic.
 #[must_use]
 pub fn circle_sphere_harmonic<T: Real>(
     center: Point3<T>,
@@ -1112,18 +1162,39 @@ pub fn circle_sphere_harmonic<T: Real>(
     s_center: Point3<T>,
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
-    let h = conic_sphere_harmonics(
-        &Conic::circle(center, axis, radius, u_ref),
-        s_center,
-        s_radius,
-    );
-    let e = center - s_center;
+    use geom_core::running::{cross, dot, exact_vec, unit_defect};
+    let two = T::from_f64(2.0);
+    let [cx, cy, cz] = exact_vec(Vec3::new(center.x, center.y, center.z));
+    let [sx, sy, sz] = exact_vec(Vec3::new(s_center.x, s_center.y, s_center.z));
+    let e = [cx - sx, cy - sy, cz - sz];
+    let (n, u) = (exact_vec(axis), exact_vec(u_ref));
+    let (e_u, e_v, e_n) = (dot(e, u), dot(e, cross(n, u)), dot(e, n));
+    let offset = e_u.hypot(e_v);
+    let (rho, r) = (Rounded::exact(radius), Rounded::exact(s_radius));
+    let extreme = |d: Rounded<T>| ((d - r) * (d + r)).div_exact(two * s_radius);
+    let lo = extreme((offset - rho).hypot(e_n));
+    let hi = extreme((offset + rho).hypot(e_n));
+    // `GᵀG − I` is block diagonal, `[[a, c], [c, b]]` on `(û, n̂)` and
+    // `a + b + ab − c²` on `n̂ × û`, so `‖GᵀG − I‖₂` is the larger of
+    // `max(|a|, |b|) + |c|` and that middle entry's magnitude.
+    let (a, b, c) = (unit_defect(u_ref), unit_defect(axis), dot(n, u));
+    let middle = (a.value + b.value + a.value * b.value - c.value.powi(2)).abs()
+        + a.error
+        + b.error
+        + a.value.abs() * b.error
+        + b.value.abs() * a.error
+        + two * c.value.abs() * c.error;
+    let defect = (a.magnitude().max(b.magnitude()) + c.magnitude()).max(middle);
+    let e_sq = e.map(|x| x.value.powi(2));
     CircleSphereHarmonic {
-        c0: h.c0,
-        a1: (h.c1.powi(2) + h.s1.powi(2)).sqrt(),
-        e_u: e.dot(u_ref),
-        e_v: e.dot(axis.cross(u_ref)),
-        terms: h.terms,
+        e_u: e_u.value,
+        e_v: e_v.value,
+        lo: lo.value,
+        hi: hi.value,
+        lo_error: lo.error,
+        hi_error: hi.error,
+        phase_error: e_u.error + e_v.error,
+        frame_error: (e_sq[0] + e_sq[1] + e_sq[2] + radius.powi(2)) * defect / (two * s_radius),
     }
 }
 
@@ -1249,6 +1320,340 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// An exact dyadic `m·2^k`, for the oracle rows: every `f64` is
+    /// one, and sums and products of them are exact.
+    #[derive(Clone)]
+    struct Dyadic {
+        m: num_bigint::BigInt,
+        k: i64,
+    }
+
+    impl Dyadic {
+        fn of(x: f64) -> Self {
+            let bits = x.to_bits();
+            let exp = i64::try_from((bits >> 52) & 0x7ff).unwrap();
+            let frac = i64::try_from(bits & ((1 << 52) - 1)).unwrap();
+            let (m, k) = if exp == 0 {
+                (frac, -1074)
+            } else {
+                (frac | (1 << 52), exp - 1075)
+            };
+            let m = num_bigint::BigInt::from(if x < 0.0 { -m } else { m });
+            Self { m, k }
+        }
+
+        fn int(n: i64) -> Self {
+            Self { m: n.into(), k: 0 }
+        }
+
+        fn at(&self, k: i64) -> num_bigint::BigInt {
+            &self.m << usize::try_from(self.k - k).unwrap()
+        }
+
+        fn add(&self, o: &Self) -> Self {
+            let k = self.k.min(o.k);
+            Self {
+                m: self.at(k) + o.at(k),
+                k,
+            }
+        }
+
+        fn sub(&self, o: &Self) -> Self {
+            self.add(&Self {
+                m: -o.m.clone(),
+                k: o.k,
+            })
+        }
+
+        fn mul(&self, o: &Self) -> Self {
+            Self {
+                m: &self.m * &o.m,
+                k: self.k + o.k,
+            }
+        }
+
+        fn le(&self, o: &Self) -> bool {
+            let k = self.k.min(o.k);
+            self.at(k) <= o.at(k)
+        }
+
+        /// `self / o` as an `f64`, `o ≠ 0`.
+        fn ratio(&self, o: &Self) -> f64 {
+            let k = self.k.min(o.k);
+            let (a, b) = (self.at(k), o.at(k));
+            let shift = b.bits().saturating_sub(60);
+            let to = |x: num_bigint::BigInt| {
+                (x >> usize::try_from(shift).unwrap())
+                    .to_string()
+                    .parse::<f64>()
+                    .unwrap()
+            };
+            to(a) / to(b)
+        }
+
+        /// `⌊√x⌋` and `⌈√x⌉` at `2⁻²⁰⁰` resolution, `x ≥ 0`.
+        fn sqrt_bracket(&self) -> (Self, Self) {
+            let k = (self.k - 400) & !1;
+            let s = self.at(k).sqrt();
+            let lo = Self {
+                m: s.clone(),
+                k: k / 2,
+            };
+            (lo, Self { m: s + 1, k: k / 2 })
+        }
+    }
+
+    fn dyadic_vec(v: [f64; 3]) -> [Dyadic; 3] {
+        v.map(Dyadic::of)
+    }
+
+    fn dyadic_dot(a: &[Dyadic; 3], b: &[Dyadic; 3]) -> Dyadic {
+        a[0].mul(&b[0]).add(&a[1].mul(&b[1])).add(&a[2].mul(&b[2]))
+    }
+
+    fn dyadic_cross(a: &[Dyadic; 3], b: &[Dyadic; 3]) -> [Dyadic; 3] {
+        [
+            a[1].mul(&b[2]).sub(&a[2].mul(&b[1])),
+            a[2].mul(&b[0]).sub(&a[0].mul(&b[2])),
+            a[0].mul(&b[1]).sub(&a[1].mul(&b[0])),
+        ]
+    }
+
+    /// **The running bounds hold against the exact factored form.** On
+    /// the STORED inputs, in exact dyadic arithmetic, the factored
+    /// extremes are `(P + ρ² + e_n² − r² ∓ 2ρ√P)/2r` with
+    /// `P = e_u² + e_v²`, every term exact but `√P`, which is bracketed
+    /// to `2⁻²⁰⁰`. Each `f64` extreme must lie within its bound of that,
+    /// and each phase component within the phase bound. The poses mix
+    /// tilted (normalized, hence inexact) frames, off-plane centres,
+    /// crossings, misses and a near tangency, so the chains really
+    /// round: a bound charged at a thousandth of `u` misses on them.
+    /// Each bound is also held under sixteen unit roundoffs of the
+    /// chain's length scale `L = |e| + ρ + r` on each factor of
+    /// `(D − r)(D + r)/2r`, so an inflated bound fails too.
+    #[test]
+    fn the_running_bounds_hold_against_the_exact_factored_form() {
+        let u = geom_core::UNIT_ROUNDOFF;
+        let tilted = Vec3::new(1.0, 2.0, 2.0).normalize();
+        let tilted_u = tilted.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
+        let skew = Vec3::new(-0.3, 0.7, 0.2).normalize();
+        let skew_u = skew.cross(Vec3::new(0.1, 0.2, 0.9)).normalize();
+        let flat = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let delta = 2f64.powi(-20);
+        let poses = [
+            // (centre, frame, ρ, sphere centre, r)
+            ([0.0, 0.0, 0.0], flat, 1.0, [1.75 - delta, 0.0, 0.0], 0.75),
+            (
+                [0.3, -0.2, 0.1],
+                (tilted, tilted_u),
+                1.3,
+                [1.1, 0.4, -0.7],
+                0.9,
+            ),
+            (
+                [5.0, 5.0, 5.0],
+                (tilted, tilted_u),
+                0.2,
+                [5.1, 4.9, 5.05],
+                0.15,
+            ),
+            (
+                [0.0, 0.0, 0.0],
+                (tilted, tilted_u),
+                100.0,
+                [60.0, -70.0, 10.0],
+                3.0,
+            ),
+            ([1.0, 2.0, 3.0], flat, 2.0, [1.0, 2.0, 3.5], 2.0),
+            ([0.7, 0.1, -0.4], (skew, skew_u), 0.9, [1.3, -0.2, 0.3], 0.6),
+            ([-2.0, 3.0, 1.0], (skew, skew_u), 3.3, [0.4, 1.1, -0.9], 1.7),
+        ];
+        for (k, (c, (n, ur), rho, sc, r)) in poses.into_iter().enumerate() {
+            let h = circle_sphere_harmonic(
+                Point3::from_array(c),
+                n,
+                rho,
+                ur,
+                Point3::from_array(sc),
+                r,
+            );
+            let e: [Dyadic; 3] = core::array::from_fn(|i| Dyadic::of(c[i]).sub(&Dyadic::of(sc[i])));
+            let (dn, du) = (dyadic_vec([n.x, n.y, n.z]), dyadic_vec([ur.x, ur.y, ur.z]));
+            let (eu, ev, en) = (
+                dyadic_dot(&e, &du),
+                dyadic_dot(&e, &dyadic_cross(&dn, &du)),
+                dyadic_dot(&e, &dn),
+            );
+            let p = eu.mul(&eu).add(&ev.mul(&ev));
+            let (dr, drho) = (Dyadic::of(r), Dyadic::of(rho));
+            let q = p.add(&drho.mul(&drho)).add(&en.mul(&en)).sub(&dr.mul(&dr));
+            let (sq_lo, sq_hi) = p.sqrt_bracket();
+            let two_rho = Dyadic::int(2).mul(&drho);
+            let two_r = Dyadic::int(2).mul(&dr);
+            // `v ± err` brackets `num/2r` iff `(v − err)·2r ≤ num_lo` and
+            // `num_hi ≤ (v + err)·2r`.
+            let brackets = |v: f64, err: f64, num_lo: Dyadic, num_hi: Dyadic| {
+                Dyadic::of(v - err).mul(&two_r).le(&num_lo)
+                    && num_hi.le(&Dyadic::of(v + err).mul(&two_r))
+            };
+            assert!(
+                brackets(
+                    h.lo,
+                    h.lo_error,
+                    q.sub(&two_rho.mul(&sq_hi)),
+                    q.sub(&two_rho.mul(&sq_lo))
+                ),
+                "pose {k}: lo {} ± {} misses the exact factored form",
+                h.lo,
+                h.lo_error
+            );
+            assert!(
+                brackets(
+                    h.hi,
+                    h.hi_error,
+                    q.add(&two_rho.mul(&sq_lo)),
+                    q.add(&two_rho.mul(&sq_hi))
+                ),
+                "pose {k}: hi {} ± {} misses the exact factored form",
+                h.hi,
+                h.hi_error
+            );
+            for (v, exact) in [(h.e_u, &eu), (h.e_v, &ev)] {
+                let (lo, hi) = (Dyadic::of(v - h.phase_error), Dyadic::of(v + h.phase_error));
+                assert!(
+                    lo.le(exact) && exact.le(&hi),
+                    "pose {k}: phase component {v} ± {} misses the exact projection",
+                    h.phase_error
+                );
+            }
+            let l = (Point3::from_array(c) - Point3::from_array(sc)).norm() + rho + r;
+            for (name, v, err) in [("lo", h.lo, h.lo_error), ("hi", h.hi, h.hi_error)] {
+                let d = (v * 2.0 * r + r * r).sqrt();
+                let ceiling =
+                    16.0 * u * l * (d + r + (d - r).abs()) / (2.0 * r) + 4.0 * u * v.abs();
+                assert!(
+                    err <= ceiling,
+                    "pose {k}: {name}'s bound {err} exceeds its ceiling {ceiling}"
+                );
+            }
+        }
+    }
+
+    /// **The frame charge bounds the gap between the circle the stored
+    /// frame evaluates and the factored form, and is attained.** The
+    /// literal residual `|e + ρ(û cos θ + (n̂ × û) sin θ)|² − r²` and the
+    /// form's `P + e_n² + ρ² − r² + 2ρ(e_u cos θ + e_v sin θ)` differ, at
+    /// every rational point `(a, b)/c` of the unit circle tried, by no
+    /// more than `2r·frame_error` — exactly, in dyadic arithmetic scaled
+    /// by `c²`. Two defective frames: `n̂` tilted off `û`'s normal plane
+    /// by `2⁻²⁸`, and `û` stretched by `2⁻³⁰` with `n̂` shrunk by as
+    /// much and the sphere's centre on the axis, where at `θ = 0` the
+    /// gap is the bound to first order — so a charge of half the bound
+    /// misses there. An exactly orthonormal frame is charged nothing.
+    #[test]
+    fn the_frame_charge_bounds_the_literal_circle() {
+        let flat = circle_sphere_harmonic(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            1.0,
+            Vec3::new(0.0, 1.0, 0.0),
+            Point3::new(1.7, 0.3, 0.2),
+            0.75,
+        );
+        assert_eq!(flat.frame_error, 0.0, "an exact frame is charged nothing");
+        let tight = 2f64.powi(-30);
+        let frames = [
+            (
+                [0.3, -0.2, 0.1],
+                [1.1, 0.4, -0.7],
+                [2f64.powi(-28), 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+            ),
+            (
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, -0.6],
+                [0.0, 0.0, 1.0 - tight],
+                [1.0 + tight, 0.0, 0.0],
+            ),
+        ];
+        for (k, (c, sc, n, ur)) in frames.into_iter().enumerate() {
+            let (rho, r) = (1.3, 0.9);
+            let h = circle_sphere_harmonic(
+                Point3::from_array(c),
+                Vec3::new(n[0], n[1], n[2]),
+                rho,
+                Vec3::new(ur[0], ur[1], ur[2]),
+                Point3::from_array(sc),
+                r,
+            );
+            assert!(
+                h.frame_error > 1e-10,
+                "frame {k}: the defect is charged: {}",
+                h.frame_error
+            );
+            let e: [Dyadic; 3] = core::array::from_fn(|i| Dyadic::of(c[i]).sub(&Dyadic::of(sc[i])));
+            let (dn, du) = (dyadic_vec(n), dyadic_vec(ur));
+            let dv = dyadic_cross(&dn, &du);
+            let (eu, ev, en) = (
+                dyadic_dot(&e, &du),
+                dyadic_dot(&e, &dv),
+                dyadic_dot(&e, &dn),
+            );
+            let (dr, drho) = (Dyadic::of(r), Dyadic::of(rho));
+            let bound = Dyadic::of(2.0 * r * h.frame_error);
+            let mut widest = 0.0_f64;
+            for (a, b, cc) in [
+                (1, 0, 1),
+                (0, 1, 1),
+                (3, 4, 5),
+                (-5, 12, 13),
+                (-8, -15, 17),
+                (20, -21, 29),
+            ] {
+                let (a, b, cc) = (Dyadic::int(a), Dyadic::int(b), Dyadic::int(cc));
+                let c2 = cc.mul(&cc);
+                // `c·(e + ρ(û a + v̂ b)/c)`, squared, against `c²·(…)`.
+                let w: [Dyadic; 3] = core::array::from_fn(|i| {
+                    cc.mul(&e[i])
+                        .add(&drho.mul(&du[i].mul(&a).add(&dv[i].mul(&b))))
+                });
+                let literal = dyadic_dot(&w, &w).sub(&c2.mul(&dr.mul(&dr)));
+                let form = c2
+                    .mul(
+                        &eu.mul(&eu)
+                            .add(&ev.mul(&ev))
+                            .add(&en.mul(&en))
+                            .add(&drho.mul(&drho))
+                            .sub(&dr.mul(&dr)),
+                    )
+                    .add(
+                        &Dyadic::int(2)
+                            .mul(&drho)
+                            .mul(&cc)
+                            .mul(&eu.mul(&a).add(&ev.mul(&b))),
+                    );
+                let gap = literal.sub(&form);
+                let limit = c2.mul(&bound);
+                let neg = Dyadic {
+                    m: -limit.m.clone(),
+                    k: limit.k,
+                };
+                assert!(
+                    neg.le(&gap) && gap.le(&limit),
+                    "frame {k}: the literal circle leaves the form by more than the frame charge {}",
+                    h.frame_error
+                );
+                widest = widest.max(gap.ratio(&limit).abs());
+            }
+            if k == 1 {
+                assert!(
+                    widest > 0.99,
+                    "frame {k}: the bound is attained, got {widest}"
+                );
+            }
+        }
+    }
 
     /// **The torus's smallest radius of curvature bounds every bend, on
     /// a fat ring too.** It is read as a radius a sagitta is charged
