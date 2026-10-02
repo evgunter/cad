@@ -16,10 +16,15 @@
 //!
 //! Germ attribution: a crossing along an on-edge is recorded on the
 //! flanking sector the one fold rule
-//! ([`super::sectors::fold_on_bound`]) makes the transition — the
+//! ([`super::sectors::fold_on_bound`], placed by
+//! [`super::sectors::crossing_flank`]) makes the transition — the
 //! on-bound joins the In run, so the germ goes on the flanker whose
 //! other bound reads Out — with the On code rewritten to the transition
-//! partner of that other bound.
+//! partner of that other bound. At an edge-edge site each solid applies
+//! the rule to its OWN flankers' membership keys, apart: the germ's
+//! record is the pair of the two solids' transition flankers, minted
+//! when `pair_search` met no such pair (two coplanar flankers touching
+//! along the edge never make a record of their own).
 //!
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
@@ -584,7 +589,10 @@ pub(super) fn recl_edges<T: Decide>(
                 am.start_holder,
                 bm.start_holder,
             )?
-            .map(|germ| place_germ(records, first_read, germ)),
+            .map(|germ| match germ {
+                EdgeGerm::Held(g) => g,
+                EdgeGerm::Folded(germ) => place_germ(records, first_read, germ),
+            }),
             (Some(am), bm) if am.real => resolve_edge_sector(
                 records,
                 a_sectors,
@@ -665,6 +673,17 @@ pub(super) fn recl_edges<T: Decide>(
     Ok(())
 }
 
+/// Where an edge-edge event's germ goes.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum EdgeGerm {
+    /// On this flanking record as it stands (a declared-`Tangent`
+    /// flank, whose records carry the second-order sides).
+    Held(usize),
+    /// On the record of this sector pair with these codes as read: each
+    /// solid's own fold flanker, the edge On at its bound.
+    Folded(PairRecord),
+}
+
 /// Puts an edge-edge germ on the record of its sector pair, minting the
 /// record when `pair_search` met no such pair, with its codes as read
 /// (the edge On at its bound) in both arrays; `mark_germ` folds them.
@@ -721,7 +740,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     band: Band,
     fa_s: usize,
     fb_s: usize,
-) -> Result<Option<PairRecord>, BooleanError> {
+) -> Result<Option<EdgeGerm>, BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     let fa_e = (fa_s + 1) % n_a;
     let fb_e = (fb_s + 1) % n_b;
@@ -950,13 +969,13 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         };
         let (a, sa) = pick(&a_fl, a_in)?;
         let (b, sb) = pick(&b_fl, b_in)?;
-        return Ok(Some(PairRecord {
+        return Ok(Some(EdgeGerm::Folded(PairRecord {
             a,
             b,
             sa,
             sb,
             intersect: true,
-        }));
+        })));
     }
     // A declared-`Tangent` flank has no membership keys; its records
     // carry the second-order sides. The crossing goes on the flanking
@@ -970,7 +989,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         .into_iter()
         .filter_map(|(a, b)| find_on_record(records, a, b))
         .find(|&g| other_out(records[g].sa) && other_out(records[g].sb))
-        .map(|g| Some(records[g]))
+        .map(|g| Some(EdgeGerm::Held(g)))
         .ok_or(BooleanError::ClassificationInvariant {
             what: "a declared-Tangent edge-edge germ with no flanking record that folds the \
                    edge In on both solids",

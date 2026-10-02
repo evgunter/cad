@@ -40,7 +40,7 @@ Swapping the chord midpoint for the on-carrier one is not the fix by
 itself: CONTACT-2 tried it and three rows moved to the refusal in §2
 (`curved_mergedoor`
 `floating_and_mid_bore_pegs_refuse_at_the_zip_seam_chord_today` and
-`consumed_side_of_the_pair_is_gone_and_one_record_ships`,
+`consumed_side_of_the_pair_is_gone_and_one_record_ships` (now `consumed_side_of_the_pair_leaves_the_door_nothing_to_record`),
 `r1_probes_m9_3` `probe_partial_engagement_never_silent`). There the rim
 lies ON the other body's bore wall, so the on-carrier point reads
 `OnBoundary`, and today the off-region chord midpoint decides them —
