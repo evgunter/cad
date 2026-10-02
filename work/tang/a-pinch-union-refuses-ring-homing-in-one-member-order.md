@@ -2,10 +2,11 @@
 id: a-pinch-union-refuses-ring-homing-in-one-member-order
 kind: issue
 title: Two blocks meeting at a corner on a plate's top refuse RingHomingAmbiguous in one member order and publish in the others
-status: open
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: M
+closed: 2026-10-02
 ---
 
 
@@ -111,3 +112,21 @@ pinch's strut ring has every vertex on the run. Filed:
     `work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`.
 - `union_pinch_member_order.rs` asserts both divergences, citing the two
   rows.
+
+## Closed (2026-10-02, TANG, PR 3796)
+
+Every member order of the unit's pinch union builds the same tier-3
+body, 19 / 49 / 32 at 8.215, and so do the sweep's siblings: the
+side-face pinch, blocks through the plate, two pinches in all 24
+orders, and the slab holding the contact in all six ops. The pinch is
+welded on the kept fragment of the pierced face, with the fragment read
+from lineage; bystander rings are homed by their first vertex off the
+run. Three review rounds, the last two delta reviews, all
+APPROVE-WITH-FIXES. Left open elsewhere:
+- `a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run` (m1, with the
+  3N-staircase witness);
+- `three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`;
+- WIRE `a-boolean-drops-its-operands-own-contact-records` (the record
+  and 3′ verdict follow the member folded last);
+- WIRE `a-pinch-vertexs-name-depends-on-the-unions-member-order`;
+- TESS `two-coincident-edges-between-one-vertex-pair-mesh-non-manifold`.

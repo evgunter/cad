@@ -2,8 +2,9 @@
 id: a-pinch-union-body-trips-the-watertight-census-in-one-member-order
 kind: issue
 title: The pinch union's body trips the watertight chord census in one member order
-status: open
+status: closed
 opened: 2026-09-30
+closed: 2026-10-02
 ---
 
 
@@ -42,3 +43,12 @@ tessellates every order's result. Nothing is left for the tessellator from
 this row, which closes with that branch. The census change the branch
 made, two uses per chord carrying a segment, admits a body `check_mesh`
 refuses: `two-coincident-edges-between-one-vertex-pair-mesh-non-manifold`.
+
+## Closed (2026-10-02, TANG, PR 3796)
+
+The blocks-first order no longer leaves two coincident vertices on one
+loop (the pinch is welded), so the census sees the same body as every
+other order. The census now expects two triangle uses per chord carrying
+a segment, and a doubled contact edge carries two. That is chord
+pairing, not `check_mesh`'s watertightness, which such a mesh fails:
+`two-coincident-edges-between-one-vertex-pair-mesh-non-manifold`.
