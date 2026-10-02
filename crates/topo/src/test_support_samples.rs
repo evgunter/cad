@@ -353,7 +353,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
-        PcurveCertifyError::ArcNearPole { spans: 531_441 },
+        PcurveCertifyError::ArcNearPole,
         PcurveCertifyError::IsoUnsupported {
             what: "a rational NURBS surface",
         },

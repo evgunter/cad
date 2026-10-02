@@ -2822,7 +2822,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     geom::PLACEHOLDER_SURFACE,
                     crate::pcurves::PLACEHOLDER_RECOURSE,
                 ),
-                C::ArcNearPole { .. } => (
+                C::ArcNearPole => (
                     "a boundary circle runs over a pole of its sphere's chart",
                     "Recourse: re-aim the sphere's chart away from the arc, or split the edge",
                 ),

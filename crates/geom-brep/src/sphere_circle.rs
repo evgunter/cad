@@ -53,6 +53,14 @@
 //! and `|H − g| ≤ (h/2)⁶/6!·sup|g⁽⁶⁾|` is the two-point quintic Hermite
 //! remainder.
 //!
+//! Two facts about the IMAGE the bound reads off the image itself rather
+//! than assuming of its producer: `G` is the Hermite data of one
+//! continuous branch of `g` — `g(a)` on the branch nearest the span's
+//! first control, `g(b)` continued from it along the span, so a span
+//! that winds to another branch is a whole period off at its last
+//! control — and the image's knot domain is the edge's interval, which
+//! its certifier checks.
+//!
 //! **The sixth derivative, without a transcendental of `t` in the
 //! bound.** In the sphere's chart frame (units of `R`) the circle is
 //! `x, y, z`, each `X₀ + X_c·cos t + X_s·sin t`. The azimuth is
@@ -147,7 +155,7 @@ pub(crate) struct Jet<T: Real> {
     ddv: T,
 }
 
-/// `Im(n/d)` and `Re(n/d)` for complex `n = (nr, ni)`, `d = (dr, di)`.
+/// `(Re(n/d), Im(n/d))` for complex `n = (nr, ni)`, `d = (dr, di)`.
 fn complex_div<T: Real>((nr, ni): (T, T), (dr, di): (T, T)) -> (T, T) {
     let den = dr.powi(2) + di.powi(2);
     ((nr * dr + ni * di) / den, (ni * dr - nr * di) / den)
@@ -315,10 +323,10 @@ pub(crate) fn span_bound<T: Real>(
     let remainder = h.powi(6) / f(46080.0);
     // `|cos v|` along the chart segment from `g` to `P`: at most
     // `ρ/|q| + |Δv|`, with `ρ ≤ ρ_c + K·h/2` on the span and
-    // `|q| ≥ 1 − off_sphere/R` everywhere on the circle. Where that
-    // denominator is not positive the envelope already carries an
-    // off-sphere term past any band.
-    let q_lo = f(1.0) - frame.off_sphere / frame.radius;
+    // `|q| ≥ 1 − off_sphere/R` everywhere on the circle. A denominator
+    // that is not positive bounds nothing, so it is floored at the
+    // smallest positive value, which sends the factor to its ceiling 1.
+    let q_lo = (f(1.0) - frame.off_sphere / frame.radius).max(f(f64::MIN_POSITIVE));
     let rho_hi = rho_c + k * h * half;
     let (ja, jb) = (frame.jet(a), frame.jet(b));
     let tau = T::tau();
@@ -329,19 +337,25 @@ pub(crate) fn span_bound<T: Real>(
             (T::zero(), f(1.0))
         };
         let v_of = |j: &Jet<T>| if twin { T::pi() - j.v } else { j.v };
-        let du0 = azimuth_gap(p[0].x - shift, &ja);
-        let du5 = azimuth_gap(p[5].x - shift, &jb);
-        let gu = hermite_controls(
-            h,
-            (p[0].x - du0, ja.du, ja.ddu),
-            (p[5].x - du5, jb.du, jb.ddu),
-        );
-        let dv0 = (p[0].y - v_of(&ja)).reduce_periodic_centred(tau);
-        let dv5 = (p[5].y - v_of(&jb)).reduce_periodic_centred(tau);
+        // `g(a)` on the branch nearest the image's first control (a
+        // whole-period shift of the whole image is a branch, which the
+        // walk pins); `g(b)` CONTINUED from it along the span, never
+        // chosen on its own. The azimuth's change over the span is
+        // under π wherever the bound exists (`|u'| ≤ K/m` on the span
+        // and `h < 2λ_u ≤ ρ_c/(1.3K)` with `m ≥ ρ_c/2`, so
+        // `h·K/m < 2/1.3`), so its reduction is unambiguous; the polar
+        // angle is continuous on the arc away from the poles. An image
+        // whose span winds to another branch is then a whole period off
+        // at its last control, and the bound says so.
+        let gu_a = p[0].x - azimuth_gap(p[0].x - shift, &ja);
+        let gu_b = gu_a + (jb.u - ja.u).reduce_periodic_centred(tau);
+        let gu = hermite_controls(h, (gu_a, ja.du, ja.ddu), (gu_b, jb.du, jb.ddu));
+        let gv_a = p[0].y - (p[0].y - v_of(&ja)).reduce_periodic_centred(tau);
+        let gv_b = gv_a + (v_of(&jb) - v_of(&ja));
         let gv = hermite_controls(
             h,
-            (p[0].y - dv0, flip * ja.dv, flip * ja.ddv),
-            (p[5].y - dv5, flip * jb.dv, flip * jb.ddv),
+            (gv_a, flip * ja.dv, flip * ja.ddv),
+            (gv_b, flip * jb.dv, flip * jb.ddv),
         );
         let (mut eu, mut ev) = (T::zero(), T::zero());
         for i in 0..6 {
@@ -370,10 +384,7 @@ const MAX_SPANS: usize = 1 << 16;
 pub(crate) enum ImageRefusal {
     /// No span short enough exists within the refinement's caps: the arc
     /// runs into, or within the band's reach of, a pole of the chart.
-    NearPole {
-        /// The spans the refinement had made when it stopped.
-        spans: usize,
-    },
+    NearPole,
     /// The structure would not build (a degenerate interval).
     Structure,
 }
@@ -416,9 +427,7 @@ pub(crate) fn hermite_image(
             continue;
         }
         if depth == MAX_DEPTH || nodes.len() + stack.len() > MAX_SPANS {
-            return Err(ImageRefusal::NearPole {
-                spans: nodes.len() - 1,
-            });
+            return Err(ImageRefusal::NearPole);
         }
         let h3 = (b - a) / 3.0;
         let (m1, m2) = (a + h3, a + 2.0 * h3);

@@ -1319,13 +1319,13 @@ pub enum PcurveCertifyError {
     FittedMateMissing,
     /// A general circle's arc on a sphere chart runs into, or too near,
     /// one of the chart's poles for its image to be bounded: the azimuth
-    /// has no value at a pole, and near one no span the image's
-    /// refinement may make is short enough for the certified bound to
-    /// land in the band (`sphere_circle`'s docs).
-    ArcNearPole {
-        /// The spans the refinement had made when it stopped.
-        spans: u32,
-    },
+    /// has no value at a pole, and near one a span must be short against
+    /// its distance from the pole for the certified bound to exist. The
+    /// image's refinement stopped at its caps without one short enough,
+    /// or a stored image has a span that is not (`sphere_circle`'s
+    /// docs). A cap, not an impossibility: an arc that passes very near a
+    /// pole needs spans finer than the caps allow.
+    ArcNearPole,
     /// An iso image was offered outside the iso lane's certified
     /// inventory, with the exact boundary named. The refused set is:
     /// a chart that is still the mvfs placeholder; a non-boundary ROW
@@ -1572,13 +1572,13 @@ impl core::fmt::Display for PcurveCertifyError {
                 "pcurve certification: {}, so nothing can be imaged on its chart",
                 geom::PLACEHOLDER_SURFACE
             ),
-            Self::ArcNearPole { spans } => write!(
+            Self::ArcNearPole => write!(
                 f,
                 "pcurve certification: the circle's arc runs into or too near a pole of the \
                  sphere's chart for its fitted image to be bounded within the tolerance band \
-                 ({spans} spans made before the refinement stopped) — the azimuth has no value \
-                 at a pole. Recourse: re-aim the sphere's chart so its polar axis points away \
-                 from the arc, or split the edge so no piece of it passes over a pole"
+                 by spans the refinement may make — the azimuth has no value at a pole. \
+                 Recourse: re-aim the sphere's chart so its polar axis points away from the \
+                 arc, or split the edge so no piece of it passes over a pole"
             ),
             Self::AzimuthPeriodExceeded => write!(
                 f,
@@ -1637,7 +1637,7 @@ impl PcurveCertifyError {
             | Self::ImageMismatch { .. }
             | Self::FittedLaneUnsupported { .. }
             | Self::FittedMateMissing
-            | Self::ArcNearPole { .. }
+            | Self::ArcNearPole
             | Self::IsoUnsupported { .. }
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
@@ -1918,7 +1918,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
 /// no-fitted-class refusal for a carrier that is not a circle — the
 /// mint reaches neither, a public caller can.
 /// [`PcurveCertifyError::ArcNearPole`] when the arc runs into or near a
-/// pole of the chart, where no refinement bounds the image in the band;
+/// pole of the chart, so close that no span within the refinement's
+/// caps is short enough for the bound to land in the band;
 /// [`PcurveCertifyError::IntervalNotForward`] for a span that is not.
 pub(crate) fn sphere_circle_image_lane<
     T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
@@ -1969,9 +1970,7 @@ pub(crate) fn sphere_circle_image_lane<
     };
     let image = crate::sphere_circle::hermite_image(&frame, mid(t0), mid(t1), 0.25 * band.zero())
         .map_err(|refusal| match refusal {
-        crate::sphere_circle::ImageRefusal::NearPole { spans } => PcurveCertifyError::ArcNearPole {
-            spans: u32::try_from(spans).unwrap_or(u32::MAX),
-        },
+        crate::sphere_circle::ImageRefusal::NearPole => PcurveCertifyError::ArcNearPole,
         crate::sphere_circle::ImageRefusal::Structure => PcurveCertifyError::IntervalNotForward,
     })?;
     let control = image.control().iter().map(|p| p.map(T::from_f64)).collect();
@@ -2040,6 +2039,8 @@ pub(crate) struct FittedEnvelope<T: Real> {
 /// take this lane.
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
     image: &NurbsCurve2<T>,
     surface: &Surface<T>,
     mate: Option<&Surface<T>>,
@@ -2066,10 +2067,12 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     let carrier = match carrier {
         Curve3::Nurbs(spline) => spline,
         Curve3::Circle { .. } => {
-            return circle_image_envelope(carrier, image, surface).map(|hull_sup| FittedEnvelope {
-                hull_sup,
-                statement: EnvelopeStatement::MapResidualHermite,
-                ssi: None,
+            return circle_image_envelope(carrier, t0, t1, image, surface).map(|hull_sup| {
+                FittedEnvelope {
+                    hull_sup,
+                    statement: EnvelopeStatement::MapResidualHermite,
+                    ssi: None,
+                }
             });
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => unreachable!(
@@ -2142,13 +2145,16 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::FittedCertificate`] off a sphere chart, or
-/// for an image not in the Hermite form (quintic, unit weights, interior
-/// knots of multiplicity five);
-/// [`PcurveCertifyError::ArcNearPole`] for a span too long against its
-/// distance from the chart's poles for the bound to exist.
+/// [`PcurveCertifyError::FittedCertificate`] off a sphere chart, for
+/// an image not in the Hermite form (quintic, unit weights, interior
+/// knots of multiplicity five), or for one whose knot domain is not the
+/// edge's `[t0, t1]`; [`PcurveCertifyError::ArcNearPole`] for a span too
+/// long against its distance from the chart's poles for the bound to
+/// exist.
 fn circle_image_envelope<T: geom_core::Bounds>(
     carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
     image: &NurbsCurve2<T>,
     surface: &Surface<T>,
 ) -> Result<T, PcurveCertifyError> {
@@ -2165,19 +2171,33 @@ fn circle_image_envelope<T: geom_core::Bounds>(
         "a general circle's image certifies in its Hermite form — a quintic with unit \
          weights whose interior knots have multiplicity five — and this one is not",
     ))?;
-    let mut sup = frame.off_sphere();
+    // The image's domain IS the edge's interval, as structure (C6): the
+    // bound covers the image's own spans, and a sample outside them
+    // would read an extrapolation of the end span that nothing bounds.
+    // An end of the domain must lie inside the bracket of the edge's
+    // matching end (a point at `f64`, the edge's enclosure at the
+    // interval scalar).
+    let (first, last) = (spans.first().map(|s| s.0), spans.last().map(|s| s.1));
+    let inside = |k: Option<f64>, t: T| k.is_some_and(|k| t.lo() <= k && k <= t.hi());
+    if !(inside(first, t0) && inside(last, t1)) {
+        return Err(refuse(
+            "a general circle's image certifies over the edge's own interval, and this \
+             image's knot domain is not that interval",
+        ));
+    }
+    // `|S(P) − C| ≤ |S(P) − S(g)| + |S(g) − C|`: the span bound and the
+    // circle's distance from the sphere, SUMMED.
+    let mut span_sup = T::zero();
     for (a, b, p) in &spans {
         let bound = crate::sphere_circle::span_bound(&frame, T::from_f64(*a), T::from_f64(*b), p);
         // The Cauchy radius is the bound's own premise, read as
         // structure: a span it does not clear has no bound at all.
         if bound.radius.lo().partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
-            return Err(PcurveCertifyError::ArcNearPole {
-                spans: u32::try_from(spans.len()).unwrap_or(u32::MAX),
-            });
+            return Err(PcurveCertifyError::ArcNearPole);
         }
-        sup = sup.max(bound.metres);
+        span_sup = span_sup.max(bound.metres);
     }
-    Ok(sup)
+    Ok(frame.off_sphere() + span_sup)
 }
 
 /// The control-net diameter of a carrier, in metres — a convexity fact
@@ -4424,7 +4444,7 @@ fn run_fitted_checks<T: Decide>(
         hull_sup: envelope,
         statement,
         ssi,
-    } = lane.fitted_certificate(carrier, image, surface, mate, band)?;
+    } = lane.fitted_certificate(carrier, t0, t1, image, surface, mate, band)?;
     // The envelope is banded exactly as the closed-form lane's is, and
     // for the same reason: a certificate whose own bound exceeds ε is
     // not a certificate. It is NOT folded into `max_residual` (the
@@ -7921,7 +7941,7 @@ mod fitted_lane_routing_tests {
                 CHART_TUBE_NEEDS_PLANE,
             ),
         ] {
-            match fitted_lane(&carrier, &image, &surface, Some(&mate), band) {
+            match fitted_lane(&carrier, 0.0, 1.0, &image, &surface, Some(&mate), band) {
                 Err(PcurveCertifyError::FittedCertificate { what, .. }) => {
                     assert_eq!(what, want, "{name}: answered {what}");
                 }
