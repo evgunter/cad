@@ -51,11 +51,18 @@ certificate is the one a fresh run would mint. That holds for every
 source whose certificates match its geometry. The lens's do not, at
 the ulp, so a graft carries its stale residual forward. The
 difference sits far inside the band, and the at-rest gate re-derives
-carriers without reading a stored certificate. Pinned as it stands by
-`sweep`'s `snowman::a_disjoint_union_carries_the_kept_operands_certificates`.
+carriers without reading a stored certificate. `sweep`'s
+`snowman::the_fallback_assembly_carries_the_kept_operands_certificates`
+runs the lens as it stands (its `slab ∪ lens` row asserts the carried
+certificate, not a fresh one).
 
 ## What is owed
 
 Find the step that moves a certified edge's endpoint without
 re-certifying it, and re-certify there (or show the move cannot
 happen and the difference has another cause).
+
+No pin may rely on this staleness to tell the bridges apart: which
+bridge a graft ran is pinned off the graft's own record
+(`topo::test_support::take_graft_bridges`), so the pins still tell
+the bridges apart once this row is fixed.

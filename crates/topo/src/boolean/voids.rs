@@ -34,8 +34,8 @@
 //! bits: a carried certificate is the one a fresh re-certification
 //! mints, bit for bit, wherever the cavity's own certificates are the
 //! ones its geometry mints (`sweep`'s `revert_plane_charts` pins that on
-//! a reverted cavity; a boolean result's seam meridian can carry one an
-//! ulp off,
+//! a reverted cavity; a boolean result's seam meridian can carry one
+//! that differs in the last bits, 1.48e-16 against a fresh 2.22e-16,
 //! `work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`).
 //! The at-rest gate's check 2 re-derives every
 //! carrier at `Band::linear(tol)` and never reads a stored certificate.

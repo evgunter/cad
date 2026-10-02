@@ -3319,8 +3319,11 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                     })?
                     .graft
             } else {
-                // The kept B shells cross whole and unoperated, so they
-                // keep their certificates, as at the void door above.
+                // The kept B shells cross whole, as the reduction left
+                // them: any edge it split at a contact was certified
+                // there through the policy's lane, and nothing touches
+                // them since, so they keep their certificates, as at the
+                // void door above.
                 graft_solids_with(&mut body, &[solid], &b_body, Bridge::RemapKeys)?
             };
             let kind = match op {
