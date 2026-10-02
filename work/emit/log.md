@@ -1458,3 +1458,47 @@ Also, save runs the same validator, and `EditReplay` already spoke labels at loa
 - untested raise sites.
 
 **Filed.** `product-refusals-speak-the-node` (`design: true`). Its sentence is memoized inside a part's evaluation, so it needs a designer pair and Ev.
+
+## 2026-10-02 — union member-space linking built (PR 3753)
+
+This builds Ev's PR 3734 ruling.
+
+**Kernel (topo)**
+- `BooleanNaming::covered` records coincident pairs where one copy is kept. It is written symmetrically, on the section path, the REST path and `finish_fallback`.
+- `judge_pairwise_contact` keeps each pair's naming.
+- `emit_union::Links` links member faces before the fold.
+
+**Results**
+- `KNOWN_ABSENT` for r4tri/r4trig went from 168/564 to 0.
+- New cross-order cases: `r5covered`, `r5poke`, `r5pokehi`, `xmerge`.
+- lib_g16 and the names corpus did not move.
+
+**`near`**
+- Linking made `near` refuse in two orders, a `Borders` gap. I ruled this a mechanism question, not a design one: N2 already fixes the outcome, and the kernel records the fact.
+- So `BooleanReduction::held` now records the kept copy's edges that run into the dropped face. They attach to the discarded fragment that holds their entry vertex, and `Obstacles` reads them as seams.
+
+**Review**
+- M1, reproduced: held edges were first attached by lineage, which joined a pillar's hole to the slab's obstacle in 6 of 14 orders. Fixed by the entry-vertex rule, and the pillar case is now a test.
+- Re-review: clean.
+
+**Filed**
+- `a-pair-boolean-names-a-declared-covered-pair-by-operand-order` (`design: true`). Ev ruled unions only.
+- `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere` (P3). It now also records the latent attach-by-vertex gap at reflex vertices, which the kernel refuses today.
+
+## 2026-10-02 — selection-door refusals speak through their frame (PR 3760)
+
+**The ruling.** Every type in the row is either memoized (`NodeStanding`, `ResolveError`, `NamingError`, `MintRefusal`) or raised by doors that hold only an `Evaluation`. Those doors are pick, hit, select, flush, read-back and `step_for_node`. `AssemblyError` and `ExportError` also have doc-less siblings. So every one of them keeps bare ids, and the frame that hands it out speaks it with `spoken(doc)`.
+
+**`Speaker` / `Say`.** The template lives in one place: `Speaker` / `Say` in `spoken.rs`. It is public, so `ExportError` uses it too.
+
+**Python.** Python speaks from the `Evaluation`'s captured document. That includes the `__str__` of the assembly row objects.
+
+**Carried rows** from a part keep the part's tags. A collision fixture (the outer document and the part both mint the same id, under different labels) pins this. Both reviewer mutations turn it red.
+
+**Wording.** `NodeGone` says the node once, and the `ForeignNode` contradiction is fixed.
+
+**Filed:**
+- `check-findings-speak-their-root-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- The product row gained the forward sites.
+- The viewer row gained about 80 reads.
