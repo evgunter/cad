@@ -2224,12 +2224,13 @@ fn run_checks<T: Decide>(
         // circle. A spiric's speed floor is its MINOR radius
         // (`|dP/dv| ≥ r`, the variant docs) and its period is the same
         // 2π, so it takes this arm at that meter.
-        // The floor is the smaller SIGNED semi-axis: a frame stored in
-        // either order is metered at its smaller magnitude, and a
-        // non-positive semi-axis makes the floor non-positive, so the
-        // span is refused (`IntervalNotForward`) — this gate does not
-        // admit a signed frame; tier 3 refuses one on its value too.
-        Curve3::Ellipse { major, minor, .. } => span_at_floor(major.min(*minor))?,
+        // The floor is `min(|major|, minor)`: a frame stored in either
+        // order is metered at its smaller magnitude, and a non-positive
+        // `minor` makes the floor non-positive, so the span is refused
+        // (`IntervalNotForward`), as this gate has always refused one. A
+        // negative `major` (its `u_ref` flipped, the same locus) it
+        // admits, as it always has; tier 3 refuses it on its value.
+        Curve3::Ellipse { major, minor, .. } => span_at_floor(major.abs().min(*minor))?,
         Curve3::Spiric { minor_radius, .. } => span_at_floor(*minor_radius)?,
         Curve3::Line { .. } => {
             forward(Margin::of(span))?;

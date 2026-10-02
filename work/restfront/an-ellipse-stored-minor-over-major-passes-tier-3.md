@@ -89,10 +89,13 @@ item's question (whether tier 3 should decide it) is unchanged.
   (`the_ellipse_step_reads_its_semi_axes_in_any_stored_frame`).
 - **The certify gate is not widened.** Before PR 3805 its span meter was
   `InfSpeed::new(minor)`, so an ellipse stored with a negative `minor`
-  was refused `IntervalNotForward` (incidentally); reading
-  `min(|major|, |minor|)` admitted it (measured: the plane ∩ leaning
-  cylinder ellipse with `minor = −1` certified). Ruled in review: the
-  meter is now the smaller SIGNED semi-axis, so either order meters and
-  a non-positive semi-axis — `minor` or `major` — is refused
-  (`ellipse_signed_semi_axis_gate`). Whether a swapped or signed frame
-  should be normalised at the mint stays this item's question.
+  was refused `IntervalNotForward` (incidentally), while a negative
+  `major` with its `u_ref` flipped certified (`tier3_tests` mints one so
+  check 1 refuses it on value). Reading `min(|major|, |minor|)` admitted
+  the negative `minor` too (measured: the plane ∩ leaning cylinder
+  ellipse with `minor = −1` certified). Ruled in review: the meter is
+  now `min(|major|, minor)` — either order meters at its smaller
+  magnitude, a non-positive `minor` is refused as before, a negative
+  `major` certifies as before (`ellipse_signed_semi_axis_gate`). Whether
+  a swapped or signed frame should be normalised at the mint stays this
+  item's question.
