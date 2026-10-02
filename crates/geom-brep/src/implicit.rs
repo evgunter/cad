@@ -518,28 +518,36 @@ fn arc_sample<T: Real>(t0: T, t1: T, k: usize) -> T {
 /// harmonic in `θ` — which is what makes every residual below a
 /// trigonometric polynomial against a plane, a sphere or a cylinder.
 ///
-/// The two derivative bounds every arc enclosure here is stated at:
-/// `|C′(θ)|² = major²sin²θ + minor²cos²θ` lies in `[minor², major²]`,
-/// and `C″(θ) = center − C(θ)`, so `|C″| ≤ major` too.
+/// **The stored semi-axes carry no order and no sign.** The mint
+/// certifies an ellipse stored with `minor > major`, and one with a
+/// negative `major` and its `u_ref` flipped (`loop_winding`'s conic
+/// term reads them the same way), so nothing here assumes either: the
+/// harmonic algebra is sign-general (it reads the vectors `major·û` and
+/// `minor·v̂`), and every bound reads the MAGNITUDES through
+/// [`Conic::speed_lo`] and [`Conic::speed_hi`]:
+/// `|C′(θ)|² = major²sin²θ + minor²cos²θ` lies in
+/// `[speed_lo², speed_hi²]`, and `C″(θ) = center − C(θ)`, so
+/// `|C″| ≤ speed_hi` too.
 ///
 /// **Precondition on the frame, unchecked:** `axis` and `u_ref` unit and
-/// mutually orthogonal, `major ≥ minor > 0`, as every `Curve3::Circle`
-/// and `Curve3::Ellipse` minted in this tree is. Nothing here normalizes
-/// them, and nothing can afford to: the semi-axes are the lengths every
-/// curvature bound is stated at, so a non-unit `u_ref` rescales the
-/// sampled curve without rescaling the bound and the enclosure stops
-/// enclosing. A caller synthesising a frame owes the normalization.
+/// mutually orthogonal, as every `Curve3::Circle` and `Curve3::Ellipse`
+/// minted in this tree is. Nothing here normalizes them, and nothing
+/// can afford to: the semi-axes are the lengths every curvature bound is
+/// stated at, so a non-unit `u_ref` rescales the sampled curve without
+/// rescaling the bound and the enclosure stops enclosing. A caller
+/// synthesising a frame owes the normalization.
 #[derive(Debug, Clone, Copy)]
 pub struct Conic<T: Real> {
     /// The centre.
     pub center: Point3<T>,
     /// The unit normal of the conic's plane.
     pub axis: Vec3<T>,
-    /// The unit semi-major direction, where `θ = 0` lives.
+    /// The unit direction of `major`, where `θ = 0` lives.
     pub u_ref: Vec3<T>,
-    /// The semi-major axis (metres).
+    /// The semi-axis along `u_ref` (metres; any sign, any order).
     pub major: T,
-    /// The semi-minor axis (metres); equal to `major` on a circle.
+    /// The semi-axis along `axis × u_ref` (metres); equal to `major` on
+    /// a circle.
     pub minor: T,
 }
 
@@ -590,6 +598,27 @@ impl<T: Real> Conic<T> {
     #[must_use]
     pub fn v_ref(&self) -> Vec3<T> {
         self.axis.cross(self.u_ref)
+    }
+
+    /// The least speed `|C′|` over the carrier: the smaller semi-axis
+    /// magnitude.
+    #[must_use]
+    pub fn speed_lo(&self) -> T {
+        self.major.abs().min(self.minor.abs())
+    }
+
+    /// The greatest speed `|C′|` over the carrier, and a bound on `|C″|`:
+    /// the larger semi-axis magnitude.
+    #[must_use]
+    pub fn speed_hi(&self) -> T {
+        self.major.abs().max(self.minor.abs())
+    }
+
+    /// The speed `|C′(θ)|` at `theta`.
+    #[must_use]
+    pub fn speed_at(&self, theta: T) -> T {
+        let (sin, cos) = theta.sin_cos();
+        ((self.major * sin).powi(2) + (self.minor * cos).powi(2)).sqrt()
     }
 
     /// The point at eccentric anomaly `theta`.
@@ -808,12 +837,12 @@ fn arc_curvature_bound<T: Real>(s: &Surface<T>, conic: &Conic<T>, t0: T, t1: T) 
 /// |(d²)″| ≤ 2a² + 2·D_max·(a + 2a²/ρ_min) + 2a_h² + 2·H_max·a_h
 /// ```
 ///
-/// with `a` the conic's semi-major axis. Every term is certified:
+/// with `a` the conic's [`Conic::speed_hi`]. Every term is certified:
 /// `|w′|, |w″| ≤ a` because a perpendicular projection is a contraction
 /// of `C′` and `C″`, both of length at most `a` ([`Conic`]); `ρ′ =
 /// w·w′/ρ` gives `|ρ′| ≤ a` and `ρ″ = (|w′|² + w·w″)/ρ − (w·w′)²/ρ³`
 /// gives `|ρ″| ≤ a + 2a²/ρ_min`; `h` is an EXACT first harmonic of
-/// amplitude `a_h = |(a·û·n, b·v̂·n)|`, so `|h′|, |h″| ≤ a_h` on any arc
+/// amplitude `a_h = |(major·û·n, minor·v̂·n)|`, so `|h′|, |h″| ≤ a_h` on any arc
 /// at all. On a circle `a` is its radius `ρ_c`.
 ///
 /// `D_max` is TWO-SIDED (`max` over both ends of the `ρ` range, not
@@ -854,9 +883,10 @@ fn torus_curvature_bound<T: Real>(
     };
     let two = T::from_f64(2.0);
     // `a` bounds `|C′|` and `|C″|` over the whole carrier ([`Conic`]).
-    let a = conic.major;
-    let a_h =
-        ((a * conic.u_ref.dot(tn)).powi(2) + (conic.minor * conic.v_ref().dot(tn)).powi(2)).sqrt();
+    let a = conic.speed_hi();
+    let a_h = ((conic.major * conic.u_ref.dot(tn)).powi(2)
+        + (conic.minor * conic.v_ref().dot(tn)).powi(2))
+    .sqrt();
     let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
     let lipschitz = a * step.abs() / two;
     // A radius is never negative, so the clamp is the honest floor
@@ -2087,7 +2117,8 @@ mod conic_tests {
 
     use super::*;
 
-    /// Unit, orthogonal frames at several tilts and eccentricities.
+    /// Unit, orthogonal frames at several tilts and eccentricities, in
+    /// every stored order and sign.
     fn ellipses() -> Vec<Conic<f64>> {
         let frame = |n: [f64; 3], u: [f64; 3]| {
             let n = Vec3::from_array(n).normalize();
@@ -2112,6 +2143,24 @@ mod conic_tests {
             ),
             ([1.0, 2.0, 0.5], [0.0, 1.0, 1.0], [0.4, 0.1, -0.2], 0.9, 0.3),
             ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.2, 0.0, 0.1], 0.4, 0.39),
+            // The frames the mint certifies with a stored order or sign
+            // the bounds must not trust: `minor > major`, a negative
+            // `major` (its `u_ref` flipped), a negative `minor`.
+            ([1.0, 2.0, 0.5], [0.0, 1.0, 1.0], [0.4, 0.1, -0.2], 0.3, 0.9),
+            (
+                [0.0, 0.0, 1.0],
+                [-1.0, 0.0, 0.0],
+                [0.1, -0.2, 0.3],
+                -0.6,
+                0.25,
+            ),
+            (
+                [0.3, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                [0.2, 0.1, 0.4],
+                0.35,
+                -0.8,
+            ),
         ]
         .into_iter()
         .map(|(n, u, c, major, minor)| {
@@ -2186,6 +2235,96 @@ mod conic_tests {
                         "ellipse {i} against {s:?} at θ = {t}: {poly} vs {direct}"
                     );
                 }
+            }
+        }
+    }
+
+    /// **The arc enclosure holds for every stored frame** — a counterexample
+    /// search over random ellipses in any stored order and sign
+    /// (eccentricity up to 20), against random tori, spheres and walls,
+    /// on arcs log-uniform over three decades: every one of a dense run
+    /// of pointwise residuals lies inside the arc's range. Reading the
+    /// stored `major` as the speed bound (an ellipse stored with
+    /// `minor > major`, or with a negative `major`) fails it.
+    #[test]
+    fn the_arc_enclosure_holds_for_any_stored_frame() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("implicit::conic_arc_enclosure_any_frame");
+        let unit = |rng: &mut fuzz::Rng| loop {
+            let v = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            if v.norm() > 0.2 && v.norm() < 1.0 {
+                return v.normalize();
+            }
+        };
+        let dense = fuzz::scaled(400);
+        for i in 0..fuzz::scaled(300) {
+            let axis = unit(&mut rng);
+            let u = unit(&mut rng);
+            let u_ref = (u - axis * u.dot(axis)).normalize();
+            let big = rng.range(0.1, 2.0);
+            let small = big / rng.range(1.0, 20.0);
+            let (mut major, mut minor) = if rng.below(2) == 0 {
+                (big, small)
+            } else {
+                (small, big)
+            };
+            if rng.below(3) == 0 {
+                major = -major;
+            }
+            if rng.below(3) == 0 {
+                minor = -minor;
+            }
+            let conic = Conic {
+                center: Point3::new(
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                ),
+                axis,
+                u_ref,
+                major,
+                minor,
+            };
+            let x = Vec3::new(1.0, 0.0, 0.0);
+            let n = unit(&mut rng);
+            let spine = rng.range(0.5, 2.0);
+            let s = match i % 3 {
+                0 => Surface::Torus {
+                    center: Point3::new(rng.range(-0.5, 0.5), 0.0, 0.0),
+                    axis: n,
+                    major_radius: spine,
+                    minor_radius: spine * rng.range(0.05, 0.6),
+                    u_ref: (x - n * x.dot(n)).normalize(),
+                },
+                1 => Surface::Sphere {
+                    center: Point3::new(0.0, rng.range(-0.5, 0.5), 0.0),
+                    radius: spine,
+                    axis: n,
+                    u_ref: (x - n * x.dot(n)).normalize(),
+                },
+                _ => Surface::Cylinder {
+                    origin: Point3::new(0.0, 0.0, rng.range(-0.5, 0.5)),
+                    axis: n,
+                    radius: spine,
+                    u_ref: (x - n * x.dot(n)).normalize(),
+                },
+            };
+            let t0 = rng.range(0.0, TAU);
+            let t1 = t0 + 10f64.powf(rng.range(-3.0, TAU.log10()));
+            let (lo, hi) = conic_arc_residual_range(&s, &conic, t0, t1).expect("an enclosure");
+            for k in 0..=dense {
+                let t = t0 + (t1 - t0) * k as f64 / dense as f64;
+                let r = implicit_residual(&s, conic.point(t));
+                assert!(
+                    lo <= r && r <= hi,
+                    "case {i}, {conic:?} against {s:?} on [{t0}, {t1}] at {t}: {r} outside \
+                     [{lo}, {hi}] — {}",
+                    fuzz::replay()
+                );
             }
         }
     }
