@@ -175,26 +175,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // `face_outward_normal`) — In/Out here is a material verdict and
     // would read backwards off a chart normal on a reversed face,
     // which is why the primitive takes the typed one.
-    //
-    // A real edge bounding a face the door VERIFIED as one carrier with
-    // the pierced face lies on that carrier, so it reads `On` exactly: a
-    // rim arc of a declared `Rest` wall leaves the pierced wall's
-    // tangent plane at second order, along the wall, and the first-order
-    // reading below would charge that bend as a departure.
     let mut entries = Vec::with_capacity(n);
-    for (k, s) in sectors.iter().enumerate() {
-        let on_pierced_carrier = s.end_edge()
-            && [s.face, sectors[(k + n - 1) % n].face]
-                .into_iter()
-                .any(|f| declared.verified_one_carrier(piercing, f, pierced_op, contact.face));
+    for s in &sectors {
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: if on_pierced_carrier {
-                SideCode::On
-            } else {
-                side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?
-            },
+            class: side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?,
             lumped: false,
         });
     }

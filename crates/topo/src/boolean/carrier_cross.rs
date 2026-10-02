@@ -333,3 +333,116 @@ fn coplanar_circles<T: Decide>(
         Err(diag) => Err(escalate(diag)),
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod meetings_rows {
+    //! The closed forms behind [`super::meetings`]: every isolated meeting
+    //! of two carriers is among the candidates, a pair that meets only
+    //! along a stretch or nowhere has none, and the one pair with no
+    //! closed form says so.
+    use super::meetings;
+    use geom::Curve3;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
+        Curve3::Line {
+            origin: Point3::from_array(o),
+            dir: Vec3::from_array(d).normalize(),
+        }
+    }
+
+    fn circle(c: [f64; 3], axis: [f64; 3], r: f64) -> Curve3<f64> {
+        let axis = Vec3::from_array(axis).normalize();
+        let u_ref = if axis.x.abs() < 0.9 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
+        let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
+        Curve3::Circle {
+            center: Point3::from_array(c),
+            axis,
+            radius: r,
+            u_ref,
+        }
+    }
+
+    /// Whether `want` is among `got`.
+    fn holds(got: &[Point3<f64>], want: [f64; 3]) -> bool {
+        got.iter()
+            .any(|p| p.distance(Point3::from_array(want)) < 1e-12)
+    }
+
+    #[test]
+    fn every_isolated_meeting_is_a_candidate() {
+        let b = band();
+        // A cylinder's ruling through its rim's plane, both orders.
+        let ruling = line([0.5, -3.0, 0.0], [0.0, 1.0, 0.0]);
+        let rim = circle([0.0, 1.0, 0.0], [0.0, 1.0, 0.0], 0.5);
+        for (a, c) in [(&ruling, &rim), (&rim, &ruling)] {
+            let got = meetings(a, c, b).unwrap().unwrap();
+            assert!(holds(&got, [0.5, 1.0, 0.0]), "ruling × rim: {got:?}");
+        }
+        // Two skew-free lines crossing.
+        let got = meetings(
+            &line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            &line([1.0, -1.0, 0.0], [0.0, 1.0, 0.0]),
+            b,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(holds(&got, [1.0, 0.0, 0.0]), "line × line: {got:?}");
+        // Two great circles of the unit sphere meet at two antipodes.
+        let got = meetings(
+            &circle([0.0; 3], [0.0, 0.0, 1.0], 1.0),
+            &circle([0.0; 3], [1.0, 0.0, 0.0], 1.0),
+            b,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(
+            holds(&got, [0.0, 1.0, 0.0]) && holds(&got, [0.0, -1.0, 0.0]),
+            "great circles: {got:?}"
+        );
+        // A parallel of the unit sphere and a meridian: at latitude 30°.
+        let (s, c) = (0.5, 0.75f64.sqrt());
+        let got = meetings(
+            &circle([0.0, 0.0, s], [0.0, 0.0, 1.0], c),
+            &circle([0.0; 3], [0.0, 1.0, 0.0], 1.0),
+            b,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(
+            holds(&got, [c, 0.0, s]) && holds(&got, [-c, 0.0, s]),
+            "parallel × meridian: {got:?}"
+        );
+    }
+
+    #[test]
+    fn a_stretch_or_a_miss_has_no_candidate_and_a_coplanar_pair_is_unread() {
+        let b = band();
+        let none = |a: &Curve3<f64>, c: &Curve3<f64>| meetings(a, c, b).unwrap().map(|v| v.len());
+        // Two parallel rulings, and one ruling along another.
+        let r1 = line([0.5, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        let r2 = line([0.0, 0.0, 0.5], [0.0, 1.0, 0.0]);
+        assert_eq!(none(&r1, &r2), Some(0), "parallel rulings");
+        assert_eq!(none(&r1, &r1), Some(0), "one ruling");
+        // Two rims of one cylinder, and one rim against itself.
+        let low = circle([0.0, 1.0, 0.0], [0.0, 1.0, 0.0], 0.5);
+        let high = circle([0.0, 2.0, 0.0], [0.0, 1.0, 0.0], 0.5);
+        assert_eq!(none(&low, &high), Some(0), "two rims");
+        assert_eq!(none(&low, &low), Some(0), "one rim");
+        // Two distinct circles in one plane: no closed form here.
+        let beside = circle([0.3, 1.0, 0.0], [0.0, 1.0, 0.0], 0.5);
+        assert_eq!(none(&low, &beside), None, "coplanar, not concentric");
+        // A line parallel to a circle's plane.
+        let flat = line([0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
+        assert_eq!(none(&flat, &low), None, "line in the rim's plane");
+    }
+}
