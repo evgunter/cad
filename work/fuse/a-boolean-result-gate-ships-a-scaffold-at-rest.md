@@ -2,10 +2,11 @@
 id: a-boolean-result-gate-ships-a-scaffold-at-rest
 kind: issue
 title: The boolean's result gate runs tiers 1 and 2 only, so a body carrying a scaffold at rest ships as tier-3 currency
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P1
 cost: M
+branch: fuse/result-gate-at-rest
 ---
 
 

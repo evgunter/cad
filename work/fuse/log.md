@@ -206,3 +206,8 @@ lane reproduces the refusal through the public door first, because the
 original probe carried records by hand. It fixes the refusal at its
 source and raises the row to P0 if the door reproduces it. Review tier
 is decided when the PR shows what the fix is.
+`a-boolean-result-gate-ships-a-scaffold-at-rest`, filed here by JOIN-1's
+dual review, dispatched on `fuse/result-gate-at-rest`. The lane measures
+the cost of running the at-rest check before choosing between the full
+check and its structural half. Review tier: single FULL, since the gate
+is every boolean's exit.
