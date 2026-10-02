@@ -1,13 +1,13 @@
 ---
 id: heatsink-placedunion-base-union-unfinished
-kind: issue
-title: The heat sink's PlacedUnion migration stopped half-way on a reason #571's own adjudication retired - the base union never moved in-document
-status: open
+kind: unit
+title: the heat sink's fins sit flush on the base with declared contacts instead of sunk 1/16 into it, and its joined rims fillet
+status: dispatched
 opened: 2026-08-31
 github: 1344
 refs: [571]
 priority: P3
-cost: D
+cost: M
 ---
 
 ## From GitHub issue 1344
@@ -174,3 +174,41 @@ S-BOOL: the one open question is whether the seamed boolean path admits a multi-
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to work/issues (demos/tour is in no program's paths — the last resort, per the README) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Re-scoped as a SHOW unit (2026-10-02)
+
+The base union moved in-document before SHOW claimed this row
+(`heatsink.rs`'s module docs; `corpus/heatsink_union.rs` finding 1 was
+corrected with it). What is left is the comment above's third option,
+which is now the unit:
+
+1. **Flush and declared.** Fins sketched ON the base's top face, not
+   1/16 inside it, and each fin's base face declared against the base
+   top as a planar `Rest` contact through the recipe's own path
+   (`Node::Declare` feeding `Boolean { declare }`; `Instance(i)` names
+   tell the fins apart). The declared planar zip is shipped and used
+   live by `crosslap`, `twopeg` and `table`; what is unmeasured is a
+   declaration against a multi-SHELL `PlacedUnion` operand. If it
+   refuses, the refusal is the finding: file it on the owning kernel
+   program with the payload, keep the overlap, and say so in the
+   scene's narration.
+2. **Fillet the joined rims.** After the flush union the base's long
+   top edges are chains of collinear links broken at each fin's foot.
+   BAND PR #3701 made `fillet_edges`/`chamfer_edges` treat such a chain
+   as ONE band face named by the chain's edge set
+   (`crates/editor-core/tests/band_joined_rim_names.rs`,
+   `crates/sweep/tests/band_subdivided_side_walls.rs`). Round the
+   heat sink's edges through `Node::Fillet` in the same document, so
+   the 5 → 7 → 9 edit re-evaluates through the blend and the recompute
+   counters in the caption still mean what they say (count them; they
+   will change).
+3. The volume oracle moves: the fins no longer overlap the base, so V
+   is EXACTLY base + n·fin before the fillet, and the fillet's ΔV has
+   a closed form per straight band (`r²(1 − π/4)·L`); state both.
+4. Montage: `impeller12` holds the recipe-layer cell. If the filleted,
+   flush heat sink is the better picture of "one edit, downstream-only
+   recompute", say so in the PR and propose the swap; do not swap
+   silently.
+
+Oracle and gates as every SHOW unit (`work/show/plan.md`, "Every
+unit").
