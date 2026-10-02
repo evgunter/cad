@@ -202,7 +202,10 @@ fn a_bar_leaving_through_one_side_of_a_wall_builds() {
 /// azimuths 8.6° to 44.4°, clear of every seam — so the wall is left
 /// with a hole: the section's chords join ring to ring, the island's
 /// role order is wound on the wall's chart, and the ringed wall
-/// measures.
+/// measures. Rings whose arcs are wider than the gap between them
+/// (`asin y1 − asin y0 > π − 2·asin y1`) refuse instead,
+/// `RingHomingAmbiguous`: the loose ends pair across the gap
+/// (`work/tang/in-face-pierce-rings-pair-across-the-gap.md`).
 #[test]
 fn a_bar_whose_section_closes_inside_one_wall_face_builds() {
     assert_bar_through_the_pipe((-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1));

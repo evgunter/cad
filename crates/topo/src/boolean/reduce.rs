@@ -2990,8 +2990,11 @@ impl Placement {
     ///   on-carrier end on a face whose trim the chart door declines (a
     ///   ringed face) while every boundary edge is a line or a circle
     ///   (anything else answers `Unread` first), and the one such bore
-    ///   tried — a collar less a partial-revolve wedge — refuses
-    ///   `Join(SectionArcWindow{NoChartedRun})` before any mate;
+    ///   tried — a full-turn collar less a partial-revolve wedge —
+    ///   refuses before any mate: `Join(SectionArcWindow{BothContained})`
+    ///   with the wedge inside the collar's height, `JoinDesync` where it
+    ///   crosses a cap
+    ///   (`work/tang/a-wedge-across-a-full-turn-collar-desyncs-its-chord-roles.md`);
     /// - **any `Recorded`** records;
     /// - **every on-carrier end `Elsewhere`** has placed nothing on this
     ///   face. That is no event only when `interior_clear` — the arm

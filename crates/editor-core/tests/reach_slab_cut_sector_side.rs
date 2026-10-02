@@ -104,7 +104,8 @@ fn a_slab_cut_through_a_drum_answers_its_volume() {
     );
 }
 
-/// **The round boss crossed by a slab, in every member order.** The
+/// **The round boss crossed by a slab, in every member order: four
+/// build, two stop typed.** The
 /// plate `[0,3] × [0,2] × [0,1]`; the boss `r = 0.6` about `(1.5, 1)`,
 /// `z ∈ [0.44, 2.24]`; the slab `x ∈ [1.4, 1.6]`, `y ∈ [−1, 3]`,
 /// `z ∈ [0.5, 2]`. The union is the plate, the boss above it, the
@@ -112,7 +113,7 @@ fn a_slab_cut_through_a_drum_answers_its_volume() {
 /// slab above the plate less the band it shares with the boss. The two
 /// orders that union the plate last stop at the ringed-wall door.
 #[test]
-fn a_slab_across_a_round_boss_answers_its_volume_in_every_order() {
+fn a_slab_across_a_round_boss_builds_in_four_orders_and_stops_typed_in_two() {
     let (r, cx, cy) = (0.6, 1.5, 1.0);
     let doc = ProfileDoc::empty_derived("round_boss_slab", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);

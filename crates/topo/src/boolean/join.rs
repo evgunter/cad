@@ -168,6 +168,31 @@ enum GermLane<T: geom_core::Real> {
     Radical((Point3<T>, UnitVec3<T>)),
 }
 
+impl<T: geom_core::Real> GermLane<T> {
+    /// How each side's ring-lane island closes, A's then B's: a planar
+    /// germ face on its own plane, a wall along the section its chords
+    /// lie in.
+    fn ring_closures(self) -> (RingClosure<T>, RingClosure<T>) {
+        match self {
+            Self::Planar { .. } => (RingClosure::Planar, RingClosure::Planar),
+            Self::PlaneWall(plane) => (RingClosure::Planar, RingClosure::Wall(plane)),
+            Self::WallPlane(plane) => (RingClosure::Wall(plane), RingClosure::Planar),
+            Self::Radical(plane) => (RingClosure::Wall(plane), RingClosure::Wall(plane)),
+        }
+    }
+}
+
+/// How one solid's ring-lane island is closed for its winding
+/// ([`ring_run_ccw`]), typed by the germ face's kind.
+#[derive(Clone, Copy)]
+enum RingClosure<T: geom_core::Real> {
+    /// A planar face: the island closes on the face's own plane.
+    Planar,
+    /// A curved face: the island closes along this section plane, on
+    /// the face's chart.
+    Wall((Point3<T>, UnitVec3<T>)),
+}
+
 /// Per-solid joining state: the shared chord core plus the F9 side
 /// data role resolution reads.
 struct SolidJoin {
@@ -542,14 +567,9 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // solid resolves against its OWN geometry. A wall face's ring
         // lane winds its island on the face's chart, closed along this
         // solid's section plane.
-        let (a_section, b_section) = match lane {
-            GermLane::Planar { .. } => (None, None),
-            GermLane::PlaneWall(plane) => (None, Some(plane)),
-            GermLane::WallPlane(plane) => (Some(plane), None),
-            GermLane::Radical(plane) => (Some(plane), Some(plane)),
-        };
-        let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, a_section, band)?;
-        let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, b_section, band)?;
+        let (a_closure, b_closure) = lane.ring_closures();
+        let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, a_closure, band)?;
+        let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, b_closure, band)?;
         match lane {
             GermLane::Planar { a, b } => {
                 // Each side's section is the PARTNER's plane: the chord
@@ -1473,7 +1493,7 @@ fn choose_roles<T: Decide>(
     ea: HalfEdgeKey,
     ra: HalfEdgeKey,
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
-    section: Option<(Point3<T>, UnitVec3<T>)>,
+    closure: RingClosure<T>,
     band: Band,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -1515,7 +1535,7 @@ fn choose_roles<T: Decide>(
     // antiparallelism witness caught it). The two rules agree wherever
     // the residual anchor was sound (both parities checked in the
     // issue #93 diagnosis), so corpus surgery is unchanged.
-    let (h1, h2) = if ring_run_ccw(body, face, ea, ra, section, band)? {
+    let (h1, h2) = if ring_run_ccw(body, face, ea, ra, closure, band)? {
         (ea, ra)
     } else {
         (ra, ea)
@@ -1548,24 +1568,30 @@ fn choose_roles<T: Decide>(
 /// merges). A spiric or spline run edge refuses loudly; the operand
 /// gate keeps them out.
 ///
-/// A wall face (no planar carrier) asks the same question on its own
-/// chart, [`crate::chord_join::chart_island_winding`], with the run
-/// closed along `section`, the plane this solid's chords lie in.
+/// A wall face ([`RingClosure::Wall`]) asks the same question on its
+/// own chart, [`crate::chord_join::chart_island_winding`], with the run
+/// closed along the plane this solid's chords lie in.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     h1: HalfEdgeKey,
     h2: HalfEdgeKey,
-    section: Option<(Point3<T>, UnitVec3<T>)>,
+    closure: RingClosure<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let Some(normal) = face_outward_normal(body, face) else {
-        let section = section.ok_or(desync("ring-lane wall face has no section plane"))?;
-        let wound = crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
-            .map_err(BooleanError::Join)?;
-        return ring_winding_order(wound);
+    let section = match closure {
+        RingClosure::Wall(section) => {
+            let wound =
+                crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
+                    .map_err(BooleanError::Join)?;
+            return ring_winding_order(wound);
+        }
+        RingClosure::Planar => face_outward_normal(body, face).ok_or(desync(
+            "a planar germ face's ring lane found no planar carrier",
+        ))?,
     };
+    let normal = section;
     let normal = normal.vec();
     let wound = body
         .planar_run_winding_decided(h1, h2, normal, band)
@@ -1988,7 +2014,7 @@ mod self_check_rows {
             })
             .expect("the top loop runs (0,0) → (1,h)");
         let h2 = body.get_half_edge(h1).unwrap().next;
-        let err = super::ring_run_ccw(body, prism.top_face, h1, h2, None, b)
+        let err = super::ring_run_ccw(body, prism.top_face, h1, h2, super::RingClosure::Planar, b)
             .expect_err("an in-band winding escalates");
         assert_defect(&err, SelfCheck::RingWinding, "bool_ring_run_winding");
     }
