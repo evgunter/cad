@@ -450,7 +450,7 @@ fn flush_fins(tol: Tol) {
             op: BooleanOp::Union,
             a: flush.base,
             b: flush.group,
-            declare: Some(redeclared),
+            declare: redeclared,
         },
         tol,
     );
@@ -458,7 +458,7 @@ fn flush_fins(tol: Tol) {
     let readded = Recipe {
         doc,
         solid,
-        declare: Some(redeclared),
+        declare: redeclared,
         ..flush
     };
     solidify(&readded, &ev, 7, tol);

@@ -268,7 +268,7 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let mut rec = Recorder::new();
     let a = recorded_block(&mut rec, (0.0, 1.0));
     let b = recorded_block(&mut rec, (0.5, 1.5));
-    let decl_ab = rec.insert(Node::declare_continuation(
+    let decl_ab = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -277,12 +277,12 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
                 )
             })
             .collect(),
-    ));
+    );
     let inner = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
         a,
         b,
-        declare: Some(decl_ab),
+        declare: decl_ab,
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
     // The inner's merged rows, declared against `c`'s faces by name.
@@ -296,7 +296,7 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
             ],
         )
     };
-    let decl_ic = rec.insert(Node::declare_continuation(
+    let decl_ic = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -305,12 +305,12 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
                 )
             })
             .collect(),
-    ));
+    );
     let outer = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: inner,
         b: c,
-        declare: Some(decl_ic),
+        declare: decl_ic,
     });
     let ev = run(&rec.doc);
     assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
@@ -440,7 +440,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     let mut rec = Recorder::new();
     let a = recorded_block(&mut rec, (0.0, 1.0));
     let b = recorded_block(&mut rec, (0.5, 1.5));
-    let decl_ab = rec.insert(Node::declare_continuation(
+    let decl_ab = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -449,12 +449,12 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
                 )
             })
             .collect(),
-    ));
+    );
     let inner = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
         a,
         b,
-        declare: Some(decl_ab),
+        declare: decl_ab,
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
     let at = rec.doc.clone();
@@ -467,7 +467,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
             ],
         )
     };
-    let decl_ic = rec.insert(Node::declare_continuation(
+    let decl_ic = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -476,12 +476,12 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
                 )
             })
             .collect(),
-    ));
+    );
     let outer = rec.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: inner,
         b: c,
-        declare: Some(decl_ic),
+        declare: decl_ic,
     });
     let ev = run(&rec.doc);
     assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
@@ -528,7 +528,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let doc = ProfileDoc::empty_derived("docm8_fromb", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let node = Node::declare_continuation(
+    let node = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -545,7 +545,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl_ab),
+            declare: decl_ab,
         },
     );
     // A far block, unioned with the merge as operand B, so the merged
@@ -557,7 +557,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             op: BooleanOp::Union,
             a: far,
             b: inner,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, c) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
@@ -573,7 +573,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             ),
         )
     };
-    let node1 = Node::declare_continuation(
+    let node1 = editor_core::declare_continuation(
         (0..4)
             .map(|fam| {
                 (
@@ -590,7 +590,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
             op: BooleanOp::Union,
             a: mid,
             b: c,
-            declare: Some(decl_mc),
+            declare: decl_mc,
         },
     );
     let ev = run(&doc);

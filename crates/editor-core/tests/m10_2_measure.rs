@@ -1415,7 +1415,7 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
             op: BooleanOp::Subtract,
             a: ex,
             b: tool,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let body = gathers(&doc, cut);

@@ -173,7 +173,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     // Split the union.
@@ -265,7 +265,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
             op: BooleanOp::Union,
             a: ext,
             b: ext2,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -289,7 +289,8 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
     // entity attached — never a silent None.
-    let (doc2, decl) = insert(doc, Node::declare_rest(vec![]));
+    let doc2 = doc;
+    let decl = editor_core::declare_rest(vec![]);
     let ev2 = run(&doc2);
     let some_face = ev2
         .value(ext2)

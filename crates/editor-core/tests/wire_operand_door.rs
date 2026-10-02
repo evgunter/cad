@@ -345,7 +345,7 @@ fn wired() -> (
         Owes::EditDoor,
         Node::Union {
             members: vec![body, body2],
-            declare: Some(plane),
+            declare: plane,
         },
         plane,
     );
@@ -358,7 +358,7 @@ fn wired() -> (
             op: editor_core::BooleanOp::Union,
             a: body,
             b: body2,
-            declare: Some(plane),
+            declare: plane,
         },
         plane,
     );

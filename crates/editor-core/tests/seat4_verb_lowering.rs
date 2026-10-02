@@ -403,7 +403,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         op: editor_core::BooleanOp::Intersect,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);
     let failures = corpus::failures(&ev);

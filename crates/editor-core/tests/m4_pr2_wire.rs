@@ -242,7 +242,7 @@ fn linear_pattern_evaluates_instances_as_data() {
             op: BooleanOp::Union,
             a: pat,
             b: other,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev2 = run(&doc2);
@@ -438,7 +438,7 @@ fn typed_refusal_doors() {
             op: BooleanOp::Intersect,
             a: split_node,
             b: second,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -951,7 +951,7 @@ fn declare_passes_through_and_boolean_accepts_it() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -980,7 +980,7 @@ fn declare_passes_through_and_boolean_accepts_it() {
                 op: BooleanOp::Union,
                 a,
                 b,
-                declare: Some(boolean),
+                declare: boolean,
             }),
         },
         Tol::witness(),

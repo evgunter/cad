@@ -824,7 +824,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                     op: BooleanOp::Union,
                     a: victim,
                     b,
-                    declare: None,
+                    declare: Vec::new(),
                 },
             ),
             (
@@ -833,7 +833,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                     op: BooleanOp::Subtract,
                     a: b,
                     b: victim,
-                    declare: None,
+                    declare: Vec::new(),
                 },
             ),
             (

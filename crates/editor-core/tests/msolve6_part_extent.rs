@@ -958,7 +958,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Box::new(Node::declare_rest(Vec::new())),
+                node: Box::new(editor_core::declare_rest(Vec::new())),
             },
             tol,
             &counting,

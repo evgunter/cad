@@ -101,7 +101,7 @@ where
             op: BooleanOp::Union,
             a,
             b: tr,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let (doc, pat) = insert(
@@ -185,13 +185,10 @@ where
     let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_b = minted(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
-    let (docd, _) = insert(
-        docd,
-        Node::declare_rest(vec![(
-            SitedRef::new(da, minted(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(db, cap_b.clone()),
-        )]),
-    );
+    let _ = editor_core::declare_rest(vec![(
+        SitedRef::new(da, minted(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(db, cap_b.clone()),
+    )]);
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });
     let evd = run::<T>(&docd, None);
     out.push((
@@ -237,7 +234,7 @@ where
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let evu = run::<T>(&docu, None);

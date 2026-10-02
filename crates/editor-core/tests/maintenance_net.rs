@@ -176,7 +176,7 @@ fn an_orphan_a_later_edit_consumes_or_deletes_is_not_reported() {
             DocEdit::InsertNode {
                 node: Box::new(Node::Union {
                     members: vec![a, b],
-                    declare: Some(decl),
+                    declare: decl,
                 }),
             },
         ],

@@ -87,7 +87,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Union,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     });
 
     // The mover: [1.5,2.5]² × [1.5,2.5], a transversal crossing of b.
@@ -117,15 +117,13 @@ pub fn document() -> CorpusDoc {
     // Both names are rows of `u1`'s table — the same-operand
     // carried pair — so both are sited there, which is what says
     // they are operand A's carry and not a cross-operand contact.
-    let decl = r.insert(Node::declare_rest(vec![(
-        SitedRef::new(u1, kiss_a),
-        SitedRef::new(u1, kiss_b),
-    )]));
+    let decl =
+        editor_core::declare_rest(vec![(SitedRef::new(u1, kiss_a), SitedRef::new(u1, kiss_b))]);
     let u2 = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: u1,
         b: c,
-        declare: Some(decl),
+        declare: decl,
     });
 
     CorpusDoc {

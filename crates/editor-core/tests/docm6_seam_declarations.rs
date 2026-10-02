@@ -944,7 +944,7 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
                 op: editor_core::BooleanOp::Union,
                 a: instance,
                 b: far,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let ev = run(&doc, &with_resolver(store));

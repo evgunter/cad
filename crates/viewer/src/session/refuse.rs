@@ -1431,7 +1431,7 @@ mod refused_boolean {
                 op: BooleanOp::Union,
                 a: block,
                 b: boss,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         );

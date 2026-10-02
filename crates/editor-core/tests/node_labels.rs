@@ -368,7 +368,7 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
                 members: vec![extrude, extrude],
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     );
@@ -401,7 +401,7 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
         doc,
         Node::Union {
             members: vec![left, right],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let doc = set_label(doc, union, Some("pair"));
@@ -720,13 +720,10 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
     let (doc, [_, _, b]) = block(doc, 0.5);
     let (wa, wb) = (fixture::wall(&doc, a, 0), fixture::wall(&doc, b, 0));
     let early = fixture::fname(b, wb);
-    let (doc, _) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fixture::fname(a, wa)),
-            SitedRef::new(b, early.clone()),
-        )]),
-    );
+    let _ = editor_core::declare_rest(vec![(
+        SitedRef::new(a, fixture::fname(a, wa)),
+        SitedRef::new(b, early.clone()),
+    )]);
     let (doc, [_, _, c]) = block(doc, 0.5);
     let late = fixture::fname(c, fixture::wall(&doc, c, 0));
     let (doc, _) = step(
@@ -1345,7 +1342,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
                 members: vec![extrude, extrude],
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     );

@@ -87,7 +87,7 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     (doc, u)

@@ -124,12 +124,12 @@ fn a_two_body_union_authors_evaluates_saves_and_reloads() {
             declare: Vec::new(),
         },
     );
-    // An op declaring nothing authors `declare: None`.
+    // An op declaring nothing authors `declare: Vec::new()`.
     assert!(matches!(
         session.committed_doc().node(union),
         Some(Node::Boolean {
             op: BooleanOp::Union,
-            declare: None,
+            declare: Vec::new(),
             ..
         })
     ));
@@ -2079,7 +2079,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 op: BooleanOp::Union,
                 a: body,
                 b: other,
-                declare: None,
+                declare: Vec::new(),
             },
         ),
         // The n-ary union at its minimal size. Its two members are
@@ -2094,7 +2094,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "union",
             Node::Union {
                 members: vec![body, body_b],
-                declare: None,
+                declare: Vec::new(),
             },
         ),
         (
@@ -3398,7 +3398,7 @@ fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
             op: BooleanOp::Union,
             a: block,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );

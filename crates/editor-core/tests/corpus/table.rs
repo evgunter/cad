@@ -160,7 +160,7 @@ pub fn document() -> CorpusDoc {
             op: BooleanOp::Union,
             a: acc,
             b: ext,
-            declare: Some(decl),
+            declare: decl,
         });
         acc = uni;
         prior = Some(ev);

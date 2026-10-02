@@ -147,7 +147,7 @@ pub fn document() -> CorpusDoc {
         op: BooleanOp::Union,
         a: block_a,
         b: block_b,
-        declare: Some(declare),
+        declare: declare,
     });
 
     // Split the union with a plane tool.

@@ -3069,7 +3069,7 @@ mod split_carries_candidates {
                 op: BooleanOp::Subtract,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let (doc, tool) = ins(

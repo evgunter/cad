@@ -225,7 +225,7 @@ fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
             op: BooleanOp::Union,
             a: peg,
             b: block,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = eval(&doc);

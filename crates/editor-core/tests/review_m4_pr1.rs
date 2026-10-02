@@ -465,7 +465,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     );
     let target = ids[0];
     let declare = |node| Edit::InsertNode {
-        node: Box::new(Node::declare_rest(vec![(
+        node: Box::new(editor_core::declare_rest(vec![(
             SitedRef::at_mint(StableName {
                 kind: EntityKind::Face,
                 node,
@@ -577,7 +577,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                 op: editor_core::BooleanOp::Union,
                 a: extrude,
                 b: next_would_be,
-                declare: None,
+                declare: Vec::new(),
             }),
         },
         Tol::witness(),
@@ -924,7 +924,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .doc
         .apply(
             &Edit::InsertNode {
-                node: Box::new(Node::declare_rest(vec![])),
+                node: Box::new(editor_core::declare_rest(vec![])),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

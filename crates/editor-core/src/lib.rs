@@ -184,10 +184,10 @@ pub use names::{
     meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, DeclaredPair, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
-    MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg,
-    SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow, VectorSlot, declare_continuation,
-    declare_rest,
+    Axis3, BooleanOp, Datum, DeclaredPair, InputFault, InterfaceCrossing, InterfaceRecord,
+    ListFault, MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId,
+    RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow, VectorSlot,
+    declare_continuation, declare_rest,
 };
 pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

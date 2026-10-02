@@ -53,7 +53,7 @@ fn boolean(
             op,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }

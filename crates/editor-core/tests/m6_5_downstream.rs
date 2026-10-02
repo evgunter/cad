@@ -298,7 +298,7 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
             op: BooleanOp::Union,
             a: blank,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);

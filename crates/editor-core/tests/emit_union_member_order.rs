@@ -265,7 +265,7 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
                     doc,
                     Node::Union {
                         members: p.iter().map(|&i| m[i]).collect(),
-                        declare: None,
+                        declare: Vec::new(),
                     },
                 );
                 let ev = run(&doc);
@@ -315,7 +315,7 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
                 op,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         )
     };
@@ -399,7 +399,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
                 op,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         doc = d;
@@ -409,7 +409,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
         doc,
         Node::Union {
             members: vec![rib, turned],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     ids.push(("union node", node));

@@ -37,7 +37,7 @@ fn boolean(op: BooleanOp) -> Node<ProfileProgram> {
         op,
         a: RecipeNodeId(1),
         b: RecipeNodeId(2),
-        declare: None,
+        declare: Vec::new(),
     }
 }
 

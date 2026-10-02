@@ -180,13 +180,10 @@ fn forward_declare() -> (ProfileDoc, editor_core::StableName, editor_core::Stabl
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (wa, wb) = (wall(&doc, a, 0), wall(&doc, b, 0));
-    let (doc, _declare) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fname(a, wa)),
-            SitedRef::new(b, fname(b, wb.clone())),
-        )]),
-    );
+    let _declare = editor_core::declare_rest(vec![(
+        SitedRef::new(a, fname(a, wa)),
+        SitedRef::new(b, fname(b, wb.clone())),
+    )]);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
     let (from, to) = (fname(b, wb), fname(c, wc));
@@ -328,7 +325,7 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
             op: BooleanOp::Subtract,
             a,
             b: m,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &editor_core::EvalOptions::default());

@@ -152,7 +152,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
         doc.clone(),
         Node::Union {
             members: vec![m1, m2],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&bare);
@@ -200,7 +200,7 @@ fn the_pair_boolean_declares_between_two_placements_of_one_prototype() {
     let (doc, m2) = placed(doc, proto, 0.5);
     // The four flush planes, each named ONCE in the prototype's
     // vocabulary and sited at the two placements that carry it.
-    let node = Node::declare_continuation(flush_pairs(&doc, (m1, proto), (m2, proto)));
+    let node = editor_core::declare_continuation(flush_pairs(&doc, (m1, proto), (m2, proto)));
     let (doc, decl) = insert(doc, node);
     let (doc, pair) = insert(
         doc,
@@ -208,7 +208,7 @@ fn the_pair_boolean_declares_between_two_placements_of_one_prototype() {
             op: BooleanOp::Union,
             a: m1,
             b: m2,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -235,7 +235,7 @@ fn a_site_that_is_neither_operand_refuses() {
     let (doc, m2) = placed(doc, proto, 0.5);
     // Sited at the PROTOTYPE, whose table holds the name — but which
     // is neither operand of the boolean below.
-    let node1 = Node::declare_continuation(vec![(
+    let node1 = editor_core::declare_continuation(vec![(
         SitedRef::new(proto, fname(proto, wall(&doc, proto, 0))),
         SitedRef::new(m2, fname(proto, wall(&doc, proto, 0))),
     )]);
@@ -246,7 +246,7 @@ fn a_site_that_is_neither_operand_refuses() {
             op: BooleanOp::Union,
             a: m1,
             b: m2,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -289,7 +289,7 @@ fn a_declared_union_is_the_pair_booleans_body() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let pairs = flush_pairs(&doc, (a, a), (b, b));
@@ -630,7 +630,7 @@ fn the_edit_door_refuses_a_union_declare_that_is_not_a_declare() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Union {
                 members: vec![a, b],
-                declare: Some(far),
+                declare: far,
             }),
         },
         Tol::witness(),
@@ -660,7 +660,7 @@ fn a_snapshot_whose_union_declare_is_not_a_declare_does_not_load() {
         doc,
         Node::Union {
             members: vec![a, b],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
@@ -697,7 +697,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     let future = fixture::next_mint(&doc);
     let refused = doc.apply(
         &DocEdit::InsertNode {
-            node: Box::new(Node::declare_continuation(vec![(
+            node: Box::new(editor_core::declare_continuation(vec![(
                 SitedRef::new(a, fname(future, wall(&doc, a, 0))),
                 SitedRef::new(b, fname(b, wall(&doc, b, 0))),
             )])),
@@ -724,7 +724,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     ] {
         let refused = doc.apply(
             &DocEdit::InsertNode {
-                node: Box::new(Node::declare_continuation(vec![sides])),
+                node: Box::new(editor_core::declare_continuation(vec![sides])),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -765,7 +765,7 @@ fn a_declare_on_the_edge_is_not_a_declare_in_the_member_list() {
         doc,
         Node::Union {
             members: vec![a, b, decl],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -801,7 +801,7 @@ fn the_declare_edge_recomputes_the_union_alone() {
         base.clone(),
         Node::Union {
             members: vec![a, b],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let prior = run(&bare);
@@ -887,14 +887,14 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
         SitedRef::new(a, face.clone()),
     )];
     // The pair boolean's reading of the same claim, for reference.
-    let (doc, pdecl) = insert(doc, Node::declare_rest(carried.clone()));
+    let pdecl = editor_core::declare_rest(carried.clone());
     let (doc, pair) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: far,
             b: a,
-            declare: Some(pdecl),
+            declare: pdecl,
         },
     );
     // Member `a` as operand B of the LAST step.
@@ -926,7 +926,7 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
             op: BooleanOp::Union,
             a,
             b: far,
-            declare: Some(pdecl),
+            declare: pdecl,
         },
     );
     let (doc, chain1) = insert(
@@ -935,7 +935,7 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
             op: BooleanOp::Union,
             a: chain0,
             b: far2,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -1125,14 +1125,14 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
             )
         })
         .collect();
-        let (doc, decl) = insert(doc, Node::declare_continuation(pairs));
+        let decl = editor_core::declare_continuation(pairs);
         let (doc, pair) = insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a: m1,
                 b: m2,
-                declare: Some(decl),
+                declare: decl,
             },
         );
         (doc, pair, proto)
@@ -1160,7 +1160,7 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
-    let node3 = Node::declare_continuation(vec![(
+    let node3 = editor_core::declare_continuation(vec![(
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
         SitedRef::new(b, fname(spare, wall(&doc, spare, 0))),
     )]);
@@ -1171,7 +1171,7 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -1293,7 +1293,7 @@ fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     // Both sides name entities of `b`; the first is SITED at `a`,
     // whose table does not carry it.
-    let node4 = Node::declare_rest(vec![(
+    let node4 = editor_core::declare_rest(vec![(
         SitedRef::new(a, fname(b, wall(&doc, b, 0))),
         SitedRef::new(b, fname(b, wall(&doc, b, 2))),
     )]);
@@ -1304,7 +1304,7 @@ fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -1333,7 +1333,7 @@ fn a_declare_has_no_inputs() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, decl) = insert(doc, Node::declare_continuation(pairs));
+    let decl = editor_core::declare_continuation(pairs);
     let node = doc.node(decl).expect("the Declare is live");
     assert!(
         node.inputs().is_empty(),

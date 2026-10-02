@@ -152,7 +152,7 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
             op: BooleanOp::Union,
             a: boxes[0],
             b: boxes[1],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, abc) = insert(
@@ -161,7 +161,7 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
             op: BooleanOp::Union,
             a: ab,
             b: boxes[2],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -229,11 +229,11 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
             op: BooleanOp::Union,
             a: x,
             b: x,
-            declare: None,
+            declare: Vec::new(),
         },
         Node::Union {
             members: vec![x, x],
-            declare: None,
+            declare: Vec::new(),
         },
         Node::Split { target: x, tool: x },
     ];
@@ -338,7 +338,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
             op: BooleanOp::Union,
             a: boxes[0],
             b: boxes[1],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let err = doc
@@ -389,7 +389,7 @@ fn set_members_refuses_a_cycle() {
             op: BooleanOp::Union,
             a: u,
             b: boxes[0],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let err = doc
@@ -550,7 +550,7 @@ fn two_placements_of_one_prototype_are_two_members() {
         doc,
         Node::Union {
             members: vec![left, right],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -786,7 +786,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
                     op: BooleanOp::Union,
                     a: acc,
                     b: *pip,
-                    declare: None,
+                    declare: Vec::new(),
                 },
             )
         },
@@ -967,7 +967,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
         doc,
         Node::Union {
             members: vec![a, b, d],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, pair) = insert(
@@ -976,7 +976,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
             op: BooleanOp::Union,
             a,
             b: d,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -1225,14 +1225,14 @@ fn set_members_keeps_root_order_and_appends_orphans_last() {
         doc,
         Node::Union {
             members: vec![a, b],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc, second) = insert(
         doc,
         Node::Union {
             members: vec![c, d],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     assert_eq!(

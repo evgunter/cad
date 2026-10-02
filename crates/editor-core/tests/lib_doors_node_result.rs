@@ -76,7 +76,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: outer,
             b: inner,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     let downstream = insert(
@@ -85,7 +85,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             op: BooleanOp::Union,
             a: cut,
             b: outer,
-            declare: None,
+            declare: Vec::new(),
         }),
     );
     (doc, cut, downstream)

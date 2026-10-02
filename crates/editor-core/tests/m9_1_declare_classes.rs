@@ -195,7 +195,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
                         op: BooleanOp::Union,
                         a,
                         b,
-                        declare: Some(d),
+                        declare: d,
                     }),
                 },
                 Tol::witness(),

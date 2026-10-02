@@ -483,7 +483,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
                 op,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         )
     };
@@ -574,7 +574,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
                 op,
                 a,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
         )
     };

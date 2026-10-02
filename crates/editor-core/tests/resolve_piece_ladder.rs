@@ -108,7 +108,7 @@ fn slot() -> Slot {
             op: BooleanOp::Subtract,
             a,
             b: tr,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     Slot {
@@ -324,9 +324,9 @@ struct Hand {
 fn hand() -> Hand {
     let (doc, n) = insert(
         ProfileDoc::empty_derived("bool7-hand", Tol::witness()),
-        Node::declare_rest(vec![]),
+        editor_core::declare_rest(vec![]),
     );
-    let (doc, m) = insert(doc, Node::declare_rest(vec![]));
+    let m = editor_core::declare_rest(vec![]);
     let of = minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let wall = |rank| StableName {
         kind: EntityKind::Body,

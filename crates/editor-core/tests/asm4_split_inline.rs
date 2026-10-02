@@ -1188,13 +1188,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: kept_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let (doc, _) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::at_mint(straddler.clone()),
-            SitedRef::at_mint(partner),
-        )]),
-    );
+    let _ = editor_core::declare_rest(vec![(
+        SitedRef::at_mint(straddler.clone()),
+        SitedRef::at_mint(partner),
+    )]);
     match split(
         &doc,
         &BTreeSet::from([cut_f, cut_p, cut_e]),
@@ -1244,13 +1241,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: cut_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::at_mint(cut_local),
-            SitedRef::at_mint(reaching.clone()),
-        )]),
-    );
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::at_mint(cut_local),
+        SitedRef::at_mint(reaching.clone()),
+    )]);
     match split(
         &doc,
         &BTreeSet::from([cut_f, cut_p, cut_e, decl]),
@@ -1522,7 +1516,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             // Both sides are READ at the surviving body; the stranded
             // side's NAME derives from the extra node, which is what
             // the delete below strands.
-            Node::declare_rest(vec![(
+            editor_core::declare_rest(vec![(
                 SitedRef::new(anchor.node, stranded.clone()),
                 SitedRef::at_mint(anchor),
             )]),

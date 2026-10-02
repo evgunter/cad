@@ -2332,7 +2332,12 @@ mod tests {
                 },
             );
         }
-        doc.order = vec![RecipeNodeId(2), RecipeNodeId(3), RecipeNodeId(1), RecipeNodeId(0)];
+        doc.order = vec![
+            RecipeNodeId(2),
+            RecipeNodeId(3),
+            RecipeNodeId(1),
+            RecipeNodeId(0),
+        ];
         match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
                 assert_eq!(

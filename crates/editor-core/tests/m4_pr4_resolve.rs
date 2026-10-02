@@ -101,7 +101,7 @@ fn slide_union(tx: f64) -> Slide {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     Slide {
@@ -227,7 +227,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -293,7 +293,8 @@ fn ranked_reference_widens_to_the_tied_base_row() {
 
     // A one-node doc whose table we hand-build.
     let mut doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (d, node) = insert(doc, Node::declare_rest(vec![]));
+    let d = doc;
+    let node = editor_core::declare_rest(vec![]);
     doc = d;
     let base = StableName {
         kind: EntityKind::Edge,
@@ -371,13 +372,10 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
-    let (doc, _decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::at_mint(cap_a),
-            SitedRef::at_mint(cap_b.clone()),
-        )]),
-    );
+    let _decl = editor_core::declare_rest(vec![(
+        SitedRef::at_mint(cap_a),
+        SitedRef::at_mint(cap_b.clone()),
+    )]);
     // b has no DAG dependents (Declare names are refs, not edges):
     // deletion is allowed and strands cap_b — N5's ratified dangling
     // semantics.
@@ -681,7 +679,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Zero the A extrude's distance: A fails, the union poisons.
@@ -754,7 +752,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(Node::declare_rest(vec![(
+                node: Box::new(editor_core::declare_rest(vec![(
                     SitedRef::at_mint(cap_a.clone()),
                     SitedRef::at_mint(cap_b.clone()),
                 )]))
@@ -774,7 +772,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let err = apply_with_names(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::declare_rest(vec![(
+            node: Box::new(editor_core::declare_rest(vec![(
                 SitedRef::at_mint(cap_a.clone()),
                 SitedRef::at_mint(bogus.clone()),
             )])),
@@ -799,7 +797,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc2,
             &DocEdit::InsertNode {
-                node: Box::new(Node::declare_rest(vec![(
+                node: Box::new(editor_core::declare_rest(vec![(
                     SitedRef::at_mint(cap_a),
                     SitedRef::at_mint(cap_c),
                 )]))
@@ -1069,7 +1067,7 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
             op: BooleanOp::Subtract,
             a: _a,
             b: tr,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -1127,7 +1125,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc,
         Node::Union {
             members: vec![a, b],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc1, None);
@@ -1234,7 +1232,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc,
         Node::Union {
             members: vec![b, d],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let (doc1, n) = insert(
@@ -1417,11 +1415,12 @@ fn border_delta_reads_the_walls_off_the_names_without_any_flip_set_evidence() {
     // moved.
     let (mut doc, n) = insert(
         ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
-        Node::declare_rest(vec![]),
+        editor_core::declare_rest(vec![]),
     );
     let mut walls = Vec::new();
     for _ in 0..7 {
-        let (d, at) = insert(doc, Node::declare_rest(vec![]));
+        let d = doc;
+        let at = editor_core::declare_rest(vec![]);
         doc = d;
         walls.push(minted(EntityKind::Body, at, RoleSeg::OutputBody));
     }

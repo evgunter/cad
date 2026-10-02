@@ -528,7 +528,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
         op: editor_core::BooleanOp::Union,
         a: slab,
         b: boss,
-        declare: None,
+        declare: Vec::new(),
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(0.75)],

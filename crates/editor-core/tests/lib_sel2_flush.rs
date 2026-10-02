@@ -191,7 +191,7 @@ fn detect_declare_boolean_round_trip() {
             op: BooleanOp::Union,
             a: base,
             b: top,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval(&undeclared);
@@ -232,7 +232,7 @@ fn detect_declare_boolean_round_trip() {
             op: BooleanOp::Union,
             a: base,
             b: top,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = eval(&doc);

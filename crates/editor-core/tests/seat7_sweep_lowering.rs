@@ -1321,7 +1321,7 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
             op: editor_core::BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval::<f64>(&doc);

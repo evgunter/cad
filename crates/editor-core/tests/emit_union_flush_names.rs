@@ -587,7 +587,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
             doc,
             Node::Union {
                 members: vec![ids[0], ids[1]],
-                declare: None,
+                declare: Vec::new(),
             },
         );
         for order in permutations(&[0, 1]) {

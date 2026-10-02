@@ -86,7 +86,7 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, a, b, u)
@@ -131,7 +131,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
             op: BooleanOp::Union,
             a: base,
             b: mover,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc_undeclared);
@@ -151,17 +151,14 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     // certified 3' pass.
     let (doc_declared, mover) = block(doc, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
     let (va, vb) = kiss_vertex_names(&doc_declared, a, b, base);
-    let (doc_declared, decl) = insert(
-        doc_declared,
-        Node::declare_rest(vec![(SitedRef::new(base, va), SitedRef::new(base, vb))]),
-    );
+    let decl = editor_core::declare_rest(vec![(SitedRef::new(base, va), SitedRef::new(base, vb))]);
     let (doc_declared, u2) = insert(
         doc_declared,
         Node::Boolean {
             op: BooleanOp::Union,
             a: base,
             b: mover,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc_declared);
@@ -194,7 +191,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc_undeclared);
@@ -210,14 +207,15 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
     }
 
     // WITH the Declare: glues — Merged rows minted, tiers green.
-    let (doc_declared, decl) = declare_x_offset_flush(doc, a, b);
+    let doc_declared = doc;
+    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc_declared, u) = insert(
         doc_declared,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc_declared);
@@ -252,7 +250,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -283,7 +281,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
             op: BooleanOp::Subtract,
             a: slab,
             b: b1,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Slot floor of s1 = FromB(b1's Cap(Start)); the second tool's
@@ -293,20 +291,17 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         RoleSeg::FromB(fname(b1, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(s1, floor1.clone()),
-            SitedRef::new(b2, fname(b2, RoleSeg::Cap(CapEnd::Start))),
-        )]),
-    );
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(s1, floor1.clone()),
+        SitedRef::new(b2, fname(b2, RoleSeg::Cap(CapEnd::Start))),
+    )]);
     let (doc, s2) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: s1,
             b: b2,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -373,7 +368,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
                 op: BooleanOp::Union,
                 a,
                 b,
-                declare: Some(decl),
+                declare: decl,
             },
         )
     };
@@ -388,7 +383,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     ghost.path = vec![RoleSeg::Cap(CapEnd::End), RoleSeg::Cap(CapEnd::End)]; // …not any more
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_rest(vec![(
+        editor_core::declare_rest(vec![(
             SitedRef::new(a, ghost.clone()),
             SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
         )]),
@@ -438,7 +433,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     );
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_rest(vec![(SitedRef::new(a, va), SitedRef::new(b, vb))]),
+        editor_core::declare_rest(vec![(SitedRef::new(a, va), SitedRef::new(b, vb))]),
     );
     let (doc, u) = boolean_with(doc, decl);
     let ev = run(&doc);
@@ -461,26 +456,23 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_continuation(vec![
-            (
-                SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
-            ),
-            (
-                SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::Start))),
-                SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
-            ),
-        ]),
-    );
+    let decl = editor_core::declare_continuation(vec![
+        (
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+        ),
+        (
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::Start))),
+            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
+        ),
+    ]);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -563,7 +555,7 @@ fn declare_doors_node_gone_and_ambiguous() {
         // Sited at the operands, as every declaration is; the NAME
         // is the third body's, and rung 1 outranks the site's own
         // table having no such row.
-        Node::declare_rest(vec![(
+        editor_core::declare_rest(vec![(
             SitedRef::new(a, fname(c, RoleSeg::Cap(CapEnd::End))),
             SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
         )]),
@@ -574,7 +566,7 @@ fn declare_doors_node_gone_and_ambiguous() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let doc = doc
@@ -628,7 +620,7 @@ fn declare_doors_node_gone_and_ambiguous() {
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc);
@@ -640,20 +632,17 @@ fn declare_doors_node_gone_and_ambiguous() {
         .find_map(|(n, e)| matches!(e, editor_core::Entry::Tied(_)).then(|| n.clone()))
         .expect("the U fixture ties");
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(us, tied.clone()),
-            SitedRef::new(mate, fname(mate, RoleSeg::Cap(CapEnd::End))),
-        )]),
-    );
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(us, tied.clone()),
+        SitedRef::new(mate, fname(mate, RoleSeg::Cap(CapEnd::End))),
+    )]);
     let (doc, u2) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a: us,
             b: mate,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -701,7 +690,7 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
             op: BooleanOp::Subtract,
             a: slab,
             b: b2,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let floor2 = fname(
@@ -709,20 +698,17 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         RoleSeg::FromB(fname(b2, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(s1, floor2),
-            SitedRef::new(b1, fname(b1, RoleSeg::Cap(CapEnd::Start))),
-        )]),
-    );
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(s1, floor2),
+        SitedRef::new(b1, fname(b1, RoleSeg::Cap(CapEnd::Start))),
+    )]);
     let (doc, s2) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: s1,
             b: b1,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -808,14 +794,14 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let mut doc = doc;
     let union_of = |doc: ProfileDoc, pair: (SitedRef, SitedRef)| {
-        let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
+        let decl = editor_core::declare_rest(vec![pair]);
         insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a: us,
                 b: mate,
-                declare: Some(decl),
+                declare: decl,
             },
         )
     };
@@ -918,14 +904,14 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
     );
 
     let union_of = |doc: ProfileDoc, pair: (SitedRef, SitedRef)| {
-        let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
+        let decl = editor_core::declare_rest(vec![pair]);
         insert(
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
                 a: us,
                 b: mate,
-                declare: Some(decl),
+                declare: decl,
             },
         )
     };

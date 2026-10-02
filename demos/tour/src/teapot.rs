@@ -991,7 +991,7 @@ fn build_doc(tol: Tol) -> Recipe {
                 op: BooleanOp::Union,
                 a: cup,
                 b,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         )

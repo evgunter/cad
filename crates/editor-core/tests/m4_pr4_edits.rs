@@ -76,7 +76,7 @@ fn three() -> Three {
     let (doc, _, a) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
-    let (doc, decl) = insert(doc, Node::declare_rest(vec![(sited(a), sited(b))]));
+    let decl = editor_core::declare_rest(vec![(sited(a), sited(b))]);
     Three { doc, a, b, c, decl }
 }
 

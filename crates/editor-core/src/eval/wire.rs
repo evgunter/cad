@@ -58,7 +58,8 @@ use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{
-    Axis3, BooleanOp, Datum, DeclaredPair, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef, SlotId,
+    Axis3, BooleanOp, Datum, DeclaredPair, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef,
+    SlotId,
 };
 use crate::program::ProfileProgram;
 use crate::resolve::FoldConsumption;
@@ -4652,12 +4653,15 @@ mod route_tests {
             let applied = doc
                 .apply(
                     &DocEdit::InsertNode {
-                        node: Box::new(Node::declare_rest(Vec::new())),
+                        node: Box::new(Node::Datum(crate::node::Datum::Plane {
+                            origin: [0.0; 3].map(crate::test_support::len),
+                            normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
+                        })),
                     },
                     Tol::witness(),
                     &crate::mate::RefusingReach,
                 )
-                .expect("an empty Declare inserts");
+                .expect("a datum plane inserts");
             ids.push(applied.record.minted.expect("the insert minted an id"));
             doc = applied.doc;
         }
@@ -4891,7 +4895,7 @@ mod route_tests {
                 Tol::witness(),
                 &crate::mate::RefusingReach,
             )
-            .expect("the empty Declare deletes")
+            .expect("the datum plane deletes")
             .doc;
         let p = pair(at(ms[0], CapEnd::Start), at(gone, CapEnd::End));
         let refused = route_declarations(union, &ms[..3], std::slice::from_ref(&p), &doc);

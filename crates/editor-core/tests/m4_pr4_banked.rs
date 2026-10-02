@@ -116,7 +116,7 @@ fn band_cut() -> BandCut {
             op: BooleanOp::Subtract,
             a,
             b: transform,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     BandCut {
@@ -224,7 +224,7 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let (doc2, _) = step(

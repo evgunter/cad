@@ -331,7 +331,7 @@ fn declared_union(doc: &Doc<ProfileProgram>) -> (Doc<ProfileProgram>, RecipeNode
     let (doc, b) = block(&doc, 0.5);
     let (doc, declare) = common::inserted(
         &doc,
-        Node::declare_rest(vec![(
+        editor_core::declare_rest(vec![(
             SitedRef::new(a, wall(&doc, a, 0, 0)),
             SitedRef::new(b, wall(&doc, b, 0, 0)),
         )]),
@@ -341,7 +341,7 @@ fn declared_union(doc: &Doc<ProfileProgram>) -> (Doc<ProfileProgram>, RecipeNode
         &doc,
         Node::Union {
             members: vec![a, b],
-            declare: Some(declare),
+            declare: declare,
         },
         tol,
     );

@@ -682,11 +682,11 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             op: BooleanOp::Union,
             a: nid(1),
             b: nid(2),
-            declare: None,
+            declare: Vec::new(),
         },
         Node::Union {
             members: vec![nid(1), nid(2)],
-            declare: None,
+            declare: Vec::new(),
         },
         Node::transform(
             nid(1),

@@ -280,7 +280,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
             op: BooleanOp::Subtract,
             a: small,
             b: big,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // A downstream consumer of the empty value: typed EmptyOperand
@@ -291,7 +291,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
             op: BooleanOp::Union,
             a: sub,
             b: big,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None, false);

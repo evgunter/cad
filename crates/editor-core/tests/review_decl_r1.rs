@@ -148,14 +148,14 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
                 op: BooleanOp::Union,
                 a,
                 b: tr,
-                declare: Some(decl),
+                declare: decl,
             },
         )
     };
     // Sited at the minting node, which is not an operand.
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_continuation(vec![(
+        editor_core::declare_continuation(vec![(
             SitedRef::new(a, fname(a, wall(&base, a, 0))),
             SitedRef::new(b0, fname(b0, wall(&base, b0, 0))),
         )]),
@@ -170,7 +170,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     // Sited at the transform, naming a row the block does not have.
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_continuation(vec![(
+        editor_core::declare_continuation(vec![(
             SitedRef::new(a, fname(a, wall(&doc, a, 0))),
             SitedRef::new(
                 tr,
@@ -206,7 +206,7 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, x) = block(doc, (12.0, 13.0), (0.0, 1.0), 0.0, 1.0);
     // The name is `c`'s; the site is `x`, live but not an operand.
-    let node = Node::declare_continuation(vec![(
+    let node = editor_core::declare_continuation(vec![(
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
         SitedRef::new(x, fname(c, wall(&doc, c, 0))),
     )]);
@@ -217,7 +217,7 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: c });
@@ -325,12 +325,9 @@ fn every_declaring_corpus_document_replays_in_document_order() {
             if let DocEdit::InsertNode { node } = entry {
                 match &**node {
                     Node::Declare { .. } => declares_seen += 1,
-                    Node::Boolean {
-                        declare: Some(_), ..
+                    Node::Boolean { declare: _, .. } | Node::Union { declare: _, .. } => {
+                        assert!(declares_seen > 0, "{}: consumer at edit {i} first", d.name)
                     }
-                    | Node::Union {
-                        declare: Some(_), ..
-                    } => assert!(declares_seen > 0, "{}: consumer at edit {i} first", d.name),
                     _ => {}
                 }
             }
@@ -380,7 +377,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         applied.doc,
         Node::Union {
             members: vec![m1, m2],
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -391,7 +388,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         doc.clone(),
         Node::Union {
             members: vec![m1, m2],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&bare);
@@ -405,7 +402,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         applied.doc,
         Node::Union {
             members: vec![m1, m2],
-            declare: Some(decl2),
+            declare: decl2,
         },
     );
     let ev = run(&doc2);

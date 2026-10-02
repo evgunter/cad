@@ -265,13 +265,10 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
         )
         .expect("both indices address a reference"),
     );
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(victim, f1.clone()),
-            SitedRef::new(victim, f2.clone()),
-        )]),
-    );
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(victim, f1.clone()),
+        SitedRef::new(victim, f2.clone()),
+    )]);
 
     // **The expectation is DERIVED by a match over `Node`, not
     // written out as a list.** A list is only ever as complete as
@@ -905,7 +902,7 @@ fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
         doc,
         Node::Union {
             members: vec![a, b],
-            declare: Some(decl),
+            declare: decl,
         },
     );
 
@@ -937,7 +934,7 @@ fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
         none_left.doc,
         Node::Union {
             members: vec![a, b],
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let (mixed, the_boolean) = insert(
@@ -946,7 +943,7 @@ fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     for (leaves_one, takes_the_last) in [(the_union, the_boolean), (the_boolean, the_union)] {
@@ -985,7 +982,7 @@ fn no_delete_can_report_two_orphans_today() {
     let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
     // A second declaration, consumerless, in the same document.
     let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, spare) = insert(doc, Node::declare_rest(pairs));
+    let spare = editor_core::declare_rest(pairs);
     let applied = delete(&doc, union);
     assert_eq!(
         applied.maintenance,
@@ -1063,7 +1060,7 @@ fn a_consumerless_declare_is_not_reported_by_an_unrelated_delete() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, unrelated) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let pairs = flush_pairs(&doc, (a, a), (a, a));
-    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
+    let decl = editor_core::declare_rest(pairs);
 
     let applied = delete(&doc, unrelated);
     assert_eq!(

@@ -300,7 +300,7 @@ fn check(fx: &Fixture) -> usize {
                     op,
                     a: ids[0],
                     b: ids[1],
-                    declare: None,
+                    declare: Vec::new(),
                 },
             ),
             None => {
@@ -999,7 +999,7 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b: u,
-            declare: None,
+            declare: Vec::new(),
         },
     )
 }
@@ -1240,7 +1240,7 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
             op: BooleanOp::Union,
             a: plate,
             b: cyl,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // The edge pieces each table names by their ends: (seam head, the
@@ -1323,7 +1323,7 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
             op: BooleanOp::Union,
             a: plate,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
@@ -1338,7 +1338,7 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
                 op: BooleanOp::Subtract,
                 a: joined,
                 b: slab,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let ev = run(&doc);
@@ -1378,7 +1378,7 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
             op: BooleanOp::Union,
             a: plate,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
@@ -1393,7 +1393,7 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
                 op: BooleanOp::Subtract,
                 a: joined,
                 b: slab,
-                declare: None,
+                declare: Vec::new(),
             },
         );
         let ev = run(&doc);

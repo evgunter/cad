@@ -2814,7 +2814,7 @@ mod declared_union {
             op: BooleanOp::Union,
             a: block,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         };
         let (eval, union) = evaluated_insert(&before, plain, tol);
         let kernel = tree::own_error(union, &eval).expect("the plain union fails");
@@ -2885,7 +2885,7 @@ mod declared_union {
         ));
         assert!(matches!(
             doc.node(union),
-            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare: Some(d) })
+            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare: d })
                 if (*a, *b, *d) == (block, boss, declare)
         ));
         session.pump();

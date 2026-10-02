@@ -3706,9 +3706,10 @@ impl<P> Node<P> {
             // operands, but a site that is not one is the EVALUATION's
             // refusal, not the insert door's, so each is checked live
             // here as a mate's operand is.
-            Node::Boolean { declare, .. } | Node::Union { declare, .. } => {
-                declare.iter().flat_map(|((a, b), _)| [a.at, b.at]).collect()
-            }
+            Node::Boolean { declare, .. } | Node::Union { declare, .. } => declare
+                .iter()
+                .flat_map(|((a, b), _)| [a.at, b.at])
+                .collect(),
             // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
             // is classified here or does not compile — the promise
             // the twins above already keep. Three groups: the

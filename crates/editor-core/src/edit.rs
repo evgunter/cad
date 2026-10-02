@@ -1889,7 +1889,10 @@ impl EditError {
                     f,
                     "{node} is not a boolean or a union, so it has no contacts to declare"
                 )?;
-                tail.recourse(f, format_args!("declare on the boolean or union that joins the pair"))
+                tail.recourse(
+                    f,
+                    format_args!("declare on the boolean or union that joins the pair"),
+                )
             }
             // A document's profile node always holds a program; the
             // node named is of another kind.

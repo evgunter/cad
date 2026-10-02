@@ -95,7 +95,7 @@ fn slide_union(tx: f64) -> Slide {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     Slide {
@@ -267,7 +267,7 @@ fn parallel_schedule_preserves_verdict_logs() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let seq = run(&doc, None);
