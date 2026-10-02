@@ -2,9 +2,10 @@
 id: ball-inside-a-two-sphere-body-refuses-at-the-extent-scan
 kind: issue
 title: A ball strictly inside a two-sphere body refuses FallbackExtentUnsupported because the full spheres cross
-status: open
+status: review
 opened: 2026-10-01
 refs: [sphere-union-sphere-refuses-though-the-section-is-closed-form]
+branch: reach/extent-scan-faces
 ---
 
 Found by the delta review of PR 3659 (probe `zz_rv3659b.rs`, `reach-review3659b`).
@@ -42,3 +43,29 @@ trim (`solid_contain::sphere_chart_trim`, a latitude band × azimuth
 window) can place the circle — it is a latitude circle of a coaxial
 pair, and an exact circle in general — and a section circle wholly
 outside the face's trim certifies the pair disjoint at this face.
+
+## Fixed (branch `reach/extent-scan-faces`)
+
+Re-measured on `origin/main` `d5d6fe8f`: every pose × op × order
+refused `SpheresMeet` (the scan's decided `bool_sphere_sphere_nested`
+refusal, split out of `FallbackExtentUnsupported` since filing), at
+the same arm. The hypothesis held: the arm decides on the carriers.
+
+`sphere_extent_scan` now asks, once the carriers cross, whether the
+FACES meet: `sphere_faces_apart` runs the section certificate's own
+per-pair rule (`pair_verdict`, the body of `section_pairs`) over every
+face on the sphere against the partner face, and only a pair the rule
+does not clear refuses. The class sweep moved two more arms onto the
+same reading: the scan's cylinder arm (its pairs are the section
+pass's now, as torus and cone pairs are) and the plane arm's
+trimmed-group escape. Pinned by `snowman.rs`
+`a_ball_inside_a_two_sphere_body_builds` and
+`a_lens_beside_a_slab_its_trimmed_sphere_crosses_builds`, and
+`verbs_cylsph_opening` `a_contained_ball_builds_through_the_section_pass`.
+
+The rounded stack of PR 3657 is not this cause: it refuses at the
+section pass's R-tan on a coincident cylinder pair
+(`section_cylinder_pair_coincident`), and stays on
+`rounded-stack-subtract-and-intersect-refuse-fallback-extent`. The
+carrier-tangency siblings are
+`extent-scan-carrier-tangency-off-the-faces-refuses`.
