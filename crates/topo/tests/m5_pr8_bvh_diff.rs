@@ -318,6 +318,7 @@ fn pad_zero_regression_is_caught() {
     let (r_ab, r_ba) = sweep_traces_with_pad(
         &a,
         &b,
+        &topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
         None,
         Some(0.0),
