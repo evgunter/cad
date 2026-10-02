@@ -218,6 +218,15 @@ fn wall_declarations(
 /// A body is never shipped unsound at any ε.
 fn peg_in_socket_union_holds(s: &Body<f64>, p: &Body<f64>, decls: &BooleanDeclarations) {
     let r = topo::union_with(s, p, decls, Tol::witness());
+    // delta-2 review: print the verdict.
+    println!(
+        "[d2 peg] eps={:e} {}",
+        Tol::witness().eps(),
+        match &r {
+            Ok(_) => "BUILDS".to_string(),
+            Err(e) => format!("{e:?}"),
+        }
+    );
     let r = match r {
         Err(e) if Tol::witness().eps() > geom_core::tolerance::DEFAULT_EPS => {
             assert!(
