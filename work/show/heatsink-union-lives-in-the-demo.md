@@ -2,12 +2,13 @@
 id: heatsink-union-lives-in-the-demo
 kind: issue
 title: heatsink.pncad's product is a base and five fins interpenetrating: the union lives in the demo, never in the recipe
-status: open
+status: closed
 opened: 2026-08-29
 github: 1261
 refs: [1162, 1230, 1344]
 priority: P3
 cost: D
+closed: 2026-10-02
 ---
 
 ## From GitHub issue 1261
@@ -53,3 +54,14 @@ and `gallery.rs`'s `each_gallery_document_denotes_its_scene_or_says_why_not` rec
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to work/issues (demos/tour is in no program's paths — the last resort, per the README) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (SHOW, 2026-10-02)
+
+Done in the tree before SHOW claimed it: `demos/tour/src/heatsink.rs`
+authors the whole part in the document — `PlacedUnion(fin,
+Linear{count})` and a `Boolean(Union)` folding the group into the base
+— and `solidify` reads the document's own union back rather than
+accumulating `try_union` in demo code. `gallery.rs`'s denotation table
+was updated with it. What remains of the heat sink is the 1/16
+embedment, which is `heatsink-placedunion-base-union-unfinished`'s
+follow-up and SHOW's unit.
