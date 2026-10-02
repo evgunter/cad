@@ -188,7 +188,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         t,
         u,
         "rocker",
-        || vec![plain("rocker", rocker::rocker(tol))],
+        || vec![plain("rocker", rocker::build(tol).1)],
         tol,
     );
     // The PR 11 flip: the tilted cut joined the standard ladder, so

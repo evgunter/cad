@@ -36,8 +36,10 @@ The scene pins the refusal live as `walls::wall("rocker", 1, ..)`.
 
 The headroom read sided by the ball: only a support whose material is
 convex toward the ball (the ball inside its curvature) limits `r`.
-Then the rocker's wall 1 either flips (and the scene rounds its
-creases at the outline's blend radius) or meets the next honest
-refusal — at `r = 0.5` that is the cap meter's enclosure
+The rocker's wall 1 does not then flip to a carve: `r = 0.5` lies past
+the cap meter's onset `r* = 0.3097` (derived in the scene as
+`ring_clearance_onset`, from the margin `‖E − c‖ − ‖V − c‖`), so it
+meets that meter's over-reach next
 (`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver`,
-point 2), which refuses this keyhole from `r ≈ 0.32`.
+point 2) and wall 1 re-pins as `RingClearance`. The scene can round at
+the outline's blend radius only once both are fixed.

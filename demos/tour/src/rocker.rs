@@ -264,11 +264,46 @@ fn keyhole<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
         .into()
 }
 
+/// The plate's profile loops, each the handle by which the scene reads
+/// its own loop back. `Profile::validate` keeps holes in input order
+/// and `Extruded::walls` follows the validated loops, so the place a
+/// loop is handed to the profile ([`PlateLoop::ALL`]) is its place in
+/// both; it is written once, here, and read only through
+/// [`PlateLoop::index`].
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlateLoop {
+    Outline,
+    Eye,
+    Keyhole,
+}
+
+impl PlateLoop {
+    /// The order the loops are handed to the profile.
+    const ALL: [Self; 3] = [Self::Outline, Self::Eye, Self::Keyhole];
+
+    /// This loop's place among the validated loops and the extrude's
+    /// walls.
+    fn index(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|&l| l == self)
+            .expect("every loop is in ALL")
+    }
+
+    fn build<S: Scalar>(self, tol: Tol) -> ProfileLoop<S> {
+        match self {
+            Self::Outline => outline(tol),
+            Self::Eye => eye(tol),
+            Self::Keyhole => keyhole(tol),
+        }
+    }
+}
+
 /// The validated rocker profile: outline, eye slot, keyhole.
 pub fn profile<S: Scalar>(tol: Tol) -> ValidatedProfile<S> {
     Profile::new(
         SketchPlane::xy(),
-        vec![outline(tol), eye(tol), keyhole(tol)],
+        PlateLoop::ALL.iter().map(|l| l.build(tol)).collect(),
     )
     .validate(tol)
     .expect("the fillet-authored rocker profile validates")
@@ -310,31 +345,55 @@ fn cylinder_plane_lines<S: Scalar>(body: &Body<S>) -> Vec<EdgeKey> {
 }
 
 /// The keyhole's convex creases: the kind-pair description, scoped to
-/// the struts the extrude stood up along the keyhole loop (the last
-/// hole, so the last entry of [`Extruded::walls`]). Of the keyhole's
-/// four struts, the two where the disc meets a slot wall match; the
-/// slot end's two corners are plane×plane.
+/// the struts the extrude stood up along the keyhole loop. Of its four
+/// struts, the two where the disc meets a slot wall match; the slot
+/// end's two corners are plane×plane.
+///
+/// **Why the extrude's provenance localises here, not a distance.**
+/// The Python mirror (`TestRocker`) localises with `datum_distance` to
+/// an axis at the keyhole's centre, because the document selector has
+/// no pattern for "the struts of this loop". At this seat the extrude
+/// answers that question itself: the struts of the loop the author
+/// wrote, by the loop's identity. A distance would need a cut-off
+/// radius fitted to clear every other matching edge — a number about
+/// this plate's layout, not about the keyhole — and at the body seat an
+/// axis datum built from a decided unit direction and a band. The kind
+/// atoms are the same on both seats; only the scoping differs.
 fn keyhole_creases<S: Scalar>(plate: &Extruded<S>) -> Vec<EdgeKey> {
-    let keyhole = plate.walls.last().expect("the plate has hole loops");
-    keyhole
+    plate.walls[PlateLoop::Keyhole.index()]
         .iter()
         .map(|wall| wall.strut)
         .filter(|&e| cylinder_plane_line(&plate.body, e))
         .collect()
 }
 
-/// The rocker: the plate with its keyhole's two convex creases
-/// rounded at [`R_CREASE`] by `fillet_edges`.
-pub fn rocker<S: Scalar>(tol: Tol) -> Body<S> {
+/// The plate, and the plate with its keyhole's two convex creases
+/// rounded at [`R_CREASE`] by `fillet_edges` — the rendered body.
+pub fn build<S: Scalar>(tol: Tol) -> (Extruded<S>, Body<S>) {
     let plate = plate::<S>(tol);
-    fillet_edges(
+    let rounded = fillet_edges(
         &plate.body,
         &keyhole_creases(&plate),
         S::from_f64(R_CREASE),
         tol,
     )
     .expect("the keyhole's creases round at R_CREASE")
-    .body
+    .body;
+    (plate, rounded)
+}
+
+/// The radius from which the cap meter refuses the keyhole's creases
+/// (wall 2), derived. The meter's margin for the slot end's corner
+/// `E = (KEY_SLOT, w)` is `‖E − c‖ − ‖V − c‖`; `E` and `V` share the
+/// wall line `y = w` and `c` sits at height `r` above it, so the margin
+/// changes sign where `c` is equidistant from them: `cx = (x0 + KEY_SLOT)/2`.
+/// With `cx² = (R + r)² − (w + r)² = x0² + 2r(R − w)`, that is
+/// `r* = (cx² − x0²) / (2(R − w))` — 0.3097 for this keyhole.
+fn ring_clearance_onset() -> f64 {
+    let (_, _, big_r) = KEY;
+    let x0 = (big_r * big_r - KEY_W * KEY_W).sqrt();
+    let mid = 0.5 * (x0 + KEY_SLOT);
+    (mid * mid - x0 * x0) / (2.0 * (big_r - KEY_W))
 }
 
 /// The area one keyhole crease's fillet removes from the plate's
@@ -346,6 +405,12 @@ pub fn rocker<S: Scalar>(tol: Tol) -> Body<S> {
 /// wall and `F_a = c·R/(R + r)` on the disc. The removed region is the
 /// quadrilateral `V F_b c F_a` less the ball's sector between its feet
 /// and the disc's segment between `V` and `F_a`.
+///
+/// Ported from `review_band_ruled_ring_probes::keyhole_cut`
+/// (`crates/sweep/tests/`), step for step, its angle wrap and `|φ|`
+/// included; `TestRocker.crease_cut` is the Python mirror's copy. The
+/// tour is its own cargo root and a test file is no library, so the
+/// three cannot share one function.
 fn crease_cut(r: f64) -> f64 {
     let (_, _, big_r) = KEY;
     let w = KEY_W;
@@ -364,8 +429,12 @@ fn crease_cut(r: f64) -> f64 {
     // F_a (towards the disc's centre).
     let to_fb = -core::f64::consts::FRAC_PI_2;
     let to_fa = (-cy).atan2(-cx);
-    let sector = 0.5 * r * r * (to_fb - to_fa).abs();
-    let phi = cy.atan2(cx) - w.atan2(x0);
+    let mut dth = (to_fb - to_fa).abs();
+    if dth > core::f64::consts::PI {
+        dth = core::f64::consts::TAU - dth;
+    }
+    let sector = 0.5 * r * r * dth;
+    let phi = (cy.atan2(cx) - w.atan2(x0)).abs();
     let segment = 0.5 * big_r * big_r * (phi - phi.sin());
     0.5 * twice.abs() - sector - segment
 }
@@ -384,10 +453,7 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     // arc whose radius equals R_EYE", which would find the wrong arc
     // the moment two blends shared a radius, and nothing at all if
     // the stored radius drifted an ulp.
-    let eye_loop = vp
-        .loops()
-        .get(1)
-        .expect("the eye is the profile's second loop");
+    let eye_loop = &vp.loops()[PlateLoop::Eye.index()];
     let blends = eye_loop.blend_arcs();
     let [blend] = blends.as_slice() else {
         panic!(
@@ -421,16 +487,15 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     )
 }
 
-/// The keyhole's 3-D fillet, checked against its closed form, and the
-/// two radii the plate would naturally take that the kernel refuses,
-/// pinned live. Returns the narration line.
-fn crease_narration(tol: Tol) -> String {
+/// The keyhole's 3-D fillet on the RENDERED body, checked against its
+/// closed form, and the radii the plate would naturally take that the
+/// kernel refuses, pinned live. Returns the narration line.
+fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> String {
     let volume = |b: &Body<f64>| {
         mass_properties(b, tol)
             .expect("the rocker's mass properties are closed-form")
             .volume
     };
-    let plate = plate::<f64>(tol);
 
     // The kind-pair description alone also matches the six vertical
     // seams where a profile fillet meets a straight side. Those are
@@ -449,7 +514,7 @@ fn crease_narration(tol: Tol) -> String {
         over.as_ref().err()
     );
 
-    let creases = keyhole_creases(&plate);
+    let creases = keyhole_creases(plate);
     assert_eq!(creases.len(), 2, "the keyhole's two disc/slot creases");
 
     // The plate's own blend radius: the ball rolls OUTSIDE the disc's
@@ -461,17 +526,30 @@ fn crease_narration(tol: Tol) -> String {
         "round the keyhole's creases at the outline's blend radius R_BLEND = R_disc",
         fillet_edges(&plate.body, &creases, R_BLEND, tol),
         |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
-        "set R_CREASE to R_BLEND, the plate's own blend radius",
+        "re-pin it: with headroom sided, r = R_BLEND lies past wall 2's onset and meets \
+         RingClearance next, so R_CREASE can move to R_BLEND only once both are fixed",
     );
-    // Above r ≈ 0.32 the slot end's corner enters the region the cap
-    // meter encloses the sliver with (an annulus about the ball's
-    // centre out to the crease), though it stays clear of the sliver
-    // itself: the margin is exactly ‖corner − c‖ − ‖V − c‖.
+    // From `ring_clearance_onset` on, the slot end's corner is inside
+    // the region the cap meter encloses the sliver with (an annulus
+    // about the ball's centre out to the crease), though it stays clear
+    // of the sliver itself, which ends at the wall foot `x = cx`, short
+    // of the slot's end. The onset is derived, and pinned from both
+    // sides at ±1 %: the crease carves just below it and refuses just
+    // above it.
+    let onset = ring_clearance_onset();
+    assert!(
+        R_CREASE < onset,
+        "R_CREASE = {R_CREASE} lies below the cap meter's onset {onset}"
+    );
+    fillet_edges(&plate.body, &creases, 0.99 * onset, tol).unwrap_or_else(|e| {
+        panic!("1 % below the derived onset {onset:.4} the creases carve, got {e:?}")
+    });
     crate::walls::wall(
         "rocker",
         2,
-        "round the keyhole's creases at r = 0.4, where the sliver stays clear of the slot's end",
-        fillet_edges(&plate.body, &creases, 0.4, tol),
+        "round the keyhole's creases 1 % past the derived onset r* = 0.3097, where the \
+         sliver stays clear of the slot's end",
+        fillet_edges(&plate.body, &creases, 1.01 * onset, tol),
         |e| {
             matches!(
                 e.error,
@@ -486,17 +564,15 @@ fn crease_narration(tol: Tol) -> String {
         "raise R_CREASE to the largest radius the slot admits",
     );
 
-    let rounded = fillet_edges(&plate.body, &creases, R_CREASE, tol)
-        .expect("the keyhole's creases round at R_CREASE");
-    validate_geometric(&rounded.body, tol).expect("the rounded rocker is tier-3 valid");
+    validate_geometric(rounded, tol).expect("the rounded rocker is tier-3 valid");
     let cut = crease_cut(R_CREASE);
-    let dv = volume(&rounded.body) - volume(&plate.body);
+    let dv = volume(rounded) - volume(&plate.body);
     let want = -2.0 * cut * DEPTH;
     assert!(
         (dv - want).abs() < 1e-12,
         "the two creases remove 2·A·depth = {want:e}, measured ΔV = {dv:e}"
     );
-    let counts = euler_counts(&rounded.body);
+    let counts = euler_counts(rounded);
     // Each crease's fillet face replaces its vertical edge by two and
     // each of its cap vertices by two joined by a cap arc: +2
     // vertices, +3 edges, +1 face per crease on the plate's 34/51/19.
@@ -512,8 +588,8 @@ fn crease_narration(tol: Tol) -> String {
          description alone also matches the outline's six tangent seams, and the door \
          refuses those (`TangentialEdge`): the selector has no convexity atom. Each crease \
          removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
-         measured {dv:.6e}. The outline's blend radius ({R_BLEND}) and r = 0.4 are \
-         refused (walls 1 and 2)."
+         measured {dv:.6e}. The outline's blend radius ({R_BLEND}) is refused (wall 1), \
+         and so is every radius from r* = {onset:.4} (wall 2)."
     )
 }
 
@@ -521,10 +597,11 @@ fn crease_narration(tol: Tol) -> String {
 /// rounded in the profile (six corners, 2-D) and on the solid (the
 /// keyhole's creases, 3-D).
 pub fn stops(tol: Tol) -> Vec<Stop> {
+    let (plate, rounded) = build::<f64>(tol);
     let note = format!(
         "{} {}",
         eye_pick_narration(&profile::<f64>(tol)),
-        crease_narration(tol)
+        crease_narration(&plate, &rounded, tol)
     );
     vec![Stop {
         name: "rocker",
@@ -548,6 +625,6 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             azim: -70.0,
             up: 'z',
         },
-        bodies: vec![SceneBody::plain("rocker", [0.85, 0.72, 0.32], rocker(tol))],
+        bodies: vec![SceneBody::plain("rocker", [0.85, 0.72, 0.32], rounded)],
     }]
 }

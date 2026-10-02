@@ -1780,7 +1780,7 @@ class TestRocker(unittest.TestCase):
     HUB_C, HUB_R = (0 * m, 0 * m), 2.5
     BOSS_C, BOSS_R = (7 * m, 0 * m), 1.5
     BLEND, KNEE, EYE = 0.5 * m, 0.5 * m, 0.25 * m
-    DEPTH = 0.5
+    DEPTH = 0.5 * m
     KEY_C, KEY_R, KEY_W, KEY_SLOT = (3.5, -0.25), 0.5, 0.2, 0.8
     CREASE = 0.25
 
@@ -1826,7 +1826,14 @@ class TestRocker(unittest.TestCase):
     def crease_cut(self, r):
         """The section one crease fillet removes: the quadrilateral
         crease → wall foot → ball centre → disc foot, less the ball's
-        sector and the disc's segment between its feet."""
+        sector and the disc's segment between its feet.
+
+        Ported step for step from the Rust test
+        `review_band_ruled_ring_probes::keyhole_cut` (`crates/sweep/
+        tests/`), its angle wrap and `|φ|` included; the tour's
+        `rocker::crease_cut` is the other copy. A test file across a
+        language boundary shares no code, so the copies are kept in
+        step by hand."""
         big_r, w = self.KEY_R, self.KEY_W
         x0 = math.sqrt(big_r**2 - w**2)
         cy = w + r
@@ -1836,13 +1843,16 @@ class TestRocker(unittest.TestCase):
         twice = sum(
             p[0] * q[1] - q[0] * p[1] for p, q in zip(quad, quad[1:] + quad[:1], strict=True)
         )
-        sector = 0.5 * r * r * abs(-math.pi / 2 - math.atan2(-cy, -cx))
-        phi = math.atan2(cy, cx) - math.atan2(w, x0)
+        dth = abs(-math.pi / 2 - math.atan2(-cy, -cx))
+        if dth > math.pi:
+            dth = math.tau - dth
+        sector = 0.5 * r * r * dth
+        phi = abs(math.atan2(cy, cx) - math.atan2(w, x0))
         segment = 0.5 * big_r**2 * (phi - math.sin(phi))
         return 0.5 * abs(twice) - sector - segment
 
     def prism(self, doc, loops):
-        return doc.insert(Node.extrude(doc.insert(Node.profile(loops, plane=doc.sketch_frame())), Expr.literal(self.DEPTH * m)))
+        return doc.insert(Node.extrude(doc.insert(Node.profile(loops, plane=doc.sketch_frame())), Expr.literal(self.DEPTH)))
 
     def census(self, doc, node):
         ev = evaluate(doc)
@@ -1889,7 +1899,7 @@ class TestRocker(unittest.TestCase):
         rocker = doc.insert(Node.fillet(plate, Expr.length_in(self.CREASE, m), creases))
         self.assertAlmostEqual(
             volume_of(doc, rocker) - volume_of(doc, plate),
-            -2.0 * self.crease_cut(self.CREASE) * self.DEPTH,
+            -2.0 * self.crease_cut(self.CREASE) * self.DEPTH.meters,
             delta=1e-12,
         )
         self.assertEqual(self.census(doc, rocker), (38, 57, 21))
