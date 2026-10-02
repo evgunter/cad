@@ -2,12 +2,15 @@
 id: split-refuses-cylindrical-feature-box
 kind: issue
 title: topo::split refuses a box with one cylindrical feature in both orientations — and the second refusal reports CircularAxes where the closed form gives a-b = 0.049 m
-status: open
+status: closed
 opened: 2026-09-01
 github: 1437
 refs: [91]
 priority: P0
 cost: H
+branch: tquery/split-cyl-feature
+pr: 3768
+closed: 2026-10-02
 ---
 
 ## From GitHub issue 1437
@@ -115,3 +118,49 @@ issue is where it is recorded.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to TOPO (crates/topo/src/split.rs, euler.rs and the provenance graft are TOPO's paths) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Diagnosis (2026-10-02, measured on main at 5ab36cc95)
+
+Both variants reproduce exactly as filed, through the public doors
+(`crates/sweep/tests/split_cylindrical_feature_box.rs` builds them:
+variant A is the 15-op box with the middle near-wall vent replaced by
+the gland bore, V = 4.240943; variant B is the box plus a fifth, round
+standoff, V = 4.267271), with `circle_split` at n = 2 and n = 3 alike:
+
+```
+A: Join(Euler(Certification { error: ResidualExceeded { check: EndpointStart, sample: 0 } }))
+B: Join(Section { face: FaceKey(..), source: Carrier(CircularAxes) })
+```
+
+**One cause for both, and it is neither conditioning nor the ellipse
+constructor: the split plane's normal reached the section unnormalized.**
+`SplitPlane` documented its normal as "unit (conventional, unchecked)";
+the cutaway passes the authored direction `(0.75, 0.1875, 1)`,
+`|n| = 1.264`. The plane×cylinder section
+(`geom_brep::plane_cylinder_section`, the tilted lane) takes the
+semi-major as `r / |axis·n|`, which is `r / cos θ` only for a unit `n`:
+
+- B (axis `ẑ`): `axis·n = 1.0` exactly, so `major = r / 1 = minor` and
+  `Curve3::ellipse`'s `ellipse_axes_distinct` gate read a true zero —
+  the refusal was correct about the axes it was handed.
+- A (axis `ŷ`): `axis·n = 0.1875`, so `major = r / 0.1875 = 1.0`
+  against the true `r / 0.148 = 1.264`: an ellipse that is not on the
+  cylinder, which the join's endpoint certification then refused.
+
+With the same normal normalized, both variants split, all four halves
+pass tier 1 and `validate_geometric`, and the halves partition the
+volume (gap ≤ 3.3e-10). The all-planar box never showed it because
+every planar lane is scale-invariant in `n`; its halves did, however,
+carry section faces whose plane carriers held the 1.264-long normal.
+
+The fix takes the class row
+`split-plane-normal-and-slab-axis-carry-unitness-as-prose`'s SplitPlane
+half under the ratified unit-vector ruling (PR 2457):
+`SplitPlane.normal` is a `geom_core::UnitVec3`, so a caller holding a
+direction mints it through `UnitVec3::new` and a non-unit normal cannot
+reach a section. A is therefore not ill-conditioning: at the true
+1.264 semi-major it splits and validates.
+
+## Closed (2026-10-02, PR 3768)
+
+Both variants were one cause: a non-unit `SplitPlane.normal` (the cutaway's raw 1.264-long direction) read as unit by the tilted plane×cylinder section, so B's semi-axes came out equal and A's ellipse off the cylinder. `SplitPlane.normal` is a `UnitVec3`; the section lanes carry the witness end to end and the boolean decides its germ planes' normals at the read. Rows: `sweep/tests/split_cylindrical_feature_box.rs`. Residue filed: `work/issues/kernel-split-plane-has-no-direction-door.md`, `work/issues/cutaway-carries-no-round-feature-and-tiltedcut-is-not-folded.md`.

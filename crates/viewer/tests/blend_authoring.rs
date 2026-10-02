@@ -647,11 +647,11 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
         assert!(outcome.committed.is_empty(), "nothing was authored");
         assert!(
             matches!(
-                outcome.refusal,
+                &outcome.refusal,
                 Some(Refusal::WrongNodeKind {
                     node,
                     wanted: NodeKindWanted::Body
-                }) if node == profile
+                }) if node.id() == profile
             ),
             "expected a body-seat refusal, got {:?}",
             outcome.refusal

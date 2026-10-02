@@ -376,7 +376,10 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
 
 /// **Can a BODY reach the in-band convexity arm?** A profile whose
 /// vertex turns by an in-band angle is the natural fixture; this row
-/// records what the profile validator and the battery say about it.
+/// records what the profile validator, the sweep's cosurface verdict
+/// and the battery say about it. Which of them answers depends on ε:
+/// at a wide enough band the turn decides zero and the vertex is a
+/// station of one run wall.
 #[test]
 fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
     // Two levers. The profile's `chord_side` meters the vertex's
@@ -404,13 +407,39 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
                 continue;
             }
         };
-        let body = match extrude(&profile, Extrusion::Distance(h), tol()) {
-            Ok(b) => b.body,
+        let built = match extrude(&profile, Extrusion::Distance(h), tol()) {
+            Ok(b) => b,
             Err(e) => {
                 eprintln!("(d={d:e}, L={l}, h={h}) the extrude door refuses: {e}");
                 continue;
             }
         };
+        // Where the sweep's cosurface verdict DECIDES the turn zero at
+        // this ε (the wide band, eps = 1e-6, reads d = 1e-6 as zero),
+        // the vertex is a station of one run: the two segments sweep
+        // ONE wall and there is no strut edge there for the battery to
+        // meet (crate README, "Walls: one per run"). That is the decided
+        // verdict, not a silent pick — an in-band reading escalates at
+        // the extrude door above — so the row records it and moves on.
+        if built.walls[0].iter().any(|w| w.segments.len() == 2) {
+            let wall = built.walls[0]
+                .iter()
+                .find(|w| w.segments.len() == 2)
+                .expect("the two-segment run");
+            let mut segs = wall.segments.clone();
+            segs.sort_unstable();
+            assert_eq!(
+                segs,
+                vec![0, 1],
+                "(d={d:e}, L={l}, h={h}) the run is the near-collinear vertex's two segments"
+            );
+            eprintln!(
+                "(d={d:e}, L={l}, h={h}) the turn decides zero at this tolerance: one run \
+                 wall over segments 0 and 1, no strut at the vertex"
+            );
+            continue;
+        }
+        let body = built.body;
         let edge = body
             .edges()
             .find_map(|(k, e)| {

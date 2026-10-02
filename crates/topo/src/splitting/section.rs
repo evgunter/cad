@@ -193,7 +193,7 @@ pub fn plane_section<T: geom_core::Decide>(
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
-    let normal = section_loops::section_normal(plane.normal, PlaneSide::Below);
+    let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);
 
     let mut u_ref = None;
     let mut v_ref = None;

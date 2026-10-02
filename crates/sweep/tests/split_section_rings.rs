@@ -26,10 +26,11 @@ fn tol() -> Tol {
 }
 
 fn at_x(x: f64) -> SplitPlane<f64> {
-    SplitPlane {
-        origin: Point3::new(x, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(x, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// Each section face of `half` as `(sense, ring count)`, in face order.
@@ -356,10 +357,11 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
     .map(|(x, y)| Point2::new(x, y));
     let body = cut("slot", &block, &prism(&outline, -0.5, 3.0));
     for delta in [lean, -lean] {
-        let plane = SplitPlane {
-            origin: Point3::new(0.0, 0.0, 1.25),
-            normal: Vec3::new(-s, -delta, -c).normalize(),
-        };
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 1.25),
+            Vec3::new(-s, -delta, -c).normalize(),
+            geom_core::Tol::witness(),
+        );
         halves_at_rest(&format!("off-axis by {delta:e}"), &body, &plane);
     }
 }
@@ -505,10 +507,8 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
             (Point3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 1.0, 0.3), 0.3),
             (Point3::new(0.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 1.0), 1.0),
         ] {
-            let plane = SplitPlane {
-                origin: o,
-                normal: n.normalize(),
-            };
+            let plane =
+                topo::test_support::split_plane(o, n.normalize(), geom_core::Tol::witness());
             let what = format!("{name}, plane through {o:?}");
             let r = split(body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
             let below_want = 4.0 * (4.0 - 2.0 * tilt);

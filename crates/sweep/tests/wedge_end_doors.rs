@@ -26,7 +26,6 @@ use sweep::test_support::{brick, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
 use topo::{
     Body, BooleanErrorKind, ContactMark, EdgeKey, ShellError, SplitError, SplitFinishError,
-    SplitPlane,
 };
 
 fn tol() -> Tol {
@@ -125,10 +124,11 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
 fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
     let body = plate_with_hole();
     for normal in [1.0, -1.0] {
-        let plane = SplitPlane {
-            origin: Point3::new(1.0, 0.0, 0.0),
-            normal: Vec3::new(normal, 0.0, 0.0),
-        };
+        let plane = topo::test_support::split_plane(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(normal, 0.0, 0.0),
+            geom_core::Tol::witness(),
+        );
         match topo::split(&body, &plane, tol()) {
             Err(SplitError::Finish(SplitFinishError::SectionCusp { .. })) => {}
             other => panic!("normal {normal}: expected SectionCusp, got {other:?}"),
@@ -142,10 +142,11 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
 /// which is inherited, not minted.
 #[test]
 fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
-    let through = SplitPlane {
-        origin: Point3::new(0.5, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let through = topo::test_support::split_plane(
+        Point3::new(0.5, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let halves = topo::split(&plate_with_hole(), &through, tol()).expect("a transverse cut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of x = 0.5");
@@ -161,10 +162,11 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
     }
 
     let cusp = extruded(vec![lune()], 0.0, 1.0);
-    let mid = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let mid = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::Tol::witness(),
+    );
     let halves = topo::split(&cusp.body, &mid, tol()).expect("a cut across the strut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of z = 0.5");
@@ -200,10 +202,11 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
     // Normal `+y` refuses earlier, at the reduction
     // (`ConsecutiveOnSectors`), for a reason of its own:
     // `work/hone/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, -1.0, 0.0),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        geom_core::Tol::witness(),
+    );
     let halves = topo::split(&body, &plane, tol())
         .unwrap_or_else(|e| panic!("a seam at the cut must cut, got {e:?}"));
     let mut seams = 0;
@@ -282,8 +285,9 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
     let cusp = extruded(vec![lune()], 0.0, 1.0);
     let slit = extruded(vec![rect(-1.0, -1.0, 3.0, 5.0), lune()], 0.0, 1.0);
     for (name, built, loop_index) in [("cusp", &cusp, 0), ("slit", &slit, 1)] {
-        let strut = built.strut_edges[loop_index]
+        let strut = built.strut_edges()[loop_index]
             .iter()
+            .flatten()
             .copied()
             .find(|&e| tangent_edges(&built.body).iter().any(|(t, _)| *t == e))
             .expect("the strut the cusp joint swept is marked Tangent");

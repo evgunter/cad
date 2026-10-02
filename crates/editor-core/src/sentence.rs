@@ -42,11 +42,20 @@ pub trait Staged {
 /// A [`Staged`] refusal rendered at a [`Labels`].
 pub struct Labelled<'a, E: ?Sized>(pub &'a E, pub Labels);
 
-impl<E: Staged + ?Sized> core::fmt::Display for Labelled<'_, E> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.1 == Labels::Kept {
+impl<E: Staged + ?Sized> Labelled<'_, E> {
+    /// The stage word and its joint, written when `labels` are kept:
+    /// the one spelling of a refusal's opening, whoever says the rest.
+    pub(crate) fn open(f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+        if labels == Labels::Kept {
             write!(f, "{}: ", E::STAGE)?;
         }
+        Ok(())
+    }
+}
+
+impl<E: Staged + ?Sized> core::fmt::Display for Labelled<'_, E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Self::open(f, self.1)?;
         self.0.fmt_labelled(f, self.1)
     }
 }

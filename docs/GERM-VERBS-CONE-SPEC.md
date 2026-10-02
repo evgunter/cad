@@ -811,12 +811,12 @@ rows, all four ops each, use the preview cone, `V = π/3`:
 
 - **Q1 ⚑ The join.** Does U8 (the axis-normal plane × cone join) belong
   to this item, or to its own? The tilted ellipse cut is the larger
-  question. `crates/geom-brep/README.md` C1 says "a generic-tilt
-  plane×cone routes to rung 3 permanently". The ellipse is IN the
-  inventory; the hyperbola and parabola are out by decision. Making the
-  tilted ellipse exact would amend ratified text, so it is Ev's call.
-  Until then, every cone face with an event refuses at the join, as the
-  torus's does.
+  question, and Ev ruled on it on 2026-10-01: the exact tilted ellipse
+  is permitted ("exact ellipses are certainly allowed there"). The
+  ellipse is in the inventory; the hyperbola and parabola are out by
+  decision. `crates/geom-brep/README.md` C1 and C5 route the tilted
+  plane×cone section to the exact `Ellipse` (rung 2), and a parabolic
+  or hyperbolic section refuses typed, naming its conic.
 - **Q2 The revert roster.** Should `Cone` go onto `revert_arm_exists` in
   U7, or wait behind `torus-onto-the-subtract-and-intersect-roster`? The
   probe put the cone on both rosters, and ∖ and ∩ reached the same doors
