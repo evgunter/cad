@@ -1142,7 +1142,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// span — the MIXED-SIGN one (one endpoint ON the carrier, the other
 /// definitely clear) and the `(Zero, Zero)` span with both ends on the
 /// carrier — whose every ON endpoint is certified `Elsewhere` answers
-/// NO EVENT on this face ([`Placement::undeclared_no_interior`]). That
+/// NO EVENT on this face ([`Placement::no_interior`]). That
 /// is a claim of absence, and it rests on certificates, not on a
 /// sibling face existing: the certified roots put every meeting of the
 /// line with the carrier at a root, each interior root was placed
@@ -1338,7 +1338,8 @@ pub(super) fn curved_face_arm<T: Decide>(
             // and the harmonic one has no torus form. Reading the
             // certificate first is what lets a coincident pair reach
             // the declared-cover rung at all.
-            let clearance = if on_declared_rest_carrier(x, x_is, edge, face, declared) {
+            let on_carrier = on_declared_rest_carrier(x, x_is, edge, face, declared);
+            let clearance = if on_carrier {
                 Ok(Sign::Zero)
             } else {
                 circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
@@ -1405,6 +1406,12 @@ pub(super) fn curved_face_arm<T: Decide>(
                 // and it must stay loud rather than become a silent
                 // no-event.
                 Ok(Sign::Zero) if covered => {
+                    if on_carrier
+                        && let Some(event) =
+                            on_carrier_crossing(y, x_is, face, &curve, band, frontier)?
+                    {
+                        return Ok(event);
+                    }
                     let side = |p: Point3<T>| {
                         decide(
                             "bool_vertex_face_side",
@@ -1430,11 +1437,14 @@ pub(super) fn curved_face_arm<T: Decide>(
                             Sign::Negative => return Err(frontier()),
                         }
                     }
-                    return if Placement::records_the_pair(ends) {
-                        Ok(CurvedEvent::Recorded)
-                    } else {
-                        Err(frontier())
-                    };
+                    if !on_carrier {
+                        return if Placement::records_the_pair(ends) {
+                            Ok(CurvedEvent::Recorded)
+                        } else {
+                            Err(frontier())
+                        };
+                    }
+                    return Placement::no_interior(ends).ok_or_else(frontier);
                 }
                 // **The circle × sphere and circle × torus root lanes.**
                 // An arc the enclosures could not clear against a SPHERE
@@ -1538,18 +1548,12 @@ pub(super) fn curved_face_arm<T: Decide>(
                 on_line,
                 "a covered circle keeps the frontier at the circle rung"
             );
+            if let Some(event) = on_carrier_crossing(y, x_is, face, &curve, band, frontier)? {
+                return Ok(event);
+            }
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-            // An endpoint the containment door cannot decide keeps the
-            // frontier door; an endpoint it places definitely OUT of
-            // this face is eventless here (the circle rung above
-            // carries the argument), and a pair with nothing recorded
-            // keeps the door.
-            if Placement::records_the_pair([Some(hu), Some(hv)]) {
-                Ok(CurvedEvent::Recorded)
-            } else {
-                Err(frontier())
-            }
+            Placement::no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
         }
         (Sign::Zero, Sign::Positive) if covered => {
             debug_assert!(
@@ -1607,7 +1611,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                 }
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
                     // UNDECLARED: the undeclared `NoInterior` rule
-                    // ([`Placement::undeclared_no_interior`]), over this
+                    // ([`Placement::no_interior`]), over this
                     // span's one ON end.
                     let mut ends = [None, None];
                     for (i, (on, w, pw)) in [(s1 == Sign::Zero, u, pu), (s2 == Sign::Zero, v, pv)]
@@ -1620,7 +1624,7 @@ pub(super) fn curved_face_arm<T: Decide>(
                             )?);
                         }
                     }
-                    Placement::undeclared_no_interior(ends).ok_or_else(frontier)
+                    Placement::no_interior(ends).ok_or_else(frontier)
                 }
             }
         }
@@ -1646,14 +1650,14 @@ pub(super) fn curved_face_arm<T: Decide>(
         //   the trim, and each root at an end is that end's own incidence.
         //
         // So the ends decide, under the same rule as the mixed-sign arm
-        // ([`Placement::undeclared_no_interior`]).
+        // ([`Placement::no_interior`]).
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-                    Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
+                    Placement::no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
                 }
                 _ => Err(frontier()),
             }
@@ -1888,6 +1892,29 @@ fn on_declared_rest_carrier<T: Decide>(
     .into_iter()
     .flatten()
     .any(|pf| declared.verified_one_carrier(x_is, pf, x_is.other(), face))
+}
+
+/// The declared on-carrier arms' interior question: where `curve`, lying
+/// on `face`'s carrier, crosses `face`'s boundary strictly inside its
+/// span ([`super::carrier_cross`]). A crossing is a pierce landing on
+/// that boundary, split and recorded by the caller like any other;
+/// `None` certifies the span's interior meets the boundary nowhere, so
+/// its endpoints' placements are the pair's whole incidence. A carrier
+/// pair with no closed form keeps the frontier door.
+fn on_carrier_crossing<T: Decide>(
+    y: &Body<T>,
+    x_is: Operand,
+    face: FaceKey,
+    curve: &geom_brep::EdgeCurve<T>,
+    band: Band,
+    frontier: impl Fn() -> BooleanError,
+) -> Result<Option<CurvedEvent<T>>, BooleanError> {
+    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
+    match boundary_crossing(y, x_is.other(), face, curve, band)? {
+        BoundaryCrossing::At { t, p, at } => Ok(Some(CurvedEvent::Pierce { t, p, at })),
+        BoundaryCrossing::Clear => Ok(None),
+        BoundaryCrossing::Unread => Err(frontier()),
+    }
 }
 
 /// What the certified carrier × wall roots say about ONE edge span.
@@ -2303,7 +2330,7 @@ impl Placement {
     /// eventless rather than refused: that rule's nothing-recorded guard
     /// exists for an on-carrier edge overlapping the window, which the
     /// distinct certified roots behind `NoInterior` exclude here.
-    fn undeclared_no_interior<T: geom_core::Real>(
+    fn no_interior<T: geom_core::Real>(
         ends: [Option<Self>; 2],
     ) -> Option<CurvedEvent<T>> {
         let on = ends.iter().flatten();
@@ -2433,7 +2460,7 @@ pub(super) fn vertex_on_curved_face<T: Decide>(
     })
 }
 
-fn esc(e: ContainError, operand: Operand) -> BooleanError {
+pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
     match e {
         ContainError::Escalated(diag) => BooleanError::Escalated {
             decision: BooleanDecision::Containment,
@@ -2658,7 +2685,7 @@ fn requeue<T: Decide>(
 mod undeclared_rule_rows {
     //! **The undeclared `NoInterior` rule, over every placement pair.**
     //! Both undeclared arms — the mixed-sign span and the `(Zero, Zero)`
-    //! span — call [`Placement::undeclared_no_interior`], so these rows
+    //! span — call [`Placement::no_interior`], so these rows
     //! hold the rule for both. The row a public fixture cannot reach is
     //! the `Undecided` one: an end on a face whose trim the chart door
     //! declines (a ringed face, a non-rectangular outline) is minted by
@@ -2669,7 +2696,7 @@ mod undeclared_rule_rows {
     use super::{CurvedEvent, Placement};
 
     fn rule(ends: [Option<Placement>; 2]) -> &'static str {
-        match Placement::undeclared_no_interior::<f64>(ends) {
+        match Placement::no_interior::<f64>(ends) {
             Some(CurvedEvent::Recorded) => "record",
             Some(CurvedEvent::None) => "none",
             Some(CurvedEvent::Pierce { .. }) => panic!("the rule never pierces"),
