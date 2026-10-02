@@ -371,6 +371,10 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
+    session.perform(SessionOp::SetLabel {
+        node: extrude,
+        label: Some(pncad::document::Label::new("plate").expect("a label")),
+    });
     session.pump();
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Slot {
@@ -379,6 +383,15 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchSlot { .. })));
+    let said = outcome
+        .refusal
+        .as_ref()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    assert!(
+        said.starts_with("Extrude \"plate\" ("),
+        "it names the node as labelled: {said}"
+    );
     assert!(session.bounds().is_none());
 
     let outcome = session.perform(SessionOp::ProbeBounds {

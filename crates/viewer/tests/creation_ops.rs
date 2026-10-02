@@ -726,9 +726,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -744,9 +744,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
     });
     assert!(
         matches!(
-            refused.refusal,
+            &refused.refusal,
             Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
-                if node == axis
+                if node.id() == axis
         ),
         "{:?}",
         refused.refusal
@@ -768,9 +768,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::SketchAxis })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal
@@ -791,9 +791,9 @@ fn extrude_and_revolve_require_their_node_kinds() {
         });
         assert!(
             matches!(
-                refused.refusal,
+                &refused.refusal,
                 Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Frame })
-                    if node == wrong
+                    if node.id() == wrong
             ),
             "{:?}",
             refused.refusal

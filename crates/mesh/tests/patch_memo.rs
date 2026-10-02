@@ -617,6 +617,22 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                     }
                 },
             },
+            // Likewise no cone chart here; `u0` is the one field.
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => Pcurve::ConeSection {
+                u0: u0 + TAU,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            },
         };
         let (t0, t1) = cache.params();
         let he = base.get_half_edge(hek).unwrap();

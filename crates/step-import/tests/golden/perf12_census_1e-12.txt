@@ -15,11 +15,11 @@ import: Ok(Solid) solids=1 shells=1 faces=4 edges=8 vertices=4
 ## ball
 import: Ok(Solid) solids=1 shells=1 faces=2 edges=2 vertices=2
 ## cone
-import: Ok(Solid) solids=1 shells=1 faces=4 edges=6 vertices=4
+import: Ok(Solid) solids=1 shells=1 faces=3 edges=4 vertices=3
 ## donut
 import: Ok(Solid) solids=1 shells=1 faces=2 edges=4 vertices=2
 ## lily_lantern
-import: Ok(Solid) solids=1 shells=1 faces=8 edges=14 vertices=8
+import: Ok(Solid) solids=1 shells=1 faces=6 edges=10 vertices=6
 ## filleted_die
 import: Ok(Solid) solids=1 shells=1 faces=26 edges=48 vertices=24
 ## die_pips

@@ -13,8 +13,8 @@
 //!
 //! 1. **Operand gate (F5 → THE C5 table, M5 PR 5)**: every face's
 //!    `(kind × plane)` arm must be one the pipeline executes —
-//!    `Plane` (the M3 seam, bit-identical) or `Cylinder` (the rung-2
-//!    conic lane); other kinds refuse typed CITING their rung routing
+//!    `Plane` (the M3 seam, bit-identical), `Cylinder` or `Cone` (the
+//!    rung-2 conic lanes); other kinds refuse typed CITING their rung routing
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
 //!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
 //!    pass; `Nurbs` refuses
@@ -162,7 +162,7 @@ pub struct SectorEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NullEdgeRecord {
     /// The ON vertex whose neighborhood classification minted this
-    /// null edge (its below-side copy survives as `attr.below_end`).
+    /// null edge: the end of `attr` that is not the minted copy.
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
@@ -203,7 +203,7 @@ pub enum SplitReduceError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
     /// A face's `(kind × plane)` arm of THE C5 dispatch table is not
-    /// executed by the split pipeline (M5 PR 5: `Plane` and `Cylinder`
+    /// executed by the split pipeline (`Plane`, `Cylinder` and `Cone`
     /// are; the refusal retires PER ARM, never wholesale — C12.1). The
     /// Display cites the arm's rung routing from
     /// [`geom_brep::intersect::route`].

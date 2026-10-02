@@ -11,14 +11,11 @@
 //! circle. The union declares the joint discs and every torus×torus
 //! pair `Rest`.
 //!
-//! **The halves are PRE-MERGED** with `Body::merge_coplanar_faces`. A
-//! full revolve mints its planar walls split in two along the meridian
-//! half-planes, which the F7 maximal-faces gate refuses; whether the
-//! revolve should mint them whole is a separate question (in front of
-//! Ev), and this suite is about what happens past F7, so the fixture
-//! merges them the way a caller can today. The curved walls stay split
-//! (a periodic wall keeps its parameterization cut), which is the
-//! canonical maximal form.
+//! **The halves are used as built.** A full revolve builds each planar
+//! wall as one face (`crates/sweep/README.md`, "Walls: one per run"), so
+//! the F7 maximal-faces gate has nothing to refuse. The curved walls
+//! stay split (a periodic wall keeps its parameterization cut), which is
+//! the canonical maximal form.
 //!
 //! The doors, in the order the union meets them, each with the row that
 //! holds it:
@@ -79,9 +76,9 @@ enum Handle {
 }
 
 /// One half of the dumbbell, `sign = +1` above the joint plane and `−1`
-/// below it, fully revolved and, unless `premerge` is off, pre-merged
-/// (module docs).
-fn half_as(sign: f64, handle: Handle, premerge: bool) -> Body<f64> {
+/// below it, fully revolved: its end disc, shoulder annulus and joint
+/// disc are each built as one face.
+fn half(sign: f64, handle: Handle) -> Body<f64> {
     let s = sign;
     // CCW in the (ρ, y) half-plane.
     let (mut chain, tangent_joint) = match handle {
@@ -127,23 +124,14 @@ fn half_as(sign: f64, handle: Handle, premerge: bool) -> Body<f64> {
         Some(j) => bulge_loop(chain).with_tangent_joints(vec![j]),
         None => bulge_loop(chain),
     };
-    let mut body = revolve(
+    revolve(
         &validated(vec![lp]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
     .expect("the half revolves")
-    .body;
-    if premerge {
-        body.merge_coplanar_faces(Tol::witness())
-            .expect("the split planar walls merge");
-    }
-    body
-}
-
-fn half(sign: f64, handle: Handle) -> Body<f64> {
-    half_as(sign, handle, true)
+    .body
 }
 
 fn surface(body: &Body<f64>, f: FaceKey) -> &geom::Surface<f64> {
@@ -210,13 +198,13 @@ fn t2(handle: Handle) -> Result<topo::BooleanResult<f64>, BooleanError> {
 // -------------------------------------------------------------------
 
 /// **The halves are what the module says they are**: valid at every
-/// tier once pre-merged, each carrying its waist on the `R = 0.8`,
-/// `r = 0.5` torus about `y` — a FAT ring (`R < 2r`), which is what
-/// makes the waist bend harder along its inner equator than across
-/// the tube. And the pre-merge is load-bearing: the revolve's own split
-/// planar walls are refused by F7 before any torus door is reached.
+/// tier as built, each carrying its waist on the `R = 0.8`, `r = 0.5`
+/// torus about `y` — a FAT ring (`R < 2r`), which is what makes the
+/// waist bend harder along its inner equator than across the tube. And
+/// no pre-merge is owed: the revolve builds its planar walls whole, so
+/// F7's maximal-faces door never answers on them.
 #[test]
-fn the_half_dumbbell_is_a_valid_torus_waisted_solid_once_premerged() {
+fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
     for sign in [1.0, -1.0] {
         let body = half(sign, Handle::Torus);
         assert_eq!(topo::validate(&body), Ok(()));
@@ -239,15 +227,17 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_once_premerged() {
             assert!((minor_radius - MINOR).abs() < 1e-12);
         }
     }
-    let (a, b) = (
-        half_as(1.0, Handle::Torus, false),
-        half_as(-1.0, Handle::Torus, false),
-    );
+    let (a, b) = (half(1.0, Handle::Torus), half(-1.0, Handle::Torus));
+    for body in [&a, &b] {
+        let mut m = body.clone();
+        let out = m.merge_coplanar_faces(Tol::witness()).unwrap();
+        assert!(out.groups.is_empty(), "no planar wall is split: {out:?}");
+    }
     let err = topo::union_with(&a, &b, &declarations(&a, &b, None), Tol::witness())
-        .expect_err("the unmerged halves carry split planar walls");
+        .expect_err("no torus union builds a body yet");
     assert!(
-        matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "without the pre-merge the op stops at F7: {err:?}"
+        !matches!(err, BooleanError::NonMaximalFaces { .. }),
+        "F7 does not answer on the halves as built: {err:?}"
     );
 }
 

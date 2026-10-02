@@ -1,7 +1,7 @@
 //! **The void door's `Transfers` posture, stage by stage**, on the
 //! two operands whose one surface carries a same-surface LATITUDE
-//! seam: a drum whose top cap has a collinear profile vertex (one
-//! plane in four faces, a latitude ring between them) and a sphere
+//! seam: a drum whose top cap carries a latitude ring (one plane in
+//! three faces, the ring between them) and a sphere
 //! authored as two cocircular arcs (one sphere in four faces, a seam
 //! at `v = π/4`). Each row pins the stage at which the pipeline's
 //! output first goes wrong. The drum used to go wrong INSIDE
@@ -37,7 +37,7 @@ use super::shell7_common::*;
 /// non-zero `v` channel, and the two edges that refused `ChartResidual`
 /// at sample 1 while the reversal left them unmirrored — carry the
 /// mirrored image now, so the void door, which re-runs the same meter
-/// on the graft, takes the cavity. The plane edges are eight: the six
+/// on the graft, takes the cavity. The plane edges are four: the two
 /// radial lines and the ring's two halves.
 #[test]
 fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
@@ -69,8 +69,8 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     assert_eq!(circles, 2, "the two half-circles of the latitude ring");
     assert_eq!(
         on_plane.len(),
-        8,
-        "six radial lines and the ring's two halves"
+        4,
+        "two radial lines and the ring's two halves"
     );
     // The same insertion `shell` runs, by hand: taken.
     let mut out = body.clone();

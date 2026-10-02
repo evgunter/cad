@@ -307,7 +307,7 @@ fn fixed_concave_arc_wall_sense_is_false() {
     // (1) The concave wall's material is OUTSIDE its cylinder, and
     // exactly that wall carries the reversed bit.
     let mut saw_concave = false;
-    for &fk in &t.side_faces[0] {
+    for &fk in &t.side_faces()[0] {
         let sk = t.body.get_face(fk).unwrap().surface;
         let Surface::Cylinder { origin, radius, .. } = *t.body.get_surface(sk).unwrap() else {
             // Planar walls stay `true` (Newell-outward by
