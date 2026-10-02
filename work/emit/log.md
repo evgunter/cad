@@ -1593,3 +1593,32 @@ The rule is now stated in the viewer README.
 - `viewer-panes-speak-the-kernel-refusals-they-draw`
 - `edit-error-respeaks-from-a-later-version`
 - P3/P4 residue rows
+
+## 2026-10-02 — viewer panes speak the kernel refusals they draw (PR 3827)
+
+**Done**
+- `standing_verdict` now speaks `ResolveError` from the landed document.
+- `indeterminate_wording` now takes a `Speaker`.
+- A gated-evaluator test shows the verdict says the landed label while a rename has not landed.
+- Sweep: no other kernel `Say` value is drawn by tag. The blind spots each have a row.
+
+**Split off as a design question**
+- `a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` (P3, `design: true`). No frame holds a resolved part.
+- The options are:
+  - (a) re-resolve the part at landing;
+  - (b) the fault carries the part;
+  - (c) retire the part speakers;
+  - (d) a `HeldNodes` snapshot taken inside the nested evaluation. Labels are pinned content.
+
+**Filed**
+- `a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label`
+- The check-root button note, added to `check-findings-speak-their-root-by-tag`.
+
+**State of the labels unit:** every door and viewer surface now speaks. Open residue:
+- `edit-error-respeaks-from-a-later-version` (P3)
+- the part design row (P3)
+- the selected-node snapshot row (P3)
+- `a-cluster-act-speaks-its-gauges-by-tag`
+- `check-findings-speak-their-root-by-tag`
+- `a-carried-rows-route-says-its-first-instance-by-tag`
+- the earlier P3/P4 label rows
