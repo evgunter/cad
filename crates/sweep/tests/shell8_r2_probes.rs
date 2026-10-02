@@ -612,20 +612,17 @@ fn r2_e2e_consumer_seat() {
 
     // ---- 3. Vessel beside a box, hollowed, then opened on the
     // vessel's inner wall. ----
-    // FRICTION, measured: the vessel's cap is a full revolve's — two
-    // half-disc faces on one chart — and designating ONE of them refuses
-    // `OpenFaceChartPartial`. The consumer has to know to widen a face
-    // to its chart and map each face through the record.
+    // The vessel's cap is a full revolve's, built as ONE face on its
+    // chart, so the face a consumer picks is its whole chart: the
+    // friction this row once measured (designating one half-disc
+    // refused `OpenFaceChartPartial`) is gone.
     let b_cap = wall(&assembly, b_solid, y, 2.0);
-    let one_face_only = twin_of(&hollowed.naming, b_cap);
-    let e = topo::shell_open(&hollowed.body, 0.02, &[one_face_only], tol()).unwrap_err();
-    println!("[r2] e2e 3: one half-disc of the vessel's inner ceiling: {e}");
-    assert!(matches!(e, ShellError::OpenFaceChartPartial { .. }));
     let chart = assembly.get_face(b_cap).unwrap().surface;
     let b_inner_ceiling: Vec<FaceKey> = wearers(&assembly, b_solid, chart)
         .into_iter()
         .map(|k| twin_of(&hollowed.naming, k))
         .collect();
+    assert_eq!(b_inner_ceiling.len(), 1, "the cap's chart is one face");
     let opened = topo::shell_open(&hollowed.body, 0.02, &b_inner_ceiling, tol())
         .expect("opened on the vessel's inner wall");
     // BOTH solids shell again: the box's thin solid becomes two more.

@@ -89,7 +89,7 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     for needle in [
         format!("node {}'s body", test_utils::refusal::tag(extrude.0)),
         format!(
-            "two roots, {} and {}",
+            "two roots, node {} and node {}",
             test_utils::refusal::tag(t1.0),
             test_utils::refusal::tag(t2.0)
         ),

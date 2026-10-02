@@ -42,8 +42,11 @@
 //! landing ON a loop boundary (edge/vertex hit), a tangent crossing
 //! (`d·n` in band), a tie between two crossings' advances, or an
 //! in-band advance sign all abandon the ray and retry with the next
-//! schedule member; exhaustion is the typed
-//! [`PointInSolidError::RayExhausted`]. A boundary pre-pass reports
+//! schedule member. So does a ray that may meet an untrimmable cone
+//! face (`FaceGeo::PartialCone`) ahead of `q`. Exhaustion is the typed
+//! [`PointInSolidError::RayExhausted`], or
+//! [`PointInSolidError::PartialConeFace`] when such a face set aside any
+//! ray. A boundary pre-pass reports
 //! `q` ON the solid's boundary as [`SolidContainment::OnBoundary`]
 //! before any ray is cast.
 //!
@@ -61,6 +64,10 @@
 //!   decided discriminant, never re-decided.
 //! - **`bool_point_in_solid_advance`**: the crossing's advance `t`
 //!   along the ray (Zero ⇒ crossing at `q` — graze, retry).
+//! - **`bool_cone_partial_reach`**: a point's distance from a cone's
+//!   apex against the ball an untrimmable cone face lies in (Positive ⇒
+//!   that face cannot hold the point; anything else refuses or sets the
+//!   ray aside).
 //! - The in-face walk's rows are its own module's (`point_in_loop_*`
 //!   for a loop of lines, `point_in_arc_loop_*` for a loop with arcs —
 //!   [`point_in_carrier_loop`] lists them).
@@ -149,6 +156,7 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
+use crate::null::CurveGeom;
 use crate::splitting::containment::{
     LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
     point_in_carrier_loop,
@@ -274,8 +282,15 @@ pub enum PointInSolidError {
     /// remainder — a face whose outline passes through the apex twice,
     /// an apex-closed face with a ring, a group whose members disagree
     /// on their slant window (two bands stacked on one cone, with
-    /// another surface's face between them), or a window not definitely
-    /// under a period on a face whose group does not wrap.
+    /// another surface's face between them), a window not definitely
+    /// under a period on a face whose group does not wrap, or a face
+    /// with an edge that is neither a rim nor a generator — a tilted
+    /// plane section, whose slant peaks inside the edge, so no
+    /// vertex-folded window states the face (`cone_window_premise`).
+    ///
+    /// The point-in-solid door refuses it only where such a face could
+    /// decide the answer: the point on that cone, or every ray of the
+    /// schedule meeting the cone ahead of the point.
     PartialConeFace {
         /// The cone face neither class expresses.
         face: FaceKey,
@@ -464,10 +479,9 @@ impl core::fmt::Display for PointInSolidError {
             Self::PartialConeFace { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: one of its cone faces has an \
-                 outline the inside/outside test cannot read (it passes through the \
-                 apex twice, say). The solid itself is fine. Recourse: split the cone \
-                 face so each piece reaches the apex at most once, or let its faces \
-                 cover the turn"
+                 outline the inside/outside test cannot read. The solid itself is fine. \
+                 Recourse: split the cone face so each piece reaches the apex at most \
+                 once, or let its faces cover the turn; a tilted cut has none yet"
             ),
             Self::PartialTorusFace { .. } => write!(
                 f,
@@ -693,6 +707,24 @@ enum FaceGeo<T: geom_core::Real> {
         /// derived from the chart normal.
         sense: bool,
     },
+    /// A cone face whose chart trim this door cannot state
+    /// ([`cone_chart_trim`]'s `PartialConeFace`). Its region on the cone
+    /// is unknown, so a query refuses only where that region could
+    /// matter: `q` on the double cone within the face's apex ball, or a
+    /// ray that may meet the cone ahead within it — the sweep then tries
+    /// the next ray, and the query refuses `PartialConeFace` only when
+    /// every ray does ([`partial_cone_reach`]).
+    PartialCone {
+        /// The apex.
+        apex: Point3<T>,
+        /// The unit axis.
+        axis: Vec3<T>,
+        /// The half-angle.
+        half_angle: T,
+        /// A radius about the apex the face lies within, which is also
+        /// the lever of the ray margins.
+        reach: T,
+    },
 }
 
 /// The representative of `face`'s sphere-surface face group when that
@@ -769,7 +801,19 @@ fn face_geo<T: Decide>(
             u_ref,
         }) => {
             let (az, representative, v, nappe) =
-                cone_chart_trim(body, face, charts, apex, axis, half_angle, band)?;
+                match cone_chart_trim(body, face, charts, apex, axis, half_angle, band) {
+                    Ok(trim) => trim,
+                    Err(PointInSolidError::PartialConeFace { .. }) => {
+                        let reach = partial_cone_reach(body, face, apex)?;
+                        return Ok(FaceGeo::PartialCone {
+                            apex,
+                            axis,
+                            half_angle,
+                            reach,
+                        });
+                    }
+                    Err(e) => return Err(e),
+                };
             Ok(FaceGeo::Cone {
                 apex,
                 axis,
@@ -1501,6 +1545,18 @@ pub(super) fn cone_chart_trim<T: Decide>(
     half_angle: T,
     band: Band,
 ) -> Result<(Option<(T, T)>, FaceKey, (T, T), bool), PointInSolidError> {
+    // Every wearer of the surface, not the face alone: a wrapped group's
+    // representative answers for its members' union.
+    for &member in
+        scope_members(body, face, charts).map_err(|face| PointInSolidError::CorruptFace { face })?
+    {
+        cone_window_premise(body, member).map_err(|e| match e {
+            PointInSolidError::PartialConeFace { .. } => {
+                PointInSolidError::PartialConeFace { face }
+            }
+            other => other,
+        })?;
+    }
     let cos_a = half_angle.cos();
     if let Some(representative) = wrapped_cone_group(body, face, charts, apex, axis, cos_a, band)? {
         let v = cone_slant_window(body, representative, apex, axis, cos_a)?;
@@ -1544,6 +1600,7 @@ pub(super) fn cone_face_trim<T: Decide>(
     half_angle: T,
     band: Band,
 ) -> Result<(Option<(T, T)>, (T, T), bool), PointInSolidError> {
+    cone_window_premise(body, face)?;
     let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
     let nappe = cone_nappe(face, v, band)?;
     if wrap_rims(body, face, WrapRims::Coaxial { origin: apex, axis }, band)?.is_some() {
@@ -1626,6 +1683,75 @@ fn cone_trimmed_window<T: Decide>(
         return Err(partial);
     }
     Ok(az)
+}
+
+/// **The premise of a vertex-folded window**: every boundary edge of
+/// the face is a rim (`Circle`, slant constant) or a generator (`Line`,
+/// slant affine), so the slant between an edge's ends never leaves the
+/// span of its ends and the vertices' window is the face's own. A
+/// plane section that is not axis-normal peaks INSIDE its edge, and
+/// the window would over-cover the face on one side of it and
+/// under-cover it on the other, so such a face is refused here rather
+/// than misread (the solid door then reads it as
+/// [`FaceGeo::PartialCone`]). Reading its region needs each section's own side
+/// along the generator (the cylinder's `wall_outline` discipline),
+/// which this arm does not have.
+///
+/// # Errors
+///
+/// [`PointInSolidError::PartialConeFace`] for an edge outside the two
+/// classes; [`PointInSolidError::CorruptFace`] for an unwalkable face.
+fn cone_window_premise<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<(), PointInSolidError> {
+    let corrupt = || PointInSolidError::CorruptFace { face };
+    let f = body.get_face(face).ok_or_else(corrupt)?;
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+            let curve = body.get_edge(edge).ok_or_else(corrupt)?.curve;
+            let Some(CurveGeom::Certified(c)) = body.get_curve_geom(curve) else {
+                return Err(corrupt());
+            };
+            match c.carrier() {
+                geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => {}
+                geom::Curve3::Ellipse { .. }
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Spiric { .. } => {
+                    return Err(PointInSolidError::PartialConeFace { face });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **A radius about the apex that a cone face lies within** — the
+/// reach [`FaceGeo::PartialCone`] refuses inside.
+///
+/// On a cone, `|p − apex|` is the slant `|v|`, a chart coordinate, so a
+/// face reaches no farther from its apex than its boundary does; each
+/// loop's ball about the apex is the containment walk's own
+/// ([`loop_extent_from`]: vertices, and each curved edge's carrier ball).
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a missing face, and
+/// [`loop_extent_from`]'s refusal of a loop that does not walk.
+fn partial_cone_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    apex: Point3<T>,
+) -> Result<T, PointInSolidError> {
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let mut reach = T::zero();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        reach = reach.max(loop_extent_from(body, lk, apex)?);
+    }
+    Ok(reach)
 }
 
 /// The face's slant window, folded over its outer cycle's vertices.
@@ -3592,6 +3718,28 @@ fn point_in_faces<T: Decide>(
                     }
                 }
             }
+            // On the double cone, `q` may be on the face or off it, and
+            // which is the trim this face has none of.
+            FaceGeo::PartialCone {
+                apex,
+                axis,
+                half_angle,
+                reach,
+            } => {
+                let elev = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
+                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                    == Sign::Zero
+                    && decide(
+                        "bool_cone_partial_reach",
+                        Margin::of((q - apex).norm() - reach),
+                        band,
+                    )
+                    .map_err(escalate)?
+                        != Sign::Positive
+                {
+                    return Err(PointInSolidError::PartialConeFace { face });
+                }
+            }
             // The full-sphere arm (M5 PR 9c): the linearized radial
             // residual, the same metre-valued form the cylinder arm
             // and the certification layer classify. A full chart
@@ -3687,15 +3835,24 @@ fn point_in_faces<T: Decide>(
     }
 
     // ---- Closest-hit ray sweep over the fixed schedule. ----
+    // A ray that may meet a partial cone face is set aside like a
+    // graze; the query refuses naming that face only if no ray clears.
     let reach = selection_reach(body, faces, q)?;
+    let mut partial = None;
     for r in &SCHEDULE {
         let d = r.map(T::from_f64).normalize();
-        if let Some(verdict) = cast_ray(body, sel, q, d, reach, band, tol)? {
-            return Ok(verdict);
+        match cast_ray(body, sel, q, d, reach, band, tol) {
+            Ok(Some(verdict)) => return Ok(verdict),
+            Ok(None) => {} // graze: next schedule member
+            Err(PointInSolidError::PartialConeFace { face }) => {
+                partial = partial.or(Some(face));
+            }
+            Err(e) => return Err(e),
         }
-        // graze: next schedule member
     }
-    Err(PointInSolidError::RayExhausted)
+    Err(partial.map_or(PointInSolidError::RayExhausted, |face| {
+        PointInSolidError::PartialConeFace { face }
+    }))
 }
 
 /// **How far from `q` any loop of the selection reaches**: the radius of
@@ -4750,6 +4907,54 @@ fn cast_ray<T: Decide>(
                     }
                     if fold(&mut best, face, t, outward)?.is_none() {
                         return Ok(None);
+                    }
+                }
+            }
+            // A ray that may meet the untrimmable face ahead cannot be
+            // answered; one that definitely misses the double cone, or
+            // meets it only behind `q`, takes no crossing from it. The
+            // quadratic and its margins are the cone arm's above.
+            FaceGeo::PartialCone {
+                apex,
+                axis,
+                half_angle,
+                reach,
+            } => {
+                let partial = PointInSolidError::PartialConeFace { face };
+                let cos2 = half_angle.cos().powi(2);
+                let w0 = q - apex;
+                let (da, wa) = (d.dot(axis), w0.dot(axis));
+                let a2 = da.powi(2) - cos2;
+                let b2 = da * wa - w0.dot(d) * cos2;
+                let c2 = wa.powi(2) - w0.norm_squared() * cos2;
+                if decide("bool_ray_cone_lead", Margin::levered(a2, reach), band)
+                    .map_err(escalate)?
+                    == Sign::Zero
+                {
+                    return Err(partial);
+                }
+                let disc = b2.powi(2) - a2 * c2;
+                match decide("bool_ray_cone_disc", Margin::over_lever(disc, reach), band)
+                    .map_err(escalate)?
+                {
+                    Sign::Negative => continue,
+                    Sign::Zero => return Err(partial),
+                    Sign::Positive => {}
+                }
+                for t in quadratic_roots(a2, b2, c2, disc) {
+                    let behind = decide("bool_point_in_solid_advance", Margin::of(t), band)
+                        .map_err(escalate)?
+                        == Sign::Negative;
+                    let p = q + d * t;
+                    let beyond = decide(
+                        "bool_cone_partial_reach",
+                        Margin::of((p - apex).norm() - reach),
+                        band,
+                    )
+                    .map_err(escalate)?
+                        == Sign::Positive;
+                    if !behind && !beyond {
+                        return Err(partial);
                     }
                 }
             }

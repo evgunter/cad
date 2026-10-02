@@ -55,7 +55,7 @@ fn interval_reversed_l_profile_all_tiers() {
     assert_eq!(validate_closed(&t.body), Ok(()));
     assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     assert_eq!(t.body.vertices().count(), 12);
-    let strut = t.strut_edges[0][0];
+    let strut = t.strut_edges()[0][0].unwrap();
     let he = t.body.get_edge(strut).unwrap().he_plus;
     let top_v = t.body.half_edge_end(he).unwrap();
     let p = t

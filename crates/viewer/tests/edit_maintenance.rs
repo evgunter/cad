@@ -58,7 +58,7 @@ fn wall(
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::Lateral(piece)],
+        path: vec![RoleSeg::Lateral(piece.into())],
     }
 }
 
@@ -611,10 +611,13 @@ fn an_offset_clear_is_carried_but_not_worded() {
         name: SpokenName::absent(StableName {
             kind: EntityKind::Face,
             node: minter,
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: StepId(tagged(1)),
-                role: PieceRole::Leg,
-            })],
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: StepId(tagged(1)),
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
         }),
     };
     assert_eq!(
