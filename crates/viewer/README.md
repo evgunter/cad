@@ -881,15 +881,28 @@ does not reach it (`work/emit/edit-error-respeaks-from-a-later-version.md`).
 **The pick path's refusals hold bare ids and are spoken where they are
 drawn.** The pick index, its edge names, the id pass and the blend
 tool's loads are built from the landed run alone, so `PickIndexError`,
-`EdgeNameFault`, `EdgeNamesRefused`, `PickError`, `BlendEvent` and
+`IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
+`BlendTarget`, `BlendEvent`, `idpass::IdAnswer` and
 `idpass::Disagreement` carry no document and implement `Say`; their
 `Display` says each node by its tag. The frame that draws one speaks
 it from the landed document (`DocSession::landed_pair`), the one whose
 ids it is spelled in: `frame::pick_refusal`, `frame::index_badge`'s
 tooltip, `frame::held_edges_badge`, `frame::tool_notice` (through
-`ToolNotice::said`) and `Disagreement::notice`. A badge is re-read
-every frame, so its label follows each landing; a line message is made
-once and retired as above.
+`ToolNotice::said`), `Disagreement::notice`, the blend panel's target
+line and the datum form's face readout. A value carried past the frame
+that made it keeps the document it is spelled in (`frame::Spelled`),
+and is said by its tags from any other: the held-edge refusal the
+viewport leaves for the next frame's toolbar is one, since an `Open`
+between the two lands another document. `BlendEvent::TargetLost`
+names its node as the document spoke it when the target was picked,
+since no later document holds it.
+
+The landed document lags the committed one by a run. A sentence spoken
+from it says the label the landed run was read under, so a rename that
+has not landed yet reaches a badge at the next landing, and a line
+message (made once) at the next act or the next time it is said. The
+`frame::acts` argument above covers sentences spoken from the committed
+document only.
 
 **Seventeen of the eighteen writers that can put a sentence on the line
 now come through the ranking.** All eighteen used to reach the field
