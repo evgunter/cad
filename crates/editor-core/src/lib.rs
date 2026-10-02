@@ -171,12 +171,12 @@ pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub(crate) use mint::NodeIdCollides;
 pub use mint::{Mint, Minted};
 pub use names::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
-    CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey, EntityKind,
-    EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
-    FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef,
-    NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg,
+    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
+    ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,
+    DuplicateName, EntityKey, EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence,
+    FlushFinding, FlushRung, FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin,
+    NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole,
+    PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
     StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
     band, band_pi, band_rim, carried, declare, declare_all, declare_node, denotation,
