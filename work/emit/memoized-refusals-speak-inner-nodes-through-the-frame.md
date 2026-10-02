@@ -34,3 +34,18 @@ These values need a rendering that takes the speaker, the document of the frame 
 - `MintRefusal` is memoized with a part's evaluation (`eval/parts.rs`, `PartValue::unminted`). It has `spoken(doc)`, which `AssemblyError::spoken` uses for this document's own rows. Carried rows keep their tags.
 
 `spoken::Speaker`, `Say` and `Said` (`spoken.rs`) are the shape this row's "Display adapter over (value, `&Doc`)" names. They are public (pncad's `ExportError` is said by them too), and nothing in `NodeErrorKind` uses them yet.
+
+## Built
+
+Each value keeps its bare ids and writes its sentence once over `spoken::Speaker` (`Say`); its `Display` is that sentence said by tag.
+
+- **`NodeErrorKind`** says every node of its own document through the speaker, and forwards `ResolveError`, `NamingError`, `MateFault` and `SelectionRefusal` as `Said(value, by)`. `NodeError::spoken`, `NodeRefusal::line_at` and `CarriedLevel::line_in` hand it the frame's speaker.
+- **The failing node is named once.** `Speaker::about(node)` marks the node the enclosing line already names, and `Speaker::node_as` then says it as `this <noun>`. A mate's failed row reads "Mate … failed: the mate solve refused: this mate's a reference …", and `EditError::MateRefused` reads "Mate … is refused by the solve on its own datum: this mate …".
+- **`MateFault`**, with `LeverRefusal`, `FaceRefusal`, `OffsetCheck` and `PoseRefusal`, says the mate, its instances, its head, its placer and its part node from the mate's document. A part's face and reach refusal are numbered in the part and keep their own `Display`.
+- **`PartFault`** is numbered in the part. A frame that holds only this document says it by tag. `PartFault::spoken(doc_ref, part)` and `CarriedLevel::line_in_part(part)` speak it from the resolved part, and each panics on another document.
+- **`NamingError`** says its upstream, operand and member nodes and its names' minting nodes.
+- **`SelectionRefusal`** says its node, its group and its `NodeStanding`. `ClearanceRefusal::payload`, the goldening form `ClearanceReport::serialize` prints, now holds a machine form with full ids (`no_such_body node=<16 hex> index=…`). `ClearanceReport::render` holds no document and says the tag.
+- **The edit door** keeps the nodes a refused mate's fault names, spoken from the document the mate would stand in (`EditError::MateRefused::held`, `spoken::held_by`, `HeldNodes`). That refusal is not memoized.
+- **Python**: `SolvedPoses` keeps the document it solved. Its `MateFault` values, `MateError`, and the placement door's `EvaluationError` speak from that document. An edit refusal's `fault` speaks from the nodes the door kept. Every node getter still crosses the full id.
+
+`Unplaced::DeadGauge` names a deleted gauge, which no document holds, so its tag is what a speaker would say anyway. `pncad-py`'s `prose_census` now reads `Say` impls as well as `Display` impls.
