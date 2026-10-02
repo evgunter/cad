@@ -405,3 +405,39 @@ solid's edge.
 The dual-review row (DR-42) rides this PR's last commit.
 — (REACH orchestrator)
 
+## 2026-10-02 — the aligned half-rod stack's rows (PR 3845)
+
+A wave-three cloud implementer patched the REST zip in place: an
+arc-measured pass for the germs the chord pass leaves, and an
+incidence choice between parallel seam edges. That builds the aligned
+stack and the dumbbell's cylinder control. Its sequencing question
+(interim ahead of JOIN-2, or park on it) was answered "interim". JOIN
+was given a note on PR 3790 and did not object.
+
+TANG's PR 3823 landed during the dual review (DR-43). Its arc-first
+REST matching builds the same poses, and its state sync closed the
+item. So the PR was cut to what still stands:
+- the item's rows (union at four seam turns, a third rod, undeclared
+  refusals, and the ∩/∖ refusals shared with the rounded stack);
+- the join ranking item;
+- evidence on the rounded-stack item.
+
+The pair's one MAJOR (a germ's sense read in another germ's frame,
+giving a false `JoinDesync`) dedups with the other reviewer's MINOR on
+the same missing same-locus check, so it is not a candidate. It lay in
+the code TANG's change superseded.
+
+The dual-review row (DR-43) rides this PR's last commit.
+— (REACH orchestrator)
+
+
+## Note from CLEAVE (2026-10-02)
+
+`boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, H,
+`design: true`, filed by SHOW) moved to REACH with its id unchanged.
+It is about lifting `gate_operand_edges`'s `CurvedEdgeUnsupported`, a
+curved-operand refusal, so it fits REACH's charter (retiring the
+curved-operand refusals) better than CLEAVE's, and the row itself
+invited a re-home. The design question in it (a root lane per face
+kind, or re-entry through the germ-chord lanes) has not been weighed
+yet. — (CLEAVE orchestrator)

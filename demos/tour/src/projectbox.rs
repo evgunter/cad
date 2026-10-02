@@ -1,24 +1,21 @@
 //! The project-box enclosure (#91 C3): one part carrying the tour's
 //! longest boolean-of-boolean chain — cavity subtract, then 6 vent
 //! through-slots (each a two-ring tunnel seam through a wall), then 4
-//! interior screw bosses unioned to the floor (inset-overlap, the
-//! table-leg pattern), then 4 square pilot pockets into the boss tops:
-//! 15 sequential ops, every one against the exact dyadic volume
-//! oracle (a volume + Seamed-kind gate per op; tier 3′ with declared
-//! contacts runs once, on the FINAL body, in `crate::run_body`).
-//!
-//! Square-only honesty: real enclosures want ROUND bosses and drilled
-//! pilot holes; this chain does not attempt them, and says so. Not
-//! because a blanket gate forbids curved operands — the operand gate
-//! (`topo`'s `reduce::gate_operand_pairs`) admits `Cylinder` and
-//! `Sphere` faces; the curved refusals live per C5 arm, at the sites
-//! that exercise one. Everything here is square. Coordinates follow the #91 design rule: no two operand planes
-//! coincide anywhere in the chain (all features offset in 1/16 steps).
+//! round screw bosses unioned to the floor (inset-overlap, the
+//! table-leg pattern), then a through-bore down each boss and out
+//! through the floor: 15 sequential ops, every one against the
+//! closed-form volume oracle (a volume + Seamed-kind gate per op; tier
+//! 3′ with declared contacts runs once, on the FINAL body, in
+//! `crate::run_body`). Coordinates follow the #91 design rule: no two
+//! operand planes coincide anywhere in the chain (all features offset
+//! in 1/16 steps).
 //!
 //! Retires the abstract `openbox` stop (this is the cavity story with
 //! a real part around it).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use core::f64::consts::PI;
 
 use pncad::topo::BooleanBody;
 
@@ -26,10 +23,51 @@ use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, try_subtract, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::Tol;
+use pncad::authoring::{p2, p3, validated};
+use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::profile::SketchPlane;
+use pncad::sweep::{Extrusion, extrude};
+
+/// The bosses' radius (m).
+pub(crate) const BOSS_R: f64 = 0.1875;
+
+/// The floor's top (m): walls and floor are 0.25 thick.
+pub(crate) const FLOOR_TOP: f64 = 0.25;
+
+/// The bosses' span in `z`: from 1/16 down INTO the floor (below
+/// [`FLOOR_TOP`]) to the boss tops.
+pub(crate) const BOSS_Z: (f64, f64) = (0.1875, 0.875);
+
+/// The bores' radius (m).
+pub(crate) const BORE_R: f64 = 0.09375;
+
+/// The boss axes, `(x, y)`, each boss's bore on the same axis.
+pub(crate) const BOSS_AXES: [(f64, f64); 4] = [
+    (0.625, 0.625),
+    (0.625, 1.375),
+    (2.375, 0.625),
+    (2.375, 1.375),
+];
+
+/// The height of material a bore removes: the boss's column, from the
+/// floor's underside (`z = 0`) to the boss top.
+pub(crate) const BORED_HEIGHT: f64 = BOSS_Z.1;
+
+/// A rod of radius `r` on the vertical axis through `(cx, cy)`, from
+/// `z.0` to `z.1`.
+fn rod<S: Scalar>(cx: f64, cy: f64, r: f64, z: (f64, f64), tol: Tol) -> pncad::topo::Body<S> {
+    let circle = pncad::profile::circle(p2(cx, cy), S::from_f64(r), tol)
+        .expect("the rod radius is positive")
+        .into();
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+    let profile = validated(plane, vec![circle], tol).expect("the rod profile validates");
+    extrude(&profile, Extrusion::Distance(S::from_f64(z.1 - z.0)), tol)
+        .expect("extrude the rod")
+        .body
+}
 
 /// Builds the 15-op enclosure chain, generic (the Probe sweep runs the
-/// same ops); returns the final body and its exact volume.
+/// same ops); returns the final body and its closed-form volume.
 pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
     // Outer shell 3 x 2 x 1.5, walls/floor 0.25.
     let outer: pncad::topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5), tol);
@@ -58,38 +96,34 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
         }
     }
 
-    // Interior screw bosses: 4, unioned to the floor with a 1/16
-    // overlap INTO it (flush contact would refuse — ladder rung (b)).
-    let bx = [(0.4375, 0.8125), (2.1875, 2.5625)];
-    let by = [(0.4375, 0.8125), (1.1875, 1.5625)];
-    for &x in &bx {
-        for &y in &by {
-            let boss = slab(x, y, (0.1875, 0.875), tol);
-            vol += 0.375 * 0.375 * 0.625;
-            acc = expect_seamed(
-                "boss union",
-                check(try_union(&acc.body, &boss, tol), vol, tol),
+    // Interior screw bosses: 4 cylinders unioned to the floor with a
+    // 1/16 overlap INTO it (flush contact would refuse — ladder rung
+    // (b)); each adds its part above the floor top.
+    for (cx, cy) in BOSS_AXES {
+        vol += PI * BOSS_R * BOSS_R * (BOSS_Z.1 - FLOOR_TOP);
+        acc = expect_seamed(
+            "boss union",
+            check(
+                try_union(&acc.body, &rod(cx, cy, BOSS_R, BOSS_Z, tol), tol),
                 vol,
-            );
-            ops += 1;
-        }
+                tol,
+            ),
+            vol,
+        );
+        ops += 1;
     }
 
-    // Square pilot pockets, centered in each boss top (round pilot
-    // HOLES are the M5 upgrade).
-    for &x in &bx {
-        for &y in &by {
-            let px = (x.0 + 0.09375, x.1 - 0.09375);
-            let py = (y.0 + 0.09375, y.1 - 0.09375);
-            let pocket = slab(px, py, (0.5625, 1.0625), tol);
-            vol -= 0.1875 * 0.1875 * 0.3125;
-            acc = expect_seamed(
-                "pilot pocket",
-                check(try_subtract(&acc.body, &pocket, tol), vol, tol),
-                vol,
-            );
-            ops += 1;
-        }
+    // A through-bore down each boss's axis and out through the floor,
+    // overshooting into air at both ends.
+    for (cx, cy) in BOSS_AXES {
+        vol -= PI * BORE_R * BORE_R * BORED_HEIGHT;
+        let bore = rod(cx, cy, BORE_R, (-0.125, BOSS_Z.1 + 0.25), tol);
+        acc = expect_seamed(
+            "boss bore",
+            check(try_subtract(&acc.body, &bore, tol), vol, tol),
+            vol,
+        );
+        ops += 1;
     }
     assert_eq!(ops, 15);
     (acc, vol)
@@ -105,23 +139,25 @@ pub fn stop(tol: Tol) -> Stop {
     let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, tol);
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
-         4 boss unions -> 4 pocket subtracts), volume matching the dyadic oracle \
-         after every op (observed bit-exact, gated 1e-9), final V = {vol}; square-only honesty: round bosses/pilot holes are not \
-         attempted here (curved operands are gated per C5 arm, not by a blanket \
-         operand gate); no two operand planes coincide \
-         anywhere in the chain (the #91 design rule). SECTIONED: {section_note}"
+         4 boss unions -> 4 bore subtracts), volume within 1e-9 of the closed-form \
+         oracle after every op, final V = {vol} (each boss adds pi R^2 x {boss_h}, \
+         R = {BOSS_R}; each bore removes pi r^2 x {BORED_HEIGHT}, r = {BORE_R}); \
+         no two operand planes coincide anywhere in the chain (the #91 design \
+         rule). SECTIONED: {section_note}",
+        boss_h = BOSS_Z.1 - FLOOR_TOP,
     );
     Stop {
         name: "projectbox",
         caption: "project box — whole, and sectioned".to_string(),
         montage: true,
-        story: "electronics enclosure: cavity, 6 vent through-slots, 4 floor bosses, \
-                4 pilot pockets — the tour's longest boolean-of-boolean chain — and \
-                beside it the SAME body split by a tilted plane and pulled apart, a \
-                machinist's section showing the bosses, pockets and wall sections the \
-                whole one hides",
-        ops: "extrude 15 cutters/bosses -> 15 sequential subtract/union nodes; \
-              topo::split(tilted plane) -> 2 bodies -> 2 transform nodes",
+        story: "electronics enclosure: cavity, 6 vent through-slots, 4 round floor \
+                bosses, 4 through-bores — the tour's longest boolean-of-boolean chain \
+                — and beside it the SAME body split by a tilted plane through two \
+                bored bosses and pulled apart, a machinist's section whose boss \
+                sections are rings around the bores, showing what the whole one hides",
+        ops: "extrude the shell, 7 slab cutters, 4 boss rods, 4 bore rods -> 15 sequential \
+              subtract/union nodes; topo::split(tilted plane) -> 2 bodies -> 2 \
+              transform nodes; topo::plane_section(same plane) -> regions with holes",
         delta: 1e-2,
         note: Some(note),
         // The SECTION's camera, not the box's. A merged cell has one
@@ -150,5 +186,46 @@ pub fn stop(tol: Tol) -> Stop {
         ))
         .chain(section_bodies)
         .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **The bored box and its halves pass their tiers, and the above
+    /// half is three outer shells.** Building the stop asserts the
+    /// chain's per-op volume oracle and Seamed kind, the halves' section
+    /// rings and `plane_section`'s closed-form areas; this adds what
+    /// `crate::run_body` asserts on the tour pass (tier 3′ on the box
+    /// with its declared contacts, tier 3 on each half), and the shell
+    /// roles the above half's STEP pin rests on: the cut frees the two
+    /// bored bosses' tops, so that half is the walls' piece and two
+    /// caps, each bounding material.
+    #[test]
+    fn the_bored_box_and_its_halves_pass_their_tiers_and_the_above_half_is_three_outer_shells() {
+        use pncad::topo::ShellRole;
+        let tol = Tol::witness();
+        let stop = stop(tol);
+        let [boxbody, above, below] = &stop.bodies[..] else {
+            panic!("the box and its two halves");
+        };
+        let contacts = boxbody
+            .contacts
+            .as_ref()
+            .expect("the box is a boolean result");
+        pncad::topo::validate_pseudomanifold_certificate(&boxbody.body, contacts, tol)
+            .expect("the box: tier 3′ with its declared contacts");
+        for half in [above, below] {
+            pncad::topo::validate_geometric_certificate(&half.body, tol)
+                .unwrap_or_else(|e| panic!("{}: tier 3: {e:?}", half.name));
+        }
+        let shells: Vec<_> = above.body.shells().map(|(k, _)| k).collect();
+        let roles: Vec<ShellRole> = pncad::topo::classify_shells_of(&above.body, &shells, tol)
+            .expect("the above half's shells classify")
+            .into_iter()
+            .map(|c| c.role)
+            .collect();
+        assert_eq!(roles, [ShellRole::Outer; 3], "the above half's shell roles");
     }
 }
