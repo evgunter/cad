@@ -25,3 +25,17 @@ No corpus case reaches this. The notch the slab cuts in `b`'s wall in `near` has
 
 1. Build the pocket case and measure it.
 2. If it refuses or names by order, decide how a fragment is told at a vertex-on-face contact, for example by the pierce ring vertex where surgery inserts one. That is a design question if topology alone cannot say.
+
+## A second residue: attaching by the entry vertex alone
+
+Found in review of PR 3753 (re-review, 2026-10-02).
+
+**The gap.** `discard::HeldInto` gives a held stretch to any discarded fragment that holds the edge's entry vertex `at`, or a null-edge copy of it. A fragment can touch `at` without bordering the stretch.
+
+**Where it breaks.** At a reflex vertex, a kept sector of the dropped face can lie between the covered sector and a lost one (covered Q1 | kept Q2 | lost Q3). The lost Q3 fragment would then join the covered region's obstacle through the point `at` alone. That is the M1 failure, in miniature.
+
+**Why nothing hits it today.**
+- With axis-aligned boxes, at most three sectors meet at such a vertex, so the rule is exact.
+- The breaking shape tried was an L-shaped `a`, `b` = [.5,1]×[.5,1]×[0,1], and `H` = [.3,.7]×[.3,.5]×[.5,2]. The kernel refuses it with `ClassificationInvariant` ("edge-edge membership disagreement"), the reflex-wedge limit documented on `resolve_edge_edge`.
+
+**When to revisit.** Before that limit is lifted, or before non-axis-aligned planar covered pairs are admitted, the attach rule should test "borders the stretch", not "touches `at`". The probe source is in the reviewer's notes: `probe_l_vertex.rs`.

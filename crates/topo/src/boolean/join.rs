@@ -1452,7 +1452,7 @@ fn choose_roles<T: Decide>(
     if l == outer {
         // Both arcs dirty is refused loudly, never resolved: the star
         // fixture reaches it in six member orders
-        // (`work/zip/join-desync-on-the-star-fixture`).
+        // (`work/join/join-desync-on-the-star-fixture`).
         return clean_dir(body, ea, ra, loose)?
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }

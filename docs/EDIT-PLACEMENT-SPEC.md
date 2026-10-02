@@ -1,6 +1,6 @@
 # EDIT-PLACEMENT: gauges, and a placement that is parametric
 
-This is the unit slate for `work/edit/placement-is-spelled-three-ways-node-registry-and-rule.md`. It follows Ev's rulings on `[ev]` #3437 and `[ev]` #3441, both from 2026-09-29, and `[ev]` #3505 (2026-10-01), which are now A4, A9 and A11 (2)–(5) in `crates/editor-core/ASSEMBLY.md`. Read those clauses and the row's `RULED` section first: they are the contract. The designer reports behind them are rows 17–19 and 21 of `docs/DESIGN-FORK-LOG.md`.
+This is the unit slate for `work/place/placement-is-spelled-three-ways-node-registry-and-rule.md`. It follows Ev's rulings on `[ev]` #3437 and `[ev]` #3441, both from 2026-09-29, and `[ev]` #3505 (2026-10-01), which are now A4, A9 and A11 (2)–(5) in `crates/editor-core/ASSEMBLY.md`. Read those clauses and the row's `RULED` section first: they are the contract. The designer reports behind them are rows 17–19 and 21 of `docs/DESIGN-FORK-LOG.md`.
 
 The ruling reaches the data model, the mate solve, evaluation, persistence, export, Python and the viewer, so it ships as three units in order. Each one leaves main green and correct. None of them builds half of a later unit.
 
@@ -174,7 +174,7 @@ Announce each crossing.
    - An old file refuses, typed (`Unreadable`, with the regenerate recourse); it never loads with a different meaning.
    - A dangling gauge reference loads; it is a legal state.
    - Regenerate every file the change moves from its source, and name each one with what moved it. Re-baseline every pin that moves and list them in the PR body. A golden that changes is never a cost to weigh against the change (`docs/prompts/implementer-discipline.md`).
-10. **The placement refusal arms** on `work/edit/edit-refusals-short-of-the-shape-guard.md`.
+10. **The placement refusal arms** on `work/recipe/edit-refusals-short-of-the-shape-guard.md`.
     - The row says seven. Five remain on main: `EmptyPlacementList`, `MaintenanceUnrecorded`, `PlacementAxis`, `PlacementOnNonInstance` and `PlacementRuleMismatch` (`viewer/tests/refusal_concision_edits.rs` ~863).
     - Remove the ones P2 deletes. Rewrite the others P2 touches so they carry a recourse, and update both the census and the row.
     - `PlacementRuleMismatch` and `EmptyPlacementList` concern the explicit placement rule, not the registry. Leave them unless P2 touches them.
