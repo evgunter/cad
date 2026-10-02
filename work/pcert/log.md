@@ -377,3 +377,36 @@ direction, sliver band); the fix pass gives the residual one home with
 the sound lever.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-02 — PR 3759 (the at-rest unit) up; dual review; a design question it raised
+
+PR 3759 implements C4: tier 3 dry-mints a rowless face and reports why,
+re-certifies a half-minted face's rows against a window derived from
+the face, and every public producer now mints (`extrude` raised to
+`AtRestPolicy`). It also discloses a heavy cost: at the certified
+scalars the pcurve certificate's `pcurve_envelope` and
+`pcurve_map_residual` — zero by construction for a closed-form wall
+image — widen past the band over a parameter box, and now run on every
+extrude. M10-7's plate certifies only to 3.9e2·ε; the m10_3 hole drive
+certifies no leaf above ε/8; sym11's certified lane refuses.
+
+**Sequencing (orchestrator):** PR 3759 does not merge with that
+regression. The widening is put to the designer pair (where a
+zero-by-construction certified quantity is discharged — the certificate's
+form, PCERT's ground, or the symbolic tier's registration, SYM's), and
+its fix lands first or with 3759. The alternative — merge C4 now and
+take the regression until a fix — was rejected: it trades a headline
+capability (certified parametric studies) for a correctness rule whose
+own cost is the regression's cause.
+
+**Review:** DUAL, concurrent arm (unit cost H), two Opus reviewers on
+frozen head `8d0b2c2` (R1, R2). Designers D1 and D2 dispatched on the
+widening; byte on `analysis/design-fork/pcert-certificate-widening-2026-10-02`.
+
+PR 3733's fix pass replaced the cubic image with a quintic Hermite one
+carrying a Cauchy-estimate bound on the sixth derivative, a new
+statement `MapResidualHermite`, and re-worded C4 to name it (re-wording
+because the code moved; the statement is stronger than `OnLocusHull`).
+A delta review on the bound follows its implementer report.
+
+Signed (PCERT orchestrator).
