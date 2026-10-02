@@ -8,8 +8,7 @@
 //! not-an-arc refusals on a hand-assembled body) are rowed in
 //! `topo/tests/rim_of.rs`. What is HERE is what only these producers
 //! can state: the arcs of one rim minted one per chart, each with its
-//! own seam, which is the case the exact match had to be measured
-//! against before it could be written.
+//! own seam, and two rims on one surface pair.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -606,11 +606,12 @@ pub enum RimError {
 /// [`RimError::NotOneRim`] names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RimBreak {
-    /// Only the edge the walk arrived on meets the vertex: the chain
-    /// ends there.
+    /// One end of an edge between the seed's two surfaces is at the
+    /// vertex — the end the walk arrived on: the chain ends there.
     Dangles,
-    /// Three or more edges between the seed's two surfaces meet the
-    /// vertex, so it is no single chain.
+    /// Three or more ends of edges between the seed's two surfaces are
+    /// at the vertex (a closed edge's two ends both count), so it is no
+    /// single chain.
     Branches,
 }
 
@@ -656,9 +657,9 @@ impl core::fmt::Display for RimError {
                 how: RimBreak::Branches,
                 ..
             } => f.write_str(
-                "this edge names no single rim: more than two edges between \
-                 its two surfaces meet at one vertex. Select the edges one by \
-                 one instead",
+                "this edge names no single rim: the edges between its two \
+                 surfaces end at one vertex more than twice. Select the edges \
+                 one by one instead",
             ),
             Self::NotIntact(DanglingRef::Entity(at)) => {
                 write!(f, "the body is not intact at {at}")
@@ -758,9 +759,12 @@ fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError
 ///
 /// **Membership is read off the topology; no carrier is compared.** A
 /// shared surface key is the producer's recorded decision that those
-/// faces lie on one surface, and two arcs between the same two
-/// surfaces that share a vertex lie on one circle, because distinct
-/// circles of one surface pair's intersection are disjoint. Edges on
+/// faces lie on one surface. Two circles of one surface pair's
+/// intersection can cross (a bitangent plane cuts a torus in two), but
+/// at a crossing with all four arcs present the walk meets more than
+/// two edge ends and refuses [`RimBreak::Branches`]; a crossing where
+/// a third surface has removed two of the four arcs is reached by no
+/// public door known to this door. Edges on
 /// the same pair in another chain are another rim (a plane through a
 /// torus has two) and are not part of this answer.
 ///
@@ -990,7 +994,7 @@ mod tests {
     fn the_not_one_rim_text_is_short_and_says_which_break() {
         for (how, says) in [
             (RimBreak::Dangles, "stop at a vertex"),
-            (RimBreak::Branches, "more than two edges"),
+            (RimBreak::Branches, "more than twice"),
         ] {
             let text = RimError::NotOneRim {
                 walked: vec![EdgeKey::default()],

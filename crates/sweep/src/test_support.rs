@@ -1604,20 +1604,35 @@ pub fn bored_cylinder(a: f64, d: f64, outer_phi: f64, tol: Tol) -> Body<f64> {
 /// cylinder's two coplanar rims need, since both are circles in one
 /// plane.
 pub fn z_rim(body: &Body<f64>, r: f64, z0: f64, off_axis: bool) -> Vec<EdgeKey> {
-    let seed = body
-        .edges()
-        .find(|(_, e)| {
-            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-                return false;
-            };
-            matches!(c.carrier(), geom::Curve3::Circle { radius, center, axis, .. }
-                if (radius - r).abs() < 1e-9 && (center.z - z0).abs() < 1e-9
-                    && axis.z.abs() > 0.9
-                    && (center.x.hypot(center.y) > 0.1) == off_axis)
+    let found = circle_arcs_where(body, |center, radius, axis| {
+        (radius - r).abs() < 1e-9
+            && (center.z - z0).abs() < 1e-9
+            && axis.z.abs() > 0.9
+            && (center.x.hypot(center.y) > 0.1) == off_axis
+    });
+    let seed = *found.first().expect("the rim's seed edge");
+    topo::query::rim_of(body, seed).expect("one rim")
+}
+
+/// Every edge whose stored carrier is a circle that `pick` accepts
+/// (centre, radius, axis), in key order — the seed scan [`z_rim`] and
+/// [`circle_arcs_at_z`] share.
+fn circle_arcs_where(
+    body: &Body<f64>,
+    pick: impl Fn(Point3<f64>, f64, Vec3<f64>) -> bool,
+) -> Vec<EdgeKey> {
+    body.edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.carrier()),
+                Some(geom::Curve3::Circle { center, radius, axis, .. })
+                    if pick(*center, *radius, *axis)
+            )
         })
         .map(|(k, _)| k)
-        .expect("the rim's seed edge");
-    topo::query::rim_of(body, seed).expect("one rim")
+        .collect()
 }
 
 /// The rod's radius, meters.
@@ -1993,9 +2008,8 @@ fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
 /// `z` seeds [`topo::query::rim_of`], and the door hands back the rim
 /// whole, in its own order.
 ///
-/// The z-poled twin of [`rim_arcs_at`]'s seed scan — the fifth z-poled
-/// scan in the tree, and the instance
-/// `work/blend/seed-finder-home-reads-only-the-y-station` records
+/// The z-poled twin of [`rim_arcs_at`]'s seed scan, an instance
+/// `work/strut/seed-finder-home-reads-only-the-y-station` records
 /// against the day the home reads a station on either axis. Each
 /// builder above mints one circle per station (the seams it leaves are
 /// lines, so no co-surface circle exists), which this checks by
@@ -2008,16 +2022,7 @@ fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
 /// at `z`. A station no arc sits at is an empty answer.
 #[must_use]
 pub fn circle_arcs_at_z(body: &Body<f64>, z: f64) -> Vec<EdgeKey> {
-    let found: Vec<EdgeKey> = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match c.carrier() {
-                geom::Curve3::Circle { center, .. } if (center.z - z).abs() < 1e-9 => Some(k),
-                _ => None,
-            }
-        })
-        .collect();
+    let found = circle_arcs_where(body, |center, _, _| (center.z - z).abs() < 1e-9);
     let Some(&seed) = found.first() else {
         return Vec::new();
     };

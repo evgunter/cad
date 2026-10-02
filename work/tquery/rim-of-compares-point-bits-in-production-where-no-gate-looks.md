@@ -2,12 +2,13 @@
 id: rim-of-compares-point-bits-in-production-where-no-gate-looks
 kind: issue
 title: rim_of decides one rim by a production bit compare of points and scalars, which no bit-identity gate can see
-status: dispatched
+status: review
 opened: 2026-09-24
 refs: [rim-of-refuses-extruded-multi-arc-rims, the-re-basing-gate-refuses-m7-8-where-nothing-moves]
 priority: P2
 cost: M
 branch: tquery/rim-of-structural
+pr: 3773
 ---
 
 

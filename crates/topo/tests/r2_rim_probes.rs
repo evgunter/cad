@@ -121,8 +121,8 @@ fn three_arc_rim() -> (Body<f64>, [EdgeKey; 3]) {
 /// **A three-arc rim is answered along the lower surface's half-edges,
 /// from every one of its arcs.**
 ///
-/// The sphere is the lower surface key (it is minted first), and its
-/// loop runs the rim against the arcs' carrier direction here, so the
+/// The lower surface key's loop runs the rim against the arcs' carrier
+/// direction here, so the
 /// answer is `[a, c, b]` and its rotations. The reverse walk is a
 /// different `Vec`, so this row goes red on a direction flip.
 #[test]
@@ -131,16 +131,12 @@ fn a_three_arc_rim_is_ordered_along_the_lower_surfaces_half_edges_from_every_see
 
     let lower_runs = |k: EdgeKey| {
         let e = body.get_edge(k).unwrap();
-        let sphere = body.get_face(query_face(&body, e.he_plus)).unwrap().surface;
-        let plane = body
+        let plus = body.get_face(query_face(&body, e.he_plus)).unwrap().surface;
+        let minus = body
             .get_face(query_face(&body, e.he_minus))
             .unwrap()
             .surface;
-        let he = if sphere < plane {
-            e.he_plus
-        } else {
-            e.he_minus
-        };
+        let he = if plus < minus { e.he_plus } else { e.he_minus };
         (
             body.get_half_edge(he).unwrap().start,
             body.half_edge_end(he).unwrap(),

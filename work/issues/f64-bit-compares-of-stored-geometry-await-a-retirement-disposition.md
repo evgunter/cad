@@ -1,7 +1,7 @@
 ---
 id: f64-bit-compares-of-stored-geometry-await-a-retirement-disposition
 kind: issue
-title: Three production f64 to_bits() compares decide geometric identity, outside the Bounds-shaped sweep and the consumer gate
+title: Two production f64 to_bits() compares decide geometric identity, outside the Bounds-shaped sweep and the consumer gate
 status: open
 opened: 2026-10-02
 ---
@@ -13,7 +13,7 @@ TQUERY's rim repair swept production code for `to_bits()` reads of
 ruled a retired coincidence check on PR 3156). That pattern cannot
 see a bit compare of plain `f64` stored values, so a second pass
 looked at every production `to_bits()` outside `#[cfg(test)]`
-modules. Three compare stored geometry and decide identity from the
+modules. Two compare stored geometry and decide identity from the
 bits; whether each is a coincidence check under `docs/DESIGN.md`'s
 retirement ("Production bit-identity coincidence checking is
 RETIRED") has not been decided:
@@ -24,10 +24,8 @@ RETIRED") has not been decided:
 - `crates/step-import/src/adopt.rs` `bitwise_iso_match` — a parsed
   NURBS carrier IS a wall's boundary iso-curve when degree, knots,
   control points and weights are bit-equal (the IsoCurve rung).
-- `crates/topo/src/seqgen.rs` `chord_of` — a merged member whose start
-  and end are bit-equal is re-described as a self-loop circle.
 
-`scripts/gates/bit-identity-consumer.sh` sees none of them (it matches
+`scripts/gates/bit-identity-consumer.sh` sees neither (it matches
 `bit_identity::|repr_bits|eq_bits`), and
 `work/guard/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`
 widens it to `Bounds` accessors only.
@@ -39,8 +37,17 @@ The rest of the second pass is hashing and memo keys
 `Interval::repr_bits`), exactness tests of a single value against a
 constant (`step-import` weights `== 1.0`), STEP parse-record dedupe of
 unit factors (`step-import/src/entities.rs`), diagnostics that report
-ulps (`profile/src/lift.rs`), and the test fixtures in
-`topo/src/fixtures.rs`. The ~45 hits in `editor-core`, `viewer`,
+ulps (`profile/src/lift.rs`), and test-only code: `topo/src/fixtures.rs`
+and `topo/src/seqgen.rs` (`chord_of` bit-compares a member's start and
+end, but `seqgen` is `#[cfg(test)] pub(crate) mod seqgen;` in
+`crates/topo/src/lib.rs`).
+
+**The pass's blind spot, and its re-check.** It skipped `#[cfg(test)]`
+blocks inside a file, not a `#[cfg(test)]` on the parent `mod` line, so
+`seqgen` first read as production. Every hit above was re-checked
+against its crate's `mod` line: `mesh` declares `mod planar;` and
+`step-import` declares `mod adopt;` with no `cfg`, so those two are
+production. The ~45 hits in `editor-core`, `viewer`,
 `pncad-py` and `demos/tour` were classed by file (document values,
 quantity formatting, memo keys) and not read one by one — the open
 gap of this sweep.
