@@ -1759,11 +1759,7 @@ fn reshaped_component(
     } else {
         (doc, None)
     };
-    let mut ids: Vec<Vec<Option<editor_core::StepId>>> = program
-        .ids
-        .iter()
-        .map(|l| l.iter().copied().map(Some).collect())
-        .collect();
+    let mut ids = program.kept_in_place();
     ids[0][position] = None;
     let (doc, _) = step(
         doc,
