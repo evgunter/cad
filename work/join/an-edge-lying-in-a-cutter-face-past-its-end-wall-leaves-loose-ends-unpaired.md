@@ -11,7 +11,7 @@ parent: JOIN-1
 
 
 Found by CONTACT-2 once the plane×plane join lane stopped refusing a
-conic between edge (`chord_join.rs` `between_edge_in_plane`): the
+conic between edge (`chord_join.rs` `between_edge_is_section`): the
 axis-plane lap it was dispatched for got one step further and refused
 here instead.
 

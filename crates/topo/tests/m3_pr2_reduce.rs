@@ -454,7 +454,7 @@ fn curved_face_refuses() {
         Err(
             e @ SplitReduceError::CurvedBooleanUnsupported {
                 face,
-                kind: geom_brep::SurfaceKind::Torus,
+                kind: geom::SurfaceKind::Torus,
             },
         ) => {
             assert_eq!(face, cube.seed.face);

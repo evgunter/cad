@@ -53,6 +53,27 @@ Signed (JOIN orchestrator).
 
 Signed (JOIN orchestrator).
 
+## 2026-10-02 — PR 3770 lands: the star fixture
+
+`join-desync-on-the-star-fixture` closed. The defect was in `vtxfac`, not
+the join: a whole-orbit pierce run was recorded as a fan split where
+`mev` builds a strut. Review tier: single FULL. The review was mergeable
+with no MAJOR. It measured the fix generalising: 40 of 40 cap probes,
+cylinders, and the 315° reflex corner, which refused `SeamOrientation`
+on main and now builds. It also showed that the splitter's twin of the
+same arm was reachable. The fix pass fixed the twin in this PR, which
+closes CLEAVE's `split-whole-orbit-run-mints-an-unlabelled-strut`.
+One sweep row flipped from a refusal to a verified exact split:
+`split_section_rings::a_plane_through_a_notch_tip_splits_exactly`.
+
+Filed from the fix pass:
+- `whole-orbit-fan-end-has-three-spellings` (P1/M).
+- `reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`, priced
+  P0/H here: ordinary corner poses refuse in kernel-bug words in 326 of
+  720 probes, cause unmeasured.
+
+Style notes recorded and not acted on: `bool_strut_order`'s geometric
+facing against `vtxfac`'s hard-coded one is in the P1 row.
 ## 2026-10-02 — the in-face fork: converged, decided here, JOIN-1 specced
 
 One Opus and one Fable designer weighed how a section segment that
@@ -90,5 +111,28 @@ JOIN-2 and JOIN-3 are filed when JOIN-1 lands, since their shape depends
 on its type. Review tier for JOIN-1: DUAL. It redefines the join's
 identity for a germ, which is architectural, broad and hard to change
 later.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-02 — PR 3771 lands: one home for the ring-run winding
+
+`ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum` closed.
+Review tier: single FULL. The review was mergeable with no MAJOR. It
+mutation-tested the new row and found the run spelling's conic arm
+unguarded; the reviewer's row now pins it. It also found that the sweep
+missed a 2-D spelling (`chart_region`) and an existing exact home
+(`geom-brep` `loop_vector_area`). Both are recorded on REACH's class row,
+which asks for a ruling on where the one home lives, geom-brep or topo,
+before anything is unified.
+
+The PR was held on main's eps=1e-6 red (REACH's P0
+`an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed`, not this
+PR's), and merged after REACH's PR 3755 fixed it.
+
+The blind D's diagnosis (on its row) is the in-face class, so it waits on
+JOIN-1 (defect 1) and JOIN-3 (defect 2). Style notes recorded and not
+acted on: the two "not wound" vocabularies (`LoopWinding::Unsupported`
+against `None`), `Step`'s nested tuple, the tests living in a consumer
+module, and `TornLoop::Dangling` naming `last` rather than its `next`.
 
 Signed (JOIN orchestrator).

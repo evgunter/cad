@@ -16,7 +16,9 @@ D36 split `UnsupportedCarrier` (uncovered: the carrier can lie on the
 chart, no lane covers it — the only refusal `topo::pcurves::mint_faces`
 excuses) from `CarrierOffChart` (a body defect, propagated). Where an
 incidence test exists the split is decided by it: the sphere's general
-circles (`sphere_circle_incidence`, `pcurve_sphere_chart_incident`),
+circles (`sphere_circle_incidence`, `pcurve_sphere_chart_incident`;
+no longer excused at all — the mint images them through the fitted
+route),
 the cone's non-rim conics (`cone_conic_incidence`,
 `pcurve_cone_chart_incident`), and the spiric's foreign tori (the
 mirror-torus coefficient match). The classes below have NO such test

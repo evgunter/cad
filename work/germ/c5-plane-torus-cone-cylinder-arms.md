@@ -86,3 +86,16 @@ above; (2) the Klein demo's wall-pair re-authoring (rows 3/4/8), which
 waits on the props lane for a spiric-bounded face
 (`work/props/spiric-bounded-face-area-is-unimplemented.md`) and on
 SHELL's opened-arm lift (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
+
+## An obligation for the join-frame arm: the corner bar's lens (REACH, 2026-10-01)
+
+Since the pierce lane's sector-side charge is read at its peak (PR
+#3627), every torus bar in `germ_torus_doors` and the corner bar in
+`germ_interior_oval::the_corner_bar_never_comes_back_a_body` stops at
+this same door, `GermFrameUnsupported { Torus × Plane }`. For the corner
+bar that door is the ONLY thing between the op and a body: the section
+certificate clears its lens (one component per end square with the
+corners' events on it, W4), so nothing upstream guards the lens, and
+tracing it is the crossing layer's business. The day the arm lands
+here, that row goes red unless the lens is traced or given a real
+guard; the arm's lane owns that row, not a relaxation of it.

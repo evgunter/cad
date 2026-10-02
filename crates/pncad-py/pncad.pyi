@@ -5849,7 +5849,12 @@ class SolvedPoses:
     def fault(self, node: NodeId) -> Optional[MateFault]:
         """The node's recorded fault. Recorded against the refusing
         MATE and against every instance in its group that
-        consequently has no pose — and no further."""
+        consequently has no pose — and no further.
+
+        Its words speak each node from the document as it was SOLVED:
+        the fault is the solve's, recorded over that version, so a
+        label set on the document afterwards does not reach it. Solve
+        again to speak the current labels."""
 
     def role(self, mate: NodeId) -> Optional[MateRole]: ...
     def root(self, instance: NodeId) -> Optional[NodeId]:
@@ -5884,7 +5889,11 @@ class SolvedPoses:
         read. Raises MateError when the group did not solve, and
         EvaluationError — kind `unplaced`, or `placement_refused` with
         the placement's own refusal as the cause — when nothing places
-        its group or a placement on its frame does not evaluate."""
+        its group or a placement on its frame does not evaluate.
+
+        A MateError's words are the solve's fault, spoken from the
+        document as it was solved; an EvaluationError's are read off
+        `doc`, and spoken from it."""
 
 def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
