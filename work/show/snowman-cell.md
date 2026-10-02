@@ -2,10 +2,11 @@
 id: snowman-cell
 kind: unit
 title: a new montage cell: two coaxial balls under union, subtract and intersect, and the union's waist rolled into a torus band
-status: dispatched
+status: review
 opened: 2026-10-02
 priority: P3
 cost: M
+pr: 3787
 ---
 
 ## What
@@ -39,8 +40,11 @@ fillet's meridian section.
 
 ## Constraints known going in
 
-- Only the coaxial, coplanar-seam pose builds; a ball spun off the
-  shared axis refuses (`reach/tilted-sphere-pair-section-refuses-at-the-polar-gate`).
+- Only the coaxial, coplanar-seam pose builds AND draws: a ball spun
+  about the shared axis refuses at the pierce-ring door
+  (`tang/pierce-ring-has-no-join-arm`), and a pair tilted off the
+  shared axis builds but does not tessellate
+  (`tess/sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane`).
   Do not pose around that: author the natural snowman (coaxial is what a
   snowman is), and say in the narration that the tilted pair is lily's
   wall 7.

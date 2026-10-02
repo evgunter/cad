@@ -2277,7 +2277,7 @@ fn lift_to<T: Real>(body: &Body<T>, from: FaceKey, onto: FaceKey) -> Result<T, S
 /// Re-points every description on `r#loop` that names `dead` at
 /// `live`, re-certifying each through the attach layer. `rim` names
 /// the designated face in any refusal and is otherwise unread.
-fn rename_loop_surface<T: Decide>(
+fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     r#loop: crate::entity::LoopKey,
     dead: crate::geometry::SurfaceKey,

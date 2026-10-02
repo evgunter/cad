@@ -377,3 +377,109 @@ carriers did.
 
 The dual-review row (DR-40) rides this PR's last commit.
 — (REACH orchestrator)
+
+## 2026-10-02 — a shaft in a full-turn bore unions (PR 3814)
+
+Second-wave unit, built by a cloud implementer. It went through a dual
+review by two cloud reviewers (DR-42), then one delta review. The
+orchestrator checked the last fix pass itself.
+
+- **The pair's one MAJOR.** No row observed the new crossing layer:
+  forcing it `Clear` kept every row green. The other reviewer raised the
+  same gap as a MINOR, so it is not a tally candidate. The fix pass
+  pinned the layer with rows red under each mutant.
+- **The causal story was corrected.** What unblocks the fixtures is the
+  declared lane's empty-boundary certificate, and the measured sentence
+  is now at the claim site.
+- **The operand-order dependence is gone.** `shaft ∪ collar` refused
+  `LoopDiscontinuity` until twins were minted on the other solid's
+  carrier.
+- **Fail-loud.** A twin whose carrier the lane cannot mint now refuses
+  typed instead of keeping the straight chord.
+
+Merging main met TANG's #3823 in `rest.rs`, where seam segments now
+carry their matched arcs. The resolution keeps both: a segment's
+matched arc first, then the fan walk, then a chord minted on the other
+solid's edge.
+
+The dual-review row (DR-42) rides this PR's last commit.
+— (REACH orchestrator)
+
+## 2026-10-02 — a tilted sphere pair builds (PR 3817)
+
+A second-wave unit, built by a cloud implementer. Dual review (DR-45,
+no MAJOR), then a fix pass, a k-lint pass and a delta review. The
+orchestrator checked the final fix pass itself.
+
+The probe-scalar carve of lily wall 7 surfaced two k-lint flags.
+- **The clearance flag.** The clearance pre-filter's own charge on an
+  arc ending on the carrier. The decision was removed: such an arc
+  goes straight to the endpoint arms, with behaviour preserved.
+- **The fitted envelope's quarter-band target.** Ruled by a new k-lint
+  rule (5), `CONSTRUCTION_COUPLED`. It judges that name against its
+  construction's ε/4 target and is keyed on the construction where the
+  name is minted.
+
+The delta review found that no ratified page governs k-lint's rule
+text. `tools/README.md` CC1–CC5 governs the reading boundary, not
+judgements over admitted readings. So the rule landed with the unit.
+
+The delta review also confirmed that main's dev-probe leg was red on
+three suites. One of them, `bool_plane_orient`'s linearity, was turned
+red by REACH's own #3657. A REACH lane (`reach/dev-probe-red`) is
+fixing all three.
+
+The dual-review row (DR-45) rides this PR's last commit.
+## 2026-10-02 — the aligned half-rod stack's rows (PR 3845)
+
+A wave-three cloud implementer patched the REST zip in place: an
+arc-measured pass for the germs the chord pass leaves, and an
+incidence choice between parallel seam edges. That builds the aligned
+stack and the dumbbell's cylinder control. Its sequencing question
+(interim ahead of JOIN-2, or park on it) was answered "interim". JOIN
+was given a note on PR 3790 and did not object.
+
+TANG's PR 3823 landed during the dual review (DR-43). Its arc-first
+REST matching builds the same poses, and its state sync closed the
+item. So the PR was cut to what still stands:
+- the item's rows (union at four seam turns, a third rod, undeclared
+  refusals, and the ∩/∖ refusals shared with the rounded stack);
+- the join ranking item;
+- evidence on the rounded-stack item.
+
+The pair's one MAJOR (a germ's sense read in another germ's frame,
+giving a false `JoinDesync`) dedups with the other reviewer's MINOR on
+the same missing same-locus check, so it is not a candidate. It lay in
+the code TANG's change superseded.
+
+The dual-review row (DR-43) rides this PR's last commit.
+— (REACH orchestrator)
+
+## 2026-10-02 — split refuses per face, not per body (PR 3843)
+
+A wave-three cloud implementer built this, and it had a dual review
+(DR-44, no MAJOR). `topo::split` used to refuse a whole body for one
+sphere, torus or spline face. It now refuses only where the plane may
+meet that face's padded reach box. The gate is load-bearing: without
+it, a flank cut silently returns the whole ball on one side.
+
+Both reviewers found the gate sound (189 admitted planes, 0 wrong),
+but several of its fences had no row that could fail. The fix pass
+gave each one a row red under its mutant. It also guards the sphere
+zone against a face whose side of its boundary is not certified, the
+complement face one reviewer reached by STEP import.
+
+The dual-review row (DR-44) rides this PR's last commit.
+— (REACH orchestrator)
+
+
+## Note from CLEAVE (2026-10-02)
+
+`boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (P1, H,
+`design: true`, filed by SHOW) moved to REACH with its id unchanged.
+It is about lifting `gate_operand_edges`'s `CurvedEdgeUnsupported`, a
+curved-operand refusal, so it fits REACH's charter (retiring the
+curved-operand refusals) better than CLEAVE's, and the row itself
+invited a re-home. The design question in it (a root lane per face
+kind, or re-entry through the germ-chord lanes) has not been weighed
+yet. — (CLEAVE orchestrator)
