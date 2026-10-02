@@ -894,6 +894,44 @@ fn a_cut_reaching_a_dead_gauge_or_of_unplaced_material_alone_refuses_typed() {
     }
 }
 
+/// **A cut of unplaced material alone names the group of its first node
+/// in document order**, whatever the ids. A gauge ahead of the two bare
+/// instances is moved until the later instance draws the lower id, so a
+/// walk over the cut set in id order would name the later group.
+#[test]
+fn a_cut_of_unplaced_material_alone_names_its_first_group_in_document_order() {
+    let p = parts("p2-split-unplaced-order");
+    let o = p.opts();
+    for k in 0..64u32 {
+        let doc = ProfileDoc::empty(
+            DocumentId::derive("p2-split-unplaced-order"),
+            Tol::witness(),
+        );
+        let (doc, _) = insert(doc, Node::gauge(None, literal([f64::from(k), 0.0, 0.0])));
+        let (doc, first) = insert(doc, Node::instantiate_part(p.base));
+        let doc = set_offset(doc, first, None);
+        let (doc, second) = insert(doc, Node::instantiate_part(p.top));
+        let doc = set_offset(doc, second, None);
+        if first < second {
+            continue;
+        }
+        let err = editor_core::split(
+            &doc,
+            &cut(&[first, second]),
+            DocumentId::derive("p2-split-unplaced-order-part"),
+            Tol::witness(),
+            o.resolver.as_ref(),
+        )
+        .expect_err("unplaced material alone");
+        assert!(
+            matches!(&err, editor_core::SplitError::UnplacedAlone { group } if group.id() == first),
+            "the refusal names the first group the document holds: {err:?}"
+        );
+        return;
+    }
+    panic!("no gauge in 0..64 gave the later bare instance the lower id");
+}
+
 /// **The group hoist, and the frame rule at a split** (A4). A cut that
 /// is exactly one placed group hoists its root's offset onto the
 /// instance left behind; a member carrying a further offset refuses,

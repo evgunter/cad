@@ -4,7 +4,7 @@ kind: issue
 title: bit-identity-consumer.sh matches only bit_identity::|repr_bits|eq_bits, so a to_bits() read of Bounds::lo/hi — a production bit-identity consumer by Ev's ruling on PR 3156 — passes every gate
 status: open
 opened: 2026-09-29
-refs: [rim-of-compares-point-bits-in-production-where-no-gate-looks, 3156]
+refs: [3773, 3156]
 priority: P2
 cost: E
 ---
