@@ -6,6 +6,7 @@ status: review
 opened: 2026-10-01
 refs: [full-period-wall-has-no-containment-verdict]
 branch: reach/fullturn-bore-mate
+pr: 3814
 ---
 
 Found by the `reach-fullperiod` lane. Giving the face door a verdict on
