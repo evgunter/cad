@@ -1486,21 +1486,95 @@ fn cylinder<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let b = cylinder_boundary(origin, axis, radius, edges, band)?;
-    let (lo, hi) = min_max(&b.levels)?;
+    cylinder_face(origin, axis, radius, &[edges], band)
+}
+
+/// **A cylinder face's flux and area over ALL its loops**, in closed
+/// form, by Green's theorem on the chart.
+///
+/// `v du` is a global 1-form on the cylinder (the azimuth is periodic,
+/// its differential is not), so the face's signed chart area is
+/// `A = −Σ_loops ∮ v du` whatever the region's shape: a notched wall, a
+/// wall with holes, a full-period band bounded by two whole rims. A
+/// rim at level `v` traversed through `Δu` contributes `−v·Δu`; a ruling
+/// has no `du` and contributes nothing. The stored traversal is
+/// interior-left about the outward normal and the chart is right-handed
+/// about the outward radial (`∂u × ∂v = R·r̂`), so `A` is positive
+/// exactly when the outward normal is `+r̂`: `p·n = R` on the face, and
+/// the flux is `R·(R·A) + origin·A⃗` with no sense bit read, the area
+/// `R·|A|`.
+///
+/// Every edge is admitted by [`cylinder_boundary`]'s decisions (an
+/// axial line on the surface, a rim on it); the level extent must be
+/// definite, and a face with no rim at all bounds no area.
+fn cylinder_face<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
+    let mut a_chart = T::zero();
+    let mut levels = Vec::new();
+    let mut any_rim = false;
+    let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
+    for edges in loops {
+        let b = cylinder_boundary(origin, axis, radius, edges, band)?;
+        for rim in &b.rims {
+            let RimLevel::Length(v) = rim.level else {
+                return Err(PropsError::NotIsoRectangle {
+                    what: "a cylinder rim carried a non-length level",
+                });
+            };
+            any_rim = true;
+            a_chart = a_chart - v * t_sign::<T>(rim.d_u_sign) * rim.dt;
+        }
+        levels.extend(b.levels);
+        va = va + loop_vector_area(edges, origin)?;
+    }
+    let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
-    // The iso-rectangle premise, before anything integrates against it
-    // (S58/#649), inside `linear_rim_side` with the side it underwrites.
-    // A rim-free wall whose meridian endpoints all sit at one level
-    // reports `DegenerateFace` (zero extent) rather than `du_of_rims`'
-    // "curved face without a rim (non-sphere)": both are typed refusals
-    // of the same input, and the second named the cause better.
-    let s_f = t_sign::<T>(linear_rim_side(&b, (lo, hi), band)?);
-    let du = du_of_rims(&b.rims, b.arms, band)?;
-    let area = radius * du * (hi - lo);
-    let va = loop_vector_area(edges, origin)?;
-    let flux = s_f * (radius * area) + (origin - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
+    if !any_rim {
+        return Err(PropsError::NotIsoRectangle {
+            what: "curved face without a rim (non-sphere)",
+        });
+    }
+    let flux = radius * radius * a_chart + (origin - Point3::origin()).dot(va);
+    Ok(FaceContribution {
+        flux,
+        area: radius * a_chart.abs(),
+    })
+}
+
+/// [`curved_face`] over a face's outer loop AND its rings. A cylinder
+/// face takes every loop into its chart Green form
+/// ([`cylinder_face`]); every other kind reads one loop, so a ring
+/// there is refused by the owning body before this is called.
+///
+/// # Errors
+///
+/// As [`curved_face`].
+pub fn curved_face_loops<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
+    match (surface, loops) {
+        (
+            &Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            },
+            _,
+        ) => cylinder_face(origin, axis, radius, loops, band),
+        (_, [outer]) => curved_face(surface, outer, sense, band),
+        _ => Err(PropsError::NotIsoRectangle {
+            what: "a ringed curved face other than a cylinder has no closed form",
+        }),
+    }
 }
 
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the

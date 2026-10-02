@@ -1314,18 +1314,15 @@ pub enum ValidationError {
     ///
     /// * `Face` — **row 2**, and the reachable one. The body carries a
     ///   face whose measurement lane the kernel has not built: today
-    ///   the closed forms need an iso-parameter rectangle
-    ///   (`geom_brep::props`' `props_rim_level`, S58) and the
-    ///   certified-quadrature lane consumes only conic/NURBS trims.
-    ///   #649's `cross.step` — a real manifold closed keyed shaft
-    ///   whose cylindrical walls have a cross-shaped iso domain — and
-    ///   the same solid produced from rectangular sub-faces by the
-    ///   public `Body::merge_coplanar_faces` are both perfectly valid
-    ///   and both land here.
-    /// * `Corrupt`, `NullScaffoldEdge`, `RingOnCurvedFace` — **row 1**
-    ///   by their own docs: unresolvable structure, a mid-surgery
-    ///   body carrying M3 null-edge scaffolding, and a curved face
-    ///   with interior rings no M2 construction produces.
+    ///   the cone, sphere and torus closed forms need an iso-parameter
+    ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
+    ///   the certified-quadrature lane consumes only conic/NURBS trims.
+    /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
+    ///   other than a rim-and-ruling cylinder wall, which a boolean
+    ///   pierce leaves in the face it pierces.
+    /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
+    ///   unresolvable structure and a mid-surgery body carrying M3
+    ///   null-edge scaffolding.
     /// * `Band` — neither: a misconfigured ambient tolerance, a
     ///   configuration failure of the run rather than a statement
     ///   about the body. It is also the arm this file's own

@@ -478,15 +478,17 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
     }
 }
 
-/// **The snowman builds only with its seams coplanar.** Spin B about the
-/// shared axis by any angle off `0` and `π` and A's seam meridian pierces
-/// B's sphere at a point INSIDE B's half-band rather than on B's seam:
-/// that pierced face then carries a ring of null scaffolding with no
-/// charted run, which is the pierce-ring door
-/// (`work/tang/pierce-ring-has-no-join-arm.md`), typed, for every op.
+/// **The snowman builds spun, too.** Spin B about the shared axis by any
+/// angle off `0` and `π` and A's seam meridian pierces B's sphere at a
+/// point INSIDE B's half-band rather than on B's seam: that pierced face
+/// carries a pierce ring, and its chords take their arc from the face's
+/// own azimuth window. The spin moves no volume, so every op meets the
+/// coplanar pose's closed form.
 #[test]
-fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
+fn a_spun_snowman_builds_under_every_boolean() {
     let a = ball(R1, 0.0);
+    let lens = lens_volume(R1, R2, D);
+    let (va, vb) = (ball_volume(R1), ball_volume(R2));
     for angle in [1e-3, 0.9, core::f64::consts::FRAC_PI_2] {
         let spin = geom_core::Affine3::rotation_about_axis(
             geom_core::Point3::origin(),
@@ -494,18 +496,13 @@ fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
             angle,
         );
         let b = topo::transform_rigid(&ball(R2, D), &spin, Tol::witness()).unwrap();
-        for op in OPS {
-            let e = refusal(op, &a, &b);
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                        case: topo::ArcWindowCase::NoChartedRun,
-                        ..
-                    })
-                ),
-                "spun by {angle} under {op:?}: expected the pierce-ring door, got {e:?}"
-            );
+        for (label, op, x, y, expected) in [
+            ("A ∪ B", BooleanOp::Union, &a, &b, va + vb - lens),
+            ("A ∩ B", BooleanOp::Intersect, &a, &b, lens),
+            ("A ∖ B", BooleanOp::Subtract, &a, &b, va - lens),
+            ("B ∖ A", BooleanOp::Subtract, &b, &a, vb - lens),
+        ] {
+            assert_body(&format!("spun by {angle}: {label}"), &run(op, x, y), expected);
         }
     }
 }

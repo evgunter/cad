@@ -149,6 +149,25 @@ pub struct CompletedPolygonPair {
     pub b_out_loop: LoopKey,
 }
 
+/// The chord lane a germ face pair joins by, with the section datum
+/// each side's chords lie in.
+#[derive(Clone, Copy)]
+enum GermLane<T: geom_core::Real> {
+    /// Plane × plane: each side's section is the partner's plane.
+    Planar {
+        /// A's section (B's plane).
+        a: (Point3<T>, UnitVec3<T>),
+        /// B's section (A's plane).
+        b: (Point3<T>, UnitVec3<T>),
+    },
+    /// A planar, B a wall: B's chords lie in A's plane.
+    PlaneWall((Point3<T>, UnitVec3<T>)),
+    /// A a wall, B planar: A's chords lie in B's plane.
+    WallPlane((Point3<T>, UnitVec3<T>)),
+    /// A sphere pair: both sides' chords lie in the radical plane.
+    Radical((Point3<T>, UnitVec3<T>)),
+}
+
 /// Per-solid joining state: the shared chord core plus the F9 side
 /// data role resolution reads.
 struct SolidJoin {
@@ -398,13 +417,6 @@ pub(super) fn bool_connect<T: Decide>(
         a_loose.remove(ra);
         b_loose.remove(eb);
         b_loose.remove(rb);
-        // Role order per solid, derived independently (module docs —
-        // the PR 5.5 discipline): cross-solid seam orientation is
-        // carried by the sense attributes alone; role order only
-        // decides the face partition of a same-loop split, which each
-        // solid resolves against its OWN geometry.
-        let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, band)?;
-        let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, band)?;
         // Curved germ pairs (M5 PR 9): each solid's chord lane comes
         // from the germ FACE PAIR — plane×plane takes the straight-chord
         // lane with the partner's plane as its section; plane×cylinder mints
@@ -449,7 +461,7 @@ pub(super) fn bool_connect<T: Decide>(
         let (kb, gb) = surf_of(&red.b, germ.b_face)?;
         use crate::chord_join::{JoinLane, face_azimuth_window};
         use geom::Surface as Sf;
-        match (&ga, &gb) {
+        let lane = match (&ga, &gb) {
             (
                 Sf::Plane {
                     origin: oa,
@@ -461,65 +473,17 @@ pub(super) fn bool_connect<T: Decide>(
                     normal: nb,
                     ..
                 },
-            ) => {
-                // Each side's section is the PARTNER's plane: the chord
-                // runs along the two planes' common line, and a conic
-                // on this side's face boundary (a cap disk's rim) lies
-                // on that section only if it lies in the partner plane.
-                sa.joiner
-                    .join(
-                        &mut red.a,
-                        a1,
-                        a2,
-                        JoinLane::Planar {
-                            origin: *ob,
-                            normal: germ_normal(*nb)?,
-                        },
-                        tol,
-                    )
-                    .map_err(BooleanError::Join)?;
-                sb.joiner
-                    .join(
-                        &mut red.b,
-                        b1,
-                        b2,
-                        JoinLane::Planar {
-                            origin: *oa,
-                            normal: germ_normal(*na)?,
-                        },
-                        tol,
-                    )
-                    .map_err(BooleanError::Join)?;
-            }
+            ) => GermLane::Planar {
+                a: (*ob, germ_normal(*nb)?),
+                b: (*oa, germ_normal(*na)?),
+            },
             (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
             | (Sf::Plane { origin, normal, .. }, Sf::Cylinder { .. }) => {
-                let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
-                    .map_err(BooleanError::Join)?
-                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                sa.join_bool_planar(&mut red.a, (a1, a2), gb.clone(), window, germ.b_face, tol)?;
-                let plane = (*origin, germ_normal(*normal)?);
-                sb.join_split(
-                    &mut red.b,
-                    (b1, b2),
-                    plane,
-                    AuxDatum::Partner(germ.a_face),
-                    tol,
-                )?;
+                GermLane::PlaneWall((*origin, germ_normal(*normal)?))
             }
             (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
             | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
-                let plane = (*origin, germ_normal(*normal)?);
-                sa.join_split(
-                    &mut red.a,
-                    (a1, a2),
-                    plane,
-                    AuxDatum::Partner(germ.b_face),
-                    tol,
-                )?;
-                let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
-                    .map_err(BooleanError::Join)?
-                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                sb.join_bool_planar(&mut red.b, (b1, b2), ga.clone(), window, germ.a_face, tol)?;
+                GermLane::WallPlane((*origin, germ_normal(*normal)?))
             }
             // **The sphere pair rides its RADICAL PLANE.** Two spheres
             // meet in a circle lying in the one plane both residuals
@@ -552,9 +516,7 @@ pub(super) fn bool_connect<T: Decide>(
                     }
                     Err(_) => return Err(desync("germ pair's section refused at join time")),
                 };
-                let datum = |own, partner| AuxDatum::Radical { own, partner };
-                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), tol)?;
-                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), tol)?;
+                GermLane::Radical(radical)
             }
             (a_s, b_s) => {
                 // No wired join arm for this germ pair (cyl×cyl's
@@ -571,6 +533,84 @@ pub(super) fn bool_connect<T: Decide>(
                     face,
                     kind: s.kind(),
                 });
+            }
+        };
+        // Role order per solid, derived independently (module docs —
+        // the PR 5.5 discipline): cross-solid seam orientation is
+        // carried by the sense attributes alone; role order only
+        // decides the face partition of a same-loop split, which each
+        // solid resolves against its OWN geometry. A wall face's ring
+        // lane winds its island on the face's chart, closed along this
+        // solid's section plane.
+        let (a_section, b_section) = match lane {
+            GermLane::Planar { .. } => (None, None),
+            GermLane::PlaneWall(plane) => (None, Some(plane)),
+            GermLane::WallPlane(plane) => (Some(plane), None),
+            GermLane::Radical(plane) => (Some(plane), Some(plane)),
+        };
+        let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, a_section, band)?;
+        let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, b_section, band)?;
+        match lane {
+            GermLane::Planar { a, b } => {
+                // Each side's section is the PARTNER's plane: the chord
+                // runs along the two planes' common line, and a conic
+                // on this side's face boundary (a cap disk's rim) lies
+                // on that section only if it lies in the partner plane.
+                sa.joiner
+                    .join(
+                        &mut red.a,
+                        a1,
+                        a2,
+                        JoinLane::Planar {
+                            origin: a.0,
+                            normal: a.1,
+                        },
+                        tol,
+                    )
+                    .map_err(BooleanError::Join)?;
+                sb.joiner
+                    .join(
+                        &mut red.b,
+                        b1,
+                        b2,
+                        JoinLane::Planar {
+                            origin: b.0,
+                            normal: b.1,
+                        },
+                        tol,
+                    )
+                    .map_err(BooleanError::Join)?;
+            }
+            GermLane::PlaneWall(plane) => {
+                let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
+                    .map_err(BooleanError::Join)?
+                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                sa.join_bool_planar(&mut red.a, (a1, a2), gb.clone(), window, germ.b_face, tol)?;
+                sb.join_split(
+                    &mut red.b,
+                    (b1, b2),
+                    plane,
+                    AuxDatum::Partner(germ.a_face),
+                    tol,
+                )?;
+            }
+            GermLane::WallPlane(plane) => {
+                sa.join_split(
+                    &mut red.a,
+                    (a1, a2),
+                    plane,
+                    AuxDatum::Partner(germ.b_face),
+                    tol,
+                )?;
+                let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
+                    .map_err(BooleanError::Join)?
+                    .ok_or(desync("wall germ face has no charted azimuth window"))?;
+                sb.join_bool_planar(&mut red.b, (b1, b2), ga.clone(), window, germ.a_face, tol)?;
+            }
+            GermLane::Radical(radical) => {
+                let datum = |own, partner| AuxDatum::Radical { own, partner };
+                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), tol)?;
+                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), tol)?;
             }
         }
         open[m.entry].a[m.entry_slot].1 = true;
@@ -1433,6 +1473,7 @@ fn choose_roles<T: Decide>(
     ea: HalfEdgeKey,
     ra: HalfEdgeKey,
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
+    section: Option<(Point3<T>, UnitVec3<T>)>,
     band: Band,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -1474,7 +1515,7 @@ fn choose_roles<T: Decide>(
     // antiparallelism witness caught it). The two rules agree wherever
     // the residual anchor was sound (both parities checked in the
     // issue #93 diagnosis), so corpus surgery is unchanged.
-    let (h1, h2) = if ring_run_ccw(body, face, ea, ra, band)? {
+    let (h1, h2) = if ring_run_ccw(body, face, ea, ra, section, band)? {
         (ea, ra)
     } else {
         (ra, ea)
@@ -1504,21 +1545,28 @@ fn choose_roles<T: Decide>(
 /// traversal carries the other sign. `Indeterminate` escalates. Zero is
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges). The ring lane is planar-scoped like
-/// [`super::solid_contain::point_in_solid`]'s F5 gate: a non-planar
-/// face refuses loudly, and so does a spiric or spline run edge, which
-/// the operand gate keeps out.
+/// merges). A spiric or spline run edge refuses loudly; the operand
+/// gate keeps them out.
+///
+/// A wall face (no planar carrier) asks the same question on its own
+/// chart, [`crate::chord_join::chart_island_winding`], with the run
+/// closed along `section`, the plane this solid's chords lie in.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     h1: HalfEdgeKey,
     h2: HalfEdgeKey,
+    section: Option<(Point3<T>, UnitVec3<T>)>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let normal = face_outward_normal(body, face)
-        .ok_or(desync("ring-lane face has no planar carrier"))?
-        .vec();
+    let Some(normal) = face_outward_normal(body, face) else {
+        let section = section.ok_or(desync("ring-lane wall face has no section plane"))?;
+        let wound = crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
+            .map_err(BooleanError::Join)?;
+        return ring_winding_order(wound);
+    };
+    let normal = normal.vec();
     let wound = body
         .planar_run_winding_decided(h1, h2, normal, band)
         .map_err(|torn| match torn {
@@ -1542,13 +1590,21 @@ fn ring_run_ccw<T: Decide>(
             what: "the ring lane reached a spiric or spline run edge (the operand gates refuse \
                    the kinds)",
         }))?;
-    // A zero area is a degenerate run (below), so its in-band twin is
-    // the kernel's too.
-    let decided = wound.map_err(|diag| BooleanError::Escalated {
+    ring_winding_order(wound.map(|decided| decided.sign))
+}
+
+/// The ring lane's role order from the decided winding: CCW keeps the
+/// order. A zero area is a degenerate run, so its in-band twin is the
+/// kernel's too.
+fn ring_winding_order(
+    wound: Result<Sign, geom_core::Indeterminate>,
+) -> Result<bool, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let sign = wound.map_err(|diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::RingWinding),
         diag,
     })?;
-    match decided.sign {
+    match sign {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
         Sign::Zero => Err(desync(
@@ -1934,7 +1990,7 @@ mod self_check_rows {
             })
             .expect("the top loop runs (0,0) → (1,h)");
         let h2 = body.get_half_edge(h1).unwrap().next;
-        let err = super::ring_run_ccw(body, prism.top_face, h1, h2, b)
+        let err = super::ring_run_ccw(body, prism.top_face, h1, h2, None, b)
             .expect_err("an in-band winding escalates");
         assert_defect(&err, SelfCheck::RingWinding, "bool_ring_run_winding");
     }
