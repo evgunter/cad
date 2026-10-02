@@ -1410,4 +1410,75 @@ mod tests {
              {off_locus:?}"
         );
     }
+
+    /// Review probe (SYM-15 delta): which variant the gate gives for
+    /// causes other than a radial enclosure reaching zero.
+    #[test]
+    #[ignore]
+    fn sym15_review_gate_causes() {
+        use geom_core::Interval;
+        let unit = |x: f64, y: f64, z: f64| {
+            Vec3::new(
+                Interval::from_f64(x),
+                Interval::from_f64(y),
+                Interval::from_f64(z),
+            )
+        };
+        let cap = Surface::Plane {
+            origin: Point3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+            normal: unit(0.0, 0.0, -1.0),
+            u_ref: unit(1.0, 0.0, 0.0),
+        };
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+            axis: unit(0.0, 0.0, 1.0),
+            radius: Interval::from_f64(1.0),
+            u_ref: unit(1.0, 0.0, 0.0),
+        };
+        // (a) an exact on-circle point carrying an inherited Trv decoration
+        let trv_zero = Interval::from_bounds(-1.0, 1.0).sqrt() * Interval::zero();
+        let p = Point3::new(
+            Interval::zero(),
+            Interval::from_f64(1.0) + trv_zero,
+            Interval::zero(),
+        );
+        eprintln!(
+            "SYM15D (a) trv point: {:?}",
+            wedge_decided(&cap, &cyl, p, Interval::from_f64(2.0), band())
+        );
+        // (b) cone apex, f64 and interval
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let pl = plane(Vec3::unit_z(), Vec3::unit_x());
+        eprintln!(
+            "SYM15D (b) cone apex f64: {:?}",
+            wedge_decided(&pl, &cone, Point3::origin(), 1.0, band())
+        );
+        // (c) f64 cylinder, point exactly on the axis
+        let cyl64 = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        eprintln!(
+            "SYM15D (c) f64 on axis: {:?}",
+            wedge_decided(&pl, &cyl64, Point3::origin(), 1.0, band())
+        );
+        // (d) f64 sphere centre
+        let sph = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        eprintln!(
+            "SYM15D (d) f64 sphere centre: {:?}",
+            wedge_decided(&pl, &sph, Point3::origin(), 1.0, band())
+        );
+    }
 }
