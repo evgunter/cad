@@ -1268,6 +1268,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::RepeatedDesignation { .. }
             | EditError::SelectionNotCanonical { .. }
             | EditError::SetMembersOnNonList { .. }
+            | EditError::SetDeclareOnNonDeclaring { .. }
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::StepIdsRefused { .. }
             | EditError::NodeIdCollides { .. }
@@ -1283,7 +1284,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PayloadDocParamDimension { .. }
             | EditError::MeasureMalformed { .. }
             | EditError::AssertionTarget { .. }
-            | EditError::DeclareInputNotDeclare { .. }
             | EditError::AssertionDimension { .. }
             | EditError::ContinuousParamCannotBeCount { .. }
             | EditError::DocParamNotDeclared { .. }
@@ -1631,6 +1631,33 @@ fn remap_rule(
     })
 }
 
+/// Rewrites a Boolean's or Union's declared pairs. Each half remaps
+/// like a mate's head: the NAME through the name door and the SITE
+/// through the id door, because a site is a node id. Either one the cut
+/// severed makes the remap MISS loudly.
+///
+/// # Errors
+///
+/// The first [`RemapMiss`].
+fn remap_declared(
+    pairs: &[crate::DeclaredPair],
+    id: &impl Fn(RecipeNodeId) -> Result<RecipeNodeId, RemapMiss>,
+    nm: &impl Fn(&StableName) -> Result<StableName, RemapMiss>,
+) -> Result<Vec<crate::DeclaredPair>, RemapMiss> {
+    pairs
+        .iter()
+        .map(|((a, b), class)| {
+            Ok((
+                (
+                    crate::node::SitedRef::new(id(a.at)?, nm(&a.name)?),
+                    crate::node::SitedRef::new(id(b.at)?, nm(&b.name)?),
+                ),
+                *class,
+            ))
+        })
+        .collect()
+}
+
 /// Rewrites a node payload's id references — DAG inputs AND
 /// name-reference payloads — through `map`, and gauge references
 /// through `regauge`, for insertion into the other document.
@@ -1818,11 +1845,11 @@ fn remap_node(
             op: *op,
             a: id(*a)?,
             b: id(*b)?,
-            declare: declare.map(id).transpose()?,
+            declare: remap_declared(declare, &id, &nm)?,
         },
         Node::Union { members, declare } => Node::Union {
             members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
-            declare: declare.map(id).transpose()?,
+            declare: remap_declared(declare, &id, &nm)?,
         },
         Node::Transform { input, placement } => Node::Transform {
             input: id(*input)?,
@@ -1843,24 +1870,6 @@ fn remap_node(
             input: id(*input)?,
             count: count.clone(),
             kind: remap_rule(kind, &id)?,
-        },
-        // A declared pair's two halves remap like a mate's: the
-        // NAME through the name door and the SITE through the id
-        // door, because a site is a node id. Either one the cut
-        // severed makes the remap MISS loudly.
-        Node::Declare { pairs } => Node::Declare {
-            pairs: pairs
-                .iter()
-                .map(|((a, b), class)| {
-                    Ok((
-                        (
-                            crate::node::SitedRef::new(id(a.at)?, nm(&a.name)?),
-                            crate::node::SitedRef::new(id(b.at)?, nm(&b.name)?),
-                        ),
-                        *class,
-                    ))
-                })
-                .collect::<Result<_, RemapMiss>>()?,
         },
         // The reference crosses verbatim (the function's docs say why);
         // the gauge it sits on is the one id it holds, and the door
@@ -3311,10 +3320,15 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
     #[test]
     fn a_payload_miss_carries_both_the_name_and_the_node() {
         let name = nested(EntityKind::Edge);
-        let node = Node::declare_rest(vec![(
-            SitedRef::new(OUTER, name.clone()),
-            SitedRef::at_mint(name.clone()),
-        )]);
+        let node = Node::Boolean {
+            op: crate::node::BooleanOp::Union,
+            a: OUTER,
+            b: OUTER,
+            declare: crate::declare_rest(vec![(
+                SitedRef::new(OUTER, name.clone()),
+                SitedRef::at_mint(name.clone()),
+            )]),
+        };
         match remap_node(&node, &map(), &StepMap::new(), &|g| Ok(g)) {
             Err(RemapMiss::Name {
                 name: reported,

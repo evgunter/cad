@@ -32,7 +32,8 @@ from them:
   `Ambiguous`, then `Vanished` — never silently shrunk
   (`eval/wire.rs`, `ladder` and `resolve_selection`). Carriers:
   `Fillet`/`Chamfer` selections, `Shell` open lists, a
-  `Datum::FaceFrame`'s face, `Declare` pairs, `Mate` heads,
+  `Datum::FaceFrame`'s face, a `Boolean`'s or `Union`'s declared
+  pairs, `Mate` heads,
   `Measure` refs, an `InstantiatePart`'s interface crossings' `outer`s
   (`Node::payload_names`; a crossing's `inner` is not a name of THIS
   document, and that list's arm is the one home for why). This clause
@@ -42,7 +43,7 @@ from them:
   not a DAG edge, and TWO doors refuse on one: `InsertNode`'s liveness
   check, and `split`'s `PartNameReachesRemainder` precondition, which
   refuses a cut whose taken node carries a name reaching the kept
-  remainder — a `Declare` pair's, a `Mate` head's, an instance's
+  remainder — a declared pair's, a `Mate` head's, an instance's
   crossing `outer`. A later delete strands a name (N5) and says so
   (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
@@ -258,14 +259,18 @@ So the chain goes, not the link:
   mints no contact verdict of its own.
 - **A declaration channel, sited at the members.** The union carries
   the pair boolean's recourse: `Node::Union { members,
-  declare: Option<RecipeNodeId> }`, the `Declare` node's pairs naming
-  SITED entities — `SitedRef { at, name }`, the entity `name` as it
+  declare: Vec<DeclaredPair> }` and `Node::Boolean { op, a, b,
+  declare: Vec<DeclaredPair> }`, the declared pairs the node's own
+  payload (empty is undeclared), each naming SITED entities — `SitedRef { at, name }`, the entity `name` as it
   stands at node `at`, where `at` is the member (for a pair boolean,
   the operand) — so a declaration says "this face of member `m` meets
   that face of member `n`" by naming the face IN the member with the
   member beside it, and never names the union. A declaration therefore
-  names only what exists before the union does, and is authored in one
-  pass: the `Declare` is inserted before the union that carries it.
+  names only what exists before the union does. A declaration is a
+  parameter, not an operand: it carries no material and mints no
+  names, so `SetDeclare { node, pairs }` replaces a live boolean's or
+  union's whole list, `SetMembers`' shape with nothing inferred, and
+  moves no DAG edge.
   Each certified pair is fed to the fold step at which both its sites
   are in the accumulation. That is the later member's step in list
   order, with the earlier side as the accumulator's operand and the
@@ -335,7 +340,9 @@ So the chain goes, not the link:
 the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
-that row names; the flat
+that row names, and made the node's own payload, settable on a live
+node, by Ev on #3587 (2026-10-01, shape A2;
+`declared-pairs-are-a-booleans-own-payload`); the flat
 `Merged` mint and the look-through are DOCM-8 (PR 2073); the typed
 refusal past the merges applies Ev's ruling on PR 2677
 (`does-n3-retire-loudly-generalise-to-the-folds-other-compositions`).
@@ -402,7 +409,7 @@ those moves a name.
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is
 keyed by a `StableName` in the document's appearance store
-(`DocEdit::SetAppearance` gives it Declare's semantics, `Rebind`
+(`DocEdit::SetAppearance` gives it a declared pair's semantics, `Rebind`
 repairs it, evaluation reports its loss as `AppearanceLoss`), so a
 delete that strands one reports it too, as its own `Maintenance` arm
 (`StrandedAppearance { name }`) rather than a `Strand` with no

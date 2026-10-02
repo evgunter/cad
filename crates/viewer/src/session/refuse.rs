@@ -1391,7 +1391,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         | ValuePayload::Profile(_)
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
-        | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
         | ValuePayload::Gauge
         | ValuePayload::Measure { .. }

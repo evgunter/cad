@@ -1607,7 +1607,6 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Pattern { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
         | Node::Mate { .. }

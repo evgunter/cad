@@ -997,10 +997,7 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        ValuePayload::Declarations(pairs) => {
-            d.u64(20);
-            d.u64(pairs.len() as u64);
-        }
+        // 20 was the retired declarations payload's, and is not reused.
         ValuePayload::Mate(_) => d.u64(21),
         ValuePayload::Gauge => d.u64(26),
         ValuePayload::Measure { value, .. } => {

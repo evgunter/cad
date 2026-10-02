@@ -1838,7 +1838,7 @@ fn orient<'s>(
             // The pair emitter mints `Merged` for the kernel's merge
             // groups — faces that share a recipe source, or a declared
             // coincidence, which a union carries through its own
-            // `declare` input — so a fold step's table carries these rows.
+            // declared pairs — so a fold step's table carries these rows.
             //
             // The constituent set is FLAT (N3): a constituent is never
             // itself a bare merged face. The mint (`emit_topo`'s

@@ -882,7 +882,6 @@ fn readout_of(
         | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
-        | ValuePayload::Declarations(_)
         | ValuePayload::Gauge => None,
     }
 }

@@ -684,6 +684,8 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }
+        // Sited names and a class tag carry no float.
+        | DocEdit::SetDeclare { .. }
         // A program's continuous arguments are `Expr` literals, finite
         // by the construction door like an inserted profile's; its
         // provenance is integers.
@@ -771,15 +773,6 @@ pub enum SnapshotError {
         /// The referring node.
         node: SpokenNode,
         /// The forward input.
-        input: SpokenNode,
-    },
-    /// A node's `declare` input names a node that is not a
-    /// `Node::Declare` — the edit door's rule, asked of file data
-    /// (`Node::bad_declare_input`, one predicate, both doors).
-    DeclareInput {
-        /// The consuming node.
-        node: SpokenNode,
-        /// What its `declare` input names.
         input: SpokenNode,
     },
     /// A witness attached to a node that bears no sketch. Its own arm
@@ -1106,10 +1099,6 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "{node} takes input from {input}, which does not precede it in `order`"
             ),
-            Self::DeclareInput { node, input } => write!(
-                f,
-                "{node}'s declare input names {input}, which is not a declaration"
-            ),
             Self::DuplicateInput { node, input } => {
                 write!(f, "{node}: ")?;
                 crate::node::duplicate_input(f, input)
@@ -1418,18 +1407,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 fault,
             });
         }
-        // The declaration edge's kind rule
-        // (`Node::bad_declare_input`, the same answer the edit door
-        // asks of), for the reason above it: the edit door refuses a
-        // `declare` input that is not a `Declare`, and a snapshot is
-        // the one way a node reaches a document without passing that
-        // door.
-        if let Some(input) = node.bad_declare_input(doc) {
-            return Err(SnapshotError::DeclareInput {
-                node: doc.spoken(id),
-                input: doc.spoken(input),
-            });
-        }
         // An assertion's bound against the measure it constrains
         // (E10), by the same `Node::assertion_bound_fault` the edit
         // door asks: the predicate needs the DOCUMENT, so it takes one,
@@ -1486,7 +1463,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // loop above and a store walk down here, hundreds of lines apart
     // and neither reading as half of one list. An id the mint log lacks
     // inside a mate head, a fillet selection or an appearance key is
-    // as corrupt as one inside a `Declare` pair, and as unrepairable
+    // as corrupt as one inside a declared pair, and as unrepairable
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
     // being remembered into this door.
@@ -1721,7 +1698,6 @@ mod tests {
             NameStepNotMinted,
             DanglingInput,
             ForwardInput,
-            DeclareInput,
             WitnessSite,
             WitnessOnMissingNode,
             LabelOnMissingNode,
@@ -1768,7 +1744,6 @@ mod tests {
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DanglingInput { .. }
             | SnapshotError::ForwardInput { .. }
-            | SnapshotError::DeclareInput { .. }
             | SnapshotError::WitnessSite { .. }
             | SnapshotError::WitnessOnMissingNode { .. }
             | SnapshotError::LabelOnMissingNode { .. }
@@ -1841,10 +1816,6 @@ mod tests {
                 input: at(9),
             },
             SnapshotError::ForwardInput {
-                node: node(),
-                input: at(9),
-            },
-            SnapshotError::DeclareInput {
                 node: node(),
                 input: at(9),
             },
@@ -2334,28 +2305,34 @@ mod tests {
         doc.mint = doc
             .mint
             .clone()
-            .logged([0, 1].map(|id| crate::Minted::Node(RecipeNodeId(id))));
-        for (id, derived) in [(0u64, 50u64), (1, 60)] {
+            .logged([0, 1, 2, 3].map(|id| crate::Minted::Node(RecipeNodeId(id))));
+        for id in [2u64, 3] {
             doc.nodes.insert(
                 RecipeNodeId(id),
-                Node::Declare {
-                    pairs: vec![(
-                        (
-                            crate::node::SitedRef::new(
-                                RecipeNodeId(id),
-                                rv_name(derived, crate::names::EntityKind::Face),
-                            ),
-                            crate::node::SitedRef::new(
-                                RecipeNodeId(id),
-                                rv_name(derived, crate::names::EntityKind::Face),
-                            ),
-                        ),
-                        topo::BooleanCoincidence::REST,
-                    )],
+                Node::Datum(crate::node::Datum::Plane {
+                    origin: [0.0; 3].map(crate::test_support::len),
+                    normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
+                }),
+            );
+        }
+        for (id, derived) in [(0u64, 50u64), (1, 60)] {
+            let sited = || {
+                crate::node::SitedRef::new(
+                    RecipeNodeId(2),
+                    rv_name(derived, crate::names::EntityKind::Face),
+                )
+            };
+            doc.nodes.insert(
+                RecipeNodeId(id),
+                Node::Boolean {
+                    op: topo::BooleanOp::Union,
+                    a: RecipeNodeId(2),
+                    b: RecipeNodeId(3),
+                    declare: vec![((sited(), sited()), topo::BooleanCoincidence::REST)],
                 },
             );
         }
-        doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];
+        doc.order = vec![RecipeNodeId(2), RecipeNodeId(3), RecipeNodeId(1), RecipeNodeId(0)];
         match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
                 assert_eq!(

@@ -10,9 +10,9 @@
 //!   coincidence ladder's "these faces coincide exactly — declare the
 //!   relation?" affordance given an API.
 //! - **Declare** — [`declare`] / [`declare_all`] are thin sugar over
-//!   the SHIPPED [`Node::Declare`] vocabulary: they take
-//!   explicitly-passed findings and insert a Declare node whose id the
-//!   caller wires into the consuming Boolean's `declare` input.
+//!   the SHIPPED [`DocEdit::SetDeclare`] edit: they take
+//!   explicitly-passed findings and set them as a live Boolean's or
+//!   Union's declared pairs.
 //! - **The menu** — the boolean's undeclared-coincidence refusal names
 //!   exactly two arms: declare the found class (→ the sugar) or move
 //!   the geometry. NO absorb arm (the #256 ruling applied to contact).
@@ -115,7 +115,7 @@ use crate::names::interrogate;
 use crate::names::interrogate::InterrogateError;
 use crate::names::role::{EntityKind, StableName};
 use crate::names::table::{EntityKey, EntityRef, Entry};
-use crate::node::{Node, RecipeNodeId, SitedRef};
+use crate::node::{DeclaredPair, RecipeNodeId, SitedRef};
 
 /// The contact class a declaration asserts (CONTACT-DESIGN C4) — a
 /// RE-EXPORT of the kernel's vocabulary, never a parallel enum.
@@ -361,25 +361,22 @@ fn tied_disagrees<T: Decide>(
 /// Why the declare sugar refused.
 #[derive(Debug)]
 pub enum DeclareError {
-    /// No findings were passed: an empty `Declare` node records no
-    /// intent and would only pretend something was declared — refused
-    /// loudly rather than inserted silently.
+    /// No findings were passed: an empty declaration records no intent
+    /// and would only pretend something was declared — refused loudly
+    /// rather than set silently. Clearing a declaration is
+    /// [`DocEdit::SetDeclare`] with an empty list, said in so many words.
     NoFindings,
     /// The document edit itself refused (a stale finding naming a
-    /// node the document no longer has, for instance).
+    /// node the document no longer has, or a node that is not a
+    /// Boolean or a Union, for instance).
     Edit(EditError),
-    /// The insert applied but minted no id — an `apply` contract
-    /// violation (`InsertNode` always mints); surfaced typed rather
-    /// than panicking.
-    NoMintedId,
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in the declare sugar's own vocabulary — findings, the
-// node it would insert, the id an insert owes. The `Edit` arm forwards
-// the document edit's problem, and states the recourse itself: the
-// caller passed findings, not the node the edit door's recourse is
-// about.
+// the PROBLEM in the declare sugar's own vocabulary. The `Edit` arm
+// forwards the document edit's problem, and states the recourse
+// itself: the caller passed findings and a node, not the edit the
+// edit door's recourse is about.
 impl core::fmt::Display for DeclareError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -399,101 +396,76 @@ impl core::fmt::Display for DeclareError {
                         ". Recourse: declare findings inspected from this document as it now \
                          stands",
                     ),
-                    // A `Declare` node has no inputs, slots or
-                    // parameters, and moves no group: nothing else
-                    // the insert checks can refuse it.
+                    EditError::UnknownNode { .. } | EditError::SetDeclareOnNonDeclaring { .. } => {
+                        f.write_str(". Recourse: declare on a live Boolean or Union")
+                    }
+                    // The edit touches nothing else a door checks.
                     _ => write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING),
                 }
             }
-            Self::NoMintedId => write!(
-                f,
-                "declare: the insert applied but minted no node id, and an insert always mints \
-                 one. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
         }
     }
 }
 
 impl core::error::Error for DeclareError {}
 
-/// The [`Node::Declare`] payload for explicitly-passed findings — the
-/// buildable rung under [`declare`]/[`declare_all`] for callers that
-/// record their own edit logs (the corpus `Recorder`, an undo stack).
+/// The declared pairs for explicitly-passed findings, each with the
+/// class its finding carries — the buildable rung under
+/// [`declare`]/[`declare_all`] for callers that build their own edits
+/// (a new Boolean's `declare`, a [`DocEdit::SetDeclare`] they record
+/// themselves).
 ///
 /// # Errors
 ///
 /// [`DeclareError::NoFindings`] on an empty slice.
-pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareError> {
+pub fn declared_pairs(findings: &[FlushFinding]) -> Result<Vec<DeclaredPair>, DeclareError> {
     if findings.is_empty() {
         return Err(DeclareError::NoFindings);
     }
-    Ok(Node::Declare {
-        // The finding's CLASS travels with its pair. Dropping it here
-        // was a live bug for as long as the class existed: the node
-        // then meant "declare this pair" with no record of WHAT was
-        // declared, and the consuming boolean re-defaulted it to the
-        // conformal class — so a `Tangent` finding, declared, would
-        // have been verified against the `Rest` table.
-        pairs: findings.iter().map(|f| (f.pair.clone(), f.class)).collect(),
-    })
+    Ok(findings.iter().map(|f| (f.pair.clone(), f.class)).collect())
 }
 
-/// Declares ONE inspected finding: inserts a [`Node::Declare`] with
-/// its pair and returns the accepted insert whole — the edited
-/// document, its record and the maintenance the insert reported, as
-/// one [`Applied`] — plus the Declare node's id, for the
-/// caller to wire into the consuming Boolean's `declare` input. Sugar
-/// over shipped vocabulary — nothing here detects (GS-Q3's no-fusion
-/// boundary: findings reach this door as VALUES the caller already
-/// held).
-///
-/// The id is returned beside the acceptance rather than left inside
-/// `record.minted` because it is a CHECKED value here: the door has
-/// already refused [`DeclareError::NoMintedId`], so the caller reads
-/// an id, never an `Option` it has to unwrap again.
+/// Declares ONE inspected finding on the live Boolean or Union `node`:
+/// [`declare_all`] of the one finding.
 ///
 /// # Errors
 ///
-/// [`DeclareError::Edit`] if the insert refuses.
+/// [`DeclareError::Edit`] if the edit refuses.
 pub fn declare<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
+    node: RecipeNodeId,
     finding: &FlushFinding,
     tol: Tol,
-) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
-    declare_all(doc, core::slice::from_ref(finding), tol)
+) -> Result<Applied<P>, DeclareError> {
+    declare_all(doc, node, core::slice::from_ref(finding), tol)
 }
 
-/// Declares a SET of inspected findings in one [`Node::Declare`] —
-/// the many-pair case the round-2 amendment rules legal (the boundary
-/// is fusion, not arity). Same contract as [`declare`].
+/// Sets a SET of inspected findings as the declared pairs of the live
+/// Boolean or Union `node`, replacing whatever it declared before — the
+/// whole-list [`DocEdit::SetDeclare`], so nothing is inferred about the
+/// old list. Sugar over shipped vocabulary — nothing here detects
+/// (GS-Q3's no-fusion boundary: findings reach this door as VALUES the
+/// caller already held). The acceptance is returned whole: the edited
+/// document, its record and its maintenance, as one [`Applied`].
 ///
 /// # Errors
 ///
 /// [`DeclareError::NoFindings`] on an empty slice,
-/// [`DeclareError::Edit`] if the insert refuses.
+/// [`DeclareError::Edit`] if the edit refuses.
 pub fn declare_all<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
+    node: RecipeNodeId,
     findings: &[FlushFinding],
     tol: Tol,
-) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
-    let node = declare_node(findings)?;
-    // A `Declare` node is neither an instance nor a mate, so inserting
-    // one moves no group's root: the maintenance never asks the
-    // reach, and the refusing one is the honest value here.
-    let applied = apply(
+) -> Result<Applied<P>, DeclareError> {
+    let pairs = declared_pairs(findings)?;
+    // A declaration moves no group's root: the maintenance never asks
+    // the reach, and the refusing one is the honest value here.
+    apply(
         doc,
-        &DocEdit::InsertNode {
-            node: Box::new(node),
-        },
+        &DocEdit::SetDeclare { node, pairs },
         tol,
         &crate::mate::RefusingReach,
     )
-    .map_err(DeclareError::Edit)?;
-    let id = applied.record.minted.ok_or(DeclareError::NoMintedId)?;
-    // The acceptance travels WHOLE: a caller that holds a document
-    // and the maintenance of its last accepted edit swaps both in
-    // from this one value, so the two can never describe different
-    // edits.
-    Ok((applied, id))
+    .map_err(DeclareError::Edit)
 }

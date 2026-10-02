@@ -60,7 +60,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError, SegTag};
-use crate::node::{PartSelect, RecipeNodeId, SitedRef, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
@@ -634,17 +634,10 @@ pub enum ValuePayload<T: Decide> {
     /// which (D3), so the asymmetry between the placers and the rest
     /// is the decision, not an omission.
     Instances(Vec<Arc<Body<T>>>),
-    /// A Declare node's pairs with their contact classes, passed
-    /// through as data (D3; the boolean consumes them at its
-    /// `declare` input). The class travels WITH its pair from
-    /// authoring to the kernel door — the one vocabulary end-to-end
-    /// (SELECT-DESIGN §3d).
-    Declarations(Vec<((SitedRef, SitedRef), topo::BooleanCoincidence)>),
     /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
     /// tree mate determined its child, a non-tree mate declared and
     /// solved nothing. Not body-denoting, so the product gather skips
-    /// it exactly as it skips a `Declare` — which is what "an ordinary
-    /// non-body root" means in code.
+    /// it — which is what "an ordinary non-body root" means in code.
     Mate(crate::mate::MateRole),
     /// A [`crate::node::Node::Gauge`]: it DENOTES NO BODY (A11 (2)). Its
     /// placement's slots evaluate as every node's do, so a slot that
@@ -720,9 +713,6 @@ macro_rules! family_word {
     (instances) => {
         "instances"
     };
-    (declarations) => {
-        "declarations"
-    };
     (mate) => {
         "mate"
     };
@@ -749,7 +739,6 @@ pub(crate) mod family {
     pub(crate) const BOOLEAN: &str = family_word!(boolean);
     pub(crate) const SPLIT: &str = family_word!(split);
     pub(crate) const INSTANCES: &str = family_word!(instances);
-    pub(crate) const DECLARATIONS: &str = family_word!(declarations);
     pub(crate) const MATE: &str = family_word!(mate);
     pub(crate) const GAUGE: &str = family_word!(gauge);
     pub(crate) const MEASURE: &str = family_word!(measure);
@@ -846,7 +835,6 @@ impl<T: Decide> ValuePayload<T> {
             Self::Boolean(_) => family::BOOLEAN,
             Self::Split { .. } => family::SPLIT,
             Self::Instances(_) => family::INSTANCES,
-            Self::Declarations(_) => family::DECLARATIONS,
             Self::Mate(_) => family::MATE,
             Self::Gauge => family::GAUGE,
             Self::Measure { .. } => family::MEASURE,
@@ -947,7 +935,6 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         Node::Boolean { .. } => (family::BOOLEAN, true),
         Node::Split { .. } => (family::SPLIT, false),
         Node::Pattern { .. } => (family::INSTANCES, true),
-        Node::Declare { .. } => (family::DECLARATIONS, false),
         Node::Mate { .. } => (family::MATE, false),
         Node::Gauge { .. } => (family::GAUGE, false),
         Node::Measure { .. } => (family::MEASURE, false),
@@ -1577,8 +1564,8 @@ pub enum NodeErrorKind {
     /// discarded, so that a channel fed nothing is never mistaken for
     /// a channel that refused.
     ParamSourceAttach(topo::ParamAttachError),
-    /// A `Declare` pair failed to resolve through the operands' name
-    /// tables (F5) — the N5 typed error: a Declare naming a
+    /// A declared pair failed to resolve through the operands' name
+    /// tables (F5) — the N5 typed error: a declaration naming a
     /// vanished/ambiguous/deleted name refuses loudly; no silent drop,
     /// no best-effort gluing. The error's shape is N5's; a `Vanished`
     /// one's diagnosis may be one of the arms [`crate::resolve::Diagnosis`]
@@ -1596,14 +1583,14 @@ pub enum NodeErrorKind {
     /// The site IS the side (DM4), so a site the consumer does not
     /// have is a declaration the consumer cannot read: there is no
     /// table to resolve the name in. It is the EVALUATION's refusal
-    /// and not the insert door's, because a `Declare` may exist
-    /// unconsumed and the insert door checks only that the site is a
-    /// live node ([`crate::Node::payload_read_sites`]).
+    /// and not the edit door's, because `SetMembers` may drop a
+    /// declared member after the fact and the edit door checks only
+    /// that the site is a live node ([`crate::Node::payload_read_sites`]).
     DeclareSiteNotAnOperand {
         /// The site the pair named.
         at: crate::node::RecipeNodeId,
     },
-    /// A `Declare` pair outside the v1 threading vocabulary, which is
+    /// A declared pair outside the v1 threading vocabulary, which is
     /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
     /// deliberately not re-listed here, so a fourth pair shape cannot
     /// be added to the code and left out of this sentence.
@@ -1635,8 +1622,8 @@ pub enum NodeErrorKind {
     /// the raise site held. So the recourse is IN the error, and the
     /// menu has exactly two arms (the #256 ruling applied to contact,
     /// no absorb arm): declare this finding
-    /// ([`crate::names::declare`] / [`crate::node::Node::Declare`] →
-    /// the boolean's `declare` input), or move the geometry.
+    /// ([`crate::names::declare`] / [`crate::DocEdit::SetDeclare`] on
+    /// the boolean), or move the geometry.
     ///
     /// Raised INSTEAD of wrapping the kernel's
     /// `BooleanError::UndeclaredCoincidence` under
@@ -2080,8 +2067,8 @@ impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
     }
 
     fn recourse(&self) -> &str {
-        "Recourse: declare the candidate pair this refusal carries and wire it into the \
-         Boolean's declare input, or move the geometry"
+        "Recourse: declare the candidate pair this refusal carries on the Boolean \
+         (SetDeclare, its whole declared-pair list), or move the geometry"
     }
 }
 
@@ -3704,7 +3691,6 @@ fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
         if matches!(
             node,
             crate::node::Node::Mate { .. }
-                | crate::node::Node::Declare { .. }
                 | crate::node::Node::Measure { .. }
                 | crate::node::Node::Assertion { .. }
                 | crate::node::Node::Gauge { .. }
@@ -4925,7 +4911,7 @@ where
             // never gains a new meaning.
             PatternKind::Explicit(_) => 19,
         },
-        Node::Declare { .. } => 14,
+        // 14 was the retired declaration node's, and is not reused.
         // New node kinds take fresh words — keys are process-internal
         // (never persisted), so growth is free, but an EXISTING tag
         // must never be reused for a new meaning.
@@ -5249,31 +5235,10 @@ where
             solve_answer.feed_face_parts(&mut h);
             solve_answer.feed_mate(&mut h);
         }
-        Node::Declare { pairs } => {
-            h.write_u64(pairs.len() as u64);
-            for ((a, b), class) in pairs {
-                // BOTH halves of each side, as a measure's reference
-                // feeds both: the name says which entity and the SITE
-                // says which operand's table it is read in, so two
-                // declarations differing only in a site declare
-                // contacts between different members. The site is a
-                // node id, which content keys otherwise exclude (D8);
-                // it is fed for the measure's reason — it is RECIPE
-                // PAYLOAD selecting a reading, not a Merkle link to an
-                // input, and this node has no inputs at all.
-                for r in [a, b] {
-                    h.write_u64(r.at.0);
-                    feed_stable_name(&mut h, &r.name);
-                }
-                // The CLASS is part of the node's identity: two
-                // declarations of the same pair under different
-                // classes are different nodes, and a memo keyed
-                // without it would serve a `Rest` answer to a
-                // `Tangent` question. Keys are process-internal, so
-                // this costs a one-time memo invalidation and no
-                // schema.
-                h.write_u64(class.content_tag());
-            }
+        // The declared pairs are payload, not edges, so they feed the
+        // key by hand ([`feed_declared`]).
+        Node::Boolean { declare, .. } | Node::Union { declare, .. } => {
+            feed_declared(&mut h, declare);
         }
         // LIB-PLACEDUNION: an `Explicit` rule's FRAMES are recipe
         // payload, not slots (the list is the count, D8-structural),
@@ -5404,38 +5369,11 @@ where
         | Node::Revolve { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
-        | Node::Split { .. }
-        | Node::Boolean { .. } => {}
+        | Node::Split { .. } => {}
         // The chain's shape (`feed_placement_shape` says why).
         Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
             feed_placement_shape(&mut h, placement);
         }
-        // The member list is edges, so the upstream keys carry it — in
-        // list order, and prefixed by their total length, so neither a
-        // reordering nor a dropped member can alias another list. What
-        // that total cannot say is where the list ENDS, because the
-        // optional `declare` edge follows it: members `[m, n]` with a
-        // declaration `d` and members `[m, n, d]` with none present the
-        // same three upstream keys in the same order. The two are
-        // different nodes — one fuses two bodies, the other refuses a
-        // declaration at a body seat — so the member count is fed, and
-        // it is the ONLY thing fed: the declaration's identity rides
-        // its own upstream key like every other input's.
-        //
-        // This is D8 key hygiene — two different nodes must not share
-        // a content key — and NOT a guard against a reachable
-        // collision. No door can produce one. A memo is looked up by
-        // node ID first and only then compared by key, a prior from
-        // another document is dropped (DI3), and the one edit that
-        // could turn `Union{[m, n], declare: d}` into
-        // `Union{[m, n, d], declare: None}` under one id does not
-        // exist: no edit rewires a live node's inputs (DM6), and the
-        // shape itself is refused at both doors (DM5's
-        // `DuplicateInput`, since `d` would be reached twice). So the
-        // feed is unguardable BY CONSTRUCTION — there is no document a
-        // row could build to go red without it — which is why it is
-        // written here rather than pinned by one.
-        Node::Union { members, .. } => h.write_u64(members.len() as u64),
     }
     // Evaluated slot values, in the node's deterministic slot order,
     // each followed by its NOMINAL — the rule, its exceptions and why
@@ -6029,6 +5967,30 @@ fn feed_scalar_join(
     {
         h.write_tag(tag::scalar_join::FLOW_EXPR);
         crate::param_source::feed_content_key(h, expr);
+    }
+}
+
+/// A Boolean's or Union's declared pairs, into its content key.
+///
+/// BOTH halves of each side, as a measure's reference feeds both: the
+/// name says which entity and the SITE says which operand's table it is
+/// read in, so two declarations differing only in a site declare
+/// contacts between different members. The site is a node id, which
+/// content keys otherwise exclude (D8); it is fed for the measure's
+/// reason — it is RECIPE PAYLOAD selecting a reading, not a Merkle link
+/// to an input.
+///
+/// The CLASS is part of the node's identity: two declarations of the
+/// same pair under different classes are different nodes, and a memo
+/// keyed without it would serve a `Rest` answer to a `Tangent` question.
+fn feed_declared(h: &mut KeyHasher, pairs: &[crate::DeclaredPair]) {
+    h.write_u64(pairs.len() as u64);
+    for ((a, b), class) in pairs {
+        for r in [a, b] {
+            h.write_u64(r.at.0);
+            feed_stable_name(h, &r.name);
+        }
+        h.write_u64(class.content_tag());
     }
 }
 
