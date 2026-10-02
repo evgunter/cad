@@ -7543,6 +7543,8 @@ fn spiric_off_own_chart<T: Decide>(
 // test gate can skip the sweep without skipping the deterministic rows.
 #[cfg(test)]
 mod envelope_lemma_fuzz;
+#[cfg(test)]
+mod review_3812_r1_probes;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
