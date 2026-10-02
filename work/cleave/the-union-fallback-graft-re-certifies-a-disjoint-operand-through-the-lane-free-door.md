@@ -2,12 +2,14 @@
 id: the-union-fallback-graft-re-certifies-a-disjoint-operand-through-the-lane-free-door
 kind: issue
 title: the boolean union/intersect fallback grafts a disjoint operand with Bridge::Recertify through the lane-free certify, while the subtract fallback now carries certificates; on the M7-8 class it would refuse NurbsLaneNotSupplied at f64
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: M
 parent: graft-recertifies-through-the-narrow-lane
 refs: [graft-recertifies-through-the-narrow-lane]
+pr: 3894
+branch: cleave/union-graft
 ---
 
 
