@@ -1,11 +1,14 @@
 ---
 id: boolean-door-passes-a-geometrically-open-result-the-backstop-cannot-see
 kind: issue
-title: "A boolean result missing a face passes the door: the gate runs tiers 1-2 only, and no volume inequality bounds a short intersection from below"
-status: open
+title: A boolean result missing a face passes the door: the gate runs tiers 1-2 only, and no volume inequality bounds a short intersection from below
+status: closed
+closed: 2026-10-02
 opened: 2026-10-01
 priority: P1
 cost: M
+pr: 3844
+branch: reach/door-backstop
 ---
 
 ## What
@@ -56,3 +59,47 @@ Measure the cost of tier 3 on the door's corpus before choosing.
 
 REACH (the backstop is #3611's), on `crates/topo/src/boolean/ops.rs`,
 which CLEAVE and HONE share.
+
+## Resolution (`reach/door-backstop`)
+
+Tier 3's cost on the door's corpus was measured first: about 15 % of op
+time on the topo and sweep suites. Gating it, though, refuses 55
+results the door ships today, from tier-1/2-only operands and from
+slivers whose minted edge keeps a scaffold description. That is the
+description-gap decision. It is filed with the measurement and its
+instrument (`door-tier3-meter`) as
+`boolean-door-tier-3-waits-on-the-description-gap`, and not taken here.
+
+The backstop half ships:
+
+- **The positivity arm.** A bounded ∩ or ∖ result must enclose
+  material. This is tier 3's +V invariant read at the door, by its
+  DESIGN rule: `V/A` against the band, only a negative certified past
+  the band (and confirmed in interval arithmetic) refuses, and an
+  in-band one is exempt. The ε = 1e-12 sliver that blocked it passes.
+  It is the arm the 6 negative ∩ bodies would meet. They were not
+  re-measured here: the join defect that made them is fixed, so
+  negative results are planted instead
+  (`boolean::ops::tests::volume_backstop_joint_and_sign_arms`,
+  `volume_backstop_reads_the_sign_against_the_band`).
+- **`vol(A ∪ B) ≤ vol(A) + vol(B)` and `vol(A ∖ B) ≥ vol(A) − vol(B)`.**
+  Like every bound, they are tight where a declaration's settled
+  residue can cross them, and they refuse a correct body there:
+  `a-settled-declared-coincidence-crosses-a-tight-volume-bound`.
+
+The 4 short positive ∩ bodies stay out of reach of any inequality over
+the three volumes. They are the tier-3 residue item's.
+
+## Closed (2026-10-02, PR 3844)
+
+The backstop now bounds what the operands can bound:
+- `vol(A ∪ B) ≤ vol(A) + vol(B)`;
+- `vol(A ∖ B) ≥ vol(A) − vol(B)`;
+- the result's +V sign, read through tier 3's own `plus_v_read` against
+  the band with DESIGN's exemption.
+
+The 4 short positive ∩ bodies stay invisible to any volume inequality.
+The remaining half, gating tier 3 at the door, is a design question,
+moved to `boolean-door-tier-3-waits-on-the-description-gap`. Its
+designers found the "description gap" closed long ago; what remains is
+the door contract, which is put to Ev.
