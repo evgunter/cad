@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-04
 priority: P0
 cost: M
+pr: 3897
+branch: fuse/on-verdict
 design: true
 ---
 
