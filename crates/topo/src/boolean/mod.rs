@@ -2734,17 +2734,34 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         plant: None,
         pad_override,
     };
-    reduce::sweep_both(
+    let mut held = Vec::new();
+    reduce::sweep_direction(
         &mut a,
         &mut b,
+        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        [&ab_knobs, &ba_knobs],
-        [Some(&mut ab), Some(&mut ba)],
+        &ab_knobs,
+        Some(&mut ab),
+        &mut held,
         tol,
     )?;
+    reduce::sweep_direction(
+        &mut b,
+        &mut a,
+        Operand::B,
+        &declared,
+        &mut acc,
+        band,
+        strategy,
+        &ba_knobs,
+        Some(&mut ba),
+        &mut held,
+        tol,
+    )?;
+    reduce::settle_held(&mut a, &mut b, held, &declared, &mut acc, band, tol)?;
     Ok((ab, ba))
 }
 
@@ -2777,17 +2794,34 @@ pub fn sweep_records(
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_both(
+    let mut held = Vec::new();
+    reduce::sweep_direction(
         &mut a,
         &mut b,
+        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        [&knobs, &knobs],
-        [None, None],
+        &knobs,
+        None,
+        &mut held,
         tol,
     )?;
+    reduce::sweep_direction(
+        &mut b,
+        &mut a,
+        Operand::B,
+        &declared,
+        &mut acc,
+        band,
+        strategy,
+        &knobs,
+        None,
+        &mut held,
+        tol,
+    )?;
+    reduce::settle_held(&mut a, &mut b, held, &declared, &mut acc, band, tol)?;
     let sizes = [
         a.vertices().count(),
         a.edges().count(),
@@ -2873,20 +2907,38 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     let mut a = carved_a.begin_surgery();
     let mut b = carved_b.begin_surgery();
 
-    // Reduction sweep, both directions (A's edges first — D9 order).
+    // Reduction sweep, both directions (A's edges first — D9 order),
+    // then the pairs held for both directions' splits.
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_both(
+    let mut held = Vec::new();
+    reduce::sweep_direction(
         &mut a,
         &mut b,
+        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        [&knobs, &knobs],
-        [None, None],
+        &knobs,
+        None,
+        &mut held,
         tol,
     )?;
+    reduce::sweep_direction(
+        &mut b,
+        &mut a,
+        Operand::B,
+        &declared,
+        &mut acc,
+        band,
+        strategy,
+        &knobs,
+        None,
+        &mut held,
+        tol,
+    )?;
+    reduce::settle_held(&mut a, &mut b, held, &declared, &mut acc, band, tol)?;
     let contacts = acc.finish();
 
     let mut null_edges = Vec::new();

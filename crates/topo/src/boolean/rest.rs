@@ -46,7 +46,10 @@
 //!    (structural fan walk — reused as the seam, minted nowhere), or
 //!    it is minted ONCE as a real chord through the standard
 //!    `mef`/`mekr` machinery in the unique face bounded by both
-//!    endpoints. No new region algebra: a segment that does not
+//!    endpoints — on the other solid's edge curve where that solid
+//!    carries the segment as an edge (the seam then has one locus
+//!    whichever solid's edge the zip keeps), straight where neither
+//!    does. No new region algebra: a segment that does not
 //!    resolve structurally refuses typed
 //!    ([`BooleanError::RestZipUnsupported`]) or falls back to the
 //!    original join refusal (pre-identification phases).

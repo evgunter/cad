@@ -203,12 +203,15 @@ verified seam, or a structural tangency (an edge described
 carrier with the target. It is never read from values: a root
 verdict of "tangent" is a band decision, so a graze within the band
 refuses, and an exact tangency is reached only through structure or a
-declaration. An edge decided to lie identically on the other operand's
-carrier, when every surface of a face it bounds is decided distinct
-from that carrier by the carrier ladder, is an ON event under the
-reduction's trilean (exactly-on ⇒ ON, in-band ⇒ escalate), as an edge
-lying in a partner's plane is; where the ladder does not decide a
-parent distinct, the cosurface question keeps its door.
+declaration. A covered touch inside an edge is read again on the
+edge's fragments once both sweep directions have split it, so whether
+it is recorded does not depend on which operand is A. An edge decided
+to lie identically on the other operand's carrier, when every surface
+of a face it bounds is decided distinct from that carrier by the
+carrier ladder, is an ON event under the reduction's trilean
+(exactly-on ⇒ ON, in-band ⇒ escalate), as an edge lying in a
+partner's plane is; where the ladder does not decide a parent
+distinct, the cosurface question keeps its door.
 
 **C5 — The signed gap.** For a declared pair on same-kind carriers with a
 shared mating frame, g is the carrier-relative signed offset: parallel

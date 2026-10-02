@@ -1357,13 +1357,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     Ok(())
 }
 
-/// An edge's two ends, `start(he_plus)` then `start(he_minus)`, with
-/// their points.
+/// An edge end: the vertex and its point.
+type End<T> = (VertexKey, Point3<T>);
+
+/// An edge's two ends, `start(he_plus)` then `start(he_minus)`.
 fn edge_ends<T: Decide>(
     x: &Body<T>,
     edge: &crate::entity::Edge,
-) -> Result<((VertexKey, Point3<T>), (VertexKey, Point3<T>)), BooleanError> {
-    let vert = |he| -> Option<(VertexKey, Point3<T>)> {
+) -> Result<(End<T>, End<T>), BooleanError> {
+    let vert = |he| -> Option<End<T>> {
         let vk = x.get_half_edge(he)?.start;
         Some((vk, *x.get_point(x.get_vertex(vk)?.point)?))
     };
@@ -1373,59 +1375,6 @@ fn edge_ends<T: Decide>(
             what: "edge endpoints unresolvable",
         }),
     }
-}
-
-/// **The reduction sweep, both directions** (D9: A's edges first), then
-/// the held pairs settled on what both directions split.
-///
-/// Which operand's edges are swept first decides only which vertices
-/// exist when a pair is read, and the held pairs are what makes that
-/// order immaterial to whether a covered touch is seen: a touch inside
-/// an edge of one operand very often sits at a vertex of the other (a
-/// fillet's tangent point, where its wall ends), and that vertex splits
-/// the edge only when the other direction reaches it.
-#[allow(clippy::too_many_arguments)] // the two directions' knobs and traces, side by side
-pub(super) fn sweep_both<T: Decide + Bounds>(
-    a: &mut Body<T>,
-    b: &mut Body<T>,
-    declared: &super::DeclaredPairs,
-    contacts: &mut ContactAcc,
-    band: Band,
-    strategy: SweepStrategy,
-    knobs: [&SweepKnobs; 2],
-    traces: [Option<&mut SweepTrace>; 2],
-    tol: Tol,
-) -> Result<(), BooleanError> {
-    let [ab_knobs, ba_knobs] = knobs;
-    let [ab_trace, ba_trace] = traces;
-    let mut held = Vec::new();
-    sweep_direction(
-        a,
-        b,
-        Operand::A,
-        declared,
-        contacts,
-        band,
-        strategy,
-        ab_knobs,
-        ab_trace,
-        &mut held,
-        tol,
-    )?;
-    sweep_direction(
-        b,
-        a,
-        Operand::B,
-        declared,
-        contacts,
-        band,
-        strategy,
-        ba_knobs,
-        ba_trace,
-        &mut held,
-        tol,
-    )?;
-    settle_held(a, b, held, declared, contacts, band, tol)
 }
 
 /// A covered edge × curved-face pair whose touch lies inside the edge
@@ -1446,9 +1395,20 @@ pub(super) struct HeldPair {
     refusal: BooleanError,
 }
 
-/// **Settles the held pairs on the edges' fragments.** Each fragment,
-/// walked from the held key along `he_plus` to the edge's far end, is
-/// read again by [`curved_face_arm`] against the held face. A fragment
+/// **Settles the held pairs on the edges' fragments**, after both sweep
+/// directions have run.
+///
+/// Which operand's edges are swept first decides only which vertices
+/// exist when a pair is read, and settling the held pairs last is what
+/// makes that order immaterial to whether a covered touch is seen: a
+/// touch inside an edge of one operand very often sits at a vertex of
+/// the other (a fillet's tangent point, where its flat wall ends), and
+/// that vertex splits the edge only when the other direction reaches
+/// it.
+///
+/// Each fragment, walked from the held key along `he_plus` to the
+/// edge's far end, is read again by [`curved_face_arm`] against the
+/// held face. A fragment
 /// that clears or records is done; one whose touch is still inside it,
 /// or that the arm reads as a crossing, answers the pair's typed
 /// frontier. A pair nothing split reads exactly as it was held, so it
@@ -1558,8 +1518,11 @@ pub(super) fn settle_held<T: Decide>(
 /// plate's continued corner cylinder) — takes the planar sweep's
 /// endpoint posture instead of the frontier door. A roots-lane
 /// "tangent" verdict is a band decision and never a source, so a
-/// graze within the band keeps the frontier; a tangency in the middle
-/// of an edge does too, since the cover records endpoints only. Each
+/// graze within the band keeps the frontier. The cover records
+/// endpoints only, so a covered pair whose ends are both clear of the
+/// carrier and which no enclosure or root set clears is held
+/// ([`CurvedEvent::Interior`]) and read again on the edge's fragments
+/// once both sweep directions have run ([`settle_held`]). Each
 /// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
 /// ([`super::contain::curved_face_containment`] — the boundary walk,
