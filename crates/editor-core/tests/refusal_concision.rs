@@ -273,7 +273,9 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "ScaffoldingOperand",
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
-                edge,
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
+                    vertex: topo::VertexKey::default(),
+                }],
             },
         ),
         (
