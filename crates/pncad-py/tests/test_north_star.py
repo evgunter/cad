@@ -87,11 +87,17 @@ def slab(doc, x, y, z):
     return doc.insert(Node.extrude(profile, Expr.length_in(z[1] - z[0], m)))
 
 
+# The projectbox's boss axes and their bores' radius.
+PROJECTBOX_BORE_AXES = [(0.625, 0.625), (0.625, 1.375), (2.375, 0.625), (2.375, 1.375)]
+PROJECTBOX_BORE_R = 0.09375
+
+
 def projectbox(doc):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
-    over 16 boxes — cavity, six vent slots, four bosses, four pilot
-    pockets. Shared by the volume-oracle row and the `cutaway` row,
-    which splits exactly this body."""
+    — cavity, six vent slots, four bosses, and a round through-bore
+    down each boss and out through the floor. Shared by the
+    volume-oracle row and the `cutaway` row, which splits exactly
+    this body."""
     body = slab(doc, (0, 3), (0, 2), (0, 1.5))
     body = doc.insert(
         Node.boolean(BooleanOp.Subtract, body, slab(doc, (0.25, 2.75), (0.25, 1.75), (0.25, 2.0)))
@@ -101,20 +107,18 @@ def projectbox(doc):
             body = doc.insert(
                 Node.boolean(BooleanOp.Subtract, body, slab(doc, x, y, (0.5, 1.25)))
             )
-    bx = [(0.4375, 0.8125), (2.1875, 2.5625)]
-    by = [(0.4375, 0.8125), (1.1875, 1.5625)]
-    for x in bx:
-        for y in by:
-            body = doc.insert(
-                Node.boolean(BooleanOp.Union, body, slab(doc, x, y, (0.1875, 0.875)))
+    for cx, cy in PROJECTBOX_BORE_AXES:
+        boss = slab(doc, (cx - 0.1875, cx + 0.1875), (cy - 0.1875, cy + 0.1875), (0.1875, 0.875))
+        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss))
+    for cx, cy in PROJECTBOX_BORE_AXES:
+        sketch = doc.insert(
+            Node.profile(
+                [circle((cx * m, cy * m), PROJECTBOX_BORE_R * m)],
+                plane=doc.sketch_frame(elevation=Expr.length_in(-0.125, m)),
             )
-    for x in bx:
-        for y in by:
-            px = (x[0] + 0.09375, x[1] - 0.09375)
-            py = (y[0] + 0.09375, y[1] - 0.09375)
-            body = doc.insert(
-                Node.boolean(BooleanOp.Subtract, body, slab(doc, px, py, (0.5625, 1.0625)))
-            )
+        )
+        bore = doc.insert(Node.extrude(sketch, Expr.length_in(1.25, m)))
+        body = doc.insert(Node.boolean(BooleanOp.Subtract, body, bore))
     return body
 
 
@@ -192,12 +196,12 @@ class TestDie(unittest.TestCase):
 
 class TestProjectbox(unittest.TestCase):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): the
-    longest boolean chain in the tour, 15 ops over 16 boxes. Its own
+    longest boolean chain in the tour, 15 ops. Its own
     design rule — no two operand planes coincide anywhere in the chain,
     every offset in 1/16 steps — is exactly what makes it authorable
     without a declaration door."""
 
-    def test_projectbox_matches_the_exact_dyadic_oracle(self):
+    def test_projectbox_matches_the_closed_form_oracle(self):
         doc = Doc()
         body = projectbox(doc)
 
@@ -205,16 +209,15 @@ class TestProjectbox(unittest.TestCase):
         #   9 - 2.5*1.5*1.25                     the cavity
         #   - 6 * 0.375*0.25*0.75                the vent slots
         #   + 4 * 0.375*0.375*0.625              the bosses
-        #   - 4 * 0.1875*0.1875*0.3125           the pilot pockets
+        #   - 4 * pi*r^2*0.875                   the bores, floor to boss top
         expected = (
             9.0
             - 2.5 * 1.5 * 1.25
             - 6 * 0.375 * 0.25 * 0.75
             + 4 * 0.375 * 0.375 * 0.625
-            - 4 * 0.1875 * 0.1875 * 0.3125
+            - 4 * math.pi * PROJECTBOX_BORE_R**2 * 0.875
         )
-        self.assertEqual(expected, 4.1982421875)
-        self.assertAlmostEqual(volume_of(doc, body), expected, delta=1e-12)
+        self.assertAlmostEqual(volume_of(doc, body), expected, delta=1e-9)
 
 
 class TestHeatsink(unittest.TestCase):
@@ -4497,7 +4500,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
         The scene runs `topo::split` KERNEL-level on the 15-op boolean
         project box with a tilted plane (normal (0.75, 0.1875, 1) — no
-        axis alignment, crossing cavity floor, bosses and vents), then
+        axis alignment, through two bored bosses), then
         moves the halves apart. The geometry always worked; what did
         not exist was the DOCUMENT spelling, because `Node.split` on
         that boolean refused at name emission. Here is that spelling,
@@ -4506,9 +4509,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         box = projectbox(doc)
         tool = doc.insert(
             Node.datum_plane((
-                Expr.length_in(1.5, m),
+                Expr.length_in(2.375, m),
                 Expr.length_in(1.0, m),
-                Expr.length_in(0.75, m),
+                Expr.length_in(0.53, m),
             ), (
                 Expr.literal(0.75),
                 Expr.literal(0.1875),
@@ -4531,17 +4534,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             )
 
         self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
-        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 8)
+        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 14)
         def pieces(kind, tag):
             pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
             return len(ev.select(cut, Selector.of(pat)))
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.
-        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 20)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 48)
         self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
-        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 32)
-        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 48)
+        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 58)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 76)
 
     def test_the_rocker_outline_is_authorable(self):
         """G12, CLOSED — the flip of the absence this test used to pin.

@@ -2,18 +2,16 @@
 //! longest boolean-of-boolean chain — cavity subtract, then 6 vent
 //! through-slots (each a two-ring tunnel seam through a wall), then 4
 //! interior screw bosses unioned to the floor (inset-overlap, the
-//! table-leg pattern), then 4 square pilot pockets into the boss tops:
-//! 15 sequential ops, every one against the exact dyadic volume
-//! oracle (a volume + Seamed-kind gate per op; tier 3′ with declared
-//! contacts runs once, on the FINAL body, in `crate::run_body`).
+//! table-leg pattern), then a round through-bore down each boss and
+//! out through the floor: 15 sequential ops, every one against the
+//! closed-form volume oracle (a volume + Seamed-kind gate per op; tier
+//! 3′ with declared contacts runs once, on the FINAL body, in
+//! `crate::run_body`).
 //!
-//! Square-only honesty: real enclosures want ROUND bosses and drilled
-//! pilot holes; this chain does not attempt them, and says so. Not
-//! because a blanket gate forbids curved operands — the operand gate
-//! (`topo`'s `reduce::gate_operand_pairs`) admits `Cylinder` and
-//! `Sphere` faces; the curved refusals live per C5 arm, at the sites
-//! that exercise one. Everything here is square. Coordinates follow the #91 design rule: no two operand planes
-//! coincide anywhere in the chain (all features offset in 1/16 steps).
+//! The bosses are square: a real enclosure's are round, and this
+//! chain does not attempt them. Coordinates follow the #91 design
+//! rule: no two operand planes coincide anywhere in the chain (all
+//! features offset in 1/16 steps).
 //!
 //! Retires the abstract `openbox` stop (this is the cavity story with
 //! a real part around it).
@@ -26,10 +24,37 @@ use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, try_subtract, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::Tol;
+use pncad::authoring::{p2, p3, validated};
+use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::profile::SketchPlane;
+use pncad::sweep::{Extrusion, extrude};
+
+/// The boss bores' radius (m).
+pub(crate) const BORE_R: f64 = 0.09375;
+
+/// The boss axes, `(x, y)`: the centres of the bosses' squares.
+pub(crate) const BORE_AXES: [(f64, f64); 4] = [
+    (0.625, 0.625),
+    (0.625, 1.375),
+    (2.375, 0.625),
+    (2.375, 1.375),
+];
+
+/// A rod of radius [`BORE_R`] on the vertical axis through `(cx, cy)`,
+/// from `z = -0.125` below the floor to `z = 1.125` above the boss tops.
+fn bore<S: Scalar>(cx: f64, cy: f64, tol: Tol) -> pncad::topo::Body<S> {
+    let circle = pncad::profile::circle(p2(cx, cy), S::from_f64(BORE_R), tol)
+        .expect("the bore radius is positive")
+        .into();
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, -0.125)));
+    let profile = validated(plane, vec![circle], tol).expect("the bore profile validates");
+    extrude(&profile, Extrusion::Distance(S::from_f64(1.25)), tol)
+        .expect("extrude the bore")
+        .body
+}
 
 /// Builds the 15-op enclosure chain, generic (the Probe sweep runs the
-/// same ops); returns the final body and its exact volume.
+/// same ops); returns the final body and its closed-form volume.
 pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
     // Outer shell 3 x 2 x 1.5, walls/floor 0.25.
     let outer: pncad::topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5), tol);
@@ -58,38 +83,35 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
         }
     }
 
-    // Interior screw bosses: 4, unioned to the floor with a 1/16
-    // overlap INTO it (flush contact would refuse — ladder rung (b)).
-    let bx = [(0.4375, 0.8125), (2.1875, 2.5625)];
-    let by = [(0.4375, 0.8125), (1.1875, 1.5625)];
-    for &x in &bx {
-        for &y in &by {
-            let boss = slab(x, y, (0.1875, 0.875), tol);
-            vol += 0.375 * 0.375 * 0.625;
-            acc = expect_seamed(
-                "boss union",
-                check(try_union(&acc.body, &boss, tol), vol, tol),
-                vol,
-            );
-            ops += 1;
-        }
+    // Interior screw bosses: 4, each 0.375 square about its bore axis,
+    // unioned to the floor with a 1/16 overlap INTO it (flush contact
+    // would refuse — ladder rung (b)).
+    for (cx, cy) in BORE_AXES {
+        let boss = slab(
+            (cx - 0.1875, cx + 0.1875),
+            (cy - 0.1875, cy + 0.1875),
+            (0.1875, 0.875),
+            tol,
+        );
+        vol += 0.375 * 0.375 * 0.625;
+        acc = expect_seamed(
+            "boss union",
+            check(try_union(&acc.body, &boss, tol), vol, tol),
+            vol,
+        );
+        ops += 1;
     }
 
-    // Square pilot pockets, centered in each boss top (round pilot
-    // HOLES are the M5 upgrade).
-    for &x in &bx {
-        for &y in &by {
-            let px = (x.0 + 0.09375, x.1 - 0.09375);
-            let py = (y.0 + 0.09375, y.1 - 0.09375);
-            let pocket = slab(px, py, (0.5625, 1.0625), tol);
-            vol -= 0.1875 * 0.1875 * 0.3125;
-            acc = expect_seamed(
-                "pilot pocket",
-                check(try_subtract(&acc.body, &pocket, tol), vol, tol),
-                vol,
-            );
-            ops += 1;
-        }
+    // A through-bore down each boss's axis and out through the floor:
+    // it removes the boss's whole column, floor to boss top.
+    for (cx, cy) in BORE_AXES {
+        vol -= core::f64::consts::PI * BORE_R * BORE_R * 0.875;
+        acc = expect_seamed(
+            "boss bore",
+            check(try_subtract(&acc.body, &bore(cx, cy, tol), tol), vol, tol),
+            vol,
+        );
+        ops += 1;
     }
     assert_eq!(ops, 15);
     (acc, vol)
@@ -105,23 +127,24 @@ pub fn stop(tol: Tol) -> Stop {
     let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, tol);
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
-         4 boss unions -> 4 pocket subtracts), volume matching the dyadic oracle \
-         after every op (observed bit-exact, gated 1e-9), final V = {vol}; square-only honesty: round bosses/pilot holes are not \
-         attempted here (curved operands are gated per C5 arm, not by a blanket \
-         operand gate); no two operand planes coincide \
-         anywhere in the chain (the #91 design rule). SECTIONED: {section_note}"
+         4 boss unions -> 4 bore subtracts), volume within 1e-9 of the closed-form \
+         oracle after every op, final V = {vol} (the bores remove pi r^2 x 0.875 \
+         each, r = {BORE_R}); the bosses are square, a real enclosure's are round; \
+         no two operand planes coincide anywhere in the chain (the #91 design \
+         rule). SECTIONED: {section_note}"
     );
     Stop {
         name: "projectbox",
         caption: "project box — whole, and sectioned".to_string(),
         montage: true,
         story: "electronics enclosure: cavity, 6 vent through-slots, 4 floor bosses, \
-                4 pilot pockets — the tour's longest boolean-of-boolean chain — and \
-                beside it the SAME body split by a tilted plane and pulled apart, a \
-                machinist's section showing the bosses, pockets and wall sections the \
-                whole one hides",
-        ops: "extrude 15 cutters/bosses -> 15 sequential subtract/union nodes; \
-              topo::split(tilted plane) -> 2 bodies -> 2 transform nodes",
+                4 through-bores — the tour's longest boolean-of-boolean chain — and \
+                beside it the SAME body split by a tilted plane through two bored \
+                bosses and pulled apart, a machinist's section whose boss sections \
+                are rings around the bores, showing what the whole one hides",
+        ops: "extrude 11 cutters/bosses + 4 bore rods -> 15 sequential subtract/union \
+              nodes; topo::split(tilted plane) -> 2 bodies -> 2 transform nodes; \
+              topo::plane_section(same plane) -> regions with holes",
         delta: 1e-2,
         note: Some(note),
         // The SECTION's camera, not the box's. A merged cell has one
@@ -150,5 +173,19 @@ pub fn stop(tol: Tol) -> Stop {
         ))
         .chain(section_bodies)
         .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The stop's own build: the chain's per-op volume oracle, the
+    /// section's ring census and `plane_section`'s closed-form areas
+    /// are all asserted inside it.
+    #[test]
+    fn the_bored_box_builds_and_its_section_rings_each_half() {
+        let stop = stop(Tol::witness());
+        assert_eq!(stop.bodies.len(), 3, "the box and its two halves");
     }
 }
