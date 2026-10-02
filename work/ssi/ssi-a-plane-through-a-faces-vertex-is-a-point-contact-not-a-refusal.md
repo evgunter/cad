@@ -5,9 +5,8 @@ title: ssi: a plane through a face's corner vertex refuses TraceUnresolved inste
 status: open
 opened: 2026-10-02
 priority: P2
-cost: M
+cost: H
 design: true
-needs_ev: true
 ---
 
 
