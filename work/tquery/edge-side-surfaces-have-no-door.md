@@ -2,10 +2,11 @@
 id: edge-side-surfaces-have-no-door
 kind: issue
 title: An edge's two side surfaces have no public door; the read is spelled at least nine times
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P3
 cost: M
+branch: tquery/edge-side-door
 ---
 
 
