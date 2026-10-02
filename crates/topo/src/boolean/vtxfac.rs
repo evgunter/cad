@@ -621,7 +621,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // half beside that edge faces it (`insert::strut_facing`, the
         // one rule both strut minters read): a strut whose halves face
         // that way round, he_plus toward its START germ, takes the fan's
-        // side. The side follows the facing, exactly as for a fan.
+        // side. The side follows the facing, exactly as for a fan. With
+        // both germs inside faces the strut keeps the default above.
+        // At a closed edge's lone vertex with a germ along that edge,
+        // the edge cannot say which half faces it and this minter has
+        // no geometric reading of its own: refused typed. No row
+        // reaches it — a pierce whose section runs along a closed
+        // piercing edge puts that whole edge on the pierced face.
         let MevSite::Fan { he2: corner, .. } = site else {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a pierce run's site is not a fan",
@@ -637,13 +643,24 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             .get_half_edge(corner_half.prev)
             .ok_or_else(corrupt)?
             .edge;
-        let start_on_arrival = strut
-            && super::insert::strut_facing(
+        let facing = if strut {
+            super::insert::strut_facing(
                 arrival,
                 departure,
                 super::insert::own_locus_edge(piercing, start_germ.0),
                 super::insert::own_locus_edge(piercing, end_germ.0),
-            )? == Some(true);
+            )?
+        } else {
+            super::insert::StrutFacing::Unnamed
+        };
+        if facing == super::insert::StrutFacing::ClosedEdge {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: pierced_op,
+                face: contact.face,
+                kind: pierced_kind(pierced_body, contact.face),
+            });
+        }
+        let start_on_arrival = facing == super::insert::StrutFacing::PlusFirst;
         let side = if strut && !start_on_arrival {
             NewVertexSide::Below
         } else {
