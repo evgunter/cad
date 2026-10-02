@@ -80,10 +80,7 @@ the registrant's spelling before the quotient, or have the fillet mint
 its struts' offsets from the radius so `r² − q·q` is the zero form.
 
 **After 3812's fix pass** (check 4 meters the frame on the chart's
-Gram–Schmidt twin, `EnvelopeTerm::Frame`), the bracket's refusal at
-`3.87e2·ε` names `EnvelopeTerm::Frame` first (enclosure `[0, 3.5e-9]`
-at ε = 1e-9): its fillet cylinder's frame is not a literal unit frame,
-and its distance from the twin does not decide Zero over the box. So
-the fillet's chart carries a second identity that holds only up to the
-box's width, beside the struts' radius. The pad still refuses at
-`pcurve_envelope`.
+Gram–Schmidt twin, `EnvelopeTerm::Frame`, bounded in the frame's
+invariants), the bracket still refuses at `3.87e2·ε` on the envelope's
+sum (`[0, 2.9e-9]` at ε = 1e-9), no single term over the band on its
+own; the pad still refuses at `pcurve_envelope`.

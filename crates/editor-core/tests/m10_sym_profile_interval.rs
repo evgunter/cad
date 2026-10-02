@@ -412,10 +412,10 @@ const PLATE_MAX_TERMS: usize = 252;
 ///
 /// | line | base | parts 1 + 2 | literal branch | frame twin |
 /// |---|---|---|---|---|
-/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16425 / 702 |
+/// | `Plain/Decision` calls / forms / frozen | 1255 / 21366 / 1176 | 1141 / 16247 / 696 | 1127 / 16018 / 696 | 1127 / 16429 / 696 |
 /// | `Plain/Assertion` calls / forms | 578 / 3233 | 612 / 3237 | 666 / 3474 | 666 / 4051 |
 /// | `Plain/Report` calls | 176 | 62 | 32 | 32 |
-/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9184 |
+/// | `Early/Decision` calls / forms | 552 / 14290 | 426 / 9125 | 416 / 8899 | 416 / 9188 |
 /// | `Early/Assertion` calls / forms | 578 / 4144 | 612 / 4166 | 666 / 4404 | 666 / 5015 |
 /// | `Door/Decision` calls / forms | 662 / 19170 | 558 / 13722 | 590 / 13212 | 590 / 13928 |
 /// | `Door/Assertion` calls | 322 | 356 | 410 | 410 |
@@ -434,16 +434,16 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   residuals the `Report` lines render halve (62 → 32).
 /// - **The frame twin.** Check 4 derives on the chart's Gram–Schmidt
 ///   twin (`n̂ = axis/‖axis‖`, `ê₁` normalised) and adds the `Frame`
-///   term: the twin's normalisations are new forms in every walk, and
-///   six of them freeze in the plain walk (696 → 702). Calls do not
-///   move: the twin is the same frame on this plate's literal charts,
-///   so no decision is added or lost.
+///   term, bounded in the frame's invariants: the twin's
+///   normalisations and the invariants are new forms in every walk.
+///   Calls and freezes do not move: the twin is the same frame on this
+///   plate's literal charts, so no decision is added or lost.
 
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1127 forms 16425 frozen 702 digest a4f9c0b03859a7520b88b26d1588ac8d\n\
+     Plain/Decision calls 1127 forms 16429 frozen 696 digest f0075c185b84ceaa1e6776fef010ba7a\n\
      Plain/Assertion calls 666 forms 4051 frozen 372 digest 2d8a3120e46d4f5e79adece7f2080b4f\n\
      Plain/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 416 forms 9184 frozen 8 digest 7c38961e4d49822f29b9fb92f5338f9a\n\
+     Early/Decision calls 416 forms 9188 frozen 8 digest 4a83df50386eccfa36dc691f0258eb7e\n\
      Early/Assertion calls 666 forms 5015 frozen 0 digest f8fb8acfd73cd5e780d9157d6836fa88\n\
      Early/Report calls 32 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Door/Decision calls 590 forms 13928 frozen 0 digest ad9c2d1d4a3be10b1f9edb793fc74e67\n\

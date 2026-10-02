@@ -170,7 +170,7 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// wall is the wedge's poisoned margin, which a band does not
 /// classify. So the cell asks at every ε whether this published box
 /// still certifies there rather than reasoning about it.
-pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
+pub const CERTIFIABLE_FRACTION: f64 = 6.751e-8;
 
 /// **The same measurement at 1, 2, 3 and 4 links** — one number in
 /// four spellings.
@@ -197,7 +197,7 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 ///
 /// Read only by that cell; the sheet's own [`CERTIFIABLE_FRACTION`] is
 /// the last row of it.
-pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
+pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [6.510e-7, 2.216e-7, 1.117e-7, 6.751e-8];
 
 /// **The tip's certified lateral half-width, over the pin radius** —
 /// the same at every link count whose box the WALL sets, and the

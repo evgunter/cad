@@ -73,7 +73,13 @@ pub(crate) struct Study {
     /// four lived in a comment (R1's `#651` shape: a claim resting on
     /// a measurement with neither guard nor register). Pinned, a later
     /// change that costs four more theorems reds here.
-    pub(crate) symbolic_zero: u64,
+    ///
+    /// Per ε row (`1e-6`, `1e-9`, `1e-12`). The three that certify whole
+    /// read the same count at all three; a refusing document's replay
+    /// stops at its refusal, and the pad's stops after a different
+    /// prefix at `1e-9` (1004 theorems against 980), so its count is
+    /// pinned per row rather than averaged into one.
+    pub(crate) symbolic_zero: [u64; 3],
     pub(crate) at: Box<dyn Fn(f64) -> ProfileDoc>,
 }
 
@@ -83,7 +89,8 @@ pub(crate) struct Study {
 /// and none fell.** `registered`: plate 140 → 148, annulus 140 → 148,
 /// link 110 → 118, bracket 146 → 156, pad 148 → 152. `symbolic_zero`:
 /// plate 811 → 947, annulus 328 → 432, link 545 → 681, bracket
-/// 1105 → 1235, pad 893 → 980. The registrants state nothing new. Each
+/// 1105 → 1255, pad 893 → 980 (1004 at ε = 1e-9:
+/// `Study::symbolic_zero`). The registrants state nothing new. Each
 /// replay asks more decisions: the extrude's closing pcurve mint
 /// certifies the wall rows, check 4's restated envelope and the loop
 /// walk's literal branch are the form's to decide, so the certificate
@@ -93,11 +100,7 @@ pub(crate) struct Study {
 /// certify whole at them. The bracket and the pad refuse at the
 /// extrude's `pcurve_envelope` (`refused_by`, asserted;
 /// `work/pcert/fillet-meridian-radius-term-is-registered-only`), so
-/// their counts are over the decisions taken before that refusal. The
-/// bracket's refusal names `EnvelopeTerm::Frame` (enclosure
-/// `[0, 3.5e-9]` at ε = 1e-9): its fillet cylinder's frame is not a
-/// literal unit frame, and its distance from its Gram–Schmidt twin does
-/// not decide Zero over the box.
+/// their counts are over the decisions taken before that refusal.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -109,7 +112,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
             // constants A0 now decides exactly. `registered` unmoved.
-            symbolic_zero: 947,
+            symbolic_zero: [947, 947, 947],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -118,7 +121,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: 7.810e2,
             refused_by: None,
             registered: 148,
-            symbolic_zero: 432,
+            symbolic_zero: [432, 432, 432],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -143,7 +146,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
             registered: 118,
-            symbolic_zero: 681,
+            symbolic_zero: [681, 681, 681],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -166,7 +169,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the bracket's fillet run out read against its arrival
             // carrier (`path_run_out_carrier`), a margin the tier proves
             // zero rather than measuring it.
-            symbolic_zero: 1235,
+            symbolic_zero: [1255, 1255, 1255],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -251,7 +254,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
-            symbolic_zero: 980,
+            symbolic_zero: [980, 1004, 980],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -524,6 +527,10 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 fn m10_9_no_registrant_lies_on_any_measured_document() {
     let tol = Tol::witness();
     let eps = tol.eps();
+    let row = [1.0e-6, 1.0e-9, 1.0e-12]
+        .iter()
+        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
+        .unwrap_or_else(|| panic!("no measured row at eps = {eps:e}: measure one and add it"));
     for study in measured_studies(tol) {
         let name = study.name;
         let doc = (study.at)(study.certifies_at * eps);
@@ -552,7 +559,7 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
              or a re-cut document. Decide which before re-baselining: {counts:?}"
         );
         assert_eq!(
-            counts.symbolic_zero, study.symbolic_zero,
+            counts.symbolic_zero, study.symbolic_zero[row],
             "{name} at eps={eps:e}: the TIER's own theorems moved. Beside `registered` \
              because the two trade: a rule that costs the early walk a theorem the \
              registry then re-takes leaves `registered` up and this count down, which \
@@ -634,7 +641,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (893, 34, 150, 1002, 2577),
+        (1004, 34, 152, 1188, 2587),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(
