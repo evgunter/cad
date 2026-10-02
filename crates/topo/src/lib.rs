@@ -292,8 +292,8 @@ pub mod test_support {
     pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_samples::validation_error_samples;
 
-    /// The boolean's volume backstop over `a`, `b` and a `result`, as the
-    /// pipeline gates a finished body
+    /// The boolean's volume backstop over `a`, `b` and a `result` of an
+    /// op with nothing declared, as the pipeline gates a finished body
     /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a
     /// suite plants a wrong result through.
     ///
@@ -308,7 +308,15 @@ pub mod test_support {
         tol: geom_core::Tol,
     ) -> Result<crate::AtRestOutcome, crate::BooleanError> {
         let band = geom_core::Band::linear(tol)?;
-        T::gate_volume_backstop(op, a, b, result, band, tol)
+        T::gate_volume_backstop(
+            op,
+            a,
+            b,
+            result,
+            &crate::BooleanDeclarations::none(),
+            band,
+            tol,
+        )
     }
 
     /// The two operand clones as the boolean's join leaves them, A's

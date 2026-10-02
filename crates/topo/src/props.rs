@@ -627,6 +627,17 @@ impl<T: Decide> PastTarget<'_, T> {
         fold_runs(&self.walk.runs).0
     }
 
+    /// One face's area as this walk measured it — the enclosure's
+    /// midpoint for a quadrature face — or `None` for a face it did not
+    /// visit.
+    pub(crate) fn face_area(&self, face: FaceKey) -> Option<T> {
+        self.walk
+            .runs
+            .iter()
+            .find(|run| run.face == face)
+            .map(|run| run.contribution.area)
+    }
+
     /// **The enclosure re-derived in interval arithmetic** —
     /// `(volume, surface area)`, each an interval holding the exact
     /// value of the body's stored geometry.
@@ -653,30 +664,52 @@ impl<T: Decide> PastTarget<'_, T> {
     /// no rounding to hide behind, which can leave a classification
     /// open that the walk's scalar decided.
     pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
-        let walk = &self.walk;
-        let lane = walk.quad?;
+        let lane = self.walk.quad?;
         let measure = || {
             let (mut flux, mut area) = (Interval::zero(), Interval::zero());
-            for run in &walk.runs {
-                let (f, a) = match run.contribution.enclosure {
-                    Some(enclosure) => enclosure,
-                    None => {
-                        let (surface, loops, sense) = closed_form_inputs(walk.body, run.face)?;
-                        let c = (lane.closed_form)(surface, &loops, sense, walk.band).map_err(
-                            |source| MassPropsError::Face {
-                                face: run.face,
-                                source,
-                            },
-                        )?;
-                        (c.flux, c.area)
-                    }
-                };
+            for run in &self.walk.runs {
+                let (f, a) = self.interval_run(lane, run)?;
                 flux = flux + f;
                 area = area + a;
             }
             Ok((flux / Interval::from_f64(3.0), area))
         };
         Some(measure())
+    }
+
+    /// One face's `(flux, area)` in interval arithmetic, as
+    /// [`Self::interval_volume`] sums them; `None` for a face this walk
+    /// did not visit, or when it holds no certified lane.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::interval_volume`].
+    pub(crate) fn interval_face(
+        &self,
+        face: FaceKey,
+    ) -> Option<Result<(Interval, Interval), MassPropsError>> {
+        let lane = self.walk.quad?;
+        let run = self.walk.runs.iter().find(|run| run.face == face)?;
+        Some(self.interval_run(lane, run))
+    }
+
+    fn interval_run(
+        &self,
+        lane: QuadLane<T>,
+        run: &FaceRun<T>,
+    ) -> Result<(Interval, Interval), MassPropsError> {
+        let walk = &self.walk;
+        if let Some(enclosure) = run.contribution.enclosure {
+            return Ok(enclosure);
+        }
+        let (surface, loops, sense) = closed_form_inputs(walk.body, run.face)?;
+        let c = (lane.closed_form)(surface, &loops, sense, walk.band).map_err(|source| {
+            MassPropsError::Face {
+                face: run.face,
+                source,
+            }
+        })?;
+        Ok((c.flux, c.area))
     }
 
     /// **One round further** on every face that met the target at a
@@ -1768,6 +1801,7 @@ struct FaceRun<T> {
 
 /// What a closed form reads of one face: its surface, its loops
 /// flattened (the outer first, then the rings), and its sense.
+#[allow(clippy::type_complexity)]
 fn closed_form_inputs<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
@@ -2626,8 +2660,8 @@ mod wiring_rows {
     use super::{AtRestPolicy, QuadLane, ShellDoor, quad_lane};
 
     /// `Ok(())` when the quadrature door holds
-    /// `quad_lane::cut_face_rounds`; otherwise the name of the field
-    /// that moved.
+    /// `quad_lane::cut_face_rounds` and `quad_lane::closed_form`;
+    /// otherwise the name of the field that moved.
     fn holds_the_certified_quadrature<T: super::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
@@ -2635,6 +2669,12 @@ mod wiring_rows {
             quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
+        }
+        if !std::ptr::fn_addr_eq(
+            QuadLane::<T>::certified().closed_form,
+            quad_lane::closed_form::<T> as fn(_, _, _, _) -> _,
+        ) {
+            return Err("closed_form is not `quad_lane::closed_form`");
         }
         Ok(())
     }
@@ -2914,7 +2954,8 @@ pub trait AtRestPolicy: Decide {
     /// The boolean engine's volume backstop over an op's two operands
     /// and its result (`crate::boolean::volume_backstop`, measuring
     /// through [`QuadLane::certified`], at certifying scalars; absent at
-    /// duals, and the outcome says which).
+    /// duals, and the outcome says which). `decls` are the op's
+    /// declarations, over the operands' keys.
     ///
     /// # Errors
     ///
@@ -2924,6 +2965,7 @@ pub trait AtRestPolicy: Decide {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError>;
@@ -2991,10 +3033,11 @@ impl AtRestPolicy for f64 {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, decls, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -3054,10 +3097,11 @@ impl AtRestPolicy for geom_core::Probe {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, decls, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -3113,10 +3157,11 @@ impl AtRestPolicy for geom_core::interval::Interval {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, decls, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -3185,10 +3230,11 @@ where
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        decls: &crate::BooleanDeclarations,
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, decls, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -3267,6 +3313,7 @@ where
         _a: &Body<Self>,
         _b: &Body<Self>,
         _result: &Body<Self>,
+        _decls: &crate::BooleanDeclarations,
         _band: Band,
         _tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
@@ -3396,7 +3443,15 @@ mod at_rest_policy_tests {
         let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
         assert!(
             matches!(
-                T::gate_volume_backstop(crate::BooleanOp::Union, &cube, &cube, &half, band, tol),
+                T::gate_volume_backstop(
+                    crate::BooleanOp::Union,
+                    &cube,
+                    &cube,
+                    &half,
+                    &crate::BooleanDeclarations::none(),
+                    band,
+                    tol,
+                ),
                 Err(crate::BooleanError::ResultVolumeImplausible { .. })
             ),
             "the certifying arm runs the volume backstop"
@@ -3482,6 +3537,7 @@ mod at_rest_policy_tests {
                 &cube,
                 &cube,
                 &half,
+                &crate::BooleanDeclarations::none(),
                 band,
                 tol
             )
