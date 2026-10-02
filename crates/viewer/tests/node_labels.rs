@@ -761,3 +761,56 @@ fn the_gathers_refusal_speaks_its_nodes() {
         "{refused}"
     );
 }
+
+/// **The Checks window speaks its roots from the landed document.** The
+/// report is the landed run's, so while a rename has not landed the
+/// window's root button and the finding's sentence both say the label
+/// the run was over, never the committed one's.
+#[test]
+fn the_checks_window_speaks_its_roots_from_the_landed_document() {
+    let tol = Tol::witness();
+    let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
+    let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
+    let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
+    let named = session.perform(SessionOp::SetLabel {
+        node: big,
+        label: Some(label("big block")),
+    });
+    assert!(named.refusal.is_none(), "{:?}", named.refusal);
+    session.pump();
+    let renamed = session.perform(SessionOp::SetLabel {
+        node: big,
+        label: Some(label("renamed")),
+    });
+    assert!(renamed.refusal.is_none(), "{:?}", renamed.refusal);
+
+    let report = session.checks().expect("the registry ran");
+    let (landed, _) = session.landed_pair().expect("a run landed");
+    assert_eq!(
+        (
+            landed.label(big).map(Label::as_str),
+            session.doc().label(big).map(Label::as_str)
+        ),
+        (Some("big block"), Some("renamed")),
+        "the rename has not landed: the two documents say two labels"
+    );
+    let rows = viewer::frame::check_rows(report, landed);
+    let row = rows
+        .iter()
+        .find(|row| row.root == big)
+        .expect("the two overlapping boxes are a separation finding about the big one");
+    let (b, s) = (tag(big.0), tag(small.0));
+    assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
+    assert!(
+        row.sentence.contains(&format!(
+            "Extrude \"big block\" ({b}) output 0: not certifiably disjoint from Extrude {s} \
+             output 0"
+        )),
+        "the finding speaks both roots from the landed document: {}",
+        row.sentence
+    );
+    assert!(
+        !row.sentence.contains("renamed") && !row.button.contains("renamed"),
+        "and never the committed label: {row:?}"
+    );
+}

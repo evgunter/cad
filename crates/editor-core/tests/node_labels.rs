@@ -979,6 +979,108 @@ fn a_report_rendered_from_another_document_fails_loud() {
     let _ = render_sensitivity(&entry, &other);
 }
 
+/// **A checks report holds ids and speaks them from the document the
+/// checks ran over**: a separation finding names both roots, and the
+/// refusal `enforce_checks` raises names its root, each as the
+/// document holds it, while the report's own `Display` (no document at
+/// hand) says each by its tag.
+#[test]
+fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
+    use editor_core::{CheckEvidence, ChecksConfig, Severity, enforce_checks, run_checks};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-checks", tol);
+    let (doc, [_, _, base]) = block(doc, 0.0);
+    let (doc, [_, _, boss]) = block(doc, 0.5);
+    let doc = set_label(doc, base, Some("base"));
+    let doc = set_label(doc, boss, Some("boss"));
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let (b, o) = (tag(base.0), tag(boss.0));
+    let strict = ChecksConfig {
+        connectedness: Severity::Error,
+        expected_components: [((base, 0), 2)].into_iter().collect(),
+        ..ChecksConfig::default()
+    };
+    let report = run_checks(&doc, &ev, &strict, tol).expect("the checks run");
+    assert!(
+        report.findings.iter().any(|finding| matches!(
+            finding.evidence,
+            CheckEvidence::NotSeparated { other_root, .. }
+                if finding.root == base && other_root == boss
+        )),
+        "the two overlapping roots are a separation finding: {report}"
+    );
+    let spoken = report.spoken(&doc);
+    assert!(
+        spoken.contains(&format!(
+            "check separation: Extrude \"base\" ({b}) output 0: not certifiably disjoint \
+             from Extrude \"boss\" ({o}) output 0"
+        )),
+        "the separation finding speaks both roots from the document: {spoken}"
+    );
+    assert!(
+        !spoken.contains(&format!("root {b}")) && !spoken.contains(&format!("root {o}")),
+        "no root is left at its bare tag: {spoken}"
+    );
+    let bare = report.to_string();
+    assert!(
+        bare.contains(&format!("root {b} output 0"))
+            && bare.contains(&format!("root {o} output 0"))
+            && !bare.contains("\"base\""),
+        "with no document at hand each root is its tag: {bare}"
+    );
+
+    let refusal = enforce_checks(&report, &strict).expect_err("connectedness is at Error");
+    let spoken = refusal.spoken(&doc);
+    assert!(
+        spoken.contains(&format!(
+            "check connectedness: Extrude \"base\" ({b}) output 0:"
+        )),
+        "the refusal speaks its root from the document: {spoken}"
+    );
+    assert!(
+        refusal.to_string().contains(&format!("root {b} output 0")),
+        "and its own Display says the tag: {refusal}"
+    );
+}
+
+/// The checks report is a report: rendered from another document that
+/// holds the same id, it fails loud rather than naming that document's
+/// node.
+#[test]
+#[should_panic(expected = "its node ids would name another document's nodes")]
+fn a_checks_report_spoken_from_another_document_fails_loud() {
+    use editor_core::{ChecksConfig, run_checks};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-checks-taken-of", tol);
+    let (doc, [_, _, base]) = block(doc, 0.0);
+    let (doc, _) = block(doc, 0.5);
+    let other = ProfileDoc::empty_derived("node-labels-checks-another", tol);
+    let (other, [_, _, same]) = block(other, 0.0);
+    assert_eq!(
+        base, same,
+        "the two documents hold one id as two nodes: the hazard this guards"
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
+    assert!(
+        report.findings.iter().any(|finding| finding.root == base),
+        "a finding names the root the other document also holds: {report}"
+    );
+    let _ = report.spoken(&other);
+}
+
 /// **A selection door's refusal holds ids and is spoken by the frame**
 /// that holds the evaluated document. The pick, select and resolve
 /// doors read an evaluation alone, so their refusals keep the bare id

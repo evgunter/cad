@@ -2284,6 +2284,40 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
     )
 }
 
+/// **One row of the Checks window**: the root a finding is about, the
+/// label of the button that selects it, and the finding's sentence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckRow {
+    /// The root the finding is about, which the button selects.
+    pub root: RecipeNodeId,
+    /// The root, spoken.
+    pub button: String,
+    /// The finding, its roots spoken.
+    pub sentence: String,
+}
+
+/// **The Checks window's rows**, each root spoken from `landed`.
+///
+/// The report is the landed run's: its roots' ids are spelled in the
+/// document that run was over, which the committed one passes while a
+/// run is outstanding. `landed` must be that run's document
+/// (`DocSession::landed_pair`). [`ChecksReport::speaker`] refuses
+/// another document, but not another version of this one, since a
+/// document's id survives every edit: the landed-against-committed
+/// choice is the caller's, and `ViewerApp::checks_window` makes it.
+pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<CheckRow> {
+    let by = report.speaker(landed);
+    report
+        .findings
+        .iter()
+        .map(|finding| CheckRow {
+            root: finding.root,
+            button: by.node(finding.root).to_string(),
+            sentence: Said(finding, by).to_string(),
+        })
+        .collect()
+}
+
 /// **What the chrome badges about the δ the display budget chose**,
 /// and `None` the moment the user picks their own.
 ///
