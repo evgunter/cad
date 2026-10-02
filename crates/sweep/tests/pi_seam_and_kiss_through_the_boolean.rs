@@ -829,3 +829,104 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
         assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
     }
 }
+
+/// Narrow review (JOIN-1 fix pass 3): domes and bowls of several corner
+/// angles, turned, on tubes, every op both orders, discs declared
+/// `Rest`; every build read at tiers 2, 3′, the certificate, tier 3,
+/// volume, and as an operand.
+#[test]
+#[ignore]
+fn narrow_review_dome_battery() {
+    let tol = Tol::witness();
+    let mut builds = 0;
+    let mut refusals = std::collections::BTreeMap::<String, usize>::new();
+    let mut bad = 0;
+    for &alpha_deg in &[15.0_f64, 30.0, 45.0, 60.0, 75.0, 89.0] {
+        let alpha = alpha_deg.to_radians();
+        let rise = R * (alpha / 2.0).tan();
+        let bulge = (alpha / 4.0).tan();
+        let dome = cap_on_the_tube(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(R, 0.0), bulge),
+            (Point2::new(0.0, rise), 0.0),
+        ]);
+        let bowl = cap_on_the_tube(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.0, -rise), bulge),
+            (Point2::new(R, 0.0), 0.0),
+        ]);
+        for &turn_deg in &[0.0_f64, 30.0, 90.0, 180.0, 7.0] {
+            let turn =
+                Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), turn_deg.to_radians());
+            let tdome = topo::transform_rigid(&dome, &turn, tol).unwrap();
+            for (plabel, partner) in [
+                ("tube", rod_z(R, 0.0, H)),
+                ("short tube", rod_z(R, H - 0.25, 0.25)),
+                ("bowl", bowl.clone()),
+            ] {
+                for (x, y, xl, yl) in [(&partner, &tdome, "p", "d"), (&tdome, &partner, "d", "p")] {
+                    let (dx, dy) = (planes_at_z(x, H), planes_at_z(y, H));
+                    let d = declared(&dx, &dy, ContactClass::Rest);
+                    for (op, r) in [
+                        ("union", topo::union_with(x, y, &d, tol)),
+                        ("subtract", topo::subtract_with(x, y, &d, tol)),
+                        ("intersect", topo::intersect_with(x, y, &d, tol)),
+                    ] {
+                        let label = format!("a{alpha_deg} t{turn_deg} {plabel} {xl}{yl} {op}");
+                        match r {
+                            Ok(BooleanResult::Body(bb)) => {
+                                builds += 1;
+                                let t2 = topo::validate_closed(&bb.body).is_ok();
+                                let t3p =
+                                    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
+                                let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
+                                let t3 = topo::validate_geometric(&bb.body, tol).is_ok();
+                                let v = topo::mass_properties(&bb.body, tol)
+                                    .map(|m| m.volume)
+                                    .unwrap_or(f64::NAN);
+                                let vx = topo::mass_properties(x, tol).unwrap().volume;
+                                let vy = topo::mass_properties(y, tol).unwrap().volume;
+                                let want = match op {
+                                    "union" => vx + vy,
+                                    "subtract" => vx,
+                                    _ => 0.0,
+                                };
+                                let vol_ok = (v - want).abs() <= 1e-9 * (vx + vy);
+                                let operand = std::panic::catch_unwind(|| {
+                                    sweep::test_support::assert_legal_operand("probe", &bb.body, tol)
+                                })
+                                .is_ok();
+                                let ok = t2 && t3p && cert && t3 && vol_ok && operand;
+                                if !ok {
+                                    bad += 1;
+                                }
+                                println!(
+                                    "NR {label}: BUILD t2={t2} t3p={t3p} cert={cert} t3={t3} vol={v:.12} want={want:.12} operand={operand}{}",
+                                    if ok { "" } else { " BAD" }
+                                );
+                            }
+                            Ok(BooleanResult::Empty) => {
+                                println!("NR {label}: EMPTY");
+                                if op != "intersect" {
+                                    bad += 1;
+                                }
+                            }
+                            Err(e) => {
+                                let k = format!("{e:?}");
+                                let k = k
+                                    .split([' ', '(', '{'])
+                                    .next()
+                                    .unwrap()
+                                    .to_string();
+                                println!("NR {label}: REFUSE {k}");
+                                *refusals.entry(k).or_default() += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("NR SUMMARY builds={builds} bad={bad} refusals={refusals:?}");
+    assert_eq!(bad, 0);
+}
