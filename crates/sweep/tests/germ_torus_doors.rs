@@ -577,8 +577,8 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
         matches!(
             err,
             BooleanError::GermFrameUnsupported {
-                a_kind: geom_brep::SurfaceKind::Torus,
-                b_kind: geom_brep::SurfaceKind::Plane,
+                a_kind: geom::SurfaceKind::Torus,
+                b_kind: geom::SurfaceKind::Plane,
                 ..
             }
         ),

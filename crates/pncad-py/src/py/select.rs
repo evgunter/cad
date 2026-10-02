@@ -369,7 +369,7 @@ impl SideArg {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
-    reason = "each variant mirrors the documented `editor_core::CurveKind` variant of the same name"
+    reason = "each variant mirrors the documented `geom::CurveKind` variant of the same name"
 )]
 pub(crate) enum CurveKind {
     Line,
@@ -397,7 +397,7 @@ impl CurveKind {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
-    reason = "each variant mirrors the documented `geom_brep::SurfaceKind` variant of the same name"
+    reason = "each variant mirrors the documented `geom::SurfaceKind` variant of the same name"
 )]
 pub(crate) enum SurfaceKind {
     Plane,

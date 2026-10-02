@@ -206,8 +206,8 @@ fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
         matches!(
             e,
             topo::BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Approx,
-                other_kind: geom_brep::SurfaceKind::Plane,
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Plane,
                 face: f,
                 ..
             } if f == face
@@ -925,10 +925,7 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
     assert!(
         matches!(
             step,
-            step_export::StepExportError::UnsupportedSurface {
-                kind: "approximating surface",
-                ..
-            }
+            step_export::StepExportError::UnsupportedSurface { kind: "approx", .. }
         ),
         "expected the kind refusal, got {step}"
     );

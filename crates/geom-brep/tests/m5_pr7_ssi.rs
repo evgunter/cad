@@ -1284,7 +1284,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
 /// Pure table lookup — no geometry, no ε — so it is stated whether or not
 /// the wall fixture fitted at this ε.
 fn assert_c5_plane_nurbs_retired() {
-    let r = geom_brep::route(geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Nurbs);
+    let r = geom_brep::route(geom::SurfaceKind::Plane, geom::SurfaceKind::Nurbs);
     assert!(r.implemented, "TABLE: plane×NURBS is implemented");
     assert!(
         r.note.contains("certifies the whole chain"),
@@ -2550,7 +2550,8 @@ fn a_clipped_domain_ends_the_branch_on_the_boundary() {
 
 #[test]
 fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
-    use geom_brep::{Rung, SurfaceKind, route};
+    use geom::SurfaceKind;
+    use geom_brep::{Rung, route};
     // Retired: all three C2 limbs certify.
     for (a, b) in [
         (SurfaceKind::Cylinder, SurfaceKind::Sphere),
