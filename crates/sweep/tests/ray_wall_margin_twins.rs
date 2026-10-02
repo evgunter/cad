@@ -110,12 +110,12 @@ fn the_wall_arms_margins_scale_linearly_with_the_model() {
             v.sort_by(f64::total_cmp);
             v
         };
-        // `!(dev <= 1e-9)`, so a NaN ratio is a deviation too.
+        // Not `dev > 1e-9`: a NaN ratio is a deviation too.
         let off: Vec<f64> = decisive(mm_list)
             .iter()
             .zip(&decisive(m_list))
             .map(|(a, b)| (b / a / 1e3 - 1.0).abs())
-            .filter(|dev| !(*dev <= 1e-9))
+            .filter(|dev| dev.is_nan() || *dev > 1e-9)
             .collect();
         if !off.is_empty() {
             nonlinear.push(format!(

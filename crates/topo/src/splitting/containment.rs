@@ -975,19 +975,13 @@ struct LoopStep<'b, T: geom_core::Real> {
     curve: Option<&'b geom_brep::EdgeCurve<T>>,
 }
 
-/// The steps of `loop`'s cycle, or the lone vertex of an empty loop.
-fn loop_steps<T: Decide>(
+/// The steps of `loop`'s cycle from its half-edge `first`.
+fn cycle_steps<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-) -> Result<Result<Vec<LoopStep<'_, T>>, Point3<T>>, PointInLoopError> {
+    first: crate::entity::HalfEdgeKey,
+) -> Result<Vec<LoopStep<'_, T>>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { vertex } => {
-            let point = body.get_vertex(vertex).ok_or_else(corrupt)?.point;
-            return Ok(Err(*body.get_point(point).ok_or_else(corrupt)?));
-        }
-    };
     let mut steps = Vec::new();
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let h = body.get_half_edge(he).ok_or_else(corrupt)?;
@@ -1004,7 +998,7 @@ fn loop_steps<T: Decide>(
                 .certified(),
         });
     }
-    Ok(Ok(steps))
+    Ok(steps)
 }
 
 /// The ball holding a step's edge beyond its end vertices: `None` for
@@ -1037,7 +1031,10 @@ pub(crate) fn carrier_loop<T: Decide>(
     band: Band,
 ) -> Result<CarrierLoop<T>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let steps = loop_steps(body, r#loop)?.map_err(|_| corrupt())?;
+    let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
+        return Err(corrupt());
+    };
+    let steps = cycle_steps(body, r#loop, first)?;
     let mut verts = Vec::new();
     let mut keys = Vec::new();
     let mut edges = Vec::new();
@@ -1155,10 +1152,18 @@ fn loop_hull<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
 ) -> Result<(Vec<Point3<T>>, Vec<(Point3<T>, T)>), PointInLoopError> {
-    let steps = match loop_steps(body, r#loop)? {
-        Ok(steps) => steps,
-        Err(vertex) => return Ok((vec![vertex], Vec::new())),
+    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
+    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex } => {
+            let point = body.get_vertex(vertex).ok_or_else(corrupt)?.point;
+            return Ok((
+                vec![*body.get_point(point).ok_or_else(corrupt)?],
+                Vec::new(),
+            ));
+        }
     };
+    let steps = cycle_steps(body, r#loop, first)?;
     let mut balls = Vec::new();
     for step in &steps {
         balls.extend(step_ball(r#loop, step)?);
