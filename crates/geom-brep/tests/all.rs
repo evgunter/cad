@@ -152,6 +152,8 @@ mod chart_incidence;
 mod cone_incidence_fuzz;
 #[path = "offset_mint.rs"]
 mod offset_mint;
+#[path = "pcurve_cone_section.rs"]
+mod pcurve_cone_section;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_general.rs"]

@@ -2732,6 +2732,15 @@ NOT_BOUND = {
     # the fault's own `str()`. Nothing in Python hands one out and no
     # bound door takes one.
     "NodeRefusal": INTERIOR,
+    # The wrapper `PartFault::PartProduct` and `ChecksError::Product`
+    # carry a gather refusal in, so those `Clone` types can hold one
+    # whole. Python never holds it: the part fault crosses as its node
+    # failure's tag word and prose, the checks refusal as
+    # `product_unavailable` and the refusal's prose.
+    "ProductRefusal": INTERIOR,
+    # The one generic both wrappers above are spellings of; Python holds
+    # neither, so it holds no instance of this either.
+    "Refusal": INTERIOR,
     # The kernel's reading of the refusals a failure carries, level by
     # level, with the document each level's node is in. Python reads the
     # same chain in its own shape: each level is an `EvaluationError`

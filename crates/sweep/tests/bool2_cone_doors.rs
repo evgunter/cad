@@ -522,9 +522,9 @@ fn the_kind_refusal_no_longer_names_the_cone() {
     assert!(msg.contains("spline"), "{msg}");
 
     // The arm's OWN refusal, for a cone face in neither chart class.
-    // No public door mints one today — it wants a ringed cone face or
-    // two bands stacked on one cone key — so what is pinned here is the
-    // claim the message makes, not a body that reaches it.
+    // The body that reaches it through the public doors is a tilted
+    // split's half (`reach_cone_split.rs`); what is pinned here is the
+    // claim the message makes.
     let msg = PointInSolidError::PartialConeFace {
         face: body.faces().next().unwrap().0,
     }
