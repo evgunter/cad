@@ -1743,7 +1743,7 @@
 <circle cx="349.29" cy="260.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
 <text x="54" y="286" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [0.00000, 3.14159] rad</text>
 <text x="54" y="298" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [-1.57080, 1.06544] rad</text>
-<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding not checked (branch jump); sense expects CCW   closure gap 5.6e-17 m</text>
+<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding not checked (branch jump); sense expects CCW   closure gap 8.9e-18 m</text>
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777">chart jump 3.1416 rad at a junction — seam or pole, not a gap</text>
 </g>
 
@@ -1765,7 +1765,7 @@
 <circle cx="70.71" cy="60.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
 <text x="54" y="286" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [3.14159, 6.28319] rad</text>
 <text x="54" y="298" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [1.06544, 1.57080] rad</text>
-<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding not checked (branch jump); sense expects CCW   closure gap 4.5e-16 m</text>
+<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding not checked (branch jump); sense expects CCW   closure gap 2.7e-17 m</text>
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777">chart jump 3.1416 rad at a junction — seam or pole, not a gap</text>
 </g>
 
@@ -1843,7 +1843,7 @@
 <circle cx="349.29" cy="260.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
 <text x="54" y="286" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [0.00000, 3.14159] rad</text>
 <text x="54" y="298" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [-1.57080, 1.06544] rad</text>
-<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding not checked (branch jump); sense expects CCW   closure gap 5.6e-17 m</text>
+<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding not checked (branch jump); sense expects CCW   closure gap 8.9e-18 m</text>
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777">chart jump 3.1416 rad at a junction — seam or pole, not a gap</text>
 </g>
 
