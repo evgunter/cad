@@ -40,8 +40,8 @@
 
 use std::collections::BTreeMap;
 
+use geom::SurfaceKind;
 use geom::{NetState, Surface};
-use geom_brep::SurfaceKind;
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
@@ -261,7 +261,7 @@ struct PoisonedNet;
 
 impl MergeKind {
     /// The kind of one surface value. The plane question is
-    /// [`SurfaceKind::of`]'s — the crate's one carrier-kind read —
+    /// [`geom::Surface::kind`]'s — the crate's one carrier-kind read —
     /// and the net question is [`NetState`]'s, matched exhaustively so
     /// no state is answered by a default.
     fn of<T: geom_core::Real>(surface: &Surface<T>) -> Result<Self, PoisonedNet> {
@@ -271,7 +271,7 @@ impl MergeKind {
                 NetState::Poisoned => Err(PoisonedNet),
                 NetState::Described => Ok(Self::Curved),
             },
-            s if SurfaceKind::of(s) == SurfaceKind::Plane => Ok(Self::Plane),
+            s if s.kind() == SurfaceKind::Plane => Ok(Self::Plane),
             _ => Ok(Self::Curved),
         }
     }
@@ -1461,12 +1461,12 @@ impl<T: Decide> Body<T> {
         // the calling op, and an inventory limit of this door is not
         // the caller's error.
         let kind_of = |k: SurfaceKey| -> Result<SurfaceKind, MergeCoplanarError> {
-            self.get_surface(k)
-                .map(SurfaceKind::of)
-                .ok_or(MergeCoplanarError::InvalidDeclaration {
+            self.get_surface(k).map(geom::Surface::kind).ok_or(
+                MergeCoplanarError::InvalidDeclaration {
                     surface: k,
                     what: "declared surface key does not resolve",
-                })
+                },
+            )
         };
         let mut eq = DeclaredSurfaceEq::default();
         let mut declined: Vec<((SurfaceKey, SurfaceKey), SurfaceKind)> = Vec::new();

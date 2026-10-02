@@ -160,7 +160,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
 fn faces_of_kind(
     ev: &Evaluation<f64>,
     body: RecipeNodeId,
-    kind: geom_brep::SurfaceKind,
+    kind: geom::SurfaceKind,
 ) -> Vec<SitedRef> {
     use editor_core::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
     let mut faces = select_where(
@@ -198,7 +198,7 @@ fn hole_walls(ev: &Evaluation<f64>, holes: [RecipeNodeId; 2]) -> Vec<SitedRef> {
     holes
         .into_iter()
         .map(|hole| {
-            let mut walls = faces_of_kind(ev, hole, geom_brep::SurfaceKind::Cylinder);
+            let mut walls = faces_of_kind(ev, hole, geom::SurfaceKind::Cylinder);
             assert!(!walls.is_empty(), "hole {hole:?} has a cylindrical wall");
             walls.remove(0)
         })
@@ -265,7 +265,7 @@ fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: editor_core::CapEnd) -> Si
 
 /// One cylindrical wall of a circular extrude, read at that extrude.
 fn hole_wall_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> SitedRef {
-    let mut walls = faces_of_kind(ev, node, geom_brep::SurfaceKind::Cylinder);
+    let mut walls = faces_of_kind(ev, node, geom::SurfaceKind::Cylinder);
     assert!(!walls.is_empty(), "node {node:?} has a cylindrical wall");
     walls.remove(0)
 }
@@ -555,7 +555,7 @@ fn cylinder_distance_is_the_axis_separation() {
 fn plane_angle_between_opposed_caps_is_pi() {
     let (doc, body, _) = plate();
     let ev = eval(&doc);
-    let planes = faces_of_kind(&ev, body, geom_brep::SurfaceKind::Plane);
+    let planes = faces_of_kind(&ev, body, geom::SurfaceKind::Plane);
     assert!(planes.len() >= 2, "a prism has at least two planar faces");
     // The caps are the two faces whose chart normals are +/-z; the
     // side walls are the rest. Picked by NAME (the cap role), not by
@@ -1102,8 +1102,8 @@ fn a_mixed_carrier_pair_refuses() {
     // The plate's own faces are all planar; the cylinder comes from a
     // hole tool, so the pair also crosses two nodes.
     let refs = vec![
-        faces_of_kind(&ev, body, geom_brep::SurfaceKind::Plane).remove(0),
-        faces_of_kind(&ev, holes[0], geom_brep::SurfaceKind::Cylinder).remove(0),
+        faces_of_kind(&ev, body, geom::SurfaceKind::Plane).remove(0),
+        faces_of_kind(&ev, holes[0], geom::SurfaceKind::Cylinder).remove(0),
     ];
     let doc = push(
         &doc,

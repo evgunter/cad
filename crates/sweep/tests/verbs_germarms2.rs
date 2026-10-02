@@ -286,8 +286,8 @@ fn the_fenced_poses_keep_their_own_doors() {
         matches!(
             e,
             BooleanError::GermFrameUnsupported {
-                a_kind: geom_brep::SurfaceKind::Cylinder,
-                b_kind: geom_brep::SurfaceKind::Cylinder,
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Cylinder,
                 ..
             }
         ),

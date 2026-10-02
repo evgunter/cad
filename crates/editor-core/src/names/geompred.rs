@@ -76,9 +76,7 @@ use crate::node::RecipeNodeId;
 // The kernel query seat's vocabulary, re-exported at its historical
 // home so this crate's public surface is unchanged (see the module
 // docs' layering note).
-pub use topo::query::{
-    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, SEL_DATUM_DISTANCE, SurfaceKindSet,
-};
+pub use topo::query::{CurveKind, CurveKindSet, SEL_DATUM_DISTANCE, SurfaceKindSet};
 
 /// The comparison a [`GeomPred::DatumDistance`] makes against its
 /// stated value: the SIGN trilean, never a bare float equality.

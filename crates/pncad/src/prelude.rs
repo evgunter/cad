@@ -386,12 +386,12 @@ pub use sweep::{
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
-// `geom_brep::SurfaceKind` rides here on purpose: it is the payload
+// `geom::SurfaceKind` rides here on purpose: it is the payload
 // of `BooleanError::CurvedBooleanUnsupported`, so any code that
 // matches on a curved-Boolean refusal needs it in the same breath as
 // the error itself — the one-dependency contract's closure over
 // error payloads (crate docs, contract clause 1).
-pub use geom_brep::SurfaceKind;
+pub use geom::SurfaceKind;
 // `PlaneRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
 // SameOriented = flush walls), so code inspecting findings names it.
@@ -748,14 +748,14 @@ pub use editor_core::{NameTextError, StableName};
 // field IS, so without it the arm is matchable and its two lanes
 // are not.
 pub use crate::select::{
-    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal,
-    ContactVerdict, CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact,
-    Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
-    Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
-    StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, edge_name,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact, Denotation, EntityKind,
+    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
+    NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, Pose, ProfileEdgeRef,
+    ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, StepId,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare,
+    declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, edge_name,
     face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
     vertex_position,
 };
@@ -766,8 +766,10 @@ pub use crate::select::{
 // names — `all_edges` above answers names from an evaluation,
 // `query::all_edges` answers keys from a body — and a prelude must
 // not make one shadow the other. The vocabulary types the doors speak
-// (`CurveKind`, `CurveKindSet`, `SurfaceKindSet`, `SurfaceKind`) are
-// already above, one definition re-exported upward.
+// are already above, each one definition re-exported upward: the kinds
+// `CurveKind` and `SurfaceKind` from `geom`, beside the enums they
+// mirror, and the sets `CurveKindSet` and `SurfaceKindSet` from
+// `topo::query`.
 pub use topo::query;
 // The KERNEL flush seat (`topo::flush`): the same detect/declare
 // protocol as a pure function of two `Body`s, for the caller who holds

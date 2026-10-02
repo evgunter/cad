@@ -916,7 +916,7 @@ pub enum ValidationError {
         /// The face whose surface stores the datum.
         face: FaceKey,
         /// The surface kind.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
         /// The datum that describes no locus.
         datum: geom::SurfaceDatum,
     },
@@ -951,7 +951,7 @@ pub enum ValidationError {
         /// The face whose surface stores the datum.
         face: FaceKey,
         /// The surface kind.
-        kind: geom_brep::SurfaceKind,
+        kind: geom::SurfaceKind,
         /// The datum outside its convention.
         datum: geom::SurfaceDatum,
         /// Which quantity of it is out: its value (a radius, a
@@ -980,7 +980,7 @@ pub enum ValidationError {
         /// The edge whose carrier stores the datum.
         edge: EdgeKey,
         /// The carrier kind.
-        kind: crate::query::CurveKind,
+        kind: geom::CurveKind,
         /// The datum that describes no locus.
         datum: geom::CurveDatum,
     },
@@ -997,7 +997,7 @@ pub enum ValidationError {
         /// The edge whose carrier stores the datum.
         edge: EdgeKey,
         /// The carrier kind.
-        kind: crate::query::CurveKind,
+        kind: geom::CurveKind,
         /// The datum outside its convention.
         datum: geom::CurveDatum,
         /// Which quantity of it is out.
@@ -2338,32 +2338,6 @@ fn entity_noun(e: EntityId) -> &'static str {
     }
 }
 
-/// A surface kind in words.
-fn surface_kind_words(kind: geom_brep::SurfaceKind) -> &'static str {
-    use geom_brep::SurfaceKind as K;
-    match kind {
-        K::Plane => "flat",
-        K::Cylinder => "cylindrical",
-        K::Cone => "conical",
-        K::Sphere => "spherical",
-        K::Torus => "toroidal",
-        K::Nurbs => "spline",
-        K::Approx => "fitted",
-    }
-}
-
-/// A carrier kind in words.
-fn curve_kind_words(kind: crate::query::CurveKind) -> &'static str {
-    use crate::query::CurveKind as K;
-    match kind {
-        K::Line => "straight",
-        K::Circle => "circular",
-        K::Ellipse => "elliptical",
-        K::Spiric => "toric-section",
-        K::Nurbs => "spline",
-    }
-}
-
 /// A stored datum in words, for a surface's and a carrier's alike:
 /// derived from the field's own name (`geom::SurfaceDatum::name`,
 /// `geom::CurveDatum::name`), underscores read as spaces, except where
@@ -2383,8 +2357,9 @@ fn datum_words(field: &'static str) -> Cow<'static, str> {
 }
 
 /// `words` with its indefinite article, read off its first letter
-/// (every word these tables render is pronounced as spelled).
-fn with_article(words: &str) -> String {
+/// (every word these tables render is pronounced as spelled). Shared
+/// with `query`'s rim refusal, which renders a curve kind's adjective.
+pub(crate) fn with_article(words: &str) -> String {
     let article = match words.chars().next() {
         Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
         _ => "a",
@@ -3029,7 +3004,7 @@ impl fmt::Display for ValidationError {
             Self::PoisonedSurfaceDatum { kind, datum, .. } => write!(
                 f,
                 "{} face's surface stores {} that is {}, so it describes no shape. {DEFECT}",
-                with_article(surface_kind_words(*kind)),
+                with_article(kind.adjective()),
                 with_article(&datum_words(datum.name())),
                 poison_words(matches!(
                     datum,
@@ -3048,14 +3023,14 @@ impl fmt::Display for ValidationError {
                 f,
                 "{} face's surface stores {}, so it does not describe the surface its \
                  kind names. {}",
-                with_article(surface_kind_words(*kind)),
+                with_article(kind.adjective()),
                 convention_breach(datum.name(), *measure, *end),
                 convention_recourse(datum.name(), *measure),
             ),
             Self::PoisonedCurveDatum { kind, datum, .. } => write!(
                 f,
                 "{} edge's curve stores {} that is {}, so it describes no curve. {DEFECT}",
-                with_article(curve_kind_words(*kind)),
+                with_article(kind.adjective()),
                 with_article(&datum_words(datum.name())),
                 poison_words(matches!(
                     datum,
@@ -3072,7 +3047,7 @@ impl fmt::Display for ValidationError {
                 f,
                 "{} edge's curve stores {}, so it does not describe the curve its kind \
                  names. {DEFECT}",
-                with_article(curve_kind_words(*kind)),
+                with_article(kind.adjective()),
                 convention_breach(datum.name(), *measure, *end),
             ),
             Self::EdgeCertification { error, .. } => {
@@ -5249,7 +5224,7 @@ pub(crate) fn surface_datum_errors<T: geom_core::Bounds>(
     surface: &Surface<T>,
     band: Band,
 ) -> Vec<ValidationError> {
-    let kind = geom_brep::SurfaceKind::of(surface);
+    let kind = surface.kind();
     DatumVerdict::into_errors(
         analytic_datum_verdicts(
             poisoned_datums(surface),
@@ -5273,7 +5248,7 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
     carrier: &geom::Curve3<T>,
     band: Band,
 ) -> Vec<ValidationError> {
-    let kind = crate::query::CurveKind::of(carrier);
+    let kind = carrier.kind();
     DatumVerdict::into_errors(
         analytic_datum_verdicts(
             poisoned_curve_datums(carrier),
@@ -8838,8 +8813,8 @@ mod tests {
     /// neither scalar.
     #[test]
     fn check_1_analytic_verdicts_agree_at_f64_and_interval() {
+        use geom::SurfaceKind as K;
         use geom::{ConventionEnd, SurfaceDatum as D};
-        use geom_brep::SurfaceKind as K;
         use geom_core::{Interval, Vec3};
         let face = FaceKey::default();
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();

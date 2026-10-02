@@ -564,7 +564,7 @@ pub(super) fn bool_connect<T: Decide>(
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
-                    kind: geom_brep::SurfaceKind::of(s),
+                    kind: s.kind(),
                 });
             }
         }
@@ -829,9 +829,9 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
         FrameError::Desync(what) => BooleanError::JoinDesync { what },
         FrameError::NoArm => BooleanError::GermFrameUnsupported {
             a_face: a.0,
-            a_kind: geom_brep::SurfaceKind::of(a.1),
+            a_kind: a.1.kind(),
             b_face: b.0,
-            b_kind: geom_brep::SurfaceKind::of(b.1),
+            b_kind: b.1.kind(),
         },
         FrameError::IntersectingCylinderAxes { evidence } => BooleanError::GermFrameCylinderPinch {
             a_face: a.0,
