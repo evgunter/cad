@@ -77,6 +77,8 @@ mod bool4r2_probes;
 mod boolean_covered;
 #[path = "boolean_discards.rs"]
 mod boolean_discards;
+#[path = "boolean_pinch_copies.rs"]
+mod boolean_pinch_copies;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
@@ -183,6 +185,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "on_verdict.rs"]
+mod on_verdict;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]

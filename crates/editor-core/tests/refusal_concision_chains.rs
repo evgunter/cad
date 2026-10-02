@@ -1408,10 +1408,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "RingHomingUncrossable",
-                J::RingHomingUncrossable {
-                    ring: LoopKey::default(),
-                },
+                "RingHoming(Uncrossable)",
+                J::RingHoming(topo::PointInLoopError::Uncrossable(topo::Uncrossable {
+                    r#loop: LoopKey::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                })),
             ),
             ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
             (
@@ -4243,7 +4245,14 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         ),
         (
             "EdgeCarrierUnsupported",
-            PointInSolidError::EdgeCarrierUnsupported { face },
+            PointInSolidError::EdgeCarrierUnsupported {
+                face,
+                cause: topo::Uncrossable {
+                    r#loop: topo::LoopKey::default(),
+                    edge: Default::default(),
+                    carrier: topo::UncrossableCarrier::Spiric,
+                },
+            },
         ),
         (
             "WallOutlineUnsupported",

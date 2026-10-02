@@ -1,11 +1,13 @@
 ---
 id: two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted
 kind: issue
-title: Two Parts selecting one body at one boolean are DM5-distinct inputs carrying one Arc; the boolean refuses as Containment(RayExhausted), not as the same body twice
+title: A shell lying wholly on the other operand's boundary (two Parts of one body at one boolean, and three shapes sharing no Arc) refuses ShellWitnessExhausted, naming no coincidence
 status: open
 opened: 2026-09-04
 priority: P0
 cost: M
+pr: 3897
+branch: fuse/on-verdict
 design: true
 ---
 
@@ -23,14 +25,27 @@ every description.
 
 ## Measured
 
-`docm/2-review-r2` @02d23644,
-`tests/docm2_r2_probes.rs::r2p9_two_parts_of_one_half_at_one_boolean`:
-`Boolean(Union)` of two `Part(Above)` of one split, and
-`Boolean(Subtract)` of `Part(Instance(0))` from its master. Both refuse
-TYPED — no panic, no assertion — but as
-`NodeErrorKind::Boolean(Containment(RayExhausted))`: the diagnosis a
-point-in-solid ray gives up with when every candidate face is its own
-twin. Nothing says "the same body twice", which is what happened.
+Main @bdfdda30c, re-measured through the public API (the rows of
+`crates/editor-core/tests/on_verdict_rows.rs`, run on main with each
+refusal printed). The row's earlier `Containment(RayExhausted)` no
+longer reproduces: the witness ladder
+(`crates/topo/src/boolean/shell_witness.rs`) reads past rays to edge
+midpoints and face interiors, and every one lies ON the other
+operand's boundary. Each shape refuses
+`Boolean(ShellWitnessExhausted { operand: A, on_boundary: 26, in_band: 0 })`
+under ∪, ∩ and − (24 nodes, every one):
+
+- two `Part(Above)` of one split (one `Arc` at both seats);
+- `master` with `Part(Instance(0))`, both orders (one `Arc`);
+- `(X ∪ Z) op X` and `X op (X ∪ Z)`, Z disjoint from X;
+- `(X ∪ Y) op X` and `X − (X ∪ Y)`, Y strictly inside X (the union
+  carries exactly X's sources);
+- two placements of one block, all six face pairs declared.
+
+The last three share no `Arc`: the defect is the boolean's, not the
+`Part`'s. The undeclared twins — `Transform(X, 0)` beside X, two
+placements, two independent identical extrudes — refuse
+`UndeclaredCoincidence`.
 
 ## What it is not
 

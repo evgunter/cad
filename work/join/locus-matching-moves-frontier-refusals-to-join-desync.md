@@ -2,8 +2,10 @@
 id: locus-matching-moves-frontier-refusals-to-join-desync
 kind: issue
 title: Locus matching moves 394 seam-battery and reflex-probe poses from typed frontier refusals to JoinDesync and SeamOrientation
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-02
+branch: join/pole-strut-binding
 priority: P1
 cost: H
 ---
@@ -86,12 +88,49 @@ The same fix restored `join1_delta_probes::overlapping_lens_prisms_declared_unio
 What remains is the reflex probe's 32 `SeamOrientation` moves (28 from
 `UnpairedLooseEnds`, 4 from `RestZipUnsupported`), still not traced.
 
-## The reflex `SeamOrientation` moves, traced (reflex-corner lane, 2026-10-02)
+## Measured (`join/pole-strut-binding`, 2026-10-02)
 
-They are `bool_strut_order`'s: a strut whose two germs both lie in the
-315° top face, at least one more than a half-turn from the corner's
+JOIN-1's head `0b6e39ca` against main `3ee0e4b6`, release, all six
+batteries of `join1_r1_probes.rs`; outcome classes, main → head:
+
+| battery | poses | moved | moves |
+|---|---|---|---|
+| prisms | 42335 | 6960 | `UnpairedLooseEnds` → sound 6960 |
+| seam | 12149 | 1245 | `SectionArcSide` → `SectionNotPolar` 993; `SectionInvariant` → `SectionNotPolar` 102; `SectionArcWindow` → `SectionNotPolar` 84; `JoinDesync` → `SectionNotPolar` 42; `UnpairedLooseEnds` → sound 24 |
+| declared | 26999 | 6268 | → sound: `UnpairedLooseEnds` 5977, `ClassificationInvariant` 245, `RestZipUnsupported` 46 |
+| reflex | 1151 | 186 | → sound 148; `UnpairedLooseEnds` → `SeamOrientation` 28; `RestZipUnsupported` → `SeamOrientation` 4; wrong body → `Euler(FanStartMismatch)` 4; `JoinDesync` → `JoinDesync` ("B senses agree") 2 |
+| tube | 6899 | 342 | `JoinDesync` → `SectionArcWindow` 204, → sound 102; `UnpairedLooseEnds` → `SingleSiteSectionLoop` 36 |
+| bored capsule | 2399 | 1133 | between typed frontiers 674; `JoinDesync` → typed frontier 429; `UnpairedLooseEnds` → `SingleSiteSectionLoop` 30 |
+
+No pose moves from sound, and none to a wrong body. No frontier
+refusal of main becomes a `JoinDesync` in any battery: the strut
+binding is fixed. The row's pose, `ball_poled_y(0.5)` against
+`brick((−1, 0.25), (−1, 1), (−1, 0))`, refuses `Join(SectionNotPolar)`
+under every op in both orders, and `join1_r1_rows`
+`a_pole_struts_halves_face_their_own_meridians` pins it (red, with
+this row's `JoinDesync`, when `vtxfac`'s pierce strut ignores
+`insert::strut_facing`).
+
+## Closed
+
+The pole-strut binding is fixed by `insert::strut_facing` (PR 3790's
+second fix pass) and pinned. The two reflex moves are traced and
+filed: the 32 `SeamOrientation` moves are edge-in-face poses that,
+once joined, reach the parallel-ring defect main already refuses at
+the neighbouring shears
+(`reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop`),
+and the 2 `JoinDesync` → `JoinDesync` moves are a B sense bound wrong
+at the reflex vertex
+(`a-reflex-vertex-and-its-partner-read-the-same-b-sense-along-an-edge-through-the-corner`).
+Both are evidence for `reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`.
+
+## The reflex `SeamOrientation` moves, fixed (reflex-corner lane, PR 3900)
+
+The first step that goes wrong at these poses is `bool_strut_order`:
+a strut whose two germs both lie in the 315° top face, at least one more than a half-turn from the corner's
 arrival edge, had its halves ordered by a bare cosine, which is not
 monotone past a half-turn. The order now reads the angle
 (`insert::strut_order`), and all 159 of the probe's `SeamOrientation`
-poses (∩, ∪, `a ∖ b`) build sound
+poses (∩, ∪, `a ∖ b`) build sound, the 32 movers among them. The
+parallel ring is that wrong facing, read at the zip
 (`work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`).

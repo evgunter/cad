@@ -112,7 +112,9 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let az = build::<f64>(tol);
-    // The intersect reads the same in either order.
+    // The other order, Z x A, builds the same body's volume: intersection
+    // is commutative, and the join no longer refuses it
+    // (`work/join/declared-flush-intersect-refuses-in-one-operand-order.md`).
     expect_seamed(
         "declared Z x A intersect",
         check(

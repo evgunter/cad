@@ -38,3 +38,26 @@ The survey lane wrote `## P2-split` in `docs/EDIT-PLACEMENT-SPEC.md` and found, 
 Rulings (orchestrator): D2 follows A4 (an unplaced group votes its gauge; two anchors refuse); D3, a stand-in node takes the label of the node it stands in for. D1 (round trip against the hoist and the sugar) and the `FromFace` frame rule are both A4 sentences, so they go to a designer pair and one `[ev]` PR (`a-from-face-mate-side-cannot-cross-the-split-or-inline-seam`).
 
 The cut: P2-carry first (single full review), P2-split (dual, H) with `MateFaceFrameCrosses` still refusing and D1's two shapes pinned evaluation-equal, then P2-face after Ev rules. Alternative considered: hold all of P2-split for Ev; rejected, since everything but the face frame is A4 as written.
+
+## 2026-10-02 — document order read from the document (PR 3882)
+
+Review tier: single review (a sweep that fixed sites). The reviewer's verdict was APPROVE-WITH-FIXES. Its one MAJOR was executed: `product::unplaced_groups`, a twin of the `parts.rs` expression the sweep fixed, still listed unplaced groups in id order into `ProductError::Unplaced` and the gate's own-space loop. The fix pass:
+- gave "unplaced groups in document order" one home, `Evaluation::unplaced_in_order` / `unplaced_groups`, read by product, parts and export;
+- pinned the deleted-node branch and `pairs_in_order` (now `pncad_py::node_map::in_document_order`, which fails loud on an unmapped target) with rows;
+- swept "root order"/"node order" doc phrases.
+
+Filed elsewhere: `work/chrome/display-prune-withdrawals-list-instances-in-id-order.md`, `work/vgeom/pick-ambiguity-lists-groups-in-id-order.md`, `work/wire/union-pairwise-refusal-names-its-pair-in-digest-id-order.md`. The orchestrator adjudicated the fix pass on its own read.
+
+## 2026-10-02 — split and inline keep a carried member's checked offset (PR 3885, P2-carry)
+
+Review tier: single full review. The verdict was APPROVE-WITH-FIXES; claims 1, 2, 3 and 5 held, and the reviewer executed its probe.
+
+The mechanism: `carry` re-states every offset a later carried mate's door cleared, with a recorded `SetOffset` after all carried nodes are in. `Recording` nets maintenance through `MaintenanceNet`. Skipping the door's clear was rejected, because replay runs the ordinary insert and would clear the offset again.
+
+The fix pass:
+- widened the rows to the reviewer's probe, killing three surviving mutants (per-insert re-statement, roots skipped, an invented identity offset);
+- swept the "what an outcome's maintenance holds" prose across two crates;
+- pinned the remainder-side improvement (a whole-document split of a declared union no longer reports a transient `OrphanedDeclare`);
+- made the re-statement fail loud.
+
+The orchestrator adjudicated the fix pass on its own read.

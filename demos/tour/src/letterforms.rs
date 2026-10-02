@@ -129,8 +129,8 @@ const V_2WAY: f64 = 4.25;
 const V_3WAY: f64 = 2.75;
 
 /// Builds the 2-way and 3-way results, narrating the undeclared
-/// refusal first.
-pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>) {
+/// refusal first; also hands back the C prism the 3-way consumed.
+pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>, Body<S>) {
     let (h, t, c) = (h_prism::<S>(tol), t_prism::<S>(tol), c_prism::<S>(tol));
     match try_intersect(&h, &t, tol) {
         Err(e @ BooleanError::UndeclaredCoincidence { .. }) => println!(
@@ -149,11 +149,11 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>) {
         V_2WAY,
     );
     let three = expect_seamed(
-        "declared (H x T) x C intersect",
-        check(try_intersect_declared(&two.body, &c, tol), V_3WAY, tol),
+        "declared C x (H x T) intersect",
+        check(try_intersect_declared(&c, &two.body, tol), V_3WAY, tol),
         V_3WAY,
     );
-    (two, three)
+    (two, three, c)
 }
 
 /// Area of `body`'s orthographic shadow down world axis `w` (0 = x,
@@ -193,7 +193,7 @@ fn shadow_area(body: &Body<f64>, w: usize, tol: Tol) -> f64 {
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let (two, three) = build::<f64>(tol);
+    let (two, three, c) = build::<f64>(tol);
     // The 3-way lies inside each letter's prism, so its shadow down that
     // prism's axis lies inside the letter; equal area makes it the WHOLE
     // letter. Letter areas: H 2·(1/2·3) + 1·1/2, T 1/2·5/2 + 3·1/2,
@@ -202,6 +202,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         let shadow = shadow_area(&three.body, axis, tol);
         assert_eq!(shadow, area, "the 3-way's shadow is the whole {letter}");
     }
+    // The other order, (H x T) x C, builds the same 3-way: intersection
+    // is commutative, and the join no longer refuses it
+    // (`work/join/declared-flush-intersect-refuses-in-one-operand-order.md`).
+    expect_seamed(
+        "declared (H x T) x C intersect",
+        check(try_intersect_declared(&two.body, &c, tol), V_3WAY, tol),
+        V_3WAY,
+    );
     // The shadow PROOF renders (standalone, not montage panels): the
     // 3-way solid viewed straight down each axis — orthographic, so
     // each frame IS the shadow: an H (z), a T (x), a C (y).
@@ -269,8 +277,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                   -> 1 more intersect node",
             delta: 1e-2,
             note: Some(format!(
-                "volume {V_3WAY} = 11/4 (gated 1e-9); built (H x T) x C, the C \
-                 intersected into the H x T result on the same declarations"
+                "volume {V_3WAY} = 11/4 (gated 1e-9); built C x (H x T) because \
+                 (H x T) x C refuses JoinDesync on the same declarations (wall 1)"
             )),
             view: View {
                 elev: 24.0,

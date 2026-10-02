@@ -352,9 +352,7 @@ pub fn tangent_locus_relation<T: Decide>(
         // (the C1 lemma, one dimension down from C3's patch clause).
         let n1: Vec3<T> = implicit_outward_normal(s1, sense1, p).vec();
         let n2: Vec3<T> = implicit_outward_normal(s2, sense2, p).vec();
-        let arm = geom_brep::curvature_lever_arm(s1, p)
-            .min(geom_brep::curvature_lever_arm(s2, p))
-            .min(extent);
+        let arm = geom_brep::folded_lever_arm(s1, s2, p, extent);
         match crate::validate::decide(
             "contact_tangent_opposed",
             Margin::levered(n1.dot(n2), arm),
