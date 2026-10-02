@@ -14,9 +14,7 @@ cost: M
 names sixteen sub-frontiers the declared-REST zip
 (`crates/topo/src/boolean/rest.rs`) refuses at. One is reached by an
 end-to-end fixture: `ChordBetweenIsolatedPierces`
-(`crates/topo/tests/seat3_flush_detector.rs`, and
-`crates/sweep/tests/m9_3_zip.rs`'s
-`a_tangent_curved_sector_on_a_face_lumps_whole`). The other fifteen are
+(`crates/topo/tests/seat3_flush_detector.rs`). The other fifteen are
 constructed only as values, by the refusal-text rows in
 `boolean/mod.rs` (`every_rest_zip_frontier_ends_in_its_own_lever_and_no_declaration`
 and the display table), which assert their wording and reach none of

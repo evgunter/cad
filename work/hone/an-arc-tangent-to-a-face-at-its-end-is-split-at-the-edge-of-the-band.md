@@ -37,7 +37,8 @@ Two consequences, both observed through a temporary probe in
    empty), so the posture is not wrong here — but it is the posture
    by construction, not by measurement, on every arc tangent at its end.
 2. **The sliver is a sliver edge** wherever the piece survives into a
-   result (here the union stops at the rest zip's frontier first).
+   result (here the union stops first: at the rest zip's frontier at the
+   witness ε, at a classification invariant at 1e-6, below).
 
 **What would close it.** Decide whether a declared-`Tangent` pair's
 in-band approach should mint a crossing at all (the tangency is the
@@ -45,6 +46,20 @@ contact; the band's edge is not a crossing), and either suppress the
 split under the declaration or take the sector arm from the unsplit
 edge. A row that asserts no vertex lands within `sqrt(2·ε·r)` of a
 declared tangency, and that the lump reads the wall's own side.
+
+**At `ε = 1e-6` the same fixture's UNION refuses as a kernel invariant.**
+`CAD_TOLERANCE_EPS=1e-6`: the difference and the intersection still
+answer right, but the union refuses `ClassificationInvariant { what:
+"pierce transition on a coplanar sector" }` from
+`vtxfac::pierce_germ_dir` (measured on PR 3747's head; at the witness ε
+it reaches the rest zip's `ChordBetweenIsolatedPierces` instead). The
+union's whole-sector lump takes the Eq. 15.3 ⁻ posture (`In`, see 1.
+above) beside an `Out` sector, so an out-run's boundary lands on the
+lumped wall sector, which is coplanar with the slab's top by
+construction and has no germ line. Either the lump should read the
+wall's own side (it would, with the split fixed), or a run boundary on
+a lumped tangent sector needs its germ from the locus rather than from
+the sector normal. The test stopped asserting the union for this reason.
 
 **Who waits on it.** `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`
 tells `vtxfac`'s whole-sector lump from a per-bound reading only through
