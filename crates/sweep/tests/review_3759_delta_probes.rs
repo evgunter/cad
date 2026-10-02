@@ -30,7 +30,10 @@ fn delta_a_row_widened_by_a_whole_period() {
     let (wall, cycle) = base
         .faces()
         .find_map(|(fk, f)| {
-            if !matches!(base.get_surface(f.surface).unwrap(), Surface::Cylinder { .. }) {
+            if !matches!(
+                base.get_surface(f.surface).unwrap(),
+                Surface::Cylinder { .. }
+            ) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = base.get_loop(f.outer).unwrap().boundary
@@ -40,19 +43,31 @@ fn delta_a_row_widened_by_a_whole_period() {
             Some((fk, base.loop_cycle(first).unwrap()))
         })
         .unwrap();
-    let surface = base.get_surface(base.get_face(wall).unwrap().surface).unwrap().clone();
+    let surface = base
+        .get_surface(base.get_face(wall).unwrap().surface)
+        .unwrap()
+        .clone();
     let tau = core::f64::consts::TAU;
     let mut silent = Vec::new();
     let mut total = 0;
     for (i, &h1) in cycle.iter().enumerate() {
         let edge = base.get_edge(base.get_half_edge(h1).unwrap().edge).unwrap();
-        let carrier = base.get_curve_geom(edge.curve).unwrap().certified().unwrap().carrier().clone();
+        let carrier = base
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .carrier()
+            .clone();
         if !matches!(carrier, Curve3::Circle { .. }) {
             continue;
         }
         let cache = base.pcurve(h1).unwrap().clone();
         let (t0, t1) = cache.params();
-        for (end, (lo, hi)) in [("shift+", (t0 + tau, t1 + tau)), ("shift-", (t0 - tau, t1 - tau))] {
+        for (end, (lo, hi)) in [
+            ("shift+", (t0 + tau, t1 + tau)),
+            ("shift-", (t0 - tau, t1 - tau)),
+        ] {
             for (j, &h2) in cycle.iter().enumerate() {
                 let mut body = base.clone();
                 let wide = cache.pcurve().clone();
@@ -71,7 +86,9 @@ fn delta_a_row_widened_by_a_whole_period() {
                     | PcurveMintError::Escalated { half_edge, .. } => *half_edge == h1,
                     _ => false,
                 });
-                let any_but_gap = f.iter().any(|e| !matches!(e, PcurveMintError::MissingCache { .. }));
+                let any_but_gap = f
+                    .iter()
+                    .any(|e| !matches!(e, PcurveMintError::MissingCache { .. }));
                 eprintln!("row {i} end {end} gap {j}: {f:?}");
                 if !any_but_gap {
                     silent.push((i, end, j));
@@ -82,5 +99,8 @@ fn delta_a_row_widened_by_a_whole_period() {
         }
     }
     eprintln!("silent (only the gap reported, or nothing): {silent:?} of {total}");
-    assert!(silent.is_empty(), "a period-wide stale row slips: {silent:?} of {total}");
+    assert!(
+        silent.is_empty(),
+        "a period-wide stale row slips: {silent:?} of {total}"
+    );
 }

@@ -59,8 +59,6 @@ mod revolve_common;
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
-#[path = "review_3759_delta_probes.rs"]
-mod review_3759_delta_probes;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -127,6 +125,10 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "review_3759_delta_probes.rs"]
+mod review_3759_delta_probes;
+#[path = "review_3759_delta_probes_r2.rs"]
+mod review_3759_delta_probes_r2;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
