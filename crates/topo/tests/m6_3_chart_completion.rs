@@ -255,6 +255,41 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
     assert!(findings.is_empty(), "{findings:?}");
 }
 
+/// **A producer's closing mint carries the fitted row.** The mint has no
+/// route to a general sphere circle (the closed-form door refuses it,
+/// row above), so it cannot re-derive this face; it carries the rows the
+/// face held, re-certified through their own door, rather than drop a
+/// certificate. Through the whole-body mint and through a rigid map —
+/// which ends with that mint — the rows stay `Fitted` and tier 3 reads
+/// the body clean.
+#[test]
+fn a_producers_closing_mint_carries_the_fitted_row() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let (body, he) = build::<f64>();
+    let image = |b: &topo::Body<f64>| {
+        b.pcurve(he)
+            .map(|c| format!("{:?} {:?}", c.params(), c.pcurve()))
+    };
+    let mut minted = body.clone();
+    topo::mint_pcurves(&mut minted, Tol::witness()).unwrap();
+    assert_eq!(
+        image(&minted),
+        image(&body),
+        "the mint carries the row as it was"
+    );
+    assert!(topo::pcurves::validate_pcurves(&minted, band).is_empty());
+    let moved = topo::transform_rigid(
+        &body,
+        &geom_core::Affine3::translation(geom_core::Vec3::new(0.25, -0.5, 1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
+    let carried = moved.pcurve(he).expect("the mapped body keeps the row");
+    assert!(matches!(carried.pcurve(), Pcurve::Fitted(_)));
+    let findings = topo::pcurves::validate_pcurves(&moved, band);
+    assert!(findings.is_empty(), "{findings:?}");
+}
+
 /// The interval row: the same body at the interval scalar. What the
 /// route DOES there depends on ε — it certifies, escalates honestly, or
 /// refuses definitely — so the row asserts whichever of the three the
