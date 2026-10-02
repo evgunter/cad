@@ -342,3 +342,50 @@ fn a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream() {
         }
     }
 }
+
+/// **The cut wall's trim places a point on it**: the drum's two wall
+/// faces are each bounded by a floor arc, two rulings and one rim arc,
+/// and a point on the wall's carrier lies in exactly one of them when it
+/// is above the floor and below the cut, in neither otherwise. That is
+/// what a crossing landing on the wall asks of it (the rods' rim circles
+/// above). On the base the face door had no verdict for a wall bounded
+/// by a planar section and answered `None` for every point.
+#[test]
+fn the_cut_wall_places_points_against_the_rim() {
+    let a = drum_lower();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let walls = faces_where(&a, |s| matches!(s, geom::Surface::Cylinder { .. }));
+    assert_eq!(walls.len(), 2, "two wall faces");
+    let mut placed = [0usize; 2];
+    for k in 0..24 {
+        // Off the seams at azimuth 0 and π.
+        let az = (f64::from(k) + 0.5) * core::f64::consts::TAU / 24.0;
+        let (x, y) = (DRUM_RADIUS * az.cos(), DRUM_RADIUS * az.sin());
+        for z in [0.02, 0.2, 0.33, 0.4, 0.5, 0.6, 0.7] {
+            let cut = cut_height(x);
+            if (z - cut).abs() < 0.01 {
+                continue;
+            }
+            let inside = z < cut;
+            let q = Point3::new(x, y, z);
+            let mut ins = 0;
+            for &f in &walls {
+                match topo::curved_face_containment(&a, f, q, band) {
+                    Ok(Some(topo::FaceContainment::In)) => ins += 1,
+                    Ok(Some(topo::FaceContainment::Out)) => {}
+                    other => panic!("({x}, {y}, {z}) on {f:?}: a verdict, got {other:?}"),
+                }
+            }
+            assert_eq!(
+                ins,
+                usize::from(inside),
+                "({x}, {y}, {z}): the cut is at {cut}"
+            );
+            placed[usize::from(inside)] += 1;
+        }
+    }
+    assert!(
+        placed[0] > 20 && placed[1] > 20,
+        "points on both sides of the rim: {placed:?}"
+    );
+}
