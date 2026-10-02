@@ -1545,20 +1545,24 @@ pub(super) fn curved_face_arm<T: Decide>(
         // stated at [`geom_brep::tangent_locus`]. A NEGATIVE partner is
         // a genuine crossing — never the covered posture. Uncovered
         // keeps both frontier doors verbatim.
-        // Both ends on the carrier: a covered line meets a curved carrier
-        // twice only by lying on it (a ruling), so its interior is asked
-        // before its ends.
+        // Both ends on the carrier. Where the carrier identity puts the
+        // line ON it (a parent face `Rest`-verified as `face`'s carrier),
+        // its interior is asked before its ends; a `Tangent`-covered
+        // line has no such certificate and keeps the ends-only rule.
         (Sign::Zero, Sign::Zero) if covered => {
             debug_assert!(
                 on_line,
                 "a covered circle keeps the frontier at the circle rung"
             );
-            if let Some(event) = on_carrier_crossing(y, x_is, face, &curve, band, frontier)? {
+            let on_carrier = on_declared_rest_carrier(x, x_is, edge, face, declared);
+            if on_carrier
+                && let Some(event) = on_carrier_crossing(y, x_is, face, &curve, band, frontier)?
+            {
                 return Ok(event);
             }
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-            Placement::declared([Some(hu), Some(hv)], true).ok_or_else(frontier)
+            Placement::declared([Some(hu), Some(hv)], on_carrier).ok_or_else(frontier)
         }
         (Sign::Zero, Sign::Positive) if covered => {
             debug_assert!(
@@ -1907,7 +1911,7 @@ fn on_carrier_crossing<T: Decide>(
     frontier: impl Fn() -> BooleanError,
 ) -> Result<Option<CurvedEvent<T>>, BooleanError> {
     use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
-    match boundary_crossing(y, x_is.other(), face, curve, band)? {
+    match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
         BoundaryCrossing::At { t, p, at } => Ok(Some(CurvedEvent::Pierce { t, p, at })),
         BoundaryCrossing::Clear => Ok(None),
         BoundaryCrossing::Unread => Err(frontier()),

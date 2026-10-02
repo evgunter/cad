@@ -74,7 +74,8 @@
 //! (REST rests are consumed into structure — the census's consumed
 //! class), tier gates, and the volume backstop.
 
-use geom_core::{Band, Bounds, Decide, Margin, Sign};
+use geom_brep::EdgeCurveSpec;
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
@@ -98,6 +99,7 @@ use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
+use crate::null::CurveGeom;
 use crate::splitting::finish::single_solid;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -217,7 +219,11 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut b_fragments = Vec::new();
     let a_seam = realize_seam(
         &mut red.a,
-        &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
+        &red.b,
+        &segments
+            .iter()
+            .map(|s| ((s.a_u, s.a_v), (s.b_u, s.b_v)))
+            .collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
         tol,
@@ -227,7 +233,11 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
     let b_seam = realize_seam(
         &mut red.b,
-        &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
+        &red.a,
+        &segments
+            .iter()
+            .map(|s| ((s.b_u, s.b_v), (s.a_u, s.a_v)))
+            .collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
         tol,
@@ -248,8 +258,9 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let a_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (b, a)).collect();
     let a_interior = interior_edges(&red.a, &a_patch, &a_seam)?;
     let b_interior = interior_edges(&red.b, &b_patch, &b_seam)?;
-    if mirror_edges(
+    let Some(a_patch) = mirror_edges(
         &mut red.a,
+        &red.b,
         &b_interior,
         &a_of,
         &a_patch,
@@ -257,24 +268,20 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut a_fragments,
         tol,
     )?
-    .is_none()
-        || mirror_edges(
-            &mut red.b,
-            &a_interior,
-            &b_of,
-            &b_patch,
-            &b_rings,
-            &mut b_fragments,
-            tol,
-        )?
-        .is_none()
-    {
-        return Ok(None);
-    }
-    let Some(a_patch) = patch_faces(&red.a, &a_seam, &a_rest)? else {
+    else {
         return Ok(None);
     };
-    let Some(b_patch) = patch_faces(&red.b, &b_seam, &b_rest)? else {
+    let Some(b_patch) = mirror_edges(
+        &mut red.b,
+        &red.a,
+        &a_interior,
+        &b_of,
+        &b_patch,
+        &b_rings,
+        &mut b_fragments,
+        tol,
+    )?
+    else {
         return Ok(None);
     };
     if a_patch.len() != b_patch.len() {
@@ -895,11 +902,13 @@ struct SeamSet {
 
 /// Realizes the seam in one solid: per segment, the existing operand
 /// edge (fan walk) or a minted chord through the standard splitting
-/// machinery. `Ok(None)`: a segment does not resolve structurally —
+/// machinery, on the other solid's edge for the segment where it has
+/// one. `Ok(None)`: a segment does not resolve structurally —
 /// not this lane's frontier (pre-identification phase).
 fn realize_seam<T: Decide>(
     body: &mut Body<T>,
-    segments: &[(VertexKey, VertexKey)],
+    other: &Body<T>,
+    segments: &[((VertexKey, VertexKey), (VertexKey, VertexKey))],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -908,10 +917,18 @@ fn realize_seam<T: Decide>(
         set: SecondaryMap::new(),
         per_segment: Vec::with_capacity(segments.len()),
     };
-    for &(u, v) in segments {
+    for &((u, v), theirs) in segments {
         let edge = match fan_edge_between(body, u, v)? {
             Some(e) => e,
-            None => match mint_chord(body, u, v, rings, fragments, tol)? {
+            None => match mint_chord(
+                body,
+                u,
+                v,
+                Twin::of(other, theirs, (u, v))?.as_ref(),
+                rings,
+                fragments,
+                tol,
+            )? {
                 Some(e) => e,
                 None => return Ok(None),
             },
@@ -954,22 +971,24 @@ fn interior_edges<T: Decide>(
 /// face where the shaft against it is three. Patches pair by vertex
 /// cycles, so every edge interior to the OTHER solid's patch is given
 /// a twin in `body`'s: found between the corresponding vertices, or
-/// minted as a chord in the patch face holding both. The chords are
-/// scaffolding — the zip removes both patches as interior — so they
-/// only have to divide the faces the way the other solid does.
+/// minted in the patch face holding both, on the other edge's carrier.
+/// The zip removes both patches as interior, so what the twins must get
+/// right is how they divide the faces.
 ///
+/// Returns the patch grown by the faces the twins split off.
 /// `Ok(None)`: an interior edge whose ends have no counterpart here (a
 /// vertex of the other solid interior to the region), a closed one, or
 /// one whose host is not a single patch face — not this lane's frontier.
 fn mirror_edges<T: Decide>(
     body: &mut Body<T>,
+    other: &Body<T>,
     other_interior: &[(VertexKey, VertexKey)],
     here: &SecondaryMap<VertexKey, VertexKey>,
     patch: &[FaceKey],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
-) -> Result<Option<()>, BooleanError> {
+) -> Result<Option<Vec<FaceKey>>, BooleanError> {
     let mut patch = patch.to_vec();
     for &(ou, ov) in other_interior {
         let (Some(&u), Some(&v)) = (here.get(ou), here.get(ov)) else {
@@ -988,12 +1007,13 @@ fn mirror_edges<T: Decide>(
             return Ok(None);
         }
         let minted = fragments.len();
-        if mint_chord(body, u, v, rings, fragments, tol)?.is_none() {
+        let twin = Twin::of(other, (ou, ov), (u, v))?;
+        if mint_chord(body, u, v, twin.as_ref(), rings, fragments, tol)?.is_none() {
             return Ok(None);
         }
         patch.extend(fragments[minted..].iter().map(|&(new, _)| new));
     }
-    Ok(Some(()))
+    Ok(Some(patch))
 }
 
 /// The existing edge from `u` to `v`, if any (structural fan walk —
@@ -1028,14 +1048,96 @@ fn fan_edge_between<T: Decide>(
     Ok(found)
 }
 
+/// The other solid's edge between the vertices a chord joins: its
+/// carrier and parameter span, and which of this solid's two vertices
+/// its span starts at.
+struct Twin<T: geom_core::Real> {
+    carrier: geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    start: VertexKey,
+}
+
+impl<T: Decide> Twin<T> {
+    /// The other solid's edge from `ou` to `ov`, read for this solid's
+    /// `u` and `v` (`ou`, `ov` correspond to them), or `None` where the
+    /// other solid has no such edge.
+    fn of(
+        other: &Body<T>,
+        (ou, ov): (VertexKey, VertexKey),
+        (u, v): (VertexKey, VertexKey),
+    ) -> Result<Option<Self>, BooleanError> {
+        let Some(edge) = fan_edge_between(other, ou, ov)? else {
+            return Ok(None);
+        };
+        let ed = other
+            .get_edge(edge)
+            .ok_or_else(|| desync("REST lane: twin edge no longer resolves"))?;
+        let Some(curve) = other
+            .get_curve_geom(ed.curve)
+            .and_then(CurveGeom::certified)
+        else {
+            return Ok(None);
+        };
+        let first = other
+            .get_half_edge(ed.he_plus)
+            .ok_or_else(|| desync("REST lane: twin half no longer resolves"))?
+            .start;
+        let (t0, t1) = curve.params();
+        Ok(Some(Self {
+            carrier: curve.carrier().clone(),
+            t0,
+            t1,
+            start: if first == ou { u } else { v },
+        }))
+    }
+
+    /// The twin's curve run from `from` (at `p_from`) to `p_to`: a line
+    /// as the chord between the two points, a circle as its own arc in
+    /// the direction asked (reversed by flipping the axis). `None` for
+    /// any other carrier, which keeps the straight chord.
+    fn spec(
+        &self,
+        from: VertexKey,
+        p_from: Point3<T>,
+        p_to: Point3<T>,
+    ) -> Option<EdgeCurveSpec<T>> {
+        match self.carrier {
+            geom::Curve3::Line { .. } => Some(EdgeCurveSpec::line_between(p_from, p_to)),
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => {
+                if from == self.start {
+                    EdgeCurveSpec::arc_of_circle(self.carrier.clone(), self.t0, self.t1)
+                } else {
+                    let reversed = geom::Curve3::Circle {
+                        center,
+                        axis: -axis,
+                        radius,
+                        u_ref,
+                    };
+                    EdgeCurveSpec::arc_of_circle(reversed, -self.t1, -self.t0)
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
 /// Mints the seam chord `u → v` through the standard splitting
 /// machinery (`mef` same-loop, `mekr` for ring loops / pierce-ring
-/// vertices) in the unique face incident to both endpoints.
+/// vertices) in the unique face incident to both endpoints, on its
+/// `twin`'s carrier where the other solid has the edge (a rim arc stays
+/// an arc), and as a straight chord where it has none.
 /// `Ok(None)`: no unique host face — not this lane's frontier.
 fn mint_chord<T: Decide>(
     body: &mut Body<T>,
     u: VertexKey,
     v: VertexKey,
+    twin: Option<&Twin<T>>,
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -1063,12 +1165,32 @@ fn mint_chord<T: Decide>(
             .ok_or_else(|| desync("REST lane: chord half no longer resolves"))?
             .parent_loop)
     };
+    // The new edge's curve from `from` to `to`, where the twin states
+    // one; `None` takes the straight chord.
+    let spec = |body: &Body<T>, from: VertexKey, to: VertexKey| -> Option<EdgeCurveSpec<T>> {
+        let at = |w: VertexKey| {
+            body.get_vertex(w)
+                .and_then(|vd| body.get_point(vd.point))
+                .copied()
+        };
+        twin?.spec(from, at(from)?, at(to)?)
+    };
+    let mef = |body: &mut Body<T>, he1: HalfEdgeKey, he2: HalfEdgeKey, from, to| {
+        let site = MefSite::Chords { he1, he2 };
+        match spec(body, from, to) {
+            Some(curve) => body.mef(site, curve, FaceSurface::Inherit, tol),
+            None => body.mef_chord(site, tol),
+        }
+    };
+    let mekr = |body: &mut Body<T>, site: MekrSite, from, to| match spec(body, from, to) {
+        Some(curve) => body.mekr(site, curve, tol),
+        None => body.mekr_chord(site, tol),
+    };
     let created = match (&hu[..], &hv[..]) {
         ([hu], [hv]) => {
             let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
             if lu == lv {
-                let created = body
-                    .mef_chord(MefSite::Chords { he1: *hu, he2: *hv }, tol)
+                let created = mef(body, *hu, *hv, u, v)
                     .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
                 fragments.push((created.face, face));
                 created.edge
@@ -1078,8 +1200,12 @@ fn mint_chord<T: Decide>(
                     .get_face(face)
                     .ok_or_else(|| desync("REST lane: chord host face vanished"))?
                     .outer;
-                let (target, ring) = if lv == outer { (*hv, *hu) } else { (*hu, *hv) };
-                body.mekr_chord(MekrSite::Cycles { target, ring }, tol)
+                let ((target, from), (ring, to)) = if lv == outer {
+                    ((*hv, v), (*hu, u))
+                } else {
+                    ((*hu, u), (*hv, v))
+                };
+                mekr(body, MekrSite::Cycles { target, ring }, from, to)
                     .map_err(|_| unsupported(RestZipFrontier::ChordMekrRefused))?
                     .edge
             }
@@ -1087,14 +1213,14 @@ fn mint_chord<T: Decide>(
         ([], [hv]) => {
             let ring = ring_loop_of(body, u)
                 .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hv, ring }, tol)
+            mekr(body, MekrSite::EmptyRing { target: *hv, ring }, v, u)
                 .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
                 .edge
         }
         ([hu], []) => {
             let ring = ring_loop_of(body, v)
                 .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hu, ring }, tol)
+            mekr(body, MekrSite::EmptyRing { target: *hu, ring }, u, v)
                 .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
                 .edge
         }

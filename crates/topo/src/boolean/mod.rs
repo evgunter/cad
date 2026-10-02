@@ -203,7 +203,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_carrier_cross_in_span"
         | "bool_carrier_cross_transverse"
-        | "bool_carrier_cross_disc"
+        | "bool_carrier_cross_line_meets_circle"
+        | "bool_carrier_cross_circles_apart"
+        | "bool_carrier_cross_circles_nested"
         | "bool_carrier_cross_plane_offset"
         | "bool_carrier_cross_concentric" => CrossingDecision::OnEdge.subject(),
         "bool_face_disc_carrier"
