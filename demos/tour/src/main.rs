@@ -78,6 +78,7 @@ mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
+mod snowman;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
@@ -861,6 +862,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
     for stop in bossplate::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the snowman (two coaxial balls under every boolean; the waist rolled into a \
+         torus band) --"
+    );
+    for stop in snowman::stops(tol) {
         visit(&stop);
     }
 
