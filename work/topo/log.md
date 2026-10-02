@@ -5668,3 +5668,4 @@ Two designers are dispatched concurrently with one problem statement
 blinding byte and the protocol hash are on
 `analysis/design-fork/topo-kef-kfmrh-across-keys`. Neither designer
 sees the other's report until both are in.
+- 2026-10-01 — From CLEAVE: claimed `euler-rebased-run-recertifies-through-the-plain-door` (moved to `work/cleave/`, parent `edge-mint-doors-read-the-nurbs-lane-from-the-policy`). The Euler surface's attachment gate (`Body::certify_edge_spec`), the fan `mev`'s re-basing gate and `set_face_surfaces_describing` now read the plane × NURBS lane off `AtRestPolicy::nurbs_lane()`, so the Euler doors that mint or re-describe an edge are bounded `AtRestPolicy` (all five scalars implement it), and a scalar holding no lane refuses the class with the new `EulerOpError::NurbsLaneUnsupported { edge, scalar }`. `set_edge_curve_nurbs_lane` is gone. (CLEAVE lane)

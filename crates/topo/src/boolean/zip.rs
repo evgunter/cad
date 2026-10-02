@@ -82,7 +82,7 @@ pub(super) enum Joint {
 /// merged fan's carriers, each re-certified at the kept vertex under the
 /// run's band. Returns the fusion `(dead, kept)` and, for a chord, the
 /// face it divided off; `desync` names a joint that no longer resolves.
-pub(super) fn fuse_by_joint<T: Decide>(
+pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     joint: Joint,
     p: geom_core::Point3<T>,
@@ -138,7 +138,7 @@ pub(super) struct ZipReport {
 }
 
 /// Zips one section-face pair (module docs).
-pub(super) fn zip_seam<T: Decide>(
+pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     a_face: FaceKey,
     b_face: FaceKey,

@@ -157,7 +157,9 @@ impl<T: Decide> Body<T> {
     /// (above); both child specs certify
     /// ([`EulerOpError::Certification`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
-    /// forward order on each child).
+    /// forward order on each child; the plane × NURBS lane is the
+    /// scalar's policy, and a scalar holding none refuses that class
+    /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge`).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): a parent half-edge's
     /// stored chart row is CARRIED to both children — a
@@ -166,8 +168,8 @@ impl<T: Decide> Body<T> {
     /// parent's restricted to its sub-interval, exactly as each
     /// child's carrier is. A restriction DERIVES nothing, which is why
     /// it re-certifies through `PcurveCache::certify` — `geom-brep`
-    /// declares that door `impl<T: Decide>` — and why this op keeps
-    /// the `Decide` bound and no caller of it moves. Both restrictions
+    /// declares that door `impl<T: Decide>` — and why the rows add no
+    /// bound to this op's own. Both restrictions
     /// are certified in the plan phase
     /// ([`crate::pcurves::split_cache`]), so a face this op touches is
     /// never left half-minted and a refusal
@@ -209,7 +211,10 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         t: T,
         tol: Tol,
-    ) -> Result<SplitEdgeCreated, EulerOpError> {
+    ) -> Result<SplitEdgeCreated, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -293,8 +298,8 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
-        let cert1 = self.certify_edge_spec(spec1, p_u, p_new, tol)?;
-        let cert2 = self.certify_edge_spec(spec2, p_new, p_v, tol)?;
+        let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
+        let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
         // stored chart row, restricted to the two children's
         // sub-intervals and re-certified. Read-only, so a refusal
