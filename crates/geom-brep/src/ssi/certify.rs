@@ -161,7 +161,7 @@ pub const SSI_TUBE_RADIUS: f64 = 8.0;
 /// (D9): no value branch chooses it, the first rung that certifies
 /// wins, and if none does the operation refuses typed rather than
 /// shipping a carrier whose component-selection claim is unproved.
-fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> {
+pub(crate) fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> {
     let floor = SSI_TUBE_RADIUS * band.zero();
     (0..SSI_TUBE_RUNGS).filter_map(move |k| {
         #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]

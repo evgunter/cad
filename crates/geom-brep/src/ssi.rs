@@ -115,11 +115,14 @@
 //! lanes consume a rung-3 carrier. Zipping curved booleans end to end,
 //! and the tangency regime the σ₂ band refuses toward, are PR 9.
 
+pub mod boundary;
 pub mod certify;
 pub mod enclose;
+mod ends;
 pub mod exhaust;
 pub mod jet;
 pub mod march;
+pub mod section;
 pub mod system;
 
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
@@ -132,7 +135,9 @@ use crate::recourse::{
     Reading, Refused, RefusedArm, SizedDecision, StoredDefinite, Unsized, defect_ending,
 };
 
+pub use boundary::{BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact};
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube};
+pub use ends::SSI_SHORT_CLIP;
 pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
@@ -142,10 +147,13 @@ pub use march::{
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, SettlingRefusal, StepFault, StepperMode,
 };
+pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
 use exhaust::{RateClause, SweepFloor, UvRect};
-use march::{MarchContext, MarchTol, Readout, Trace, march_both, trace_points};
+use march::{
+    MarchContext, MarchTol, Readout, RectEnd, RectExit, Trace, march, march_both, trace_points,
+};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
 /// The two chart-parameter sample sequences of an ℝ⁴ trace — the
@@ -156,7 +164,7 @@ type ChartSamples<'a> = (&'a [geom_core::Point2<f64>], &'a [geom_core::Point2<f6
 /// A fitted rung-3 branch's curves: the 3-D carrier, and the two
 /// pcurves when the trace shape produced them (the ℝ⁴ shape does; the
 /// ℝ³ shape has no chart to project onto).
-type FittedBranch = (
+pub(crate) type FittedBranch = (
     NurbsCurve3<f64>,
     Option<NurbsCurve2<f64>>,
     Option<NurbsCurve2<f64>>,
@@ -375,6 +383,16 @@ pub enum SsiError {
         /// Which stepper.
         mode: &'static str,
     },
+    /// Newton refinement settled a seed onto the surface pair at a state
+    /// outside the march domain. The seed is then no branch, which the
+    /// accounting pass decides was or was not a miss.
+    SeedOffDomain {
+        /// Which stepper.
+        mode: &'static str,
+        /// The settled state's signed distance to the domain, in metres
+        /// (negative: outside).
+        margin: f64,
+    },
     /// A step from a state already on the locus would not settle back
     /// onto the surface pair, so the march lost the branch it was
     /// tracing.
@@ -456,20 +474,83 @@ pub enum SsiError {
     },
     /// The fitting stack refused the marched polyline.
     Fit(FitError),
-    /// A trace too short to fit: no length to cut, or still short after
-    /// the short-branch re-march. The march cannot tell apart the
-    /// readings that reach it: the surfaces touch at a point (a plane
-    /// through a face's corner); the branch is shorter than the boundary
-    /// search resolves at the step (`SSI_BOUNDARY_BISECTIONS` halvings
-    /// of it); the branch runs within the band of the domain's boundary,
-    /// so no state of it is decided inside (a plane flush with a face's
-    /// edge); or the boundary search settled no crossing at either end.
-    /// A limit of the march, not a branch it can fit.
+    /// An ℝ³ trace too short to fit: no length to cut, or still short
+    /// after the short-branch re-march. The march cannot tell apart the
+    /// readings that reach it: the surfaces touch at a point of the
+    /// caller's slab, the branch is shorter than the slab search
+    /// resolves at the step, or it runs within the band of the slab. A
+    /// limit of the march against the caller's box, not a branch it can
+    /// fit. The plane × NURBS lane knows its branches' ends before it
+    /// marches and never reaches it.
     TraceUnresolved {
         /// Samples the last march produced.
         samples: usize,
         /// That march's longest step, in metres.
         step: f64,
+    },
+    /// The plane grazes a boundary curve: the plane distance has a
+    /// double root along it, the intersection tangent to the wall's
+    /// edge while the surfaces still cross (`ssi_boundary_crossing`,
+    /// which passes on a positive slope).
+    BoundaryGraze {
+        /// The wall's side, where the curve is one
+        /// ([`boundary_section`] names none).
+        side: Option<ChartSide>,
+        /// The parameter interval along the curve where it grazes.
+        bracket: (f64, f64),
+        /// The verdict on the slope, levered by the feature extent.
+        verdict: BandVerdict,
+    },
+    /// The surfaces are tangent along a side of the wall that lies
+    /// within the band of the plane: the wall's slope across the side
+    /// never clears the band over the strip beside it
+    /// (`ssi_boundary_strip`). The C7 regime, as
+    /// [`SsiError::TransversalityBand`] is.
+    BoundaryTangent {
+        /// The side.
+        side: ChartSide,
+        /// The verdict on the slope across it, levered by the feature
+        /// extent.
+        verdict: BandVerdict,
+    },
+    /// A crossing the boundary pass isolated would not settle onto both
+    /// surfaces within the march's settling residual.
+    EndNotOnLocus {
+        /// The side it lies on.
+        side: ChartSide,
+        /// The parameter interval it was isolated to.
+        bracket: (f64, f64),
+    },
+    /// A march from a crossing left the wall where no crossing, or more
+    /// than one, matches its exit; or a crossing has no partner. Two
+    /// passes that each certified their part disagree.
+    CrossingUnmatched {
+        /// The crossing the branch started from, or `None` for a branch
+        /// traced through an interior seed.
+        from: Option<BoundaryPoint>,
+        /// How many crossings matched.
+        matches: usize,
+    },
+    /// A branch whose ends lie less than [`SSI_SHORT_CLIP`]`·Kε` apart
+    /// took the Hermite candidate through them, and the certificate
+    /// refused it.
+    ShortBranchUncertified {
+        /// The distance between the branch's ends, in metres.
+        length: f64,
+        /// The certificate's refusal.
+        limb: Box<SsiError>,
+        /// The verdict on the step it would be marched at,
+        /// `length / SSI_SHORT_CLIP`.
+        verdict: BandVerdict,
+    },
+    /// The plane's chart window does not hold the wall's image, so it
+    /// would bound the march where the wall does not.
+    WindowShortOfWall {
+        /// The domain's half-extent, in metres.
+        half_extent: f64,
+        /// How far from the plane chart's origin the wall's control
+        /// hull reaches, in metres.
+        reach: f64,
     },
     /// One branch's marched polyline exceeded
     /// [`SSI_MAX_FIT_SAMPLES`]. The tolerance and the operand
@@ -694,6 +775,12 @@ impl core::fmt::Display for SsiError {
                 "ssi: Newton refinement would not settle a {mode} seed onto the \
                  surface pair"
             ),
+            Self::SeedOffDomain { mode, margin } => write!(
+                f,
+                "ssi: Newton refinement settled a {mode} seed onto the surface pair \
+                 {:e} m outside the march domain",
+                -margin
+            ),
             Self::StepRefinementFailed { mode, step_meters } => write!(
                 f,
                 "ssi: a {mode} step of {step_meters:e} m from a state on the locus would \
@@ -750,10 +837,64 @@ impl core::fmt::Display for SsiError {
             Self::TraceUnresolved { samples, step } => write!(
                 f,
                 "ssi: a traced branch has {samples} sample{} at the march's {step:e} m step, too \
-                 few to fit: the surfaces touch at a point, or the branch is shorter than that \
-                 step resolves, runs within the tolerance of the domain's boundary, or ends where \
-                 no crossing settles",
+                 few to fit: the surfaces touch at a point of the domain's slab, or the branch is \
+                 shorter than that step resolves or runs within the tolerance of the slab",
                 if *samples == 1 { "" } else { "s" }
+            ),
+            Self::BoundaryGraze {
+                side,
+                bracket,
+                verdict,
+            } => {
+                let at = side.map_or_else(|| "a boundary curve".to_owned(), |s| s.to_string());
+                write!(
+                    f,
+                    "ssi: the plane grazes {at} between parameters {:e} and {:e}: the \
+                     intersection meets it tangentially (slope margin {} m)",
+                    bracket.0,
+                    bracket.1,
+                    verdict.margin_text()
+                )
+            }
+            Self::BoundaryTangent { side, verdict } => write!(
+                f,
+                "ssi: {side} lies within the tolerance of the plane, and the wall meets the \
+                 plane tangentially across it (slope margin {} m): the tangency regime \
+                 (TangentIntersection), not a region to report",
+                verdict.margin_text()
+            ),
+            Self::EndNotOnLocus { side, bracket } => write!(
+                f,
+                "ssi: the crossing on {side} isolated between parameters {:e} and {:e} would \
+                 not settle onto both surfaces",
+                bracket.0, bracket.1
+            ),
+            Self::CrossingUnmatched { from, matches } => {
+                match from {
+                    Some(p) => write!(f, "ssi: the branch from {} at parameter {:e}", p.side, p.t)?,
+                    None => write!(f, "ssi: the branch through the seed")?,
+                }
+                write!(
+                    f,
+                    " matched {matches} crossings of the wall's boundary where it should match one"
+                )
+            }
+            Self::ShortBranchUncertified {
+                length,
+                limb,
+                verdict,
+            } => write!(
+                f,
+                "ssi: a branch {length:e} m long, too short to march at this tolerance (step \
+                 margin {} m), took the cubic through its two ends as its carrier, and the \
+                 certificate refused it: {limb}",
+                verdict.margin_text()
+            ),
+            Self::WindowShortOfWall { half_extent, reach } => write!(
+                f,
+                "ssi: the plane's window reaches {half_extent:e} m from the plane's origin, and \
+                 the wall reaches {reach:e} m across it, so the window would bound the march \
+                 where the wall does not"
             ),
             Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
             Self::FitSampleBudget { samples, budget } => write!(
@@ -898,12 +1039,35 @@ impl SsiError {
             // short trace reaching the fit is the kernel's.
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
+            Self::BoundaryGraze { side, verdict, .. } => {
+                graze_decision(*side).recourse(verdict.arm(), reading)
+            }
+            // The surfaces' tangency along the side: the march's own
+            // transversality decision, read across the wall's edge.
+            Self::BoundaryTangent { verdict, .. } => {
+                crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
+            }
+            // The section certified a sign change in the bracket, so a
+            // root is there; one that will not settle is the settling's
+            // limit.
+            Self::EndNotOnLocus { .. } => {
+                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+            }
+            Self::CrossingUnmatched { .. } => defect_ending(reading).to_owned(),
+            Self::ShortBranchUncertified { verdict, .. } => {
+                SHORT_BRANCH.recourse(verdict.arm(), reading)
+            }
+            Self::WindowShortOfWall { reach, .. } => format!(
+                "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
+                 window holds the wall"
+            ),
             // Decisions not yet given an ending
             // (`work/ssi/ssi-refusals-whose-decision-has-no-ending.md`).
             Self::ExhaustivenessInconclusive(_)
             | Self::CellBudget { .. }
             | Self::StepBudget { .. }
             | Self::SeedRefinementFailed { .. }
+            | Self::SeedOffDomain { .. }
             | Self::StepRefinementFailed { .. }
             | Self::TubeLadderEmpty { .. }
             | Self::TubeProbeSilent { .. }
@@ -914,6 +1078,24 @@ impl SsiError {
             | Self::WrongLane { .. }
             | Self::Band(_) => return None,
         })
+    }
+
+    /// This refusal with the wall's `side` named, where it is a graze of
+    /// a boundary curve that names none; any other refusal unchanged.
+    #[must_use]
+    pub(crate) fn on_side(self, side: ChartSide) -> Self {
+        match self {
+            Self::BoundaryGraze {
+                side: None,
+                bracket,
+                verdict,
+            } => Self::BoundaryGraze {
+                side: Some(side),
+                bracket,
+                verdict,
+            },
+            other => other,
+        }
     }
 
     /// The payload and, where its decision gives one, the ending read at
@@ -1130,6 +1312,11 @@ pub struct SsiBranch {
 pub struct SsiOutcome {
     /// The certified branches.
     pub branches: Vec<SsiBranch>,
+    /// The regions of the domain's boundary the plane meets in the band
+    /// (the plane × NURBS lane's boundary pass; empty on the ℝ³ lane):
+    /// each certifies at most one arc of the intersection within its
+    /// reach of a corner or side, and decides no contact.
+    pub boundary: Vec<SsiBoundaryContact>,
     /// The subdivision's accounting — the never-silence receipt.
     pub exhaustiveness: Exhaustiveness,
     /// How many seeds the subdivision produced.
@@ -1261,14 +1448,66 @@ impl DomainField {
 
 /// [`SsiError::TraceUnresolved`]'s ending. The extent sets the step a
 /// short branch is resolved at, so it is the lever for a branch longer
-/// than the tolerance (a shorter one collapses into the band); a point
-/// contact and a branch along the domain's boundary have no decision
-/// yet
-/// (`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
+/// than the tolerance; a touch or a branch along the slab is the slab's,
+/// which is the caller's box (`work/ssi/ssi-r3-slab-is-not-geometry.md`).
 pub(crate) const TRACE_UNRESOLVED_RECOURSE: &str = "Recourse: if the surfaces meet along a curve longer \
      than the tolerance, name a feature extent near its length so the march's step resolves it; \
-     a point contact, or a branch along the domain's boundary, is a known limit of the march \
-     with no way through yet";
+     otherwise name a slab that holds the intersection clear of its faces";
+
+/// The graze decision (`ssi_boundary_crossing`) at a side, whose lever
+/// names it: a crossing of the wall's edge passes on a slope clear of
+/// the band.
+fn graze_decision(side: Option<ChartSide>) -> SizedDecision {
+    let lever = match side {
+        None => "move the plane or the curve so they cross at a clear angle",
+        Some(ChartSide {
+            fixed: ChartAxis::U,
+            end: ChartEnd::Low,
+        }) => {
+            "move the plane or the wall so the intersection crosses the wall's u = low side at a \
+             clear angle"
+        }
+        Some(ChartSide {
+            fixed: ChartAxis::U,
+            end: ChartEnd::High,
+        }) => {
+            "move the plane or the wall so the intersection crosses the wall's u = high side at a \
+             clear angle"
+        }
+        Some(ChartSide {
+            fixed: ChartAxis::V,
+            end: ChartEnd::Low,
+        }) => {
+            "move the plane or the wall so the intersection crosses the wall's v = low side at a \
+             clear angle"
+        }
+        Some(ChartSide {
+            fixed: ChartAxis::V,
+            end: ChartEnd::High,
+        }) => {
+            "move the plane or the wall so the intersection crosses the wall's v = high side at a \
+             clear angle"
+        }
+    };
+    SizedDecision {
+        lever,
+        size: "crossing angle",
+        passes: SizedPass::Positive,
+        stored: StoredDefinite::Lever,
+        at_zero: None,
+    }
+}
+
+/// A short branch's candidate the certificate refused
+/// ([`SsiError::ShortBranchUncertified`]): its length is a size the user
+/// may intend, and a tolerance whose band its step clears marches it.
+const SHORT_BRANCH: SizedDecision = SizedDecision {
+    lever: "move the plane or the wall so the branch it clips is longer, or clear of the wall",
+    size: "branch length",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 /// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
 /// on **one shared parameter** (the OQ4 contract).
@@ -1372,8 +1611,8 @@ pub enum TraceDecision {
     /// `ssi_step_progress`: the step clears the tolerance band
     /// ([`SsiError::StepCollapsed`] is its verdict).
     StepProgress,
-    /// `ssi_branch_open_end`: the branch has left the domain. Every
-    /// definite sign passes.
+    /// `ssi_branch_open_end`: an ℝ³ branch has left the caller's slab.
+    /// Every definite sign passes.
     BranchOpenEnd,
     /// `ssi_closure_return`: the trace has come back to its start.
     /// Every definite sign passes.
@@ -1384,6 +1623,11 @@ pub enum TraceDecision {
     /// `ssi_cs_tangency`: the cylinder × sphere pair's gap from a
     /// tangent pose ([`SsiError::PairTangent`] is its verdict).
     PairTangency,
+    /// `ssi_boundary_on_plane` and `ssi_boundary_corner`: how far a
+    /// side or a corner of the wall lies from the plane. Every arm is
+    /// reported (a region in the band), so only a poisoned distance
+    /// escalates it.
+    BoundarySection,
 }
 
 impl TraceDecision {
@@ -1404,10 +1648,11 @@ impl TraceDecision {
             }
             Self::Transversality => "the surfaces cross at a clear angle along the traced locus",
             Self::StepProgress => "the march's step clears the tolerance band",
-            Self::BranchOpenEnd => "the traced branch has left the domain",
+            Self::BranchOpenEnd => "the traced branch has left the domain's slab",
             Self::ClosureReturn => "the trace has come back to its start",
             Self::ClosureTangent => "the trace came back to its start running the way it left",
             Self::PairTangency => "the sphere and the cylinder are tangent",
+            Self::BoundarySection => "the wall's boundary lies on the plane",
         }
     }
 
@@ -1446,6 +1691,9 @@ impl TraceDecision {
             Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain, reading),
             Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain, reading),
             Self::ClosureReturn => Unsized::LastResort.recourse(arm, reading),
+            // Every arm is reported; a poisoned distance is no input's,
+            // since both operands are refused at the door unless finite.
+            Self::BoundarySection => defect_ending(reading).to_owned(),
         }
     }
 }
@@ -1462,14 +1710,13 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// The open end (`ssi_branch_open_end`), refused only where a marched
-/// state lands within the band of the domain's boundary. The boundary
-/// is the caller's domain, or a spline operand's own edge, which moves
-/// with the geometry. Read on its sign-certain arm alone: where a state
-/// lands is the march's own, no size a caller intends.
+/// The ℝ³ open end (`ssi_branch_open_end`), refused only where a
+/// marched state lands within the band of the caller's slab. Read on its
+/// sign-certain arm alone: where a state lands is the march's own, no
+/// size a caller intends.
 const OPEN_END: SizedDecision = SizedDecision {
-    lever: "move the domain's boundary, or the geometry, a little, so the traced branch does \
-            not leave the domain within a few tolerances of a marched state",
+    lever: "move the domain's slab, or the geometry, a little, so the traced branch does \
+            not leave the slab within a few tolerances of a marched state",
     size: "boundary distance",
     passes: SizedPass::AnySign,
     stored: StoredDefinite::Lever,
@@ -1680,7 +1927,7 @@ pub fn cylinder_sphere_ssi(
         {
             continue;
         }
-        let trace = match march_both::<2, 3, _>(&sys, state, ctx, StepperMode::Realized, band) {
+        let trace = match march_both(&sys, state, ctx, StepperMode::Realized, band) {
             Ok(t) => t,
             // A seed that will not settle is not a branch; the
             // subdivision's accounting pass is what decides whether
@@ -1700,6 +1947,7 @@ pub fn cylinder_sphere_ssi(
     let exhaustiveness = exhaust::account_r3(a, b, &tubes, account_floor)?;
     Ok(SsiOutcome {
         branches,
+        boundary: Vec::new(),
         exhaustiveness,
         seeds: seed_count,
     })
@@ -1726,7 +1974,7 @@ fn seam_tol(tol: MarchTol, band: Band) -> Result<f64, SsiError> {
 
 fn finish_r3(
     sys: &ImplicitPairR3<'_>,
-    trace: &Trace<3>,
+    trace: &Trace<3, march::SlabEnd>,
     a: &Surface<f64>,
     b: &Surface<f64>,
     domain: &SsiDomain,
@@ -1734,7 +1982,7 @@ fn finish_r3(
     band: Band,
 ) -> Result<SsiBranch, SsiError> {
     let march_tol = seam_tol(tol, band)?;
-    let points = trace_points::<2, 3, _>(sys, trace);
+    let points = trace_points::<2, 3, _, _>(sys, trace);
     let (carrier, _, _) = fit_branch(&points, None)?;
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let cert = certify::certify_branch(
@@ -1751,7 +1999,7 @@ fn finish_r3(
     Ok(SsiBranch {
         carrier,
         params,
-        end: trace.end,
+        end: trace.end.branch_end(),
         certificate: cert,
         witness,
         pcurve_a: None,
@@ -1877,10 +2125,6 @@ pub fn plane_nurbs_ssi(
     };
     let window = window_reach(&chart_a, half);
     let chart_b = Chart::Nurbs(wall);
-    // The march domain is the two charts' own named windows — the
-    // plane's from the caller's extent (a plane is unbounded, so a
-    // window is a caller obligation, never a guess), the wall's from
-    // its knot domain.
     let ((pu, pv), (ud, vd)) = (chart_a.domain(), chart_b.domain());
     let sys = ParametricPairR4 {
         a: chart_a,
@@ -1901,98 +2145,146 @@ pub fn plane_nurbs_ssi(
     let account_floor = SweepFloor::chart(root, domain.floor(band), speed, FloorKind::Accounting)?;
     let seed_floor = SweepFloor::chart(root, domain.seed_floor(), speed, FloorKind::Seeding)?;
     let tol = MarchTol::from_band(band, spline_readout(window, wall, root, speed))?;
+    // The plane's window is the caller's (a plane is unbounded, so a
+    // window is a caller obligation, never a guess), and it holds the
+    // wall, so the march ends only at the wall's knot rectangle.
+    window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
 
-    // ---- seeds ----
-    let seeds = exhaust::seed_chart_plane(wall, p0, normal, seed_floor)?;
-    let seed_count = seeds.len() as u32;
-
-    let v_ref = normal.cross(u_ref);
-    let to_plane_chart = |p: Point3<f64>| {
-        let q = p - p0;
-        (q.dot(u_ref), q.dot(v_ref))
-    };
     let ctx = MarchContext::<4> {
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
         tol,
         max_steps: SSI_MAX_STEPS,
     };
-    let mut branches: Vec<SsiBranch> = Vec::new();
-    let mut tubes: Vec<UvRect> = Vec::new();
+
+    // ---- the boundary pass: the wall's knot rectangle against the
+    // plane, before any march (C3) ----
+    let pass = boundary::Pass {
+        wall,
+        speeds: charted.speeds(),
+        plane: boundary::PassPlane {
+            origin: p0,
+            normal,
+            u_ref,
+        },
+        sys: &sys,
+        tol,
+        floor: domain.floor(band),
+        extent: domain.extent,
+        band,
+    }
+    .run()?;
+
+    let seeds = exhaust::seed_chart_plane(wall, p0, normal, seed_floor)?;
+    let seed_count = seeds.len() as u32;
+
+    // ---- the open branches, between the crossings ----
+    let ends = ends::Ends {
+        sys: &sys,
+        ctx,
+        plane,
+        wall: &wall_op,
+        extent: domain.extent,
+        band,
+    };
+    let mut branches = ends.branches(&pass.crossings)?;
+    let mut tubes: Vec<UvRect> = branches.iter().flat_map(branch_chart_tubes).collect();
+
+    // ---- the closed loops, from the subdivision's seeds ----
+    let v_ref = normal.cross(u_ref);
+    let to_plane_chart = |p: Point3<f64>| {
+        let q = p - p0;
+        (q.dot(u_ref), q.dot(v_ref))
+    };
+    let cap = SSI_STEP_MAX * domain.extent;
     for (u, v) in seeds.iter() {
-        if tubes
-            .iter()
-            .any(|t| *u >= t.u.0 && *u <= t.u.1 && *v >= t.v.0 && *v <= t.v.1)
-        {
+        let (pu, pv) = to_plane_chart(wall.eval(*u, *v));
+        let state = [pu, pv, *u, *v];
+        // Dedup against where the seed lands, as the ℝ³ lane does.
+        let landed = march::newton_refine(&sys, state, tol).unwrap_or(state);
+        let covered = |r: &UvRect| {
+            landed[2] >= r.u.0 && landed[2] <= r.u.1 && landed[3] >= r.v.0 && landed[3] <= r.v.1
+        };
+        if tubes.iter().chain(&pass.regions).any(covered) {
             continue;
         }
-        let p = wall.eval(*u, *v);
-        let (pu, pv) = to_plane_chart(p);
-        let state = [pu, pv, *u, *v];
-        let trace = match march_both::<3, 4, _>(&sys, state, ctx, StepperMode::Realized, band) {
+        let trace = match march(
+            &sys,
+            &RectExit,
+            state,
+            ctx,
+            StepperMode::Realized,
+            1.0,
+            band,
+            cap,
+        ) {
             Ok(t) => t,
             // As in `cylinder_sphere_ssi`: only a seed that will not
-            // settle is no branch.
-            Err(SsiError::SeedRefinementFailed { .. }) => continue,
+            // settle inside the domain is no branch.
+            Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
             Err(e) => return Err(e),
         };
-        let branch = finish_r4(&sys, &trace, plane, &wall_op, &domain, ctx.tol, band)?;
+        // A seed on an open branch: the branch reaches the wall's
+        // boundary, where it was traced from its crossings, and the
+        // accounting pass decides whether that left anything out.
+        let RectEnd::Closed = trace.end else {
+            continue;
+        };
+        let branch = ends.finish(&trace.states, BranchEnd::Closed, trace.min_transversality)?;
         tubes.extend(branch_chart_tubes(&branch));
         branches.push(branch);
     }
 
-    let exhaustiveness = exhaust::account_chart_plane(wall, p0, normal, &tubes, account_floor)?;
+    let exhaustiveness =
+        exhaust::account_chart_plane(wall, p0, normal, &tubes, &pass.regions, account_floor)?;
     Ok(SsiOutcome {
         branches,
+        boundary: pass.contacts,
         exhaustiveness,
         seeds: seed_count,
     })
 }
 
-fn finish_r4(
-    sys: &ParametricPairR4<'_>,
-    trace: &Trace<4>,
-    plane: &Surface<f64>,
-    wall: &SsiOperand<'_, f64>,
-    domain: &SsiDomain,
-    tol: MarchTol,
-    band: Band,
-) -> Result<SsiBranch, SsiError> {
-    let march_tol = seam_tol(tol, band)?;
-    let points = trace_points::<3, 4, _>(sys, trace);
-    let chart_a: Vec<geom_core::Point2<f64>> = trace
-        .states
+/// The plane chart's window holds the wall: every state the ℝ⁴ trace
+/// settles lies on the wall, inside its control hull (positive weights),
+/// and on the plane, so its plane coordinates lie in the hull's
+/// projection. A window that holds that projection never bounds a
+/// march, which ends only at the wall's own boundary.
+///
+/// # Errors
+///
+/// [`SsiError::WindowShortOfWall`] when it does not.
+fn window_holds_wall(
+    plane: (Point3<f64>, geom_core::Vec3<f64>, geom_core::Vec3<f64>),
+    wall: &NurbsSurface<f64>,
+    half: f64,
+) -> Result<(), SsiError> {
+    use geom_core::Interval;
+    use geom_core::interval::certification::Certification;
+    use geom_core::interval::max_bound;
+    let (p0, u_ref, v_ref) = plane;
+    let lift = |v: geom_core::Vec3<f64>| [v.x, v.y, v.z].map(Interval::point);
+    let (u, v) = (lift(u_ref), lift(v_ref));
+    let reach = wall
+        .control()
         .iter()
-        .map(|s| geom_core::Point2::new(s[0], s[1]))
-        .collect();
-    let chart_b: Vec<geom_core::Point2<f64>> = trace
-        .states
-        .iter()
-        .map(|s| geom_core::Point2::new(s[2], s[3]))
-        .collect();
-    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a, &chart_b)))?;
-    let cert = certify::certify_branch(
-        &carrier,
-        pb.as_ref(),
-        &SsiOperand::Analytic(plane),
-        wall,
-        TubeScale::uniform(domain.extent),
-        band,
-    )?;
-    let params = carrier.domain();
-    let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
-    let witness = carrier.mid_point(params.0, params.1);
-    Ok(SsiBranch {
-        carrier,
-        params,
-        end: trace.end,
-        certificate: cert,
-        witness,
-        pcurve_a: pa,
-        pcurve_b: pb,
-        min_transversality: trace.min_transversality,
-        march_tol,
-    })
+        .flat_map(|p| {
+            let q = [(p.x, p0.x), (p.y, p0.y), (p.z, p0.z)]
+                .map(|(a, b)| Interval::point(a) - Interval::point(b));
+            [u, v].map(|axis| {
+                let c = axis[0] * q[0] + axis[1] * q[1] + axis[2] * q[2];
+                max_bound(c.lo().abs(), c.hi().abs())
+            })
+        })
+        .fold(0.0, max_bound);
+    if reach <= half {
+        Ok(())
+    } else {
+        Err(SsiError::WindowShortOfWall {
+            half_extent: half,
+            reach,
+        })
+    }
 }
 
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
@@ -2062,9 +2354,11 @@ pub fn trace_plane_nurbs_uncertified(
     let window = window_reach(&chart_a, half);
     let chart_b = Chart::Nurbs(wall);
     let ((pu, pv), (ud, vd)) = (chart_a.domain(), chart_b.domain());
-    let speed = ChartedNurbs::mint(wall)?.speeds().max();
+    let charted = ChartedNurbs::mint(wall)?;
+    let speed = charted.speeds().max();
     let root = UvRect { u: ud, v: vd };
     let tol = MarchTol::decoupled(march_tol, spline_readout(window, wall, root, speed))?;
+    window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
     let sys = ParametricPairR4 {
         a: chart_a,
         b: chart_b,
@@ -2075,23 +2369,37 @@ pub fn trace_plane_nurbs_uncertified(
         tol,
         max_steps: SSI_MAX_STEPS,
     };
+    // A branch through the seed ends at the crossings the boundary pass
+    // certifies, as every plane × NURBS branch does.
+    let pass = boundary::Pass {
+        wall,
+        speeds: charted.speeds(),
+        plane: boundary::PassPlane {
+            origin: p0,
+            normal,
+            u_ref,
+        },
+        sys: &sys,
+        tol,
+        floor: domain.floor(band),
+        extent: domain.extent,
+        band,
+    }
+    .run()?;
+    let wall_op = SsiOperand::Nurbs(charted);
+    let ends = ends::Ends {
+        sys: &sys,
+        ctx,
+        plane,
+        wall: &wall_op,
+        extent: domain.extent,
+        band,
+    };
     let v_ref = normal.cross(u_ref);
-    let p = wall.eval(seed_uv.0, seed_uv.1);
-    let q = p - p0;
+    let q = wall.eval(seed_uv.0, seed_uv.1) - p0;
     let state = [q.dot(u_ref), q.dot(v_ref), seed_uv.0, seed_uv.1];
-    let trace = march_both::<3, 4, _>(&sys, state, ctx, StepperMode::Realized, band)?;
-    let points = trace_points::<3, 4, _>(&sys, &trace);
-    let chart_a_pts: Vec<geom_core::Point2<f64>> = trace
-        .states
-        .iter()
-        .map(|s| geom_core::Point2::new(s[0], s[1]))
-        .collect();
-    let chart_b_pts: Vec<geom_core::Point2<f64>> = trace
-        .states
-        .iter()
-        .map(|s| geom_core::Point2::new(s[2], s[3]))
-        .collect();
-    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a_pts, &chart_b_pts)))?;
+    let (states, _, _) = ends.through_seed(state, &pass.crossings, SSI_STEP_MAX * domain.extent)?;
+    let (carrier, pa, pb) = ends::fit_states(&sys, &states)?;
     match (pa, pb) {
         (Some(a), Some(b)) => Ok((carrier, a, b)),
         _ => Err(SsiError::UnsupportedCertificate {
@@ -2165,9 +2473,9 @@ pub fn idealized_trace_r3(
         tol: MarchTol::from_band(band, quadric_readout(a, b, slab))?,
         max_steps: SSI_MAX_STEPS,
     };
-    let trace = march_both::<2, 3, _>(&sys, seed.to_array(), ctx, StepperMode::Idealized, band)?;
-    let pts = trace_points::<2, 3, _>(&sys, &trace);
-    Ok((pts, trace.end))
+    let trace = march_both(&sys, seed.to_array(), ctx, StepperMode::Idealized, band)?;
+    let pts = trace_points::<2, 3, _, _>(&sys, &trace);
+    Ok((pts, trace.end.branch_end()))
 }
 
 #[cfg(test)]
@@ -2289,10 +2597,10 @@ mod ending_tests {
         assert_eq!(
             open.as_deref(),
             Some(
-                "Recourse: move the domain's boundary, or the geometry, a little, so the traced \
-                 branch does not leave the domain within a few tolerances of a marched state"
+                "Recourse: move the domain's slab, or the geometry, a little, so the traced \
+                 branch does not leave the slab within a few tolerances of a marched state"
             ),
-            "the open end names the domain"
+            "the open end names the slab"
         );
         for decision in [
             TraceDecision::TransversalityArm,
