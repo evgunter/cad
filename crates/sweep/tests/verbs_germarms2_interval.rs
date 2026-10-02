@@ -206,8 +206,8 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
         matches!(
             err,
             BooleanError::GermFrameUnsupported {
-                a_kind: geom_brep::SurfaceKind::Cylinder,
-                b_kind: geom_brep::SurfaceKind::Cylinder,
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Cylinder,
                 ..
             }
         ),

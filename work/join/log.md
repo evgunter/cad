@@ -113,3 +113,26 @@ identity for a germ, which is architectural, broad and hard to change
 later.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-02 — PR 3771 lands: one home for the ring-run winding
+
+`ring-run-winding-is-a-second-spelling-of-the-loop-winding-sum` closed.
+Review tier: single FULL. The review was mergeable with no MAJOR. It
+mutation-tested the new row and found the run spelling's conic arm
+unguarded; the reviewer's row now pins it. It also found that the sweep
+missed a 2-D spelling (`chart_region`) and an existing exact home
+(`geom-brep` `loop_vector_area`). Both are recorded on REACH's class row,
+which asks for a ruling on where the one home lives, geom-brep or topo,
+before anything is unified.
+
+The PR was held on main's eps=1e-6 red (REACH's P0
+`an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed`, not this
+PR's), and merged after REACH's PR 3755 fixed it.
+
+The blind D's diagnosis (on its row) is the in-face class, so it waits on
+JOIN-1 (defect 1) and JOIN-3 (defect 2). Style notes recorded and not
+acted on: the two "not wound" vocabularies (`LoopWinding::Unsupported`
+against `None`), `Step`'s nested tuple, the tests living in a consumer
+module, and `TornLoop::Dangling` naming `last` rather than its `next`.
+
+Signed (JOIN orchestrator).

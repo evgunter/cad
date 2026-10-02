@@ -550,7 +550,7 @@ fn probe_late_err_leaves_body_untouched() {
     };
     assert_eq!(
         (kind, other_kind),
-        (geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Torus)
+        (geom::SurfaceKind::Plane, geom::SurfaceKind::Torus)
     );
     assert!(why.contains("spiric"), "the arm's own grounds, got {why}");
     assert_eq!(

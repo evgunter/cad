@@ -10,7 +10,6 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{ArcSweep, BlendError, Center, ConstructedLoop, Open, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
@@ -121,7 +120,7 @@ fn face_shapes(body: &Body<f64>) -> Vec<String> {
             Some(Surface::Cylinder { radius, .. }) => format!("cyl {radius:.17e}"),
             Some(Surface::Cone { half_angle, .. }) => format!("cone {half_angle:.17e}"),
             Some(Surface::Plane { .. }) => "plane".to_string(),
-            other => format!("{:?}", other.map(SurfaceKind::of)),
+            other => format!("{:?}", other.map(Surface::kind)),
         })
         .collect();
     out.sort();

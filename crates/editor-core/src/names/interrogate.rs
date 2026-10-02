@@ -35,7 +35,7 @@
 //! This layer adds only the name resolution and the typed refusals
 //! that go with it.
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Decide;
 use topo::readback::{self, Pose, ReadbackError};
 use topo::{Body, CurveKind};
