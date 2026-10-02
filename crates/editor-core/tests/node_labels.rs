@@ -1218,3 +1218,123 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
         "{line}"
     );
 }
+
+/// **An edit refusal spoken again from a later version of its document
+/// says each node as that version holds it** (`EditError::respoken`): a
+/// rename since the refusal is the label it says, in a node arm, a root
+/// arm and a name arm. A node the later version does not hold is said as
+/// the door said it — the node a refused insert was minting keeps its
+/// kind, a node deleted since keeps its label — and `LabelUnchanged`,
+/// whose sentence is about the label the node held at the refusal, stays
+/// as raised. Red if a renamed node keeps its old label, if a node the
+/// later version lacks drops to its tag, or if `LabelUnchanged` takes
+/// the new label.
+#[test]
+fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
+    let doc = ProfileDoc::empty_derived("node-labels-respoken", Tol::witness());
+    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("sketch"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let (p, e) = (tag(profile.0), tag(extrude.0));
+
+    let dangle = refusal(&doc, DocEdit::DeleteNode { id: profile });
+    let twice = refusal(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Union {
+                members: vec![extrude, extrude],
+                declare: None,
+            }),
+        },
+    );
+    let roots = refusal(
+        &doc,
+        DocEdit::SetRoots {
+            roots: vec![profile, extrude],
+        },
+    );
+    let unreferenced = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
+    let rebind = refusal(
+        &doc,
+        DocEdit::Rebind {
+            from: unreferenced.clone(),
+            to: fixture::fname(extrude, fixture::wall(&doc, extrude, 1)),
+        },
+    );
+    let unchanged = refusal(
+        &doc,
+        DocEdit::SetLabel {
+            node: extrude,
+            label: Some(label("base plate")),
+        },
+    );
+
+    let later = set_label(doc, profile, Some("pad"));
+    let later = set_label(later, extrude, Some("slab"));
+
+    let said = dangle.respoken(&later).to_string();
+    assert!(
+        said.starts_with(&format!(
+            "Profile \"pad\" ({p}) is still an input to Extrude \"slab\" ({e})"
+        )),
+        "a node arm says both nodes' new labels: {said}"
+    );
+    let EditError::DuplicateInput { node, input } = twice.respoken(&later) else {
+        panic!("respoken keeps the arm, got {twice:?}");
+    };
+    assert_eq!(
+        (node.kind(), node.label(), input),
+        (Some("Union"), None, later.spoken(extrude)),
+        "the minted node, which no version holds, by its kind; the input as renamed"
+    );
+    let EditError::Roots(RootFault::Ancestor {
+        ancestor,
+        descendant,
+    }) = roots.respoken(&later)
+    else {
+        panic!("respoken keeps the arm, got {roots:?}");
+    };
+    assert_eq!(
+        (ancestor, descendant),
+        (later.spoken(profile), later.spoken(extrude)),
+        "a root arm says both roots as renamed"
+    );
+    assert_eq!(
+        rebind.respoken(&later),
+        EditError::RebindNoReferences {
+            name: later.spoken_name(&unreferenced)
+        },
+        "a name arm says its minting node as renamed"
+    );
+    assert_eq!(
+        unchanged.respoken(&later),
+        unchanged,
+        "LabelUnchanged says the label the node held when the door refused"
+    );
+
+    let (deleted, _) = step(later.clone(), DocEdit::DeleteNode { id: extrude });
+    let said = dangle.respoken(&deleted).to_string();
+    assert!(
+        said.starts_with(&format!(
+            "Profile \"pad\" ({p}) is still an input to Extrude \"base plate\" ({e})"
+        )),
+        "a node deleted since is said as the door said it: {said}"
+    );
+
+    // Absent at the refusal, held again by the version it is spoken
+    // from (an undo of the delete): the sentence is that the node is not
+    // there, so it keeps its tag.
+    let unknown = refusal(
+        &deleted,
+        DocEdit::SetLabel {
+            node: extrude,
+            label: Some(label("back")),
+        },
+    );
+    let said = unknown.respoken(&later).to_string();
+    assert!(
+        matches!(unknown, EditError::UnknownNode { .. })
+            && said.starts_with(&format!("node {e} is not live")),
+        "an absent node stays absent though the later version holds it: {said}"
+    );
+}
