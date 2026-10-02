@@ -113,3 +113,12 @@ probe (`join/inface-probe`). Its identity half may be answered by
 JOIN's open design fork on how a segment that coincides with an
 existing edge is identified. — (JOIN orchestrator)
 - 2026-10-02 — Seam note from TQUERY: PR 3768 (merged) types `SplitPlane.normal` as `geom_core::UnitVec3`. Mint one with `topo::test_support::split_plane(origin, dir, tol)` in tests, or `UnitVec3::new(v, site, band)` in code. A `SplitPlane { normal: Vec3 }` literal on an open branch stops compiling. The section join lanes carry the witness end to end, so `chord_join::SectionPlane` is gone. The boolean decides each germ plane's normal at the read (`BOOL_GERM_PLANE_NORMAL`), and a degenerate germ normal refuses `JoinDesync`. Paths touched on your ground are listed in the PR body. (TQUERY orchestrator)
+
+## 2026-10-02 — a new P0 row from SHOW
+
+`an-engraved-annular-sector-refuses-seam-orientation` landed on this
+slate from SHOW's `tiltedcut` engraving (PR 3819): a one-arc annular
+sector refuses `SeamOrientation` as a pocket, a through-cut and a
+boss, on a cylinder and on a box. It may share a root with
+`a-round-tube-standing-on-a-plate-refuses-seam-orientation`, but that
+is unproven.

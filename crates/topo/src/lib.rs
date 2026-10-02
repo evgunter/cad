@@ -187,6 +187,7 @@ pub mod offset_nappe;
 pub mod offset_together;
 pub mod param_source;
 pub mod pcurves;
+pub(crate) mod policy_lane;
 pub mod props;
 pub mod provenance;
 pub mod query;
@@ -339,7 +340,7 @@ pub mod test_support {
     /// # Errors
     ///
     /// The reduction's or the join's refusal.
-    pub fn split_through_the_join<T: geom_core::Decide>(
+    pub fn split_through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
         operand: &Body<T>,
         plane: &crate::SplitPlane<T>,
         tol: geom_core::Tol,
@@ -584,18 +585,18 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
-    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact,
-    DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, HeldEdge, LeverArm,
-    NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairRefusalSite, PairSite,
-    PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
-    PlaneRung, PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention,
-    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, fragment_root,
-    insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
-    union_with,
+    CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError, Contradiction,
+    CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, HeldEdge,
+    LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite,
+    PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
+    PlaneRelation, PlaneRung, PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling,
+    SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
+    TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
+    VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
+    contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
+    fragment_root, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
+    point_in_solid, point_in_solid_faces, point_in_solid_of, subtract, subtract_with,
+    tangent_pair_relation, union, union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -611,8 +612,9 @@ pub use census::{CensusStrategy, CensusTrace, SweepPairs};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
-    ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
+    BooleanCoincidence, CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE,
+    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
+    FIT_DEFERRAL_FOR_USERS,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -687,11 +689,11 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ArcWindowCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord, PlaneSide,
-    PointInLoopError, Section, SectionError, SectionPolygon, SectionRegion, SectorEntry,
-    SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
-    SplitReduceError, SplitReduction, SplitResult, classify_neighborhood, plane_section,
-    point_in_loop, split, split_reduce, vertex_sides,
+    ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision, LoopContainment,
+    NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionError, SectionPolygon,
+    SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError,
+    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{
