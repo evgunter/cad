@@ -24,11 +24,11 @@
 use crate::common;
 
 use geom::Surface;
+use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::{
-    Body, CensusContact, ContactRecords, TangentLocus, TangentLocusError, ValidationError,
-    VvContact, tangent_locus, validate_pseudomanifold,
+    Body, CensusContact, ContactRecords, ValidationError, VvContact, validate_pseudomanifold,
 };
 
 fn band() -> Band {
