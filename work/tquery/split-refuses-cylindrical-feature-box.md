@@ -2,7 +2,7 @@
 id: split-refuses-cylindrical-feature-box
 kind: issue
 title: topo::split refuses a box with one cylindrical feature in both orientations — and the second refusal reports CircularAxes where the closed form gives a-b = 0.049 m
-status: review
+status: closed
 opened: 2026-09-01
 github: 1437
 refs: [91]
@@ -10,6 +10,7 @@ priority: P0
 cost: H
 branch: tquery/split-cyl-feature
 pr: 3768
+closed: 2026-10-02
 ---
 
 ## From GitHub issue 1437
@@ -159,3 +160,7 @@ half under the ratified unit-vector ruling (PR 2457):
 direction mints it through `UnitVec3::new` and a non-unit normal cannot
 reach a section. A is therefore not ill-conditioning: at the true
 1.264 semi-major it splits and validates.
+
+## Closed (2026-10-02, PR 3768)
+
+Both variants were one cause: a non-unit `SplitPlane.normal` (the cutaway's raw 1.264-long direction) read as unit by the tilted plane×cylinder section, so B's semi-axes came out equal and A's ellipse off the cylinder. `SplitPlane.normal` is a `UnitVec3`; the section lanes carry the witness end to end and the boolean decides its germ planes' normals at the read. Rows: `sweep/tests/split_cylindrical_feature_box.rs`. Residue filed: `work/issues/kernel-split-plane-has-no-direction-door.md`, `work/issues/cutaway-carries-no-round-feature-and-tiltedcut-is-not-folded.md`.
