@@ -89,3 +89,22 @@ re-baselines them.
 A designer probe found an L-block refusing `Join(UnpairedLooseEnds {
 count: 6 })` in two fold orders; added as evidence to ZIP's
 `a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`.
+
+## 2026-10-02 — the hollow island is held on a new fork
+
+PR 3891 files every boolean island as a solid of its own, and it is
+green. The consequence is that the result has two solids, which no
+further boolean accepts as an operand, so a chain that runs today would
+refuse. Today's output meets `docs/DESIGN.md`'s "every boolean output is
+a legal boolean operand" and groups the island wrongly. 3891's output
+groups it rightly and breaks that rule. Merging is held until the
+lane's new row is weighed:
+`a-boolean-result-with-an-island-cannot-be-a-boolean-operand` (P0,
+design). A designer pair is on it, and a single FULL review of 3891 on
+its merits runs alongside, so the PR is ready the moment the order is
+settled.
+
+PR 3874's review found the row's defect in its vertex form:
+`zip::survivor` guards only with `debug_assert!`. The implementer has a
+fix pass. The review's class finding is filed as
+`join-desync-is-the-catch-all-for-cyclic-lineage-records`.
