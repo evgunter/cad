@@ -310,7 +310,8 @@ fn a_rim_crossing_reaches_the_join() {
             })
         )
     };
-    let poses: [(&str, Body<f64>, &dyn Fn(&E) -> bool); 5] = [
+    type Door<'a> = &'a dyn Fn(&E) -> bool;
+    let poses: [(&str, Body<f64>, Door); 5] = [
         (
             "ball r 0.2 at (0.5, 0, 0.35)",
             ball(0.2, [0.5, 0.0, 0.35]),
