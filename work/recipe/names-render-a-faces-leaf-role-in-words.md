@@ -2,10 +2,12 @@
 id: names-render-a-faces-leaf-role-in-words
 kind: issue
 title: The names layer renders a face's leaf role in words through one public renderer, and StableName's Display carries it (Ev, #3571)
-status: open
+status: review
 opened: 2026-10-01
 priority: P1
 cost: M
+branch: recipe/leaf-role-words
+pr: 3886
 ---
 
 
@@ -39,3 +41,12 @@ Re-baselining every golden that embeds "name minted by node": editor-core displa
 EDIT: `names/`, `resolve/mod.rs`. Also EMIT, on `role.rs`. The viewer half is AUTHOR's `face-pick-cannot-name-which-face`, blocked on this row.
 
 Filed by the AUTHOR orchestrator on Ev's ruling.
+
+## Built (2026-10-02, PR 3886)
+
+- `names::words` holds the one public renderer (`LeafRole`, `leaf_role`, `role_leaf`), re-exported on `pncad::select`. Its descent comes from `attribute`'s `SegOrigin`, which now says how each carry was carried (`CarriedAs`). `resolve`'s `role_words`, `piece_words`, `descent_leaf` and `Cutter` are gone.
+- `Speaker::name` and `StableName`'s `Display` are one sentence: kind, minting node, then the leaf role in words, adding the leaf's node where it differs. `SpokenName` keeps the nodes and steps its words say.
+- A profile step is said as `loop L step S`, both from zero, as the profile pane numbers it. Where no document is at hand, it is said by its tag.
+- Blend, shell and split faces are each said over what they were made against, one level down. Fragments and non-whole carries are said around the leaf.
+- `SelectRefusal`'s `named`, the three kind refusals in `eval`, `MeasureRefUnreadable` and `CrossingUnverified` all forward the name's sentence.
+- Remains: the viewer half is DOORS' `face-pick-cannot-name-which-face`, which this row unblocks.
