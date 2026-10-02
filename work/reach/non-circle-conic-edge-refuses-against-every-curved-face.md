@@ -77,9 +77,9 @@ ball through the cut face at `SectionNotPolar`
 or, charted about the cut normal, at the at-infinity probe
 (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
 What builds: a ball or a rod held inside the drum within reach of the
-rim's box (`crates/sweep/tests/conic_edge_curved_face.rs`), which also
-needed the extent scan's cylinder arm to read the wall's carrier
-(residue: `sphere-straddling-a-cylinder-carrier-refuses-at-the-extent-scan`).
+rim's box (`crates/sweep/tests/conic_edge_curved_face.rs`); the
+extent scan hands their sphere × wall pairs to the section pass
+(PR 3801's route, merged in).
 Rods across the rim needed the wall placement to read a wall bounded by
 a planar section; they now stop at the join too (a wide rod's parallel
 walls: `work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`; a
@@ -99,7 +99,16 @@ speed. The degree-2 root doors now answer by certified subdivision in
 the residual's metres (`circle_roots::certified_subdivision`, TANG's
 core); `geom_brep::Conic` reads semi-axis magnitudes in any stored
 order and sign; a root's gap from an end is metered at the carrier's
-speed there; the extent scan's carrier margins carry a rounding charge.
+speed there.
 Residue filed: `work/hone/half-angle-ladder-escalates-in-its-own-metric.md`.
-The extent scan's sphere × cylinder arm is owed a reconciliation with
-PR 3801 (`reach/extent-scan-faces`), which rewrites it, when that lands.
+
+### Second fix pass
+
+The harmonics' rounding is charged at the semi-axes' magnitudes (a
+negative `major` under-charged it), and so is `replace_face`'s
+`pose_reach`; the subdivision charges each derivative of `F` its
+Bernstein share of the noise, and every guard it has carries a row red
+without it. PR 3801 landed first; its section-pass route replaced this
+branch's carrier arm for sphere × cylinder pairs
+(`reconcile-sphere-cylinder-scan-arm-with-3801`), and the straddling
+pose that arm refused now builds.

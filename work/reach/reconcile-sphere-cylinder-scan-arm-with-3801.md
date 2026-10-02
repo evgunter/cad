@@ -2,7 +2,8 @@
 id: reconcile-sphere-cylinder-scan-arm-with-3801
 kind: issue
 title: Reconcile #3805's sphere × cylinder extent-scan arm with #3801, which hands those pairs to the section pass
-status: open
+status: review
+pr: 3805
 opened: 2026-10-02
 priority: P1
 cost: E
@@ -47,3 +48,17 @@ If #3801 lands first, #3805 merges `origin/main` and:
 
 If #3805 lands first, #3801 does the mirror: its section-pass route
 supersedes the carrier arm, and the same two rows go.
+
+## Outcome (PR 3805)
+
+#3801 landed first (`b4dbcd826`). The merge into
+`reach/conic-edge-curved-face` took its route in full: the scan's
+sphere × cylinder carrier arm and its two rows
+(`bool_sphere_cylinder_gap`, `bool_sphere_cylinder_nested`) are gone,
+and those pairs go to the section pass per `section_pass_takes`.
+`m5_s13_pips.rs` and `verbs_cylsph_opening.rs` take #3801's rows; the
+one pose #3801 did not cover, the ball straddling a notched wall's
+carrier, now builds there and is kept as a row (closing
+`sphere-straddling-a-cylinder-carrier-refuses-at-the-extent-scan`). The
+conic rows (`conic_edge_curved_face`) pass on the merged route at the
+three ε.

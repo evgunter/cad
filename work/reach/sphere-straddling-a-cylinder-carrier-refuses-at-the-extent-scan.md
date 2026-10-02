@@ -2,7 +2,8 @@
 id: sphere-straddling-a-cylinder-carrier-refuses-at-the-extent-scan
 kind: issue
 title: A ball straddling a cylinder wall's carrier, clear of the wall face, refuses FallbackExtentUnsupported at the extent scan
-status: open
+status: review
+pr: 3805
 opened: 2026-10-02
 priority: P1
 cost: M
@@ -38,3 +39,15 @@ trimmed region. The wall's chart outline (`solid_contain::wall_outline`)
 places points; a certified azimuth window for the sphere's footprint on
 the carrier — `|azimuth − azimuth(centre)| ≤ asin(r/d)` — wholly outside
 the face's window would certify the common case.
+
+## Outcome (PR 3805, after #3801 merged)
+
+Fixed by #3801's route, measured on the merge of `origin/main` at
+`b4dbcd826` into `reach/conic-edge-curved-face`: sphere × cylinder pairs
+are the section pass's (`boolean::ops::section_pass_takes`), whose
+certificate decides per FACE. The straddling pose builds under every op
+in both orders, tier 3, against `¾·π·0.35²·1.3` and `4π·0.05³/3`:
+`crates/sweep/tests/m5_s13_pips.rs`,
+`a_ball_straddling_a_notched_walls_carrier_builds` (which replaces the
+refusal row this item named). The carrier-only certificate this item
+was filed against is gone.
