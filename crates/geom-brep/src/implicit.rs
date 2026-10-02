@@ -483,6 +483,76 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
 /// law admits.
 pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 
+/// How many half-ulps of a term bound a residual's evaluation is
+/// charged, here and by `topo`'s root doors (one spelling,
+/// [`rounding_charge`]). Each harmonic coefficient, and each sampled
+/// residual, is a short chain from the inputs — a difference, a squared
+/// norm, a product, a sum of a few terms — whose every rounding is half
+/// an ulp of a quantity the term bound dominates; sixteen is that
+/// chain's count with room. A ROUNDING estimate, the `f64` lane's
+/// contract, not an enclosure: the `Interval` lane carries its own.
+pub const HARMONIC_NOISE_ULPS: f64 = 16.0;
+
+/// The rounding charged against a term bound `terms`:
+/// [`HARMONIC_NOISE_ULPS`] half-ulps of it.
+#[must_use]
+pub fn rounding_charge<T: Real>(terms: T) -> T {
+    T::from_f64(HARMONIC_NOISE_ULPS * f64::EPSILON * 0.5) * terms
+}
+
+/// `|F″|` over the whole carrier for a harmonic residual: the true
+/// polynomial's `A₁ + 4A₂`, read from the rounded amplitudes with the
+/// rounding's own `2²·noise` charged (Bernstein's inequality).
+fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
+    let four = T::from_f64(4.0);
+    h.a1 + four * h.a2 + four * h.noise
+}
+
+/// The rounding of one SAMPLED residual, [`implicit_residual`] at a
+/// point of the conic, bounded over the whole carrier (metres); `None`
+/// for the kinds the arc enclosure does not read.
+///
+/// The point `C₀ + a·û cos θ + b·v̂ sin θ` is rounded at the scale of
+/// its own coordinates, `|C₀| + speed_hi`; every later step at the
+/// scale of its result. With `D = |C₀ − o| + speed_hi` bounding the
+/// point's offset from the surface's anchor `o`, the plane's residual
+/// `(p − o)·n` is linear in the point's error; the quadrics' `|⊥(p −
+/// o)|² − r²` takes it times `2D`, plus their own squares, over `2r`;
+/// the torus's `(ρ − R)² + h² − r²` the same with its offsets bounded
+/// by `D + R`. What is charged is the scale the rounding is relative
+/// to, never `(|C₀| + D)²`: a point a kilometre out against a
+/// micrometre ball rounds its coordinates at a kilometre's ulp, but
+/// squares only the micrometre offset.
+fn sample_rounding<T: Real>(s: &Surface<T>, conic: &Conic<T>) -> Option<T> {
+    let two = T::from_f64(2.0);
+    let a = conic.speed_hi();
+    let at = (conic.center - Point3::origin()).norm() + a;
+    let offset = |o: Point3<T>| (conic.center - o).norm() + a;
+    Some(match *s {
+        Surface::Plane { origin, .. } => rounding_charge(at + offset(origin)),
+        Surface::Sphere { center, radius, .. } => {
+            let d = offset(center);
+            rounding_charge(two * d * at + d.powi(2) + radius.powi(2)) / (two * radius)
+        }
+        Surface::Cylinder { origin, radius, .. } => {
+            let d = offset(origin);
+            rounding_charge(two * d * at + d.powi(2) + radius.powi(2)) / (two * radius)
+        }
+        Surface::Torus {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let d = offset(center) + major_radius;
+            let four = T::from_f64(4.0);
+            rounding_charge(four * d * (at + d) + two * d.powi(2) + minor_radius.powi(2))
+                / (two * minor_radius)
+        }
+        Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
+    })
+}
+
 /// **The chord-dip charge, spelled once for this crate**: how far a
 /// C² function of second-derivative bound `f2` can leave the chord of
 /// a sub-interval of width `step` — `f2·step²/8`.
@@ -708,11 +778,11 @@ pub fn conic_arc_residual_range<T: Real>(
 ) -> Option<(T, T)> {
     let scan = scan_arc(s, conic, t0, t1);
     let f2 = match conic_residual_harmonics(s, conic) {
-        Some((_, a1, a2)) => a1 + T::from_f64(4.0) * a2,
+        Some(h) => harmonic_curvature_bound(&h),
         None => torus_curvature_bound(s, conic, t0, t1, &scan)?,
     };
     let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
-    let charge = chord_dip_charge(f2, step);
+    let charge = chord_dip_charge(f2, step) + sample_rounding(s, conic)?;
     Some((scan.residual.0 - charge, scan.residual.1 + charge))
 }
 
@@ -756,8 +826,9 @@ pub fn circle_arc_residual_range<T: Real>(
 /// arithmetic: poison in, poison out.
 #[must_use]
 pub fn conic_residual_extremes<T: Real>(s: &Surface<T>, conic: &Conic<T>) -> Option<(T, T)> {
-    if let Some((c0, a1, a2)) = conic_residual_harmonics(s, conic) {
-        return Some((c0 - a1 - a2, c0 + a1 + a2));
+    if let Some(h) = conic_residual_harmonics(s, conic) {
+        let reach = h.a1 + h.a2 + h.noise;
+        return Some((h.c0 - reach, h.c0 + reach));
     }
     conic_arc_residual_range(s, conic, T::zero(), T::tau())
 }
@@ -818,8 +889,8 @@ pub fn circle_residual_curvature_bound<T: Real>(
 /// the carrier, and restricting it would need the harmonic phases —
 /// so only the torus walks the schedule here.
 fn arc_curvature_bound<T: Real>(s: &Surface<T>, conic: &Conic<T>, t0: T, t1: T) -> Option<T> {
-    if let Some((_, a1, a2)) = conic_residual_harmonics(s, conic) {
-        return Some(a1 + T::from_f64(4.0) * a2);
+    if let Some(h) = conic_residual_harmonics(s, conic) {
+        return Some(harmonic_curvature_bound(&h));
     }
     let scan = scan_arc(s, conic, t0, t1);
     torus_curvature_bound(s, conic, t0, t1, &scan)
@@ -1060,31 +1131,65 @@ pub fn circle_sphere_harmonic<T: Real>(
 /// spine circle), which is not a trigonometric polynomial and has no
 /// harmonic triple to report. Answering one would be a lie, not a
 /// widening.
-fn conic_residual_harmonics<T: Real>(s: &Surface<T>, conic: &Conic<T>) -> Option<(T, T, T)> {
+fn conic_residual_harmonics<T: Real>(
+    s: &Surface<T>,
+    conic: &Conic<T>,
+) -> Option<ResidualHarmonics<T>> {
     let amp = |a: T, b: T| (a.powi(2) + b.powi(2)).sqrt();
-    let h = match *s {
+    let (h, r) = match *s {
         Surface::Plane { origin, normal, .. } => {
-            let c0 = (conic.center - origin).dot(normal);
-            let a1 = amp(
-                conic.major * conic.u_ref.dot(normal),
-                conic.minor * conic.v_ref().dot(normal),
-            );
-            return Some((c0, a1, T::zero()));
+            let d = conic.center - origin;
+            return Some(ResidualHarmonics {
+                c0: d.dot(normal),
+                a1: amp(
+                    conic.major * conic.u_ref.dot(normal),
+                    conic.minor * conic.v_ref().dot(normal),
+                ),
+                a2: T::zero(),
+                // Linear in the offset: its terms are metres already.
+                noise: rounding_charge(d.norm() + conic.speed_hi()),
+            });
         }
-        Surface::Sphere { center, radius, .. } => conic_sphere_harmonics(conic, center, radius),
+        Surface::Sphere { center, radius, .. } => {
+            (conic_sphere_harmonics(conic, center, radius), radius)
+        }
         Surface::Cylinder {
             origin,
             axis,
             radius,
             ..
-        } => conic_cylinder_harmonics(conic, origin, axis, radius),
+        } => (
+            conic_cylinder_harmonics(conic, origin, axis, radius),
+            radius,
+        ),
         // `Approx` joins the no-closed-form group: the fit is a spline
         // and the description's offset locus has no harmonic residual.
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             return None;
         }
     };
-    Some((h.c0, amp(h.c1, h.s1), amp(h.c2, h.s2)))
+    Some(ResidualHarmonics {
+        c0: h.c0,
+        a1: amp(h.c1, h.s1),
+        a2: amp(h.c2, h.s2),
+        noise: rounding_charge(h.terms) / (T::from_f64(2.0) * r),
+    })
+}
+
+/// A conic's residual against a plane, sphere or cylinder as its
+/// constant and harmonic amplitudes, with the rounding they carry.
+struct ResidualHarmonics<T> {
+    c0: T,
+    /// `|(c₁, s₁)|`.
+    a1: T,
+    /// `|(c₂, s₂)|`.
+    a2: T,
+    /// A bound on how far the rounded residual polynomial is from the
+    /// true one, everywhere on the carrier (metres): [`rounding_charge`]
+    /// of the terms the coefficients are built from. The error is a
+    /// trigonometric polynomial of degree two, so its `k`-th derivative
+    /// is bounded by `2ᵏ·noise` (Bernstein's inequality).
+    noise: T,
 }
 
 /// The seam frame of an axisymmetric surface: `(w, u_ref, v_ref)` with

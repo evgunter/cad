@@ -1654,7 +1654,7 @@ pub(super) fn curved_face_arm<T: Decide>(
             let clearance = if on_declared_shared_carrier(x, x_is, edge, face, declared) {
                 Ok(Sign::Zero)
             } else {
-                conic_clearance(&surface, &curve, &conic, band).ok_or_else(frontier)?
+                conic_clearance(&surface, &conic, curve.params(), band).ok_or_else(frontier)?
             };
             match clearance {
                 Ok(Sign::Positive) => return Ok(CurvedEvent::None),
@@ -2176,10 +2176,24 @@ pub(super) fn curved_face_arm<T: Decide>(
 }
 
 /// The two enclosures of a conic ARC's residual against `surface` (a
-/// circle's or an ellipse's, `geom_brep::Conic`), folded: the carrier's exact harmonic bounds and the arc's sampled
-/// chord-dip range. Both enclose the arc's range, so the clearance
-/// margin is the larger of the two one-sidedness margins. `None` when
-/// the carrier enclosure has no form for the kind.
+/// circle's or an ellipse's, `geom_brep::Conic`), folded: the carrier's
+/// harmonic bounds and the arc's sampled chord-dip range. Both enclose
+/// the arc's range, each with its own rounding charged
+/// (`geom_brep::conic_residual_extremes`,
+/// `geom_brep::conic_arc_residual_range`), so the clearance margin is
+/// the larger of the two one-sidedness margins. `None` when the carrier
+/// enclosure has no form for the kind.
+///
+/// **What certifies here, by kind.** Against a plane, sphere or
+/// cylinder both enclosures read; at a vertex whose harmonics' phases
+/// align, the carrier bound IS the residual's extreme, so its rounding
+/// charge is what stands between a graze and a certified clearance.
+/// Against a torus the carrier enclosure is the whole turn's sampled
+/// one, levered by a curvature bound that is loose in the direction that
+/// refuses: on grazes within 40 bands it certified none at ε 1e-12 and
+/// 1e-9 and three at 1e-6, each clear under the oracle
+/// (`clearance_rows`). Against a cone there is no enclosure (`None`, the
+/// frontier).
 ///
 /// The line row's vertex CLAMP does not port here, and the reason is
 /// the curve: along a line the residual is exactly quadratic, so "the
@@ -2190,13 +2204,12 @@ pub(super) fn curved_face_arm<T: Decide>(
 /// for them.
 fn conic_clearance<T: Decide>(
     surface: &geom::Surface<T>,
-    curve: &geom_brep::EdgeCurve<T>,
     conic: &geom_brep::Conic<T>,
+    (t0, t1): (T, T),
     band: Band,
 ) -> Option<Result<Sign, geom_core::Indeterminate>> {
     let (lo, hi) = geom_brep::conic_residual_extremes(surface, conic)?;
     let carrier_margin = lo.max(-hi);
-    let (t0, t1) = curve.params();
     let arc_margin = geom_brep::conic_arc_residual_range(surface, conic, t0, t1)
         .map_or(carrier_margin, |(arc_lo, arc_hi)| arc_lo.max(-arc_hi));
     Some(decide(
@@ -4713,5 +4726,220 @@ mod lying_on_rows {
             reach((Point3::origin(), Vec3::unit_z(), 1.0)),
             "and on the sheet's own circle the chain runs through"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod clearance_rows {
+    //! The conic clearance rung ([`super::conic_clearance`]) on grazes:
+    //! a `Positive` there is a certified "no event" that returns before
+    //! any root door is asked, so it must never stand for a carrier that
+    //! comes within the band of the surface.
+
+    use core::f64::consts::FRAC_PI_2;
+
+    use super::conic_clearance;
+    use geom_core::{Band, Point3, Sign, Vec3};
+    use test_utils::fuzz;
+
+    /// **The reviewer's pin: a definite crossing is not certified
+    /// clear.** An ellipse stored in the ordinary order and sign (major
+    /// 4.85 m, minor 0.21 m) meets a 24.7 µm ball 2.71e-11 m deep at its
+    /// minor vertex (a 60-digit oracle's figure), at ε = 1e-12. There
+    /// the harmonics' phases align, so `c₀ − A₁ − A₂` IS the least
+    /// residual, and read bare its rounding (`≈ u·a²/r ≈ 1e-10`) put it
+    /// at +2.9e-11: the rung certified the crossing clear.
+    #[test]
+    fn a_crossing_at_the_minor_vertex_is_not_certified_clear() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let axis = Vec3::new(
+            -0.962_120_141_566_121_1,
+            -0.090_956_895_968_249_41,
+            0.257_005_206_695_522_7,
+        );
+        let e = geom::Curve3::Ellipse {
+            center: Point3::new(
+                -0.480_548_118_168_072_4,
+                -0.441_016_920_669_073_5,
+                -0.888_958_285_986_655_8,
+            ),
+            axis,
+            major: 4.846_323_757_498_574,
+            minor: 0.207_528_397_062_063_02,
+            u_ref: Vec3::new(
+                0.087_713_558_478_483_3,
+                0.789_303_434_737_465_2,
+                0.607_705_865_999_894_6,
+            ),
+        };
+        let s = geom::Surface::Sphere {
+            center: Point3::new(
+                -0.426_972_420_046_788_4,
+                -0.567_049_134_604_379_2,
+                -0.732_997_401_751_036_8,
+            ),
+            radius: 2.466_073_624_731_285_6e-5,
+            axis,
+            u_ref: Vec3::new(
+                0.272_625_811_677_447_04,
+                -0.320_994_777_005_651_3,
+                0.906_993_671_390_437_7,
+            ),
+        };
+        let conic = geom_brep::Conic::of(&e).unwrap();
+        let v = 3.0 * FRAC_PI_2;
+        let got = conic_clearance(&s, &conic, (v - 0.5, v + 0.5), band);
+        assert!(
+            !matches!(got, Some(Ok(Sign::Positive))),
+            "a crossing 2.71e-11 m deep certified clear: {got:?}"
+        );
+    }
+
+    fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
+        loop {
+            let v = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            if v.norm() > 0.2 && v.norm() < 1.0 {
+                return v.normalize();
+            }
+        }
+    }
+
+    /// **No certified clearance on a graze, through the rung.** Circles,
+    /// and ellipses in all eight stored orders and signs (eccentricity
+    /// up to 40), metre- or kilometre-sized, centred up to a kilometre
+    /// out, each meeting a sphere or a wall (radius 1 µm to 1 m, the
+    /// wall's axis across the outward normal) at a vertex, set off along
+    /// the outward normal by `gap`, −40 to 40 bands. The vertex is the
+    /// carrier's least distance from the surface (the carrier bends away
+    /// from it), at `|r + gap| − r`: the pose crosses when that is below
+    /// `−ε` and touches in band when it is within `ε`; a certified
+    /// `Positive` is wrong in both. A third of the draws put a torus's
+    /// tube there instead, its spine bending away from the carrier, under
+    /// the same oracle. Counts printed.
+    #[test]
+    fn no_certified_clearance_on_a_graze() {
+        let mut rng = fuzz::start("reduce::no_certified_clearance_on_a_graze");
+        for eps in [1e-12, 1e-9, 1e-6] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            let (mut clear, mut refused, mut torus_clear) = (0, 0, 0);
+            for i in 0..fuzz::scaled(3000) {
+                let n = unit(&mut rng);
+                let u = unit(&mut rng);
+                let u_ref = (u - n * u.dot(n)).normalize();
+                let scale = if rng.below(2) == 0 { 1.0 } else { 1000.0 };
+                let big = scale * rng.range(0.5, 5.0);
+                let circle = i % 9 == 8;
+                let combo = i % 8;
+                let small = if circle {
+                    big
+                } else {
+                    big / rng.range(1.0, 40.0)
+                };
+                let (mut major, mut minor) = if combo & 1 == 0 {
+                    (big, small)
+                } else {
+                    (small, big)
+                };
+                if !circle && combo & 2 != 0 {
+                    major = -major;
+                }
+                if !circle && combo & 4 != 0 {
+                    minor = -minor;
+                }
+                let far = if rng.below(2) == 0 { 1.0 } else { 1000.0 };
+                let center = Point3::new(
+                    rng.range(-far, far),
+                    rng.range(-far, far),
+                    rng.range(-far, far),
+                );
+                let e = if circle {
+                    geom::Curve3::Circle {
+                        center,
+                        axis: n,
+                        radius: major,
+                        u_ref,
+                    }
+                } else {
+                    geom::Curve3::Ellipse {
+                        center,
+                        axis: n,
+                        major,
+                        minor,
+                        u_ref,
+                    }
+                };
+                let conic = geom_brep::Conic::of(&e).unwrap();
+                let vertex = FRAC_PI_2 * f64::from(u32::try_from(rng.below(4)).unwrap());
+                let p = e.eval(vertex);
+                let outward = (p - center).normalize();
+                let gap = eps * rng.range(-40.0, 40.0);
+                let r = 10f64.powf(rng.range(-6.0, 0.0));
+                let hub = p + outward * (r + gap);
+                let x = Vec3::new(1.0, 0.0, 0.0);
+                let kind = rng.below(3);
+                let s = match kind {
+                    0 => geom::Surface::Sphere {
+                        center: hub,
+                        radius: r,
+                        axis: n,
+                        u_ref: (x - n * x.dot(n)).normalize(),
+                    },
+                    1 => {
+                        let v = unit(&mut rng);
+                        let w = (v - outward * v.dot(outward)).normalize();
+                        geom::Surface::Cylinder {
+                            origin: hub,
+                            axis: w,
+                            radius: r,
+                            u_ref: outward,
+                        }
+                    }
+                    _ => {
+                        let v = unit(&mut rng);
+                        let w = (v - outward * v.dot(outward)).normalize();
+                        let ring = r * rng.range(1.5, 10.0);
+                        let axis = outward.cross(w).normalize();
+                        geom::Surface::Torus {
+                            center: hub + outward * ring,
+                            axis,
+                            major_radius: ring,
+                            minor_radius: r,
+                            u_ref: (x - axis * x.dot(axis)).normalize(),
+                        }
+                    }
+                };
+                let got = conic_clearance(&s, &conic, (vertex - 0.5, vertex + 0.5), band);
+                let label = || {
+                    format!(
+                        "ε {eps}, case {i}: gap {gap:e}, {e:?} against {s:?} — {}",
+                        fuzz::replay()
+                    )
+                };
+                let certified = matches!(got, Some(Ok(Sign::Positive)));
+                // The least distance, at the vertex: `gap` while the
+                // surface's hub stays outside the carrier, and the
+                // carrier clear of the surface's far side once `gap`
+                // passes `−2r`.
+                let least = (r + gap).abs() - r;
+                if certified {
+                    if kind == 2 {
+                        torus_clear += 1;
+                    } else {
+                        clear += 1;
+                    }
+                    assert!(least > eps, "{}: certified clear", label());
+                } else {
+                    refused += 1;
+                }
+            }
+            println!(
+                "ε {eps}: {clear} sphere/wall and {torus_clear} torus certified clear, {refused} not"
+            );
+        }
     }
 }

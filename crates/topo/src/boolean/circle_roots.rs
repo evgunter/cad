@@ -16,7 +16,7 @@
 //! [`first_harmonic_roots`] decides on that range, all in residual
 //! metres, under the caller's rows:
 //!
-//! - **noise** — the harmonics' evaluation error ([`NOISE_ULPS`]
+//! - **noise** — the harmonics' evaluation error ([`geom_brep::HARMONIC_NOISE_ULPS`]
 //!   half-ulps of the terms' magnitudes, in residual metres) definitely
 //!   past the escalation threshold, or not readable at all, refuses: the
 //!   representation cannot resolve what the band asks of it. A rounding
@@ -117,7 +117,7 @@
 //!
 //! `F`'s harmonics are sums of terms much larger than `F` where the
 //! crossings live, so at `f64` their rounding is an error in `F` of about
-//! `u·T` (`T` a bound on the terms' magnitudes, [`NOISE_ULPS`] of them
+//! `u·T` (`T` a bound on the terms' magnitudes, [`geom_brep::HARMONIC_NOISE_ULPS`] of them
 //! charged): `noise`, a residual error of `noise / f_per_metre` metres,
 //! `f_per_metre` the door's floor on `|F|` per metre of residual. The
 //! subdivision charges it to every Taylor term it reads (its docs), so a
@@ -241,22 +241,11 @@ pub(super) struct HalfAngleFrame<T> {
     pub(super) f_per_metre: T,
 }
 
-/// How many units in the last place of the term bound the harmonics'
-/// evaluation error is charged (module docs, "The harmonics' noise"). Each
-/// harmonic is a short chain from the inputs — a squared norm, a
-/// product, a sum of four terms — whose every rounding is half an ulp
-/// of a quantity the term bound dominates; sixteen is that chain's
-/// count with room. It is a ROUNDING estimate, the `f64` lane's
-/// contract, not an enclosure: the `Interval` lane carries the
-/// enclosure itself through every coefficient and the ladder decides on
-/// it, so it needs no meter to be sound. The first-harmonic door charges the same count: its
-/// chains are shorter, so the count holds there with more room.
-pub(super) const NOISE_ULPS: f64 = 16.0;
-
-/// The rounding charged against a term bound `terms`: [`NOISE_ULPS`]
-/// half-ulps of it — the meters' one spelling of the charge.
+/// The rounding charged against a term bound `terms`
+/// ([`geom_brep::rounding_charge`]) — the meters' one spelling of the
+/// charge.
 pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
-    T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms
+    geom_brep::rounding_charge(terms)
 }
 
 /// The conditioning floor `κ` (module docs): the pole's `|F|` must be at

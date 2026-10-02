@@ -41,7 +41,7 @@
 //! answered (the shallowest grazes refuse on their root slack), and from
 //! `ρ = 30` every one refuses — where the unmetered door certified
 //! misses on real dips and phantom pairs on clearances from `ρ = 100`.
-//! The threshold scales as `ρ⁴ ≲ 10ε·r·R²/(u·NOISE_ULPS)`.
+//! The threshold scales as `ρ⁴ ≲ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`.
 //!
 //! # The lever
 //!
