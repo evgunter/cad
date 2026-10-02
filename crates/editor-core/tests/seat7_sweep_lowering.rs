@@ -286,13 +286,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
 /// realized-vs-idealized bit equality) were green across the change
 /// untouched.
+///
+/// RE-BLESSED (`boss_union` alone) when `circle_split` began storing
+/// its authored carrier (centre and `|r|`) instead of re-deriving each
+/// arc's carrier from its chord: the boss's split rims moved in the
+/// last bits. `cut_cylinder`'s `circle` did not move — its chord
+/// lowering returned the authored centre and radius bit for bit.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xa17d_0f96_7c07_6682),
         ("corner_table", 0xc961_7e81_1681_ac26),
         ("cut_cylinder", 0x64c5_2df8_35df_9382),
-        ("boss_union", 0x7f90_663b_adca_236b),
+        ("boss_union", 0x46a3_687d_7133_3127),
         ("kitchen_sink", 0x10a1_89b5_25a9_229b),
     ];
     let mut moved: Vec<String> = Vec::new();

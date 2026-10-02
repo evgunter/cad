@@ -68,7 +68,17 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when validation began keeping each loop's authored start
+/// Last moved when each construction began storing the arc it builds
+/// (`store-constructed-carriers`): from `(442782, 141983, 12786, 6882)`.
+/// The rays are unchanged. Per document:
+/// - `boss_union` (its `circle_split` rims on the authored carrier)
+///   takes 192 determinant refusals over 144 rays and 12 fewer grazes;
+/// - `declared_tangency` gains 10 grazes;
+/// - `gallery_ring` loses 3 grazes.
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when validation began keeping each loop's authored start
 /// (`profile` README V3): from `(442782, 141992, 20016, 10536)`. The
 /// rays are unchanged, because the point sets are. Per document, the
 /// move is entirely three documents' triangulations, whose loops start
@@ -79,7 +89,7 @@ struct Tally {
 /// - `boss_union` gains 18 grazes.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (442_782, 141_983, 12_786, 6_882);
+const PINNED: (usize, usize, usize, usize) = (442_782, 141_978, 12_978, 7_026);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
@@ -166,3 +176,4 @@ fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
          changed on purpose, re-derive with --nocapture and re-pin"
     );
 }
+
