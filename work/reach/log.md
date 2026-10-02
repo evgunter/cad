@@ -313,7 +313,7 @@ on a chart with a singular apex.
   #3685 reddened `r1_pxn_probes`. REACH fixed it in PR 3737, reviewed
   single.
 
-The dual-review row (DR-36) rides this PR's last commit.
+The dual-review row (DR-37) rides this PR's last commit.
 ## 2026-10-01 — the slab cut closes (PR 3627)
 
 `slab-cut-cylinder-refuses-sector-side` went to a dual review: a certified

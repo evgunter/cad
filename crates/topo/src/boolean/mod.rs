@@ -68,6 +68,8 @@
 
 pub(crate) mod boxes;
 pub mod carrier_eq;
+mod circle_cylinder;
+mod circle_roots;
 mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;
@@ -884,17 +886,17 @@ pub enum BooleanError {
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
     /// edge cannot be cleared against a curved face, and the curved
-    /// PIERCE door cannot take it. **That door now exists for one
-    /// family** — a LINE carrier definitely crossing a CYLINDER wall,
-    /// whose crossing parameters come from the certified line × wall
-    /// quadratic and whose landing point the chart trim places — so
-    /// what this variant reports is the REST of the family: a tangency
-    /// (not a crossing at any order the lane sees), a CIRCLE carrier
-    /// against a wall (a degree-2 trigonometric residual with no root
-    /// lane in this tree), a SPHERE face, an undeclared on-carrier
-    /// edge, or a trim the chart door declines to express (the M5
-    /// envelope's frontier; the C5 table routes the SECTIONS, this is
-    /// the crossing layer). The
+    /// PIERCE door cannot take it. That door takes a LINE or a CIRCLE
+    /// carrier definitely crossing a cylinder wall, a sphere or a torus,
+    /// whose crossing parameters come from the certified root lanes
+    /// (the line quadratics and quartic, `boolean::circle_roots`' doors)
+    /// and whose landing point the chart trim places. What this variant
+    /// reports is the rest: a tangency (not a crossing at any order the
+    /// lanes see), a cone face or a circle against one, an undeclared
+    /// on-carrier edge or circle, a root the band cannot place, or a
+    /// trim the chart door declines to express (the M5 envelope's
+    /// frontier; the C5 table routes the SECTIONS, this is the crossing
+    /// layer). The
     /// **definite** half of a two-tolerance pair: the very same
     /// clearance margin one band-width away escalates as
     /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
@@ -2483,6 +2485,68 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         tol,
     )?;
     Ok((ab, ba))
+}
+
+/// **The sweep's contact records and the split operands' sizes** under
+/// `strategy`: what both sweep directions recorded, and the
+/// `[A vertices, A edges, B vertices, B edges]` they leave. The pruning
+/// suites compare these across strategies — box pruning is sound when
+/// the realized and idealized sweeps record the same contacts and make
+/// the same splits, which a trace of examined pairs alone cannot show
+/// (a face-free record is attributed to every face on its carrier). Runs
+/// the undeclared posture, as [`sweep_traces`] does, at the recording
+/// scalar only: the comparison is of keys and counts, not of brackets.
+///
+/// # Errors
+///
+/// [`BooleanError`] as [`sweep_traces`].
+#[cfg(feature = "sweep-testing")]
+pub fn sweep_records(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<(ContactRecords, [usize; 4]), BooleanError> {
+    let band = Band::linear(tol)?;
+    let declared = DeclaredPairs::default();
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
+    reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
+    reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
+    let mut a = a_operand.clone();
+    let mut b = b_operand.clone();
+    let mut acc = reduce::ContactAcc::default();
+    let knobs = reduce::SweepKnobs::default();
+    reduce::sweep_direction(
+        &mut a,
+        &mut b,
+        Operand::A,
+        &declared,
+        &mut acc,
+        band,
+        strategy,
+        &knobs,
+        None,
+        tol,
+    )?;
+    reduce::sweep_direction(
+        &mut b,
+        &mut a,
+        Operand::B,
+        &declared,
+        &mut acc,
+        band,
+        strategy,
+        &knobs,
+        None,
+        tol,
+    )?;
+    let sizes = [
+        a.vertices().count(),
+        a.edges().count(),
+        b.vertices().count(),
+        b.edges().count(),
+    ];
+    Ok((acc.finish(), sizes))
 }
 
 /// **The boolean pipeline through its join**, undeclared and realized:
