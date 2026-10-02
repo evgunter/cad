@@ -11,7 +11,7 @@ use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
+    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -121,7 +121,9 @@ fn set_appearance_validates_and_applies_purely() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::AppearanceWrongKind { name: edge }
+        EditError::AppearanceWrongKind {
+            name: doc.spoken_name(&edge)
+        }
     );
 
     // A never-existed node id: typed refusal at the edit door.
@@ -140,7 +142,9 @@ fn set_appearance_validates_and_applies_purely() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::AppearanceNamesMissingNode { name: bogus }
+        EditError::AppearanceNamesMissingNode {
+            name: SpokenName::absent(bogus)
+        }
     );
 }
 
@@ -167,7 +171,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         )
         .unwrap_err(),
         EditError::AppearanceNotSet {
-            name: body.clone(),
+            name: doc.spoken_name(&body),
             kind: AttrKind::Color,
         }
     );
@@ -257,29 +261,24 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     assert!(!d.is_empty());
 
     // Replay from empty reproduces the appearance bit-identically.
-    let edits = vec![
+    let edits = [
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
-            node: doc3.node(plane).unwrap().clone(),
+            node: Box::new(doc3.node(plane).unwrap().clone()),
         },
         DocEdit::InsertNode {
-            node: crate::fixture::as_authored(doc3.node(p).unwrap()),
+            node: Box::new(crate::fixture::as_authored(doc3.node(p).unwrap())),
         },
         DocEdit::InsertNode {
-            node: doc3.node(ext).unwrap().clone(),
+            node: Box::new(doc3.node(ext).unwrap().clone()),
         },
         DocEdit::SetAppearance {
             name: cap,
             attr: red(),
         },
     ];
-    let replayed = ProfileDoc::replay(
-        doc3.id(),
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .unwrap();
+    let replayed = ProfileDoc::replay(doc3.id(), &edits, Tol::witness()).unwrap();
     assert!(replayed.bit_eq(&doc3));
 }
 

@@ -229,11 +229,20 @@ such an edge whole, `FromMember(m, e)`, never a piece; a vertex at a
 member vertex is that vertex, and one where a single face crosses a
 member edge is `Seam` of that edge and that face.
 
-A union's face is named for its PARENT, read off the finished body.
-Each merged face links the member faces it lists, and linking is
-transitive; the member faces so linked are one parent, named
-`Merged` of all of them, and a member face no merge links is its own
-parent. A parent is a set of member-face entities, never a name: the
+A union's face is named for its PARENT. Two member faces are linked
+when their members are declared coincident on them, or share a recipe
+source (N6), with the same orientation, the pairwise judgement
+certifies the pair (DM4), and that judgement consumed the pair: its
+two-member union merged the faces or held either face's region
+through the other (`BooleanNaming::merge_groups`,
+`BooleanNaming::covered`). A certified pair the judgement never
+brought together links nothing. Linking is transitive. The member
+faces so linked are one parent, named `Merged` of all of them, and a
+member face nothing links is its own parent. A finished face takes
+the parent of the member faces it descends from; which faces a fold
+step merged, kept or discarded does not enter. So a member face
+another member's coplanar face covers, and one a later member
+swallows after it merged, are cited alike in every member order. A parent is a set of member-face entities, never a name: the
 candidates of a tied row are separate parents that happen to be
 spelled alike. A parent the finished body holds as one face is that
 face's name. A parent it holds as several faces qualifies each with
@@ -245,7 +254,7 @@ over both members' walls, whether one fold step cut it or two. The
 fold's spellings are replaced, not refined: which step cut a face,
 and whether it met the cut or the merge first, depend on member
 order, and the parent and its seam partners depend only on the
-finished body.
+members' consumed pairs and the finished body.
 
 The verdicts run through `k_stats`,
 so fragment identity changes only at a recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a

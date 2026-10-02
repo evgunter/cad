@@ -91,8 +91,8 @@ fn every_rims_carriers_are_bit_identical(body: &Body<f64>, name: &str) -> usize 
                     radius,
                     ..
                 } => (
-                    [center.x, center.y, center.z].map(f64::to_bits),
-                    [axis.x, axis.y, axis.z].map(f64::to_bits),
+                    center.to_array().map(f64::to_bits),
+                    axis.to_array().map(f64::to_bits),
                     radius.to_bits(),
                 ),
                 _ => panic!("{name}: a rim's arc carries a circle"),

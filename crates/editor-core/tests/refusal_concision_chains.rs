@@ -1593,7 +1593,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "transversality",
             escalated(CertCheck::Transversality, in_band),
-            "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+            "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if this \
              angle is intended, tighten the tolerance below 5e-10 m",
         ),
         (
@@ -1605,7 +1605,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+            "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if this \
              angle is intended, tighten the tolerance below 5e-11 m",
         ),
         (
@@ -1617,7 +1617,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so the faces cross at a clearer angle",
+            "Recourse: move the geometry so the surfaces cross at a clearer angle",
         ),
         (
             "span",
@@ -1628,7 +1628,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::INVALID),
-            "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable or \
+            "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable or \
              collapsed margin may indicate a kernel bug worth reporting",
         ),
         (
@@ -1677,7 +1677,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
                 text,
                 "node 000000000005 failed: the transform op refused: an edge the map moved failed \
                  re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
-                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the faces cross at a clearer \
+                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the surfaces cross at a clearer \
                  angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
             );
         }
@@ -2226,6 +2226,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 face,
                 chain: sweep::blend::Convexity::Convex,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+                bounded: false,
             },
         ),
         (
@@ -3081,6 +3082,32 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         row(
+            "Unplaced/NoOffset",
+            NodeErrorKind::Unplaced {
+                group: RecipeNodeId(6),
+                cause: editor_core::Unplaced::NoOffset,
+            },
+        ),
+        row(
+            "Unplaced/DeadGauge",
+            NodeErrorKind::Unplaced {
+                group: RecipeNodeId(6),
+                cause: editor_core::Unplaced::DeadGauge {
+                    gauge: RecipeNodeId(2),
+                },
+            },
+        ),
+        row(
+            "PlacementRefused",
+            NodeErrorKind::PlacementRefused {
+                node: RecipeNodeId(2),
+                error: NodeErrorKind::EmptyOperand {
+                    input: RecipeNodeId(1),
+                }
+                .into(),
+            },
+        ),
+        row(
             "CrossingUnverified",
             NodeErrorKind::CrossingUnverified {
                 instance: RecipeNodeId(tagged(6)),
@@ -3560,6 +3587,36 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                     part: doc_ref(),
                     refusal: editor_core::ReachRefusal::NoExtent,
                 }),
+            },
+        ),
+        (
+            "OffsetDisagrees",
+            M::OffsetDisagrees {
+                instance: n(7),
+                root: n(6),
+                predicate: "mate_member_translation_zero",
+                clash: Clash::Length { metres: 0.002 },
+            },
+        ),
+        (
+            "OffsetUnchecked/Placement",
+            M::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Placement {
+                    node: n(3),
+                    error: NodeErrorKind::EmptyOperand { input: n(2) }.into(),
+                }),
+            },
+        ),
+        (
+            "OffsetUnchecked/Unleverable",
+            M::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Unleverable(LeverRefusal::Reach {
+                    instance: n(7),
+                    part: doc_ref(),
+                    refusal: editor_core::ReachRefusal::NoExtent,
+                })),
             },
         ),
     ]

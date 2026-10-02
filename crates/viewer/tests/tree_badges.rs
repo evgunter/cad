@@ -50,7 +50,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let Some(NodeResult::Failed(error)) = evaluation.result(extrude) else {
         panic!("the evaluation should report the extrude as failed");
     };
-    assert_eq!(message, &error.to_string());
+    assert_eq!(message, &error.spoken(session.committed_doc()));
 
     let poisoned = rows
         .iter()
@@ -1027,7 +1027,7 @@ fn child_band_refusal_rows() {
     let refused = apply(
         &asm,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: face_of(a),
                 b: face_of(b),
                 class: ContactClass::Rest,
@@ -1038,7 +1038,7 @@ fn child_band_refusal_rows() {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -1101,7 +1101,7 @@ fn child_band_refusal_rows() {
         };
         assert_eq!(
             status.message(),
-            Some(error.to_string().as_str()),
+            Some(error.spoken(&asm).as_str()),
             "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
         );
     }

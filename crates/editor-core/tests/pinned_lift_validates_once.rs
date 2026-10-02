@@ -39,23 +39,10 @@ fn embed<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 /// `profile`'s types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
     let m = &vp.plane().placement;
-    let mut out = vec![
-        m.linear.c0.x,
-        m.linear.c0.y,
-        m.linear.c0.z,
-        m.linear.c1.x,
-        m.linear.c1.y,
-        m.linear.c1.z,
-        m.linear.c2.x,
-        m.linear.c2.y,
-        m.linear.c2.z,
-        m.translation.x,
-        m.translation.y,
-        m.translation.z,
-    ];
+    let mut out = m.components().to_vec();
     for lp in vp.loops() {
         for v in lp.vertices() {
-            out.extend([v.x, v.y]);
+            out.extend(v.to_array());
         }
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);

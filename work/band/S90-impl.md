@@ -1,15 +1,14 @@
 ---
 id: S90-impl
 kind: unit
-title: Tighten the blend seam's three doors to CertifiedBounds — the ruled S90 implementation, with #883 parked here
+title: Pin the blend's dual tangents — the doors stay generic under DL5 (Ev, 2026-10-01); a sweep row and a stack-up row that differentiate through a 3D blend
 status: open
 opened: 2026-08-21
 track: M
 pr: 883
 refs: [867, 886]
 priority: P1
-cost: H
-needs_ev: true
+cost: M
 ---
 
 ## What
@@ -179,3 +178,12 @@ Totals: 9 payload reads, 7 selection reads, 2 decision reads.
 `spine_regularity`, `convexity_at`, `chain_g1`, `corner_config`,
 `face_clearance`, `run_battery_for` and `cap_transverse`. Whatever
 tightens `run_battery` should tighten them in the same edit.
+
+## Ruled (Ev, 2026-10-01, PR 3724): the blend stays differentiable
+
+"if answers are correct there then great, of course we want to allow it!"
+The doors are not tightened; the fillet third of H-R3 is retired. What
+remains on this row is the pin: a `sweep` row asserting a fillet's and a
+chamfer's `Dual64` volume tangent against central differences (and the
+closed form for the filleted cube), and an `editor-core` stack-up row
+whose measure differentiates through a 3D blend.

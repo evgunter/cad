@@ -976,20 +976,20 @@ fn declare_passes_through_and_boolean_accepts_it() {
     // makes the same point.
     let refused = doc.apply(
         &editor_core::DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
                 a,
                 b,
                 declare: Some(boolean),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     assert!(
         matches!(
-            refused,
-            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input == boolean
+            &refused,
+            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input.id() == boolean
         ),
         "expected the declare edge's kind refusal, got {refused:?}"
     );

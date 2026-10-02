@@ -44,9 +44,24 @@ fn authored_session(bench: &asm::Bench, label: &str, tol: Tol) -> (DocSession, P
 /// The instance's node, as the document holds it.
 fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::DocRef, bool) {
     match session.doc().node(node) {
-        Some(Node::InstantiatePart { doc_ref, interface }) => (*doc_ref, interface.is_empty()),
+        Some(Node::InstantiatePart {
+            doc_ref, interface, ..
+        }) => (*doc_ref, interface.is_empty()),
         other => panic!("node {} should be an instance, got {other:?}", node.0),
     }
+}
+
+/// Whether the instance stands on the world at the empty offset — the
+/// insert door's own placement (A11 (2)).
+fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
+    matches!(
+        session.doc().node(node),
+        Some(Node::InstantiatePart {
+            gauge: None,
+            offset: Some(offset),
+            ..
+        }) if offset.bit_eq(&pncad::document::Placement::IDENTITY)
+    )
 }
 
 // --- the acceptance ------------------------------------------------
@@ -62,7 +77,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
-    // split seam), and no placement — A11 puts that on the group.
+    // split seam), and the empty offset on the world — A11 (2)'s
+    // insert at the origin.
     let (post_ref, post_interface) = instance_of(&session, post_i);
     assert_eq!(
         post_ref, bench.post,
@@ -73,9 +89,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert_eq!(shelf_ref, bench.shelf);
     assert!(shelf_interface);
     assert!(
-        session.doc().placements().get(&post_i).is_none()
-            && session.doc().placements().get(&shelf_i).is_none(),
-        "AddInstance authors no placement"
+        [post_i, shelf_i].iter().all(|&i| at_origin(&session, i)),
+        "AddInstance authors the empty offset on the world"
     );
 
     // The instances evaluate: the references resolve through the
@@ -608,7 +623,7 @@ fn failed_badge(path: &Path, node: RecipeNodeId, tol: Tol) -> String {
     };
     assert_eq!(
         message,
-        error.to_string(),
+        error.spoken(session.committed_doc()),
         "the badge is the payload's own rendering"
     );
     message

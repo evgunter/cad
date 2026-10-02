@@ -444,3 +444,58 @@ fn session_axis(session: &mut DocSession, frame: RecipeNodeId) -> RecipeNodeId {
         },
     )
 }
+
+/// **A failed row speaks its node as the document holds it now**: the
+/// kind, the label and the tag, read off the document when the row is
+/// drawn and never out of the evaluation. The same evaluation drawn
+/// over the document before and after a rename says each document's
+/// label, so a label captured into the failure when it was raised
+/// fails here. No rerun can hide that: none happens between the two
+/// draws. Through the session, a rename lands a row with the new label
+/// and changes nothing else it says.
+#[test]
+fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
+    let tol = Tol::witness();
+    let (doc, extrude, _) = common::broken_document(tol);
+    let doc = relabelled(&doc, extrude, "pocket", tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let failed = |rows: &[viewer::tree::TreeRow]| match common::status_of(rows, extrude) {
+        viewer::tree::RowStatus::Failed { message, .. } => message,
+        other => panic!("the extrude fails: {other:?}"),
+    };
+    let before = failed(&session.tree_rows());
+    assert!(
+        before.starts_with(&format!("Extrude \"pocket\" ({}) failed: ", tag(extrude.0))),
+        "{before}"
+    );
+
+    let evaluation = session.evaluation().expect("a run landed");
+    let slot = relabelled(session.committed_doc(), extrude, "slot", tol);
+    let files = viewer::parts::PartFiles::default();
+    let over =
+        |doc: &Doc<ProfileProgram>| failed(&viewer::tree::rows(doc, Some(evaluation), &files));
+    let expected = before.replacen("\"pocket\"", "\"slot\"", 1);
+    assert_eq!(
+        over(session.committed_doc()),
+        before,
+        "the run's own document"
+    );
+    assert_eq!(
+        over(&slot),
+        expected,
+        "one evaluation over the renamed document says the new label"
+    );
+
+    let renamed = session.perform(SessionOp::SetLabel {
+        node: extrude,
+        label: Some(label("slot")),
+    });
+    assert!(renamed.refusal.is_none(), "{:?}", renamed.refusal);
+    session.pump();
+    assert_eq!(
+        failed(&session.tree_rows()),
+        expected,
+        "the rename moves the label and nothing else the row says"
+    );
+}

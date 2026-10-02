@@ -7,9 +7,9 @@ D8) plus named parameters, the recorded tolerance ε, per-node witness data,
 appearance attributes and metadata. All mutation goes through the typed
 `DocEdit` vocabulary and `apply(doc, edit, tol, reach) -> Applied`
 (`src/edit.rs`) — pure over the document and the mated parts' reach — which
-returns a new document with the cluster-record maintenance the edit performed;
-undo is keeping the prior value, and replay re-applies the recorded maintenance
-without a solve. A mate being inserted passes the solve's own per-mate
+returns a new document with what the edit maintained — the offsets the mate
+door cleared, the names a delete stranded; undo is keeping the prior value, and
+replay re-applies the edits alone, without a solve. A mate being inserted passes the solve's own per-mate
 admission at that door (`EditError::MateRefused`, the solve's fault unaltered),
 so what the coset table refuses about a mate alone is met where the mate is
 authored; the doors decide edits and the solve decides states, so a verdict

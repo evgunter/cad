@@ -159,13 +159,15 @@ aborts. Failures, all typed: `UndeclaredContact`, `ContactContradicted`
 Invariant: every definite verdict wins over every declaration.
 
 **Continuation.** Two faces, one from each operand, on one carrier
-with their senses ALIGNED, interiors disjoint, sharing only a boundary
-curve, are a *continuation*: one surface carried on across the seam.
+with their senses ALIGNED are a *continuation*: one surface carried on,
+whether the two abut along a boundary curve or overlap on a patch.
+Which of the two it is, the kernel derives exactly; the author declares
+only the coincidence.
 A continuation is not a contact and is not a `ContactClass`. The two
 declaration seats take different types, so each states only what its
 consumer can use. A mate (and every record and census reading) takes a
 `ContactClass`. A boolean node takes a `BooleanCoincidence`, which is
-`Contact(ContactClass) | Continuation`. A continuation is therefore
+`Contact(ContactClass) | Continuation | Seam`. A continuation is therefore
 declared on a boolean node and nowhere else: a mate cannot state
 one, and at rest two flush walls carry nothing to verify. Its verification is `Rest`'s carrier rung with the
 sense bit reversed: carrier non-contradiction through the kind ladder,
@@ -176,17 +178,35 @@ undeclared continuation refuses at the reduction for every carrier
 kind, naming the face pair and the recourse (declare it), exactly as
 an undeclared opposed coincidence does.
 
-**The crossing layer's one-sided cover.** An edge lying on, or
-touching, the other operand's carrier is recorded at its endpoints only
-when the edge's parent carrier is certified to lie in one closed side
-of that carrier. That certificate has exactly these sources: a verified
-`Rest` (residual ≡ 0), a verified `Tangent` (the witness lane), a
-verified continuation, or a structural tangency (an edge described
+**Seam.** Two faces, one from each operand, on DISTINCT carriers
+that are tangent along a curve with their senses ALIGNED are a *seam*:
+the two surfaces join G1 along that curve, material wedge π. It is the
+aligned-sense twin of `Tangent`, as a continuation is of `Rest`, and
+like a continuation it is not a contact: a boolean node declares it
+and a mate cannot. Its verification is the `Tangent` witness lane
+along the same locus with the sense bit reversed; opposed senses
+contradict it. Rim routing by material wedge (C7) then decides the
+rim, and the zip mints it as the smooth seam carrying
+`TangentIntersection`. A G1 joint authored inside one profile is the
+structural form of the same fact and needs no declaration.
+
+**The crossing layer's one-sided cover.** An edge touching the other
+operand's carrier (a root at an end, its interior uncertified) is
+recorded at its endpoints only when the edge's parent carrier is
+certified to lie in one closed side of that carrier. That certificate
+has exactly these sources: a verified `Rest` (residual ≡ 0), a
+verified `Tangent` (the witness lane), a verified continuation, a
+verified seam, or a structural tangency (an edge described
 `TangentIntersection`) on either operand, to a face verified as one
 carrier with the target. It is never read from values: a root
 verdict of "tangent" is a band decision, so a graze within the band
 refuses, and an exact tangency is reached only through structure or a
-declaration.
+declaration. An edge decided to lie identically on the other operand's
+carrier, when every surface of a face it bounds is decided distinct
+from that carrier by the carrier ladder, is an ON event under the
+reduction's trilean (exactly-on ⇒ ON, in-band ⇒ escalate), as an edge
+lying in a partner's plane is; where the ladder does not decide a
+parent distinct, the cosurface question keeps its door.
 
 **C5 — The signed gap.** For a declared pair on same-kind carriers with a
 shared mating frame, g is the carrier-relative signed offset: parallel
@@ -225,7 +245,8 @@ outward normal, the declaration bridging an exact zero). The zip
 (`boolean/rest.rs`) removes conformal patches as interior on any carrier
 the ladder certifies and mints each seam once, so union volume is exactly
 additive at full engagement. A rim with a determinate G1 jet carries
-`TangentIntersection`; rim routing by material wedge (π ⇒ smooth seam;
+`TangentIntersection`; rim routing by material wedge (π ⇒ smooth seam, declared `Seam` or
+structural;
 0/2π ⇒ the declared cusp family, defined but unbuilt,
 `BooleanError::RimCuspArmUnbuilt`) is `docs/MATE-7-TANGENCY-DESIGN.md`.
 The same substrate is the at-rest door: `validate_pseudomanifold` with

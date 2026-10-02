@@ -327,7 +327,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::StrandedAppearance {
-            name: painted.clone()
+            name: doc.spoken_name(&painted)
         }],
         "the door named the key"
     );

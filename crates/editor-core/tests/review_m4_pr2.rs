@@ -883,20 +883,20 @@ fn wire_doors_refuse_typed() {
     // the edit door, so the document never carries the mis-wire.
     let refused = doc.apply(
         &editor_core::DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
                 a: u,
                 b: base,
                 declare: Some(ax),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     assert!(
         matches!(
-            refused,
-            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input == ax
+            &refused,
+            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input.id() == ax
         ),
         "expected the declare edge's kind refusal, got {refused:?}"
     );

@@ -80,6 +80,7 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
                 face,
                 chain,
                 margin,
+                bounded: false,
             },
             text,
         )) => {
@@ -272,6 +273,7 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
                 face,
                 chain,
                 margin,
+                bounded: false,
             },
             text,
         )) => {

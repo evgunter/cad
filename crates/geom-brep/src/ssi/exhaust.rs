@@ -441,7 +441,7 @@ impl FloorRefusal {
 
 /// The ℝ³ lane's floor is finer than the slab's coordinates resolve:
 /// the geometry sits too far from the origin for ε.
-const R3_SCALE: SizedDecision = SizedDecision {
+pub(super) const R3_SCALE: SizedDecision = SizedDecision {
     lever: "move the geometry nearer the origin, within the model's size range, where its \
             coordinates resolve the tolerance",
     size: "scale",
@@ -453,7 +453,7 @@ const R3_SCALE: SizedDecision = SizedDecision {
 /// The chart lane's floor is finer than the wall's parameters resolve:
 /// the wall moves more than the floor across the smallest step of its
 /// parameters.
-const CHART_SCALE: SizedDecision = SizedDecision {
+pub(super) const CHART_SCALE: SizedDecision = SizedDecision {
     lever: "bring the spline face within the model's size range, or move its parameter domain \
             nearer zero, so the face moves less than the tolerance across the finest step of \
             its parameters",
@@ -606,6 +606,18 @@ impl<C: SweepCell> SweepFloor<C> {
     fn width(self) -> f64 {
         self.width
     }
+}
+
+/// The spacing of adjacent floats where `root` reaches furthest from
+/// zero, in the lane's units, with that reach: the width of the finest
+/// cell bisection can cut there, which the floors are held to. The gap
+/// is `NaN` where the reach is not finite.
+pub(super) fn coordinate_gap<C: SweepCell>(root: C) -> (f64, f64) {
+    let reach = root.reach();
+    if !reach.is_finite() {
+        return (reach, f64::NAN);
+    }
+    (reach, C::finest_at(reach).width())
 }
 
 /// **Which of the subdivision's two duties the caller is asking for.**

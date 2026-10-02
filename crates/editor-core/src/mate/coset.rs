@@ -792,6 +792,17 @@ fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), F
     Ok(())
 }
 
+/// **Whether `x` is the identity**, decided as membership of the
+/// trivial subgroup over `arm` — the test a checked offset meets
+/// against the solve (A11 (2)).
+///
+/// # Errors
+///
+/// [`member_of`]'s.
+pub(super) fn trivial_member(x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), FoldStop> {
+    member_of(Subgroup::Trivial, x, band, arm)
+}
+
 /// A rotation's departure from the identity as a pure number: the
 /// Frobenius norm of `Q − I`. The caller levers it, so the number a
 /// refusal quotes is the one the predicate decided on.

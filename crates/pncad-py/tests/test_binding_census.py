@@ -646,14 +646,20 @@ BOUND_AS = {
     # consumer matching the class of a refusal that is neither `Clone`
     # nor `PartialEq`.
     "ProductErrorKind": "ProductError.variant",
-    # The four cluster-record acts are one arm of `Maintenance`, the
-    # row `Doc.last_maintenance` answers in, and they cross as that
-    # row's tag and payload attributes rather than as a class of their
-    # own: Python reads `r.variant == "join"` and `r.absorbed_frame`
-    # off the same object it reads a strand off. The `NodeErrorKind`
-    # row's shape — a curated enum flattened onto its carrier's
-    # attribute.
-    "ClusterMaintenance": "Maintenance.variant",
+    # The placement vocabulary of A11 (2): the compound door is a
+    # `Doc` method, as every acting door is; an unplaced group's cause
+    # and an instance's space are what `SolvedPoses.unplaced` answers
+    # (`None` is the world); the pose door's refusal raises from
+    # `SolvedPoses.placement`; why a checked offset went unchecked is
+    # the fault's `inner_variant`; and the gauge chain, and whether two
+    # instances share a gauge reference, are read off `Doc.gauge`.
+    "regauge_then_mate": "Doc.regauge_then_mate",
+    "Unplaced": "SolvedPoses.unplaced",
+    "Space": "SolvedPoses.unplaced",
+    "PoseRefusal": "SolvedPoses.placement",
+    "OffsetCheck": "MateFault.inner_variant",
+    "gauge_chain": "Doc.gauge",
+    "places": "Doc.gauge",
     # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
     # `StepImport::Solid::coherence` hands a Rust caller the kernel's
     # report whole and its discriminants are closed enums meant to be
@@ -1058,11 +1064,11 @@ BOUND_AS = {
     # its `face`, so neither inner struct is a class of its own.
     "AuthoredFrame": "MateFrame.variant",
     "FaceFrame": "MateFrame.variant",
-    # What a frame fails to be a placement: the word `PersistError`'s
-    # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
-    # `improper`, `not_rigid`) for a recorded maintenance row held to the
-    # `SetPlacement` door's rule at load.
-    "FrameFault": "PersistError.inner_variant",
+    # What a frame fails to be a placement: the edit door spreads it
+    # into three arms of its own, so its discriminant crosses as
+    # `EditError.variant` (`non_finite_placement`,
+    # `improper_placement`, `non_rigid_placement`).
+    "FrameFault": "EditError.variant",
     # Which of a node's placement frames an edit refusal is about: its
     # position crosses as `EditError.index` (a transform's step, an
     # explicit rule's listed placement), `None` for an instance's own
@@ -1262,7 +1268,7 @@ BOUND_AS = {
     # fault is the GROUP BOOLEAN's placement-rule fault, not the
     # assembly registry's, and `Node.placed_union_at` has reached it
     # since LIB-PYPU (an improper frame raises `improper_placement`
-    # today). `DocEdit.set_placement`'s own refusals are separate
+    # today). `DocEdit.set_offset`'s own refusals are separate
     # `EditError` arms that share the tag namespace, so binding it
     # changed nothing about this entry except who noticed.
     #
@@ -1844,10 +1850,10 @@ FAMILIES: dict[str, str] = {
 #: can produce reaches one — a placement is set by an edit Python
 #: cannot author". That was measured against the wrong door. The fault
 #: is the GROUP BOOLEAN's placement-rule fault, and
-#: `Node.placed_union_at` has reached it since LIB-PYPU; binding
-#: `DocEdit.set_placement` changed nothing about it, because that
-#: edit's own refusals are separate `EditError` arms sharing the tag
-#: namespace.
+#: `Node.placed_union_at` has reached it since LIB-PYPU; the
+#: instance-offset edit, `DocEdit.set_offset`, changes nothing about
+#: it, because that edit's own refusals are separate `EditError` arms
+#: sharing the tag namespace.
 #: **B-CHECKS is CLOSED and no longer a `gap` id here**
 #: (LIB-B-CHECKS). It held thirteen names, the largest census-owned
 #: family: `run_checks`, `enforce_checks`, `subject_body`,
@@ -2243,7 +2249,10 @@ NOT_BOUND = {
     # `NodeId`'s and `StepId`'s repr, which prints the full id
     # (`FullId`); and its kind word is `Doc.node_kind`, the snake_case
     # vocabulary `src/node_kind.rs` keeps apart from the chrome's noun.
+    # A spoken name is the same: its sentence rides inside the error,
+    # and its machine spelling is the opaque name text.
     "FullId": SHAPE,
+    "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
@@ -2253,6 +2262,12 @@ NOT_BOUND = {
     # rows and the `Datum.direction` bullet's `UnitVec3Error` record,
     # one level in.
     "DirectionRefusal": SHAPE,
+    # `SnapshotError::InputList`'s payload: which of a node's own list
+    # or designation rules a file broke. It crosses as its carrier does,
+    # `PersistError.inner_variant == "input_list"` with the sentence in
+    # the message; the snapshot refusal's payload is the snapshot door's
+    # surface, as the `SnapshotError` row above says.
+    "ListFault": SHAPE,
     # `EditError::DocParamNotDeclared`'s second field: WHICH of the two
     # carry-forward doors was refused. It is `DirectionRefusal`'s row
     # one carrier over, and flattened for a reason of its own: a Python
@@ -2287,12 +2302,9 @@ NOT_BOUND = {
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     # Python's document keeps no edit log: `Doc.save` writes an empty
-    # log and `load` replays below the wrapper, so the logged entry
-    # (an edit with the cluster-maintenance rows it performed) and the
-    # replay door that re-applies those rows have no Python shape to
-    # bind.
-    "LoggedEdit": SHAPE,
-    "apply_logged": SHAPE,
+    # log and `load` replays below the wrapper, so the replay door has
+    # no Python shape to bind.
+    "apply_replayed": SHAPE,
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
@@ -2572,8 +2584,12 @@ NOT_BOUND = {
     # `AssemblyError` with `variant == "carried_mint_refusal"` and
     # `Assembly.carried`'s rows. `CarriedDeclarations` is the
     # evaluation VALUE channel's bundle, behind `Product` and
-    # `NodeValue`, both interior.
+    # `NodeValue`, both interior. `CarriedUnplaced` is that channel's
+    # unplaced group below, which Python reads where a door refuses
+    # over it: `ExportError` with `variant == "unplaced_below"`, its
+    # `parts` the instance, the group's root and the cause.
     "CarriedDeclarations": INTERIOR,
+    "CarriedUnplaced": INTERIOR,
     "Relation": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
@@ -2872,6 +2888,11 @@ NOT_BOUND = {
     # 160-fin point. An ownership order still does not cross this
     # boundary; nothing has to cross it any more.
     "Product": INTERIOR,
+    # A product's own spaces, which the gate checks behind `assemble`:
+    # Python reads the verdict (`AssemblyError` with `variant ==
+    # "own_space"`), never the spaces themselves.
+    "OwnSpace": INTERIOR,
+    "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
@@ -3240,6 +3261,7 @@ NOT_BOUND = {
     "CertifiedLeaf": SHAPE,
     "Chamber": SHAPE,
     "ChamberSpan": SHAPE,
+    "DivergedAt": SHAPE,
     "DEFAULT_MAX_DEPTH": SHAPE,
     "DEFAULT_MAX_LEAVES": SHAPE,
     "DriveConfig": SHAPE,
@@ -3330,6 +3352,7 @@ MEMBERS_BOUND_AS = {
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
     "AssemblyError::Product": "AssemblyError.variant",
+    "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
@@ -3368,8 +3391,8 @@ MEMBERS_BOUND_AS = {
     "ClassAdmission::NoAtRestRecord": "ClassAdmission.variant",
     "ClassAdmission::NotAdmitted": "ClassAdmission.variant",
     # What an accepted edit did that the caller did not ask for, read
-    # off `Doc.last_maintenance`: the four cluster-record acts, and the
-    # references a delete stranded — a payload name on its carrying
+    # off `Doc.last_maintenance`: the offset a placing mate cleared, and
+    # the references a delete stranded — a payload name on its carrying
     # node, an appearance key on the store.
     #
     # THE MEASUREMENT for the third of these, the same one this file
@@ -3388,7 +3411,7 @@ MEMBERS_BOUND_AS = {
     # `test_document.py`'s
     # `test_deleting_the_consumer_reports_the_declaration_it_orphaned`
     # is the Python program that makes one appear.
-    "Maintenance::Cluster": "Maintenance.variant",
+    "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::OrphanedDeclare": "Maintenance.variant",
@@ -3453,7 +3476,12 @@ MEMBERS_BOUND_AS = {
     "EditError::MetaNotSet": "EditError.variant",
     "EditError::RebindMetadataCollision": "EditError.variant",
     "EditError::Roots": "EditError.variant",
-    "EditError::PlacementOnNonInstance": "EditError.variant",
+    "EditError::OffsetOnNonInstance": "EditError.variant",
+    "EditError::GaugeOnNonPlaced": "EditError.variant",
+    "EditError::GaugeNotLive": "EditError.variant",
+    "EditError::NotAGauge": "EditError.variant",
+    "EditError::GaugeCycle": "EditError.variant",
+    "EditError::WouldStartPlacing": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
@@ -3465,8 +3493,6 @@ MEMBERS_BOUND_AS = {
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
     "EditError::LabelUnchanged": "EditError.variant",
-    "EditError::MaintenanceRefused": "EditError.variant",
-    "EditError::MaintenanceUnrecorded": "EditError.variant",
     "EvalError::UnknownParam": "EvalError.variant",
     "EvalError::ParamDimensionMismatch": "EvalError.variant",
     "EvalError::CountExprInContinuousEval": "EvalError.variant",
@@ -3478,6 +3504,7 @@ MEMBERS_BOUND_AS = {
     "HitTestError::Standing": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
     "HitTestError::Ambiguous": "HitTestError.variant",
+    "HitTestError::AcrossSpaces": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
@@ -3487,6 +3514,13 @@ MEMBERS_BOUND_AS = {
     "InlineError::PartCarriesMetadata": "InlineError.variant",
     "InlineError::ParamConflict": "InlineError.variant",
     "InlineError::UnplaceableFrame": "InlineError.variant",
+    "InlineError::MatePlaced": "InlineError.variant",
+    "InlineError::Unplaced": "InlineError.variant",
+    "InlineError::NeedsAGauge": "InlineError.variant",
+    "InlineError::PartDeadGauge": "InlineError.variant",
+    "InlineError::MateFrameCrosses": "InlineError.variant",
+    "InlineError::MateFaceFrameCrosses": "InlineError.variant",
+    "InlineError::MatePairSplits": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
@@ -3510,6 +3544,8 @@ MEMBERS_BOUND_AS = {
     # the authored arm and `MateFrame.from_face(...)` the other.
     "MateFrame::Authored": "MateFrame.variant",
     "MateFault::Unleverable": "MateFault.variant",
+    "MateFault::OffsetDisagrees": "MateFault.variant",
+    "MateFault::OffsetUnchecked": "MateFault.variant",
     "MeasureNodeFault::RefIndexOutOfRange": "MeasureNodeFault.variant",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
@@ -3570,7 +3606,6 @@ MEMBERS_BOUND_AS = {
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::Dimension": "PersistError.variant",
     "PersistError::EditReplay": "PersistError.variant",
-    "PersistError::MaintenanceFrame": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
@@ -3578,6 +3613,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::PlacedUnderTwoRoots": "ProductError.variant",
     "ProductError::Naming": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
+    "ProductError::Unplaced": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
@@ -3599,6 +3635,7 @@ MEMBERS_BOUND_AS = {
     # `reason` rather than `variant`, the word this door has always
     # carried.
     "SelectRefusal::InBand": "SelectRefusal.reason",
+    "SelectRefusal::AcrossSpaces": "SelectRefusal.reason",
     "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
     "SelectRefusal::Unreadable": "SelectRefusal.reason",
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
@@ -3614,6 +3651,15 @@ MEMBERS_BOUND_AS = {
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::OperandSeveredFromMate": "SplitError.variant",
     "SplitError::TornGroup": "SplitError.variant",
+    "SplitError::CutHoldsGauge": "SplitError.variant",
+    "SplitError::TwoAnchors": "SplitError.variant",
+    "SplitError::DeadGaugeReference": "SplitError.variant",
+    "SplitError::UnplacedAlone": "SplitError.variant",
+    "SplitError::WouldStartPlacing": "SplitError.variant",
+    "SplitError::PlacingMateLeft": "SplitError.variant",
+    "SplitError::MateFrameCrosses": "SplitError.variant",
+    "SplitError::MateFaceFrameCrosses": "SplitError.variant",
+    "SplitError::HoistedMemberOffset": "SplitError.variant",
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
@@ -3915,6 +3961,11 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # The document a report was taken of, which the kernel's `render`
+    # checks it is handed. Python's `McReport` holds that document
+    # itself and renders from it, so there is no second document to
+    # check against and no id to read back.
+    "McReport::document": SHAPE,
     # The chain is authored through `Placement`'s constructors and
     # `then`, and read back only as its length: the steps are the
     # `Step` entry's `different-shape` argument, one level in.
@@ -3995,6 +4046,10 @@ MEMBERS_NOT_BOUND = {
     # `EvalOptions`'s own sentence one rung in. The appearance
     # resolution is the appearance family the façade leaves out (see the
     # `DocEdit` rows).
+    # The groups a part below leaves out of its world: Python reads
+    # them where a door refuses over them, `ExportError` with
+    # `variant == "unplaced_below"`, its `parts` naming each.
+    "Evaluation::unplaced_below": INTERIOR,
     "Evaluation::epoch": INTERIOR,
     "Evaluation::appearance": SHAPE,
     # `EditRecord` is `different-shape`: `Doc.apply` mutates in place and

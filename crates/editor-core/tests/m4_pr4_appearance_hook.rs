@@ -582,7 +582,7 @@ fn rebind_appearance_collision_is_refused_typed() {
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
-            name: target.clone(),
+            name: doc.spoken_name(&target),
             kind: AttrKind::Color,
         }
     );
