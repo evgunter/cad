@@ -2,12 +2,15 @@
 id: boolean-refuses-on-arc-carrier-not-arc
 kind: issue
 title: Boolean refuses when a cutter plane crosses an arc's CARRIER (not the arc); circle-derived cylinder unions refuse
-status: open
+status: closed
 opened: 2026-08-10
 github: 347
 refs: [346, 1044, 1068]
 priority: P0
 cost: H
+closed: 2026-10-02
+pr: 3752
+branch: tang/circle-cylinder-crossing
 ---
 
 ## From GitHub issue 347
@@ -128,3 +131,18 @@ Where #347's cylinder poses stand now:
 So a genuine circle pierce of a wall gets through the whole boolean on
 the engraving pose and stops only at measuring the result; on the
 parallel pairs it stops at the arc's sector side, then the pierce ring.
+
+## Closed (2026-10-02, PR 3752)
+
+The circle × cylinder cell is settled, so #347's parallel-cylinder
+half no longer refuses for want of a root lane. What each pose meets
+now is another row's ground:
+- the coplanar cap discs refuse `UndeclaredCoincidence`, which is
+  correct and needs a declaration;
+- staggered poses stop at the arc's sector side (REACH's
+  `slab-cut-cylinder-refuses-sector-side`, with this lane's evidence);
+- the wall pierce stops at `pierce-ring-has-no-join-arm`;
+- equal radii with crossing axes stay the valence-4 pinch family.
+
+The shared ladder's in-band answers are GERM's
+`the-half-angle-ladder-certifies-in-band-configurations`.
