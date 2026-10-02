@@ -174,29 +174,30 @@ reproduce on any box. A locally-drawn frame carries this box's GL
 stack, **will** differ byte-wise, and must never be committed; the guard below and `check_render_provenance.py`
 enforce the commit side.
 
-**You do not need to render at all — CI does it and commits the result.**
-Every CI run on a pushed branch renders every lane (ci.yml's
-`renders` job calls `render.yml`), and a lane that no longer matches what
-the code renders is **re-baselined for you**:
+**You do not render locally — CI does it and commits the result.** A
+PR's CI run renders nothing (`ci.yml` calls no render lane; `nightly.yml`
+renders every lane over `main` and commits what drifted). A PR that moves
+frames asks for them with **`[render]` in its head commit's message**:
 
 ```sh
-git push        # CI renders; a lane that differs posts a neutral ("!")
-                #   drift check naming the cells
-# merge the PR  # main's own run commits the new cells
-git pull        # on main, the frames are there
+git commit -m "scene: widen the bracket [render]"
+git push        # ci.yml's `render tag` job dispatches render.yml on the
+                #   branch; a lane that differs is committed back to it
+                #   with a neutral ("!") check naming the cells, and CI
+                #   is dispatched again on that new head
+git pull        # the frames are on your branch: look at them
 ```
 
-**If the render is what you intended, the drift check is a pass.** It
-needs no re-run and no second commit. Re-run only if something *else* in
-the run failed. To see the cells before merging, take the run's artifact
-with `local-scripts/render-hosted.sh`.
+The tag is read from the PR's head commit only, on a `pull_request`
+run, so a later push without it renders nothing, and neither the bot's
+re-baseline commit nor the CI run dispatched on it can ask again. A PR
+from a fork cannot be rendered this way (its run's token can neither
+dispatch nor push to the fork); the job says so in a warning.
 
-**PRs report; `main` commits.** A bot commit onto a PR branch becomes the
-PR's head, and a `GITHUB_TOKEN` push triggers no run of its own — so the
-PR would show that one check and nothing else, with every green check
-stranded on the parent commit. The recursion guard and that blank slate
-are the same fact, so the commit happens on `main` instead. Same rule the
-rebuild-latency history follows.
+**If the render is what you intended, the neutral check is a pass.** It
+needs no re-run and no second commit. A drifting lane commits only when
+the run has a branch to write; a dispatch aimed at a bare SHA reports the
+drift instead.
 
 A re-baseline has two causes and they want different reactions — the
 geometry changed (these cells are the new truth; check they look like
@@ -211,9 +212,9 @@ succeeded, so a wedge is reported as a wedge and never as drift.
 
 `.github/workflows/render.yml` runs the render lanes on GitHub runners
 and hands each one back as a run artifact. It has **two entry points over
-one pipeline**: `workflow_call`, which is where your frames come from,
-and `workflow_dispatch`, for a tree CI has not seen or a re-render at a
-different scene budget.
+one pipeline**: `workflow_call`, the nightly's render of `main`, and
+`workflow_dispatch`, which the `[render]` tag fires and which
+`render-hosted.sh` fires where `gh` can dispatch.
 
 ```sh
 local-scripts/render-hosted.sh --on-demand            # a tree CI has not rendered

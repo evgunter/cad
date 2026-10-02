@@ -2934,3 +2934,16 @@ Their live rows moved here with ids unchanged: from MIRROR
 `red-run-whose-jobs-never-started-reads-as-a-broken-tree`,
 `tool-versions-outside-the-env-block-have-no-source-of-truth`. Each was
 re-read against the latency-cut CI and its dead citations re-pointed.
+
+## 2026-10-02 — SHOW crosses into the workflows: the `[render]` tag
+
+SHOW's `render-on-a-commit-tag` (work/show/render-on-a-commit-tag.md)
+edits CIW ground. `ci.yml` gains a `render tag` job (pull_request only,
+`actions: write`) that dispatches `render.yml` on the PR's branch when the
+PR head commit's message carries `[render]`, and `gate ok` now needs it.
+`render.yml` gains `ci-on-new-head` (its own dispatch only, `actions:
+write`, `pull-requests: read`), which dispatches `ci.yml` on a branch with
+an open PR when a lane's re-baseline commit is its tip. The header prose
+of `render.yml`, the report-only text of `.github/actions/rebaseline-lane`
+and `demos/README.md`'s "Rendering the montages" stop claiming that PR
+runs render.

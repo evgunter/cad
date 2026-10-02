@@ -101,32 +101,19 @@ runs:
           exit 1
         fi
 
-        # REPORT-ONLY MODE (`push_to` empty). Two situations reach it,
-        # and both want the same thing — say so, commit nothing:
-        #
-        #   * A PULL REQUEST. ci.yml deliberately withholds `push_to`
-        #     there. A bot commit onto the PR branch would become the
-        #     PR's head, and because it is pushed with GITHUB_TOKEN it
-        #     triggers no run of its own — so the PR would show this
-        #     one neutral check and NOTHING else, with every green check
-        #     stranded on the parent commit. The recursion guard and
-        #     that blank slate are the same fact, so the fix is to not
-        #     commit here: main's own push run re-baselines after merge.
-        #   * A DISPATCH AIMED AT A BARE SHA, which has no branch to
-        #     commit onto at all.
-        #
-        # The check goes on REPORT_SHA, not $GITHUB_SHA: on a
-        # pull_request the latter is the merge commit, and a check
-        # posted there never appears on the PR.
+        # REPORT-ONLY MODE (`push_to` empty): a run aimed at a named
+        # `ref` with no `push_to`, which has no branch to commit onto.
+        # Say so, commit nothing. The check goes on REPORT_SHA when the
+        # caller names one, else on this run's own sha.
         if [ -z "$PUSH_TO" ]; then
           fix="local-scripts/render-hosted.sh --run ${RUN_ID} --lane ${LANE}"
           report_summary="$(printf '%s\n' \
             "\`$DIR\` does not match what this code renders." \
             "" \
-            "**Nothing is broken, and there is nothing to commit by hand.** This run" \
-            "did not re-baseline: on a pull request the cells are left alone and" \
-            "\`main\`'s own run commits them right after the merge. If the render is" \
-            "what you intended, this check is a PASS — no re-run, no second commit." \
+            "**Nothing is broken.** This run had no branch to commit to, so it did" \
+            "not re-baseline. To commit new cells to a PR's branch, push a commit" \
+            "whose message carries \`[render]\`. If the render is what you intended," \
+            "this check is a PASS." \
             "" \
             "To LOOK at the new cells before merging, take this run's artifact:" \
             "" \
@@ -149,7 +136,7 @@ runs:
             -f "head_sha=${REPORT_SHA:-$GITHUB_SHA}" \
             -f "status=completed" \
             -f "conclusion=neutral" \
-            -f "output[title]=${DIR} differs from this render — re-baselined on merge to main" \
+            -f "output[title]=${DIR} differs from this render — not committed (no branch to commit to)" \
             -f "output[summary]=${report_summary}" \
             --silent
           echo "reported drift on ${REPORT_SHA:-$GITHUB_SHA} (no commit: push_to empty)"

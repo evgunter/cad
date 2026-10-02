@@ -459,6 +459,44 @@ jobs:
       run_interval_backend: ${{ needs.filter.outputs.run_interval_backend }}
       run_interval_oracle: ${{ needs.filter.outputs.run_interval_oracle }}
 
+  # `[render]` in the PR head commit's message dispatches render.yml on the
+  # PR's branch with this run's token (`workflow_dispatch` is an event a
+  # GITHUB_TOKEN may start). render.yml commits re-baselined cells there and
+  # dispatches this workflow on the new head. Only a pull_request run reads
+  # the tag, and the bot's commits start no pull_request run, so neither of
+  # those runs can fire it again. A fork's PR has a read-only token and a
+  # branch outside this repository: the tag is reported as not honoured.
+  render-tag:
+    name: render tag
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft != true
+    permissions:
+      actions: write
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: dispatch render.yml if the head commit asks for it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # github.sha is the test-merge commit; the tag is in the PR's head.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          msg="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA" --jq .commit.message)"
+          case "$msg" in
+            *"[render]"*) ;;
+            *) echo "no [render] in the message of $HEAD_SHA: nothing dispatched"; exit 0 ;;
+          esac
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "::warning title=[render] not honoured::$HEAD_SHA asks for a render, but this PR's branch lives in ${HEAD_REPO:-a deleted fork} and this run's token cannot dispatch or push there. Nothing was rendered."
+            exit 0
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/render.yml/dispatches" -f "ref=$HEAD_REF"
+          echo "dispatched render.yml on $HEAD_REF for $HEAD_SHA:"
+          echo "  $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/render.yml?query=branch%3A$HEAD_REF"
+
   # Warms the build cache PRs restore. Pushes to main run nothing else.
   cache-prime:
     name: prime the build cache
@@ -487,7 +525,7 @@ jobs:
   gate-ok:
     name: gate ok
     if: always() && !cancelled() && github.event_name != 'push'
-    needs: [filter, lint, test, viewer, python, topo-release, mesh-budget, step-import, demos, tools, interval]
+    needs: [filter, lint, test, viewer, python, topo-release, mesh-budget, step-import, demos, tools, interval, render-tag]
     runs-on: ubuntu-latest
     steps:
       - name: every job that ran is green

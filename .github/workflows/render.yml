@@ -31,9 +31,11 @@
 # THOUGH YOU RARELY WANT THOSE. Since 2026-08-17 every lane RE-BASELINES
 # itself — a run whose render differs from the committed cells commits
 # the new ones to the branch and marks the run neutral — so the ordinary
-# way to re-render is `git push`, wait, `git pull`, and look at the
-# images. The artifacts above are for a dispatch aimed at a bare SHA
-# (nowhere to commit to) and for `--verify`.
+# way to re-render a PR's branch is a commit whose message carries
+# `[render]` (ci.yml's `render tag` job dispatches this workflow on the
+# branch), then `git pull` and look at the images. The artifacts above
+# are for a dispatch aimed at a bare SHA (nowhere to commit to) and for
+# `--verify`.
 #
 # `local-scripts/render-hosted.sh` is the one-command front end for the
 # DISPATCH path (push check -> dispatch -> poll -> install), and is what
@@ -56,8 +58,8 @@
 # necessary — the lane's verdict is the renderer's own exit status.
 #
 # TWO ENTRY POINTS, ONE PIPELINE. `workflow_dispatch` renders on demand;
-# `workflow_call` is ci.yml's render lane, the SAME lanes over a PR's
-# merge commit. Both re-baseline: a committed lane that no longer
+# `workflow_call` is nightly.yml's render lane, the SAME lanes over the
+# nightly's commit. Both re-baseline: a committed lane that no longer
 # matches what this code renders is committed back to the branch and
 # the run goes neutral, so accepting a render change is `git pull` and
 # a glance at the images. One definition of how a lane renders, so the
@@ -116,17 +118,16 @@
 # (are these images what I meant?) is what the neutral check asks for
 # and the only thing it asks for.
 #
-# WHO ACTUALLY COMMITS: `main` and dispatches, never a PR. A bot commit
-# onto a PR branch becomes the PR's HEAD, and a GITHUB_TOKEN push
-# triggers no run of its own — so the PR shows that one neutral check
-# and NOTHING else, every green check stranded on the parent commit.
-# Measured on this workflow's own PR (#598): 30 green jobs on one sha,
-# a head commit carrying a single check. The recursion guard and that
-# blank slate are the same fact; you cannot have the commit skip CI and
-# carry CI's checks with the same token. So PRs REPORT and main
-# COMMITS, which is also the rebuild-latency history's rule — one rule
-# for both, rather than two answers to one question. The accepted cost:
-# a PR merges with stale cells, and main heals within minutes.
+# WHO ACTUALLY COMMITS: `main` and dispatches. A bot commit onto a PR
+# branch becomes the PR's HEAD, and a GITHUB_TOKEN push triggers no run
+# of its own — so the PR would show that one neutral check and NOTHING
+# else, every green check stranded on the parent commit (measured on
+# PR #598: 30 green jobs on one sha, a head commit carrying a single
+# check). A dispatch closes that gap itself: its `ci-on-new-head` job
+# dispatches ci.yml on a branch whose open PR it re-baselined, and that
+# run's checks land on the new head. A render with no dispatch behind it
+# commits nothing to a PR; a PR that never asked for a render merges
+# with stale cells, and the nightly re-baselines main.
 # `.github/actions/rebaseline-lane` carries the full reasoning,
 # including why neutral rather than red and why not silent green.
 #
@@ -1591,3 +1592,51 @@ jobs:
           # head sha explicitly.
           report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
+
+  # CI ON THE NEW HEAD. A lane's re-baseline commit is pushed with this run's
+  # token, so it starts no CI run of its own and a PR's checks would stay on
+  # the parent. When a dispatched run's lanes left a re-baseline commit at the
+  # tip of a branch with an open PR, this dispatches ci.yml there; its checks,
+  # `gate ok` among them, attach to that sha whatever event made them. A
+  # ci.yml dispatch never reads the `[render]` tag, so this does not loop.
+  # Only a dispatch of THIS file: under nightly.yml's `workflow_call` the
+  # github context, `workflow_ref` included, is the caller's.
+  ci-on-new-head:
+    name: CI on the re-baselined head
+    runs-on: ubuntu-latest
+    needs: [scene-inputs, montage, gui]
+    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && contains(github.workflow_ref, '/.github/workflows/render.yml@') }}
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    timeout-minutes: 5
+    steps:
+      - name: dispatch ci.yml on the branch if a lane committed to it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PUSH_TARGET" ]; then
+            echo "this run had no branch to commit to: nothing to re-run"
+            exit 0
+          fi
+          tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$PUSH_TARGET" --jq .object.sha)"
+          if [ "$tip" = "$GITHUB_SHA" ]; then
+            echo "$PUSH_TARGET is still at $GITHUB_SHA: no lane committed"
+            exit 0
+          fi
+          subject="$(gh api "repos/$GITHUB_REPOSITORY/commits/$tip" --jq '.commit.message | split("\n")[0]')"
+          case "$subject" in
+            "render("*"): re-baseline committed cells"*) ;;
+            *) echo "$PUSH_TARGET's tip $tip is not a re-baseline ($subject): its own push ran CI"; exit 0 ;;
+          esac
+          prs="$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=$OWNER:$PUSH_TARGET" --jq length)"
+          if [ "$prs" = 0 ]; then
+            echo "$PUSH_TARGET has no open PR: nothing to gate"
+            exit 0
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f "ref=$PUSH_TARGET"
+          echo "dispatched ci.yml on $PUSH_TARGET (tip $tip):"
+          echo "  $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/ci.yml?query=branch%3A$PUSH_TARGET"
