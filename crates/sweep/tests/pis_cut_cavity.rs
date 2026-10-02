@@ -93,7 +93,7 @@ type Cut = SplitPlane<f64>;
 
 /// `p`'s signed distance from the cut, positive above.
 fn elevation(cut: &Cut, p: Point3<f64>) -> f64 {
-    (p - cut.origin).dot(cut.normal)
+    (p - cut.origin).dot(cut.normal.get())
 }
 
 /// Which half of a cut a row reads.
