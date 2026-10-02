@@ -273,9 +273,11 @@ pub struct BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// Each vertex a weld or a zip fused away → the vertex it finally
-    /// fused into, following `vertex_merges` through every hop (a
-    /// discard's `bordered` ends are read through it).
+    /// Each result vertex an A-side weld or a zip fused away → the
+    /// vertex it finally fused into, following `vertex_merges` through
+    /// every hop (a discard's `bordered` ends are read through it). B-side
+    /// welds are not here: they killed B-clone keys before the graft, so
+    /// no result key names them (`weld_merges_b`).
     #[must_use]
     pub fn fused_into(&self) -> BTreeMap<VertexKey, VertexKey> {
         self.vertex_merges
@@ -1947,7 +1949,10 @@ impl KeyView<'_> {
 #[derive(Default)]
 pub(super) struct Descendants {
     /// Each operand's pinch-weld fusions, in its clone keys: read
-    /// before its key view.
+    /// before its key view. A weld fuses ring vertices minted after the
+    /// contacts were recorded, so no record cites a weld's keys: no rest
+    /// is consumed by a weld (`fused` holds only the zips'), and these
+    /// rows chase only a record a producer mints in clone keys.
     a_welds: Vec<(VertexKey, VertexKey)>,
     b_welds: Vec<(VertexKey, VertexKey)>,
     /// The zips' fusions in mint order, result keys.
@@ -2045,10 +2050,15 @@ pub(super) fn remap_contacts<T: Real>(
     let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
     let mut out = ContactRecords::default();
     for c in &contacts.vv {
+        // Two records whose ends fused into one pair are one record.
         if let (Some(a), Some(b)) = (
             vert((Operand::A, &a_view), c.a),
             vert((Operand::B, &b_view), c.b),
         ) && a != b
+            && !out
+                .vv
+                .iter()
+                .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
         {
             out.vv.push(VvContact { a, b });
         }
@@ -3315,6 +3325,12 @@ mod tests {
     /// its dead key has no graft row: the chase reads the weld first,
     /// then the graft. A's weld rows are result keys. Without the weld
     /// rows both records drop.
+    ///
+    /// Only this row reaches the weld rows, by building `Descendants`
+    /// by hand: no boolean can hand them such a record. A weld fuses
+    /// pierce ring vertices `vtxfac` mints after the reduction's
+    /// contacts are recorded, and carried records cite operand keys, so
+    /// no record cites a weld's dead key.
     #[test]
     fn a_vv_record_follows_a_pinch_weld_on_either_side() {
         use super::{Descendants, KeyView, remap_contacts};

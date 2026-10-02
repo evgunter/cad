@@ -518,7 +518,7 @@ fn weld_pinches<T: Decide>(
                 if let Some(made) = made {
                     welds.fragments.push((made, face));
                 }
-                if [dead, kept] != [u, w] && [dead, kept] != [w, u]
+                if ![[u, w], [w, u]].contains(&[dead, kept])
                     || body.get_vertex(dead).is_some()
                     || body.get_vertex(kept).is_none()
                 {

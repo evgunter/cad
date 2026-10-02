@@ -50,6 +50,15 @@ pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 /// writer appends a row as its kev runs, so a key is dead from its row
 /// on and no later row names it.
 pub(super) fn survivor(merges: &[(VertexKey, VertexKey)], v: VertexKey) -> VertexKey {
+    debug_assert!(
+        {
+            let mut dead_so_far = BTreeSet::new();
+            merges.iter().all(|&(dead, kept)| {
+                !dead_so_far.contains(&kept) && dead_so_far.insert(dead) && dead != kept
+            })
+        },
+        "a fusion row names a key an earlier row killed: {merges:?}"
+    );
     merges
         .iter()
         .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })

@@ -85,7 +85,7 @@ use super::ops::{
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
-use super::zip::{SeamCorrespondence, ZipReport, zip_seam};
+use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
     BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
@@ -1821,23 +1821,15 @@ fn zip_folded<T: Decide>(
             .ok_or_else(|| desync("REST lane: fold half no longer resolves"))?
             .next;
         // Wall off the 3-edge sliver [ha, hb, scaffold], fuse the
-        // vertex pair, retire the b copy (its remnant a copy lands in
-        // the b-side neighbor's loop — the fuse).
-        let made = body.mef(
-            MefSite::Chords {
-                he1: ha,
-                he2: hb_next,
-            },
-            geom_brep::EdgeCurveSpec::self_loop_circle_at(p),
-            FaceSurface::Inherit,
-            tol,
-        )?;
-        // The fuse merges the b copy into the a copy across a certified
-        // circle: the merged fan keeps its carriers, re-certified at the
-        // a copy under the run's band.
-        body.kev_describing(made.he_plus, &[], tol)
-            .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
-        report.vertex_merges.push((eb, sa));
+        // vertex pair into the a copy, retire the b copy (its remnant a
+        // copy lands in the b-side neighbor's loop — the fuse).
+        let joint = Joint::Chord {
+            he1: ha,
+            he2: hb_next,
+        };
+        let (merge, _) = fuse_by_joint(body, joint, p, desync, tol)?;
+        debug_assert_eq!(merge, (eb, sa), "the slit fuse keeps the a copy");
+        report.vertex_merges.push(merge);
         report.seam_edges.push(edge_of(body, ha)?);
         body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;

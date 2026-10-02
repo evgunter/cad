@@ -283,13 +283,35 @@ const DROPPED_RECORDS: &str = "work/wire/a-boolean-drops-its-operands-own-contac
 const DOUBLED_EDGE: &str =
     "work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md";
 
-/// Asserts `o` is refused at 3′ by undeclared contacts only, the
-/// operand records [`DROPPED_RECORDS`] drops.
-fn dropped(o: &Outcome, what: &str) {
+/// An undeclared contact 3′ reports: its kind and its witness point.
+type Contact = (&'static str, Point);
+
+/// Where two blocks touch beyond the plate: the overlap of their
+/// coincident edges, witnessed at its middle, and the vertex at its end.
+fn touch(overlap: Point, end: Point) -> [Contact; 2] {
+    [("EdgeEdgeOverlap", overlap), ("VertexVertex", end)]
+}
+
+/// `p1` against `p2` above the plate's top.
+fn p1_p2() -> [Contact; 2] {
+    touch(
+        (1_500_000, 1_000_000, 1_350_000),
+        (1_500_000, 1_000_000, 1_700_000),
+    )
+}
+
+/// Asserts `o` is refused at 3′ by exactly the undeclared `contacts`,
+/// the operand records [`DROPPED_RECORDS`] drops.
+fn dropped(o: &Outcome, what: &str, contacts: &[Contact]) {
+    let mut want: Vec<(String, Option<Point>)> = contacts
+        .iter()
+        .map(|&(k, p)| (format!("UndeclaredContact {k}"), Some(p)))
+        .collect();
+    want.sort_unstable();
     match &o.verdict {
-        Err(es) => assert!(
-            es.iter().all(|(k, _)| k.starts_with("UndeclaredContact")),
-            "{what}: refused at 3′ by more than the dropped records ({DROPPED_RECORDS}): {es:?}"
+        Err(es) => assert_eq!(
+            es, &want,
+            "{what}: refused at 3′ by other than the dropped records ({DROPPED_RECORDS})"
         ),
         Ok(()) => {
             panic!("{what}: passes 3′ — {DROPPED_RECORDS} may be fixed; assert one verdict instead")
@@ -303,16 +325,16 @@ fn dropped(o: &Outcome, what: &str) {
 ///
 /// The record and the 3′ verdict follow the LAST member folded
 /// ([`DROPPED_RECORDS`]): orders that fold one member last agree on
-/// both, and they pass 3′ exactly when that member is in `whole_last`,
-/// whose step decides every contact between members; the others are
-/// refused by undeclared contacts only.
+/// both, and 3′ refuses exactly the `touches` between two members
+/// neither of which is the last, the contacts no step after them
+/// decided.
 fn every_order(
     label: &str,
     fixture: fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
     counts: [usize; 3],
     volume: f64,
     pinches: &[Point],
-    whole_last: &[usize],
+    touches: &[([usize; 2], &[Contact])],
 ) {
     let mut first: Option<Outcome> = None;
     let mut by_last: BTreeMap<usize, Outcome> = BTreeMap::new();
@@ -330,10 +352,15 @@ fn every_order(
             assert_eq!(at(&o.shape, p), 1, "{what}: vertices at the pinch {p:?}");
         }
         let last = order[n - 1];
-        if whole_last.contains(&last) {
+        let undecided: Vec<Contact> = touches
+            .iter()
+            .filter(|(pair, _)| !pair.contains(&last))
+            .flat_map(|&(_, cs)| cs.iter().copied())
+            .collect();
+        if undecided.is_empty() {
             assert_eq!(o.verdict, Ok(()), "{what}: 3′");
         } else {
-            dropped(&o, &what);
+            dropped(&o, &what, &undecided);
         }
         if let Some(f) = &first {
             assert_eq!(
@@ -371,14 +398,27 @@ fn every_order(
 /// it.**
 #[test]
 fn a_pinch_union_builds_one_body_in_every_member_order() {
-    every_order("top", pinch, [19, 49, 32], UNION_VOLUME, &[TOP], &[1, 2]);
+    every_order(
+        "top",
+        pinch,
+        [19, 49, 32],
+        UNION_VOLUME,
+        &[TOP],
+        &[([1, 2], &p1_p2())],
+    );
     every_order(
         "side",
         side_pinch,
         [16, 37, 24],
         6.0 + (0.225 - 0.075) + (0.2145 - 0.0795),
         &[(3_000_000, 1_000_000, 500_000)],
-        &[1, 2],
+        &[(
+            [1, 2],
+            &touch(
+                (3_450_000, 1_000_000, 500_000),
+                (3_900_000, 1_000_000, 500_000),
+            ),
+        )],
     );
 }
 
@@ -394,7 +434,17 @@ fn two_pinches_build_one_body_in_every_member_order() {
         [24, 62, 40],
         6.0 + (2.5 - 0.5) + (2.17 - 0.5),
         &[TOP, (1_500_000, 1_000_000, 0)],
-        &[1, 2],
+        &[(
+            [1, 2],
+            &[
+                p1_p2(),
+                touch(
+                    (1_500_000, 1_000_000, -235_000),
+                    (1_500_000, 1_000_000, -470_000),
+                ),
+            ]
+            .concat(),
+        )],
     );
     every_order(
         "two pinches on the top",
@@ -402,7 +452,16 @@ fn two_pinches_build_one_body_in_every_member_order() {
         [26, 68, 44],
         UNION_VOLUME + 0.5 * (0.9 + 0.5),
         &[TOP, (1_000_000, 1_000_000, 1_000_000)],
-        &[1],
+        &[
+            ([1, 2], &p1_p2()),
+            (
+                [1, 3],
+                &touch(
+                    (1_000_000, 1_000_000, 1_250_000),
+                    (1_000_000, 1_000_000, 1_500_000),
+                ),
+            ),
+        ],
     );
 }
 
@@ -435,22 +494,32 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     let ev = run(&doc);
 
     // The joined blocks hold their contact in their own record, which
-    // none of these booleans carries into its result.
-    let m = |what: &str, o: Outcome| {
-        dropped(&o, what);
+    // none of these booleans carries into its result: 3′ finds it where
+    // the result keeps it, the contact the plate clips it to.
+    let m = |what: &str, o: Outcome, contacts: &[Contact]| {
+        dropped(&o, what, contacts);
         assert_eq!(o.manifold, Ok(()), "{what}: check_mesh");
         o.shape
+    };
+    let below = |ends: &[i64]| {
+        let mut cs = vec![("EdgeEdgeOverlap", (1_500_000, 1_000_000, 750_000))];
+        cs.extend(
+            ends.iter()
+                .map(|&z| ("VertexVertex", (1_500_000, 1_000_000, z))),
+        );
+        cs
     };
     let union = m(
         "the folded union",
         checked(&ev, folded, "the folded union", UNION_VOLUME),
+        &p1_p2(),
     );
     for (what, id) in [
         ("plate ∪ blocks", plate_first),
         ("blocks ∪ plate", blocks_first),
     ] {
         assert_eq!(
-            m(what, checked(&ev, id, what, UNION_VOLUME)),
+            m(what, checked(&ev, id, what, UNION_VOLUME), &p1_p2()),
             union,
             "{what}: a different body from the member-order union"
         );
@@ -459,6 +528,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     let s = m(
         "plate ∖ blocks",
         checked(&ev, notched, "plate ∖ blocks", 6.0 - NOTCHES),
+        &below(&[500_000]),
     );
     assert_eq!(at(&s, TOP), 1, "plate ∖ blocks: vertices at the pinch");
     let tops = s
@@ -471,6 +541,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     let s = m(
         "plate ∩ blocks",
         checked(&ev, footprints, "plate ∩ blocks", NOTCHES),
+        &below(&[500_000, 1_000_000]),
     );
     assert_eq!(
         at(&s, TOP),
@@ -507,8 +578,10 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             },
         )
     };
-    let (doc, cut) = pair(doc, BooleanOp::Subtract, slab, p1);
-    let (doc, x) = pair(doc, BooleanOp::Subtract, cut, p2);
+    // One cut: cutting the blocks one at a time sets the second block's
+    // wall flush with the first's hole wall, an undeclared continuation.
+    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], None);
+    let (doc, x) = pair(doc, BooleanOp::Subtract, slab, blocks);
     // The slab less the two notches, and the plate's part inside it.
     let x_volume = 50.0 - 0.5 * 2.0 * 1.8 - 0.5 * 2.0 * 1.5;
     let shared = 3.0 - 2.0 * 0.25;
@@ -521,6 +594,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             6.0 - shared,
             [15, 36, 23],
             2,
+            (750_000, &[1_000_000][..]),
         ),
         (
             "X ∖ plate",
@@ -530,6 +604,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             x_volume - shared,
             [23, 61, 40],
             1,
+            (1_500_000, &[2_000_000][..]),
         ),
         (
             "X ∪ plate",
@@ -539,6 +614,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             x_volume + 6.0 - shared,
             [22, 61, 41],
             2,
+            (1_500_000, &[1_000_000, 2_000_000][..]),
         ),
         (
             "plate ∪ X",
@@ -548,6 +624,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             x_volume + 6.0 - shared,
             [22, 61, 41],
             2,
+            (1_500_000, &[1_000_000, 2_000_000][..]),
         ),
         (
             "X ∩ plate",
@@ -557,6 +634,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             shared,
             [16, 36, 22],
             1,
+            (0, &[][..]),
         ),
         (
             "plate ∩ X",
@@ -566,6 +644,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             shared,
             [16, 36, 22],
             1,
+            (0, &[][..]),
         ),
     ];
     let mut doc = doc;
@@ -577,7 +656,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     }
     let ev = run(&doc);
     let mut shapes = Vec::new();
-    for (&(what, op, _, _, volume, counts, pinch), &id) in rows.iter().zip(&ids) {
+    for (&(what, op, _, _, volume, counts, pinch, (overlap, ends)), &id) in rows.iter().zip(&ids) {
         let o = checked(&ev, id, what, volume);
         if op == BooleanOp::Intersect {
             // Two L-prisms touching along the contact line, which runs
@@ -589,8 +668,12 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
                 "{what}: check_mesh, while {DOUBLED_EDGE} stands"
             );
         } else {
-            // X holds the cut's contact in its own record.
-            dropped(&o, what);
+            // X holds the blocks' contact in its own record: 3′ finds it
+            // where the result keeps it.
+            let line = |z| (1_500_000, 1_000_000, z);
+            let mut contacts = vec![("EdgeEdgeOverlap", line(overlap))];
+            contacts.extend(ends.iter().map(|&z| ("VertexVertex", line(z))));
+            dropped(&o, what, &contacts);
             assert_eq!(o.manifold, Ok(()), "{what}: check_mesh");
         }
         let s = o.shape;
