@@ -936,7 +936,7 @@ mod graze_rows {
                 // A vertex: the ends of the stored axes.
                 let k = rng.below(4);
                 let vertex = FRAC_PI_2 * f64::from(u32::try_from(k).unwrap());
-                let vertex_on_major = k % 2 == 0;
+                let vertex_on_major = k.is_multiple_of(2);
                 let p = e.eval(vertex);
                 let outward = (p - center).normalize();
                 let tangent = n.cross(outward);

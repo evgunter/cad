@@ -805,7 +805,7 @@ pub(super) fn first_harmonic_roots<T: Decide>(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod subdivision_guard_rows {
     //! [`certified_subdivision`]'s guards, each on a residual built to sit
     //! where that guard is the only thing between the walk and a wrong
