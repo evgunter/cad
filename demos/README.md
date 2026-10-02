@@ -217,19 +217,19 @@ one pipeline**: `workflow_call`, the nightly's render of `main`, and
 `render-hosted.sh` fires where `gh` can dispatch.
 
 ```sh
-local-scripts/render-hosted.sh --on-demand            # a tree CI has not rendered
+local-scripts/render-hosted.sh                        # dispatch, wait, install
 local-scripts/render-hosted.sh --lane wild --verify   # prove the artifact path is byte-exact
 local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
 local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
-**Render on demand only when CI has not covered it** — an unpushed
-branch, no CI run yet, or a deliberate re-render at a different scene
-budget. Dispatching when CI has already rendered the same tree renders it
-twice, which is why it is a flag rather than the default. Those runs
-re-baseline too, so they also end in a `git pull`; the exception is a
-dispatch aimed at a bare SHA, which has no branch to commit to and
-reports the drift with the install command instead.
+The script dispatches on every call except `--run`, and needs a `gh`
+allowed to dispatch workflows; a token that cannot (an agent's
+integration token answers 403) uses the `[render]` tag instead. A branch
+the tag already rendered needs no second dispatch: `git pull` has the
+cells. Dispatched runs re-baseline, so they also end in a `git pull`;
+the exception is a dispatch aimed at a bare SHA, which has no branch to
+commit to and reports the drift with the install command instead.
 
 `render-hosted.sh` **refuses** if your local HEAD is not what
 `origin/<branch>` points at — the runner checks out the pushed tree and
