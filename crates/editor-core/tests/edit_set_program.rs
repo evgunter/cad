@@ -1920,6 +1920,14 @@ fn hang(doc: ProfileDoc, ext: RecipeNodeId, names: &[StableName]) -> ProfileDoc 
     insert(doc, Node::fillet(ext, len(0.01), edges)).0
 }
 
+/// One loop's ids, every step kept where it is.
+fn as_is(ids: &[StepId]) -> Vec<Option<StepId>> {
+    ids.iter().copied().map(Some).collect()
+}
+
+/// A reshaping's keep map, built from the document it reshapes.
+type KeepMap = dyn Fn(&ProfileDoc, RecipeNodeId) -> Vec<Vec<Option<StepId>>>;
+
 /// A reshaping's report measured against resolution. `old`, extruded,
 /// sits beside a bystander profile; every candidate name of both
 /// ([`held_candidates`]) is hung; the profile is reshaped to `new`
@@ -1932,7 +1940,7 @@ fn report_matches_resolution(
     label: &str,
     old: Vec<LoopProgram>,
     new: Vec<LoopProgram>,
-    keep: &dyn Fn(&ProfileDoc, RecipeNodeId) -> Vec<Vec<Option<StepId>>>,
+    keep: &KeepMap,
 ) -> usize {
     let (doc, profile, ext) = extruded(label, old);
     let (doc, _, bystander) = extrude_of(doc, vec![corner_at(false, (10.0, 10.0), 1.0, 0.5)]);
@@ -2009,16 +2017,12 @@ fn report_matches_resolution(
 #[test]
 fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
     let mut counts = Vec::new();
-    let mut row =
-        |label: &str,
-         old: Vec<LoopProgram>,
-         new: Vec<LoopProgram>,
-         keep: &dyn Fn(&ProfileDoc, RecipeNodeId) -> Vec<Vec<Option<StepId>>>| {
-            counts.push((
-                label.to_owned(),
-                report_matches_resolution(label, old, new, keep),
-            ));
-        };
+    let mut row = |label: &str, old: Vec<LoopProgram>, new: Vec<LoopProgram>, keep: &KeepMap| {
+        counts.push((
+            label.to_owned(),
+            report_matches_resolution(label, old, new, keep),
+        ));
+    };
     for (s, r) in [(1.0, 0.5), (1.0, 0.2), (1.0, 0.8), (2.0, 0.5)] {
         row(
             &format!("insert s={s} r={r}"),
@@ -2051,7 +2055,6 @@ fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
     }
     let outer = |f| corner_at(f, (-5.0, -5.0), 6.0, 0.5);
     let hole = |f| corner_at(f, (0.0, 0.0), 1.0, 0.5);
-    let as_is = |ids: &[StepId]| ids.iter().copied().map(Some).collect::<Vec<_>>();
     row(
         "two loops, hole filleted",
         vec![outer(false), hole(false)],
