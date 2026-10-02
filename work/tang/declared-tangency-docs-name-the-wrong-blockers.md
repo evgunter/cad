@@ -2,10 +2,12 @@
 id: declared-tangency-docs-name-the-wrong-blockers
 kind: issue
 title: CoaxialEvidence, cs_pair_frame and RimRouting::Cusp's text cite a #1372 channel that will not exist and name the wrong missing arm
-status: open
+status: closed
 opened: 2026-10-01
 priority: P4
 cost: E
+closed: 2026-10-02
+branch: tang/e-batch-docs-loopshape
 ---
 
 
@@ -30,3 +32,15 @@ Three stale texts, found by the DEV-1 circle-arm design pair
   separation invariant they also cite is measured satisfied
   (`crates/topo/tests/verbs_cylsph_tangent_residuals.rs`). Rewrite it
   once the DEV-1 fork is ruled, since the ruling decides what blocks.
+
+## Closed (2026-10-02)
+
+`CoaxialEvidence`, `cs_pair_frame` and `docs/KERNEL-VERBS.md` name the
+axis-shaped identity channel (`docs/AXIS-DECLARATION-DESIGN.md`) as
+coaxiality's carrier. `RimCuspArmUnbuilt`'s variant doc, its `Display`
+and `rim_wedge`'s module doc name both gaps: no tangent-locus arm for
+the pair, and no consumer that builds the kiss edge. `tangent_locus`'s
+doc, the reduce `(Zero, Positive)` rung's comment and the
+`verbs_cylsph_tangent_residuals` header say a circle arm completes
+nothing until the kiss edge is built and must not pre-empt the rim
+routing.

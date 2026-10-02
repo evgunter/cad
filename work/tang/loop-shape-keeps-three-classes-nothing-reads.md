@@ -2,10 +2,12 @@
 id: loop-shape-keeps-three-classes-nothing-reads
 kind: issue
 title: LoopShape's Polygon, ArcParity and NoWalk are computed on every call and read by no production code; SplitJoinError's doc still calls the engraving pose's cause unmeasured
-status: open
+status: closed
 opened: 2026-10-01
 priority: P4
 cost: E
+closed: 2026-10-02
+branch: tang/e-batch-docs-loopshape
 ---
 
 
@@ -27,3 +29,13 @@ re-measure (PR 3748). Each is one edit:
   unmeasured. It is measured: it was the `point_in_solid` misread
   ATREST-9 fixed, and the pose now builds
   (`editor-core/tests/pierce_ring_engraving.rs`).
+
+## Closed (2026-10-02)
+
+`contain::loop_shape` and `LoopShape` are gone: `contain::loop_circle`
+returns `Option<LoopCircle>`, the disc class check 9's arm 4 reads. The
+lune row's class assertion is deleted (its polygon-`Out` assertion
+already proves the fixture reaches the lune); the two disc rows assert
+`Some`; the box row asserts a straight-edged loop is `None`.
+`SplitJoinError::SectionLoopMixed`'s doc names the `point_in_solid`
+misread as the measured source and cites the engraving pose's suite.

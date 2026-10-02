@@ -11,9 +11,9 @@
 //!   the join's job there is structural.
 //! - **wedge 0 or 2π** — the normals oppose, the material pinches to a
 //!   knife edge or opens to a circular slit. That is the declared-cusp
-//!   family, whose verification needs a certified witness along the
-//!   rim; the witness lane has no torus arm, so the family is DEFINED
-//!   AND UNBUILT and its refusal says exactly that.
+//!   family, DEFINED AND UNBUILT: the pair reaching this routing has no
+//!   tangent-locus arm, and no consumer yet builds the cusp or slit
+//!   edge from a locus of any shape. Its refusal names both.
 //! - **anything the samples cannot settle** — escalates, naming the
 //!   predicate that failed to decide. Never a silent verdict.
 //!
