@@ -44,7 +44,7 @@ page is mostly about.
 
 | scene | what it shows |
 | --- | --- |
-| `bracket` | extrude of a polyline + tangent-arc profile (the PATHS lattice, inner fillet) |
+| `bracket` | an L with one inner fillet, written in the PATHS lattice and lifted into a recipe document (`LoopProgram::from_recorded` → `Node::Profile` → `Node::Extrude`), held to its closed-form volume. Its wall: `Node::Split` across both legs partitions the body and names the corner piece's four cap chords by their ends, and `Node::Chamfer` over those names refuses `UnsupportedRunOut` — a plane–plane chamfer cannot end at a corner whose other edges are unrequested (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`) |
 | `spacer` | machined spacer with every edge broken — `chamfer_edges` over all twelve edges at one setback: 12 flat strips + 8 flat corner patches. Off the sheet since the montage-v3 curation, which gave the chamfer verb's cell to `diechamfer` (a better part, and the same size as `diefillet`'s radius so the two panels compare verbs) |
 | `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
@@ -91,7 +91,7 @@ page is mostly about.
 
 `demo-tour gallery [dir]` (default `gallery/`) writes each
 **document-authored** scene as a `.pncad` file the GUI can open:
-`checks`, `ring`, `diefillet`, `heatsink`, `teapot` as single documents,
+`bracket`, `checks`, `ring`, `diefillet`, `heatsink`, `teapot` as single documents,
 plus the assembly scene's workspace under `assembly/`. It authors them through the
 same functions the tour renders — the gallery is the scenes, saved, not a
 second spelling of them.

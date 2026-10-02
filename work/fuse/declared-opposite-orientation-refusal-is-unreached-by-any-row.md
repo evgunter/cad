@@ -8,6 +8,7 @@ priority: P3
 cost: E
 closed: 2026-10-02
 pr: 3884
+branch: fuse/opposite-sense-rows
 ---
 
 
