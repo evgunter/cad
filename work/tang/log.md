@@ -176,6 +176,28 @@ PRs 3746, 3747 and 3748 all fail it identically, and none of them
 changes kernel code. Merged over it, annotated on the PR, per the
 inherited-red rule.
 
+## 2026-10-02 — DEV-1 circle arm: the pair converges; `[ev]` PR on the rim licence (TANG orchestrator)
+
+The designer pair reconciled over four rounds and two measurements
+(PR 3746). The record is in `docs/DESIGN-FORK-LOG.md` row 39.
+
+- **`#974` is re-scoped by the orchestrator, with no ruling.** Both
+  designers agree, and nothing ratified changes:
+  `dev1-cylinder-sphere-circle-locus-arm` is now the circle loci in
+  general form, parked behind `declared-cusps-second-order-wedge-arm`
+  (the kiss-edge consumer).
+- **Two questions go to Ev** on branch `tang/ev-rim-licence`:
+  - Q1: narrow C4's one-sided-cover sentence to touches, so an edge
+    lying identically on a carrier is an ON event when every parent
+    surface is decided distinct. This frees the transverse rim.
+  - Q2: `BooleanCoincidence::Seam` for a G1 seam between two operands.
+  `a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall`
+  and the new `pi-seam-between-two-operands-has-no-declaration` carry
+  `needs_ev`.
+
+While Ev decides, the transverse rim's implementation pieces are not
+blocked on the ruling's text and can be prepared: the circle × cylinder
+cell (in flight), and a curved edge-edge event at the rim.
 ## 2026-10-01 — the π-seam and kiss measurement lands (PR 3746) (TANG orchestrator)
 
 Review tier: orchestrator's read. It is a measurement lane, and its
@@ -199,3 +221,34 @@ on, then ran the decider one designer proposed:
 
 `test` is red only on main's inherited thread-count golden (PROPS's
 row). Merged over it, annotated on the PR.
+
+## 2026-10-02 — Ev rules the rim licence (PR 3756) (TANG orchestrator)
+
+Both questions are approved as recommended. Q2 (`Seam`) was approved
+first. Q1 was approved after a plain-geometry restatement on the PR,
+because the decision document's internal vocabulary confused it.
+Lesson for future `[ev]` bodies: state the geometry (f∘γ ≡ 0 against
+a double root) before the clause names. The two rows are implementation
+now. The P0 transverse rim follows PR 3752's cell; `Seam` is its own
+unit.
+
+## 2026-10-02 — m9-3 residues land (PR 3747) (TANG orchestrator)
+
+Review tier: single, style (set at dispatch). The review found no MAJOR.
+Adjudicated and fixed in one pass:
+
+- item 3's coverage claim narrowed to function level, with the evidence
+  that no real glue reaches the arm;
+- item 1's comment now gives the true reason (the sliver arm's two
+  `On`s), and its question has a parked row;
+- item 2's argument narrowed to plane plus Jordan;
+- the 1 m arm's docs made true across two crates;
+- the topo re-exports of `tangent_locus` dropped.
+
+Recorded only: the `glue_pair`/`pair_patches` twin (now on ZIP's row).
+`tangent_locus` now lives in `crates/geom-brep/src/locus.rs`. CI's
+only red is the ε=1e-6 row, which is REACH's filed
+`an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed`. Merged
+over it, annotated on the PR. A class finding from this unit:
+reviewers twice found a claim of mutant coverage that held only at
+function level. Briefs now ask for the mutant run, not the claim.

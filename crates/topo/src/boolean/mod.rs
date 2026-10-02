@@ -130,7 +130,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{LoopShape, loop_shape};
-pub use discard::DiscardRow;
+pub use discard::{DiscardRow, HeldEdge, fragment_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -145,10 +145,7 @@ pub use reduce::{SweepStrategy, SweepTrace};
 // arm in one function, shared by the REST lane's verify-at-use and
 // the detector's candidate-generation mode BY CONSTRUCTION.
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
-pub use rest::{
-    TangentLocus, TangentLocusError, carrier_pair_relation, carrier_pair_verdict, face_carrier,
-    flush_pair_relation, tangent_locus,
-};
+pub use rest::{carrier_pair_relation, carrier_pair_verdict, face_carrier, flush_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,
@@ -727,6 +724,17 @@ pub struct BooleanReduction<T: Real> {
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
     pub pierce_rings: Vec<PierceRingRecord>,
+    /// `(A face, B face)`, in clone keys, sorted and deduplicated: each
+    /// pair of coincident faces whose Eq. 15.3 lump keeps one copy of
+    /// a region they share and drops the other, so the result holds
+    /// either face's region through the other (`BooleanNaming::covered`).
+    pub covered: Vec<(FaceKey, FaceKey)>,
+    /// For each covered pair met at a vertex both operands hold, the
+    /// kept copy's edges that run into the dropped face and bound the
+    /// held region from outside ([`HeldEdge`]), sorted and
+    /// deduplicated. A vertex-on-face contact records none: the face
+    /// holds no vertex there for a fragment to be told by.
+    pub held: Vec<HeldEdge>,
 }
 
 impl<T: Real> BooleanReduction<T> {
@@ -2562,6 +2570,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     let mut null_edges = Vec::new();
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
+    let mut covered = Vec::new();
+    let mut held = Vec::new();
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
@@ -2578,6 +2588,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
+        covered.extend(out.covered);
     }
     for &c in &contacts.b_on_a {
         let out = vtxfac::classify_vertex_on_face(
@@ -2593,6 +2604,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
+        covered.extend(out.covered);
     }
 
     // Vertex-vertex classification.
@@ -2609,6 +2621,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             op,
             &declared,
             band,
+            &mut covered,
+            &mut held,
         )?;
         recl::recl_edges(
             &mut records,
@@ -2626,6 +2640,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
     }
+    let held = border_held(held, &covered, &null_edges, &a, &b)?;
 
     a.sweep_and_close();
     b.sweep_and_close();
@@ -2637,7 +2652,61 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_edges,
         null_pairs,
         pierce_rings,
+        covered: covered
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+        held,
     })
+}
+
+/// The held edges that bound the held region from outside. A null edge
+/// is the split's scaffolding, not an edge of the face, and an edge
+/// whose two faces both cover the dropped face (a seam between two
+/// coplanar faces of the kept copy, or a face meeting itself) lies
+/// inside the held region; both are dropped. Sorted and deduplicated.
+fn border_held<T: Real>(
+    mut held: Vec<HeldEdge>,
+    covered: &[(FaceKey, FaceKey)],
+    null_edges: &[BoolNullEdgeRecord<T>],
+    a: &Body<T>,
+    b: &Body<T>,
+) -> Result<Vec<HeldEdge>, BooleanError> {
+    let mut out = Vec::with_capacity(held.len());
+    held.sort_by_key(|h| (h.holder == Operand::B, h.edge, h.face, h.at));
+    held.dedup();
+    for h in held {
+        if null_edges
+            .iter()
+            .any(|r| r.operand == h.holder && r.edge == h.edge)
+        {
+            continue;
+        }
+        let body = match h.holder {
+            Operand::A => a,
+            Operand::B => b,
+        };
+        let edge = body
+            .get_edge(h.edge)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a held edge no longer resolves",
+            })?;
+        let sides = [edge.he_plus, edge.he_minus].map(|he| body.face_of_half_edge(he));
+        let covers = |f: Option<FaceKey>| {
+            f.is_some_and(|f| {
+                covered.contains(&match h.holder {
+                    Operand::A => (f, h.face),
+                    Operand::B => (h.face, f),
+                })
+            })
+        };
+        if sides[0] == sides[1] || sides.iter().all(|&f| covers(f)) {
+            continue;
+        }
+        out.push(h);
+    }
+    Ok(out)
 }
 
 /// Fail-loud validation of a [`BooleanDeclarations`] payload against
@@ -2761,7 +2830,7 @@ fn screen_contradiction(diag: Indeterminate) -> BooleanError {
 
 /// The `Tangent` half of [`verify_declared_contacts`] — admitted
 /// exactly where the DEV-1 closed-form witness lane reaches
-/// ([`rest::tangent_locus`]: plane×cylinder along a ruling, parallel
+/// ([`geom_brep::tangent_locus`]: plane×cylinder along a ruling, parallel
 /// cylinders), and refused typed everywhere else:
 ///
 /// 1. **The conformal screen.** The carrier ladder runs first in its
@@ -2861,16 +2930,16 @@ fn verify_tangent_declaration<T: Decide>(
         };
     let (sa, sense_a) = face_of(a, fa, Operand::A)?;
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
-    let (origin, dir) = match rest::tangent_locus(&sa, &sb, band) {
-        Ok(rest::TangentLocus::Line { origin, dir }) => (origin, dir),
-        Err(rest::TangentLocusError::Escalated(diag)) => {
+    let (origin, dir) = match geom_brep::tangent_locus(&sa, &sb, band) {
+        Ok(geom_brep::TangentLocus::Line { origin, dir }) => (origin, dir),
+        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
                 DeclarationRead::Spent(declaration.class),
                 diag,
             ));
         }
-        Err(rest::TangentLocusError::NotTangent { .. }) => {
+        Err(geom_brep::TangentLocusError::NotTangent { .. }) => {
             return Err(BooleanError::ContactContradicted {
                 declaration,
                 steer: None,
@@ -2883,7 +2952,7 @@ fn verify_tangent_declaration<T: Decide>(
                 },
             });
         }
-        Err(rest::TangentLocusError::Unsupported { .. }) => {
+        Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
             // **The ratified routing, before the class refusal.** A
             // pair the witness lane cannot serve may still be a
             // configuration the design has already ruled on: two faces
@@ -3341,9 +3410,7 @@ mod tests {
             );
             let holes = matches!(
                 what,
-                RestZipFrontier::HoleCountsDiffer
-                    | RestZipFrontier::HoleVertexUnmatched
-                    | RestZipFrontier::HoleCyclesIncongruent
+                RestZipFrontier::HoleVertexUnmatched | RestZipFrontier::HoleCyclesIncongruent
             );
             let ending = if holes {
                 HOLES

@@ -19,7 +19,7 @@ He also raised a larger idea — unify placement across normal
 placement, transform and pattern behind one edited `placement` arg —
 and then ruled that it is a bigger change belonging to another
 program. It is filed as
-`work/edit/placement-is-spelled-three-ways-node-registry-and-rule`
+`work/place/placement-is-spelled-three-ways-node-registry-and-rule`
 (P0, H, `needs_ev`). **AUTH-4 does not touch it and must not wait on
 it.**
 

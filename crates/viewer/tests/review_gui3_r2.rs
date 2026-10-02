@@ -679,10 +679,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows), "the document does not build");
 
-    let failed = rows
-        .iter()
-        .find(|row| row.id == bad)
-        .expect("the failing node has a row");
+    let failed = common::row_of(&rows, bad);
     let expected = match evaluation.result(bad).expect("the node has a result") {
         pncad::document::NodeResult::Failed(error) => error.spoken(session.committed_doc()),
         other => panic!("expected a failure, got {other:?}"),
@@ -696,10 +693,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
         "the badge is NodeError's own Display, not a sentence the panel wrote"
     );
 
-    let poisoned = rows
-        .iter()
-        .find(|row| row.id == downstream)
-        .expect("the downstream node has a row");
+    let poisoned = common::row_of(&rows, downstream);
     match &poisoned.status {
         viewer::tree::RowStatus::Poisoned { through, message } => {
             assert_eq!(*through, bad, "the poison names the failed ancestor");

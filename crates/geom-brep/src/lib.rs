@@ -62,6 +62,7 @@ pub mod fitted_lane;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
+pub mod locus;
 pub mod mapped;
 pub mod newell;
 pub mod nurbs_iso;
@@ -121,6 +122,7 @@ pub use intersect::{
     sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
 pub use mapped::{MappedCurve, SketchSegment};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{

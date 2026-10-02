@@ -26,7 +26,7 @@ of the piece.
   region-interior points. It probes BOTH section loops and
   cross-checks them: agreeing verdicts refuse `SectionLoopMixed`. The
   chord-midpoint tier is unsound for a curved edge, and its own doc
-  says so (`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`).
+  says so (`work/join/role-resolution-interior-tiers-certify-only-planar-region-faces`).
 - `crates/topo/src/boolean/shell_witness.rs`, `shell_side`. It tries
   vertices (skipping contact vertices), then every edge's carrier
   midpoint (never a chord), then one certified interior point per

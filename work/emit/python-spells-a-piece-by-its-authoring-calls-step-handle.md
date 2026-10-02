@@ -105,5 +105,5 @@ Built as ruled.
 **Fixed on the way:** the role-list check exposed that fused arrivals emitted by a later binder step were misnamed far from the origin at tight ε. The fix makes the Circle run out structural: the fused verb claims `RunOut` at the emission site. `rides` is now asked only for the Ray case.
 
 **Filed:**
-- `work/edit/a-name-door-admits-a-piece-role-its-steps-verb-never-draws.md`
+- `work/doctail/a-name-door-admits-a-piece-role-its-steps-verb-never-draws.md`
 - `work/paths/run-out-riding-misreads-...` (the Ray arm)

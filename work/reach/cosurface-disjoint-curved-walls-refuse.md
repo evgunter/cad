@@ -130,7 +130,7 @@ account changes:
   vertex (`WallRoots::Tangent` → `Unsettled` → frontier). No
   declaration in today's vocabulary covers that edge.
 - The planar path does not tolerate the configuration: it ships an
-  illegal operand (`work/zip/a-union-glues-same-sense-cosurface-walls-without-merging-them.md`).
+  illegal operand (`work/fuse/a-union-glues-same-sense-cosurface-walls-without-merging-them.md`).
 - `Rest` is read two ways: C4 and `contact_verify::rest_pair_verdict`
   read opposed senses only, while the boolean's declaration door, the
   flush detector and the REST lane accept aligned senses too.
