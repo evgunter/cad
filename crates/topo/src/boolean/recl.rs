@@ -87,7 +87,7 @@ pub(super) fn require_same<T: Decide>(
     body2: &Body<T>,
     o2: super::Operand,
     s2: &BoolSector<T>,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
@@ -139,7 +139,17 @@ pub(super) fn require_same<T: Decide>(
         s2: g2.as_ref(),
         declared: declared_one_carrier,
     };
-    match super::carrier_eq::carrier_eq(&c1, &c2, id, arm, band) {
+    // A declared pair reads as the door read it at rest, over both
+    // faces; an undeclared one at the corner's arm.
+    let extent = if declared_one_carrier {
+        declared.consumed(o1, s1.face, o2, s2.face)?
+    } else {
+        super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
+            geom_core::Point3::origin(),
+            arm,
+        ))
+    };
+    match super::carrier_eq::carrier_eq(&c1, &c2, id, &extent, band) {
         Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
@@ -162,6 +172,15 @@ pub(super) fn require_same<T: Decide>(
         Err(PlaneEqError::Contradicted { fact, .. }) => {
             Err(BooleanError::DeclarationContradicted { fact })
         }
+        // Only a declared reading is unsettled.
+        Err(PlaneEqError::Unsettled { diag }) => Err(super::unsettled_rest(
+            declared.class_of(o1, s1.face, o2, s2.face).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "an undeclared sector pair's carrier reading was unsettled",
+                },
+            )?,
+            diag,
+        )),
     }
 }
 
@@ -192,7 +211,7 @@ pub(super) fn recl_sectors<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     covered: &mut Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
     held: &mut Vec<super::HeldEdge>,
@@ -498,7 +517,7 @@ pub(super) fn recl_edges<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
@@ -752,7 +771,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     fa_s: usize,
     fb_s: usize,
@@ -893,9 +912,16 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 .ok_or(BooleanError::ClassificationInvariant {
                                     what: "edge-edge site lost its point",
                                 })?;
+                            let reach = declared.reach_of(
+                                own_op,
+                                own_sec.face,
+                                other_op,
+                                other_sec.face,
+                            )?;
                             super::sectors::tangent_lump(
                                 &s_own,
                                 &s_other,
+                                reach,
                                 other_sec.normal,
                                 p,
                                 op,
@@ -1023,7 +1049,7 @@ fn resolve_edge_sector<T: Decide>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     op: BooleanOp,
-    declared: &super::DeclaredPairs,
+    declared: &super::DeclaredPairs<T>,
     band: Band,
     a_side: bool,
     f_s: usize,
@@ -1370,7 +1396,8 @@ mod tests {
             };
             let one = crate::boolean::verify_declared_contacts(a.0, b.0, &decls, band)
                 .expect("the door verifies the declaration");
-            let declared = DeclaredPairs::from_verified(&decls, one);
+            let declared = DeclaredPairs::build(&decls, one, a.0, b.0, band)
+                .expect("the declared faces' extents read");
             resolve_edge_edge(
                 &records,
                 &corner(a.1),
@@ -1546,7 +1573,7 @@ mod tests {
         let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
         let mut first_read = records.clone();
         let declared =
-            DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default());
+            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
         let body = crate::body::Body::<f64>::new();
         let err = recl_edges(
             &mut records,
@@ -1600,9 +1627,19 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0),
         );
         let tilted = Vec3::new(0.0, mid.sin(), mid.cos());
-        let plane =
-            |n: Vec3<f64>| crate::test_support_fixtures::plane(&[o, o + x, o + n.cross(x)], tol);
-        let (b1, f1) = face_on(plane(z));
+        // Unit blocks whose tops meet at `o`, the second's tilted by
+        // `mid` about `x`: the door reads the pair over their tops.
+        let top = |body: &crate::body::Body<f64>| {
+            body.faces()
+                .map(|(k, _)| k)
+                .find(|&k| {
+                    matches!(crate::boolean::face_carrier(body, k),
+                        Some(crate::boolean::CarrierDesc::Plane { normal, .. }) if normal.z > 0.99)
+                })
+                .expect("a top face")
+        };
+        let b1 = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (-1.0, 0.0), tol);
+        let f1 = top(&b1);
         let sector = |face, normal: Vec3<f64>, sense| BoolSector {
             he: crate::entity::HalfEdgeKey::default(),
             start: x,
@@ -1634,7 +1671,11 @@ mod tests {
                 BooleanCoincidence::REST,
             ),
         ] {
-            let (mut b2, f2) = face_on(plane(tilted));
+            let mut b2 = crate::test_support_fixtures::mapped_cube(
+                move |u, v, w| Point3::new(u, v, w - 1.0 - mid.tan() * v),
+                tol,
+            );
+            let f2 = top(&b2);
             b2.set_face_sense(f2, sense).expect("a live face");
             let s2 = sector(f2, tilted, sense);
             let run = |class: Option<BooleanCoincidence>| {
@@ -1645,7 +1686,7 @@ mod tests {
                     ..BooleanDeclarations::none()
                 };
                 let one = crate::boolean::verify_declared_contacts(&b1, &b2, &decls, band)?;
-                let declared = DeclaredPairs::from_verified(&decls, one);
+                let declared = DeclaredPairs::build(&decls, one, &b1, &b2, band)?;
                 require_same(
                     &b1,
                     Operand::A,

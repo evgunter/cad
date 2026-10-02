@@ -110,15 +110,32 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
     let decls = wall_declarations(&bored, &peg, ContactClass::Rest);
     let bracket = Bracket::open();
     let out = topo::union_with(&bored, &peg, &decls, Tol::witness());
-    let v = bracket.finish().verdicts;
-    // The carrier ladder's cylinder rungs ran — the declared descent
-    // executed rather than being skipped past (telemetry from birth).
-    for name in ["carrier_cyl_axis_parallel", "carrier_cyl_radius"] {
-        assert!(
-            v.iter().any(|x| x.predicate == name),
-            "{name} never reached the funnel — the declared descent did not run"
-        );
-    }
+    let log = bracket.finish();
+    let v = log.verdicts;
+    // The carrier ladder's declared cylinder reading ran — the declared
+    // descent executed rather than being skipped past (telemetry from
+    // birth) — and read every declared wall pair coincident: the peg
+    // fills the bore exactly, so each reach decides zero, and none
+    // escalates.
+    let reach: Vec<_> = v
+        .iter()
+        .filter(|x| x.predicate == "carrier_cyl_reach")
+        .collect();
+    assert!(
+        !reach.is_empty(),
+        "carrier_cyl_reach never reached the funnel — the declared descent did not run"
+    );
+    assert!(
+        reach.iter().all(|x| x.sign == geom_core::Sign::Zero),
+        "every declared wall pair reads coincident: {reach:?}"
+    );
+    assert!(
+        !log.escalations
+            .iter()
+            .any(|e| e.source.predicate == Some("carrier_cyl_reach")),
+        "no declared wall pair's reach escalates: {:?}",
+        log.escalations
+    );
     match out {
         Ok(BooleanResult::Body(b)) => {
             // Exactly additive against the closed-form oracle: the peg
