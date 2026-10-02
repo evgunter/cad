@@ -2196,13 +2196,13 @@ fn mint_faces<T: AtRestPolicy>(
     for &face in faces {
         match mint_face(body, face, band) {
             Ok(()) => {}
-            // A pair the chart can hold but no lane covers yet
-            // ([`uncovered`]; the executed case: an oblique fillet
+            // Rows not owed ([`not_owed`]): a pair the chart can hold
+            // but no lane covers yet (the executed case: an oblique fillet
             // trihedron's corner octant, whose boundary circles are
             // GENERAL sphere circles — on the sphere, neither polar nor
-            // meridian relative to the stored chart axis). Each such
-            // class stays excused until its route lands, and the
-            // at-rest pass excuses it by the same predicate.
+            // meridian relative to the stored chart axis), or a fitted
+            // face at a scalar with no fitted door. The at-rest pass
+            // excuses exactly these, by the same predicate.
             // `mint_face` stores rows only once every half-edge
             // certified, so a refused face holds none and there is
             // nothing to clear. The general circle's certified route
@@ -2213,7 +2213,7 @@ fn mint_faces<T: AtRestPolicy>(
             // carrier off its face, an image that is not its carrier's,
             // a covered class whose residuals, envelope, continuity or
             // closure refuse — is a genuine defect and propagates.
-            Err(e) if uncovered(&e) => {}
+            Err(e) if not_owed::<T>(&e) => {}
             Err(e) => return Err(e),
         }
     }
@@ -2261,20 +2261,31 @@ fn mint_face<T: AtRestPolicy>(
     Ok(())
 }
 
-/// **Whether the mint excuses a face's refusal**: a pair the chart can
-/// hold but no lane covers yet ([`PcurveCertifyError::UnsupportedCarrier`],
-/// whose `class` names it). The one reading of the exemption, shared by
-/// the minting pass ([`mint_faces`]), which leaves such a face storing
-/// nothing, and the at-rest pass ([`validate_pcurves`]), which reports
-/// nothing about it.
-fn uncovered(e: &PcurveMintError) -> bool {
-    matches!(
-        e,
-        PcurveMintError::Certify {
-            error: PcurveCertifyError::UnsupportedCarrier { .. },
-            ..
-        }
-    )
+/// **Whether a face's refusal means its rows are not owed**: the one
+/// reading, shared by the minting pass ([`mint_faces`]), which leaves
+/// such a face storing nothing, and the at-rest pass
+/// ([`validate_pcurves`]), which reports nothing about it. Two arms, and
+/// only these:
+///
+/// - **an uncovered class** — a pair the chart can hold but no lane
+///   covers yet ([`PcurveCertifyError::UnsupportedCarrier`], whose
+///   `class` names it); each class leaves this arm in the change that
+///   wires its route;
+/// - **a scalar with no fitted door** ([`AtRestPolicy::fitted_lane`]
+///   answers `None`, as a dual's does) refusing a face only the fitted
+///   lane can image ([`PcurveCertifyError::FittedLaneUnsupported`]):
+///   that scalar certifies nothing fitted, so it owes no fitted row. The
+///   rule is the scalar's, not a class's — at every scalar that holds
+///   the door, a fitted refusal is a finding.
+fn not_owed<T: AtRestPolicy>(e: &PcurveMintError) -> bool {
+    match e {
+        PcurveMintError::Certify { error, .. } => match error {
+            PcurveCertifyError::UnsupportedCarrier { .. } => true,
+            PcurveCertifyError::FittedLaneUnsupported { .. } => T::fitted_lane().is_none(),
+            _ => false,
+        },
+        _ => false,
+    }
 }
 
 /// One face as the minting pass derives it, nothing stored
@@ -3445,8 +3456,9 @@ pub fn chart_boundary<T: AtRestPolicy>(
 ///    finding says why the rows are missing: they derive and certify
 ///    ([`PcurveMintError::Unminted`]: the body was not minted after it
 ///    was built or edited), or the derivation refuses (that refusal).
-///    A face the mint excuses ([`uncovered`]) is excused here by the
-///    same predicate. A face a null edge holds open ([`held_open`])
+///    A face whose rows are not owed ([`not_owed`]: an uncovered class,
+///    or a fitted face at a scalar with no fitted door) is excused here
+///    by the same predicate as at the mint. A face a null edge holds open ([`held_open`])
 ///    is not derived: the edge has no carrier to derive from, and the
 ///    scaffold is tier 2's finding at rest.
 /// 2. **A face that stores some of its rows** reports each gap
@@ -3517,7 +3529,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 match refusal {
                     None if stored.gaps.is_empty() || open => {}
                     None => findings.push(PcurveMintError::Unminted { face: face_key }),
-                    Some(e) if uncovered(e) => {}
+                    Some(e) if not_owed::<T>(e) => {}
                     Some(e) => findings.push(e.clone()),
                 }
                 continue;
@@ -3526,7 +3538,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 RowGap::Corrupt => PcurveMintError::Corrupt,
                 RowGap::Missing { half_edge, .. } => PcurveMintError::MissingCache { half_edge },
             }));
-            if let Some(e) = refusal.filter(|e| !uncovered(e)) {
+            if let Some(e) = refusal.filter(|e| !not_owed::<T>(e)) {
                 findings.push(e.clone());
             }
             derived.ok().and_then(|d| d.window).or(Some(stored_window))
