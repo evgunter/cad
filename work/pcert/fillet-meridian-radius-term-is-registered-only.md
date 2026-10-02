@@ -24,9 +24,9 @@ fillet cylinder. A typical one is the carrier
 `Cylinder { origin: (0.0022, 0.0005, 0), radius: 0.00025 }`.
 
 The term is `norm_gap(r, r², radial(c − origin))` (`norm_gap` at
-`crates/geom-brep/src/pcurve_cache.rs:@NORM_GAP@`, the
-`CylinderMeridian` arm of `incidence` at `:@MERIDIAN@`). That is `|r² − ‖q‖²| / (r + ‖q‖)`, with `q` the strut's
-offset from the axis. The identity `‖q‖ = r` holds on the fillet because
+`crates/geom-brep/src/pcurve_cache.rs:4144`, the
+`CylinderMeridian` arm of `incidence` at `:4191`). That is
+`|r² − ‖q‖²| / (r + ‖q‖)`, with `q` the strut's offset from the axis. The identity `‖q‖ = r` holds on the fillet because
 the fillet's construction registers it: the rim identity is a
 registered door identity, as `carrier_matches_mapped_source` is on the
 plate. But `r² − q·q` is a polynomial that is not zero in the
