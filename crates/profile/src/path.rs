@@ -3224,18 +3224,18 @@ fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> Pat
 /// **The fillet's one conversion**: the arc a fillet resolution built,
 /// stored as built — its own carrier (the centre the resolution
 /// derived, the authored radius as its magnitude `|r|`, as
-/// [`circle_loop`] stores it) and Δθ = 4·atan(b), `b` the
-/// resolution's quarter-tangent, algebraic in the corner's data
+/// [`circle_loop`] stores it) and Δθ = 4·atan(b), `b` the resolution's
+/// quarter-tangent, algebraic in the corner's data
 /// ([`line_line_fillet_trims`]'s half-angle identity, or
 /// `arc_fillet`'s chord-and-apothem form).
 ///
 /// **Its endpoint facts are theorems** ([`crate::Facts::Registered`]).
-/// The resolution's circle is tangent to both carriers, centred at
-/// the authored radius from each, and its tangent points `t1`, `t2`
-/// are the feet of the centre on them, so the rim at each is the
-/// radius over the reals at every value of the corner's data; `b` is
-/// tan(θ/4) of the turn from `t1` to `t2` about that centre, so the
-/// sweep turns each onto the other.
+/// The resolution's circle is tangent to both carriers, centred at the
+/// authored radius from each, and its tangent points `t1`, `t2` are the
+/// feet of its centre on them, so the rim at each is the radius over
+/// the reals at every value of the corner's data; `b` is tan(θ/4) of
+/// the turn from `t1` to `t2` about that centre, so the sweep turns
+/// each end onto the other.
 fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T) -> BuiltArc<T> {
     BuiltArc {
         arc: Arc2 {
