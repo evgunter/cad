@@ -4419,10 +4419,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # `solve_document`, `update_references`, `mixed_pins` and
             # `Workspace.update_to_store` are all bound, and the
             # positive form is `tests/test_assembly_author.py`, which
-            # authors the tour's two bench documents from nothing —
-            # two part documents into a store, instances of them, the
-            # mates that seat one on the other, the solve, the gather
-            # and the A5 gate. `update_to_store` is a Workspace METHOD
+            # authors the tour's two bench documents from nothing
+            # (the stand on the world, short of the tour's turntable
+            # gauge and crate) — two part documents into a store,
+            # instances of them, the mates that seat one on the other,
+            # the solve, the gather and the A5 gate. `update_to_store` is a Workspace METHOD
             # rather than a module door, which is why it is not tested
             # for here.
             # G17: the shipped kernel verb with no node. Absent as a
