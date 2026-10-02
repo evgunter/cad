@@ -1740,7 +1740,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ProgramFault",
         "verb",
         1,
-        "`profile::Verb` resolves to its declaration in a `macro_rules!` body,\
+        "`profile::Verb` resolves to its declaration in a `macro_rules!` body, \
          which the shared lexer does not expand, so its shape is unreadable",
     ),
     (
@@ -1748,7 +1748,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "IsoRowError",
         "u",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1756,7 +1756,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "OffsetError",
         "realized",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1764,7 +1764,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "OffsetError",
         "realized_minor",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1779,7 +1779,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplayError",
         "verb",
         1,
-        "the binding is introduced by a pattern NESTED inside the field pattern\
+        "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `verb: Some(verb)` — so no declared type reaches it",
     ),
     (
@@ -1787,7 +1787,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "StepImportError",
         "e",
         1,
-        "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a\
+        "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a \
          match binding, and this census types patterns and fields",
     ),
     (
@@ -1809,7 +1809,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "e",
         1,
-        "an inner arm — `match edge { Some(e) => .. }` — whose pattern names no\
+        "an inner arm — `match edge { Some(e) => .. }` — whose pattern names no \
          variant path, so this census reads no field type from it",
     ),
     (
@@ -1817,7 +1817,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "gap",
         3,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1825,7 +1825,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "shift",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1833,7 +1833,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "station_max",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1841,7 +1841,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "station_min",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1849,7 +1849,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "v_max",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1857,7 +1857,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "v_min",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1865,7 +1865,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ShellError",
         "gap",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1873,7 +1873,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ShellError",
         "needed",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1881,7 +1881,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ShellError",
         "thickness",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1889,7 +1889,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "SplitReduceError",
         "u",
         1,
-        "the binding is introduced by a pattern NESTED inside the field pattern\
+        "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
     ),
     (
@@ -1897,8 +1897,17 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "SplitReduceError",
         "v",
         1,
-        "the binding is introduced by a pattern NESTED inside the field pattern\
+        "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
+    ),
+    (
+        "crates/viewer/src/idpass.rs",
+        "NameAndPath",
+        POSITIONAL,
+        1,
+        "a positional `{:?}` over `name.path`, an expression this census does not \
+         type; and the field's declared type, `RolePath`, is a `type` alias, which \
+         this census does not index",
     ),
 ];
 

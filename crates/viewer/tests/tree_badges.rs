@@ -651,7 +651,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         node: bench.post_a,
         body: 0,
     };
-    match BlendTool::new().load_all_edges(target, ev, &index) {
+    match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the blend loader");
         }
@@ -689,15 +689,15 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
         panic!("the index does not build over a root with no value");
     };
-    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), Some(ev))
+    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
         .expect("a refusal badges");
     let detail = badge
         .detail()
         .expect("the badge defers its words to the tooltip");
     assert!(
         detail.contains(&format!(
-            "failure at node {}",
-            test_utils::refusal::tag(offender.0)
+            "failure at {}",
+            session.landed_pair().expect("landed").0.spoken(offender)
         )) && !detail.contains("ancestor"),
         "the pick index's tooltip names the offending mate: {detail}"
     );
