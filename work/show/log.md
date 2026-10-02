@@ -441,3 +441,16 @@ PR 3834 fix pass is in, head `72c166913`, green. What changed:
 
 ### Merge checklist
 Three lanes each saw `projectbox/cutaway_above` faces 20–23 permuted against the committed tess cut: main's drift. Re-cut the projectbox rows when 3811 merges, or the nightly tess-lint may red.
+
+## 2026-10-02 — lily reviewed (MERGE WITH FIXES); a P0 tier-3 defect
+
+**PR 3838.** Oracle checks, degree-2 stability (5–33 stations, from the origin out to 10 m) and CI all held.
+
+**The QUAD finding is a real tier-3 correctness defect, traced to the lines.**
+- **Mechanism:** `sign_walk`'s round-0 window asks the after-round-0 budget exit against the REPORTING target. The exit returns `Open{refusal}`, and `face_flux` freezes the face at round 0. The sign is never decided, although rounds 1–3 would decide it.
+- **Effect on lofts and cubic sweeps:** they fail tier 3 at the default ε.
+- **Effect on brackets:** tighter ε gives WIDER brackets.
+- **Broken doc:** this breaks `validate.rs`'s documented invariant.
+- **Class:** three sibling round functions share the exit.
+
+Raised to P0 and noted on QUAD's log in the fix pass. This is the most consequential kernel finding SHOW has made today.
