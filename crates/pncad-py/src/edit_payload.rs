@@ -38,7 +38,8 @@
 //! values, so they cross under the node roles every other arm uses.
 
 use pncad::document::{
-    ContentPin, DocParamValue, EditError, FrameSite, MateFault, ParamName, RecipeNodeId, RootFault,
+    ContentPin, DocParamValue, EditError, FrameSite, HeldNodes, MateFault, ParamName, RecipeNodeId,
+    RootFault,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
@@ -102,9 +103,9 @@ pub struct EditPayload<'a> {
     pub offered: Option<DocParamValue>,
     /// A placement frame's linear determinant.
     pub determinant: Option<f64>,
-    /// Which of a node's placement frames: a transform's step, or an
-    /// explicit rule's listed placement — `None` for an instance's own
-    /// placement frame.
+    /// Which of a node's placement frames: a step of a transform's, a
+    /// gauge's or an instance offset's chain, or an explicit rule's
+    /// listed placement.
     pub index: Option<usize>,
     /// The AST child indices of an expression address, from the
     /// slot's root.
@@ -118,8 +119,9 @@ pub struct EditPayload<'a> {
     /// than as a word alone, because it is the same value
     /// `SolvedPoses.fault` answers for a mate the solve refused, and a
     /// caller reads its lever, its clash and its recourse off the
-    /// `MateFault` type it already knows.
-    pub fault: Option<&'a MateFault>,
+    /// `MateFault` type it already knows. Beside it, the nodes it
+    /// names as the door's document held them, which its words speak.
+    pub fault: Option<(&'a MateFault, &'a HeldNodes)>,
 }
 
 impl EditPayload<'_> {
@@ -219,12 +221,11 @@ impl EditPayload<'_> {
     };
 }
 
-/// The position a placement frame's site names — a transform's step or
-/// an explicit rule's listed placement — `None` for an instance's own
-/// placement frame, which is the only one it has.
+/// The position a placement frame's site names — a step of a
+/// transform's, a gauge's or an instance offset's chain, or an explicit
+/// rule's listed placement.
 fn frame_index(at: FrameSite) -> Option<usize> {
     match at {
-        FrameSite::Registry => None,
         FrameSite::Listed { index } | FrameSite::Step { index } => Some(index),
     }
 }
@@ -245,20 +246,25 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(id.id()),
             ..none
         },
-        // The gauge the cluster-record maintenance was solving for is
-        // the subject: the instance whose frame the edit could not
-        // mint (refused) or the log does not carry (unrecorded).
-        EditError::MaintenanceRefused { gauge, .. }
-        | EditError::MaintenanceUnrecorded { gauge } => EditPayload {
-            node: Some(gauge.id()),
+        // A gauge reference: the node it is written on is the
+        // subject, and the id it names is the node it names.
+        EditError::GaugeNotLive { node, gauge }
+        | EditError::NotAGauge { node, gauge }
+        | EditError::GaugeCycle { node, gauge } => EditPayload {
+            node: Some(node.id()),
+            input: Some(gauge.id()),
             ..none
         },
         // The mate is the subject, and the solve's fault about it
         // crosses whole: `inner_variant` says which arm, `fault` is
         // the arm's own payload.
-        EditError::MateRefused { node, fault } => EditPayload {
+        EditError::MateRefused { node, fault, held } => EditPayload {
             node: Some(node.id()),
-            fault: Some(fault),
+            fault: Some((fault, held)),
+            ..none
+        },
+        EditError::WouldStartPlacing { mate } => EditPayload {
+            node: Some(mate.id()),
             ..none
         },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {
@@ -269,7 +275,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
-        | EditError::PlacementOnNonInstance { node }
+        | EditError::OffsetOnNonInstance { node }
+        | EditError::GaugeOnNonPlaced { node }
         | EditError::PlacementRuleMismatch { node }
         | EditError::EmptyPlacementList { node }
 

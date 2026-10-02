@@ -7,7 +7,8 @@ opened: 2026-08-23
 github: 968
 refs: [966, 1477, 1488, 1489]
 priority: P3
-cost: D
+cost: H
+design: true
 ---
 
 ## From GitHub issue 968

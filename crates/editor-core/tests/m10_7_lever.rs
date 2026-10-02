@@ -70,7 +70,9 @@ fn arm_of(half: f64) -> f64 {
 fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )

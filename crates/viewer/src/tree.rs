@@ -41,7 +41,8 @@
 //! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
 //! drawn as the chrome spells any computed value, or the kernel's typed
 //! reason it has none; what an assertion found of it ([`Asserted`]);
-//! and that a boolean, or a side of a split, holds no material.
+//! that a boolean, or a side of a split, holds no material; and
+//! whether a mate placed its child or only declares ([`MateRole`]).
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -183,8 +184,9 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr, Label,
-    MateFault, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
-    ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload, node_kind_noun,
+    MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult,
+    NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
+    node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
@@ -380,17 +382,18 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
-            Some(Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_)) | None => {
-                self.status.tone()
-            }
+            Some(
+                Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_) | Readout::Role(_),
+            )
+            | None => self.status.tone(),
         }
     }
 }
 
 /// **What an `Ok` value says**, on its own row: a measure's value or
 /// the kernel's reason it has none, an assertion's verdict over that
-/// value, and a value that holds no material where the node could
-/// have made some.
+/// value, a value that holds no material where the node could have
+/// made some, and what a mate did in the solve.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Readout {
     /// The value, as a quantity: spelled when the row is DRAWN
@@ -407,6 +410,9 @@ pub enum Readout {
     /// holds no material. A legal value, and the one a consumer
     /// refuses as its input, so the row it came from says so.
     Empty(Emptiness),
+    /// A mate's role in the solve: it placed its child, or it only
+    /// declares a contact. Its `Display` is the kernel's sentence.
+    Role(MateRole),
 }
 
 /// **Which part of a value holds no material**, and its phrase.
@@ -635,6 +641,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Mate { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -831,6 +838,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -841,7 +849,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
 /// whether there is one. `None` for a payload whose `Ok` is the whole
 /// of it: a body, a datum, a profile, a pattern's instances (its
 /// count is authored, and the words of any refusal state it), a
-/// declaration, a mate.
+/// declaration, a gauge.
 fn readout_of(
     doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
@@ -868,13 +876,14 @@ fn readout_of(
             }
             (SplitSide::Body(_), SplitSide::Body(_)) => None,
         },
+        ValuePayload::Mate(role) => Some(Readout::Role(*role)),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_) => None,
+        | ValuePayload::Gauge => None,
     }
 }
 
@@ -1172,6 +1181,14 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
+        // The kernel's own words: "repair <the node>" — the gauge, or
+        // the root whose offset did not evaluate.
+        NodeErrorKind::PlacementRefused { node, .. } => Some(*node),
+        // Names the unplaced group's root as evidence of which space
+        // the node reached into. Either the reading node or the group
+        // is the repair — read within one space, or place the group —
+        // and one link would pick for the reader.
+        NodeErrorKind::Unplaced { .. } => None,
         // A payload that names a node does so as evidence: a name's
         // minting node, where the repair is the referring node's own
         // reference; an upstream table the naming pass found missing;
@@ -1265,6 +1282,9 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
+        // Sit on the instance whose offset is the statement, and name
+        // its root only as the group the solve placed it in.
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => None,
     }
 }
 
@@ -1299,8 +1319,9 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 /// that holds for an arm naming a node an author may repair is stated
 /// once, in the module header's second section.
 ///
-/// Two arms name none, and they get an arm each because they are not
-/// the same case: one reaches rows and one cannot reach any.
+/// Four arms name none: `Band` reaches every row, the mispairing
+/// reaches none, and the two checked-offset arms reach only the
+/// instance that states the offset.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -1320,6 +1341,9 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
+        // Name no mate: the fault is the instance's own checked
+        // offset, so the instance's row keeps its own `Failed`.
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
         // causes and the user picks which to relax.

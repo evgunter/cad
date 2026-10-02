@@ -4,7 +4,7 @@ kind: issue
 title: The probe's new rows go red on reach growing and on nothing else, and encode BoundsProbe's constants
 status: open
 opened: 2026-09-04
-refs: [1746, display-budget-rows-restate-three-private-constants, a-negative-extrude-distance-probes-as-valid]
+refs: [1746, display-budget-rows-restate-three-private-constants]
 priority: P3
 cost: E
 ---

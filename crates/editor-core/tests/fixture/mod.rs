@@ -58,10 +58,10 @@ pub mod value_channel;
 
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
-    Entry, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, NameTable, Node,
-    ParamName, ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef,
-    RecipeNodeId, RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate,
-    mate_reach, solve_document,
+    Entry, EvalOptions, Evaluation, Expr, LoopProgram, MateReach, NameTable, Node, ParamName,
+    ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId,
+    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
+    solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -219,6 +219,38 @@ pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> Solved
     solve_document(doc, &reach, tol)
 }
 
+/// **Every mate-placed instance given, as its offset, the world pose
+/// its mates solve it at** — the edits a user makes to keep a part where
+/// it is shown before deleting what places it (A11 (2)). Each offset
+/// agrees with the solve, so it is a checked statement that holds.
+pub fn offsets_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
+    let poses = solve(&doc, o, Tol::witness());
+    let mut doc = doc;
+    let placed: Vec<(RecipeNodeId, editor_core::Frame)> = doc
+        .order()
+        .iter()
+        .copied()
+        .filter(|&id| {
+            matches!(
+                doc.node(id),
+                Some(Node::InstantiatePart { offset: None, .. })
+            )
+        })
+        .filter_map(|id| Some((id, poses.placement(&doc, id).ok()?)))
+        .collect();
+    for (instance, frame) in placed {
+        doc = step(
+            doc,
+            DocEdit::SetOffset {
+                instance,
+                offset: Some(editor_core::Placement::literal(&frame)),
+            },
+        )
+        .0;
+    }
+    doc
+}
+
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
 /// whether the assembly mints, with the minted records dropped.
 ///
@@ -326,18 +358,60 @@ pub fn band() -> geom_core::Band {
 /// imports them from here beside the rest of its authoring doors.
 pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
-/// Applies an edit, returning the new doc and any minted id.
-///
-/// Through the REFUSING reach: an edit that moves a group's root
-/// on a mated document mints a frame from the parts' extent and
-/// refuses here — a row that deletes a mate or an instance of a mated
-/// document steps through [`step_with`] and the store's own reach.
+/// Whether two instances carry the same offset, bit for bit (or both
+/// none).
+pub fn same_offset(a: &ProfileDoc, ai: RecipeNodeId, b: &ProfileDoc, bi: RecipeNodeId) -> bool {
+    match (offset_of(a, ai), offset_of(b, bi)) {
+        (None, None) => true,
+        (Some(x), Some(y)) => x.bit_eq(&y),
+        _ => false,
+    }
+}
+
+/// **An instance that sits where its mates put it**: on the world, with
+/// no offset. A placing mate to an instance that carries one roots the
+/// joined group there, whichever operand this instance is, and clears
+/// nothing.
+pub fn mated_instance(doc_ref: editor_core::DocRef) -> Node<ProfileProgram> {
+    Node::instantiate_part_with(doc_ref, editor_core::InterfaceRecord::default(), None, None)
+}
+
+/// An instance's offset (A11 (2)); panics on a node that is not one.
+pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Placement> {
+    match doc.node(id) {
+        Some(Node::InstantiatePart { offset, .. }) => offset.clone(),
+        other => panic!("node {} is an instance, got {other:?}", id.0),
+    }
+}
+
+/// Applies an edit, returning the new doc and any minted id, through
+/// the REFUSING reach: a mate insert whose clocking rider needs its
+/// parts' extent steps through [`step_with`] and the store's reach.
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
     step_with(doc, edit, &RefusingReach)
 }
 
-/// [`step`] through `reach` — the store's, for an edit whose
-/// maintenance mints a frame from a solve.
+/// `doc` with every node labelled `text`. Labels are outside every
+/// content key, so the relabelled document builds the same bits and
+/// differs only in what it speaks: a test that must tell two documents
+/// apart by their sentences relabels one of them.
+pub fn label_every_node(doc: ProfileDoc, text: &str) -> ProfileDoc {
+    let label = editor_core::Label::new(text).expect("a valid label");
+    let order = doc.order().to_vec();
+    order.into_iter().fold(doc, |doc, node| {
+        step(
+            doc,
+            DocEdit::SetLabel {
+                node,
+                label: Some(label.clone()),
+            },
+        )
+        .0
+    })
+}
+
+/// [`step`] through `reach` — the store's, for a mate insert whose
+/// clocking rider is decided over its parts.
 pub fn step_with(
     doc: ProfileDoc,
     edit: DocEdit<ProfileProgram>,
@@ -365,7 +439,12 @@ pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
 }
 
 pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, minted) = step(doc, DocEdit::InsertNode { node });
+    let (doc, minted) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     (doc, minted.unwrap())
 }
 
@@ -432,12 +511,18 @@ pub fn at_the_door(
     reach: &dyn MateReach,
     node: Node<ProfileProgram>,
 ) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, editor_core::MateFault)> {
-    match doc.apply(&DocEdit::InsertNode { node }, Tol::witness(), reach) {
+    match doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        Tol::witness(),
+        reach,
+    ) {
         Ok(applied) => {
             let id = applied.record.minted.expect("an insert mints an id");
             Ok((applied.doc, id))
         }
-        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node.id(), *fault)),
+        Err(editor_core::EditError::MateRefused { node, fault, .. }) => Err((node.id(), *fault)),
         Err(other) => panic!("the door refused otherwise: {other:?}"),
     }
 }
@@ -760,7 +845,7 @@ pub struct Recorder {
     /// The document as edited so far.
     pub doc: ProfileDoc,
     /// The recorded log.
-    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
 }
 
 impl Default for Recorder {
@@ -783,17 +868,17 @@ impl Recorder {
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
         let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
             .expect("recorded edit must apply");
-        self.edits.push(LoggedEdit {
-            edit,
-            maintenance: applied.cluster_rows(),
-        });
+        self.edits.push(edit);
         self.doc = applied.doc;
         applied.record.minted
     }
 
     /// Inserts a node, returning its minted id.
     pub fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
-        self.push(DocEdit::InsertNode { node }).expect("minted id")
+        self.push(DocEdit::InsertNode {
+            node: Box::new(node),
+        })
+        .expect("minted id")
     }
 
     /// **A frame and a profile drawn on it**, returning the PROFILE's
@@ -830,7 +915,7 @@ impl Recorder {
 pub struct Die {
     pub doc: ProfileDoc,
     /// The document's full edit log (snapshot = the empty document).
-    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     /// The final Subtract (the die body).
     pub final_node: RecipeNodeId,
     /// The +z face's pip-master Extrude (the poisoning target: its

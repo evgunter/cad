@@ -74,11 +74,13 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(
-                MeasureExpr::value(Expr::param(ParamName::from_static("x"), Dimension::Length)),
-                Vec::new(),
-            )
-            .expect("a measure over a value leaf takes no references"),
+            node: Box::new(
+                Node::measure(
+                    MeasureExpr::value(Expr::param(ParamName::from_static("x"), Dimension::Length)),
+                    Vec::new(),
+                )
+                .expect("a measure over a value leaf takes no references"),
+            ),
         },
         tol,
         &editor_core::RefusingReach,

@@ -48,8 +48,7 @@ runs in parallel.
 ### Smaller rows, taken when a unit opens their file
 
 - `revolved-tube-wall-refuses-bool-wall-trim-period` (P1).
-- The P2s: `a-touch-at-a-saddle-corner-refuses-unanalysed`,
-  `ray-wall-and-cone-near-root-cancels-over-a-small-lead`,
+- The P2s: `a-touch-at-a-saddle-corner-refuses-unanalysed` and
   `torus-split-lead-escalates-a-legitimately-small-resolvent-root`.
 - The P3s, and the unprioritised `cone-chart-trim-…`,
   `sphere-chart-trim-…` and `contact-refusal-prose-outgrows-the-viewer`.

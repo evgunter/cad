@@ -302,3 +302,49 @@ a different question that keeps its own code, argued once at `arc_trim`.
 its domain (pinned against an oracle with a census row). `CircleMargins`
 stays: an unsigned per-piece distance reads an enclosing ring as clear.
 Single review, fix pass, delta review, last pass.
+
+## 2026-10-01 — `subdivided-rim-fillet-refuses-at-the-collinear-joint` closed (PR #3701)
+
+A rim of collinear plane–plane links between the same two faces, meeting
+at valence-2 joints, fillets and chamfers as ONE band face
+(`OpenBand::admit`'s `Joint`, one `joint_verdict` shared with predicate 2;
+per joint one kef of the lower strut and one kev of the spur), named
+`BandFace` of the chain's sorted edge names. Predicate 2's clearance screen
+groups a joined run as one feature and checks each joint's foot exactly
+against the trimlines at the run's ends; nothing it cannot read is skipped.
+Full review, fix pass, delta review, last pass. Merged with two red rows
+that are main's own (filed there: REACH's 1e-6 `SectionLoopMixed`, PROPS'
+thread-count golden); every other row green. Filed:
+`ruled-band-refuses-a-joint-on-one-support-pair`,
+`unmerged-subdivided-wall-rim-fillet-names-no-merge-recourse`.
+
+## 2026-10-01 — `annulus-rim-host-outer-boundary-is-metered-only-by-the-sampled-screen` closed (PR #3715)
+
+Every closed rim's host AND mate outer boundary is now metered in closed
+form (`support_boundary_clearance`), not only by predicate 2's sampled
+screen: four silent-wrong carves (a notch or a tilted cut whose closest
+approach falls between sample stations) now refuse `RingClearance`.
+Non-line/circle edges are bounded by geom's certified boxes with the
+ellipse's exact height range, and a refusal decided by a box says so
+(`bounded`). Full review (MAJOR: an ellipse ball assumed `major ≥ minor`),
+two fix passes, delta review. Merged with two red rows that are main's own
+(as #3701). Filed: `face-clearance-screen-skips-boundary-edges-it-cannot-read`,
+`support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place`,
+`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`.
+
+## 2026-10-01 — S90 ruled: the blend stays differentiable (PR 3724)
+
+Ev approved the designers' converged answer: the blend doors stay generic
+under DL5; H-R3's fillet third is retired. `S90-impl` becomes the pin
+(dual tangent rows), P1/M. Fork-log row 40 (A = Opus, B = Fable).
+
+## 2026-10-02 — `S90-impl` closed (PR #3764)
+
+The blend's dual tangents are pinned: a sweep row checks a filleted and a
+chamfered cube's `Dual64` volume tangent against central differences
+(blend size and an upstream cube size seeded) and the fillet against two
+closed forms; an editor-core row differentiates a stack-up measure
+through a 3D fillet. Each row reds under a tangent-freezing mutant
+(radius read through `.lo()`; chamfer distance; edge point). Reviewed by
+the orchestrator's read (tests only, mutants demonstrated). Filed TINT's
+`dual-tangent-is-unpinned-for-seven-recipe-verbs`.

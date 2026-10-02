@@ -30,12 +30,16 @@
 //! # Why the hub is a prism
 //!
 //! A real impeller's hub is round, and this one is a 24-gon. That is
-//! not a stylistic choice: `cylinder ∪ box` refuses
-//! `CurvedPierceUnsupported` at the boolean's curved-pierce door, so a
-//! round hub cannot have a blade unioned into it at all. The frontier
-//! is filed (`work/curved/boolean-refuses-on-arc-carrier-not-arc`) and
-//! this scene is one of the parts that meets it; the faceted hub is
-//! the modelling the kernel currently permits, said out loud rather
+//! not a stylistic choice: a box leaving a cylinder through its wall
+//! refuses to union, so a round hub cannot have a blade unioned into
+//! it at all. The kernel's own row for that pose
+//! (`sweep/tests/verbs_germarms.rs`,
+//! `a_bar_leaving_through_one_side_of_a_wall_reaches_the_join`) gets
+//! past the pierce door now and refuses at the join,
+//! `SectionArcWindow { NoChartedRun }`: the frontier is
+//! `work/tang/pierce-ring-has-no-join-arm`, beside
+//! `work/tang/boolean-refuses-on-arc-carrier-not-arc`. The faceted hub
+//! is the modelling the kernel currently permits, said out loud rather
 //! than passed off as the part.
 //!
 //! # The overlap, and why it is here
@@ -177,47 +181,47 @@ fn build_doc(tol: Tol) -> Recipe {
         })
     };
 
-    let hub_plane = insert(&mut doc, frame_at(0.0));
+    let hub_plane = insert(&mut doc, Box::new(frame_at(0.0)));
     let hub_p = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
+        Box::new(Node::Profile(ProfileProgram {
             plane: hub_plane,
             loops: vec![hub_polygon()],
             ids: Vec::new(),
-        }),
+        })),
     );
     let hub_e = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: hub_p,
             distance: len(HUB_H),
-        },
+        }),
     );
 
-    let blade_plane = insert(&mut doc, frame_at(BLADE_Z0));
+    let blade_plane = insert(&mut doc, Box::new(frame_at(BLADE_Z0)));
     let blade_p = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
+        Box::new(Node::Profile(ProfileProgram {
             plane: blade_plane,
             loops: vec![blade_polygon()],
             ids: Vec::new(),
-        }),
+        })),
     );
     let blade_e = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: blade_p,
             distance: len(BLADE_H),
-        },
+        }),
     );
 
     // The axis the blades step about: the hub's own.
     let axis = insert(
         &mut doc,
-        Node::Datum(Datum::Axis {
+        Box::new(Node::Datum(Datum::Axis {
             origin: [len(0.0), len(0.0), len(0.0)],
             direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
+        })),
     );
 
     // **The two slots, one parameter.** The count IS `blades`; the
@@ -225,24 +229,26 @@ fn build_doc(tol: Tol) -> Recipe {
     // promotion. Nothing downstream has to be told the blades moved.
     let group = insert(
         &mut doc,
-        Node::placed_union(
-            blade_e,
-            pe("blades"),
-            PatternKind::Circular {
-                axis,
-                step: pe("360 deg / scalar(blades)"),
-            },
-        )
-        .expect("a Circular rule is parametric, so it carries a count"),
+        Box::new(
+            Node::placed_union(
+                blade_e,
+                pe("blades"),
+                PatternKind::Circular {
+                    axis,
+                    step: pe("360 deg / scalar(blades)"),
+                },
+            )
+            .expect("a Circular rule is parametric, so it carries a count"),
+        ),
     );
     let solid = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Union,
             a: hub_e,
             b: group,
             declare: None,
-        },
+        }),
     );
     Recipe { doc, group, solid }
 }
@@ -403,8 +409,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         and the blades still close the circle. A comb's count and \
                         spacing are genuinely independent; a wheel's are not, and the \
                         recipe layer can say which it is. The hub is a PRISM because \
-                        `cylinder u box` refuses at the boolean's curved-pierce door, \
-                        so a round hub cannot have a blade unioned into it at all",
+                        a box leaving a cylinder through its wall refuses to union \
+                        (at the join, `SectionArcWindow`), so a round hub cannot have a \
+                        blade unioned into it at all",
                 ops: "Datum::Frame x2 -> Profile(24-gon) -> Extrude; Profile(blade) -> \
                       Extrude; Datum::Axis -> Node::placed_union(blade, count = \
                       blades, Circular { axis, step = 360 deg / scalar(blades) }) -> \

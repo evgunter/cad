@@ -227,7 +227,12 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
 
 /// Insert `mate` and answer its id.
 fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(doc, DocEdit::InsertNode { node: mate });
+    let (doc, id) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(mate),
+        },
+    );
     (doc, id.expect("the mate mints"))
 }
 
