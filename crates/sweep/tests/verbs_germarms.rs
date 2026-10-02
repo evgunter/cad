@@ -29,8 +29,13 @@ use topo::{Body, BooleanError};
 /// A cylinder about the z axis, `r = 1`, `z ∈ [−2, 2]` — the wall every
 /// row below pierces.
 fn pipe() -> Body<f64> {
+    pipe_at((0.0, 0.0))
+}
+
+/// [`pipe`] with its axis through `(cx, cy)`.
+fn pipe_at((cx, cy): (f64, f64)) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(Point2::new(0.0, 0.0), 1.0, tol).unwrap();
+    let lp = profile::circle(Point2::new(cx, cy), 1.0, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(4.0), tol)
@@ -65,16 +70,18 @@ fn rect_disc_area((x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
     }
 }
 
-/// The pipe and a bar through its wall under ∪, ∩ and both ∖, each held
-/// to every validation tier and to its closed form: the shared volume is
-/// the bar's height times [`rect_disc_area`].
-fn assert_bar_through_the_pipe(x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
+/// `a` and `b` under ∪, ∩ and both ∖, each held to every validation
+/// tier and to its closed form, from the operands' volumes and the
+/// volume they share.
+fn assert_every_op(
+    label: &str,
+    (a, v_a): (&Body<f64>, f64),
+    (b, v_b): (&Body<f64>, f64),
+    shared: f64,
+) {
     let tol = Tol::witness();
-    let (pipe, bar) = (pipe(), brick(x, y, z, tol));
-    let shared = (z.1 - z.0) * rect_disc_area(x, y);
-    let (v_pipe, v_bar) = (PI * 4.0, (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0));
     let run = |op: &str, out: Result<topo::BooleanResult<f64>, BooleanError>, truth: f64| {
-        let label = format!("bar {x:?} × {y:?} × {z:?}, {op}");
+        let label = format!("{label}, {op}");
         let out = out.unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
         let topo::BooleanResult::Body(out) = out else {
             panic!("{label}: came back empty");
@@ -95,17 +102,75 @@ fn assert_bar_through_the_pipe(x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
             m.volume
         );
     };
-    run("∪", topo::union(&pipe, &bar, tol), v_pipe + v_bar - shared);
-    run("∩", topo::intersect(&pipe, &bar, tol), shared);
-    run(
-        "pipe ∖ bar",
-        topo::subtract(&pipe, &bar, tol),
-        v_pipe - shared,
+    run("∪", topo::union(a, b, tol), v_a + v_b - shared);
+    run("∩", topo::intersect(a, b, tol), shared);
+    run("a ∖ b", topo::subtract(a, b, tol), v_a - shared);
+    run("b ∖ a", topo::subtract(b, a, tol), v_b - shared);
+}
+
+/// The pipe and a bar through its wall under ∪, ∩ and both ∖ (
+/// [`assert_every_op`]): the shared volume is the bar's height times
+/// [`rect_disc_area`].
+fn assert_bar_through_the_pipe(x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
+    assert_bar_through_the_pipe_at((0.0, 0.0), x, y, z);
+}
+
+/// [`assert_bar_through_the_pipe`] with the pipe's axis through `c`
+/// and the bar moved with it, so the volumes are the same.
+fn assert_bar_through_the_pipe_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
+    let bar = brick(
+        (x.0 + c.0, x.1 + c.0),
+        (y.0 + c.1, y.1 + c.1),
+        z,
+        Tol::witness(),
     );
-    run(
-        "bar ∖ pipe",
-        topo::subtract(&bar, &pipe, tol),
-        v_bar - shared,
+    let shared = (z.1 - z.0) * rect_disc_area(x, y);
+    let v_bar = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
+    assert_every_op(
+        &format!("pipe at {c:?}, bar {x:?} × {y:?} × {z:?}"),
+        (&pipe_at(c), PI * 4.0),
+        (&bar, v_bar),
+        shared,
+    );
+}
+
+/// A block `[cx ± 2] × [cy ± 2] × [−1, 1]` bored through by [`pipe_at`]
+/// `c`, built by the boolean itself: its bore is a cylinder wall whose
+/// material lies OUTSIDE the cylinder, a face of reversed sense.
+fn bored_block_at(c: (f64, f64)) -> (Body<f64>, f64) {
+    let tol = Tol::witness();
+    let block = brick(
+        (c.0 - 2.0, c.0 + 2.0),
+        (c.1 - 2.0, c.1 + 2.0),
+        (-1.0, 1.0),
+        tol,
+    );
+    let topo::BooleanResult::Body(out) =
+        topo::subtract(&block, &pipe_at(c), tol).expect("the block bores")
+    else {
+        panic!("the bored block came back empty");
+    };
+    (out.body, 32.0 - 2.0 * PI)
+}
+
+/// The bored block and a bar crossing its bore under every op: the bar
+/// shares all of itself with the block's material but the part in the
+/// bore, its height times [`rect_disc_area`].
+fn assert_bar_across_the_bore_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
+    let (bored, v_bored) = bored_block_at(c);
+    let bar = brick(
+        (x.0 + c.0, x.1 + c.0),
+        (y.0 + c.1, y.1 + c.1),
+        z,
+        Tol::witness(),
+    );
+    let v_bar = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
+    let shared = v_bar - (z.1 - z.0) * rect_disc_area(x, y);
+    assert_every_op(
+        &format!("bore at {c:?}, bar {x:?} × {y:?} × {z:?}"),
+        (&bored, v_bored),
+        (&bar, v_bar),
+        shared,
     );
 }
 
@@ -141,6 +206,35 @@ fn a_bar_leaving_through_one_side_of_a_wall_builds() {
 #[test]
 fn a_bar_whose_section_closes_inside_one_wall_face_builds() {
     assert_bar_through_the_pipe((-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1));
+}
+
+/// **The rows above, with the pipe's axis off the world origin.** A
+/// cylinder face's flux is `R²·A + origin·A⃗` summed over every loop,
+/// rings included; with the axis through the origin a ring's
+/// `origin·A⃗` is `(0, 0, −2)·A⃗`, and a ring on a wall bounds no
+/// axial vector area, so dropping that term moved no row. At
+/// `(3, −2)` it carries the ring's whole offset: drop it and `rod ∖ bar`
+/// measured 11.8951 against 12.0782 with every tier green.
+#[test]
+fn the_ringed_wall_rows_hold_off_the_origin() {
+    let c = (3.0, -2.0);
+    assert_bar_through_the_pipe_at(c, (-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3));
+    assert_bar_through_the_pipe_at(c, (0.5, 1.1), (-0.3, 0.3), (-0.3, 0.3));
+    assert_bar_through_the_pipe_at(c, (-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1));
+}
+
+/// **A ring on a wall of reversed sense.** The bore of a bored block is
+/// a cylinder face whose outward normal is `−r̂`: the island the ring
+/// lane winds on its chart turns the other way about the outward
+/// normal, and the role order reads the face's sense bit to say so.
+/// Every pose, at the origin and off it.
+#[test]
+fn a_bar_across_a_bore_builds() {
+    for c in [(0.0, 0.0), (3.0, -2.0)] {
+        assert_bar_across_the_bore_at(c, (-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3));
+        assert_bar_across_the_bore_at(c, (0.5, 1.1), (-0.3, 0.3), (-0.3, 0.3));
+        assert_bar_across_the_bore_at(c, (-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1));
+    }
 }
 
 /// The OUT direction of the same reach, metered: a bar definitely clear
