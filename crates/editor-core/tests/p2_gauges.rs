@@ -1372,3 +1372,165 @@ fn a_cut_of_two_placed_groups_moves_verbatim_rather_than_hoisting() {
         Some(literal([0.0, 9.0, 0.0]))
     );
 }
+
+// ---- P2-carry: the carry keeps offsets ----
+
+/// The survey's probe: a placed pair whose top carries a checked
+/// offset (its solved world pose), beside a second placed base, so a
+/// cut of all four is two groups and moves verbatim. Returns the store,
+/// the document, `[base, top, mate, second]` and the top's offset.
+fn checked_pair_beside_a_base(
+    label: &str,
+) -> (Parts, ProfileDoc, [RecipeNodeId; 4], Option<Placement>) {
+    let (p, doc, [base, top, mate]) = placed_pair(label);
+    let solved = solve(&doc, &p.opts(), Tol::witness())
+        .placement(&doc, top)
+        .expect("the top is placed");
+    let checked = Some(Placement::literal(&solved));
+    let doc = set_offset(doc, top, checked.clone());
+    let (doc, second) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, second, Some(literal([0.0, 9.0, 0.0])));
+    (p, doc, [base, top, mate, second], checked)
+}
+
+/// Split's verbatim move of [`checked_pair_beside_a_base`], whole.
+fn split_all_four(
+    p: &Parts,
+    doc: &ProfileDoc,
+    ids: [RecipeNodeId; 4],
+    part_id: DocumentId,
+) -> editor_core::SplitOutcome {
+    editor_core::split(
+        doc,
+        &cut(&ids),
+        part_id,
+        Tol::witness(),
+        p.opts().resolver.as_ref(),
+    )
+    .expect("two placed groups move verbatim")
+}
+
+/// Every instance's offset in `doc` beside the offset `onto` holds at
+/// its image under `map`.
+fn offsets_through(
+    doc: &ProfileDoc,
+    map: impl Fn(RecipeNodeId) -> RecipeNodeId,
+    onto: &ProfileDoc,
+) -> Vec<(Option<Placement>, Option<Placement>)> {
+    doc.order()
+        .iter()
+        .filter(|id| matches!(doc.node(**id), Some(Node::InstantiatePart { .. })))
+        .map(|&id| (offset_of(doc, id), offset_of(onto, map(id))))
+        .collect()
+}
+
+fn cleared(rows: &[Maintenance]) -> Vec<&Maintenance> {
+    rows.iter()
+        .filter(|row| matches!(row, Maintenance::OffsetCleared { .. }))
+        .collect()
+}
+
+/// Replays `edits` from `from` with no reach: no store, no solve.
+fn replay(from: &ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -> ProfileDoc {
+    edits.iter().fold(from.clone(), |doc, edit| {
+        apply_replayed(&doc, edit, Tol::witness())
+            .expect("a recorded edit replays")
+            .doc
+    })
+}
+
+/// **C1 at split: a verbatim move keeps a carried member's checked
+/// offset.** The cut mate lands in the part through the mate door,
+/// which clears the top's offset as it joins the top to the placed
+/// base; the part still holds exactly the source's offsets, and no
+/// `OffsetCleared` survives in `part_maintenance`.
+#[test]
+fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
+    let (p, doc, ids, checked) = checked_pair_beside_a_base("p2-carry-split");
+    let out = split_all_four(&p, &doc, ids, DocumentId::derive("p2-carry-split-part"));
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY),
+        "the move is verbatim, not a hoist"
+    );
+    assert_eq!(
+        offset_of(&out.part, out.node_map[&ids[1]]),
+        checked,
+        "the top's checked offset survives the carry"
+    );
+    for (source, part) in offsets_through(&doc, |id| out.node_map[&id], &out.part) {
+        assert_eq!(part, source, "the part holds exactly the source's offsets");
+    }
+    assert_eq!(
+        cleared(&out.part_maintenance),
+        Vec::<&Maintenance>::new(),
+        "no OffsetCleared for a carried node survives"
+    );
+}
+
+/// **C1 at inline: an empty-offset inline keeps a carried member's
+/// checked offset.** The part is the probe's document itself, so this
+/// row reads inline's carry alone, whatever split's keeps.
+#[test]
+fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
+    let (p, part, ids, checked) = checked_pair_beside_a_base("p2-carry-inline");
+    let mut store = p.store.clone();
+    let part_ref = store.insert(part.clone(), Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("p2-carry-inline-host"), Tol::witness());
+    let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+    assert_eq!(offset_of(&host, instance), Some(Placement::IDENTITY));
+    let back = editor_core::inline(&host, instance, &resolver(store), Tol::witness())
+        .expect("the empty offset lands the content verbatim");
+    let through = |id: RecipeNodeId| back.node_map[&id];
+    assert_eq!(
+        offset_of(&back.doc, through(ids[1])),
+        checked,
+        "the top's checked offset survives the splice"
+    );
+    for (source, spliced) in offsets_through(&part, through, &back.doc) {
+        assert_eq!(
+            spliced, source,
+            "the host holds exactly the source's offsets"
+        );
+    }
+    assert_eq!(
+        cleared(&back.maintenance),
+        Vec::<&Maintenance>::new(),
+        "no OffsetCleared for a carried node survives"
+    );
+}
+
+/// **The carry's edit lists replay to its documents without a solve**:
+/// the part from the empty document and the host from the document
+/// inlined into, each with no reach, and each holding the checked
+/// offset.
+#[test]
+fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
+    let (p, doc, ids, checked) = checked_pair_beside_a_base("p2-carry-replay");
+    let part_id = DocumentId::derive("p2-carry-replay-part");
+    let out = split_all_four(&p, &doc, ids, part_id);
+    let part = replay(&ProfileDoc::empty(part_id, Tol::witness()), &out.part_edits);
+    assert!(part.bit_eq(&out.part), "the part's edit list is the part");
+    assert_eq!(
+        offset_of(&part, out.node_map[&ids[1]]),
+        checked,
+        "the replayed part holds the checked offset"
+    );
+
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let back = editor_core::inline(
+        &out.remainder,
+        out.instance,
+        &resolver(store),
+        Tol::witness(),
+    )
+    .expect("the empty offset lands the content verbatim");
+    let host = replay(&out.remainder, &back.edits);
+    assert!(host.bit_eq(&back.doc), "the inline's edit list is the host");
+    assert_eq!(
+        offset_of(&host, back.node_map[&out.node_map[&ids[1]]]),
+        checked,
+        "the replayed host holds the checked offset"
+    );
+}

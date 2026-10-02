@@ -110,8 +110,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::doc::{Doc, NameCarrier};
-use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
+use crate::edit::{Maintenance, MaintenanceNet};
 use crate::ident::{DocRef, DocumentId};
 use crate::names::{
     Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
@@ -210,6 +210,15 @@ impl InlineError {
 /// already there), and `settle` then adjusts the carried node by its
 /// old id — the one offset a hoist or an inline's sugar rewrites.
 ///
+/// **Every carried instance ends at the offset it was inserted with.**
+/// A carried placing mate lands through the mate door, which clears the
+/// offsets of its first operand's group when it joins two placed groups
+/// ([`Maintenance::OffsetCleared`]); a carried offset is a statement the
+/// source already holds, so once every node is in, each instance whose
+/// offset a later insert changed gets it back with a recorded
+/// [`DocEdit::SetOffset`]. The edit list replays the same clear and the
+/// same re-statement, with no solve.
+///
 /// A name the maps lack whose missing id belongs to a node still to
 /// come is a FORWARD reference (a Declare or a blend selection rebound
 /// onto a later node): no order of inserts satisfies it, and it refuses
@@ -234,6 +243,7 @@ fn carry<E>(
 ) -> Result<(NodeMap, StepMap), E> {
     let mut node_map = NodeMap::new();
     let mut step_map = StepMap::new();
+    let mut stated = Vec::new();
     for (k, &old) in olds.iter().enumerate() {
         let Some(node) = source.node(old) else {
             continue;
@@ -257,6 +267,10 @@ fn carry<E>(
             Err(other) => return Err(miss(old, other)),
         };
         settle(old, &mut carried);
+        let offset = match &carried {
+            Node::InstantiatePart { offset, .. } => Some(offset.clone()),
+            _ => None,
+        };
         let new = target
             .apply(
                 DocEdit::InsertNode {
@@ -268,6 +282,9 @@ fn carry<E>(
             .map_err(&edit)?
             .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
         node_map.insert(old, new);
+        if let Some(offset) = offset {
+            stated.push((new, offset));
+        }
         if let Some(label) = source.label(old) {
             target
                 .apply(
@@ -297,6 +314,15 @@ fn carry<E>(
                     .copied()
                     .zip(to.ids.iter().flatten().copied()),
             );
+        }
+    }
+    for (instance, offset) in stated {
+        if matches!(target.doc.node(instance),
+            Some(Node::InstantiatePart { offset: held, .. }) if *held != offset)
+        {
+            target
+                .apply(DocEdit::SetOffset { instance, offset }, tol, reach)
+                .map_err(&edit)?;
         }
     }
     Ok((node_map, step_map))
@@ -1350,9 +1376,10 @@ pub struct SplitOutcome {
     pub part: ProfileDoc,
     /// The recorded edits producing `remainder` from the input.
     pub remainder_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `remainder_edits` reported, in edit order
-    /// ([`Maintenance`]): every payload name a departing cut node
-    /// stranded behind it (DM7). An accepted edit travels whole, so the
+    /// The maintenance `remainder_edits` reported that survives
+    /// against `remainder` ([`MaintenanceNet`]), in edit order: every
+    /// payload name a departing cut node stranded behind it (DM7).
+    /// An accepted edit travels whole, so the
     /// outcome carries what its edits DID beside what they produced: a
     /// caller holding a document with the maintenance of its last
     /// accepted edit swaps `remainder` and this in together.
@@ -1360,9 +1387,10 @@ pub struct SplitOutcome {
     /// The recorded edits producing `part` from
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `part_edits` reported, in edit order
-    /// ([`Maintenance`]): a cut mate that joins two groups as it lands
-    /// clears its first operand's root offset, as at every mate insert.
+    /// The maintenance `part_edits` reported that survives against
+    /// `part` ([`MaintenanceNet`]), in edit order. The carry re-states
+    /// every offset a carried mate's insert cleared, so no
+    /// [`Maintenance::OffsetCleared`] for a carried node survives.
     pub part_maintenance: Vec<Maintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
@@ -1384,10 +1412,10 @@ pub struct InlineOutcome {
     pub doc: ProfileDoc,
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `edits` reported, in edit order
-    /// ([`Maintenance`]): a spliced mate that joins two groups as it
-    /// lands clears its first operand's root offset, as at every mate
-    /// insert.
+    /// The maintenance `edits` reported that survives against `doc`
+    /// ([`MaintenanceNet`]), in edit order. The carry re-states every
+    /// offset a spliced mate's insert cleared, so no
+    /// [`Maintenance::OffsetCleared`] for a carried node survives.
     /// An accepted edit travels whole; a caller holding
     /// a document with the maintenance of its last accepted edit swaps
     /// `doc` and this in together.
@@ -1407,11 +1435,13 @@ pub struct InlineOutcome {
 /// document and maintenance together — the record's minted id goes
 /// back to the caller, and its `structural` bit is a fact of the edit
 /// already in the list — so an outcome built from one reports what
-/// its edits did, never only what they produced.
+/// its edits did, never only what they produced. A refactoring is one
+/// action of several edits, so what it reports is their maintenance
+/// net of what a later edit in the list took back ([`MaintenanceNet`]).
 struct Recording {
     doc: ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
-    maintenance: Vec<Maintenance>,
+    maintenance: MaintenanceNet,
 }
 
 impl Recording {
@@ -1419,13 +1449,13 @@ impl Recording {
         Self {
             doc,
             edits: Vec::new(),
-            maintenance: Vec::new(),
+            maintenance: MaintenanceNet::new(),
         }
     }
 
     /// Apply one edit and record it: the new document replaces the
     /// held one, the edit joins the list, and the maintenance the edit
-    /// performed is appended in edit order. Returns the id the edit
+    /// performed is folded in, in edit order. Returns the id the edit
     /// minted, if any.
     ///
     /// # Errors
@@ -1438,10 +1468,17 @@ impl Recording {
         reach: &dyn crate::mate::MateReach,
     ) -> Result<Option<RecipeNodeId>, EditError> {
         let applied = apply(&self.doc, &edit, tol, reach)?;
+        self.maintenance.push(&applied);
         self.doc = applied.doc;
-        self.maintenance.extend(applied.maintenance);
         self.edits.push(edit);
         Ok(applied.record.minted)
+    }
+
+    /// The document, its edit list, and the rows that survive against
+    /// the document the list ends at.
+    fn finish(self) -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, Vec<Maintenance>) {
+        let maintenance = self.maintenance.finish(&self.doc);
+        (self.doc, self.edits, maintenance)
     }
 }
 
@@ -2672,13 +2709,15 @@ pub fn split(
     if remainder.doc.roots() != desired {
         rem_apply(&mut remainder, DocEdit::SetRoots { roots: desired })?;
     }
+    let (remainder, remainder_edits, remainder_maintenance) = remainder.finish();
+    let (part, part_edits, part_maintenance) = part.finish();
     Ok(SplitOutcome {
-        remainder: remainder.doc,
-        part: part.doc,
-        remainder_edits: remainder.edits,
-        remainder_maintenance: remainder.maintenance,
-        part_edits: part.edits,
-        part_maintenance: part.maintenance,
+        remainder,
+        part,
+        remainder_edits,
+        remainder_maintenance,
+        part_edits,
+        part_maintenance,
         instance,
         node_map,
         step_map,
@@ -3132,10 +3171,11 @@ pub fn inline(
     if current.doc.roots() != desired {
         step(&mut current, DocEdit::SetRoots { roots: desired })?;
     }
+    let (doc, edits, maintenance) = current.finish();
     Ok(InlineOutcome {
-        doc: current.doc,
-        edits: current.edits,
-        maintenance: current.maintenance,
+        doc,
+        edits,
+        maintenance,
         node_map,
         step_map,
     })
