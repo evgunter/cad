@@ -130,11 +130,13 @@ pub struct SplitNaming {
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: Vec<(FaceKey, FaceKey)>,
-    /// Null-edge vertex pairs `(above copy, below original)` from the
-    /// reduction's F9 records, in record order: the above-side
-    /// coincident copies with the vertices they were minted at (the
-    /// naming layer derives the above copy's parentage through the
-    /// below original's birth record).
+    /// Null-edge vertex pairs `(copy, original)` from the reduction's
+    /// F9 records, in record order: each coincident copy with the
+    /// vertex it was minted at (the naming layer derives the copy's
+    /// parentage through the original's birth record). Which side
+    /// holds which is not fixed — the copy is the Above end save for
+    /// a whole-orbit strut, and the mirrored lane swaps the sides —
+    /// so consumers read a key's side from the body that holds it.
     pub vertex_pairs: Vec<(crate::entity::VertexKey, crate::entity::VertexKey)>,
 }
 
@@ -369,8 +371,16 @@ pub(super) fn split_finish<T: Decide>(
         vertex_pairs: red
             .null_edges
             .iter()
-            .map(|r| (r.attr.above_end, r.attr.below_end))
-            .collect(),
+            .map(|r| {
+                if r.attr.below_end == r.at_vertex {
+                    Ok((r.attr.above_end, r.at_vertex))
+                } else if r.attr.above_end == r.at_vertex {
+                    Ok((r.attr.below_end, r.at_vertex))
+                } else {
+                    Err(SplitFinishError::Corrupt)
+                }
+            })
+            .collect::<Result<_, _>>()?,
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
