@@ -2,7 +2,8 @@
 id: split-gate-refuses-a-whole-body-for-one-unarmed-face
 kind: issue
 title: topo::split refuses a whole body for one sphere, torus or spline face the plane cannot meet; the gate should be box-scoped as the boolean's is
-status: review
+status: closed
+closed: 2026-10-02
 opened: 2026-10-01
 pr: 3843
 branch: reach/split-gate-per-face
@@ -53,3 +54,21 @@ and spline faces through split finish and the pcurve mint pass
 untouched for the first time, which wants its own rows. The cone half
 of the original complaint — a plane missing the cone — no longer
 refuses, since the cone is armed.
+
+## Closed (2026-10-02, PR 3843)
+
+`topo::split` now refuses a sphere, torus, spline or Approx face only
+when the plane may meet the face's reach box. The box is padded by the
+boolean's sweep pad and cleared by one support-function margin
+(`split_gate_box_side`). A trimmed sphere face is boxed by its
+latitude zone, and only when the face's side of its boundary is
+certified; otherwise the whole ball is used. An edge with a spiric or
+spline carrier refuses unless its own box or a bounding face's box
+clears.
+
+The dual review (DR-44) found no wrong split: 189 admitted planes at
+1e-9, all clean. The fix pass added rows that go red under each named
+mutant. Filed:
+- the world-axis box's pose sensitivity;
+- the Approx and spiric rows;
+- the sphere zone's fold into `FaceBoxRule`.
