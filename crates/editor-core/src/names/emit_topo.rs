@@ -3002,7 +3002,9 @@ mod split_carries_candidates {
     fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
         let a = crate::apply(
             &doc,
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &RefusingReach,
         )

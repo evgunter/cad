@@ -710,9 +710,11 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     for (node, at) in [(shelf_i, asm::SHELF_AT), (post_i, asm::POST_B_AT)] {
         common::edit_into(
             &mut doc,
-            DocEdit::SetPlacement {
-                node,
-                frame: pncad::document::Frame::translation(at),
+            DocEdit::SetOffset {
+                instance: node,
+                offset: Some(pncad::document::Placement::literal(
+                    &pncad::document::Frame::translation(at),
+                )),
             },
             tol,
         );

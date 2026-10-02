@@ -69,7 +69,7 @@ use crate::expr::{DimensionError, MAX_NESTING};
 /// edit kind), saved both ways, by its wire shape, and fails when the
 /// deepest disagrees with [`BODY_NESTING`]; its at-bound row saves an
 /// expression at the bound in that position and loads it back.
-pub(crate) const ENVELOPE: usize = 15;
+pub(crate) const ENVELOPE: usize = 14;
 
 /// JSON levels per expression level, at most: a binary operator is a
 /// tag object around its operand array (`{"Add": [a, b]}`) and a leaf a

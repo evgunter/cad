@@ -86,7 +86,9 @@ fn insert(
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
-        &pncad::document::DocEdit::InsertNode { node },
+        &pncad::document::DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
     )
@@ -1978,7 +1980,9 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     // walk, which reaches both alike.
     let framed = apply(
         &doc,
-        &DocEdit::InsertNode { node: xy_frame() },
+        &DocEdit::InsertNode {
+            node: Box::new(xy_frame()),
+        },
         tol,
         &pncad::document::RefusingReach,
     )
@@ -1987,11 +1991,11 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     let applied = apply(
         &framed.doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square],
                 ids: Vec::new(),
-            }),
+            })),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -2394,8 +2398,12 @@ fn node_error_tags_are_the_published_words() {
         MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
         MateSelf => "mate_self",
         MateUnleverable => "mate_unleverable",
+        MateOffsetDisagrees => "mate_offset_disagrees",
+        MateOffsetUnchecked => "mate_offset_unchecked",
         MateFaceUnresolved => "mate_face_unresolved",
         CrossingUnverified => "crossing_unverified",
+        Unplaced => "unplaced",
+        PlacementRefused => "placement_refused",
         MeasureRefResolve => "measure_ref_resolve",
         MeasureRefUnreadable => "measure_ref_unreadable",
         MeasureNonFinite => "measure_non_finite",
@@ -2699,15 +2707,40 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(&E::WitnessOnNonSketch { node: sp(1) }, &["node"]);
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
-    carries(&E::PlacementOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::OffsetOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::GaugeOnNonPlaced { node: sp(1) }, &["node"]);
+    // A gauge reference names the node it is written on and the id it
+    // names.
+    carries(
+        &E::GaugeNotLive {
+            node: sp(1),
+            gauge: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::NotAGauge {
+            node: sp(1),
+            gauge: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(
+        &E::GaugeCycle {
+            node: sp(1),
+            gauge: sp(2),
+        },
+        &["node", "input"],
+    );
+    carries(&E::WouldStartPlacing { mate: sp(1) }, &["node"]);
     carries(&E::PlacementRuleMismatch { node: sp(1) }, &["node"]);
     carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::NonFinitePlacement {
             node: sp(1),
-            at: pncad::document::FrameSite::Registry,
+            at: pncad::document::FrameSite::Step { index: 0 },
         },
-        &["node"],
+        &["node", "index"],
     );
     carries(&E::NonFiniteAlignment { node: sp(1) }, &["node"]);
     // The door's per-mate admission carries the solve's fault WHOLE
@@ -4527,6 +4560,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "at_rest",
             "carried_mint_refusal",
+            "own_space",
             "uncertified",
             "unminted_mates",
         ],
@@ -4778,12 +4812,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_placement_list",
             "empty_witness_bulk",
             "evaluation_of_another_document",
+            "gauge_cycle",
+            "gauge_not_live",
+            "gauge_on_non_placed",
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
             "label_unchanged",
-            "maintenance_refused",
-            "maintenance_unrecorded",
             "mate_refused",
             "measure_malformed",
             "meta_non_finite",
@@ -4796,13 +4831,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_doc_param",
             "non_finite_placement",
             "non_rigid_placement",
+            "not_a_gauge",
             "not_structural_slot",
+            "offset_on_non_instance",
             "path_off_tree",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
             "pin_unchanged",
             "placement_axis",
-            "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
             "read_site_missing_node",
@@ -4829,18 +4865,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "update_on_non_instance",
             "witness_on_non_sketch",
             "would_cycle",
+            "would_start_placing",
         ],
         delegates: &["root_fault_tag"],
     },
     TagEntry {
         function: "edit_inner_variant_tag",
         values: &[],
-        // `mate_fault_tag` twice: the maintenance's refusal and the
-        // per-mate admission's each forward the solve's fault whole.
+        // `mate_fault_tag` once: the per-mate admission forwards the
+        // solve's fault whole.
         delegates: &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
-            "mate_fault_tag",
             "mate_fault_tag",
             "measure_node_fault_tag",
             "meta_version_error_tag",
@@ -4894,6 +4930,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "poisoned",
             "step_refused",
             "unknown_node",
+            "unplaced",
+            "unplaced_below",
         ],
         delegates: &["product_error_tag"],
     },
@@ -4974,13 +5012,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "frame_fault_tag",
-        values: &["improper", "non_finite", "not_rigid"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "hit_test_error_tag",
-        values: &["ambiguous", "evaluation_of_another_document", "unnamed"],
+        values: &[
+            "across_spaces",
+            "ambiguous",
+            "evaluation_of_another_document",
+            "unnamed",
+        ],
         delegates: &["node_standing_tag"],
     },
     TagEntry {
@@ -4991,13 +5029,20 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inline_edit",
             "instance_body_name_referenced",
             "instance_consumed",
+            "mate_face_frame_crosses",
+            "mate_frame_crosses",
+            "mate_pair_splits",
+            "mate_placed",
             "name_on_dropped_step",
+            "needs_a_gauge",
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
+            "part_dead_gauge",
             "stranded_part_name",
             "unknown_node",
             "unplaceable_frame",
+            "unplaced",
         ],
         delegates: &["resolve_fault_tag"],
     },
@@ -5047,11 +5092,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "maintenance_tag",
         values: &[
-            "drop",
-            "gauge_rewrite",
-            "join",
+            "offset_cleared",
             "orphaned_declare",
-            "split",
             "strand",
             "stranded_appearance",
         ],
@@ -5168,6 +5210,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_face_unresolved",
             "mate_frame_degenerate",
             "mate_indeterminate",
+            "mate_offset_disagrees",
+            "mate_offset_unchecked",
             "mate_part_selects_another_copy",
             "mate_placer_refused",
             "mate_poses_of_another_document",
@@ -5201,6 +5245,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_root_failure_unrecorded",
             "part_root_poisoned",
             "payload_expr",
+            "placement_refused",
             "placement_rule_mismatch",
             "placements_uncertified",
             "profile",
@@ -5223,6 +5268,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "undeclarable_contact",
             "undeclared_contact",
             "underflowed_direction",
+            "unplaced",
             "unschedulable_cycle",
             "verb_arity",
             "witness_bifurcation",
@@ -5250,6 +5296,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loft_error_tag",
             "measure_node_fault_tag",
             "naming_error_tag",
+            "node_error_tag",
             "param_attach_error_tag",
             "param_box_error_tag",
             "pieces_fault_tag",
@@ -5289,6 +5336,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "full_period_torus",
             "seamless_periodic_band",
             "surface_promotion",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "offset_check_tag",
+        values: &[
+            "indeterminate",
+            "placement_refused",
+            "unleverable",
+            "unreached",
         ],
         delegates: &[],
     },
@@ -5379,7 +5436,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edit_replay",
             "header_id",
             "id_mismatch",
-            "maintenance_frame",
             "non_finite",
             "parse",
             "profile_program",
@@ -5415,6 +5471,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "root_invalid",
             "root_poisoned",
             "unknown_node",
+            "unplaced",
         ],
         delegates: &[],
     },
@@ -5596,6 +5653,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "select_refusal_tag",
         values: &[
+            "across_spaces",
             "bad_value",
             "datum_has_no_value",
             "in_band",
@@ -5715,6 +5773,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "duplicate_input",
             "epsilon_invalid",
             "forward_input",
+            "gauge_cycle",
             "input_list",
             "label_on_missing_node",
             "mate_alignment",
@@ -5723,15 +5782,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mint_log_order",
             "name_step_not_minted",
             "node_not_minted",
+            "not_a_gauge",
             "order_mismatch",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
             "placement_improper",
             "placement_non_finite",
             "placement_non_rigid",
-            "placement_not_gauge",
             "placement_rule",
-            "placement_site",
             "slot_dimension",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
@@ -5750,19 +5808,28 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "split_error_tag",
         values: &[
             "body_name_crosses_cut",
+            "cut_holds_gauge",
+            "dead_gauge_reference",
             "empty_cut",
+            "hoisted_member_offset",
+            "mate_face_frame_crosses",
+            "mate_frame_crosses",
             "name_on_dropped_step",
             "name_straddles_cut",
             "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
+            "placing_mate_left",
             "remainder_edit",
             "severed_edge",
             "split_pin",
             "torn_group",
+            "two_anchors",
             "uncut_param_reference",
             "unknown_cut_node",
+            "unplaced_alone",
+            "would_start_placing",
         ],
         delegates: &[],
     },
@@ -5932,6 +5999,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "unplaced_tag",
+        values: &["dead_gauge", "no_offset"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "update_error_tag",
         values: &["already_pinned", "no_such_reference"],
         delegates: &[],
@@ -6076,6 +6148,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
+    // One fact (A9, A11 (2)): two nodes in different spaces, which the
+    // pick and the flush detector each refuse to order or compare.
+    ("across_spaces", 2),
     ("ambiguous", 4),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
@@ -6116,11 +6191,21 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("euler", 2),
     ("evaluation_of_another_document", 5),
     ("face", 3),
+    // One fact at two doors: a gauge that would sit on itself, refused
+    // at the edit door and at the load door.
+    ("gauge_cycle", 2),
     ("improper_placement", 2),
-    ("indeterminate", 2),
+    // Three: a checked offset's check (`offset_check_tag`) lands in
+    // the ambiguity band exactly as a resolution or a profile's
+    // structure does — the same verdict, undecided at this ε.
+    ("indeterminate", 3),
     ("instance", 2),
     ("io", 2),
-    ("join", 3),
+    ("join", 2),
+    // One rule (A4's frame rule) refused in both directions across the
+    // seam: a split's kept mate and an inline's host mate.
+    ("mate_face_frame_crosses", 2),
+    ("mate_frame_crosses", 2),
     ("measure_malformed", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
@@ -6129,15 +6214,14 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("no_such_body", 2),
     ("no_such_name", 2),
     ("node_failed", 2),
-    ("non_finite", 5),
+    ("non_finite", 4),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
     ("not_a_body", 2),
+    // The same pair of doors for a gauge reference naming a non-gauge.
+    ("not_a_gauge", 2),
     ("not_an_instance", 3),
-    // One predicate (`topo::check_rigid`), one word: the kernel's own
-    // refusal of a map, and a frame a document door refuses by it.
-    ("not_rigid", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
     ("part_unresolved", 3),
@@ -6150,6 +6234,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_unknown_doc_param", 2),
     ("pcurve", 5),
     ("pcurves", 3),
+    // One fact: a placement on an instance's frame did not evaluate —
+    // the instance's own row, and why its checked offset went unchecked.
+    ("placement_refused", 2),
     ("placement_rule_mismatch", 2),
     ("poisoned", 2),
     ("profile", 2),
@@ -6162,7 +6249,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("slot_doc_param_dimension", 2),
     ("slot_unknown_doc_param", 2),
     ("smooth_join_refuted", 2),
-    ("split", 2),
     ("step_ids", 3),
     ("structure", 3),
     ("tolerance_conflict", 2),
@@ -6173,12 +6259,20 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unknown_param", 4),
     ("unminted", 2),
     ("unnamed", 2),
+    // One fact (A11 (2)): a group nothing places — the node that read
+    // across its space, the inline that has no frame to splice at, the
+    // STEP export that writes one world, and the world gather a
+    // document of unplaced material alone leaves empty.
+    ("unplaced", 4),
     ("unreadable", 2),
     ("validate", 2),
     ("vertex", 2),
     ("vertex_on_edge", 2),
     ("vertex_on_face", 2),
     ("vertex_vertex", 3),
+    // One fact (A4, A11 (2)): a declaring mate a re-gauge would turn
+    // placing — split's anchor and the compound door's copied gauge.
+    ("would_start_placing", 2),
     ("wrong_kind", 2),
 ];
 
@@ -9734,6 +9828,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "declare",
     "extrude",
     "fillet",
+    "gauge",
     "hollow_tube",
     "instantiate_part",
     "loft",
