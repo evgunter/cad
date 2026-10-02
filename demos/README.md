@@ -91,13 +91,19 @@ page is mostly about.
 
 `demo-tour gallery [dir]` (default `gallery/`) writes each
 **document-authored** scene as a `.pncad` file the GUI can open:
-`bracket`, `checks`, `ring`, `diefillet`, `heatsink`, `teapot` as single documents,
-plus the assembly scene's workspace under `assembly/`. It authors them through the
-same functions the tour renders — the gallery is the scenes, saved, not a
-second spelling of them.
+`bracket`, `checks`, `ring`, `diefillet`, `heatsink`, `teapot`, `impeller`,
+`plate` (the tolerance cells' two-hole plate) and `chain` (the chain cells'
+four-link chain) as single documents, plus the assembly scene's workspace under
+`assembly/`. It authors them through the same functions the tour renders — the
+gallery is the scenes, saved, not a second spelling of them.
 
-Three more scenes already build documents and are not written yet
-(`impeller`, `plate`, `chain`: `work/show/gallery-writes-every-document-scene.md`).
+Every one of them saves and opens, but two do not denote what their scene means.
+`plate.pncad` draws a blank slab, because the document never subtracts its
+holes (`work/show/the-plate-document-never-cuts-its-holes.md`). `chain.pncad`
+draws its nine placed links under a product-fault badge but has no product:
+the gather refuses one link placed four times by transforms, so checks, mass
+properties and export have nothing to read
+(`work/wire/one-shape-placed-n-times-has-no-product.md`).
 The rest of the tour drives the kernel API directly and has no document
 to save; those scenes join the gallery as they are re-authored as
 documents, which is per-scene library work.
