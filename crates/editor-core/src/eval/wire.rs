@@ -3724,7 +3724,10 @@ const UNION_REFUSAL_FOREIGN: &str =
 /// face pair as the detector's own [`names::FlushFinding`] shape,
 /// keys resolved through the OPERANDS' name tables. NOTHING is
 /// re-detected and no decide runs on this error path (SEL2). Every
-/// other refusal falls through to [`verb_refused`].
+/// other refusal falls through to [`verb_refused`]: among them
+/// [`topo::BooleanError::CoincidentShell`], which names a shell and no
+/// face pair, so there is no declaration to offer from it, and it
+/// crosses as the kernel's own refusal.
 ///
 /// If either key resolves to no Face name — an emitter-coverage break
 /// (`vocabulary_coverage_is_total`) — the plain `Boolean` wrapping is

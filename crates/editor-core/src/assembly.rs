@@ -1812,9 +1812,13 @@ mod attribution {
                 // `Unattributed`, which is why the re-routing moves no
                 // `AtRest`/`Uncertified` verdict; the row is here so
                 // that stays true rather than stays believed.
-                topo::CensusUnsupportedCause::Containment(topo::ContainError::ArcLoopUnsupported {
-                    r#loop: Default::default(),
-                }),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::Uncrossable(
+                    topo::Uncrossable {
+                        r#loop: Default::default(),
+                        edge: Default::default(),
+                        carrier: topo::UncrossableCarrier::Spiric,
+                    },
+                )),
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::RayExhausted),
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::Corrupt),
             ]

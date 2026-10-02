@@ -2797,6 +2797,13 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `BooleanError::CoincidentShell`'s orientation: why the settled
+    # coincidence pairs did not certify a shell lying on the other
+    # operand. Carried in Rust so a consumer matching that variant can
+    # name the field's type; interior here because Python never holds
+    # one. The refusal crosses as `coincident_shell` plus prose, and the
+    # prose names the shortfall.
+    "ShellOrientation": INTERIOR,
     # The frame WITNESS — an origin and a right-handed orthonormal
     # triple, minted where its axes were decided. Python never holds
     # one: `SketchPlane.from_frame` takes the two directions a caller

@@ -2479,7 +2479,15 @@ class Node:
         `kind == "undeclared_coincidence"`, `finding` attached) — the
         kernel never infers that two faces are the same face.
         `Doc.declare` / `Doc.declare_all` set the list on the live
-        node."""
+        node.
+
+        A closed surface of one operand that lies wholly on the
+        other's — one body at both seats, or a member carried into a
+        union unchanged — is answered where every face of it is the
+        same face as one of the other's, by recipe or by declaration
+        (`A ∪ A` and `A ∩ A` are `A`, `A − A` is empty); where they
+        do not show that, the evaluation refuses with
+        `inner_kind == "coincident_shell"`."""
 
     @staticmethod
     def union(members: list[NodeId], declare: list[FlushFinding] = []) -> Node:
@@ -3450,12 +3458,15 @@ class DocEdit:
         `inner_variant` `repeated`.
 
         A name on a profile piece spells its step's id, so a name on a
-        kept step keeps denoting its piece and is not touched. A step
-        the new program does not keep takes its id with it: every name
-        on it — a fillet's selection, a shell's mouth, a derived
-        frame's face, a paint — keeps its spelling, resolves to
-        nothing, and is reported `strand` or `stranded_appearance` on
-        `Doc.last_maintenance` until `rebind` repairs it.
+        kept step keeps denoting its piece wherever the new program
+        draws it and is not touched. A step the new program does not
+        keep takes its id with it: every name on it — a fillet's
+        selection, a shell's mouth, a derived frame's face, a paint —
+        keeps its spelling, resolves to nothing, and is reported
+        `strand` or `stranded_appearance` on `Doc.last_maintenance`
+        until `rebind` repairs it. So is a name on a kept step's piece
+        the new program stops drawing, as a fillet inserted before a
+        leg takes the leg's segment.
 
         Refuses `step_ids_refused` before the program is replayed
         (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
@@ -6296,7 +6307,7 @@ class SplitOutcome:
 
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
-        """Cut node -> its id in the part document."""
+        """Cut node -> its id in the part document, as pairs in the part's own order."""
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Cut profile step id -> the id the part minted for it."""
@@ -6352,7 +6363,7 @@ class InlineOutcome:
     def edits(self) -> list[DocEdit]: ...
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
-        """Part node -> its id in the spliced document."""
+        """Part node -> its id in the spliced document, in the spliced document's order."""
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Part profile step id -> the id the host minted for it."""
