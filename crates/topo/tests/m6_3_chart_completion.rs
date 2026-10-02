@@ -12,20 +12,20 @@
 //!
 //! - the CLOSED-FORM door refuses it typed (`UnsupportedCarrier`, the
 //!   class named in `chart_pcurve`'s sphere arm);
-//! - the FITTED door (`PcurveCache::certify_fitted`, M6-2) accepts
-//!   the exact `Curve3::Circle` carrier via its locus-exact
-//!   rational-quadratic chain, with the `OnLocusHull` envelope
-//!   statement — the image is fitted on the CARRIER'S OWN angular
-//!   parameter (OQ4), interpolated so every CERT-schedule sample is a
-//!   collocation point;
-//! - the cache survives AT REST: the tier-3 pcurve pass re-derives
-//!   its certificate — the exact circle's incidence with the chart,
-//!   limbs 1 and 2 against the sphere alone, with no tube: the carrier
-//!   is the locus, so there is no branch for one to select;
-//! - the same body certifies at the INTERVAL scalar
-//!   (`certified` module), enclosure-asserted — the loud-skip pattern
-//!   is not needed here because no march budget is consulted (the
-//!   chain and the fit are closed-form structure).
+//! - the LANE images it (`FittedLane::sphere_circle_image`: the
+//!   piecewise cubic Hermite interpolant of its chart image on the
+//!   CARRIER'S OWN angular parameter, OQ4), and the FITTED door
+//!   (`PcurveCache::certify_fitted`) certifies it against the sphere
+//!   alone with the `MapResidualHermite` statement — a bound on the
+//!   image's distance from the circle over the whole span;
+//! - a corruption of the image BETWEEN its certification samples is
+//!   refused (`a_corrupted_image_refuses_between_its_samples`);
+//! - the mint reaches that route, and refuses an arc over a pole while
+//!   minting an arc of the same circle that avoids it;
+//! - the cache survives AT REST: the tier-3 pcurve pass re-derives its
+//!   certificate;
+//! - the same body certifies at the INTERVAL scalar (`certified`
+//!   module), enclosure-asserted.
 //!
 //! ε posture: no ε literal; every margin is the run's own band.
 
@@ -37,7 +37,7 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, EnvelopeStatement, Pcurve, PcurveCache};
 use geom_core::Tol;
-use geom_core::{Band, Point2, Point3, Real, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
 use topo::Body;
 
 /// The chart sphere: unit-ish radius, polar axis +z.
@@ -76,49 +76,20 @@ fn general_circle<T: Real>() -> Curve3<T> {
 /// The traversed arc: a quarter turn away from the azimuth seam.
 const ARC: (f64, f64) = (0.3, 0.3 + core::f64::consts::FRAC_PI_2);
 
-/// The chart image, fitted at `f64` STRUCTURE (C6) on the carrier's
-/// own angle parameter: 33 collocation params (so all 9 CERT-schedule
-/// params are interpolation points), degree 3, branch-stable azimuth.
-fn fit_image() -> NurbsCurve2<f64> {
-    let carrier = general_circle::<f64>();
+/// The chart image the LANE derives (`FittedLane::sphere_circle_image`),
+/// at `f64` structure (C6) and the run's band — the image the mint
+/// stores, not a fixture's own fit of it.
+fn lane_image() -> NurbsCurve2<f64> {
     let (t0, t1) = ARC;
-    let n = 33usize;
-    let mut params = Vec::with_capacity(n);
-    let mut pts = Vec::with_capacity(n);
-    let mut prev_u: Option<f64> = None;
-    for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (i as f64 / (n - 1) as f64);
-        let p = carrier.eval(t);
-        let mut u = p.y.atan2(p.x);
-        if let Some(pu) = prev_u {
-            // Structure-level branch continuation for the FIT (the
-            // certified one-branch statement is the certificate's).
-            while u - pu > core::f64::consts::PI {
-                u -= core::f64::consts::TAU;
-            }
-            while pu - u > core::f64::consts::PI {
-                u += core::f64::consts::TAU;
-            }
-        }
-        prev_u = Some(u);
-        let v = p.z.asin();
-        // The fitter's parameter contract is a clamped 0 → 1 run; the
-        // OQ4 identity is restored by the exact affine knot rescale
-        // below (a B-spline is invariant under affine knot maps).
-        params.push((t - t0) / (t1 - t0));
-        pts.push(Point2::new(u, v));
-    }
-    let fit = NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the chart image fits");
-    let knots: Vec<f64> = fit
-        .knots()
-        .knots()
-        .iter()
-        .map(|k| t0 + (t1 - t0) * k)
-        .collect();
-    let kv = geom_core::spline::KnotVector::clamped(knots, fit.knots().degree())
-        .expect("affine knot rescale");
-    NurbsCurve2::new(kv, fit.control().to_vec(), fit.weights().to_vec()).expect("rescaled image")
+    geom_brep::FittedLane::<f64>::certified()
+        .sphere_circle_image(
+            &general_circle::<f64>(),
+            t0,
+            t1,
+            &sphere::<f64>(),
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .expect("the lane images the general circle")
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
@@ -207,7 +178,7 @@ where
     let carrier = general_circle::<T>();
     let (f0, f1) = ARC;
     let (t0, t1) = (T::from_f64(f0), T::from_f64(f1));
-    let image = Arc::new(lift2::<T>(&fit_image()));
+    let image = Arc::new(lift2::<T>(&lane_image()));
     let (mut body, he_plus, he_minus) = spur_body(&carrier, tilted_plane::<T>(), ARC);
     let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     // Both half-edges live in the sphere face's loop (the spur-edge
@@ -249,7 +220,7 @@ fn a_general_circle_refuses_the_closed_form_sphere_door_typed() {
 }
 
 /// The at-rest row at `f64`: the cache is fitted, its statement is
-/// `OnLocusHull` with no pair certificate (an exact carrier has no tube
+/// `MapResidualHermite` with no pair certificate (an exact carrier has no tube
 /// to prove), and the tier-3 pcurve pass RE-DERIVES the certificate.
 #[test]
 fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
@@ -257,7 +228,7 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
     let cache = body.pcurve(he).expect("the cache is stored");
     assert!(matches!(cache.pcurve(), Pcurve::Fitted(_)));
     let cert = cache.certificate();
-    assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
+    assert_eq!(cert.statement, EnvelopeStatement::MapResidualHermite);
     assert!(
         cert.ssi.is_none(),
         "a Circle carrier certifies against the chart alone, so no pair certificate: {cert:?}"
@@ -289,7 +260,7 @@ fn the_mint_derives_and_certifies_a_general_circle_row<T: topo::AtRestPolicy>() 
         );
         assert_eq!(
             cache.certificate().statement,
-            EnvelopeStatement::OnLocusHull
+            EnvelopeStatement::MapResidualHermite
         );
     }
     let band = Band::linear(Tol::witness()).unwrap();
@@ -307,15 +278,12 @@ fn the_mint_derives_and_certifies_a_general_circle_row_at_the_interval_scalar() 
     the_mint_derives_and_certifies_a_general_circle_row::<geom_core::interval::Interval>();
 }
 
-/// **A general circle the route cannot image refuses at the mint**: a
-/// small circle through the chart's north pole — the tilted plane moved
-/// to pass through the pole, cutting the sphere in a circle neither
-/// polar nor meridian — over an arc that crosses it. The azimuth has no
-/// value at the pole and the arc leaves the chart's branch, so the
-/// fitted image refuses, and the mint propagates it rather than leaving
-/// the face uncached. Red if the class's exemption comes back.
-#[test]
-fn a_general_circle_through_a_pole_refuses_at_the_mint() {
+/// The small circle through the chart's north pole: the tilted plane
+/// moved to pass through the pole cuts the sphere in a circle neither
+/// polar nor meridian, with the pole at angle π on it
+/// (`pole − centre` is `−sin(tilt)·u_ref`). The cutting plane is its
+/// mate.
+fn pole_circle() -> (Curve3<f64>, Surface<f64>) {
     let tilt = 0.6_f64;
     let normal = Vec3::new(tilt.sin(), 0.0, tilt.cos());
     let u_ref = Vec3::new(tilt.cos(), 0.0, -tilt.sin());
@@ -324,27 +292,103 @@ fn a_general_circle_through_a_pole_refuses_at_the_mint() {
         normal,
         u_ref,
     };
-    // The section's centre is the sphere centre's foot on the plane;
-    // the pole sits at angle π on the circle (`pole − centre` is
-    // `−sin(tilt)·u_ref`).
     let circle = Curve3::Circle {
         center: Point3::origin() + normal * tilt.cos(),
         axis: normal,
         radius: tilt.sin(),
         u_ref,
     };
+    (circle, plane)
+}
+
+/// **The pole fence is the ARC's, and it is loud at the mint.** On the
+/// circle through the pole, an arc that crosses the pole has no
+/// one-branch image — the azimuth has no value there — so the lane
+/// refuses `ArcNearPole` and the mint propagates it rather than leaving
+/// the face uncached (red if the class's exemption comes back). An arc
+/// of the SAME circle that stays clear of the pole mints and
+/// re-certifies (red if the fence reads the circle's plane instead of
+/// the arc).
+#[test]
+fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() {
     let pi = core::f64::consts::PI;
-    let (mut body, _, _) = spur_body(&circle, plane, (pi - 0.5, pi + 0.5));
-    let err = topo::mint_pcurves(&mut body, Tol::witness())
-        .expect_err("a general circle through the pole has no one-branch image");
-    let topo::pcurves::PcurveMintError::Certify {
-        error: geom_brep::PcurveCertifyError::FittedCertificate { what, .. },
-        ..
-    } = &err
-    else {
-        panic!("the refusal is the fitted image's own, typed: {err:?}");
-    };
-    assert!(what.contains("pole"), "the refusal names the pole: {what}");
+    let (circle, plane) = pole_circle();
+    let (mut over, _, _) = spur_body(&circle, plane.clone(), (pi - 0.5, pi + 0.5));
+    let err = topo::mint_pcurves(&mut over, Tol::witness())
+        .expect_err("an arc over the pole has no one-branch image");
+    assert!(
+        matches!(
+            err,
+            topo::pcurves::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ArcNearPole { .. },
+                ..
+            }
+        ),
+        "the refusal is the arc fence's, typed: {err:?}"
+    );
+    assert!(
+        err.to_string().contains("Recourse:"),
+        "the refusal carries a recourse: {err}"
+    );
+    let (mut clear, he_plus, _) = spur_body(&circle, plane, (0.2, 1.2));
+    topo::mint_pcurves(&mut clear, Tol::witness())
+        .expect("an arc of the same circle clear of the pole mints");
+    assert!(
+        matches!(
+            clear.pcurve(he_plus).map(|c| c.pcurve()),
+            Some(Pcurve::Fitted(_))
+        ),
+        "the clear arc stores its fitted row"
+    );
+    let band = Band::linear(Tol::witness()).unwrap();
+    let findings = topo::pcurves::validate_pcurves(&clear, band);
+    assert!(findings.is_empty(), "{findings:?}");
+}
+
+/// **The certificate sees the image between its samples.** The lane's
+/// image with ONE interior control point moved by 1e-3 rad in azimuth —
+/// a control no certification sample sits on, since the lane's nodes
+/// are triadic and the samples dyadic — is refused: by the schedule
+/// residual where a sample falls in the corrupted span, and by the span
+/// bound wherever it falls. Red if both stop reading the image.
+#[test]
+fn a_corrupted_image_refuses_between_its_samples() {
+    let (t0, t1) = ARC;
+    let band = Band::linear(Tol::witness()).unwrap();
+    let image = lane_image();
+    let mut control = image.control().to_vec();
+    let k = control.len() / 2;
+    control[k].x += 1e-3;
+    let corrupted = Arc::new(
+        NurbsCurve2::new(image.knots().clone(), control, image.weights().to_vec())
+            .expect("same structure"),
+    );
+    let window = Pcurve::Fitted(Arc::clone(&corrupted)).chart_box(t0, t1);
+    let err = PcurveCache::<f64>::certify_fitted(
+        corrupted,
+        t0,
+        t1,
+        &general_circle::<f64>(),
+        &sphere::<f64>(),
+        None,
+        window,
+        band,
+        geom_brep::FittedLane::certified(),
+    )
+    .expect_err("a corrupted image does not certify");
+    assert!(
+        matches!(
+            err,
+            geom_brep::PcurveCertifyError::ResidualExceeded {
+                check: geom_brep::PcurveCheck::Envelope,
+                ..
+            } | geom_brep::PcurveCertifyError::ResidualExceeded {
+                check: geom_brep::PcurveCheck::MapResidual,
+                ..
+            }
+        ),
+        "the refusal is a residual one: {err:?}"
+    );
 }
 
 /// The interval row: the same body at the interval scalar — the
@@ -369,7 +413,7 @@ mod certified {
             try_build::<Interval>().expect("the general circle certifies through the fitted door");
         let cache = body.pcurve(he).expect("the cache is stored");
         let cert = cache.certificate();
-        assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
+        assert_eq!(cert.statement, EnvelopeStatement::MapResidualHermite);
         let band = Band::linear(Tol::witness()).unwrap();
         assert!(
             geom_core::Bounds::hi(cert.envelope) <= band.zero(),

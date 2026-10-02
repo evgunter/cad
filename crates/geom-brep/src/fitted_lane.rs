@@ -2,12 +2,13 @@
 //! operations a fitted or general chart image needs that only a scalar
 //! with certification rights can perform.
 //!
-//! A fitted chart image's between-samples obligation is a C2
-//! certificate — hull sup-norm and uniqueness tube, reached through
-//! `geom_brep::ssi::certify` — and the image itself and its chart feet
-//! are produced by the `edge_nurbs` foot schedule over certification
-//! arithmetic (C9); a sphere chart's general circle has its image
-//! interpolated from structure read off the data's brackets. Building
+//! A fitted chart image's between-samples obligation is, over a rung-3
+//! carrier, a C2 certificate — hull sup-norm and uniqueness tube,
+//! reached through `geom_brep::ssi::certify` — with the image and its
+//! chart feet produced by the `edge_nurbs` foot schedule over
+//! certification arithmetic (C9); over a sphere chart's general circle
+//! it is the Hermite bound, on an image interpolated from structure
+//! read off the data's brackets (`sphere_circle`). Building
 //! any of the four IS certification: `f64`,
 //! the telemetry probe, the interval scalar and `Sym` over any of those
 //! may do it, and a [`geom_core::Dual`] may not (DL1 — a dual carries a
@@ -46,17 +47,21 @@
 //! [`crate::PcurveCertifyError::FittedLaneUnsupported`], naming the
 //! scalar by its [`geom_core::Real::NAME`].
 //!
-//! **A `None` door refuses where the door is first needed.** Every
-//! fitted cache's certificate is derived by check 4 of the fitted
-//! lane's five checks, so check 4 is where an absent door refuses —
-//! in [`crate::PcurveCache::certify_general`] and
+//! **A `None` door refuses where the door is first needed.** For an
+//! image the caller already holds, that is check 4 of the fitted lane's
+//! five checks, where every fitted cache's certificate is derived — in
+//! [`crate::PcurveCache::certify_general`] and
 //! [`crate::PcurveCache::recertify`], the two doors that take the
 //! `Option` because a caller reaches them at every scalar (the mint
 //! with a construction's stated `General` image, the tier-3 pass with
 //! every row). Checks 1–3 read no door, so an image they refuse draws
 //! the same verdict at every scalar, and no `Fitted` or `General`
-//! cache is built without the door. [`crate::PcurveCache::certify_fitted`]
-//! has no caller at a scalar without one, and takes the door itself.
+//! cache is built without the door. For an image the mint must DERIVE
+//! (a general image on a spline chart, a sphere's general circle) it is
+//! the derivation, which refuses before any check runs; the mint leaves
+//! such a face rowless at a scalar with no door, since that scalar is
+//! owed no fitted rows (`topo::pcurves`' `mint_faces`).
+//! [`crate::PcurveCache::certify_fitted`] takes the door itself.
 //!
 //! The shape is [`crate::OffsetFitLane`]'s, and the absence is a
 //! different fact from that one's: the offset fit's `None` is a

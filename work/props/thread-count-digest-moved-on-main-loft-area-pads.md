@@ -48,3 +48,12 @@ Bisect, confirm the moving change is right (the pads go DOWN, which is
 the licensed direction under H5's ruling 2), and re-cut the three
 digests with the cause named in `expected`'s re-cut log, as that
 function's docs require.
+
+**Bisected (PCERT, PR 3733's fix pass, 2026-10-02).** A first-parent
+bisect of `main` with this row as the oracle (default ε, 1e-9) clears
+#3524: the row passes at `ba06ed4bf` (the #3524 merge) and at its first
+parent. The first bad commit is `43333da8a`, the merge of #3727
+(`linalg/certification-sqrt`, "Certification::sqrt, and the private
+outward roots retire into it"). That fits the moved quantities: both are
+area PADS, and a pad that reads an outward root would move a few ulps
+when the root's rounding moves.
