@@ -449,7 +449,8 @@ pub enum SplitError {
     /// instance the split would leave behind has nothing to be placed
     /// as.
     UnplacedAlone {
-        /// The unplaced group the cut holds first, by its root.
+        /// The unplaced group of the cut's first node, in document
+        /// order, by its root.
         group: SpokenNode,
     },
     /// **A mate would start placing** (A4): it reads a kept instance on
@@ -517,11 +518,12 @@ pub enum SplitError {
         name: SpokenName,
         /// A node the name derives from that the part document has
         /// no copy of — the id the part-side rewrite could not map,
-        /// or, from the precondition below, the lowest-numbered
-        /// derivation node outside the cut. For a nested name it is a
-        /// node inside one of `name`'s path segments, not `name`'s
-        /// own minting node, so `name` alone does not say which node
-        /// reaches out.
+        /// or, from the precondition below, the earliest derivation
+        /// node outside the cut in document order (a deleted one, which
+        /// has no place in it, after every live one). For a nested name
+        /// it is a node inside one of `name`'s path segments, not
+        /// `name`'s own minting node, so `name` alone does not say
+        /// which node reaches out.
         missing: SpokenNode,
     },
     /// A remainder-side name derives from BOTH sides of the cut, so it
@@ -2194,17 +2196,23 @@ pub fn split(
     // the severed-gauge rule's, neither built yet; every cut instance
     // then names a gauge outside the cut, and those references must
     // land on ONE anchor, which the instance left behind names.
-    let cut_instances: Vec<RecipeNodeId> = doc
+    //
+    // Every walk over the cut below reads it in document order, so the
+    // node a refusal names is the one the author placed first.
+    let in_order: Vec<RecipeNodeId> = doc
         .order()
         .iter()
         .copied()
         .filter(|id| cut.contains(id))
+        .collect();
+    let cut_instances: Vec<RecipeNodeId> = in_order
+        .iter()
+        .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
         .collect();
-    if let Some(&gauge) = doc
-        .order()
+    if let Some(&gauge) = in_order
         .iter()
-        .find(|id| cut.contains(id) && matches!(doc.node(**id), Some(Node::Gauge { .. })))
+        .find(|id| matches!(doc.node(**id), Some(Node::Gauge { .. })))
     {
         return Err(SplitError::CutHoldsGauge {
             gauge: doc.spoken(gauge),
@@ -2245,7 +2253,7 @@ pub fn split(
     // instance and lives in the world holds geometry in the world's
     // coordinates, and votes for the world. They must agree.
     let mut anchor: Option<Option<RecipeNodeId>> = None;
-    for &node in doc.order().iter().filter(|id| cut.contains(id)) {
+    for &node in &in_order {
         let vote = match doc.node(node) {
             Some(Node::InstantiatePart { gauge, .. }) => {
                 if matches!(
@@ -2281,7 +2289,7 @@ pub fn split(
     // space lives in an unplaced group's own.
     let mut in_world = false;
     let mut first_own = None;
-    for &id in cut {
+    for &id in &in_order {
         match spaces.space.get(&id) {
             Some(crate::mate::Space::World) => in_world = true,
             Some(crate::mate::Space::Own { group, .. }) => {
@@ -2421,6 +2429,7 @@ pub fn split(
     // `Carrier` is walked here without being remembered into this
     // site — only its SIDE has to be decided, which is what the two
     // arms below say.
+    let placed = doc.positions();
     for carrier in doc.name_carriers() {
         match carrier {
             NameCarrier::Payload { node, name } => {
@@ -2429,7 +2438,8 @@ pub fn split(
                 }
                 let outside = derivation_nodes(name)
                     .into_iter()
-                    .find(|id| !cut.contains(id));
+                    .filter(|id| !cut.contains(id))
+                    .min_by_key(|id| (placed.get(id).copied().unwrap_or(usize::MAX), *id));
                 if let Some(missing) = outside {
                     return Err(SplitError::PartNameReachesRemainder {
                         node: doc.spoken(node),
@@ -2521,15 +2531,9 @@ pub fn split(
     }
     // The cut nodes in document order, each under the id the part's
     // insert door mints for it (D9 — two runs agree byte for byte).
-    let olds: Vec<RecipeNodeId> = doc
-        .order()
-        .iter()
-        .filter(|id| cut.contains(id))
-        .copied()
-        .collect();
     let (node_map, step_map) = carry(
         doc,
-        &olds,
+        &in_order,
         &mut part,
         (tol, &part_reach),
         (
@@ -2563,7 +2567,7 @@ pub fn split(
     // node's identity, so there is no cross-id-space reference for the
     // remap to miss. A future witness vocabulary that embeds foreign
     // stable names must remap here or refuse.
-    for &old in &olds {
+    for &old in &in_order {
         if let (Some(&new), Some(witness)) = (node_map.get(&old), doc.witness(old)) {
             part_apply(
                 &mut part,

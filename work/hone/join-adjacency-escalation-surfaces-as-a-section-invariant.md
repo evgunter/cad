@@ -10,6 +10,16 @@ priority: P3
 
 (REACH, PR 3627: found pinning the planar-side line arm's in-band row.)
 
+**Re-pointed (JOIN-1, PR 3790).** The boolean planar-side arms
+(`bool_between_line_on_wall`, `bool_between_arc_window`) and the witness
+row named below are deleted: the boolean lanes' skip reads the segment's
+locus and never asks this function. What remains is the split lane's
+`split_conic_inplane_mid` arm, whose in-band verdict still drops its
+`Indeterminate` and surfaces through `skip_adjacent_chord` as
+`SectionInvariant`; the fix below applies to it alone. A witness row
+must now be built on the split lane (a conic between edge whose
+midpoint sits in band off the section plane).
+
 ## What
 
 `chord_join.rs` `between_edge_is_section` (~1694) returns `None` for an

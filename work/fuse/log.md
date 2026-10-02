@@ -81,3 +81,80 @@ corrupt record. The vertex half was the review's in-scope finding and
 came in a fix pass. The unchecked `survivor` readers elsewhere are
 ZIP's row, priced P1/E here, since a silent drop of a declared contact
 is the class this unit closed.
+## 2026-10-02 — the two forks go to Ev; the agreed half dispatched
+
+`a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made`:
+the designer pair crossed twice, then measured the lineage together
+(row 46). The drawn-vertex rule and maximal edges are both order-free
+once the zip's mint-time vertex-to-vertex rows are read; both designers
+lean maximal edges, narrowly, and the value question went to Ev on PR
+3881. A measurement lane is running the two probes that could tip it:
+a contact corner under maximal edges through tier 3′, and an audit of
+whether every zip discard path writes its record.
+
+`two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted`: the pair
+crossed twice on where to refuse the slip; a further designer proposed
+no slip check, and both moved there (row 47). The agreed half, a
+whole-shell `On` verdict with the keep table and a `CoincidentShell`
+refusal, holds under every position, changes no ratified text, and is
+dispatched as `fuse/on-verdict` (cloud session). Review tier: single
+FULL — a new classification verdict changes what booleans return, and
+the coverage reading from the reduction's pairs needs checking, not
+reading. Only the slip (answer, editor refusal, or advisory) and DM5's
+one sentence wait on Ev, on PR 3883.
+
+The row's measurements are stale: the refusal is `ShellWitnessExhausted`
+since PR 3655, and three routes reach it with no shared `Arc`. The unit
+re-baselines them.
+
+A designer probe found an L-block refusing `Join(UnpairedLooseEnds {
+count: 6 })` in two fold orders; added as evidence to ZIP's
+`a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`.
+
+## 2026-10-02 — the hollow island is held on a new fork
+
+PR 3891 files every boolean island as a solid of its own, and it is
+green. The consequence is that the result has two solids, which no
+further boolean accepts as an operand, so a chain that runs today would
+refuse. Today's output meets `docs/DESIGN.md`'s "every boolean output is
+a legal boolean operand" and groups the island wrongly. 3891's output
+groups it rightly and breaks that rule. Merging is held until the
+lane's new row is weighed:
+`a-boolean-result-with-an-island-cannot-be-a-boolean-operand` (P0,
+design). A designer pair is on it, and a single FULL review of 3891 on
+its merits runs alongside, so the PR is ready the moment the order is
+settled.
+
+PR 3874's review found the row's defect in its vertex form:
+`zip::survivor` guards only with `debug_assert!`. The implementer has a
+fix pass. The review's class finding is filed as
+`join-desync-is-the-catch-all-for-cyclic-lineage-records`.
+
+## 2026-10-02 — PR 3889 review adjudicated
+
+FULL review: mergeable after fixes. In scope: `must_carry_over_edge`
+returns at its first deciding station, so an in-band first-order
+station behind a `Transverse` one is stored conventional and then
+refused by tier 3. That is this unit's class at first order, measured
+on the PR's own Villarceau fixture (12 of 400 spans). It goes back to
+the lane as a fix pass, together with a guard that the Smooth arm
+routes through the rule (every new test calls `seam_must_carry`
+directly), the stale ENCL/CLEAVE/PRED rows, and moving the residue row
+to ENCL.
+
+Class finding, logged rather than filed: the floor-plus-resting-cylinder
+fixture and the in-band geometric-mean helper (`in_band()`) are spelled
+separately in at least `offer_rows.rs`, `boolean::ops` tests and two
+sweep test files. That is a test-support home waiting to exist (P4).
+
+## 2026-10-02 — what a solid is goes to Ev (PR 3901)
+
+The multi-solid-operand fork converged after one round (row 48). Both
+designers recommend that a solid is one piece of material, one Outer
+plus its directly nested Voids, and that booleans, `shell` and `split`
+take bodies and sort their results by nesting. The B designer moved to
+this on ASSEMBLY.md A2, which is Ev's own. The residue for Ev is
+whether a product is refused as an operand in the editor or admitted.
+PR 3891 stays held. Under the recommendation it is reworked into the
+shared sort, reusing check 10's witness loop, together with its
+review's m1–m3. If Ev chooses otherwise, it is closed.

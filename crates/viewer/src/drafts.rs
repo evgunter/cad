@@ -384,7 +384,7 @@ impl ProfileEdit {
     /// The draft of `program`, held as `loops` ([`sketch::held_loops`]
     /// of it), every step loaded as itself.
     fn load(node: RecipeNodeId, program: &ProfileProgram, loops: Vec<Vec<Step<f64>>>) -> Self {
-        let loaded_as = sketch::kept_in_place(program);
+        let loaded_as = program.kept_in_place();
         let shaped = program.ids.len() == loops.len()
             && program
                 .ids
@@ -1795,7 +1795,7 @@ mod tests {
             Step::LineTo(Target::Start),
         ]);
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        let kept = sketch::kept_in_place(edit.base());
+        let kept = edit.base().kept_in_place();
         edit.steps_mut(0)[1] = Step::ArcTo(ArcData::Via {
             q: Point2::new(0.0, 0.01),
             target: Target::Point(Point2::new(0.01, 0.0)),
@@ -1810,7 +1810,7 @@ mod tests {
         };
         let (doc, mut drafts, profile) = held_path(vec![split(0.01, 3, 0.0)]);
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        let kept = sketch::kept_in_place(edit.base());
+        let kept = edit.base().kept_in_place();
         edit.steps_mut(0)[0] = split(0.02, 3, 0.5);
         assert_eq!(edit.ids(), kept, "a split circle's radius and phase moved");
         edit.steps_mut(0)[0] = split(0.02, 4, 0.5);

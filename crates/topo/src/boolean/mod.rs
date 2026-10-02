@@ -962,22 +962,40 @@ fn tangent_struts<T: Real>(
     out
 }
 
+/// The cell of one operand a section germ lies in. A germ ray running
+/// along a real edge of the operand lies in both faces that edge
+/// bounds, so a face does not name it; the edge does. The sweep splits
+/// an edge at every crossing, so both ends of a section segment along
+/// an edge name the same key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Locus {
+    /// Inside this face, off every edge of it.
+    InFace(FaceKey),
+    /// Along this edge.
+    OnEdge(crate::entity::EdgeKey),
+}
+
 /// The **germ** a null-edge half faces (F9 as data, PR 5): every
 /// surviving crossing record — a section-polygon edge emanating from
 /// the classified vertex — lies on the intersection line of one A-face
 /// and one B-face, and each null edge's two halves are spliced facing
-/// its two germs. The joining step matches halves across sites by this
-/// identity (same face pair, opposite record parity — the book's
-/// he1↔he2 "opposite roles" test carried as data), never by slot
-/// position or dynamic face lookups.
+/// its two germs. The joining step matches halves across sites by the
+/// germ's per-operand [`Locus`] (equal on both operands, opposite record
+/// parity — the book's he1↔he2 "opposite roles" test carried as data),
+/// never by slot position or dynamic face lookups.
 #[derive(Clone, Copy, Debug)]
 pub struct HalfGerm<T: Real> {
     /// The half-edge facing this germ.
     pub he: crate::entity::HalfEdgeKey,
-    /// The A-body face whose plane carries the germ line.
+    /// The A-body face whose carrier the join's chord lanes section
+    /// against: the face of the sector the germ was attributed to.
     pub a_face: FaceKey,
-    /// The B-body face whose plane carries the germ line.
+    /// The B-body face, likewise.
     pub b_face: FaceKey,
+    /// The cell of A the germ lies in: the germ's identity on A.
+    pub a_locus: Locus,
+    /// The cell of B the germ lies in.
+    pub b_locus: Locus,
     /// The germ's outgoing direction along the line (unit; points away
     /// from the site toward the polygon edge's other end) — the datum
     /// the joining's mutual-facing test decides on (`bool_join_facing`).
@@ -2852,13 +2870,25 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
     plant: Option<PlantedDegradation>,
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
+    sweep_traces_with_pad(
+        a_operand,
+        b_operand,
+        &BooleanDeclarations::none(),
+        strategy,
+        plant,
+        None,
+        tol,
+    )
 }
 
 /// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
 /// proves a too-small pad (e.g. `Some(0.0)`) LOSES accepted pairs and
 /// the superset comparator catches it. A deliberately breakable knob —
 /// `sweep-testing` only, never production surface.
+///
+/// `decls` are verified as the boolean verifies them, so a covered pair
+/// reaches the settle stage and its accepted pairs reach the traces;
+/// [`sweep_traces`] passes none, the undeclared posture.
 ///
 /// # Errors
 ///
@@ -2867,16 +2897,16 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
 pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
+    decls: &BooleanDeclarations,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear(tol)?;
-    // The suite's door takes no declarations: the traced sweep runs
-    // the undeclared posture, where the frontier doors are verbatim —
-    // and so, therefore, is the operand gate's covered-pair rung.
-    let declared = DeclaredPairs::default();
+    validate_declarations(a_operand, b_operand, decls)?;
+    let verified = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
@@ -2896,28 +2926,15 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
         plant: None,
         pad_override,
     };
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &ab_knobs,
-        Some(&mut ab),
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &ba_knobs,
-        Some(&mut ba),
+        [&ab_knobs, &ba_knobs],
+        [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
     Ok((ab, ba))
@@ -2952,28 +2969,15 @@ pub fn sweep_records(
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let sizes = [
@@ -3061,31 +3065,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut a = carved_a.begin_surgery();
     let mut b = carved_b.begin_surgery();
 
-    // Reduction sweep, both directions (A's edges first — D9 order).
+    // Reduction sweep, both directions (A's edges first — D9 order),
+    // then the touches deferred for both directions' splits.
     let mut acc = reduce::ContactAcc::default();
     let knobs = reduce::SweepKnobs::default();
-    reduce::sweep_direction(
+    reduce::sweep_and_settle(
         &mut a,
         &mut b,
-        Operand::A,
         &declared,
         &mut acc,
         band,
         strategy,
-        &knobs,
-        None,
-        tol,
-    )?;
-    reduce::sweep_direction(
-        &mut b,
-        &mut a,
-        Operand::B,
-        &declared,
-        &mut acc,
-        band,
-        strategy,
-        &knobs,
-        None,
+        [&knobs, &knobs],
+        [None, None],
         tol,
     )?;
     let contacts = acc.finish();
@@ -3135,8 +3127,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        // The codes as first read, which the germ loci are derived from.
+        let mut raw = records.clone();
         recl::recl_sectors(
             &mut records,
+            &mut raw,
             &a_sectors,
             &b_sectors,
             &a,
@@ -3149,6 +3144,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         )?;
         recl::recl_edges(
             &mut records,
+            &mut raw,
             &a_sectors,
             &b_sectors,
             &a,
@@ -3158,7 +3154,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             band,
         )?;
         let out = insert::insert_null_pairs(
-            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &declared, band,
+            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &raw, &declared, band,
         )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);

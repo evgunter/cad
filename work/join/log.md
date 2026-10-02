@@ -163,3 +163,47 @@ reflex and frontier lanes, and DUAL for JOIN-2 and JOIN-3 (they move
 the zip's and the ring lane's sources of truth; architectural).
 
 Signed (JOIN orchestrator).
+
+## 2026-10-02 — PR 3790 lands: JOIN-1, a section germ names its cell
+
+JOIN-1, `an-edge-lying-in-a-cutter-face-…` and `dumbbell-joint-union-…`
+closed. The record of the review rounds:
+
+- **Dual review** (concurrent pair, frozen head 4ef105c30, DR row in
+  `docs/DUAL-REVIEW-LOG.md`). Both reviewers raised the same MAJOR:
+  undeclared unions that share part of a corner edge with 180° of wedge
+  returned tier-3-red bodies (`ScaffoldAtRest`) where main refused. The
+  cause was `recl::resolve_edge_edge`'s A-alone/B-alone tiers, a second
+  flank decision outside the fold rule. Both also found that the acceptance
+  rows were blind to the mechanisms.
+- **Fix pass 1:** one fold rule at edge-edge sites (`sectors::crossing_flank`),
+  a lane for segments that are an edge in both solids
+  (`JoinLane::AlongEdge`), and one match criterion (`join::partners`). It
+  also restated `Scaffold` descriptions. **The delta review** found that
+  restatement masked the defect: the ∪ results carried unlicensed
+  same-sense coplanar seams and failed as operands, against DESIGN's
+  ratified output clauses. It also found a lens-prism regression.
+- **Fix pass 2:** the restatement went. REACH's PR 3657 (the continuation
+  refusal, Ev's PR 3613 ruling) landed mid-pass and was merged in. JOIN-1
+  now adds no refusal of its own; it only builds more.
+- **Final delta review:** 0 BAD and 0 non-operand builds over ~145k
+  battery ops, and no SOUND→refusal. **Fix pass 3:** a typed frontier
+  (`SectionLoopUndecided`) where a legal input read as a kernel bug; one
+  operand-check helper; a home for `strut_facing`; the `event_pairs`
+  copies.
+- **Narrow review** of fix pass 3's unreviewed changes: the `event_pairs`
+  widening is sound. **Fix pass 4:** `strut_facing`'s vote table pinned,
+  and a closed edge refused typed at the pierce strut. A container
+  restart killed that lane after it committed and before it pushed. The
+  orchestrator recovered its commits, merged main (main's `CorruptOperand`
+  now carries a `Corruption`; seat8's `part_select` re-measured), and
+  pushed.
+
+Net, on the reviewers' batteries: about 16k poses that used to refuse
+now build sound, and no build is unsound or an illegal operand. Ev's
+dumbbell builds. Filed along the way: ZIP's pre-existing wrong-volume
+reflex union (P0), FUSE's scaffold-at-rest result gate (P1),
+`locus-matching-moves-frontier-refusals-to-join-desync`, and the coarse-ε
+peg-in-socket row.
+
+Signed (JOIN orchestrator).
