@@ -496,7 +496,7 @@ pub enum DocEdit<P> {
     },
 }
 
-impl<P> DocEdit<P> {
+impl<P: crate::ProfilePayload> DocEdit<P> {
     /// **Whether this edit writes a mate's alignment datum** — the
     /// numbers, the primitive, the sense and the rider the solve's
     /// per-mate admission decides on. Exactly one edit does: the
@@ -1635,7 +1635,7 @@ impl EditError {
     /// that say a node is not live — said from a version that holds it
     /// again, `X "plate" is not live` would contradict itself.
     #[must_use]
-    pub fn respoken<P>(&self, doc: &Doc<P>) -> Self {
+    pub fn respoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> Self {
         let mut again = self.clone();
         match &mut again {
             Self::UnknownSlot { id, slot: _ } => {
@@ -2816,7 +2816,7 @@ impl core::fmt::Display for Maintenance {
 /// node it names (`rv_dm7_probes`'s
 /// `rv_a_sited_declaration_strands_nothing_inside_a_cascade` states
 /// the argument and measures the declaration case).
-fn stranded_references<P>(
+fn stranded_references<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
     deleted: RecipeNodeId,
@@ -2945,7 +2945,7 @@ fn settle_step_ids(
 /// again. A step id is unique across the document, so which node
 /// minted the name does not enter. The rows speak their nodes from
 /// `before`.
-fn stranded_steps<P>(
+fn stranded_steps<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
     dropped: &std::collections::BTreeSet<StepId>,
@@ -2980,7 +2980,7 @@ fn stranded_steps<P>(
 /// carries the same kind or key: which value survives would be an
 /// auto-pick. The store half of [`DocEdit::Rebind`]'s name rewrite,
 /// speaking its refusal from `before`, the document the door was handed.
-fn move_appearance_record<P>(
+fn move_appearance_record<P: crate::ProfilePayload>(
     before: &Doc<P>,
     store: &mut crate::appearance::AppearanceMap,
     moved: crate::appearance::AppearanceRecord,
@@ -3156,7 +3156,11 @@ impl MaintenanceNet {
 /// of the load door's `SnapshotError::NameStepNotMinted`, so a
 /// document this door accepts is one the load door reads back. `doc`
 /// is the document being written, `before` the one the door was handed.
-fn check_name_steps<P>(before: &Doc<P>, doc: &Doc<P>, name: &StableName) -> Result<(), EditError> {
+fn check_name_steps<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    doc: &Doc<P>,
+    name: &StableName,
+) -> Result<(), EditError> {
     match name
         .piece_steps()
         .into_iter()

@@ -563,17 +563,26 @@ pub struct StableName {
 }
 
 // The human-readable rendering: the kind (through [`EntityKind::noun`],
-// never `Debug`) plus the minting node — the half of a name a user can
-// act on. The role path is a derivation, not something a person reads
-// mid-sentence, so prose never renders it; the typed value remains the
-// machine channel for anything that needs the path. Article-free
-// ("face name minted by node 3") so a sentence supplies its own
-// article. Refusal prose that names a name forwards this rather than
-// re-spelling it.
+// never `Debug`), the minting node by its tag, and the leaf role in
+// words (`face name minted by node 3 (the end cap)`): the path as a
+// structure is the machine channel; a person reads its leaf in words
+// ([`super::LeafRole`]). Article-free, so a sentence supplies its own
+// article. This is [`crate::Speaker::name`] said by tag, the one
+// spelling every sentence that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{} name minted by node {}", self.kind.noun(), self.node)
+        crate::spoken::Speaker::TAG.name(self).fmt(f)
     }
+}
+
+/// Where the trailing run of `Fragment` segments of `path` starts: the
+/// length of what they qualify. The one reading of "a name with only
+/// fragments after it", for a group's parent, its cutters, a seam row
+/// and a name said in words alike.
+pub(crate) fn fragment_tail_start(path: &[RoleSeg]) -> usize {
+    path.iter()
+        .rposition(|s| !matches!(s, RoleSeg::Fragment(_)))
+        .map_or(0, |i| i + 1)
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition

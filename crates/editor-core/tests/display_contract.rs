@@ -127,8 +127,7 @@ fn as_strs(words: &[String]) -> Vec<&str> {
     words.iter().map(String::as_str).collect()
 }
 
-/// A face name minted by node 7 — enough for the kind + minting-node
-/// spelling every user-facing message uses.
+/// A face name minted by node 7: the end cap of an extrude.
 fn face_name() -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -143,16 +142,53 @@ fn spoken_face_name() -> SpokenName {
     editor_core::test_support::spoken_name(face_name(), held(7, "Extrude"))
 }
 
-/// A stable name renders as its kind plus its minting node — the half
-/// a user can act on — and never its role path: a derivation is not
-/// something a person reads mid-sentence.
+/// A stable name renders as its kind, its minting node and its leaf
+/// role in words: the path as a structure is the machine channel; a
+/// person reads its leaf in words. The structure itself — the variant,
+/// the brackets of the path — never reaches the sentence.
 #[test]
-fn stable_name_display_is_kind_plus_minting_node() {
+fn stable_name_display_is_kind_minting_node_and_leaf_role() {
     let shown = face_name().to_string();
-    assert_eq!(shown, "face name minted by node 000000000007");
+    assert_eq!(shown, "face name minted by node 000000000007 (the end cap)");
     assert!(
         !shown.contains("Cap") && !shown.contains('['),
-        "the role path leaked into prose: {shown:?}"
+        "the role path's structure leaked into prose: {shown:?}"
+    );
+}
+
+/// **A flush pair one boolean carried says two different faces.** Both
+/// names are the boolean's, so the node alone said the pair as one
+/// phrase twice; the leaf role, and the node that minted it, tell them
+/// apart.
+#[test]
+fn a_pair_in_band_says_two_faces_of_one_node_apart() {
+    use editor_core::NameRef;
+    let operand = |node: u64, end| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(node)),
+        path: vec![RoleSeg::Cap(end)],
+    };
+    let carried = |seg: fn(NameRef) -> RoleSeg, inner| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(tagged(9)),
+        path: vec![seg(NameRef::new(inner))],
+    };
+    let refusal = SelectRefusal::PairInBand {
+        pair: Box::new((
+            carried(RoleSeg::FromA, operand(2, CapEnd::End)),
+            carried(RoleSeg::FromB, operand(5, CapEnd::Start)),
+        )),
+        predicate: "bool_plane_offset",
+        source: in_band("bool_plane_offset"),
+    };
+    let shown = refusal.to_string();
+    assert!(
+        shown.starts_with(
+            "select: the pair (the face name minted by node 000000000009 (the end cap, minted by \
+             node 000000000002), the face name minted by node 000000000009 (the start cap, \
+             minted by node 000000000005)) is neither certified in nor out"
+        ),
+        "{shown}"
     );
 }
 

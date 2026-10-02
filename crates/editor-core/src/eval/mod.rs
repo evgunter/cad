@@ -392,7 +392,7 @@ impl NodeStanding {
     /// standing is answered by an evaluation and carried inside values
     /// the evaluation memo reuses, so it holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -2460,8 +2460,8 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the {verb} selection name minted by {} denotes {} {}, not an edge",
-                by.node(name.node),
+                "the {verb} selection's {} denotes {} {}, not an edge",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2479,8 +2479,8 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::ShellOpenKind { name, found } => write!(
                 f,
-                "the shell open-face name minted by {} denotes {} {}, not a face",
-                by.node(name.node),
+                "the shell open-face's {} denotes {} {}, not a face",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2499,8 +2499,8 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::FaceFrameKind { name, found } => write!(
                 f,
-                "the derived frame's name minted by {} denotes {} {}, not a face",
-                by.node(name.node),
+                "the derived frame's {} denotes {} {}, not a face",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2676,7 +2676,7 @@ impl CarriedLevel<'_> {
     /// not hold the part, and ids are not document-scoped, so `here`
     /// may hold the same id as another node.
     #[must_use]
-    pub fn line_in<P>(&self, here: &Doc<P>) -> String {
+    pub fn line_in<P: crate::ProfilePayload>(&self, here: &Doc<P>) -> String {
         let by = match self.document {
             CarriedIn::ThisDocument => crate::spoken::Speaker::of(here),
             CarriedIn::Part(_) => crate::spoken::Speaker::TAG,
@@ -2775,7 +2775,7 @@ impl NodeError {
     /// frame holds across edits (and a label edit recomputes nothing),
     /// so it holds the id and never a label a rename could leave stale.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         failed_line(self.node, &self.kind, crate::spoken::Speaker::of(doc))
     }
 }

@@ -1688,7 +1688,7 @@ impl MateFault {
     /// is memoized with the solve and the evaluation, so it holds ids,
     /// never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }

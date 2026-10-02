@@ -214,9 +214,11 @@ impl core::fmt::Display for IdAnswer {
 }
 
 /// **A name as a sentence that must tell two names apart says it**:
-/// kind and minting node ([`Speaker::name`]), then the role path
-/// ([`Disagreement`]'s sentence says why both halves). The one spelling
-/// of a name that two answers could otherwise share; the tie
+/// the name's own sentence ([`Speaker::name`]: kind, minting node and
+/// leaf role in words), then the whole role path as `Debug` — the one
+/// operator diagnostic that prints the path's structure, kept because
+/// the words say the leaf and two names can differ above it
+/// ([`Disagreement`]'s sentence says why). The tie
 /// `crate::frame::pick_refusal` reports says its faces this way too.
 pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
 
@@ -259,20 +261,20 @@ pub struct Disagreement {
 
 impl Say for Disagreement {
     /// The id side is [`IdAnswer`]'s own sentence. Every NAME on
-    /// either side is said by kind and minting node, the half a user
-    /// can act on, followed by the role path ([`NameAndPath`]).
+    /// either side is said as a sentence says it, followed by the role
+    /// path ([`NameAndPath`]).
     ///
     /// BOTH halves of a name are load-bearing here, which is what makes this
     /// message different from every other one in this crate. The name's
-    /// `Display` omits the path deliberately, so two names differing
-    /// only in their derivation would render identically; the path
-    /// alone drops kind and node, so two names on different nodes
-    /// sharing a role path would. A message whose entire subject is
-    /// that two answers DIFFER cannot afford either collapse.
+    /// `Display` says its leaf in words and not the carrying segments
+    /// above it, so two names differing only in their derivation would
+    /// render identically; the path alone drops kind and node, so two
+    /// names on different nodes sharing a role path would. A message
+    /// whose entire subject is that two answers DIFFER cannot afford
+    /// either collapse.
     ///
-    /// The path rides as `Debug` because `RoleSeg` has no `Display` in
-    /// this workspace — the one rendering here that is not prose, and
-    /// it is a derivation, not a sentence.
+    /// The path rides as `Debug`: it is the machine channel, printed
+    /// here as the operator's diagnostic rather than as prose.
     ///
     /// Destructured rather than field-read, which is what holds the
     /// paragraph above to the value: the argument is that BOTH halves

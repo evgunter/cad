@@ -480,7 +480,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         Some(
             format!(
                 "Datum frame (on face) \"mount\" ({}) carries a face name minted by Extrude \
-                 \"base plate\" ({})",
+                 \"base plate\" ({}) (the side wall over the leg of loop 0 step 1)",
                 tag(carrier.0),
                 tag(victim.0)
             )
@@ -1204,7 +1204,8 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     };
     assert!(
         vanished.spoken(&doc).starts_with(&format!(
-            "the face name minted by {plate} no longer resolves in this evaluation: a \
+            "the face name minted by {plate} (the end cap) no longer resolves in this \
+             evaluation: a \
              structural parameter changed on the derivation path: slot {} of {plate}",
             SlotId::Count.label()
         )),
@@ -1213,7 +1214,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     );
     assert!(
         vanished.to_string().starts_with(&format!(
-            "the face name minted by node {e} no longer resolves"
+            "the face name minted by node {e} (the end cap) no longer resolves"
         )),
         "{vanished}"
     );
@@ -1231,7 +1232,8 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     assert_eq!(
         failure.error.spoken(&gone),
         format!(
-            "the face name minted by node {e} is stranded: its minting node was deleted — the \
+            "the face name minted by node {e} (the end cap) is stranded: its minting node was \
+             deleted — the \
              repair is an explicit rebind"
         ),
         "a node the document no longer holds is said by its tag"

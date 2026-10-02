@@ -38,7 +38,7 @@
 //! ORIGINAL minting node in [`StableName::node`] by construction, so
 //! the walk answers it without ever seeing the op.
 
-use crate::names::role::{RoleSeg, StableName, name_free_seg};
+use crate::names::role::{RoleSeg, SplitHalf, StableName, name_free_seg};
 use crate::node::RecipeNodeId;
 
 /// **Where a named entity came from**: the recipe nodes its derivation
@@ -79,18 +79,36 @@ impl NameOrigin {
 }
 
 /// What one role segment says about the entity it names.
-enum SegOrigin<'a> {
-    /// The entity existed in an operand; the name is its name there.
-    Carried(&'a StableName),
+pub(super) enum SegOrigin<'a> {
+    /// The entity existed in an operand; the name is its name there,
+    /// and the [`CarriedAs`] says what the op did to it on the way.
+    Carried(&'a StableName, CarriedAs),
     /// This op made the entity.
     Minted,
     /// A segment the partition does not place.
     Unclassified,
 }
 
+/// **How an operand's entity was carried through** — the module docs'
+/// three ways, with what tells two carried copies of one entity apart.
+#[derive(Clone, Copy)]
+pub(super) enum CarriedAs {
+    /// Passed through whole: the entity is the operand's, unchanged.
+    Whole,
+    /// Shortened to the part on one side of a split.
+    Split(SplitHalf),
+    /// Copied onto one side of a split, where the tool plane passed
+    /// through it.
+    ToolCopy(SplitHalf),
+    /// Copied into a pattern's instance `i`.
+    Instance(u32),
+    /// Shortened where a blend band's trimline cut it.
+    Cut,
+}
+
 /// Read the outermost segment's verdict — the whole classification,
 /// stated once (module docs).
-fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
+pub(super) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
     match seg {
         // The name-free roles are the sweep, split and boolean
         // primitives: an entity born of the recipe rather than of an
@@ -102,11 +120,11 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         RoleSeg::FromA(of)
         | RoleSeg::FromB(of)
         | RoleSeg::FromMember { of, .. }
-        | RoleSeg::FromTarget(of)
-        | RoleSeg::SplitFragment { parent: of, .. }
-        | RoleSeg::OnToolVertex { of, .. }
-        | RoleSeg::Instance { of, .. }
-        | RoleSeg::BandCut(of) => SegOrigin::Carried(of),
+        | RoleSeg::FromTarget(of) => SegOrigin::Carried(of, CarriedAs::Whole),
+        RoleSeg::SplitFragment { parent, side } => SegOrigin::Carried(parent, CarriedAs::Split(*side)),
+        RoleSeg::OnToolVertex { of, side } => SegOrigin::Carried(of, CarriedAs::ToolCopy(*side)),
+        RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),
+        RoleSeg::BandCut(of) => SegOrigin::Carried(of, CarriedAs::Cut),
 
         // Minted here. The names these carry are the entities the op
         // worked AGAINST — a blend's source edge, a seam's two
@@ -172,7 +190,7 @@ pub fn attribute(name: &StableName) -> NameOrigin {
             };
         };
         match origin(seg) {
-            SegOrigin::Carried(inner) => at = inner,
+            SegOrigin::Carried(inner, _) => at = inner,
             SegOrigin::Minted => {
                 let minted = Some(at.node);
                 return NameOrigin { chain, minted };
