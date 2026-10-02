@@ -2,10 +2,11 @@
 id: a-last-leg-walked-back-row-fails-off-the-default-eps
 kind: issue
 title: viewer: sketch::tests::a_last_leg_no_close_can_follow_is_walked_back fails at eps 1e-6 and 1e-12
-status: open
+status: closed
 opened: 2026-09-30
 priority: P2
 cost: E
+closed: 2026-10-02
 refs: [a-last-leg-no-close-can-follow-is-dropped]
 ---
 
@@ -24,3 +25,13 @@ The path has no arc, so 5a's consistency checks are not on it.
 **What would close it.** Scale the offset by the running ε (or pin the
 case's ε-sensitivity per row), so the row asserts the walk-back at every
 ε the nightly takes.
+
+## Closed 2026-10-02 — fixed on TOPO's ground (PR 3590)
+
+c52d1e7976 ("the banded close legs sit inside the band at every ε the
+CI runs") scaled the case's in-band offsets by `Tol::witness().eps()`
+(1ε and 0.4ε, the same points at the default ε), which is this row's
+"what would close it" exactly; TOPO's seam note on this log recorded
+it. Re-verified at AUTHOR's exit:
+`CAD_TOLERANCE_EPS=1e-6` and `=1e-12 cargo test -p viewer --lib
+a_last_leg_no_close_can_follow_is_walked_back` both pass.

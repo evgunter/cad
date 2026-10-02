@@ -4,6 +4,8 @@ kind: issue
 title: A backslash-continued assertion message reaches the reader with two 14-space runs in it
 status: open
 opened: 2026-09-21
+priority: P4
+cost: E
 ---
 
 
