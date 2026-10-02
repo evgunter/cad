@@ -2,13 +2,15 @@
 id: S90-impl
 kind: unit
 title: Pin the blend's dual tangents — the doors stay generic under DL5 (Ev, 2026-10-01); a sweep row and a stack-up row that differentiate through a 3D blend
-status: open
+status: closed
 opened: 2026-08-21
 track: M
-pr: 883
+pr: 3764
 refs: [867, 886]
 priority: P1
 cost: M
+closed: 2026-10-02
+branch: band/dual-blend-tangent-pins
 ---
 
 ## What
