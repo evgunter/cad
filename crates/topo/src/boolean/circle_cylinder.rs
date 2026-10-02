@@ -342,10 +342,6 @@ mod tests {
         }
     }
 
-    /// **The square arm**: a circle square to the axis crossing the
-    /// wall twice — the parallel equal-radius cylinders' rim, at the
-    /// pose of #347 — with the arc past the branch cut.
-
     /// **A graze is read by its depth, in the band's own metres.** A
     /// circle of the wall's own radius, its plane tilted 0.3 rad about the
     /// `x` axis, lies inside the wall and touches it at `θ = 0` and `π`;
@@ -397,6 +393,9 @@ mod tests {
         }
     }
 
+    /// **The square arm**: a circle square to the axis crossing the
+    /// wall twice — the parallel equal-radius cylinders' rim, at the
+    /// pose of #347 — with the arc past the branch cut.
     #[test]
     fn a_circle_square_to_the_axis_crosses_the_wall_twice() {
         let w = [1.2, 0.0, 1.0];

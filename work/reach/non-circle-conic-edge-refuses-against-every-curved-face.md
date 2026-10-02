@@ -88,3 +88,18 @@ narrow rod's ring: `work/tang/pierce-ring-has-no-join-arm.md`). Residue filed: `
 spiric and NURBS half is CLEAVE's
 `boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule` (the
 operand gate refuses them first).
+
+### Fix pass (dual review of PR 3805)
+
+The review found the ellipse ladder's roots certified off the wall (its
+`τ` metric is not arc length along an eccentric ellipse), tangencies
+certified as misses in the shared half-angle ladder, a frame premise
+the mint does not keep, and an at-end decision metered at the least
+speed. The degree-2 root doors now answer by certified subdivision in
+the residual's metres (`circle_roots::certified_subdivision`, TANG's
+core); `geom_brep::Conic` reads semi-axis magnitudes in any stored
+order and sign; a root's gap from an end is metered at the carrier's
+speed there; the extent scan's carrier margins carry a rounding charge.
+Residue filed: `work/hone/half-angle-ladder-escalates-in-its-own-metric.md`.
+The extent scan's sphere × cylinder arm is owed a reconciliation with
+PR 3801 (`reach/extent-scan-faces`), which rewrites it, when that lands.

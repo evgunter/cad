@@ -2314,19 +2314,19 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::SphereRoots",
         1,
     ),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::TorusRoots",
         1,
     ),
     (
         "reduce.rs",
-        "line_wall_root_count",
+        "line_wall_roots_of",
         "BooleanDecision::WallRoots",
         1,
     ),

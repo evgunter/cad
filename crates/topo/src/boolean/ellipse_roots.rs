@@ -187,7 +187,7 @@ pub(super) fn ellipse_roots<T: Decide>(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     //! Each pose is checked against the geometry, not the door's own
     //! algebra: a certified root must put the carrier ON the surface, and
