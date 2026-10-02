@@ -192,9 +192,9 @@
 //!    cannot be said in a document and a loft of enough sections is an
 //!    approximation of that rather than the thing. The U-turn itself
 //!    is no longer the obstacle — the library's `sweep_body` rounds
-//!    one (the loft's stacking statement is per-slab; klein wall 5
-//!    builds one, and pins the tier-3 refusal its rational walls meet)
-//!    — so what a recipe door would buy here
+//!    one (the loft's stacking statement is per-slab; the klein
+//!    scene's top loop is one such sweep) — so what a recipe door
+//!    would buy here
 //!    is the spine in the document, not a shape the kernel cannot
 //!    build.
 //!
@@ -2503,8 +2503,8 @@ mod wall_probes_run_here {
     //!
     //! It has to be an in-bin test: `demo-tour` is bin-only (no
     //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
-    //! can name `teapot::wall_probes` at all. `lily` and `klein` carry
-    //! theirs for the same reason and in the same shape.
+    //! can name `teapot::wall_probes` at all. `lily` carries its own for
+    //! the same reason and in the same shape.
     //!
     //! There is nothing here to assert that the probes do not already
     //! assert: `crate::walls::wall` panics on BOTH off-nominal

@@ -1,68 +1,79 @@
 ---
 id: a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin
 kind: issue
-title: a sweep_body loop of circle sections refuses tier 3's volume sign 3 m from the origin and decides it when moved to the origin
+title: tier 3's volume-sign check on a rational swept wall refuses QuadratureBudget or decides by the section's knot structure, the skin's degree and the body's position — not by the shape
 status: open
 opened: 2026-10-02
+priority: P2
+cost: H
 ---
 
 Found by SHOW's `klein-scene-should-adopt-the-one-body-loop-sweep` unit
-(2026-10-02), trying to replace the Klein bottle's two `revolve`
-elbows with ONE `sweep_body` of the annular section along the loop's
-whole U-turn spine. Pinned live as the bottle's wall 5
-(`demos/tour/src/klein.rs`, `wall_probes`, built by `one_body_loop`
-with `annulus(false, ..)`).
+(2026-10-02) and widened by its review. The Klein bottle's loop now
+ships as one `sweep_body` at a setting where tier 3 decides
+(`demos/tour/src/klein.rs`, `annulus` / `STATIONS` / `V_DEGREE`); this
+row is what decides it.
 
-## What
+## The body
 
-The body: two `circle` walls (r = 0.275 and 0.225 m) swept by
-`sweep::sweep_body` (33 stations, v-degree 3) along a degree-3
-interpolant through 49 exact points of two tangent arcs of radius
-1.2 m (270° then 90°), in the world xz-plane, starting at (0, 0, 3)
-from `path_start_frame`. Tier 1 and the closed census pass.
-`topo::validate_geometric` at `Tol::witness()` refuses:
+An annulus `R ± WALL/2` = 0.275 / 0.225 m swept by `sweep::sweep_body`
+along a degree-3 interpolant through 49 exact points of two tangent
+arcs of radius 1.2 m (270° then 90°, world xz-plane), from
+`path_start_frame` at (0, 0, 3) — a metre-scale tube a few metres from
+the origin. `topo::validate_geometric` at `Tol::witness()` (ε = 1e-9,
+target 1.024e-6):
 
-```
-[VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(3v3),
-  source: QuadratureBudget { width_len: 1.0381448642581538e-5,
-                             target_len: 1.024e-6, rounds: 1 } } }]
-```
+| section | stations | v-deg 2 | v-deg 3 |
+|---|---|---|---|
+| `circle` (2 arcs/wall) | 9 | width 7.48e-6 | width 1.30e-5 |
+| `circle` | 17 | 6.54e-6 | 1.12e-5 |
+| `circle` | 33 | 5.47e-6 | 1.04e-5 |
+| `circle` | 65 | 4.83e-6 | 9.98e-6 |
+| `circle_split` 4 | 9 | decides | **refuses**, width 5.61e-6 |
+| `circle_split` 4 | 13–65 | decides | decides |
+| `circle_split` 8, 16 | 9–65 | decides | decides |
 
-Measured (each at 17, 33 and 65 stations, world-axis placement and
-`path_start_frame` placement alike):
-- as authored: refuses at every station count, width 1.0e-5 to
-  1.3e-5 against the 1.024e-6 target;
-- the same spine translated by (−1.2, 0, −1.8), so its two arc
-  centres straddle the origin: 33 and 65 stations DECIDE the sign
-  (`validate_geometric_certificate` returns, bracket e.g.
-  [0.061, 1.129] m³ against the Pappus value 0.592 m³); 17 stations
-  still refuses (width 7.7e-6).
+Every refusal is
+`VolumeUncomputable { source: Face { source: QuadratureBudget { width_len, target_len: 1.024e-6, rounds: 1 } } }`
+on a lateral wall — after ONE round (`quadrature-budget-conflates-its-lanes-and-budgets`
+names that payload as the only tell of which lane refused). The width
+does not move with ε (the same 1.0381e-5 at 1e-12 against a 1.024e-9
+target); at ε = 1e-6 every cell decides.
 
-The width does not move with ε: at `CAD_TOLERANCE_EPS=1e-12` the same
-face refuses with the same `width_len` (1.0381448642581538e-5) against
-a 1.024e-9 target, and at 1e-6 (target 1.024e-3) the sign decides. The
-wall is therefore pinned at the default ε and finer only.
+So the same tube's sign decides or not by three things that are not
+its shape:
+- **the section's knot structure** — two semicircles per wall refuse
+  everywhere, four quarter arcs decide almost everywhere;
+- **the skin's degree** — v-degree 3 roughly doubles the `circle`
+  width, and turns the one quartered refusal on at 9 stations;
+- **the body's position** — the `circle` loop translated by
+  (−1.2, 0, −1.8), so its arcs straddle the origin, decides at 33 and
+  65 stations (v-degree 3), and still refuses at 17 (width 7.7e-6).
+  This is the position dependence the 2026-09-04 comment on
+  `export/rational-patch-flux-quadrature-budget` measured on the
+  reporting lane, here on the sign lane at scale 1.
 
-So at scale 1 and a few metres from the origin, the tier-3 sign
-check on a rational swept wall turns on WHERE the body sits. The
-`rounds: 1` payload says it stopped after one round
-(`quadrature-budget-conflates-its-lanes-and-budgets` names that
-payload as the only tell of which lane refused).
+## A second refusal on the same bodies, at the reporting level
+
+The quartered loop at 17 and 21 stations, v-degree 3, passes tier 3 at
+ε = 1e-6 and then its `SignCertificate::measure` continuation refuses
+with NO bracket (`TargetUnreached { bracket: None, .. }`) — a refusal
+that is not the budget one, so the tour's harness has no bracket to
+report and panics. At 1e-9 and 1e-12 the same bodies hand back a
+bracket. Untraced.
 
 ## Relatives
 
-- `export/rational-patch-flux-quadrature-budget`, its 2026-09-04
-  comment: an arc-profile loft green at the origin and red at (4, −2),
-  authored there with no transform — the same position dependence,
-  measured on the reporting lane.
-- `quadrature-interval-floor-grows-with-the-body-past-the-band`: a
-  floor that grows with the body's scale; this one is at scale 1.
-- `tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`:
-  the same body is ALSO unmeshable (the semicircle walls' C0 crease),
-  and its quarter-arc respelling passes tier 3 but meets
-  `tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`.
+- `quadrature-interval-floor-grows-with-the-body-past-the-band`: a floor
+  that grows with the body's scale; this is at scale 1.
+- `tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`
+  and `tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`:
+  the mesher's half of the same bodies.
 
 ## Done when
 
-The bottle's wall 5 stops refusing: the one-body loop's tier-3 sign
-decides at its own position.
+The `circle` rows decide at ε = 1e-9 at their own position (the loop
+could then be spelled with `circle` once the tess crease row closes),
+and the quartered 17/21-station v-degree-3 bodies hand back a bracket
+at 1e-6 — or each remaining refusal is shown to be the correct answer
+for that wall, with its mechanism named.

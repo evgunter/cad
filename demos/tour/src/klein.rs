@@ -18,14 +18,16 @@
 //!   two annular caps: seven surface runs, each appearing twice (once
 //!   per wall face), all exact analytic surfaces.
 //! - the **top loop** — the handle that carries the neck over the top
-//!   and back down INTO the bulb — is two thin-walled elbows, each a
-//!   PARTIAL `revolve` of the annular cross-section about the elbow's
-//!   own axis: 270° over the top, then 90° turning back onto the
-//!   bottle's axis.
+//!   and back down INTO the bulb — is ONE `sweep_body` of the annular
+//!   cross-section along the loop's whole spine: a 270° arc over the
+//!   top, then a 90° arc turning back onto the bottle's axis, joined
+//!   tangent and interpolated as one curve. Two planar caps and eight
+//!   rational NURBS walls (finding 5).
 //!
-//! The three bodies MEET, exactly, on three coincident annular faces.
+//! The two bodies MEET on two annular faces, each of the loop's caps
+//! turned off the bulb's rim by its spine's end tangent (finding 11).
 //! They are not joined, because nothing in the kernel can join them
-//! (wall 3). The descending elbow passes THROUGH the bulb's cone wall
+//! (wall 3). The loop's descent passes THROUGH the bulb's cone wall
 //! with no hole cut in it, because nothing in the kernel can cut it
 //! (wall 4) — which is, by luck, exactly how the classic picture is
 //! drawn, but it is a refusal and not a choice.
@@ -43,9 +45,9 @@
 //! points and is TANGENT to it at only one, so one circular arc
 //! cannot be tangent to the axis at two different heights: no single
 //! torus has both of the loop's ends. Two tangent arcs can, and that
-//! is what the loop is. (This is geometry, not a kernel limit. It
-//! does not make the loop two BODIES: one sweep carries the annulus
-//! along both arcs. What keeps the scene on two elbows is wall 5.)
+//! is what the loop is. (This is geometry, not a kernel limit, and
+//! it does not make the loop two bodies: one sweep carries the
+//! annulus along both arcs.)
 //!
 //! **(b) "fillet that torus–cone junction".** Taken literally — blend
 //! the loop's torus against the bulb's cone — the two supports share
@@ -101,44 +103,39 @@
 //!    improvement rather than a workaround (Ev, 2026-08-16). An arc
 //!    in the profile is a CONSTRUCTED part of the wall and answers to
 //!    no rolling ball; a post-hoc roll of the same size cannot exist.
-//! 4. **No boolean may touch a Cone face THAT CAN REACH THE OTHER
-//!    OPERAND** (walls 3, 4). The operand gate is pair-scoped: a kind
-//!    with no wired arm disqualifies an operation only where its BOX
-//!    may meet a face of the other body, so both refusals name the
-//!    germ PAIR and both faces. The torus is on the union's roster,
-//!    so the bulb's tube walls no longer gate the union: `union`
-//!    refuses `CurvedPairUnsupported { kind: Cone, other_kind: Plane }`
-//!    — the flare against a planar face of the loop, the first pair
-//!    in arena order whose boxes may meet, and NOT the coincident
-//!    annular mate the model cares about. `subtract` refuses at the
-//!    revert roster with `{ op: Some(Subtract), kind: Cone,
-//!    other_kind: Plane }` — the flare against a planar face of the
-//!    descending neck; the tube walls are on that roster too. Box
-//!    overlap is a MAY, not a DOES: the kernel cannot rule the
-//!    meeting out, which is a weaker claim than that they meet. So the bottle still cannot be one body,
-//!    and the self-intersection — the neck piercing the bulb, the one
-//!    place a Klein bottle MUST cross itself in 3-space — still
-//!    cannot be trimmed; what changed is that the reason is a pair
-//!    the reader can look at.
-//! 5. **The loop sweeps as ONE body, and neither spelling of its
-//!    section reaches the screen** (walls 5 and 8). `sweep_body`
-//!    carries the annulus around the U-turn — the loft's stacking
-//!    statement is a fold over adjacent section pairs, each decided
-//!    against its own base section's normal (issue 368) — from the
-//!    plane `path_start_frame` hands out (the interpolated spine's
-//!    start tangent is 3.99e-4 rad off +z). The body is tier-1 valid
-//!    and closed either way. With the walls as `circle`s, tier 3 —
-//!    which every scene body passes — refuses `VolumeUncomputable`
-//!    with a `QuadratureBudget`: the props quadrature cannot decide the
-//!    sign of the volume on a rational swept wall (wall 5, at the
-//!    default ε and finer — the enclosure's width does not move with
-//!    ε, the 1024·ε target does). The same body authored with its
-//!    spine centred on the origin decides it, so the refusal depends
-//!    on WHERE the body sits. With the walls as
-//!    four quarter arcs each (`circle_split`, the door the C0-crease
-//!    refusal of a lofted `circle` points at), tier 3 passes and the
-//!    mesher refuses `CertificateExceeded` at the scene's δ (wall 8).
-//!    So the scene still draws the loop as two elbows.
+//! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
+//!    operand gate before any pair is looked at:
+//!    `CurvedEdgeUnsupported { operand: B }` — the loop is a sweep, its
+//!    longitudinal edges are NURBS carriers, and rung-3 edges are what
+//!    the curved zip MINTS, not what it consumes. `subtract` answers
+//!    first at the revert roster with `{ op: Some(Subtract), kind:
+//!    Cone, other_kind: Plane }` — the flare against a planar cap of
+//!    the loop, a pair whose boxes MAY meet (box overlap
+//!    over-approximates; the kernel cannot rule the meeting out, a
+//!    weaker claim than that they do). So the bottle cannot be one
+//!    body, and the self-intersection — the neck piercing the bulb,
+//!    the one place a Klein bottle MUST cross itself in 3-space —
+//!    cannot be trimmed.
+//! 5. **The loop is ONE swept body, and its section is not spelled
+//!    the natural way.** `sweep_body` carries the annulus around the
+//!    U-turn — the loft's stacking statement is a fold over adjacent
+//!    section pairs, each decided against its own base section's
+//!    normal (issue 368) — from the plane `path_start_frame` hands out
+//!    (the interpolated spine's start tangent is 3.99e-4 rad off +z).
+//!    Two findings shape it:
+//!    - the walls are `circle_split(.., 4, ..)`, not `circle` ([`annulus`]
+//!      carries the gap comment): a lofted `circle` has semicircle
+//!      walls with a C0 knot the mesher refuses, and that same body
+//!      also fails tier 3 at the loop's position
+//!      (`work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`);
+//!    - the station count and skin degree decide whether the quartered
+//!      loop meshes at the stop's δ, so [`STATIONS`] / [`V_DEGREE`] sit
+//!      inside a measured neighbourhood of settings that all pass
+//!      (`work/tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`).
+//!
+//!    The walls are rational, so the loop's volume is a certified
+//!    ENCLOSURE — a bracket at the default ε — and [`stops`] asserts it
+//!    holds Pappus's A·L.
 //! 6. **`tube_along_arc` WAS solid-only — RETIRED by VERBS-TUBEWALL.**
 //!    The torus door took a `minor_radius` and no wall, so a hollow
 //!    tube had to be re-said as a revolve of an annulus and gave up
@@ -227,9 +224,12 @@
 //!     Any predicate whose certified lane is "same `SurfaceKey`" —
 //!     M9-2's chart-region rule is the live example — sees two charts
 //!     where the model has one. [`stops`] pins the whole picture.
-//!     The three inter-body joints land coincident: the elbow↔elbow
-//!     seam to 5e-16 m, the loop↔neck seam bit-exactly — the numbers a
-//!     declared REST contact (C7) would be asked to accept.
+//!     The loop meets the bulb at its two caps, and neither is
+//!     coincident: each cap is the annulus in the plane normal to the
+//!     interpolated spine's end tangent, which is 3.99e-4 rad off the
+//!     axis, so a cap's vertices sit 2·r·sin(tilt/2) ≈ 1.1e-4 m off
+//!     the rim they meet — the numbers a declared REST contact (C7)
+//!     would be asked to accept.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -237,19 +237,14 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom::NurbsCurve3;
-use pncad::geom_brep::PropsError;
 use pncad::geom_core::linalg::frame::path_start_frame;
-use pncad::geom_core::{OrthoFrame, Point3, Tol};
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, circle_split, query};
-use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{Revolution, RevolveAxis, revolve, sweep_body};
-use pncad::topo::{
-    Body, BooleanError, BooleanOp, EdgeKey, MassPropsError, Operand, ValidationError,
-};
-
-use pncad::tolerance::DEFAULT_EPS;
+use pncad::topo::readback::euler_counts;
+use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
 use crate::scalar::{Scalar, sketch_frame};
 use crate::{SceneBody, Stop, View};
@@ -288,11 +283,19 @@ const RLOOP: f64 = 1.20;
 const SWEEP_OVER: f64 = 1.5 * PI;
 /// The 90° arc, turning back onto the bottle's axis.
 const SWEEP_IN: f64 = 0.5 * PI;
-/// The one-body loop's spine samples: one interval per 7.5° on each arc.
+/// The loop's spine samples: one interval per 7.5° on each arc.
 const SPINE_OVER: u32 = 36;
 const SPINE_IN: u32 = 12;
-/// Sections the one-body loop's sweep places along its spine.
-const STATIONS: usize = 33;
+/// Sections the loop's sweep places along its spine, and the skin's
+/// degree through them. Chosen inside a measured neighbourhood rather
+/// than at a lucky cell: at v-degree 2, every station count from 9 to
+/// 19 passes tier 3 and meshes at the stop's δ at ε = 1e-6, 1e-9 and
+/// 1e-12, and so does 13 stations at v-degree 3. The edges are
+/// 21 stations at v-degree 2 (the mesher refuses `CertificateExceeded`)
+/// and 17 at v-degree 3 (at ε = 1e-6 the volume continuation refuses
+/// with no bracket) — `work/tess/a-quarter-arc-swept-annulus-exceeds-its-triangle-certificate`.
+const STATIONS: usize = 13;
+const V_DEGREE: usize = 2;
 
 /// The meridian's derived geometry, in sketch coordinates
 /// `(radius, height)`. Structure selection is f64 (C6): these are the
@@ -483,106 +486,97 @@ fn bulb<S: Scalar>(loop_: ConstructedLoop<S>, revolution: Revolution<S>, tol: To
     .body
 }
 
-/// One elbow of the top loop: the annular cross-section, revolved
-/// about an axis one `RLOOP` to the +x side of the bottle's own.
-///
-/// The sketch plane is HORIZONTAL, at the elbow's own end: the
-/// annulus sits on the bottle's axis and the elbow axis is the
-/// sketch's +y line at x = `RLOOP`. That is the only frame in which
-/// both the cross-section and the elbow axis are in one plane, which
-/// is what a revolve needs — and it puts the start cap exactly on the
-/// annular rim this elbow has to meet.
-///
-/// The angle is NEGATIVE because the placed axis is −ŷ (the revolve
-/// meters its radial coordinate from `dir`, and the annulus must land
-/// on the `r ≥ 0` side): the right-hand rule about −ŷ then carries
-/// the section UP, which is where the loop goes.
-fn elbow<S: Scalar>(z0: f64, sweep: f64, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<S>(0.0, 0.0, z0)));
-    let annulus = vec![
-        circle(p2::<S>(0.0, 0.0), S::from_f64(R + WALL / 2.0), tol)
-            .expect("the outer wall")
-            .into(),
-        circle(p2::<S>(0.0, 0.0), S::from_f64(R - WALL / 2.0), tol)
-            .expect("the inner wall")
-            .into(),
-    ];
-    revolve(
-        &validated(plane, annulus, tol).expect("the annulus validates"),
-        RevolveAxis {
-            origin: p2::<S>(RLOOP, 0.0),
-            dir: v2::<S>(0.0, -1.0),
-        },
-        Revolution::Partial(S::from_f64(-sweep)),
-        tol,
-    )
-    .expect("the elbow revolves")
-    .body
+/// The top loop's spine over the top, at angle `th` along it, in the
+/// world xz-plane: the 270° arc centred one `RLOOP` to the +x side of
+/// the neck's top rim, leaving the rim straight up.
+fn over_arc(th: f64) -> (f64, f64) {
+    (RLOOP * (1.0 - th.cos()), ZTOP + RLOOP * th.sin())
 }
 
-/// The top loop's spine, in the world xz-plane: the 270° arc over the
-/// top, then the 90° arc that turns back onto the bottle's axis — the
-/// two elbows' own spines, joined. Sampled at exact points
-/// ([`SPINE_OVER`] + [`SPINE_IN`] intervals) and interpolated at
-/// degree 3: `sweep_body` takes any `NurbsCurve3`, so the joined spine
+/// The spine's descent, at angle `psi` on the 90° arc centred one
+/// `RLOOP` to the +x side of the inner tube's top rim: `psi = π/2` is
+/// where it meets [`over_arc`]'s end, `psi = π` is the rim, reached
+/// straight down.
+fn into_arc(m: &Meridian, psi: f64) -> (f64, f64) {
+    (RLOOP * (1.0 + psi.cos()), m.z_tube + RLOOP * psi.sin())
+}
+
+/// The top loop's whole spine: the two tangent arcs, sampled at exact
+/// points ([`SPINE_OVER`] + [`SPINE_IN`] intervals) and interpolated
+/// at degree 3 — `sweep_body` takes any `NurbsCurve3`, so the U-turn
 /// is ONE path.
 fn loop_spine(m: &Meridian) -> NurbsCurve3<f64> {
-    let over = (0..=SPINE_OVER).map(|k| {
-        let th = SWEEP_OVER * f64::from(k) / f64::from(SPINE_OVER);
-        Point3::new(RLOOP * (1.0 - th.cos()), 0.0, ZTOP + RLOOP * th.sin())
-    });
-    let into = (1..=SPINE_IN).map(|k| {
-        let psi = 0.5 * PI + SWEEP_IN * f64::from(k) / f64::from(SPINE_IN);
-        Point3::new(RLOOP * (1.0 + psi.cos()), 0.0, m.z_tube + RLOOP * psi.sin())
-    });
-    let points: Vec<Point3<f64>> = over.chain(into).collect();
+    let over =
+        (0..=SPINE_OVER).map(|k| over_arc(SWEEP_OVER * f64::from(k) / f64::from(SPINE_OVER)));
+    let into = (1..=SPINE_IN)
+        .map(|k| into_arc(m, 0.5 * PI + SWEEP_IN * f64::from(k) / f64::from(SPINE_IN)));
+    let points: Vec<Point3<f64>> = over
+        .chain(into)
+        .map(|(x, z)| Point3::new(x, 0.0, z))
+        .collect();
     NurbsCurve3::interpolate(&points, 3).expect("the loop's spine interpolates")
 }
 
-/// The loop's annular cross-section, centred on the sketch origin.
-/// `quarters` authors each wall as four quarter arcs (`circle_split`)
-/// rather than as `circle`'s two semicircles — the seam structure a
-/// lofted wall needs to be C¹ across its u direction (wall 8).
-fn annulus(quarters: bool, tol: Tol) -> Vec<ConstructedLoop<f64>> {
+/// The tube's annular cross-section, radii `R ± WALL/2` about
+/// `(cx, 0)` in its sketch plane.
+///
+/// GAP (library finding,
+/// `work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`):
+/// a `lofted` section says each wall as FOUR quarter arcs
+/// (`circle_split`) where the natural spelling is `circle`. A
+/// `circle` is two semicircles, a semicircle is not one rational
+/// Bézier, so every lofted wall would carry a C0 knot the mesher
+/// refuses — after the body built and validated, naming a `FaceKey`.
+/// The circle is the same circle; only its seam count is authored.
+fn annulus<S: Scalar>(cx: f64, lofted: bool, tol: Tol) -> Vec<ConstructedLoop<S>> {
     [R + WALL / 2.0, R - WALL / 2.0]
         .into_iter()
         .map(|r| {
-            if quarters {
-                circle_split(p2(0.0, 0.0), r, 4, 0.0, tol)
+            let (centre, radius) = (p2::<S>(cx, 0.0), S::from_f64(r));
+            if lofted {
+                circle_split(centre, radius, 4, S::from_f64(0.0), tol)
                     .expect("a wall of four quarter arcs")
                     .into()
             } else {
-                circle(p2(0.0, 0.0), r, tol).expect("a wall").into()
+                circle(centre, radius, tol).expect("a wall").into()
             }
         })
         .collect()
 }
 
-/// The top loop as ONE body (walls 5 and 8): `section` swept along the
-/// whole spine. The section is drawn in the plane normal to the path's
-/// start tangent, which the kernel hands out (`path_start_frame`); the
-/// interpolant's start tangent is near +z but not on it, so a
-/// world-axis placement would tilt the section off the plane the sweep
-/// carries, at every station.
-fn one_body_loop<S: Scalar>(m: &Meridian, section: &[ConstructedLoop<f64>], tol: Tol) -> Body<S> {
+/// The top loop: the annulus swept along the whole U-turn spine as ONE
+/// body (the loft's stacking statement is per-slab, issue 368).
+///
+/// The section is drawn in the plane normal to the path's start
+/// tangent, which the kernel hands out (`path_start_frame`): the
+/// interpolant's start tangent is 3.99e-4 rad off +z, so a world-axis
+/// placement would tilt the section off the plane the sweep carries,
+/// at every station. The section and the path are `f64` because
+/// `sweep_body` takes them so; the body comes out at `S`.
+fn top_loop<S: Scalar>(m: &Meridian, tol: Tol) -> Body<S> {
     let path = loop_spine(m);
     let (t0, _) = path.domain();
     let (start, tangent) = path.ders1(t0);
     let place =
         path_start_frame(start, tangent, tol).expect("the spine's start tangent fixes a frame");
-    sweep_body::<S>(section, place, &path, STATIONS, 3, tol)
-        .expect("the annulus sweeps along the loop's whole spine")
-        .body
+    sweep_body::<S>(
+        &annulus::<f64>(0.0, true, tol),
+        place,
+        &path,
+        STATIONS,
+        V_DEGREE,
+        tol,
+    )
+    .expect("the annulus sweeps along the loop's whole spine")
+    .body
 }
 
-/// The three bodies of the bottle, in surface order: bulb, then the
-/// loop's two arcs.
-fn bottle<S: Scalar>(tol: Tol) -> [Body<S>; 3] {
+/// The bottle's two bodies: the bulb, then the loop.
+fn bottle<S: Scalar>(tol: Tol) -> [Body<S>; 2] {
     let m = meridian();
     [
         bulb(band::<S>(&m, tol), Revolution::Full, tol),
-        elbow::<S>(ZTOP, SWEEP_OVER, tol),
-        elbow::<S>(m.z_tube, SWEEP_IN, tol),
+        top_loop::<S>(&m, tol),
     ]
 }
 
@@ -634,22 +628,49 @@ fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
 /// The bottle stop.
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let m = meridian();
-    let [bulb, over, into] = bottle::<f64>(tol);
+    let [bulb, top] = bottle::<f64>(tol);
 
-    // The elbows' volumes are the annulus times the spine length,
-    // exactly (Pappus with the centroid ON the spine): a closed-form
-    // oracle for a body whose walls are two tori.
+    // The loop's volume in the continuum is the annulus times the
+    // spine length (Pappus: a planar spine, the section's centroid ON
+    // it and the section symmetric about its plane), A·RLOOP·2π. The
+    // sweep reaches that through two discretizations — the spine
+    // interpolant and the skin through STATIONS sections — and its
+    // walls are rational, so the kernel's reading is a certified
+    // ENCLOSURE: a number with its half-width where the reporting
+    // target is met, the narrowest bracket the certificate held where
+    // it is not. The oracle is that the enclosure holds A·L, which
+    // stays exactly as strong as the certificate at every ε.
     let ring = PI * ((R + WALL / 2.0).powi(2) - (R - WALL / 2.0).powi(2));
-    for (name, body, sweep) in [("over", &over, SWEEP_OVER), ("into", &into, SWEEP_IN)] {
-        let want = ring * sweep * RLOOP;
-        let got = pncad::topo::mass_properties(body, tol)
-            .expect("mass properties")
-            .volume;
-        assert!(
-            (got - want).abs() < 1e-12,
-            "elbow {name}: Pappus says {want}, the kernel says {got}"
-        );
-    }
+    let pappus = ring * RLOOP * (SWEEP_OVER + SWEEP_IN);
+    let (v_lo, v_hi) = match pncad::topo::validate_geometric_certificate(&top, tol)
+        .unwrap_or_else(|e| panic!("the loop's tier 3 refused: {e:?}"))
+        .measure()
+    {
+        Ok(p) => (p.volume - p.volume_pad, p.volume + p.volume_pad),
+        Err(pncad::topo::TargetUnreached {
+            bracket: Some(b), ..
+        }) => (b.volume_lo, b.volume_hi),
+        Err(unreached) => panic!("the loop's mass properties: {unreached}"),
+    };
+    assert!(
+        v_lo <= pappus && pappus <= v_hi,
+        "Pappus's A·L = {pappus} lies OUTSIDE the loop's certified enclosure [{v_lo}, {v_hi}]"
+    );
+    // The census: two annular caps and four quarter walls per side —
+    // a hollow tube, so one handle.
+    let census = euler_counts(&top);
+    assert_eq!(
+        (
+            census.v,
+            census.e,
+            census.f,
+            census.r,
+            census.s,
+            census.genus()
+        ),
+        (16, 24, 10, 2, 1, Ok(1)),
+        "the loop is one genus-1 shell of 10 faces; got {census:?}"
+    );
 
     // Findings entry 11, executed: the same cylinder, said four ways.
     // Ev's constraint — the rim's hole is the tube's diameter —
@@ -712,46 +733,55 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     // Findings entry 11, second half: how exactly do the pieces meet?
-    // The elbow↔elbow seam is the interesting one — the two annular
-    // caps are the same annulus reached by rotating ∓270° and ∓90°
-    // about the same axis, so the residual is trigonometry's, not the
-    // construction's.
-    let seam = |b: &Body<f64>, want_x: f64| -> Vec<Point3<f64>> {
-        b.vertices()
-            .map(|(_, v)| *b.get_point(v.point).expect("point"))
-            .filter(|p| (p.x - want_x).abs() < 1e-9)
-            .collect()
-    };
-    let (a, b) = (seam(&over, RLOOP), seam(&into, RLOOP));
-    assert_eq!(
-        (a.len(), b.len()),
-        (4, 4),
-        "each elbow ends on a 4-vertex annulus"
-    );
-    let residual = a
-        .iter()
-        .map(|p| {
-            b.iter()
-                .map(|q| (*p - *q).norm())
-                .fold(f64::INFINITY, f64::min)
-        })
-        .fold(0.0, f64::max);
-    assert!(
-        residual < 1e-15,
-        "the two elbows must meet inside ε; residual {residual:e}"
-    );
+    // Each cap of the loop is the annulus in the plane normal to the
+    // spine's end tangent, and the interpolant's end tangents are
+    // `tilt` off the axis, so each cap is the bulb's rim turned by
+    // that angle about a diameter: a cap vertex sits at most
+    // 2·r·sin(tilt/2) from the rim circle it meets.
+    let path = loop_spine(&m);
+    let (t0, t1) = path.domain();
+    let tilts = [path.ders1(t0).1, -path.ders1(t1).1].map(|d| (d.z / d.norm()).acos());
+    let mut seams = [0.0_f64; 2];
+    for (seam, (h, tilt)) in seams
+        .iter_mut()
+        .zip([ZTOP, m.z_tube].into_iter().zip(tilts))
+    {
+        let cap: Vec<Point3<f64>> = top
+            .vertices()
+            .map(|(_, v)| *top.get_point(v.point).expect("point"))
+            .filter(|p| (p.z - h).abs() < WALL)
+            .collect();
+        assert_eq!(cap.len(), 8, "each cap is an annulus of 4 + 4 vertices");
+        *seam = cap
+            .iter()
+            .map(|p| {
+                let rho = p.x.hypot(p.y);
+                let r = if rho > R {
+                    R + WALL / 2.0
+                } else {
+                    R - WALL / 2.0
+                };
+                (rho - r).hypot(p.z - h)
+            })
+            .fold(0.0, f64::max);
+        let bound = 2.0 * (R + WALL / 2.0) * (0.5 * tilt).sin();
+        assert!(
+            (*seam - bound).abs() < 1e-12,
+            "a cap rim at height {h} sits {seam:e} m off the bulb's, where its tilt of \
+             {tilt:e} rad puts it {bound:e}"
+        );
+    }
 
     // The self-intersection is REAL and it is where a Klein bottle
-    // has to have one: the descending elbow's spine starts outside
-    // the bulb's flare and ends inside it. (The flare's spine radius
-    // at height z is R + (ZNECK − z)·tan α.)
+    // has to have one: the loop's descent starts outside the bulb's
+    // flare and ends inside it. (The flare's spine radius at height z
+    // is R + (ZNECK − z)·tan α.)
     let flare_at = |z: f64| R + (ZNECK - z) * ALPHA.tan();
-    let spine_at = |psi: f64| (RLOOP + RLOOP * psi.cos(), m.z_tube + RLOOP * psi.sin());
-    let (out_x, out_z) = spine_at(0.5 * PI);
-    let (in_x, in_z) = spine_at(5.0 * PI / 6.0);
+    let (out_x, out_z) = into_arc(&m, 0.5 * PI);
+    let (in_x, in_z) = into_arc(&m, 5.0 * PI / 6.0);
     assert!(
         out_x > flare_at(out_z) && in_x < flare_at(in_z),
-        "the descending elbow must cross the flare: ({out_x}, {out_z}) vs \
+        "the loop's descent must cross the flare: ({out_x}, {out_z}) vs \
          {}, ({in_x}, {in_z}) vs {}",
         flare_at(out_z),
         flare_at(in_z)
@@ -760,34 +790,41 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let story = "a Klein bottle — as a THIN 3-manifold, because a 2-manifold sheet is not a \
                  body this kernel holds. The bulb (neck, flare, the wide rim it turns back \
                  on, and the straight tube coming back up through that rim's hole) is ONE \
-                 full revolve of ONE meridian band; the loop over the top is two thin \
-                 elbows, partial revolves of the annulus. All three MEET on coincident \
-                 annular faces and none of them can be joined: the operand gate is \
-                 PAIR-scoped, and here the cone and torus faces really do reach the \
-                 other operand, so each join refuses on a named germ pair (union on \
-                 Cone x Plane, subtract on Cone x Plane). The neck passes through the \
-                 flare uncut for the same reason";
+                 full revolve of ONE meridian band; the loop over the top is ONE sweep \
+                 of the annulus along its whole U-turn spine. The two MEET on annular \
+                 faces, each cap tilted off the bulb's rim by its spine's end tangent, \
+                 and they cannot be joined: union refuses the loop's NURBS edges at the \
+                 operand gate, and subtract refuses the bulb's cone flare against a \
+                 planar cap at the revert roster. The neck passes through the flare \
+                 uncut for that second reason";
     vec![Stop {
         name: "klein",
-        caption: "Klein bottle — three bodies the kernel cannot join".to_string(),
+        caption: "Klein bottle — two bodies the kernel cannot join".to_string(),
         montage: true,
         story,
-        ops: "revolve(Full) of a filleted meridian band + 2 x revolve(Partial) of an \
-              annulus; NO boolean, NO fillet_edges, NO shell — see klein::wall_probes",
+        ops: "revolve(Full) of a filleted meridian band + sweep_body of an annulus \
+              (circle_split x 4) along an interpolated U-turn spine from path_start_frame; \
+              NO boolean, NO fillet_edges, NO shell — see klein::wall_probes",
         delta: 1e-2,
         note: Some(format!(
             "tube diameter {:.2} m, wall {:.2} m; the wide rim's hole comes out at the \
              tube diameter by construction (centre radius R + RRIM = {:.3}, minor radii \
              {:.3}/{:.3}). Every blend in the bulb is an ARC IN THE MERIDIAN, exact and \
-             free — and no rolling ball of that size fits the wall (walls 1-2). The elbows' \
-             volumes are Pappus-exact: ring area {ring:.6} m^2 times spine length. The \
-             two elbows meet with residual {residual:.1e} m and the loop meets the neck \
-             bit-exactly — the numbers a declared REST contact would accept",
+             free — and no rolling ball of that size fits the wall (walls 1-2). The loop's \
+             certified volume [{v_lo:.6}, {v_hi:.6}] m^3 holds Pappus's ring area \
+             {ring:.6} m^2 times spine length = {pappus:.6}. Its caps meet the neck's and \
+             the inner tube's rims {:.1e} / {:.1e} m off, each turned by its spine's end \
+             tangent ({:.2e} / {:.2e} rad) — the numbers a declared REST contact would \
+             be asked to accept",
             2.0 * R,
             WALL,
             R + RRIM,
             RRIM + WALL / 2.0,
             RRIM - WALL / 2.0,
+            seams[0],
+            seams[1],
+            tilts[0],
+            tilts[1],
         )),
         // The whole model is symmetric about the world xz-plane, so
         // that plane is the ONE camera to avoid: from it the loop
@@ -809,10 +846,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             // render hides the half of the shape that makes it a
             // Klein bottle at any camera.
             SceneBody::plain("klein_bulb", [0.38, 0.62, 0.72], bulb).transparent(55),
-            SceneBody::plain("klein_loop_over", [0.78, 0.60, 0.30], over).transparent(45),
-            // A colour of its own: this is the piece that runs INSIDE
-            // the bulb, and seeing where it enters is the point.
-            SceneBody::plain("klein_loop_into", [0.80, 0.34, 0.24], into).transparent(45),
+            // A colour of its own: the loop is the piece that runs
+            // INSIDE the bulb, and seeing where it enters is the point.
+            SceneBody::plain("klein_loop", [0.80, 0.34, 0.24], top).transparent(45),
         ],
     }]
 }
@@ -826,7 +862,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 pub fn wall_probes<S: Scalar>(tol: Tol) {
     println!("\n-- the Klein bottle's walls: what a non-orientable surface asks for --");
     let m = meridian();
-    let [bulb_body, over, into] = bottle::<S>(tol);
+    let [bulb_body, top] = bottle::<S>(tol);
     let band_radius = S::from_f64(RF);
 
     // Walls 1 and 2 are ONE question asked of two bodies, and the
@@ -884,29 +920,23 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "roll a ball as big as the blend the meridian draws for free",
     );
 
-    // Wall 3: the bottle is ONE surface. Its three bodies meet on
-    // coincident annular faces — the declared REST mate — and the
-    // union refuses at a pair that is NOT that mate: the bulb's CONE
-    // flare against a planar face of the loop (the torus walls are on
-    // the union's roster and gate nothing). The gate is pair-scoped,
-    // so the refusal names the two faces whose boxes may
-    // meet, and this is the first such pair in arena order — which
-    // the bodies' minting order decides, and with it which of the
-    // several reaching pairs is named. It is a MAY: box overlap
-    // over-approximates.
+    // Wall 3: the bottle is ONE surface. Its two bodies meet on
+    // annular faces — the REST mate — and the union refuses before
+    // any pair is looked at: the loop is a sweep, its longitudinal
+    // edges are NURBS carriers, and the operand gate admits a rung-3
+    // edge in no INPUT operand (rung-3 is what the curved zip mints,
+    // not what it consumes) —
+    // `work/cleave/boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule`.
     crate::walls::wall(
         "bottle",
         3,
-        "join the loop to the bulb (coincident annular mate)",
-        pncad::topo::union(&bulb_body, &over, tol),
+        "join the loop to the bulb (annular mate)",
+        pncad::topo::union(&bulb_body, &top, tol),
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
-                    operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
+                BooleanError::CurvedEdgeUnsupported {
+                    operand: Operand::B,
                     ..
                 }
             )
@@ -921,17 +951,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "bottle",
         4,
         "cut the flare where the descending neck passes through it",
-        pncad::topo::subtract(&bulb_body, &into, tol),
+        pncad::topo::subtract(&bulb_body, &top, tol),
         |e| {
             // The matcher pins BOTH kinds as well as the op, so a pair
             // that changed kind reds here.
             //
             // The pair is (Cone, Plane) — the flare against a planar
-            // face of the descending neck. The refusal is the ∖/∩
+            // cap of the loop. The refusal is the ∖/∩
             // revert roster's: the cone has no arm under any op, and
-            // the roster has no covered rung whatever the pair. The
-            // tube walls are on the roster, so they are not what
-            // refuses.
+            // the roster has no covered rung whatever the pair; it
+            // answers before the edge gate that stops wall 3.
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
@@ -944,64 +973,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         },
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
-
-    // Wall 5: the loop is one path, so one sweep is one body — and it
-    // BUILDS, tier-1 valid and closed (the loft's stacking statement is
-    // per-slab, issue 368). Swept with the annulus as `circle`s, the
-    // natural spelling, it fails tier 3, which every scene body passes:
-    // the props quadrature cannot decide the sign of its volume on a
-    // rational swept wall at the loop's own position. The refusal is
-    // the flux enclosure's width (1.04e-5 m, the same at every ε row)
-    // against a target of 1024·ε, so it stands at the default ε and
-    // finer; at a coarser row the sign decides and the wall is not
-    // there to pin.
-    let one_body = one_body_loop::<S>(&m, &annulus(false, tol), tol);
-    assert_eq!(
-        pncad::topo::validate(&one_body),
-        Ok(()),
-        "the one-body loop is tier-1 valid"
-    );
-    assert_eq!(
-        pncad::topo::validate_closed(&one_body),
-        Ok(()),
-        "and closed"
-    );
-    let tier3 = pncad::topo::validate_geometric(&one_body, tol);
-    if tol.eps() > DEFAULT_EPS {
-        assert_eq!(
-            tier3,
-            Ok(()),
-            "at ε = {:e} the one-body loop's target is wider than its flux enclosure",
-            tol.eps()
-        );
-        println!(
-            "   wall 5 — not standing at ε = {:e}: the one-body loop passes tier 3 here",
-            tol.eps()
-        );
-    } else {
-        crate::walls::wall(
-            "bottle",
-            5,
-            "validate the loop swept as ONE body, `circle` sections, at tier 3",
-            tier3,
-            |e| {
-                matches!(
-                    e[..],
-                    [ValidationError::VolumeUncomputable {
-                        source: MassPropsError::Face {
-                            source: PropsError::QuadratureBudget { .. },
-                            ..
-                        },
-                        ..
-                    }]
-                )
-            },
-            "tessellate the same body: a `circle` section's semicircle walls carry a C0 \
-             crease the mesher refuses (work/tess/lofted-circle-sections-are-unmeshable-\
-             and-say-so-three-steps-late). If that passes too, the scene adopts this loop; \
-             rewrite findings entry 5",
-        );
-    }
 
     // Wall 6 (RE-BASELINED by VERBS-RING): the one-call hollow ring —
     // what the loop would be if it closed on itself instead of
@@ -1020,19 +991,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         v3::<S>(0.0, 0.0, 1.0),
         tol,
     );
-    let ring = validated(
-        ring_plane,
-        vec![
-            circle(p2::<S>(RLOOP, 0.0), S::from_f64(R + WALL / 2.0), tol)
-                .expect("outer")
-                .into(),
-            circle(p2::<S>(RLOOP, 0.0), S::from_f64(R - WALL / 2.0), tol)
-                .expect("inner")
-                .into(),
-        ],
-        tol,
-    )
-    .expect("the annulus validates");
+    let ring =
+        validated(ring_plane, annulus::<S>(RLOOP, false, tol), tol).expect("the annulus validates");
     let hollow = revolve::<S>(
         &ring,
         RevolveAxis {
@@ -1070,14 +1030,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             v3::<f64>(0.0, 0.0, 1.0),
             tol,
         ),
-        vec![
-            circle(p2::<f64>(RLOOP, 0.0), R + WALL / 2.0, tol)
-                .expect("outer")
-                .into(),
-            circle(p2::<f64>(RLOOP, 0.0), R - WALL / 2.0, tol)
-                .expect("inner")
-                .into(),
-        ],
+        annulus::<f64>(RLOOP, false, tol),
         tol,
     )
     .expect("the annulus validates at f64");
@@ -1163,32 +1116,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             pncad::mesh::validate::triangle_count(&m)
         );
     }
-
-    // Wall 8: the same one-body loop with each wall authored as four
-    // quarter arcs (`circle_split`), so no lateral wall spans a
-    // semicircle's C0 knot. That spelling passes tier 3 — its volume's
-    // sign is decided, the number is a bracket — and the mesher then
-    // refuses a face whose triangle certificate exceeds the δ the
-    // scene renders at.
-    let quartered = one_body_loop::<f64>(&m, &annulus(true, tol), tol);
-    assert_eq!(
-        pncad::topo::validate_geometric(&quartered, tol),
-        Ok(()),
-        "the quartered one-body loop is tier-3 valid"
-    );
-    crate::walls::wall(
-        "bottle",
-        8,
-        "tessellate the loop swept as ONE body, quarter-arc sections, at the scene's δ",
-        pncad::mesh::tessellate(&quartered, 1e-2, tol),
-        |e| matches!(e, pncad::mesh::TessellateError::CertificateExceeded { .. }),
-        "replace the scene's two elbows with this loop (two scene bodies, one colour \
-         for the loop), re-derive its volume oracle (Pappus: annulus area times \
-         RLOOP·2π, approached through the interpolant and the skin) and findings \
-         entry 11's seam measures, and rewrite findings entry 5",
-    );
-
-    let _ = into;
 }
 
 #[cfg(test)]
@@ -1200,19 +1127,17 @@ mod verbs_gate_r1_probes {
     //! a change to the boxes under the operand gate could only be
     //! re-measured by rebuilding and re-running the tour. That is a
     //! twenty-minute answer to a one-second question, and the walls
-    //! are exactly what a box change moves: the gate names a PAIR
-    //! now, and which pair depends on which faces' boxes may meet.
+    //! are exactly what an operand-gate change moves.
     //!
     //! Same pins as the walls themselves, so the two cannot drift.
     //!
-    //! **Why the operand gate's covered-pair rung cannot reach either
-    //! wall.** The gate no longer refuses a pair the caller's
-    //! declarations speak for — but "the caller's declarations" is the
+    //! **Why the operand gate's covered-pair rung cannot reach wall 4.**
+    //! The gate does not refuse a pair the caller's declarations speak
+    //! for — but "the caller's declarations" is the
     //! `BooleanDeclarations` value handed to the op, and both walls
     //! below go through `pncad::topo::union` and `pncad::topo::subtract`,
-    //! the doors that take none. `DeclaredPairs` is empty on both, so
-    //! the covered predicate answers no for every pair and the gate is
-    //! byte-for-byte the gate these pins were written against.
+    //! the doors that take none. (Wall 3 refuses earlier still, on the
+    //! loop's NURBS edges, which no declaration speaks for.)
     //!
     //! Wall 4 is doubly out of reach and the second reason is the more
     //! durable one: it is a SUBTRACT, and the revert roster it refuses
@@ -1228,27 +1153,23 @@ mod verbs_gate_r1_probes {
     #[test]
     fn the_bottles_two_boolean_walls_name_the_pairs_the_scene_claims() {
         let tol = Tol::witness();
-        let [bulb_body, over, into] = bottle::<f64>(tol);
+        let [bulb_body, top] = bottle::<f64>(tol);
 
-        let joined = pncad::topo::union(&bulb_body, &over, tol)
+        let joined = pncad::topo::union(&bulb_body, &top, tol)
             .expect_err("the bottle's pieces still cannot be joined");
         println!("klein wall 3: {joined:?}");
         assert!(
             matches!(
                 joined,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
-                    operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
+                BooleanError::CurvedEdgeUnsupported {
+                    operand: Operand::B,
                     ..
                 }
             ),
-            "wall 3 must name the bulb's flare against a planar face of the loop — the \
-             tube walls are on the union's roster: {joined:?}"
+            "wall 3 must refuse the loop's NURBS edges at the operand gate: {joined:?}"
         );
 
-        let trimmed = pncad::topo::subtract(&bulb_body, &into, tol)
+        let trimmed = pncad::topo::subtract(&bulb_body, &top, tol)
             .expect_err("the self-intersection still cannot be trimmed");
         println!("klein wall 4: {trimmed:?}");
         assert!(
@@ -1261,8 +1182,7 @@ mod verbs_gate_r1_probes {
                     ..
                 }
             ),
-            "wall 4 must name the flare against a planar face of the neck — the \
-             tube walls no longer reach each other's boxes: {trimmed:?}"
+            "wall 4 must name the flare against a planar cap of the loop: {trimmed:?}"
         );
     }
 }
@@ -1302,49 +1222,5 @@ mod r1_mesh2_review_probes {
                 Err(e) => println!("R1PROBE cell ({alpha_deg}, {rim}): REFUSED {e:?}"),
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod wall_probes_run_here {
-    //! The whole wall list, driven by the TEST SUITE (issue #1434).
-    //!
-    //! [`wall_probes`] had exactly one caller — `main.rs`'s render
-    //! walk — so `cd demos/tour && cargo test --release`, which is
-    //! both the spec-level local acceptance command and CI's "demos
-    //! tour suite" row, was fully green over walls nobody had run.
-    //! That is the silent-coverage shape this repo keeps naming: a
-    //! green job name sitting over an unexecuted probe. The walls did
-    //! execute — in the k-lint gate's tour step, which was a SAMPLED
-    //! row until 2026-09-04 — so the cost of the blind spot was paid
-    //! only in the runs where that sample did not draw. Every run gates
-    //! all five k-lint unifications now, which removes that half of the
-    //! cost and none of the reason this test exists.
-    //!
-    //! It has to be an in-bin test. `demo-tour` is bin-only (no
-    //! `[lib]`, modules hang off `main.rs`), so nothing under
-    //! `tests/` can name `klein::wall_probes` at all.
-    //!
-    //! There is nothing to assert here that the probe does not already
-    //! assert: `crate::walls::wall` panics on BOTH off-nominal
-    //! outcomes — a different refusal (the frontier moved) and no
-    //! refusal at all (the wall is gone) — and walls 6 and 7 assert
-    //! their own retirements inline. Running it IS the check, which is
-    //! why the missing caller was the whole defect.
-    //!
-    //! Not free: the probe rebuilds `bottle::<f64>`, four more
-    //! revolves for the sharp-band pair and the hollow ring, a sweep
-    //! and its tier-3 check, a STEP export and four wall-7
-    //! tessellations. It overlaps
-    //! `verbs_gate_r1_probes` above by two walls (3 and 4) and that
-    //! module stays as it is — it pins the boolean pair's SHAPE against
-    //! the operand gate for a one-second answer, and this test is the
-    //! one that says every wall was attempted.
-
-    use super::*;
-
-    #[test]
-    fn every_klein_wall_is_attempted_by_the_suite() {
-        wall_probes::<f64>(Tol::witness());
     }
 }

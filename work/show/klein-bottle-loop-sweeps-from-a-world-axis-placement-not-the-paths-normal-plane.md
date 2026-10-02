@@ -55,3 +55,17 @@ the mechanism).
 interpolant).
 
 **Verdict:**
+
+## Closed
+
+Folded with its unit (`klein-scene-should-adopt-the-one-body-loop-sweep`),
+which made the loop sweep the SCENE's build: `demos/tour/src/klein.rs`
+`top_loop` draws the annulus in `path_start_frame(start, start
+tangent, tol)`. Measured first, as asked: the interpolated spine's
+start tangent is 3.99e-4 rad off +z (its end tangent the same off −z).
+The door's +z reference rung decides, so the frame's local x is world
+−y — a quarter-turn roll about the tangent, which the annulus absorbs:
+the caps are the same circles, with their four seam vertices at
+±x/±y. What the tilt does show is at the caps: each lies in the plane
+normal to its end tangent, so it sits 2·r·sin(tilt/2) ≈ 1.1e-4 m off
+the bulb's rim it meets, and the scene asserts that closed form.
