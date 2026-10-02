@@ -3543,18 +3543,20 @@ fn a_plane_through_a_walls_corner_vertex_refuses_as_the_marchs_limit() {
 
 /// **A marched state within the band of the domain's boundary
 /// escalates the open end, by name.** The plane `x = 0.5` crosses a
-/// flat wall of height `H`, the march seeds at `v = 1/256` of the
-/// wall's chart, and its steps are `1/32` m at the 1 m extent, so its
-/// states sit at `z = H/256 + k/32`. Choosing `H` so the 31st sits `δ`
-/// below the wall's top edge plants a state `δ` inside the boundary on
-/// the first march, at the caller's extent.
+/// flat wall of height `H`. Traced from the seed at the wall's centre
+/// (`trace_plane_nurbs_uncertified`, so the seed is the row's and not
+/// the subdivision's), the first march at the 1 m extent steps `1/32` m
+/// each way, so its states sit at `z = H/2 ± k/32`. With
+/// `H = 15/16 + 2δ`, the 15th state each way sits `δ` inside the wall's
+/// edge.
 ///
-/// At `δ = 0` the state is on the edge, inside the band's zero, and the
-/// branch certifies. At `δ` a few ε either side the open end cannot be
-/// decided, and escalates `ssi_branch_open_end` naming the margin. The
-/// escalation is not over-strict: read as inside, the march appends the
-/// crossing a few ε past that state, and at `ε = 1e-12` the cubic
-/// through that sub-band chord fails its certificate.
+/// At `δ = 0` that state is on the edge, inside the band's zero, and
+/// the branch is traced. At `δ` a few ε either side, the open end cannot
+/// be decided, and it escalates `ssi_branch_open_end` naming the margin.
+/// The escalation is not over-strict. Read as inside, the march appends
+/// the crossing a few ε past that state, and at `ε = 1e-12` the cubic
+/// through that sub-band chord fails its certificate
+/// (`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
 #[test]
 fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
     let across = Surface::Plane {
@@ -3568,14 +3570,16 @@ fn a_marched_state_in_band_of_the_domain_boundary_escalates_the_open_end() {
         extent: 1.0,
         floor_scale: 1.0,
     };
-    let wall = |delta: f64| flat_wall(1.0, (31.0 / 32.0 + delta) * 256.0 / 255.0);
-    match ssi::plane_nurbs_ssi(&across, &wall(0.0), dom, band()) {
-        Ok(out) => assert_eq!(out.branches.len(), 1, "on the edge"),
-        Err(e) => panic!("a state on the edge does not certify: {e}"),
-    }
     let eps = band().zero();
+    let trace = |delta: f64| {
+        let wall = flat_wall(1.0, 15.0 / 16.0 + 2.0 * delta);
+        ssi::trace_plane_nurbs_uncertified(&across, &wall, (0.5, 0.5), dom, eps, band())
+    };
+    if let Err(e) = trace(0.0) {
+        panic!("a state on the edge is not traced: {e}");
+    }
     for delta in [5.0 * eps, -3.0 * eps] {
-        let r = ssi::plane_nurbs_ssi(&across, &wall(delta), dom, band());
+        let r = trace(delta);
         let Err(SsiError::Escalated {
             decision: TraceDecision::BranchOpenEnd,
             cause,
