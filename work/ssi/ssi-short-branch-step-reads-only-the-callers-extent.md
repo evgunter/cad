@@ -105,9 +105,13 @@ at ε 1e-12. The cap is `length / SHORT_BRANCH_STEPS`, with
 `SHORT_BRANCH_STEPS = (SSI_FIT_DEGREE + 1) | 1 = 5`; the orchestrator's
 ruling is in PR 3730's body.
 
-A trace with no length (a point contact, or a branch below the
-boundary search's resolution) refuses `SsiError::TraceUnresolved`, not
-the fit's count.
+A trace with no length to cut, or one the re-march leaves still too
+short, refuses `SsiError::TraceUnresolved` as the march's limit. That
+covers a point contact, a branch below the boundary search's
+resolution, a branch flush with the domain's boundary (no state is
+decided inside), and a crossing that settles at neither end. The
+design's "cannot happen by construction" did not hold: a plane flush
+with a face's edge reached it.
 
 Residue, filed:
 - `ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal`
