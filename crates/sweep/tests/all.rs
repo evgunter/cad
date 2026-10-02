@@ -166,6 +166,8 @@ mod verbs_shell;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
+#[path = "band_annulus_host_boundary.rs"]
+mod band_annulus_host_boundary;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -188,6 +190,8 @@ mod blend4_r1_probes;
 mod blend6_verb_vocab;
 #[path = "blend_ball_side_bits.rs"]
 mod blend_ball_side_bits;
+#[path = "blend_dual_tangent.rs"]
+mod blend_dual_tangent;
 #[path = "blend_margin_payload_interval.rs"]
 mod blend_margin_payload_interval;
 #[path = "blend_seam_split_rim.rs"]
@@ -316,6 +320,8 @@ mod must_carry_rule;
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]
 mod r2_sense_fold_probes;
+#[path = "ray_wall_margin_twins.rs"]
+mod ray_wall_margin_twins;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]
@@ -569,6 +575,8 @@ mod mate7a_r1_probes;
 mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "pi_seam_and_kiss_through_the_boolean.rs"]
+mod pi_seam_and_kiss_through_the_boolean;
 #[path = "snowman.rs"]
 mod snowman;
 
@@ -795,6 +803,9 @@ mod wire_loft_end_profile_lift;
 
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
+
+#[path = "review_3701_probes.rs"]
+mod review_3701_probes;
 
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;

@@ -577,6 +577,12 @@ impl ChecksReport {
 /// carry it — the `WorkspaceError` posture: handling reads `err.node`
 /// without first branching on `err.variant`.
 pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
+    checks_err_saying(py, err, err.to_string())
+}
+
+/// [`checks_err`] under `message`: the refusal as a frame holding the
+/// checked document speaks it.
+fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> PyErr {
     let none = || py.None();
     // Exhaustive on purpose, no wildcard: an arm added kernel-side
     // arrives here as a compile error rather than as a silently
@@ -595,7 +601,7 @@ pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Checks,
-        err.to_string(),
+        message,
         &[
             (
                 "variant",
@@ -669,7 +675,7 @@ pub(crate) fn run_checks(
     evaluation
         .gathered(|memo, doc, ev| crate::product_memo::checks_report(memo, doc, ev, cfg, tol))
         .map(ChecksReport)
-        .map_err(|err| checks_err(py, &err))
+        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc())))
 }
 
 /// A mispaired `(doc, evaluation)` as this door's own refusal.

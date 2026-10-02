@@ -22,9 +22,8 @@ Found by a designer lane while weighing the covered-member fork (fork-log row 37
 
 **Mechanism.** At this vertex the finished edges lie within two member-edge lines, an edge–edge crossing. There `emit_union::Flush::crossing` returns `None`, so the fold's per-step spelling is published, and that spelling is fold history. N2's union paragraph says the parent and its seam partners depend only on the finished body.
 
-**Not caught.** This case is not in `crates/editor-core/tests/emit_union_rim_piece_ranks.rs`'s corpus, so `KNOWN_ABSENT` does not see it.
+**Pinned.** `crates/editor-core/tests/emit_union_rim_piece_ranks.rs` holds the case as `r5poke` (`b` operand A in the pairwise judgement) and `r5pokehi` (`a` operand A). `KNOWN_ABSENT` pins 4 absences in each: the crossing vertex on `a`'s `RimEdge(End)` and the rim piece it ends (`Fragment(Ends)` citing the vertex), each spelled one way per order.
 
 ## Next
 
-1. Add the two-member poke-out case to the rim-piece corpus.
-2. Give `Flush` an order-free spelling for an edge–edge crossing, for example the two member edges' `Ends`-style pair sorted in name order. Check that against N2's vertex rules first: if N2 does not decide it, it is a design question.
+1. Give `Flush` an order-free spelling for an edge–edge crossing, for example the two member edges' `Ends`-style pair sorted in name order. Check that against N2's vertex rules first: if N2 does not decide it, it is a design question.

@@ -176,7 +176,7 @@ fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
         name: ParamName::from_static("s"),
         value: annotated(1.0, Distribution::Normal { sigma: -1.0 }),
     };
-    match save(&doc, &[editor_core::LoggedEdit::bare(bad)], Tol::witness()) {
+    match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index, error }) => {
             assert_eq!(index, 0);
             assert_eq!(
@@ -369,7 +369,7 @@ fn a_non_finite_offset_names_which_offset_it_was() {
             name: ParamName::from_static("p"),
             value: annotated(1.0, dist),
         };
-        match save(&doc, &[editor_core::LoggedEdit::bare(edit)], Tol::witness()) {
+        match save(&doc, &[edit], Tol::witness()) {
             Err(PersistError::NonFinite {
                 site: NonFiniteSite::Edit { index: 0, inner },
             }) => match *inner {
@@ -392,7 +392,7 @@ fn a_non_finite_offset_names_which_offset_it_was() {
         name: ParamName::from_static("p"),
         value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
-    match save(&doc, &[editor_core::LoggedEdit::bare(edit)], Tol::witness()) {
+    match save(&doc, &[edit], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { inner, .. },
         }) => assert!(

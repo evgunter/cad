@@ -44,10 +44,12 @@
 //! because they read the finished table or the finished body. Each
 //! replaces something the fold wrote down about WHEN it met an entity
 //! with something the finished union says about WHAT the entity is:
-//! - a face is named for its PARENT, the member faces the union's merges
-//!   link to it, transitively, followed by entity through the fold
-//!   ([`Fold`], [`Parents`]): the parent itself when the finished body
-//!   holds it as one face, and otherwise the parent and one `Borders`
+//! - a face is named for its PARENT, the member faces the pairwise
+//!   judgements consumed together, transitively ([`Links`]), which a
+//!   finished face takes from the member faces it descends from by
+//!   entity through the fold ([`Fold`], [`Parents`]): the parent
+//!   itself when the finished body holds it as one face, and
+//!   otherwise the parent and one `Borders`
 //!   over the divider walls each piece borders; a seam edge is named
 //!   for the two parents it lies between; and any other name cites a
 //!   face as its parent ([`name_by_parents`]) — whether a step cut a
@@ -71,7 +73,7 @@
 //! These names are functions of the finished body, so they are
 //! order-free as far as the boolean's output is: where different member
 //! orders leave different vertices (a declared merge can,
-//! `work/zip/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`),
+//! `work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`),
 //! the names differ with them.
 //!
 //! A refusal raised mid-fold, and the declaration door's view of an
@@ -202,11 +204,12 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     folded: &NameTable,
     members: &[Member<'_, T>],
     fold: &Fold,
+    links: &Links,
     tol: geom_core::Tol,
 ) -> Result<(Arc<NameTable>, Rederived), NamingError> {
     let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
-    let parents = Parents::of(node, body, members, fold)?;
+    let parents = Parents::of(node, body, members, fold, links)?;
     let flush = Flush::of(node, body, members, &parents, bnd)?;
     let by_parents = name_by_parents(node, &t, body, &parents, fold, &flush)?;
     let (t, member_edges) = group_member_edges(by_parents.table, by_parents.held, &flush)?;
@@ -1018,6 +1021,52 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
 /// the member's own body.
 type MemberFace = (RecipeNodeId, topo::FaceKey);
 
+/// **The member faces a union links** (N2): the pairs each pairwise
+/// judgement (DM4) consumed. A judgement is the two members' own union,
+/// so a pair it merged (`BooleanNaming::merge_groups`) or whose region
+/// it held through the other face (`BooleanNaming::covered`) is one the
+/// recipe declared coincident, or gave one source, and that lies with
+/// one orientation: the kernel merges and covers no other. A certified
+/// pair the judgement never brought together is in neither record and
+/// links nothing.
+#[derive(Default)]
+pub(crate) struct Links(Vec<(MemberFace, MemberFace)>);
+
+impl Links {
+    /// The pairs one judgement consumed: members `a` (operand A) and `b`
+    /// (operand B), and the kernel's record of their union.
+    pub(crate) fn judged(
+        &mut self,
+        a: RecipeNodeId,
+        b: RecipeNodeId,
+        naming: &topo::BooleanNaming,
+    ) -> Result<(), NamingError> {
+        let descent = FaceDescent::of(naming);
+        let member = |(operand, f): (topo::Operand, topo::FaceKey)| match operand {
+            topo::Operand::A => (a, f),
+            topo::Operand::B => (b, f),
+        };
+        for faces in descent.merged().values() {
+            let mut held = BTreeSet::new();
+            for &g in faces {
+                held.insert(member(descent.result_face(g)?));
+            }
+            for &x in held.iter().filter(|m| m.0 == a) {
+                for &y in held.iter().filter(|m| m.0 == b) {
+                    self.0.push((x, y));
+                }
+            }
+        }
+        for &(fa, fb) in &naming.covered {
+            self.0.push((
+                (a, descent.clone_face(topo::Operand::A, fa)?),
+                (b, descent.clone_face(topo::Operand::B, fb)?),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// **What a union's fold records for its end pass**: which member faces
 /// each face of the accumulation descends from, by entity, and every
 /// step's discards ([`Obstacles`]) keyed by the member faces the
@@ -1085,17 +1134,15 @@ impl Fold {
 
 /// **A union's faces, grouped by parent** (N2, N3).
 ///
-/// A face's parent is its merge closure, read by entity off the fold
-/// ([`Fold`]): a finished face links the member faces it descends
-/// from, and linking is transitive. The member faces so linked are one
-/// parent, named `Merged` of all of them; a member face nothing links
-/// to another is its own parent, named as the member's face. Which step
-/// met a face first, or cut it before or after it merged, changes the
-/// spelling the fold gives it but not the member faces it descends
-/// from. Tied member faces are separate parents spelled alike.
-///
-/// A member face that a row embeds and no face of the finished body
-/// descends from is its own parent.
+/// Member faces are linked in member space, by the pairs the pairwise
+/// judgements consumed ([`Links`]), and linking is transitive. The
+/// member faces so linked are one parent, named `Merged` of all of them;
+/// a member face nothing links is its own parent, named as the member's
+/// face. A finished face takes the parent of the member faces it
+/// descends from, read by entity off the fold ([`Fold`]); which faces a
+/// fold step merged, kept or discarded does not enter, and a finished
+/// face descending from faces of two parents refuses. Tied member faces
+/// are separate parents spelled alike.
 struct Parents {
     /// Finished face → its parent.
     of_face: BTreeMap<topo::FaceKey, usize>,
@@ -1126,6 +1173,7 @@ impl Parents {
         body: &topo::Body<T>,
         members: &[Member<'_, T>],
         fold: &Fold,
+        links: &Links,
     ) -> Result<Self, NamingError> {
         let bug = |what| NamingError::Emission { what };
         let mut rows: Vec<(topo::FaceKey, &BTreeSet<MemberFace>)> = Vec::new();
@@ -1137,14 +1185,34 @@ impl Parents {
                 .ok_or_else(|| bug("a union's face descends from no member face"))?;
             rows.push((f, from));
         }
-        // The member faces one finished face descends from are one class.
         let mut link = LeastRoot::new();
+        for &(x, y) in &links.0 {
+            link.insert(x);
+            link.insert(y);
+            link.join(x, y);
+        }
         for (_, from) in &rows {
-            let mut from = from.iter().copied();
-            let Some(first) = from.next() else { continue };
-            link.insert(first);
-            for m in from {
-                link.join(first, m);
+            for &m in *from {
+                link.insert(m);
+            }
+        }
+        // What the fold merged does not link: a finished face whose member
+        // faces are of several parents has no one parent to take. A
+        // bug, not a recipe: a fold step merges two member faces only
+        // where they meet on a plane under a declaration or a shared
+        // source. A union only adds material, so they meet there in
+        // their own pair's union too, whose boxes therefore meet and
+        // which is judged under the same declarations. That judgement
+        // merges or covers them. A curved run the pair leaves unmerged
+        // (`merge_skipped`), the fold, holding no fewer of its faces,
+        // leaves unmerged too.
+        for (_, from) in &rows {
+            let mut roots = from.iter().map(|&m| link.root(m));
+            let first = roots.next();
+            if roots.any(|r| Some(r) != first) {
+                return Err(bug(
+                    "a union's face descends from member faces no judged pair links",
+                ));
             }
         }
         let mut classes: BTreeMap<MemberFace, BTreeSet<MemberFace>> = BTreeMap::new();
@@ -1417,7 +1485,7 @@ fn name_by_parents<T: geom_core::Decide>(
     }
 
     // ---- Faces, by parent. ----
-    for parent in &parents.all {
+    for parent in parents.all.iter().filter(|p| !p.faces.is_empty()) {
         let faces = &parent.faces;
         record(
             &parent.name,

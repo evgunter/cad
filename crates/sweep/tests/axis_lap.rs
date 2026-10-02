@@ -23,7 +23,7 @@
 //!   `Join(UnpairedLooseEnds)` — and so does the all-planar diamond
 //!   prism whose side edges sit in that same plane, which is what says
 //!   the refusal is the edge-in-face class
-//!   (`work/zip/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`),
+//!   (`work/join/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`),
 //!   not anything conic;
 //! - OBLIQUE caps (ellipse rims, from the plane split) flatted the same
 //!   way take the same arm with an ellipse arc, mint their chords, and
@@ -32,11 +32,11 @@
 //! - a flat cutter with a thin half-rod on the axis leaves role
 //!   resolution only the rim's CHORD midpoint to probe, which is on
 //!   neither flanking region, and the join refuses `SectionLoopMixed`
-//!   (`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`);
+//!   (`work/join/role-resolution-interior-tiers-certify-only-planar-region-faces`);
 //! - a blind D pocket in a block builds from the bottom face (its floor's
 //!   chord has the D's arc between its ends) and refuses `JoinDesync`
 //!   from the top
-//!   (`work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`).
+//!   (`work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -294,7 +294,7 @@ fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
 /// over the pocket's depth `0.5`. Entering through the TOP face it
 /// refuses `JoinDesync` in the join's internal words (the ring-run
 /// winding decides `Zero`), which
-/// `work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`
+/// `work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`
 /// carries.
 #[test]
 fn a_blind_d_pocket_builds_from_below_and_refuses_from_above() {
