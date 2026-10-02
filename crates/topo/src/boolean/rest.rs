@@ -27,9 +27,10 @@
 //!
 //! 1. **Segments**: the null-pair germ records are matched into seam
 //!    segments by the SAME mutual-facing/nearest tests as the join
-//!    (`bool_join_chord` / `bool_join_facing` / `bool_join_nearest` —
-//!    reused predicate funnels, no new numeric predicate), with the
-//!    ambiguous face-pair identity dropped. Incomplete matching ⇒
+//!    (`bool_join_chord`; `bool_join_facing` on a straight germ locus,
+//!    `bool_join_arc_facing` on a conic one; `bool_join_nearest` along
+//!    the locus — reused predicate funnels, no new numeric predicate),
+//!    with the ambiguous face-pair identity dropped. Incomplete matching ⇒
 //!    not this frontier (the original join refusal stands).
 //! 2. **Lane door**: every declared face pair is verified through
 //!    [`super::oriented_plane_eq`]'s declared rung — a false
@@ -43,7 +44,9 @@
 //!    vertex sets congruent across the mate).
 //! 4. **Seam realization** (splitting machinery reused): per segment
 //!    and per solid, either the segment already IS an operand edge
-//!    (structural fan walk — reused as the seam, minted nowhere), or
+//!    (structural fan walk — reused as the seam, minted nowhere; of
+//!    parallel edges between its ends, the one bounding the faces its
+//!    end germs lie on), or
 //!    it is minted ONCE as a real chord through the standard
 //!    `mef`/`mekr` machinery in the unique face bounded by both
 //!    endpoints. No new region algebra: a segment that does not
@@ -124,6 +127,11 @@ struct Segment {
     a_v: VertexKey,
     b_u: VertexKey,
     b_v: VertexKey,
+    /// Each operand's faces the segment's two end germs lie on: the
+    /// seam edge bounds both, which tells parallel edges between one
+    /// site pair apart.
+    a_faces: [FaceKey; 2],
+    b_faces: [FaceKey; 2],
 }
 
 /// The declared-REST union lane (module docs). `red` is the finished
@@ -217,7 +225,10 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut b_fragments = Vec::new();
     let a_seam = realize_seam(
         &mut red.a,
-        &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
+        &segments
+            .iter()
+            .map(|s| (s.a_u, s.a_v, s.a_faces))
+            .collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
         tol,
@@ -227,7 +238,10 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
     let b_seam = realize_seam(
         &mut red.b,
-        &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
+        &segments
+            .iter()
+            .map(|s| (s.b_u, s.b_v, s.b_faces))
+            .collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
         tol,
@@ -425,8 +439,15 @@ fn patch_discards<T: Decide>(
 
 /// Matches the germ records into seam segments — [`super::join`]'s
 /// mutual-facing/nearest tests with the (REST-ambiguous) face-pair
-/// identity dropped. `None`: matching did not complete — not this
-/// lane's frontier.
+/// identity dropped, in two passes. The chord pass pairs every segment
+/// that turns less than a half turn: on a straight locus, and on a
+/// conic one up to that turn, both germs face along the chord and the
+/// chord grows with the arc. A segment turning a half turn or more
+/// leaves its germs perpendicular to the chord or behind it, so the
+/// germs the chord pass leaves are paired along their conic locus
+/// ([`super::join::germs_face_each_other`], nearest by
+/// [`super::join::germ_separation`]). `None`: matching did not
+/// complete — not this lane's frontier.
 fn enumerate_segments<T: Decide>(
     red: &BooleanReduction<T>,
     band: Band,
@@ -439,12 +460,12 @@ fn enumerate_segments<T: Decide>(
             Operand::B => b_by_edge.insert(r.edge, r),
         };
     }
-    // One germ entry per (pair, slot): site point + outgoing direction
+    // One germ entry per (pair, slot): site point + the germ facing
     // + the site vertex keys of both operands.
     struct Germ<T2: geom_core::Real> {
         pair: usize,
         point: geom_core::Point3<T2>,
-        dir: geom_core::Vec3<T2>,
+        germ: super::HalfGerm<T2>,
         used: bool,
     }
     let mut germs: Vec<Germ<T>> = Vec::new();
@@ -471,7 +492,7 @@ fn enumerate_segments<T: Decide>(
             germs.push(Germ {
                 pair: i,
                 point,
-                dir: g.dir,
+                germ: *g,
                 used: false,
             });
         }
@@ -484,6 +505,9 @@ fn enumerate_segments<T: Decide>(
         )
     };
     let mut segments = Vec::new();
+    // The conic frame of each germ's face pair, read only for the arc
+    // pass. A kind pair with no frame arm makes no conic claim.
+    let mut frames: Option<Vec<Option<Frame<T>>>> = None;
     loop {
         // Globally nearest mutually-facing unused pair (the join's
         // scan order and tie discipline).
@@ -496,25 +520,45 @@ fn enumerate_segments<T: Decide>(
                 if i == j || germs[j].used || germs[i].pair == germs[j].pair {
                     continue;
                 }
-                let chord = germs[j].point - germs[i].point;
+                let (gi, gj) = (&germs[i], &germs[j]);
+                let chord = gj.point - gi.point;
                 let dist = chord.norm();
                 match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                     Sign::Positive => {}
                     _ => continue,
                 }
-                // Facing margins in METRES: unit germ dir · chord =
-                // cos × separation (rim-dimensional audit: the former
-                // `/ dist` compared a bare cosine against the length
-                // band — class (c)).
-                let f1 = germs[i].dir.dot(chord);
-                let f2 = germs[j].dir.dot(-chord);
-                if decide("bool_join_facing", Margin::of(f1), band).map_err(escalate)?
-                    != Sign::Positive
-                    || decide("bool_join_facing", Margin::of(f2), band).map_err(escalate)?
-                        != Sign::Positive
-                {
-                    continue;
-                }
+                let dist = match &frames {
+                    None => {
+                        // Facing margins in METRES: unit germ dir · chord =
+                        // cos × separation (rim-dimensional audit, as the join).
+                        let f1 = gi.germ.dir.dot(chord);
+                        let f2 = gj.germ.dir.dot(-chord);
+                        if decide("bool_join_facing", Margin::of(f1), band).map_err(escalate)?
+                            != Sign::Positive
+                            || decide("bool_join_facing", Margin::of(f2), band).map_err(escalate)?
+                                != Sign::Positive
+                        {
+                            continue;
+                        }
+                        dist
+                    }
+                    Some(frames) => {
+                        let (Some(frame), Some(_)) = (frames[i], frames[j]) else {
+                            continue;
+                        };
+                        if !super::join::germs_face_each_other(
+                            Some(frame),
+                            &gi.germ,
+                            &gj.germ,
+                            gi.point,
+                            gj.point,
+                            band,
+                        )? {
+                            continue;
+                        }
+                        super::join::germ_separation(frame, &gi.germ, gi.point, gj.point)
+                    }
+                };
                 best = match best {
                     None => Some((dist, i, j)),
                     Some((bd, bi, bj)) => {
@@ -529,23 +573,63 @@ fn enumerate_segments<T: Decide>(
             }
         }
         let Some((_, i, j)) = best else {
+            if frames.is_none() && germs.iter().any(|g| !g.used) {
+                frames = Some(conic_frames(
+                    red,
+                    germs.iter().map(|g| (&g.germ, g.used)),
+                    band,
+                )?);
+                continue;
+            }
             break;
         };
         germs[i].used = true;
         germs[j].used = true;
         let (au, bu) = sites[germs[i].pair];
         let (av, bv) = sites[germs[j].pair];
+        let (gi, gj) = (germs[i].germ, germs[j].germ);
         segments.push(Segment {
             a_u: au,
             a_v: av,
             b_u: bu,
             b_v: bv,
+            a_faces: [gi.a_face, gj.a_face],
+            b_faces: [gi.b_face, gj.b_face],
         });
     }
     if germs.iter().any(|g| !g.used) {
         return Ok(None); // leftover germs: not a pure REST seam
     }
     Ok(Some(segments))
+}
+
+/// A conic germ locus's centre and axis.
+type Frame<T> = (geom_core::Point3<T>, geom_core::Vec3<T>);
+
+/// The conic frame of each unused germ's face pair, `None` for a used
+/// germ, a straight locus, or a kind pair the frame dispatch has no
+/// arm for (no conic claim either way). A section that escalates or
+/// contradicts its germ refuses as it does in the join.
+fn conic_frames<'g, T: Decide + 'g>(
+    red: &BooleanReduction<T>,
+    germs: impl Iterator<Item = (&'g super::HalfGerm<T>, bool)>,
+    band: Band,
+) -> Result<Vec<Option<Frame<T>>>, BooleanError> {
+    germs
+        .map(|(g, used)| {
+            if used {
+                return Ok(None);
+            }
+            match super::join::germ_section_frame(red, g, band) {
+                Ok(frame) => Ok(frame),
+                Err(
+                    BooleanError::GermFrameUnsupported { .. }
+                    | BooleanError::GermFrameCylinderPinch { .. },
+                ) => Ok(None),
+                Err(e) => Err(e),
+            }
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------
@@ -872,7 +956,7 @@ struct SeamSet {
 /// not this lane's frontier (pre-identification phase).
 fn realize_seam<T: Decide>(
     body: &mut Body<T>,
-    segments: &[(VertexKey, VertexKey)],
+    segments: &[(VertexKey, VertexKey, [FaceKey; 2])],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
     tol: Tol,
@@ -881,8 +965,8 @@ fn realize_seam<T: Decide>(
         set: SecondaryMap::new(),
         per_segment: Vec::with_capacity(segments.len()),
     };
-    for &(u, v) in segments {
-        let edge = match fan_edge_between(body, u, v)? {
+    for &(u, v, faces) in segments {
+        let edge = match fan_edge_between(body, u, v, faces)? {
             Some(e) => e,
             None => match mint_chord(body, u, v, rings, fragments, tol)? {
                 Some(e) => e,
@@ -896,11 +980,14 @@ fn realize_seam<T: Decide>(
 }
 
 /// The existing edge from `u` to `v`, if any (structural fan walk —
-/// zero numerics). Two parallel such edges refuse typed.
+/// zero numerics). Parallel such edges are told apart by incidence:
+/// the seam edge is the one bounding both `faces`, the faces its end
+/// germs lie on; when that does not single one out it refuses typed.
 fn fan_edge_between<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
     v: VertexKey,
+    faces: [FaceKey; 2],
 ) -> Result<Option<EdgeKey>, BooleanError> {
     let Some(anchor) = body.get_vertex(u).and_then(|vd| vd.emanating) else {
         return Ok(None); // isolated ring vertex
@@ -908,23 +995,48 @@ fn fan_edge_between<T: Decide>(
     let orbit = body
         .vertex_orbit(anchor)
         .ok_or_else(|| desync("REST lane: site vertex orbit not walkable"))?;
-    let mut found: Option<EdgeKey> = None;
+    let mut found: Vec<EdgeKey> = Vec::new();
     for he in orbit {
         if body.half_edge_end(he) == Some(v) {
             let e = body
                 .get_half_edge(he)
                 .ok_or_else(|| desync("REST lane: orbit half no longer resolves"))?
                 .edge;
-            match found {
-                None => found = Some(e),
-                Some(prev) if prev == e => {}
-                Some(_) => {
-                    return Err(unsupported(RestZipFrontier::ParallelSeamEdges));
-                }
+            if !found.contains(&e) {
+                found.push(e);
             }
         }
     }
-    Ok(found)
+    if found.len() > 1 {
+        let face_of = |he: HalfEdgeKey| -> Result<FaceKey, BooleanError> {
+            let l = body
+                .get_half_edge(he)
+                .ok_or_else(|| desync("REST lane: seam half no longer resolves"))?
+                .parent_loop;
+            Ok(body
+                .get_loop(l)
+                .ok_or_else(|| desync("REST lane: seam loop no longer resolves"))?
+                .face)
+        };
+        let bounds_both = |e: EdgeKey| -> Result<bool, BooleanError> {
+            let ed = body
+                .get_edge(e)
+                .ok_or_else(|| desync("REST lane: seam edge no longer resolves"))?;
+            let sides = [face_of(ed.he_plus)?, face_of(ed.he_minus)?];
+            Ok(faces.iter().all(|f| sides.contains(f)))
+        };
+        let mut held = Vec::with_capacity(1);
+        for e in found {
+            if bounds_both(e)? {
+                held.push(e);
+            }
+        }
+        found = held;
+        if found.len() != 1 {
+            return Err(unsupported(RestZipFrontier::ParallelSeamEdges));
+        }
+    }
+    Ok(found.first().copied())
 }
 
 /// Mints the seam chord `u → v` through the standard splitting

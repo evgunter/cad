@@ -48,3 +48,19 @@ The union still refuses `FallbackExtentUnsupported` in all three poses,
 and so does the stacked pose's subtract and intersect (the repro above,
 re-measured on the same merge). Pinned by
 `declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`.
+
+## The two-half rod stack refuses the same way
+
+Measured on the branch of
+`work/reach/stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends.md`:
+two rods of radius 1 and height 1, each wall two half-cylinders,
+stacked z 0 to 1 and 1 to 2, the upper one's seams turned by θ, every
+finding declared (the mating disc `Rest`, four wall continuations).
+The union builds at every θ; ∩, A ∖ B and B ∖ A refuse
+`FallbackExtentUnsupported` at every θ (0, 0.7, π/2, π), on A's wall
+half, with the section certificate's R-tan sentence
+(`boolean::section_cert`, `Refusal::Tangent`): the coaxial wall halves
+touch across the mating circle and no crossing event exists, the same
+shape as the rounded stack's fillet pair. The oracle once they build:
+∩ empty, each difference π. Pinned by
+`reach_aligned_half_rods::a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals`.

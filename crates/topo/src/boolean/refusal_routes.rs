@@ -1065,7 +1065,8 @@ impl NeighbourOffset {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum RestZipFrontier {
-    /// Two edges of one operand span one segment of the seam.
+    /// Two edges of one operand span one segment of the seam and both
+    /// bound the faces the segment's end germs lie on.
     ParallelSeamEdges,
     /// The Euler operator minting a seam chord across its host face
     /// refused.

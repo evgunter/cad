@@ -328,6 +328,8 @@ mod r1_probes_issue1362_donut;
 mod r2_sense_fold_probes;
 #[path = "ray_wall_margin_twins.rs"]
 mod ray_wall_margin_twins;
+#[path = "reach_aligned_half_rods.rs"]
+mod reach_aligned_half_rods;
 #[path = "reach_cone_split.rs"]
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]

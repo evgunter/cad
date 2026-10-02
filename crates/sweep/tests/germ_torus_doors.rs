@@ -741,28 +741,47 @@ fn three_face_cylinder() -> Body<f64> {
 // Door 4, the sector walk, and where the union stops.
 // -------------------------------------------------------------------
 
-/// **Past every torus door, the union stops where the cylinder-handled
-/// dumbbell stops.** The torus-waisted union used to refuse
-/// `CurvedBooleanUnsupported { kind: Torus }` at the sector walk; with
-/// the torus arm it reaches the chord join, and the chord join refuses
-/// `UnpairedLooseEnds { count: 4 }` — the answer the SAME dumbbell with
-/// a straight cylinder handle gets, under the same declarations. The
-/// declared-REST zip that takes over a refused declared union declines
-/// both at its segment enumeration, so the join's refusal surfaces
-/// verbatim for both. That stop is not a torus door
+/// **Past every torus door, the torus-waisted union stops at the join;
+/// the cylinder-handled control builds.** The torus-waisted union used
+/// to refuse `CurvedBooleanUnsupported { kind: Torus }` at the sector
+/// walk; with the torus arm it reaches the chord join, which refuses
+/// `UnpairedLooseEnds { count: 4 }` for both handles, and hands the
+/// declared union to the declared-REST zip. The zip pairs the two
+/// half-turn arcs of the joint circle along their conic locus, which a
+/// plane×cylinder germ names and a plane×torus germ does not (the
+/// frame dispatch has no torus arm), so the control builds at its
+/// closed form and the torus waist keeps the join's refusal
 /// (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
 #[test]
-fn the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control() {
-    for handle in [Handle::Torus, Handle::Cylinder] {
-        let err = t2(handle).expect_err("the dumbbell's joint does not zip yet");
-        assert!(
-            matches!(
-                err,
-                BooleanError::Join(SplitJoinError::UnpairedLooseEnds { count: 4 })
-            ),
-            "{handle:?}: {err:?}"
-        );
-    }
+fn the_torus_waisted_union_stops_at_the_join_and_the_cylinder_control_builds() {
+    let err = t2(Handle::Torus).expect_err("the torus waist's joint does not zip yet");
+    assert!(
+        matches!(
+            err,
+            BooleanError::Join(SplitJoinError::UnpairedLooseEnds { count: 4 })
+        ),
+        "torus: {err:?}"
+    );
+    // Two halves of π·0.3²·0.5 + π·1.5²·1 each, meeting on the disc.
+    let want = 2.0 * std::f64::consts::PI * (0.3 * 0.3 * 0.5 + 1.5 * 1.5);
+    let out = t2(Handle::Cylinder).expect("the cylinder control's joint zips");
+    let topo::BooleanResult::Body(bb) = out else {
+        panic!("the control is a body: {out:?}");
+    };
+    let v = topo::mass_properties(&bb.body, Tol::witness())
+        .expect("the volume integrates")
+        .volume;
+    assert!((v - want).abs() <= 1e-12, "control: {v} vs {want}");
+    assert_eq!(
+        topo::validate_geometric(&bb.body, Tol::witness()),
+        Ok(()),
+        "control: tier 3"
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        Ok(()),
+        "control: tier 3′"
+    );
 }
 
 // -------------------------------------------------------------------
@@ -1286,3 +1305,4 @@ fn subtract_and_intersect_refuse_where_union_does() {
         );
     }
 }
+

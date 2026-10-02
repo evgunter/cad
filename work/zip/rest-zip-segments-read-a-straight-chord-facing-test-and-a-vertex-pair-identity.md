@@ -35,3 +35,19 @@ weak for the geometry. The second is the same weakness that builds
 the rod's wrong body in the JOIN measurement. Its answer may come from
 JOIN's open design fork on how a section segment coinciding with an
 existing edge is identified; read that before building.
+
+## An in-place patch, measured (REACH, 2026-10-02)
+
+Branch `reach/aligned-half-rods`
+(`work/reach/stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends.md`)
+keeps the chord pass as it is and pairs the germs it leaves along
+their conic locus (`join::germs_face_each_other`, nearest by the arc,
+`join::germ_separation`); `fan_edge_between` takes the segment's end
+germ faces and keeps the one parallel edge bounding both. A germ along
+an edge names one of that edge's two flanks, so the filter never
+picks the other arc; when both germs name the shared flank it still
+refuses `ParallelSeamEdges`. Measured: the aligned half-rod stack and
+the dumbbell's cylinder control build at their closed forms; the torus
+waist does not (no plane×torus frame arm). It is a second spelling of
+the join's matching, which `docs/JOIN-1-SPEC.md` assigns to JOIN-2 to
+retire.
