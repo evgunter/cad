@@ -499,7 +499,7 @@ fn data_rungs<T: Decide>(
 }
 
 /// The face's **oriented carrier description** — the curved
-/// generalization of [`super::reduce::face_plane`], folding the face's sense into
+/// generalization of `reduce::face_plane`, folding the face's sense into
 /// the material side exactly as that door does (S10).
 ///
 /// `None` for a surface kind outside the `Rest` ladder's inventory

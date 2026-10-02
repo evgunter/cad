@@ -983,6 +983,10 @@ pub struct BooleanReduction<T: Real> {
     /// deduplicated. A vertex-on-face contact records none: the face
     /// holds no vertex there for a fragment to be told by.
     pub held: Vec<HeldEdge>,
+    /// The `Rest` declarations `(A face, B face)` the declaration door
+    /// verified one carrier with opposed senses: the REST-contact pairs
+    /// the declared-REST lane patches, read rather than re-verified.
+    pub(crate) rest_contacts: Vec<(FaceKey, FaceKey)>,
 }
 
 impl<T: Real> BooleanReduction<T> {
@@ -3004,6 +3008,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
     }
     let held = border_held(held, &covered, &null_edges, &a, &b)?;
+    let rest_contacts = decls
+        .coincident_faces
+        .iter()
+        .filter(|d| d.class == BooleanCoincidence::REST)
+        .map(|d| (d.a, d.b))
+        .filter(|pair| declared.verified.one_carrier.contains(pair))
+        .collect();
 
     a.sweep_and_close();
     b.sweep_and_close();
@@ -3021,6 +3032,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             .into_iter()
             .collect(),
         held,
+        rest_contacts,
     })
 }
 
@@ -3075,7 +3087,7 @@ fn border_held<T: Real>(
 /// Fail-loud validation of a [`BooleanDeclarations`] payload against
 /// the operands (M4 PR 5): every referenced key must resolve in its
 /// operand, and declared faces must sit on carriers in the certified
-/// inventory (plane, sphere, cylinder). A dangling declaration is a
+/// inventory (plane, sphere, cylinder, torus). A dangling declaration is a
 /// caller bug refused before any classification runs — never a
 /// silent drop (F5's no-silent-drop contract).
 /// **C4's verify-at-use, at the door**: EVERY declared pair is checked

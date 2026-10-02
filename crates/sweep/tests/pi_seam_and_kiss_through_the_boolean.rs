@@ -542,16 +542,11 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
         // Declared, the union builds: the zip matches the rim's two
         // semicircles as arcs, and the four wall faces stay unmerged
         // (a curved continuation's merge is skipped).
-        let bb = match topo::union_with(x, y, &d, Tol::witness()) {
-            Ok(BooleanResult::Body(b)) => b,
-            other => panic!("stacked, walls continued, order {order}: builds: {other:?}"),
-        };
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness())
-            .unwrap_or_else(|e| panic!("stacked, order {order}: tier 3′: {e:?}"));
-        let (v, c) = built(
+        let (v, c, k) = built(
             &format!("stacked, order {order}"),
-            Ok(BooleanResult::Body(bb)),
+            topo::union_with(x, y, &d, Tol::witness()),
         );
+        assert_eq!(k, [0; 4], "stacked, order {order}: no contact records");
         let want = PI * R * R * (H + 1.0);
         assert!(
             (v - want).abs() <= 1e-12 * want,
@@ -682,19 +677,32 @@ fn census(b: &Body<f64>) -> (usize, usize, usize, usize) {
     )
 }
 
-/// The body of a boolean that builds, at tier 3, with its volume and
-/// its census.
-fn built(
-    label: &str,
-    r: Result<BooleanResult<f64>, BooleanError>,
-) -> (f64, (usize, usize, usize, usize)) {
+/// What a boolean that builds is: its volume, its census, and the
+/// contact records it carries as `[v-v, v-f, curve, patch]` counts.
+type Built = (f64, (usize, usize, usize, usize), [usize; 4]);
+
+/// The body of a boolean that builds, at tier 3 and 3′.
+fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
     let tol = Tol::witness();
-    let b = match r {
-        Ok(BooleanResult::Body(b)) => b.body,
+    let bb = match r {
+        Ok(BooleanResult::Body(b)) => b,
         other => panic!("{label}: builds: {other:?}"),
     };
-    topo::validate_geometric(&b, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-    (topo::mass_properties(&b, tol).unwrap().volume, census(&b))
+    let b = &bb.body;
+    topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+    topo::validate_pseudomanifold(b, &bb.contacts, tol)
+        .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+    let c = &bb.contacts;
+    (
+        topo::mass_properties(b, tol).unwrap().volume,
+        census(b),
+        [
+            c.vv.len(),
+            c.a_on_b.len() + c.b_on_a.len(),
+            c.curves.len(),
+            c.patches.len(),
+        ],
+    )
 }
 
 /// **A dome sunk into the tube, undeclared**: the dome lowered by `dz`
@@ -725,11 +733,15 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
         .enumerate()
         {
             let label = format!("dz = {dz}, order {order}");
-            let (v, c) = built(&label, r);
+            let (v, c, k) = built(&label, r);
+            assert_eq!(k, [0; 4], "{label}: no contact records");
             assert!(
                 (v - want).abs() <= 1e-12 * want,
                 "{label}: the tube and the cap above it: {v} vs {want}"
             );
+            // Two valence-2 vertices stay on the tube's seam rulings at
+            // the dissolved rims; minimal is (6, 10, 7)
+            // (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
             assert_eq!(c, (6, 12, 9, 1), "{label}: F, E, V, shells");
         }
         let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), PI / 6.0);
@@ -748,6 +760,12 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
 /// the tube's wall inside that face (certificate (a)) and the tube's top
 /// disc cuts the dome. Every op builds at its closed form: the dome
 /// above the disc is a spherical cap of height `1 + √2 − 2.2`.
+///
+/// `t ∖ d` touches itself along the rim: the bowl the dome leaves in
+/// the tube meets the tube's wall along the whole rim circle. The result
+/// holds two vertices at each of the circle's vertices `(±1, 0, 2)` and
+/// records the touch as two v-v contacts, valid at tier 3′. The two unions keep valence-2 vertices on the seam rulings
+/// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
 #[test]
 fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -758,49 +776,56 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     let above = cap_volume(rho, R + rho - 2.2);
     let inside = cap_volume(rho, rho - R) - above;
     let tube = PI * R * R * 2.2;
-    for (label, r, want, census) in [
+    for (label, r, want, census, contacts) in [
         (
             "t ∪ d",
             topo::union_with(&tall, &dome, &none, tol),
             tube + above,
             (6, 12, 9, 1),
+            [0; 4],
         ),
         (
             "d ∪ t",
             topo::union_with(&dome, &tall, &none, tol),
             tube + above,
             (6, 12, 9, 1),
+            [0; 4],
         ),
         (
             "t ∖ d",
             topo::subtract_with(&tall, &dome, &none, tol),
             tube - inside,
             (7, 14, 10, 1),
+            [2, 0, 0, 0],
         ),
         (
             "d ∖ t",
             topo::subtract_with(&dome, &tall, &none, tol),
             above,
             (3, 4, 3, 1),
+            [0; 4],
         ),
         (
             "t ∩ d",
             topo::intersect_with(&tall, &dome, &none, tol),
             inside,
             (4, 6, 4, 1),
+            [0; 4],
         ),
         (
             "d ∩ t",
             topo::intersect_with(&dome, &tall, &none, tol),
             inside,
             (4, 6, 4, 1),
+            [0; 4],
         ),
     ] {
-        let (v, c) = built(label, r);
+        let (v, c, k) = built(label, r);
         assert!(
             (v - want).abs() <= 1e-12 * want,
             "{label}: the closed form: {v} vs {want}"
         );
         assert_eq!(c, census, "{label}: F, E, V, shells");
+        assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
     }
 }

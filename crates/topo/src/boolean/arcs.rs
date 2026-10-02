@@ -1,9 +1,9 @@
 //! **Circle arcs read off a vertex's orbit**, shared by the reduction's
 //! on-carrier certificates ([`super::reduce`]) and the declared-REST
 //! zip ([`super::rest`]): which arc of a body leaves a vertex along a
-//! given tangent, and how far a point misses a circle.
+//! given tangent.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
 use super::BooleanError;
 use crate::body::Body;
@@ -65,23 +65,30 @@ pub(super) fn arcs_along<T: Decide>(
         };
         let (tangent, arrival) = curve.walk_tangents(he == edge.he_plus);
         let tangent = tangent.normalize();
-        let off = match decide(
+        // Off the tangent's line rules the arc out whatever its
+        // direction; an arc decided backward is ruled out whatever its
+        // offset. Only an arc neither rules out escalates.
+        let off = decide(
             "bool_arc_along",
             Margin::levered(tangent.cross(d).norm(), radius),
             band,
-        ) {
-            Ok(s) => s,
-            Err(diag) => return Ok(Err(diag)),
-        };
-        let ahead = match decide(
+        );
+        if off == Ok(Sign::Positive) {
+            continue;
+        }
+        match decide(
             "bool_arc_ahead",
             Margin::levered(tangent.dot(d), radius),
             band,
         ) {
-            Ok(s) => s,
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Negative | Sign::Zero) => continue,
             Err(diag) => return Ok(Err(diag)),
-        };
-        if off == Sign::Zero && ahead == Sign::Positive && found.iter().all(|f| f.edge != e) {
+        }
+        if let Err(diag) = off {
+            return Ok(Err(diag));
+        }
+        if found.iter().all(|f| f.edge != e) {
             found.push(ArcStep {
                 edge: e,
                 to,
@@ -92,17 +99,56 @@ pub(super) fn arcs_along<T: Decide>(
     Ok(Ok(found))
 }
 
-/// The distance from `p` to the circle (`center`, unit `axis`,
-/// `radius`): `√(h² + (ρ − r)²)`, `h` its height over the circle's plane
-/// and `ρ` its distance from the axis.
-pub(super) fn circle_miss<T: Decide>(
-    p: Point3<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-) -> T {
-    let off = p - center;
-    let h = off.dot(axis);
-    let rho = (off - axis * h).norm();
-    (h.powi(2) + (rho - radius).powi(2)).sqrt()
+/// **What [`arcs_along`] escalates on.** An arc it rules out by one
+/// decision never escalates on the other: one decided off the tangent's
+/// line whatever its direction, one decided backward whatever its
+/// offset. The quarter sheet's bottom arc leaves `(1, 0, 0)` along `+y`.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod rows {
+    use super::arcs_along;
+    use crate::body::Body;
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+    use core::f64::consts::FRAC_PI_2;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    #[test]
+    fn an_arc_ruled_out_by_one_decision_does_not_escalate_on_the_other() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let mut y = Body::<f64>::new();
+        cyl_wall_sheet(
+            &mut y,
+            CylFrame::canonical(1.0),
+            None,
+            (0.0, FRAC_PI_2),
+            (0.0, 1.0),
+            tol,
+        );
+        let p = y
+            .vertices()
+            .find(|(_, v)| {
+                y.get_point(v.point)
+                    .is_some_and(|q| (*q - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12)
+            })
+            .map(|(k, _)| k)
+            .expect("the sheet's corner");
+        let tilt = (band.zero() + band.escalate()) / 2.0;
+        let arcs = |dir: Vec3<f64>| arcs_along(&y, p, dir, band).expect("a walkable orbit");
+        // Backward, its offset in band: decided backward.
+        assert_eq!(
+            arcs(Vec3::new(0.0, -1.0, tilt)).map(|a| a.len()),
+            Ok(0),
+            "backward"
+        );
+        // Square to it, its direction in band: decided off the line.
+        assert_eq!(
+            arcs(Vec3::new(tilt, 0.0, 1.0)).map(|a| a.len()),
+            Ok(0),
+            "square"
+        );
+        // Ahead with its offset in band: neither rules it out.
+        assert!(arcs(Vec3::new(0.0, 1.0, tilt)).is_err(), "ahead, in band");
+        assert_eq!(arcs(Vec3::unit_y()).map(|a| a.len()), Ok(1), "along it");
+    }
 }

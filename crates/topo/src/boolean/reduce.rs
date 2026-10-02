@@ -2293,15 +2293,14 @@ fn lying_on<T: Decide>(
         if all(Placement::Elsewhere) {
             return Ok(Some(CurvedEvent::None));
         }
-        // With no end on the boundary, one end in and one out would
-        // need the arc to cross a boundary the certificate has just
-        // kept off its circle: two certified answers contradicting,
-        // which keeps the door.
+        // With no end paired with a vertex of `y`, one end in and one
+        // out would need the arc to cross a boundary the certificate has
+        // just kept off its circle: only two certified answers
+        // contradicting reach it, and that keeps the door. An end paired
+        // with a vertex is outside that argument (the face-free vertex
+        // search can pair one off this face's boundary), and the record
+        // it made is its answer.
         let mixed = at_ends.is_empty() && !all(Placement::Recorded);
-        debug_assert!(
-            !mixed,
-            "an arc clear of the boundary has one end in the face and one out"
-        );
         return Ok((!mixed).then_some(CurvedEvent::Recorded));
     }
     let [(_, Some(wu)), (_, Some(wv))] = placed else {
@@ -2352,7 +2351,7 @@ fn arc_chain_reaches<T: Decide>(
             .ok_or(BooleanError::ClassificationInvariant {
                 what: "an arc on a carrier: a chain vertex has no point",
             })?;
-        let miss = super::arcs::circle_miss(p, center, axis, radius);
+        let miss = crate::splitting::containment::circle_miss(p, center, axis, radius);
         match decide("bool_arc_chain_on_circle", Margin::of(miss), band).map_err(escalated)? {
             Sign::Zero => {}
             Sign::Positive | Sign::Negative => return Ok(false),
@@ -2412,7 +2411,9 @@ fn boundary_meets_circle_only_at<T: Decide>(
         matches!(
             decide(
                 "bool_arc_boundary_off_circle",
-                Margin::of(super::arcs::circle_miss(p, center, axis, radius)),
+                Margin::of(crate::splitting::containment::circle_miss(
+                    p, center, axis, radius
+                )),
                 band
             ),
             Ok(Sign::Positive)

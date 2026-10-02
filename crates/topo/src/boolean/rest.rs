@@ -5,7 +5,7 @@
 //! whose shared geometry lies entirely on both operands' boundaries:
 //! the contact region R is a union of coincident opposite-oriented
 //! face patches — on ANY carrier the ladder certifies (plane, sphere,
-//! cylinder; the C4 `Rest` inventory) — and its boundary ∂R — the
+//! cylinder, torus; the C4 `Rest` inventory) — and its boundary ∂R — the
 //! seam — runs along operand edges or across single faces, never
 //! through material. The chord joining ([`super::join`]) cannot
 //! complete such seams: at a REST site a germ direction lies in FOUR
@@ -25,11 +25,13 @@
 //! gates, coincidence doors, sweep splitting, classification — runs
 //! unchanged first; this lane consumes its RECORDS:
 //!
-//! 1. **Lane door**: every declared face pair is verified through
-//!    [`super::oriented_plane_eq`]'s declared rung — a false
-//!    declaration refuses [`BooleanError::ContactContradicted`]
-//!    here, before matching can refuse on it, never a silent no-op.
-//!    Opposite-oriented verified pairs name the REST-contact surfaces.
+//! 1. **REST-contact surfaces**: the `Rest` pairs the declaration door
+//!    verified one carrier with opposed senses (the reduction's
+//!    `rest_contacts`) name the REST-contact surfaces. The door verified
+//!    every declaration, and refused a false one
+//!    ([`BooleanError::ContactContradicted`]), before the reduction ran,
+//!    so this lane verifies nothing again. With no such pair the lane
+//!    is not this frontier, before matching runs.
 //! 2. **Segments**: the null-pair germ records are read, the
 //!    scaffolding is undone (step 3), and the germs are matched into
 //!    seam segments: first along circle arcs both operands carry
@@ -85,7 +87,6 @@ use geom_core::{Band, Bounds, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
 use super::arcs::{ArcStep, arcs_along};
-use super::carrier_eq::carrier_pair_relation;
 use super::combine::graft_solid;
 use super::ops::{
     Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
@@ -96,11 +97,11 @@ use super::reduce::{face_oriented_source, face_plane};
 use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
+    BooleanReduction, BooleanResult, BooleanResultKind, Operand, OperandKeys,
 };
 use super::{Coincide, DeclarationRead, RestZipFrontier};
 use crate::body::Body;
-use crate::contact::{BooleanCoincidence, ContactClass};
+use crate::contact::BooleanCoincidence;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
@@ -165,9 +166,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         return Ok(None);
     }
 
-    // ---- 1. Lane door: verify every declared pair; collect the
-    // REST-contact (opposite-oriented) surface sets. ----
-    let (a_rest, b_rest) = verify_declared_pairs(a_pristine, b_pristine, decls, band)?;
+    // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
+    let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
     if a_rest.is_empty() || b_rest.is_empty() {
         return Ok(None); // no opposite-oriented contact declared
     }
@@ -644,7 +644,7 @@ fn arc_along<T: Decide>(
 }
 
 // ---------------------------------------------------------------
-// 1. The lane door.
+// 1. The REST-contact surfaces.
 // ---------------------------------------------------------------
 
 /// The per-operand verified REST-contact (opposite-oriented declared)
@@ -659,7 +659,7 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// senses too — REST contact is precisely the `SameOpposite`
 /// verdict), and the verdict through [`super::oriented_plane_eq`] at
 /// the verification arm, **1 m** — a `T::one()` literal, spelled here,
-/// in [`carrier_pair_verdict`] and in [`geom_brep::tangent_locus`],
+/// in [`super::carrier_eq::carrier_pair_verdict`] and in [`geom_brep::tangent_locus`],
 /// which must agree. The declared rung contradicts only on DEFINITE
 /// margins, so the arm only meters the angular sliver band (exact
 /// fixtures decide definitely either way).
@@ -668,7 +668,7 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// calling it at M9-1 and the flush detector followed when its scope
 /// became the `Rest` ladder's; what to do about a published door with
 /// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
-/// What it still IS is [`carrier_pair_relation`]'s planar projection,
+/// What it still IS is [`super::carrier_eq::carrier_pair_relation`]'s planar projection,
 /// and the two cannot drift: that door's `(Plane, Plane)` case
 /// delegates to
 /// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
@@ -680,7 +680,7 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 ///
 /// `None`: not a planar pair — there is no plane description to
 /// compare (the REST lane treats it as an invariant violation at its
-/// own site; [`carrier_pair_relation`] is where a caller asks the
+/// own site; [`super::carrier_eq::carrier_pair_relation`] is where a caller asks the
 /// same question of any carrier the ladder names).
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
@@ -700,106 +700,28 @@ pub fn flush_pair_relation<T: Decide>(
     Some(super::oriented_plane_eq(&pa, &pb, id, T::one(), band))
 }
 
-/// Verifies every declared face pair through the declared rung and
-/// returns the opposite-oriented (REST-contact) surface sets per
-/// operand. A definitely-distinct declared pair is the typed
-/// [`BooleanError::ContactContradicted`] — a false REST
-/// declaration refuses at the lane, never a silent no-op.
-fn verify_declared_pairs<T: Decide>(
+/// The REST-contact surface sets per operand: the surfaces of the
+/// `Rest` pairs the declaration door verified one carrier with opposed
+/// senses ([`BooleanReduction`]'s `rest_contacts`). The door refused
+/// every false declaration before the reduction ran, so this lane reads
+/// its certificates and verifies nothing again.
+fn rest_surfaces<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
-    band: Band,
+    pairs: &[(FaceKey, FaceKey)],
 ) -> Result<RestSurfaces, BooleanError> {
+    let surface = |body: &Body<T>, f: FaceKey| {
+        body.get_face(f)
+            .map(|face| face.surface)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "REST lane: a verified declared face vanished",
+            })
+    };
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
-    for &FacePairDeclaration {
-        a: fa,
-        b: fb,
-        class,
-    } in &decls.coincident_faces
-    {
-        // Only the CONFORMAL class names REST-contact surfaces; a
-        // `Tangent` pair touches along a locus and a continuation is
-        // one surface carried on, each verified at the front door, and
-        // neither licenses a patch.
-        if class != BooleanCoincidence::REST {
-            continue;
-        }
-        // The one carrier-pair door: oriented sources, sense-folded
-        // descriptions, and the verification arm all live inside it —
-        // shared with the flush detector by construction, since that
-        // detector asks THIS function in its `declared: false`
-        // posture.
-        // The generalized door: planar pairs reach exactly the numbers
-        // the plane ladder always reached (its plane arm delegates),
-        // and a curved declared pair is verified rather than being
-        // silently outside the lane.
-        let relation = carrier_pair_relation(a, fa, b, fb, true, band).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "REST lane: a declared face lost its carrier",
-            },
-        )?;
-        match relation {
-            Ok(PlaneRelation::SameOpposite) => {
-                let sa = a
-                    .get_face(fa)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "REST lane: declared A face vanished",
-                    })?
-                    .surface;
-                let sb = b
-                    .get_face(fb)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "REST lane: declared B face vanished",
-                    })?
-                    .surface;
-                a_rest.insert(sa, ());
-                b_rest.insert(sb, ());
-            }
-            // Aligned senses contradict `Rest` here as at the door.
-            Ok(PlaneRelation::SameOriented) => {
-                return Err(super::sense_contradiction(fa, fb, class, band));
-            }
-            Ok(PlaneRelation::Distinct) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "REST lane: declared rung returned Distinct instead of contradicting",
-                });
-            }
-            Err(PlaneEqError::Contradicted { fact, diag }) => {
-                // C4's verify-at-use: the refusal names the pair, the
-                // CLASS that was claimed and the margin that decided —
-                // and steers to the class that would fit when the
-                // counter-evidence is a separation (AQ6).
-                return Err(BooleanError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
-                        a: fa,
-                        b: fb,
-                        class: ContactClass::Rest,
-                    },
-                    steer: super::contact_verify::fit_steer(fact),
-                    fact: Some(fact),
-                    margin: diag,
-                });
-            }
-            Err(PlaneEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(
-                    rung,
-                    super::PlaneDoor::OnPair(super::DeclarationRead::Spent(
-                        BooleanCoincidence::REST,
-                    )),
-                    diag,
-                ));
-            }
-            Err(PlaneEqError::Undeclared { diag, relation }) => {
-                // Unreachable with declared=true; refuse loudly anyway.
-                return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
-                    pair: [(Operand::A, fa), (Operand::B, fb)],
-                    relation,
-                });
-            }
-        }
+    for &(fa, fb) in pairs {
+        a_rest.insert(surface(a, fa)?, ());
+        b_rest.insert(surface(b, fb)?, ());
     }
     Ok((a_rest, b_rest))
 }
