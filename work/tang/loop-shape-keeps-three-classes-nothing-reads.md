@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P4
 cost: E
 closed: 2026-10-02
+pr: 3784
 branch: tang/e-batch-docs-loopshape
 ---
 
@@ -30,7 +31,7 @@ re-measure (PR 3748). Each is one edit:
   ATREST-9 fixed, and the pose now builds
   (`editor-core/tests/pierce_ring_engraving.rs`).
 
-## Closed (2026-10-02)
+## Closed (2026-10-02, PR 3784)
 
 `contain::loop_shape` and `LoopShape` are gone: `contain::loop_circle`
 returns `Option<LoopCircle>`, the disc class check 9's arm 4 reads. The

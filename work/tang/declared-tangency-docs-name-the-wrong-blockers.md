@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P4
 cost: E
 closed: 2026-10-02
+pr: 3784
 branch: tang/e-batch-docs-loopshape
 ---
 
@@ -33,7 +34,7 @@ Three stale texts, found by the DEV-1 circle-arm design pair
   (`crates/topo/tests/verbs_cylsph_tangent_residuals.rs`). Rewrite it
   once the DEV-1 fork is ruled, since the ruling decides what blocks.
 
-## Closed (2026-10-02)
+## Closed (2026-10-02, PR 3784)
 
 `CoaxialEvidence`, `cs_pair_frame` and `docs/KERNEL-VERBS.md` name the
 axis-shaped identity channel (`docs/AXIS-DECLARATION-DESIGN.md`) as
