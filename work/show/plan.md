@@ -71,7 +71,7 @@ edit one scene file never run at once.
   closed form; the scene asserts the same, through its own build.
 - **Gates**: hosted CI is the record. The tour's suite and clippy run
   on the PR when the diff touches `demos/tour`; renders do not. A unit
-  that moves frames pushes a commit whose message contains `[render]`
+  that moves frames pushes a commit whose subject line contains `[render]`
   (agents cannot dispatch `render.yml` themselves: the integration
   answers 403), waits for the render run and the CI run it re-starts,
   pulls the committed cells, and LOOKS at them before the PR is merged;
