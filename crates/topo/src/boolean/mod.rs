@@ -854,18 +854,21 @@ pub enum BooleanError {
         verdict: geom_brep::recourse::Refused,
     },
     /// A pierce sector's FIRST-ORDER material verdict could not be
-    /// certified against the pierced face's curvature: the sagitta
-    /// bound at the sector's own lever arm is not definitely below the
-    /// first-order displacement, so the tangent-plane verdict may have
-    /// the material side backwards (`boolean::sectors::side_code`
-    /// carries the argument and the witness). The **definite** half of
-    /// a two-tolerance pair on `bool_pierce_sector_side_curved`; an
+    /// resolved against the pierced face's curvature: the bound leaves
+    /// the face within about `2·sqrt(band/R)` radians of tangent (`R`
+    /// the face's smallest radius of curvature), or its reach is too
+    /// short to witness its slope, so the largest separation from the
+    /// face the first-order term certifies past the sagitta does not
+    /// clear the band (`boolean::sectors::side_code` carries the
+    /// argument and the witness). The **definite** half of a
+    /// two-tolerance pair on `bool_pierce_sector_side_curved`; an
     /// in-band charge escalates as [`BooleanError::Escalated`] on the
     /// same predicate instead.
     ///
-    /// A refusal, never a guess: a first-order answer here would be a
-    /// wrong TOPOLOGY rather than a conservative one. The kernel's own
-    /// way through is the second-order sector trilean
+    /// A refusal, never a guess: the slope's sign is one the band
+    /// cannot resolve, and a side read from it would be a guess at the
+    /// topology. The side of a near-tangent bound is second order, so
+    /// the kernel's own way through is the second-order sector trilean
     /// (`geom_brep::enters_material_order2`), which the declared-
     /// `Tangent` lump already consumes and which no lane wires into
     /// this verdict yet; the user's is the decision's lever
@@ -1928,8 +1931,8 @@ impl core::fmt::Display for BooleanError {
                  side of the face the material is on: {}. {}",
                 match verdict {
                     geom_brep::recourse::Refused::Zero(_) => {
-                        "the edge leaves the face, at this tolerance, no more steeply than \
-                         the face bends away over the same length"
+                        "a direction leaving the pierce point runs too close to tangent to \
+                         the face, or along too short an edge, for this tolerance to tell"
                     }
                     geom_brep::recourse::Refused::Negative { .. } => {
                         "the face bends away over the edge's length by more than the edge \

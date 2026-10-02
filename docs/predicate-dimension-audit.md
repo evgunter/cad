@@ -430,7 +430,7 @@ which is what actually moves the number.
 | boolean/rest.rs:411/413 | bool_join_facing | unit dir · chord | m | FIXED (was bare cosine) |
 | boolean/rest.rs:421 | bool_join_nearest | a DIFFERENCE of two chord lengths | m | OK |
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified); a pair `bool_faces_parallel` reads Zero is a near-coincidence and goes to the carrier ladder with every code On (its arm-setting bound reads On or in band) | m | OK |
-| boolean/sectors.rs (`side_code`) | bool_chord_side / enters_material / bool_pierce_sector_side_curved | a LINE bound: its far vertex's signed distance from the plane through the base vertex (`sector_shape::plane_offset`); a curved bound: cos × its own extent; a bisector: cos × its sector's arm; the curvature charge first-order minus sagitta at the arm or at the reach | m | FIXED (CONTACT-9; every bound was cos × the shorter sector arm, so a long line edge read On while its far end stood hundreds of bands off) |
+| boolean/sectors.rs (`side_code`) | bool_chord_side / enters_material / bool_pierce_sector_side_curved | a LINE bound: its far vertex's signed distance from the plane through the base vertex (`sector_shape::plane_offset`); a curved bound: cos × its own extent; a bisector: cos × its sector's arm; the curvature charge: the bound's tangent RAY's least separation from the face past the sagitta, `slope·l − l²/lever` at `l = min(slope·lever/2, reach)`, where it peaks within the bound's own reach (a statement about the ray for every reach kind, not a point of a curved edge or a bisector) | m | FIXED (CONTACT-9; every bound was cos × the shorter sector arm, so a long line edge read On while its far end stood hundreds of bands off) |
 | boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
 | boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
 | boolean/solid_contain.rs (`wall_outline`) | bool_wall_iso_meridian / bool_wall_iso_rim / bool_wall_section_tilt | sin or cos of unit vectors × radius; radius and off-axis differences | m | OK |
@@ -487,6 +487,7 @@ which is what actually moves the number.
 | chord_join.rs:855 | split_arc_window (×5) | azimuth (rad) × chart radius | m | OK for cylinder; FLAG F8 for the sphere wall (arm R vs local R·cos lat) |
 | chord_join.rs:926 | split_arc_chart_orientation | cos × semi-major (= r for the plane×cyl ellipse) | m | OK |
 | chord_join.rs:1411 | split_conic_inplane_mid | plane residual at midpoint | m | OK |
+| chord_join.rs (`between_edge_is_section`, boolean planar side) | bool_between_line_on_wall | a line's midpoint offset from the wall, `geom_brep::implicit_residual` (cylinder: (ρ² − r²)/2r; sphere: (‖p − c‖² − r²)/2r), the signed distance to first order | m | OK |
 | chord_join.rs:1468 | bool_between_arc_window | (cosΔ−cos h)·r_c — quadratic in the angular deviation for narrow windows | m | FLAG F8 |
 | chord_join.rs:1490 | split_chart_azimuth_frame | radial·u_ref (m) — branch selection | m | OK (note N5) |
 | chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |

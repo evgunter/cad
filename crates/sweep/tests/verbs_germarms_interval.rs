@@ -48,11 +48,7 @@ fn pipe() -> Body<Interval> {
 /// reaches. An escalation here would mean the enclosures, not the
 /// geometry, decided the lane.
 ///
-/// The bar is short for the same reason its `f64` twin is: a pierce
-/// vertex's sector arms are the split edge's fragments, and a fragment
-/// past the wall's radius makes the sector-side curvature charge
-/// refuse (`boolean::sectors::side_code`). Every coordinate here is
-/// dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
+/// Every coordinate here is dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
 /// points and this row measures the LANE rather than the fixture.
 #[test]
 fn the_ring_lane_builds_at_the_certified_scalar() {
