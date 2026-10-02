@@ -2,10 +2,12 @@
 id: slot-id-profile-doc-says-set-program-rebinds-names
 kind: issue
 title: Six kernel sites still say SetProgram rebinds the names it moves; since #3193 it rewrites none
-status: open
+status: review
 opened: 2026-09-29
 priority: P4
 cost: E
+branch: recipe/set-program-undrawn-names
+pr: 3879
 ---
 
 ## The finding
@@ -72,3 +74,11 @@ Sites 1, 2, 4, 5 and 6 are re-wordings that follow an approved change,
 not design changes: "keeps every kept step's names and reports every
 name on a step it drops". Site 3 is either the same re-wording with a
 new reason for `true`, or `false`.
+
+## Built (2026-10-02, PR 3879)
+
+Sites 1, 2, 4, 5 and 6 are re-worded. Site 3 no longer exists: the
+gauges change (1441b5154) deleted `moves_the_mate_graph` whole, so
+there is no arm to answer. The sweep found one sibling,
+`persist/check.rs`, which said a `SetProgram`'s "provenance is
+integers"; it now says step ids.
