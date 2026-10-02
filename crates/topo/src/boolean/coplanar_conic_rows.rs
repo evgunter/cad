@@ -15,8 +15,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::{ContactAcc, SweepKnobs, SweepStrategy, settle_held, sweep_direction};
-use crate::boolean::{BooleanError, ContactRecords, DeclaredPairs, Operand, VfContact};
+use super::{ContactAcc, SweepKnobs, SweepStrategy, sweep_and_settle};
+use crate::boolean::{BooleanError, ContactRecords, DeclaredPairs, VfContact};
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
 use crate::{Body, FaceKey, VertexKey};
 use geom::Curve3;
@@ -100,27 +100,15 @@ pub(in crate::boolean) fn sweep(
     let (mut x, mut y) = (x.clone(), y.clone());
     let mut acc = ContactAcc::default();
     let declared = DeclaredPairs::default();
-    let mut held = Vec::new();
-    sweep_direction(
+    sweep_and_settle(
         &mut x,
         &mut y,
-        Operand::A,
         &declared,
         &mut acc,
         band(),
         SweepStrategy::Realized,
-        &SweepKnobs::default(),
-        None,
-        &mut held,
-        Tol::witness(),
-    )?;
-    settle_held(
-        &mut x,
-        &mut y,
-        held,
-        &declared,
-        &mut acc,
-        band(),
+        [&SweepKnobs::default(); 2],
+        [None, None],
         Tol::witness(),
     )?;
     Ok(acc.finish())

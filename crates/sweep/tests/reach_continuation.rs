@@ -615,6 +615,213 @@ fn a_declared_tangent_beside_a_fillet_builds_in_either_operand_order() {
     }
 }
 
+/// The 45° unit box of
+/// [`a_declared_tangent_beside_a_fillet_builds_in_either_operand_order`],
+/// its west wall on the south-east fillet's ruling at azimuth −45°,
+/// standing from `z0` to `z1`; and that wall and the fillet.
+fn box_beside_the_fillet(
+    p: &Body<f64>,
+    z0: f64,
+    z1: f64,
+) -> (Body<f64>, topo::FaceKey, topo::FaceKey) {
+    let s2 = core::f64::consts::FRAC_1_SQRT_2;
+    let touch = Point2::new(W - R + R * s2, R - R * s2);
+    let at = |along: f64, out: f64| {
+        Point2::new(touch.x + (along + out) * s2, touch.y + (along - out) * s2)
+    };
+    let boxed = extruded(
+        sketch_at(z0),
+        vec![ProfileLoop::polygon([
+            at(-0.5, 0.0),
+            at(-0.5, 1.0),
+            at(0.5, 1.0),
+            at(0.5, 0.0),
+        ])],
+        z1 - z0,
+        tol(),
+    );
+    let wall = boxed
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                boxed.get_face(f).and_then(|x| boxed.get_surface(x.surface)),
+                Some(geom::Surface::Plane { normal, .. })
+                    if (normal.x + s2).abs() < 1e-9 && (normal.y - s2).abs() < 1e-9
+            )
+        })
+        .expect("the box's tangent wall");
+    let fillet = p
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                p.get_face(f).and_then(|x| p.get_surface(x.surface)),
+                Some(geom::Surface::Cylinder { origin, .. }) if origin.x > W / 2.0 && origin.y < H / 2.0
+            )
+        })
+        .expect("the south-east fillet");
+    (boxed, wall, fillet)
+}
+
+/// The comb: two 2 × 3 blocks at x 0 to 2 and 8 to 10 bridged above
+/// y = 1.5, and between them a tooth whose 90° tip, rounded r = 0.5,
+/// touches y = 0 at x = 5 in the middle of its fillet. Unit thick.
+fn comb() -> Body<f64> {
+    let t = tol();
+    let r = 0.5;
+    // The tip corner sits r(√2 − 1) below y = 0, so the fillet's lowest
+    // point (azimuth −90°, mid-arc) is on it; each side rises 1.5 − tip.
+    let side = 1.5 - r * (1.0 - core::f64::consts::SQRT_2);
+    let outline: ProfileLoop<f64> = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(2.0, 0.0), t)
+        .expect("the west block's foot")
+        .line_to(Point2::new(2.0, 1.5), t)
+        .expect("its east side")
+        .line_to(Point2::new(5.0 - side, 1.5), t)
+        .expect("under the bridge")
+        .toward(1.0, -1.0, t)
+        .expect("down the tooth")
+        .fillet(r, t)
+        .expect("the tip fits")
+        .toward(1.0, 1.0, t)
+        .expect("up the tooth")
+        .to(Point2::new(5.0 + side, 1.5), t)
+        .expect("the tooth's east side")
+        .line_to(Point2::new(8.0, 1.5), t)
+        .expect("under the bridge")
+        .line_to(Point2::new(8.0, 0.0), t)
+        .expect("the east block's west side")
+        .line_to(Point2::new(10.0, 0.0), t)
+        .expect("its foot")
+        .line_to(Point2::new(10.0, 3.0), t)
+        .expect("its east side")
+        .line_to(Point2::new(0.0, 3.0), t)
+        .expect("the top")
+        .line_to(Start, t)
+        .expect("the west side")
+        .into();
+    plate(outline, 0.0)
+}
+
+/// **A covered touch no vertex splits refuses, typed, in both operand
+/// orders and every op.** The deferral widens only what the other
+/// operand's vertex puts under a touch; where nothing does, the
+/// settled pair answers the frontier it was deferred with.
+///
+/// - The short box beside the fillet (z 0.25 to 0.75, and 0.25 to 1):
+///   its wall edges graze the fillet mid-ruling, where the plate has
+///   no vertex. The wall and the fillet are declared `Tangent`.
+/// - The comb under a long box (x −1 to 11, y −1 to 0, z 0.25 to 2):
+///   the box's wall rests on the blocks' feet (`Rest`, found) and is
+///   declared `Tangent` to the tooth's fillet. The box's lower wall
+///   edge is split where it crosses the blocks' corner edges, at
+///   x = 0, 2, 8 and 10, and the touch at x = 5 is left in the middle
+///   fragment, whichever way the edge runs: settling reads every
+///   fragment, not the leading one.
+#[test]
+fn a_covered_touch_no_vertex_splits_refuses_in_both_orders() {
+    let p = plate(rounded(R), 0.0);
+    let mut poses = Vec::new();
+    for (z0, z1) in [(0.25, 0.75), (0.25, 1.0)] {
+        let (boxed, wall, fillet) = box_beside_the_fillet(&p, z0, z1);
+        poses.push((
+            format!("box z {z0} to {z1}"),
+            boxed,
+            p.clone(),
+            wall,
+            fillet,
+        ));
+    }
+    let teeth = comb();
+    let long = extruded(
+        sketch_at(0.25),
+        vec![ProfileLoop::polygon([
+            Point2::new(-1.0, -1.0),
+            Point2::new(11.0, -1.0),
+            Point2::new(11.0, 0.0),
+            Point2::new(-1.0, 0.0),
+        ])],
+        1.75,
+        tol(),
+    );
+    let wall = long
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                long.get_face(f).and_then(|x| long.get_surface(x.surface)),
+                Some(geom::Surface::Plane { normal, .. }) if normal.y > 0.5
+            )
+        })
+        .expect("the long box's north wall");
+    let tip = teeth
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| is_cylinder(&teeth, f))
+        .expect("the tooth's fillet");
+    poses.push(("comb".to_string(), long, teeth, wall, tip));
+    for (pose, a0, b0, fa, fb) in &poses {
+        for (order, a, b, x, y) in [
+            ("first is A", a0, b0, *fa, *fb),
+            ("second is A", b0, a0, *fb, *fa),
+        ] {
+            let (rest, cont) = findings(a, b);
+            let mut d = with(&rest, &cont);
+            d.coincident_faces
+                .push(FacePairDeclaration::new(x, y, topo::ContactClass::Tangent));
+            for (op, out) in [
+                ("A ∪ B", topo::union_with(a, b, &d, tol())),
+                ("A ∖ B", topo::subtract_with(a, b, &d, tol())),
+                ("A ∩ B", topo::intersect_with(a, b, &d, tol())),
+            ] {
+                assert!(
+                    matches!(out, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    "{pose}, {order}, {op}: {:?}",
+                    out.map(|_| ())
+                );
+            }
+        }
+    }
+}
+
+/// **The pairs the settle stage accepts reach the accepted-pair
+/// trace.** The sharp plate as A over the rounded one, every finding
+/// declared: in the A → B direction each of A's bottom edges is
+/// deferred against the two fillets it touches mid-span, so no fillet
+/// face is accepted there by the sweep itself; the settle stage reads
+/// the fragments B's vertices left and records each touch, and every
+/// fillet face must then be in A → B's accepted channel.
+#[test]
+fn the_settle_stage_writes_the_accepted_trace() {
+    let (a, b) = (plate(sharp(), 1.0), plate(rounded(R), 0.0));
+    let (mate, walls) = findings(&a, &b);
+    let (ab, _) = topo::sweep_traces_with_pad(
+        &a,
+        &b,
+        &with(&mate, &walls),
+        topo::SweepStrategy::Realized,
+        None,
+        None,
+        tol(),
+    )
+    .expect("the traced sweep runs");
+    let fillets: Vec<_> = b
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&f| is_cylinder(&b, f))
+        .collect();
+    assert_eq!(fillets.len(), 4, "the rounded plate's four fillets");
+    for f in fillets {
+        assert!(
+            ab.accepted.iter().any(|&(_, g)| g == f),
+            "fillet {f:?} is accepted in A → B: {:?}",
+            ab.accepted
+        );
+    }
+}
+
 /// **Every output is a legal boolean operand.** Each stack's result is
 /// unioned again, both with a plate standing clear of it and with a
 /// third plate stacked on its top (the mating plane and the new

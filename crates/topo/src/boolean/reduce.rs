@@ -46,7 +46,10 @@
 //!   (bitwise-shared) intersection point — the minted vertices are a
 //!   declared v-v contact pair by construction.
 //! - Sweep order (D9): direction A→B fully, then B→A; edges in arena
-//!   order, faces in arena snapshot order, worklist FIFO.
+//!   order, faces in arena snapshot order, worklist FIFO. Then the
+//!   settle stage ([`settle_deferred`]): the covered touches a direction
+//!   deferred are read again on the fragments both directions left,
+//!   in deferral order ([`sweep_and_settle`] runs all three).
 //!
 //! The module also hosts the three **pre-sweep gates**, which refuse an
 //! operand pair before any edge is split: the operand gate
@@ -984,7 +987,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     strategy: SweepStrategy,
     knobs: &SweepKnobs,
     mut trace: Option<&mut SweepTrace>,
-    held: &mut Vec<HeldPair>,
+    deferred: &mut Vec<DeferredTouch>,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
@@ -1050,7 +1053,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 let event = curved_face_arm(
                     x, y, x_is, edge_key, &edge, u, v, face, pu, pv, declared, contacts, band, tol,
                 )?;
-                if !matches!(event, CurvedEvent::None | CurvedEvent::Interior)
+                if !matches!(event, CurvedEvent::None | CurvedEvent::Deferred)
                     && let Some(tr) = trace.as_deref_mut()
                 {
                     tr.accepted.push((edge_key, face));
@@ -1063,8 +1066,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // found on the next pass.
                 let (t, p, at) = match event {
                     CurvedEvent::Pierce { t, p, at } => (t, p, at),
-                    CurvedEvent::Interior => {
-                        held.push(HeldPair {
+                    CurvedEvent::Deferred => {
+                        deferred.push(DeferredTouch {
                             x_is,
                             edge: edge_key,
                             end: v,
@@ -1398,10 +1401,69 @@ fn edge_ends<T: Decide>(
     }
 }
 
-/// A covered edge × curved-face pair whose touch lies inside the edge
-/// ([`CurvedEvent::Interior`]), held until both sweep directions have run.
+/// **The reduction sweep, both directions** (D9: A's edges first),
+/// then the deferred touches settled on what both directions split
+/// ([`settle_deferred`]). Every boolean driver sweeps through here.
+///
+/// `T: Decide + Bounds` is the driver seam [`sweep_direction`] carries
+/// (the face tree reads brackets): this forwards to it and adds no
+/// bracket read of its own.
+#[allow(clippy::too_many_arguments)] // the two directions' knobs and traces, side by side
+pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &mut Body<T>,
+    b: &mut Body<T>,
+    declared: &super::DeclaredPairs<T>,
+    contacts: &mut ContactAcc,
+    band: Band,
+    strategy: SweepStrategy,
+    [ab_knobs, ba_knobs]: [&SweepKnobs; 2],
+    [mut ab_trace, mut ba_trace]: [Option<&mut SweepTrace>; 2],
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let mut deferred = Vec::new();
+    sweep_direction(
+        a,
+        b,
+        Operand::A,
+        declared,
+        contacts,
+        band,
+        strategy,
+        ab_knobs,
+        ab_trace.as_deref_mut(),
+        &mut deferred,
+        tol,
+    )?;
+    sweep_direction(
+        b,
+        a,
+        Operand::B,
+        declared,
+        contacts,
+        band,
+        strategy,
+        ba_knobs,
+        ba_trace.as_deref_mut(),
+        &mut deferred,
+        tol,
+    )?;
+    settle_deferred(
+        a,
+        b,
+        deferred,
+        declared,
+        contacts,
+        band,
+        [ab_trace, ba_trace],
+        tol,
+    )
+}
+
+/// A covered line × curved-face pair whose touch lies inside the edge
+/// ([`CurvedEvent::Deferred`]), deferred until both sweep directions
+/// have run.
 #[derive(Debug)]
-pub(super) struct HeldPair {
+pub(super) struct DeferredTouch {
     /// The operand the edge belongs to.
     x_is: Operand,
     /// The edge as it was read; a split keeps this key on its leading
@@ -1416,59 +1478,68 @@ pub(super) struct HeldPair {
     refusal: BooleanError,
 }
 
-/// **Settles the held pairs on the edges' fragments**, after both sweep
-/// directions have run.
+/// **Settles the deferred touches on the edges' fragments**, after both
+/// sweep directions have run.
 ///
 /// Which operand's edges are swept first decides only which vertices
-/// exist when a pair is read, and settling the held pairs last is what
-/// makes that order immaterial to whether a covered touch is seen: a
-/// touch inside an edge of one operand very often sits at a vertex of
+/// exist when a pair is read, and settling the deferred pairs last is
+/// what makes that order immaterial to whether a covered touch is seen:
+/// a touch inside an edge of one operand very often sits at a vertex of
 /// the other (a fillet's tangent point, where its flat wall ends), and
 /// that vertex splits the edge only when the other direction reaches
-/// it.
+/// it. What settling adds is the ACCEPTANCE: the touch's records are
+/// the other direction's (its vertex on this edge), and settling is
+/// what licenses the pair once that vertex has put the touch at a
+/// fragment's end, where the deferring direction had to refuse.
 ///
-/// Each fragment, walked from the held key along `he_plus` to the
+/// Each fragment, walked from the deferred key along `he_plus` to the
 /// edge's far end, is read again by [`curved_face_arm`] against the
-/// held face. A fragment that clears or records is done; one whose
-/// touch is still inside it, or that the arm reads as a crossing,
-/// answers the pair's typed frontier. A pair nothing split reads
-/// exactly as it was held, so it answers that frontier too: the hold
-/// widens only what a vertex of the other operand puts under the
-/// touch.
+/// deferred face; a pair it accepts is written to its direction's
+/// trace, as the sweep writes one. A fragment that clears or records is
+/// done; one whose touch is still inside it, or that the arm reads as a
+/// crossing, answers the pair's typed frontier. So does a pair nothing
+/// split, read again exactly as it was deferred.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn settle_held<T: Decide>(
+pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
-    held: Vec<HeldPair>,
+    deferred: Vec<DeferredTouch>,
     declared: &super::DeclaredPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
+    mut traces: [Option<&mut SweepTrace>; 2],
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    for h in held {
-        let (x, y): (&Body<T>, &mut Body<T>) = match h.x_is {
-            Operand::A => (a, b),
-            Operand::B => (b, a),
+    for d in deferred {
+        let (x, y, trace): (&Body<T>, &mut Body<T>, _) = match d.x_is {
+            Operand::A => (&*a, &mut *b, traces[0].as_deref_mut()),
+            Operand::B => (&*b, &mut *a, traces[1].as_deref_mut()),
         };
-        let mut fragment = h.edge;
-        // A fragment per pass; the walk ends at the held edge's far end
-        // within one pass per edge of `x`.
+        let mut trace = trace;
+        let mut fragment = d.edge;
+        // A fragment per pass; the walk ends at the deferred edge's far
+        // end within one pass per edge of `x`.
         let mut reached = false;
         for _ in 0..x.edges().count() {
             let edge =
                 x.get_edge(fragment)
                     .cloned()
                     .ok_or(BooleanError::ClassificationInvariant {
-                        what: "a held edge's fragment vanished",
+                        what: "a deferred edge's fragment vanished",
                     })?;
             let ((u, pu), (v, pv)) = edge_ends(x, &edge)?;
             match curved_face_arm(
-                x, y, h.x_is, fragment, &edge, u, v, h.face, pu, pv, declared, contacts, band, tol,
+                x, y, d.x_is, fragment, &edge, u, v, d.face, pu, pv, declared, contacts, band, tol,
             )? {
-                CurvedEvent::None | CurvedEvent::Recorded => {}
-                CurvedEvent::Interior | CurvedEvent::Pierce { .. } => return Err(h.refusal),
+                CurvedEvent::None => {}
+                CurvedEvent::Recorded => {
+                    if let Some(tr) = trace.as_deref_mut() {
+                        tr.accepted.push((fragment, d.face));
+                    }
+                }
+                CurvedEvent::Deferred | CurvedEvent::Pierce { .. } => return Err(d.refusal),
             }
-            if v == h.end {
+            if v == d.end {
                 reached = true;
                 break;
             }
@@ -1478,20 +1549,20 @@ pub(super) fn settle_held<T: Decide>(
             let next = next_key.and_then(|k| Some((k, x.get_half_edge(k)?)));
             let Some((next_key, next)) = next else {
                 return Err(BooleanError::ClassificationInvariant {
-                    what: "a held edge's fragment chain is unresolvable",
+                    what: "a deferred edge's fragment chain is unresolvable",
                 });
             };
             let leads = x.get_edge(next.edge).map(|e| e.he_plus) == Some(next_key);
             if next.start != v || !leads {
                 return Err(BooleanError::ClassificationInvariant {
-                    what: "a held edge's fragments do not chain",
+                    what: "a deferred edge's fragments do not chain",
                 });
             }
             fragment = next.edge;
         }
         if !reached {
             return Err(BooleanError::ClassificationInvariant {
-                what: "a held edge's fragments do not reach its far end",
+                what: "a deferred edge's fragments do not reach its far end",
             });
         }
     }
@@ -1541,9 +1612,11 @@ pub(super) fn settle_held<T: Decide>(
 /// "tangent" verdict is a band decision and never a source, so a
 /// graze within the band keeps the frontier. The cover records
 /// endpoints only, so a covered pair whose ends are both clear of the
-/// carrier and which no enclosure or root set clears is held
-/// ([`CurvedEvent::Interior`]) and read again on the edge's fragments
-/// once both sweep directions have run ([`settle_held`]). Each
+/// carrier and which no enclosure or root set clears is deferred
+/// ([`CurvedEvent::Deferred`]) — a LINE against a wall or a sphere,
+/// whose convex residual a fragment's ends read whole — and read again
+/// on the edge's fragments
+/// once both sweep directions have run ([`settle_deferred`]). Each
 /// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
 /// ([`super::contain::curved_face_containment`] — the boundary walk,
@@ -1839,9 +1912,10 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 // point — a clear endpoint is honestly eventless);
                 // definitely inside ⇒ a crossing, never the covered
                 // posture. An interior-only touch (no endpoint on the
-                // carrier) is held for the fragments
-                // ([`CurvedEvent::Interior`]). Uncovered keeps both
-                // doors verbatim.
+                // carrier) keeps the frontier door: along a circle the
+                // residual is not convex, so a covered arc can touch twice
+                // and an endpoint reading of its fragments would not see
+                // the second touch. Uncovered keeps both doors verbatim.
                 //
                 // **An endpoint the trim places definitely OUT of THIS
                 // face is eventless HERE, not a refusal.** Reading that
@@ -1915,11 +1989,6 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                             Sign::Positive => {}
                             Sign::Negative => return Err(frontier()),
                         }
-                    }
-                    // Both ends clear and nothing certifying the interior:
-                    // the touch lies inside the edge, held for its fragments.
-                    if ends == [None, None] && !inside.clear() {
-                        return Ok(CurvedEvent::Interior);
                     }
                     return Placement::declared(ends, inside.clear()).ok_or_else(frontier);
                 }
@@ -2214,11 +2283,6 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
                     Ok(CurvedEvent::None)
                 }
-                // Covered and clear at both ends: what the roots could
-                // not settle is a touch inside the span.
-                SpanVerdict::Unsettled if covered && s1 == Sign::Positive => {
-                    Ok(CurvedEvent::Interior)
-                }
                 SpanVerdict::Constant | SpanVerdict::LiesOn | SpanVerdict::Unsettled => {
                     Err(frontier())
                 }
@@ -2332,8 +2396,11 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                         // Covered, the edge lies in one closed side of
                         // the carrier, so a root set the lane cannot
                         // certify (a tangency) is a touch inside the
-                        // span, held for the fragments.
-                        SpanVerdict::Unsettled if covered => Ok(CurvedEvent::Interior),
+                        // span. The residual along a line is convex here
+                        // (a wall or a sphere), so its zero set is one
+                        // point or one interval and a fragment's ends
+                        // see it: deferred for the fragments.
+                        SpanVerdict::Unsettled if covered => Ok(CurvedEvent::Deferred),
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
                 }
@@ -3122,13 +3189,14 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
     /// whose endpoint treatment mints its own contacts). Reported so
     /// the differential suite's accepted-pair channel still sees it.
     Recorded,
-    /// A covered pair whose incidence, if it has one, lies strictly
-    /// inside the edge: both ends are definitely off the carrier, the
-    /// cover puts the edge in one closed side of it, and the arms could
-    /// not clear it. The cover records endpoints only, so the sweep
-    /// holds the pair ([`HeldPair`]) until both directions have run and
-    /// then reads it again on the edge's fragments ([`settle_held`]).
-    Interior,
+    /// A covered LINE whose touch with a cylinder or sphere, if it has
+    /// one, lies strictly inside the edge: both ends are definitely off
+    /// the carrier, the cover puts the edge in one closed side of it,
+    /// and the roots could not settle it. The cover records endpoints
+    /// only, so the sweep defers the pair ([`DeferredTouch`]) until both
+    /// directions have run and then reads it again on the edge's
+    /// fragments ([`settle_deferred`]).
+    Deferred,
     /// A definite wall crossing at the carrier parameter `t`, whose
     /// point `p` the trim placed at `at`. The sweep splits the edge and
     /// records the contact exactly as it does for a conic × plane root.
@@ -3589,7 +3657,7 @@ mod undeclared_rule_rows {
         match Placement::undeclared_no_interior::<f64>(ends) {
             Some(CurvedEvent::Recorded) => "record",
             Some(CurvedEvent::None) => "none",
-            Some(CurvedEvent::Pierce { .. } | CurvedEvent::Interior) => {
+            Some(CurvedEvent::Pierce { .. } | CurvedEvent::Deferred) => {
                 panic!("the rule never pierces or holds")
             }
             None => "door",
@@ -3627,7 +3695,7 @@ mod undeclared_rule_rows {
             |ends: [Option<Placement>; 2], clear| match Placement::declared::<f64>(ends, clear) {
                 Some(CurvedEvent::Recorded) => "record",
                 Some(CurvedEvent::None) => "none",
-                Some(CurvedEvent::Pierce { .. } | CurvedEvent::Interior) => {
+                Some(CurvedEvent::Pierce { .. } | CurvedEvent::Deferred) => {
                     panic!("the rule never pierces or holds")
                 }
                 None => "door",
