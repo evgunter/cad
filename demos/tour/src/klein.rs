@@ -130,9 +130,11 @@
 //!    and closed either way. With the walls as `circle`s, tier 3 —
 //!    which every scene body passes — refuses `VolumeUncomputable`
 //!    with a `QuadratureBudget`: the props quadrature cannot decide the
-//!    sign of the volume on a rational swept wall (wall 5). The same
-//!    body authored with its spine centred on the origin decides it,
-//!    so the refusal depends on WHERE the body sits. With the walls as
+//!    sign of the volume on a rational swept wall (wall 5, at the
+//!    default ε and finer — the enclosure's width does not move with
+//!    ε, the 1024·ε target does). The same body authored with its
+//!    spine centred on the origin decides it, so the refusal depends
+//!    on WHERE the body sits. With the walls as
 //!    four quarter arcs each (`circle_split`, the door the C0-crease
 //!    refusal of a lofted `circle` points at), tier 3 passes and the
 //!    mesher refuses `CertificateExceeded` at the scene's δ (wall 8).
@@ -245,6 +247,8 @@ use pncad::sweep::{Revolution, RevolveAxis, revolve, sweep_body};
 use pncad::topo::{
     Body, BooleanError, BooleanOp, EdgeKey, MassPropsError, Operand, ValidationError,
 };
+
+use pncad::tolerance::DEFAULT_EPS;
 
 use crate::scalar::{Scalar, sketch_frame};
 use crate::{SceneBody, Stop, View};
@@ -945,7 +949,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // per-slab, issue 368). Swept with the annulus as `circle`s, the
     // natural spelling, it fails tier 3, which every scene body passes:
     // the props quadrature cannot decide the sign of its volume on a
-    // rational swept wall at the loop's own position.
+    // rational swept wall at the loop's own position. The refusal is
+    // the flux enclosure's width (1.04e-5 m, the same at every ε row)
+    // against a target of 1024·ε, so it stands at the default ε and
+    // finer; at a coarser row the sign decides and the wall is not
+    // there to pin.
     let one_body = one_body_loop::<S>(&m, &annulus(false, tol), tol);
     assert_eq!(
         pncad::topo::validate(&one_body),
@@ -957,28 +965,42 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         Ok(()),
         "and closed"
     );
-    crate::walls::wall(
-        "bottle",
-        5,
-        "validate the loop swept as ONE body, `circle` sections, at tier 3",
-        pncad::topo::validate_geometric(&one_body, tol),
-        |e| {
-            matches!(
-                e[..],
-                [ValidationError::VolumeUncomputable {
-                    source: MassPropsError::Face {
-                        source: PropsError::QuadratureBudget { .. },
+    let tier3 = pncad::topo::validate_geometric(&one_body, tol);
+    if tol.eps() > DEFAULT_EPS {
+        assert_eq!(
+            tier3,
+            Ok(()),
+            "at ε = {:e} the one-body loop's target is wider than its flux enclosure",
+            tol.eps()
+        );
+        println!(
+            "   wall 5 — not standing at ε = {:e}: the one-body loop passes tier 3 here",
+            tol.eps()
+        );
+    } else {
+        crate::walls::wall(
+            "bottle",
+            5,
+            "validate the loop swept as ONE body, `circle` sections, at tier 3",
+            tier3,
+            |e| {
+                matches!(
+                    e[..],
+                    [ValidationError::VolumeUncomputable {
+                        source: MassPropsError::Face {
+                            source: PropsError::QuadratureBudget { .. },
+                            ..
+                        },
                         ..
-                    },
-                    ..
-                }]
-            )
-        },
-        "tessellate the same body: a `circle` section's semicircle walls carry a C0 \
-         crease the mesher refuses (work/tess/lofted-circle-sections-are-unmeshable-\
-         and-say-so-three-steps-late). If that passes too, the scene adopts this loop; \
-         rewrite findings entry 5",
-    );
+                    }]
+                )
+            },
+            "tessellate the same body: a `circle` section's semicircle walls carry a C0 \
+             crease the mesher refuses (work/tess/lofted-circle-sections-are-unmeshable-\
+             and-say-so-three-steps-late). If that passes too, the scene adopts this loop; \
+             rewrite findings entry 5",
+        );
+    }
 
     // Wall 6 (RE-BASELINED by VERBS-RING): the one-call hollow ring —
     // what the loop would be if it closed on itself instead of

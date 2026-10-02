@@ -38,6 +38,11 @@ Measured (each at 17, 33 and 65 stations, world-axis placement and
   [0.061, 1.129] m³ against the Pappus value 0.592 m³); 17 stations
   still refuses (width 7.7e-6).
 
+The width does not move with ε: at `CAD_TOLERANCE_EPS=1e-12` the same
+face refuses with the same `width_len` (1.0381448642581538e-5) against
+a 1.024e-9 target, and at 1e-6 (target 1.024e-3) the sign decides. The
+wall is therefore pinned at the default ε and finer only.
+
 So at scale 1 and a few metres from the origin, the tier-3 sign
 check on a rational swept wall turns on WHERE the body sits. The
 `rounds: 1` payload says it stopped after one round
