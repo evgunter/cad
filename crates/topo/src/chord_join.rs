@@ -1807,7 +1807,7 @@ fn chord_spec<T: Decide>(
     band: Band,
     lane: JoinLane<'_, T>,
     face: FaceKey,
-    run: &[HalfEdgeKey],
+    run: ChordRun<'_>,
     u1: VertexKey,
     u2: VertexKey,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
@@ -1963,7 +1963,7 @@ fn chord_spec<T: Decide>(
     // co-bounds it with. A run with no charted edge leaves the face
     // without a window: refused typed, never guessed.
     let (carrier, t_start, t_end) = if conic.azimuth_monotone {
-        let Some(window) = run_azimuth_window(body, &cyl_s, face, run, band)? else {
+        let Some(window) = run_azimuth_window(body, &cyl_s, face, run.halves(), band)? else {
             return Err(SplitJoinError::SectionArcWindow {
                 face,
                 case: ArcWindowCase::NoChartedRun,
@@ -1983,7 +1983,14 @@ fn chord_spec<T: Decide>(
         };
         select_arc(face, band, &chart, &conic, window, p1, p2)?
     } else {
-        select_arc_by_run_side(body, band, face, &conic, run, p1, p2)?
+        // The run-side rule reads the run the chord CLOSES; a face
+        // window co-bounds nothing, so it hands the rule no run and the
+        // rule refuses `NoCertifiedRun`.
+        let co_bounded = match run {
+            ChordRun::CoBounded(halves) => halves,
+            ChordRun::FaceWindow(_) => &[],
+        };
+        select_arc_by_run_side(body, band, face, &conic, co_bounded, p1, p2)?
     };
     // The aux plane surface (honest u_ref: the section's major
     // direction, ⊥ normal by construction), minted once per split.
@@ -2940,6 +2947,28 @@ fn run_azimuth_images<T: Decide>(
     Ok(images)
 }
 
+/// What a curved chord's arc side is read from ([`chord_spec`]).
+#[derive(Clone, Copy)]
+enum ChordRun<'a> {
+    /// The run the chord co-bounds the divided face with (a same-loop
+    /// join): both arc rules read it.
+    CoBounded(&'a [HalfEdgeKey]),
+    /// A cross-loop join co-bounds no run, so it hands the divided
+    /// face's outer cycle ([`cross_loop_window_cycle`]): a window for the
+    /// containment rule only. The run-side rule reads the run a chord
+    /// closes, and gets none.
+    FaceWindow(&'a [HalfEdgeKey]),
+}
+
+impl<'a> ChordRun<'a> {
+    /// The halves, for the containment rule's window.
+    fn halves(self) -> &'a [HalfEdgeKey] {
+        match self {
+            Self::CoBounded(h) | Self::FaceWindow(h) => h,
+        }
+    }
+}
+
 /// The cycle a **cross-loop** chord reads its azimuth window from:
 /// `face`'s outer cycle.
 ///
@@ -3269,7 +3298,7 @@ impl ChordJoiner {
                     self.band,
                     lane.reborrow(),
                     oldf,
-                    &run_halves,
+                    ChordRun::CoBounded(&run_halves),
                     start_of(body, h1)?,
                     start_of(body, outside)?,
                 )?;
@@ -3303,7 +3332,7 @@ impl ChordJoiner {
                 self.band,
                 lane.reborrow(),
                 oldf,
-                &face_cycle,
+                ChordRun::FaceWindow(&face_cycle),
                 start_of(body, target)?,
                 start_of(body, ring)?,
             )?;
@@ -3346,21 +3375,25 @@ impl ChordJoiner {
             // spans the same interval as the first chord (the two null
             // edges are zero-length, so it is that chord reversed) and
             // takes the same run.
-            let run2: Vec<HalfEdgeKey> = if adjacent2 {
-                vec![next(body, h1)?]
+            let (run2, co_bounded): (Vec<HalfEdgeKey>, bool) = if adjacent2 {
+                (vec![next(body, h1)?], true)
             } else if prev_adjacent {
-                vec![prev(body, h1)?]
+                (vec![prev(body, h1)?], true)
             } else if l1 == l2 {
-                run_halves.clone()
+                (run_halves.clone(), true)
             } else {
-                cross_loop_window_cycle(body, owner)?
+                (cross_loop_window_cycle(body, owner)?, false)
             };
             let spec = chord_spec(
                 body,
                 self.band,
                 lane,
                 owner,
-                &run2,
+                if co_bounded {
+                    ChordRun::CoBounded(&run2)
+                } else {
+                    ChordRun::FaceWindow(&run2)
+                },
                 start_of(body, h2)?,
                 start_of(body, next(body, h1)?)?,
             )?;
@@ -4024,7 +4057,7 @@ mod tests {
             band,
             JoinLane::Split(&mut ctx),
             face,
-            &run,
+            ChordRun::CoBounded(&run),
             u1,
             u2,
         )
@@ -4141,7 +4174,16 @@ mod tests {
             origin: plane.origin,
             normal: plane.normal,
         };
-        let err = chord_spec(&mut body, band, lane, face, &run, u1, u2).unwrap_err();
+        let err = chord_spec(
+            &mut body,
+            band,
+            lane,
+            face,
+            ChordRun::CoBounded(&run),
+            u1,
+            u2,
+        )
+        .unwrap_err();
         assert!(
             matches!(err, SplitJoinError::SectionInvariant { .. }),
             "{err:?}"

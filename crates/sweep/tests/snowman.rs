@@ -610,9 +610,10 @@ fn a_spun_snowman_builds_under_every_boolean() {
 /// through a public op: a square bar poking out of a ball, its long
 /// edges straddling the sphere. They pierce, the pierce points' sector
 /// sides certify, and the op goes on to the join, where the bar's faces
-/// cut the sphere in circles tilted against its polar axis: the
-/// arc-side rule's polar gate (`SectionNotPolar`), typed, for every op.
-/// A refusal at the pierce door would mean the root lane went dark.
+/// cut the sphere in circles tilted against its polar axis. Those take
+/// the run-side arc rule, and a run end the bar's corner leaves reflex
+/// refuses there (`SectionArcSide { ReflexRunEnd }`), typed, for every
+/// op. A refusal at the pierce door would mean the root lane went dark.
 #[test]
 fn a_bar_through_a_ball_crosses_the_sphere() {
     let a = ball(R1, 0.0);
@@ -623,10 +624,13 @@ fn a_bar_through_a_ball_crosses_the_sphere() {
         assert!(
             matches!(
                 e,
-                topo::BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
+                topo::BooleanError::Join(topo::SplitJoinError::SectionArcSide {
+                    case: topo::ArcSideCase::ReflexRunEnd,
+                    ..
+                })
             ),
             "bar through a ball under {op:?}: expected to cross the sphere and stop at the \
-             polar gate, got {e:?}"
+             run-side rule's reflex run end, got {e:?}"
         );
     }
 }

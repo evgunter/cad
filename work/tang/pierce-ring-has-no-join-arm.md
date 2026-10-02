@@ -437,6 +437,7 @@ wider than the gap between them refuses `RingHomingAmbiguous`
 off-centre bars, the crenellation, the boss in four member orders, and
 the spun snowman. The parallel cylinders now reach the cylinder pair's
 join (`work/tang/cylinder-pair-germ-has-no-join-arm.md`); the bar
-through a ball reaches the polar gate (`SectionNotPolar`); the boss's
+through a ball reaches the run-side rule's reflex run end
+(`SectionArcSide { ReflexRunEnd }`); the boss's
 two plate-last orders stop at `point_in_solid`'s ringed-wall outline
 (`work/contact/point-in-solid-refuses-a-ringed-cylinder-wall.md`).
