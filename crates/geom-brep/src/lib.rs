@@ -106,11 +106,11 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
 pub use implicit::{
-    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, circle_arc_residual_range,
-    circle_residual_curvature_bound, circle_residual_extremes, circle_sphere_harmonic,
-    cone_elevation, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
-    min_radius_of_curvature,
+    ARC_RESIDUAL_SAMPLES, CircleCylinderHarmonics, CircleSphereHarmonic, circle_arc_residual_range,
+    circle_cylinder_harmonics, circle_residual_curvature_bound, circle_residual_extremes,
+    circle_sphere_harmonic, cone_elevation, curvature_lever_arm, implicit_gradient,
+    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
+    implicit_residual, min_radius_of_curvature,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CurveKind, CylinderSphereSection, EqualCylinderSection,

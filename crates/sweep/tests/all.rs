@@ -577,6 +577,8 @@ mod mate7a_torus_rest;
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "snowman.rs"]
 mod snowman;
+#[path = "tang_circle_cylinder.rs"]
+mod tang_circle_cylinder;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

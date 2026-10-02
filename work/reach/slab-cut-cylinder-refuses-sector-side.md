@@ -56,3 +56,29 @@ displacement at both the sector's arm and the reach's length. Pinned
 as `crates/sweep/tests/snowman.rs`,
 `a_bar_through_a_ball_crosses_the_sphere`, which flips when this row
 lands.
+
+## Evidence (2026-10-01, TANG's circle × cylinder cell): an ARC through a wall
+
+With the circle × cylinder root lane, a rim CIRCLE piercing a cylinder
+wall reaches this site too: it is now the first wall for the
+parallel-axes cylinder pairs that pierce below. Two unit cylinders,
+`z ∈ [0, 2]` and `z ∈ [0.5, 2.5]`, axes `d` apart: `d ∈ {0.3, 0.8, 1.2,
+1.6}` refuse `CurvedSectorSideUnsupported { Negative }` under ∪, ∩ and
+∖ (margins −1.31, −0.40, −0.55, −0.22, the same with both operands
+spun about z by 2 rad). The same door is now where a 30° rod through a
+cylinder's rim stops, and where the transversal cylinder × ball and the
+cylinder × torus of `verbs_cylsph_opening.rs` stop (which of their
+pierces raises first is not pinned). Pinned by
+`crates/sweep/tests/tang_circle_cylinder.rs`,
+`parallel_cylinders_that_pierce_stop_at_the_sector_side`, which flips
+when this row lands.
+
+What the arc adds to the diagnosis: `side_code` reads an arc bound's
+side from its departure DIRECTION levered at its extent
+(`Reach::Extent`), against the wall's sagitta. For an arc, that ignores
+the arc's own bend as well as the wall's, so the first-order model is
+wrong twice. The arc's certified roots against the pierced wall bound
+where it can next cross, so the residual at any interior point of the
+arc between the pierce and the next root has the side's sign exactly.
+That is a second-order-free reading that an arc lane could use, beside
+the `enters_material_order2` recourse this row already names.

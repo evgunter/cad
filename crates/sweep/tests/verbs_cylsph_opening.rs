@@ -141,21 +141,24 @@ fn both_poses_take_the_same_door() {
     assert_eq!(doors[0], "GermFrameUnsupported", "{doors:?}");
 }
 
-/// **The non-coaxial transversal pose still marches** — the SSI lane is
-/// untouched by this unit, and the union's door for it is still the
-/// pierce door. That is the honest statement that the exact arm did not
-/// narrow anything it was not supposed to.
+/// **The non-coaxial transversal pose still refuses in the crossing
+/// layer** — the SSI lane is untouched by this unit. The crossing that
+/// used to keep the pierce door is certified now by the circle ×
+/// cylinder root lane (`topo::boolean::circle_cylinder`), so the door
+/// is the next one in, a pierce whose sector side the wall's curvature
+/// swamps (`work/reach/slab-cut-cylinder-refuses-sector-side.md`), in
+/// both poses.
 #[test]
-fn a_transversal_pose_keeps_its_door_too() {
+fn a_transversal_pose_stops_at_the_sector_side_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
     let s = ball_at(1.5, Vec3::new(0.6, 0.0, 0.0));
     for (label, c, s) in [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
     ] {
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no crossing lane");
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("no sector-side lane");
         assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
             "{label}: {err:?}"
         );
     }
@@ -197,11 +200,13 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
 /// cylinder×torus union is no longer the gate's to refuse. The
 /// cylinder's rim circles genuinely cross the tube (the ring passes
 /// through the cylinder's end caps at `(0, 0, ±2)`), and that
-/// circle×torus crossing has a root lane (`topo::boolean::circle_torus`)
-/// — so what refuses is the OTHER direction: a circle of the torus
-/// against the cylinder's wall, a circle×cylinder pair (a degree-2
-/// trigonometric residual) with no root lane, where the circle rung
-/// takes its typed frontier — never a body.
+/// circle×torus crossing has a root lane (`topo::boolean::circle_torus`),
+/// as the OTHER direction's does — a circle of the torus against the
+/// cylinder's wall, the circle × cylinder lane
+/// (`topo::boolean::circle_cylinder`). What refuses is a pierce's
+/// sector side, which the wall's curvature swamps
+/// (`work/reach/slab-cut-cylinder-refuses-sector-side.md`) — never a
+/// body.
 ///
 /// The pair gate's own sentence is pinned on a cone, the kind it still
 /// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
@@ -227,30 +232,43 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
             .unwrap()
             .body
     };
-    let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
-        .expect_err("a torus circle crosses the cylinder wall, with no root lane");
-    // The TORUS's circle edge (operand B) against the CYLINDER's wall.
-    let BooleanError::CurvedPierceUnsupported {
-        operand: topo::Operand::B,
-        face,
-        ..
-    } = err
-    else {
-        panic!("expected the circle rung's curved-pierce frontier on B's edge, got {err:?}");
-    };
     let a = cyl(1.0, -2.0, 2.0);
+    // The refusal names no edge, so the sweep's trace says which events
+    // it took: a circle of the torus (B) on the cylinder's wall (A).
+    let (_, ba) = topo::sweep_traces(
+        &a,
+        &torus,
+        topo::SweepStrategy::Realized,
+        None,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
+    let torus_circle_on_wall = ba.accepted.iter().any(|(e, f)| {
+        let circle = torus
+            .get_edge(*e)
+            .and_then(|e| torus.get_curve_geom(e.curve))
+            .and_then(topo::CurveGeom::certified)
+            .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle { .. }));
+        let wall = matches!(
+            a.get_face(*f).and_then(|f| a.get_surface(f.surface)),
+            Some(topo::Surface::Cylinder { .. })
+        );
+        circle && wall
+    });
     assert!(
-        matches!(
-            a.get_face(face).and_then(|f| a.get_surface(f.surface)),
-            Some(geom::Surface::Cylinder { .. })
-        ),
-        "against the cylinder's wall: {err:?}"
+        torus_circle_on_wall,
+        "a torus circle meets the cylinder's wall"
+    );
+    let err = topo::union(&a, &torus, Tol::witness())
+        .expect_err("a pierce's sector side is not certified against the wall's bend");
+    assert!(
+        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+        "expected the pierce's sector-side door, got {err:?}"
     );
     let msg = format!("{err}");
     assert!(
-        msg.contains("an edge of the second operand touches or crosses a curved face")
-            && msg.contains("Recourse:"),
-        "the refusal names the crossing and ends on its recourse: {msg}"
+        msg.contains("where an edge pierces a curved face") && msg.contains("Recourse:"),
+        "the refusal names the pierce and ends on its recourse: {msg}"
     );
 }
 
