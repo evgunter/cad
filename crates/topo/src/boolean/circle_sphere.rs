@@ -557,7 +557,8 @@ mod tests {
         let v = tilted.cross(tilted_u);
         let tv = [v.x, v.y, v.z];
         type Pose = ([f64; 3], [f64; 3], [f64; 3], f64, [f64; 3], f64);
-        let poses: [(&str, Pose, fn(&SlackTerms) -> f64); 3] = [
+        type Term = fn(&SlackTerms) -> f64;
+        let poses: [(&str, Pose, Term); 3] = [
             (
                 "the angle arithmetic",
                 (

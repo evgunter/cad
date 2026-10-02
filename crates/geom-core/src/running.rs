@@ -16,6 +16,8 @@
 //! enclosure: at `Interval` the value is already an enclosure of the
 //! chain and the bound rides along as a second one.
 
+use core::ops::{Add, Mul, Sub};
+
 use crate::{Real, Vec3};
 
 /// The unit roundoff of `f64`, `u = 2⁻⁵³`: half an ulp of `1`, the
@@ -49,31 +51,19 @@ impl<T: Real> Rounded<T> {
         }
     }
 
-    /// `self + o`.
-    #[must_use]
-    pub fn add(self, o: Self) -> Self {
-        Self::charged(self.value + o.value, self.error + o.error)
-    }
-
-    /// `self − o`.
-    #[must_use]
-    pub fn sub(self, o: Self) -> Self {
-        Self::charged(self.value - o.value, self.error + o.error)
-    }
-
-    /// `self · o`.
-    #[must_use]
-    pub fn mul(self, o: Self) -> Self {
-        Self::charged(
-            self.value * o.value,
-            self.value.abs() * o.error + o.value.abs() * self.error,
-        )
-    }
-
     /// `self / d` for an EXACT divisor `d`.
     #[must_use]
     pub fn div_exact(self, d: T) -> Self {
         Self::charged(self.value / d, self.error / d.abs())
+    }
+
+    /// `self²`, as `self.value.powi(2)` (the tight square).
+    #[must_use]
+    pub fn square(self) -> Self {
+        Self::charged(
+            self.value.powi(2),
+            T::from_f64(2.0) * self.value.abs() * self.error,
+        )
     }
 
     /// `√(a² + b²)`, as `(a.powi(2) + b.powi(2)).sqrt()`. The norm is
@@ -106,6 +96,33 @@ impl<T: Real> Rounded<T> {
     }
 }
 
+impl<T: Real> Add for Rounded<T> {
+    type Output = Self;
+
+    fn add(self, o: Self) -> Self {
+        Self::charged(self.value + o.value, self.error + o.error)
+    }
+}
+
+impl<T: Real> Sub for Rounded<T> {
+    type Output = Self;
+
+    fn sub(self, o: Self) -> Self {
+        Self::charged(self.value - o.value, self.error + o.error)
+    }
+}
+
+impl<T: Real> Mul for Rounded<T> {
+    type Output = Self;
+
+    fn mul(self, o: Self) -> Self {
+        Self::charged(
+            self.value * o.value,
+            self.value.abs() * o.error + o.value.abs() * self.error,
+        )
+    }
+}
+
 /// The components of an exact vector.
 pub fn exact_vec<T: Real>(v: Vec3<T>) -> [Rounded<T>; 3] {
     [v.x, v.y, v.z].map(Rounded::exact)
@@ -113,15 +130,15 @@ pub fn exact_vec<T: Real>(v: Vec3<T>) -> [Rounded<T>; 3] {
 
 /// [`Vec3::dot`]'s order, with its running bound.
 pub fn dot<T: Real>(a: [Rounded<T>; 3], b: [Rounded<T>; 3]) -> Rounded<T> {
-    a[0].mul(b[0]).add(a[1].mul(b[1])).add(a[2].mul(b[2]))
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
 /// [`Vec3::cross`]'s order, with its running bound.
 pub fn cross<T: Real>(a: [Rounded<T>; 3], b: [Rounded<T>; 3]) -> [Rounded<T>; 3] {
     [
-        a[1].mul(b[2]).sub(a[2].mul(b[1])),
-        a[2].mul(b[0]).sub(a[0].mul(b[2])),
-        a[0].mul(b[1]).sub(a[1].mul(b[0])),
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
     ]
 }
 
@@ -133,7 +150,7 @@ pub fn unit_defect<T: Real>(v: Vec3<T>) -> Rounded<T> {
     let one = Rounded::exact(T::one());
     let [x, y, z] = exact_vec(v);
     let pivoted = |m: Rounded<T>, a: Rounded<T>, b: Rounded<T>| {
-        m.sub(one).mul(m.add(one)).add(a.mul(a).add(b.mul(b)))
+        (m - one) * (m + one) + (a.square() + b.square())
     };
     let (ax, ay, az) = (v.x.abs(), v.y.abs(), v.z.abs());
     let on_xy = Rounded::select_le_zero(ax - ay, pivoted(y, x, z), pivoted(x, y, z));

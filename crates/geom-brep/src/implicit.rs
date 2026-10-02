@@ -878,14 +878,14 @@ pub fn circle_sphere_harmonic<T: Real>(
     let two = T::from_f64(2.0);
     let [cx, cy, cz] = exact_vec(Vec3::new(center.x, center.y, center.z));
     let [sx, sy, sz] = exact_vec(Vec3::new(s_center.x, s_center.y, s_center.z));
-    let e = [cx.sub(sx), cy.sub(sy), cz.sub(sz)];
+    let e = [cx - sx, cy - sy, cz - sz];
     let (n, u) = (exact_vec(axis), exact_vec(u_ref));
     let (e_u, e_v, e_n) = (dot(e, u), dot(e, cross(n, u)), dot(e, n));
     let offset = e_u.hypot(e_v);
     let (rho, r) = (Rounded::exact(radius), Rounded::exact(s_radius));
-    let extreme = |d: Rounded<T>| d.sub(r).mul(d.add(r)).div_exact(two * s_radius);
-    let lo = extreme(offset.sub(rho).hypot(e_n));
-    let hi = extreme(offset.add(rho).hypot(e_n));
+    let extreme = |d: Rounded<T>| ((d - r) * (d + r)).div_exact(two * s_radius);
+    let lo = extreme((offset - rho).hypot(e_n));
+    let hi = extreme((offset + rho).hypot(e_n));
     // `GᵀG − I` is block diagonal, `[[a, c], [c, b]]` on `(û, n̂)` and
     // `a + b + ab − c²` on `n̂ × û`, so `‖GᵀG − I‖₂` is the larger of
     // `max(|a|, |b|) + |c|` and that middle entry's magnitude.
